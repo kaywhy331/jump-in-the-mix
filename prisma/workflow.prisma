@@ -1,0 +1,38 @@
+enum JumpActionType {
+  OPENED
+  COPIED
+  COMPOSED
+  CALLED
+  VOICEMAIL_STARTED
+}
+
+model MixStop {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  mixId           String
+  contactId       String
+  stoppedByUserId String?
+  reason          String?
+  stoppedAt       DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([workspaceId, mixId, contactId])
+  @@index([workspaceId, contactId, stoppedAt])
+  @@index([workspaceId, mixId, stoppedAt])
+}
+
+model JumpActionEvent {
+  id          String         @id @default(cuid())
+  workspaceId String
+  jumpId      String
+  actorUserId String?
+  action      JumpActionType
+  channel     Channel?
+  metadata    Json?
+  occurredAt  DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+
+  @@index([workspaceId, occurredAt])
+  @@index([jumpId, occurredAt])
+}
