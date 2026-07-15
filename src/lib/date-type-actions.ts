@@ -83,10 +83,12 @@ export async function saveActiveDateTypesAction(formData: FormData): Promise<voi
     ? await prisma.dateType.findMany({ where: { workspaceId: workspace.id, isSystem: false, id: { in: selectedIds } }, select: { id: true } })
     : [];
   if (available.length !== selectedIds.length) fail("One or more selected Jump Date Types are unavailable.");
-  await prisma.$transaction([
-    prisma.dateType.updateMany({ where: { workspaceId: workspace.id, isSystem: false }, data: { isActive: false } }),
-    ...(selectedIds.length ? [prisma.dateType.updateMany({ where: { id: { in: selectedIds }, workspaceId: workspace.id }, data: { isActive: true } })] : [])
-  ]);
+  await prisma.$transaction(async (tx) => {
+    await tx.dateType.updateMany({ where: { workspaceId: workspace.id, isSystem: false }, data: { isActive: false } });
+    if (selectedIds.length) {
+      await tx.dateType.updateMany({ where: { id: { in: selectedIds }, workspaceId: workspace.id }, data: { isActive: true } });
+    }
+  });
   await prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: {} } });
   redirect("/settings/jump-date-types?activationSaved=1");
 }
