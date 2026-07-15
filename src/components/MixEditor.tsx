@@ -93,7 +93,7 @@ export function MixEditor({
           {triggerMode !== "DATE_TRIGGERED" && <div className="field full"><p className="inline-help">The start time is recorded when the audience assignment is saved. Broadcast currently prepares user-confirmed actions; it does not automatically send them.</p></div>}
         </div>
         <div className="audience-options">
-          <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" defaultChecked={mix?.assignAllContacts} /><span><strong>All active Contacts</strong><small>Create a snapshot assignment for everyone currently active.</small></span></label>
+          <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" defaultChecked={mix?.assignAllContacts ?? true} /><span><strong>All active Contacts</strong><small>Create a snapshot assignment for everyone currently active.</small></span></label>
           {groups.length > 0 && <div><h3>Contact Groups</h3><div className="group-choice-grid">{groups.map((group) => <label className="checkbox-card" key={group.id}><input type="checkbox" name="groupIds" value={group.id} defaultChecked={mix?.groupIds?.includes(group.id)} /><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} /><span>{group.name}</span></label>)}</div></div>}
           <small className="muted-copy">Direct Contact assignments made from a Contact profile are preserved separately.</small>
         </div>
