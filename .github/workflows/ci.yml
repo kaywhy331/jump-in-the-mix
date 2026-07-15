@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_URL: http://localhost:3000
+      DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_test?schema=public
+      DATA_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+      DEMO_MODE: "false"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: jitm_test
+          POSTGRES_USER: jitm
+          POSTGRES_PASSWORD: jitm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jitm -d jitm_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run db:generate
+      - run: npm run validate:static
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build

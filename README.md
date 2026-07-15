@@ -187,3 +187,8 @@ The local Docker runtime could not be launched inside the artifact environment b
 ## Before a public launch
 
 Generate and review a committed Prisma migration, implement the production integration routes, add password recovery and email verification, enable rate limiting, automate encrypted backups, complete an accessibility/security review, and test the full stack on staging with production-like credentials.
+
+
+## Dependency lockfile
+
+This bootstrap commit intentionally installs from `package.json`. After the first successful local install, commit the generated `package-lock.json` so subsequent builds can use `npm ci` for fully reproducible dependency resolution.

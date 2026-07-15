@@ -1,0 +1,807 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum PlanTier {
+  FREE
+  PLUS
+  PRO
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  UNPAID
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum ContactSource {
+  MANUAL
+  CSV
+  GOOGLE
+  OUTLOOK
+  WEBSITE
+  WHATSAPP
+  API
+  AI
+}
+
+enum DateRecurrence {
+  NONE
+  MONTHLY
+  YEARLY
+}
+
+enum Channel {
+  SMS
+  EMAIL
+  PHONE_CALL
+  VOICEMAIL
+  WHATSAPP
+}
+
+enum MixStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum MixTriggerMode {
+  DATE_TRIGGERED
+  MANUAL_START
+  BROADCAST
+}
+
+enum AssignmentMode {
+  SNAPSHOT
+  DYNAMIC
+}
+
+enum JumpStatus {
+  PENDING
+  COPIED
+  SENT
+  DONE
+  SKIPPED
+  CANCELED
+}
+
+enum IntegrationProvider {
+  GOOGLE_CONTACTS
+  MICROSOFT_CONTACTS
+  WHATSAPP
+  STRIPE
+  WEBSITE_WEBHOOK
+}
+
+enum IntegrationStatus {
+  PENDING
+  ACTIVE
+  ERROR
+  REVOKED
+}
+
+enum DraftStatus {
+  DRAFT
+  CONFIRMED
+  PUBLISHED
+  CANCELED
+  EXPIRED
+}
+
+enum SharedMixStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  UNPUBLISHED
+}
+
+enum AuditActorType {
+  USER
+  SYSTEM
+  AI
+  WEBHOOK
+  ADMIN
+}
+
+enum WebhookProvider {
+  STRIPE
+  WHATSAPP
+  GOOGLE
+  MICROSOFT
+  WEBSITE
+}
+
+model User {
+  id              String            @id @default(cuid())
+  email           String            @unique
+  passwordHash    String
+  name            String
+  emailVerifiedAt DateTime?
+  isPlatformAdmin Boolean          @default(false)
+  sessions        Session[]
+  memberships     WorkspaceMember[]
+  ownedWorkspaces Workspace[]       @relation("WorkspaceOwner")
+  auditLogs       AuditLog[]        @relation("AuditActor")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model VerificationToken {
+  id        String   @id @default(cuid())
+  email     String
+  tokenHash String   @unique
+  purpose   String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([email, purpose])
+}
+
+model Workspace {
+  id                    String                  @id @default(cuid())
+  name                  String
+  slug                  String                  @unique
+  ownerId               String
+  planTier              PlanTier                @default(FREE)
+  subscriptionStatus    SubscriptionStatus      @default(ACTIVE)
+  stripeCustomerId      String?                 @unique
+  stripeSubscriptionId  String?                 @unique
+  currentPeriodEnd      DateTime?
+  cancelAtPeriodEnd     Boolean                 @default(false)
+  owner                 User                    @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members               WorkspaceMember[]
+  profile               WorkspaceProfile?
+  contacts              Contact[]
+  groups                Group[]
+  dateTypes             DateType[]
+  jumpDates             JumpDate[]
+  stepTemplates         StepTemplate[]
+  mixes                 Mix[]
+  mixAssignments        MixAssignment[]
+  jumps                 Jump[]
+  integrations          IntegrationConnection[]
+  externalContactLinks  ExternalContactLink[]
+  syncRuns              SyncRun[]
+  oauthStates           OAuthState[]
+  messagingIdentities   MessagingIdentity[]
+  channelLinkCodes      ChannelLinkCode[]
+  captureDrafts         CaptureDraft[]
+  aiMixDrafts           AiMixDraft[]
+  sharedMixes           SharedMix[]             @relation("SharedMixPublisher")
+  importedSharedMixes   SharedMixImport[]
+  subscriptions         Subscription[]
+  webhookEvents         WebhookEvent[]
+  idempotencyKeys       IdempotencyKey[]
+  jobs                  Job[]
+  auditLogs             AuditLog[]
+  customFieldDefinitions ContactCustomFieldDefinition[]
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model WorkspaceProfile {
+  workspaceId    String    @id
+  timezone       String    @default("America/New_York")
+  industry       String?
+  primaryGoal    String?
+  company        String?
+  website        String?
+  phone          String?
+  street         String?
+  city           String?
+  state          String?
+  postalCode     String?
+  mailingAddress String?
+  product1       String?
+  product2       String?
+  product3       String?
+  product4       String?
+  product5       String?
+  myCustom1      String?
+  myCustom2      String?
+  myCustom3      String?
+  smsSignature   String?
+  emailSignature String?
+  quietHoursStart Int      @default(1200)
+  quietHoursEnd   Int      @default(480)
+  onboardingStep Int       @default(0)
+  onboardingDone Boolean   @default(false)
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Contact {
+  id                    String                   @id @default(cuid())
+  workspaceId           String
+  firstName             String?
+  lastName              String?
+  displayName           String
+  company               String?
+  publicNotes           String?
+  source                ContactSource            @default(MANUAL)
+  referredByContactId   String?
+  archivedAt            DateTime?
+  workspace             Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  referredBy            Contact?                 @relation("ContactReferrals", fields: [referredByContactId], references: [id], onDelete: SetNull)
+  referrals             Contact[]                @relation("ContactReferrals")
+  emails                ContactEmail[]
+  phones                ContactPhone[]
+  addresses             ContactAddress[]
+  groupMemberships      ContactGroupMembership[]
+  jumpDates             JumpDate[]
+  mixAssignments        MixAssignment[]
+  jumps                 Jump[]
+  externalLinks         ExternalContactLink[]
+  customFieldValues     ContactCustomFieldValue[]
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  @@index([workspaceId, displayName])
+  @@index([workspaceId, company])
+  @@index([workspaceId, archivedAt])
+}
+
+model ContactEmail {
+  id         String   @id @default(cuid())
+  contactId  String
+  email      String
+  normalized String
+  isPrimary  Boolean  @default(false)
+  label      String?
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([normalized])
+  @@unique([contactId, normalized])
+}
+
+model ContactPhone {
+  id         String   @id @default(cuid())
+  contactId  String
+  phone      String
+  normalized String
+  isPrimary  Boolean  @default(false)
+  label      String?
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([normalized])
+  @@unique([contactId, normalized])
+}
+
+model ContactAddress {
+  id         String   @id @default(cuid())
+  contactId  String
+  label      String?
+  street1    String?
+  street2    String?
+  city       String?
+  state      String?
+  postalCode String?
+  country    String?
+  isPrimary  Boolean  @default(false)
+  contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+}
+
+model ContactCustomFieldDefinition {
+  id          String                    @id @default(cuid())
+  workspaceId String
+  name        String
+  key         String
+  workspace   Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  values      ContactCustomFieldValue[]
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  @@unique([workspaceId, key])
+}
+
+model ContactCustomFieldValue {
+  id           String                       @id @default(cuid())
+  contactId    String
+  definitionId String
+  value        String
+  contact      Contact                      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  definition   ContactCustomFieldDefinition @relation(fields: [definitionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime                     @default(now())
+  updatedAt    DateTime                     @updatedAt
+
+  @@unique([contactId, definitionId])
+}
+
+model Group {
+  id          String                   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  color       String?
+  workspace   Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  memberships ContactGroupMembership[]
+  assignments MixAssignment[]
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  @@unique([workspaceId, name])
+}
+
+model ContactGroupMembership {
+  id        String   @id @default(cuid())
+  contactId String
+  groupId   String
+  contact   Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([contactId, groupId])
+  @@index([groupId])
+}
+
+model DateType {
+  id          String     @id @default(cuid())
+  workspaceId String?
+  scopeKey    String
+  name        String
+  slug        String
+  isSystem    Boolean    @default(false)
+  isActive    Boolean    @default(true)
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  jumpDates   JumpDate[]
+  mixes       Mix[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([workspaceId, isActive])
+  @@unique([scopeKey, slug])
+}
+
+model JumpDate {
+  id          String         @id @default(cuid())
+  workspaceId String
+  contactId   String
+  dateTypeId  String
+  dateValue   DateTime?
+  month       Int?
+  day         Int?
+  timeMinutes Int?
+  recurrence  DateRecurrence @default(NONE)
+  timezone    String
+  label       String?
+  source      ContactSource  @default(MANUAL)
+  externalId  String?
+  isActive    Boolean        @default(true)
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact     Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  dateType    DateType       @relation(fields: [dateTypeId], references: [id], onDelete: Restrict)
+  jumps       Jump[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([workspaceId, dateTypeId, isActive])
+  @@index([contactId])
+}
+
+model StepTemplate {
+  id             String        @id @default(cuid())
+  workspaceId    String
+  name           String
+  channel        Channel
+  isActive       Boolean       @default(true)
+  currentVersion Int           @default(1)
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  versions       StepVersion[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([workspaceId, channel, isActive])
+}
+
+model StepVersion {
+  id            String        @id @default(cuid())
+  stepTemplateId String
+  version       Int
+  subject       String?
+  body          String?
+  script        String?
+  longSms       Boolean       @default(false)
+  includeOptOut Boolean       @default(false)
+  stepTemplate  StepTemplate  @relation(fields: [stepTemplateId], references: [id], onDelete: Cascade)
+  mixSteps      MixStep[]
+  jumps         Jump[]
+  createdAt     DateTime      @default(now())
+
+  @@unique([stepTemplateId, version])
+}
+
+model Mix {
+  id                         String          @id @default(cuid())
+  workspaceId                String
+  name                       String
+  description                String?
+  framework                  String?
+  category                   String?
+  industry                   String?
+  triggerMode                MixTriggerMode
+  dateTypeId                 String?
+  status                     MixStatus       @default(DRAFT)
+  durationDays               Int?
+  includeFutureGroupMembers  Boolean         @default(false)
+  source                     String          @default("USER")
+  workspace                  Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  dateType                   DateType?       @relation(fields: [dateTypeId], references: [id], onDelete: SetNull)
+  steps                      MixStep[]
+  assignments                MixAssignment[]
+  jumps                      Jump[]
+  createdAt                  DateTime        @default(now())
+  updatedAt                  DateTime        @updatedAt
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, dateTypeId])
+}
+
+model MixStep {
+  id            String      @id @default(cuid())
+  mixId         String
+  stepVersionId String
+  dayOffset     Int
+  sortOrder     Int
+  sendTimeMinutes Int?
+  mix           Mix         @relation(fields: [mixId], references: [id], onDelete: Cascade)
+  stepVersion   StepVersion @relation(fields: [stepVersionId], references: [id], onDelete: Restrict)
+  jumps         Jump[]
+  createdAt     DateTime    @default(now())
+
+  @@unique([mixId, sortOrder])
+  @@index([mixId, dayOffset])
+}
+
+model MixAssignment {
+  id            String         @id @default(cuid())
+  assignmentKey String         @unique
+  workspaceId   String
+  mixId         String
+  contactId   String?
+  groupId     String?
+  startDate   DateTime?
+  mode        AssignmentMode @default(SNAPSHOT)
+  isActive    Boolean        @default(true)
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  mix         Mix            @relation(fields: [mixId], references: [id], onDelete: Cascade)
+  contact     Contact?       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  group       Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([workspaceId, mixId, isActive])
+  @@index([contactId])
+  @@index([groupId])
+}
+
+model Jump {
+  id               String       @id @default(cuid())
+  workspaceId      String
+  contactId        String
+  jumpDateId       String?
+  mixId            String
+  mixStepId        String
+  stepVersionId    String
+  scheduledAt      DateTime
+  status           JumpStatus   @default(PENDING)
+  reason           String
+  templateSnapshot Json
+  renderedSnapshot Json
+  completedAt      DateTime?
+  completionMethod String?
+  uniquenessKey    String       @unique
+  workspace        Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact          Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  jumpDate         JumpDate?    @relation(fields: [jumpDateId], references: [id], onDelete: SetNull)
+  mix              Mix          @relation(fields: [mixId], references: [id], onDelete: Cascade)
+  mixStep          MixStep      @relation(fields: [mixStepId], references: [id], onDelete: Cascade)
+  stepVersion      StepVersion  @relation(fields: [stepVersionId], references: [id], onDelete: Restrict)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([workspaceId, scheduledAt, status])
+  @@index([contactId, scheduledAt])
+}
+
+model IntegrationConnection {
+  id                    String              @id @default(cuid())
+  workspaceId           String
+  provider              IntegrationProvider
+  status                IntegrationStatus   @default(PENDING)
+  externalAccountId     String?
+  scopes                String[]
+  credentialsCiphertext String?
+  syncCursor            String?
+  metadata              Json?
+  lastSyncAt            DateTime?
+  nextSyncAt            DateTime?
+  lastError             String?
+  workspace             Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  syncRuns              SyncRun[]
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@unique([workspaceId, provider])
+}
+
+model ExternalContactLink {
+  id          String              @id @default(cuid())
+  workspaceId String
+  contactId   String
+  provider    IntegrationProvider
+  externalId  String
+  etag        String?
+  deletedAt   DateTime?
+  lastSeenAt  DateTime            @default(now())
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact     Contact             @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([workspaceId, provider, externalId])
+  @@index([contactId])
+}
+
+model SyncRun {
+  id            String               @id @default(cuid())
+  workspaceId   String
+  connectionId  String
+  mode          String
+  status        String
+  startedAt     DateTime             @default(now())
+  completedAt   DateTime?
+  createdCount  Int                  @default(0)
+  updatedCount  Int                  @default(0)
+  skippedCount  Int                  @default(0)
+  errorCount    Int                  @default(0)
+  errorSummary  String?
+  workspace     Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  connection    IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, startedAt])
+}
+
+model OAuthState {
+  id          String              @id @default(cuid())
+  workspaceId String
+  provider    IntegrationProvider
+  tokenHash   String              @unique
+  returnTo    String?
+  expiresAt   DateTime
+  usedAt      DateTime?
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime            @default(now())
+
+  @@index([workspaceId, provider, expiresAt])
+}
+
+model MessagingIdentity {
+  id             String              @id @default(cuid())
+  workspaceId    String
+  provider       IntegrationProvider
+  externalUserId String
+  displayName    String?
+  verifiedAt     DateTime            @default(now())
+  workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([provider, externalUserId])
+  @@index([workspaceId])
+}
+
+model ChannelLinkCode {
+  id          String              @id @default(cuid())
+  workspaceId String
+  provider    IntegrationProvider
+  codeHash    String              @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime            @default(now())
+
+  @@index([workspaceId, provider, expiresAt])
+}
+
+model CaptureDraft {
+  id               String      @id @default(cuid())
+  workspaceId      String
+  shortCode        String      @unique
+  source           String
+  sourceExternalId String?
+  inputText        String
+  proposed         Json
+  status           DraftStatus @default(DRAFT)
+  expiresAt        DateTime
+  workspace        Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([workspaceId, status, expiresAt])
+}
+
+model AiMixDraft {
+  id               String      @id @default(cuid())
+  workspaceId      String
+  preflightPayload Json
+  generatedMix     Json
+  validation       Json
+  status           DraftStatus @default(DRAFT)
+  expiresAt        DateTime
+  workspace        Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  @@index([workspaceId, status, expiresAt])
+}
+
+model SharedMix {
+  id                String          @id @default(cuid())
+  publisherWorkspaceId String?
+  title             String
+  description       String
+  category          String
+  industry          String?
+  framework         String?
+  durationDays      Int
+  steps             Json
+  status            SharedMixStatus @default(PENDING)
+  importCount       Int             @default(0)
+  rating            Float?
+  publisherWorkspace Workspace?     @relation("SharedMixPublisher", fields: [publisherWorkspaceId], references: [id], onDelete: SetNull)
+  imports           SharedMixImport[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([status, category])
+  @@index([industry])
+}
+
+model SharedMixImport {
+  id          String    @id @default(cuid())
+  importKey   String    @unique
+  workspaceId String
+  sharedMixId String
+  mixId       String?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sharedMix   SharedMix @relation(fields: [sharedMixId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, sharedMixId])
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  workspaceId          String
+  stripeSubscriptionId String             @unique
+  stripePriceId        String
+  planTier             PlanTier
+  billingPeriod        String
+  status               SubscriptionStatus
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  workspace            Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([workspaceId, status])
+}
+
+model WebhookEvent {
+  id          String          @id @default(cuid())
+  workspaceId String?
+  provider    WebhookProvider
+  externalId  String
+  payloadHash String
+  status      String
+  error       String?
+  processedAt DateTime?
+  workspace   Workspace?      @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+
+  @@unique([provider, externalId])
+  @@index([status, createdAt])
+}
+
+model IdempotencyKey {
+  id          String    @id @default(cuid())
+  workspaceId String
+  key         String
+  response    Json?
+  expiresAt   DateTime
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, key])
+  @@index([expiresAt])
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  workspaceId String?
+  task        String
+  payload     Json
+  runAt       DateTime  @default(now())
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(8)
+  lockedAt    DateTime?
+  lockedBy    String?
+  completedAt DateTime?
+  failedAt    DateTime?
+  lastError   String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([runAt, completedAt, failedAt])
+  @@index([workspaceId, task])
+}
+
+model AuditLog {
+  id          String         @id @default(cuid())
+  workspaceId String
+  actorType   AuditActorType
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  source      String
+  beforeData  Json?
+  afterData   Json?
+  metadata    Json?
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actorUser   User?          @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime       @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([entityType, entityId])
+}

@@ -1,0 +1,58 @@
+{
+  "name": "jump-in-the-mix-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Independent, self-hosted MVP for Jump in the Mix.",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "dev:worker": "tsx src/worker/index.ts",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "worker": "tsx src/worker/index.ts",
+    "setup": "npm run db:generate && npm run db:setup",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:setup": "npm run db:push && npm run db:seed",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "validate:schema": "node scripts/validate-schema.mjs",
+    "validate:syntax": "node scripts/validate-syntax.mjs",
+    "validate:imports": "node scripts/validate-imports.mjs",
+    "validate:static": "npm run validate:schema && npm run validate:syntax && npm run validate:imports",
+    "check": "npm run db:generate && npm run validate:static && npm run typecheck && npm test && npm run build",
+    "doctor": "node scripts/doctor.mjs",
+    "quickstart": "node scripts/quickstart.mjs",
+    "quickstart:native": "node scripts/native-quickstart.mjs"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.8.0",
+    "@prisma/client": "7.8.0",
+    "bcryptjs": "3.0.3",
+    "dotenv": "17.4.2",
+    "next": "16.2.10",
+    "pg": "8.16.3",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@prisma/prisma-schema-wasm": "7.8.0-6.3c6e192761c0362d496ed980de936e2f3cebcd3a",
+    "@types/node": "24.10.1",
+    "@types/pg": "8.15.6",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "esbuild": "0.25.12",
+    "prisma": "7.8.0",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "vitest": "4.0.6"
+  },
+  "type": "module"
+}

@@ -1,0 +1,42 @@
+JUMP IN THE MIX — EASIEST LOCAL START
+======================================
+
+You need only Docker Desktop (or Docker Engine on Linux).
+You do NOT need to install Node.js, PostgreSQL, Prisma, or API keys.
+
+WINDOWS
+1. Install and open Docker Desktop.
+2. Double-click start-local.cmd.
+3. Wait for the browser to open.
+4. Click "Open the guided demo."
+
+MACOS
+1. Install and open Docker Desktop.
+2. Double-click start-local.command.
+3. The first time, you may need to right-click the file and choose Open.
+4. Wait for the browser to open.
+5. Click "Open the guided demo."
+
+LINUX
+1. Install and start Docker Engine with the Compose plugin.
+2. Open a terminal in this folder.
+3. Run: ./start-local.sh
+
+DEMO LOGIN (only if the one-click demo button is unavailable)
+Email:    demo@jumpinthemix.local
+Password: JumpInTheMix123!
+
+STOPPING PRESERVES YOUR LOCAL DATA.
+RESETTING PERMANENTLY DELETES THE LOCAL DEMO DATA.
+
+Detailed instructions: START_HERE.md
+Troubleshooting: run doctor.cmd on Windows or doctor.command on macOS.
+
+AFTER CHANGING SOURCE CODE
+Windows: double-click rebuild-local.cmd
+macOS:   double-click rebuild-local.command
+Linux:   run ./start-local.sh --rebuild
+
+WINDOWS NOTE
+------------
+The launcher now opens Docker Desktop automatically. If Windows reports a dockerDesktopLinuxEngine error, open WINDOWS_DOCKER_FIX.md.

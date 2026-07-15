@@ -1,0 +1,11 @@
+node_modules
+.next
+src/generated/prisma
+.git
+.env
+.env.local
+coverage
+*.log
+*.tsbuildinfo
+*.zip
+docs

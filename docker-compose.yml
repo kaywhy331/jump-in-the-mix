@@ -1,0 +1,108 @@
+name: jump-in-the-mix
+
+x-app-environment: &app_environment
+  NODE_ENV: development
+  APP_URL: http://localhost:${APP_PORT:-3000}
+  AUTH_COOKIE_NAME: jitm_session
+  AUTH_SESSION_DAYS: 30
+  DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY}
+  PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
+  DATABASE_URL: postgresql://jitm:${POSTGRES_PASSWORD:-jitm}@postgres:5432/jitm?schema=public
+  DEMO_MODE: ${DEMO_MODE:-true}
+  DEMO_USER_EMAIL: ${DEMO_USER_EMAIL:-demo@jumpinthemix.local}
+  DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-JumpInTheMix123!}
+  RESET_DEMO_DATA: ${RESET_DEMO_DATA:-false}
+  AI_PROVIDER: ${AI_PROVIDER:-openai}
+  AI_API_KEY: ${AI_API_KEY:-}
+  AI_MODEL: ${AI_MODEL:-gpt-5-mini}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  STRIPE_PLUS_MONTHLY_PRICE_ID: ${STRIPE_PLUS_MONTHLY_PRICE_ID:-}
+  STRIPE_PLUS_ANNUAL_PRICE_ID: ${STRIPE_PLUS_ANNUAL_PRICE_ID:-}
+  STRIPE_PRO_MONTHLY_PRICE_ID: ${STRIPE_PRO_MONTHLY_PRICE_ID:-}
+  STRIPE_PRO_ANNUAL_PRICE_ID: ${STRIPE_PRO_ANNUAL_PRICE_ID:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3000/api/integrations/google/callback}
+  MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
+  MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
+  MICROSOFT_REDIRECT_URI: ${MICROSOFT_REDIRECT_URI:-http://localhost:3000/api/integrations/microsoft/callback}
+  META_APP_SECRET: ${META_APP_SECRET:-}
+  META_GRAPH_API_VERSION: ${META_GRAPH_API_VERSION:-v25.0}
+  WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+  WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+  WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-local-whatsapp-verify-token}
+  WHATSAPP_PUBLIC_NUMBER: ${WHATSAPP_PUBLIC_NUMBER:-}
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  EMAIL_FROM: ${EMAIL_FROM:-Jump in the Mix <hello@localhost>}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: jitm
+      POSTGRES_USER: jitm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jitm}
+    volumes:
+      - jitm_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jitm -d jitm"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  setup:
+    image: jump-in-the-mix-tools:local
+    build:
+      context: .
+      target: tools
+    environment: *app_environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    image: jump-in-the-mix-web:local
+    build:
+      context: .
+      target: development
+    environment: *app_environment
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health/ready || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+    restart: unless-stopped
+    init: true
+
+  worker:
+    image: jump-in-the-mix-worker:local
+    build:
+      context: .
+      target: worker
+    environment: *app_environment
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    init: true
+
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: ["mail"]
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    restart: unless-stopped
+
+volumes:
+  jitm_postgres:
