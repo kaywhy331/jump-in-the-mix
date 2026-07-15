@@ -26,20 +26,19 @@ type SearchParams = {
 export default async function JumpDateTypesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
   const q = params.q?.trim() ?? "";
-  const [customTypes, systemTypes] = await Promise.all([
+  const [allCustomTypes, systemTypes] = await Promise.all([
     prisma.dateType.findMany({
-      where: {
-        workspaceId: workspace.id,
-        isSystem: false,
-        ...(q ? { name: { contains: q, mode: "insensitive" } } : {})
-      },
+      where: { workspaceId: workspace.id, isSystem: false },
       include: { _count: { select: { jumpDates: true, mixes: true } } },
       orderBy: [{ isActive: "desc" }, { name: "asc" }]
     }),
     prisma.dateType.findMany({ where: { workspaceId: null, isSystem: true, isActive: true }, orderBy: { name: "asc" } })
   ]);
+  const normalizedQuery = q.toLowerCase();
+  const customTypes = normalizedQuery ? allCustomTypes.filter((item) => item.name.toLowerCase().includes(normalizedQuery)) : allCustomTypes;
+  const hiddenActiveTypes = normalizedQuery ? allCustomTypes.filter((item) => item.isActive && !item.name.toLowerCase().includes(normalizedQuery)) : [];
   const limit = PLAN_LIMITS[workspace.planTier].customDateTypes;
-  const activeCount = customTypes.filter((item) => item.isActive).length;
+  const activeCount = allCustomTypes.filter((item) => item.isActive).length;
 
   return (
     <div className="page">
@@ -63,7 +62,7 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
       <section className="card">
         <div className="card-header"><div><h2>Manage custom types</h2><p>Choose which remain active after a plan change. Inactive types and their data are preserved.</p></div></div>
         <form className="filter-bar" action="/settings/jump-date-types" method="get"><input name="q" defaultValue={q} placeholder="Search custom types" aria-label="Search custom Jump Date Types" /><button className="button" type="submit">Search</button>{q && <Link className="button" href="/settings/jump-date-types">Clear</Link>}</form>
-        <form id="date-type-activation-form" action={saveActiveDateTypesAction} />
+        <form id="date-type-activation-form" action={saveActiveDateTypesAction}>{hiddenActiveTypes.map((item) => <input type="hidden" name="activeDateTypeIds" value={item.id} key={item.id} />)}</form>
         {customTypes.length ? <div className="date-type-list">{customTypes.map((dateType) => (
           <article className={dateType.isActive ? "date-type-row" : "date-type-row inactive"} key={dateType.id}>
             <label className="date-type-active-choice"><input form="date-type-activation-form" type="checkbox" name="activeDateTypeIds" value={dateType.id} defaultChecked={dateType.isActive} /><span>{dateType.isActive ? "Active" : "Inactive"}</span></label>
