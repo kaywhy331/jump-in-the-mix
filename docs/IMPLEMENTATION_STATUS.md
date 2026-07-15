@@ -43,11 +43,21 @@ The `agent/prd-core-foundation` change set now includes:
 - Jump Date removal and Mix-assignment removal with reconciliation.
 - Contact-input unit coverage for normalization, deduplication, addresses, and primary selections.
 
+### Jump Date Types
+
+- Tenant-owned custom Jump Date Types without per-user duplication of global system records.
+- Create, search, rename, safely delete, activate, and deactivate custom types.
+- Deletion protection while a type is used by Jump Dates or active Mixes.
+- Free/Plus/Pro active-type limits.
+- Downgrade-safe active selection that preserves inactive overage records.
+- Custom types shown before global system types in Contact and Mix flows.
+- Contextual management from the Mix editor and Settings hub.
+
 ### Reusable Jumps
 
 - Searchable reusable Jumps manager.
 - SMS, email, phone-call, voicemail-script, and WhatsApp content.
-- Channel-specific validation.
+- Channel-specific validation and Pro enforcement for Ringless Voicemail content.
 - Click-to-insert Contact and My Info placeholders.
 - Phone-call-only Private Notes placeholders.
 - Immutable content versions.
@@ -75,7 +85,6 @@ The `agent/prd-core-foundation` change set now includes:
 - Cross-workspace authorization test suite for every read and mutation.
 - Contact custom-field definition and value management UI.
 - Bulk Contact selection, Group assignment, Apply Jump, CSV export, and archive actions.
-- Custom Jump Date Type management and downgrade activation selection.
 - Fixed-date broadcast scheduling and a clearer distinction between broadcast snapshots and manual starts.
 - MixStop and communication action-event models/UI.
 - Email verification, password recovery, rate limiting, CSRF/origin review, and session management.
