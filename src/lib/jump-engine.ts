@@ -1,5 +1,6 @@
-import type { Channel, JumpStatus, Prisma, WorkspaceProfile } from "@/generated/prisma/client";
+import type { JumpStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { renderJumpSnapshot } from "@/lib/jump-render";
 import {
   addLogicalDays,
   addUtcDays,
@@ -57,97 +58,13 @@ function endOfUtcDay(value: Date): Date {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate(), 23, 59, 59, 999));
 }
 
-function render(template: string | null | undefined, values: Record<string, string>): string | null {
-  if (!template) return null;
-  return template.replace(/{{[^}]+}}/g, (token) => values[token] ?? "");
-}
-
-function ownerNameParts(name: string): { firstName: string; lastName: string } {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  return { firstName: parts[0] ?? "", lastName: parts.slice(1).join(" ") };
-}
-
-function contactValues(
-  contact: {
-    firstName: string | null;
-    lastName: string | null;
-    company: string | null;
-    publicNotes: string | null;
-    privateNotes: string | null;
-    emails: { email: string; isPrimary: boolean }[];
-    phones: { phone: string; isPrimary: boolean }[];
-    addresses: { street1: string | null; city: string | null; state: string | null; postalCode: string | null; isPrimary: boolean }[];
-  },
-  profile: WorkspaceProfile | null,
-  owner: { name: string; email: string },
-  channel: Channel
-): Record<string, string> {
-  const email = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email ?? "";
-  const phone = contact.phones.find((item) => item.isPrimary)?.phone ?? contact.phones[0]?.phone ?? "";
-  const address = contact.addresses.find((item) => item.isPrimary) ?? contact.addresses[0];
-  const formattedAddress = address ? [address.street1, address.city, address.state, address.postalCode].filter(Boolean).join(", ") : "";
-  const ownerName = ownerNameParts(owner.name);
-  const privateNotes = channel === "PHONE_CALL" ? contact.privateNotes ?? "" : "";
-
-  return {
-    "{{First Name}}": contact.firstName ?? "there",
-    "{{Last Name}}": contact.lastName ?? "",
-    "{{Company}}": contact.company ?? "",
-    "{{Email}}": email,
-    "{{Phone}}": phone,
-    "{{Address}}": formattedAddress,
-    "{{Public Notes}}": contact.publicNotes ?? "",
-    "{{Private Notes}}": privateNotes,
-    "{{contact.first_name}}": contact.firstName ?? "there",
-    "{{contact.last_name}}": contact.lastName ?? "",
-    "{{contact.company}}": contact.company ?? "",
-    "{{contact.email}}": email,
-    "{{contact.phone}}": phone,
-    "{{contact.address}}": formattedAddress,
-    "{{contact.public_notes}}": contact.publicNotes ?? "",
-    "{{contact.private_notes}}": privateNotes,
-    "{{My First Name}}": ownerName.firstName,
-    "{{My Last Name}}": ownerName.lastName,
-    "{{My Email}}": owner.email,
-    "{{My Phone}}": profile?.phone ?? "",
-    "{{My Company}}": profile?.company ?? "",
-    "{{My Website}}": profile?.website ?? "",
-    "{{My Address}}": profile?.mailingAddress ?? [profile?.street, profile?.city, profile?.state, profile?.postalCode].filter(Boolean).join(", "),
-    "{{My Product 1}}": profile?.product1 ?? "",
-    "{{My Product 2}}": profile?.product2 ?? "",
-    "{{My Product 3}}": profile?.product3 ?? "",
-    "{{My Product 4}}": profile?.product4 ?? "",
-    "{{My Product 5}}": profile?.product5 ?? "",
-    "{{My Industry}}": profile?.industry ?? "",
-    "{{My Custom 1}}": profile?.myCustom1 ?? "",
-    "{{My Custom 2}}": profile?.myCustom2 ?? "",
-    "{{My Custom 3}}": profile?.myCustom3 ?? "",
-    "{{SMS Signature}}": profile?.smsSignature ?? "",
-    "{{Email Signature}}": profile?.emailSignature ?? "",
-    "{{my.first_name}}": ownerName.firstName,
-    "{{my.last_name}}": ownerName.lastName,
-    "{{my.email}}": owner.email,
-    "{{my.phone}}": profile?.phone ?? "",
-    "{{my.company}}": profile?.company ?? "",
-    "{{my.website}}": profile?.website ?? "",
-    "{{my.address}}": profile?.mailingAddress ?? [profile?.street, profile?.city, profile?.state, profile?.postalCode].filter(Boolean).join(", "),
-    "{{my.product_1}}": profile?.product1 ?? "",
-    "{{my.product_2}}": profile?.product2 ?? "",
-    "{{my.product_3}}": profile?.product3 ?? "",
-    "{{my.product_4}}": profile?.product4 ?? "",
-    "{{my.product_5}}": profile?.product5 ?? "",
-    "{{my.industry}}": profile?.industry ?? "",
-    "{{my.custom_1}}": profile?.myCustom1 ?? "",
-    "{{my.custom_2}}": profile?.myCustom2 ?? "",
-    "{{my.custom_3}}": profile?.myCustom3 ?? "",
-    "{{my.sms_signature}}": profile?.smsSignature ?? "",
-    "{{my.email_signature}}": profile?.emailSignature ?? ""
-  };
-}
-
 function triggerForManualAssignment(date: Date): { logicalDate: LogicalDate; occurrenceKey: string } {
   const logicalDate = logicalDateFromDate(date);
   return { logicalDate, occurrenceKey: `manual:${logicalDateKey(logicalDate)}` };
+}
+
+function stopKey(mixId: string, contactId: string): string {
+  return `${mixId}:${contactId}`;
 }
 
 export async function reconcileJumps(filters: ReconciliationFilters = {}): Promise<JumpReconciliationResult> {
@@ -157,54 +74,66 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const occurrenceStart = addUtcDays(horizonStart, -60);
   const occurrenceEnd = addUtcDays(horizonEnd, 60);
 
-  const assignments = await prisma.mixAssignment.findMany({
-    where: {
-      isActive: true,
-      ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}),
-      ...(filters.mixId ? { mixId: filters.mixId } : {}),
-      ...(filters.contactId ? { OR: [{ contactId: filters.contactId }, { group: { memberships: { some: { contactId: filters.contactId } } } }] } : {}),
-      mix: { status: "ACTIVE" }
-    },
-    include: {
-      workspace: { include: { profile: true, owner: true } },
-      contact: {
-        include: {
-          emails: true,
-          phones: true,
-          addresses: true,
-          jumpDates: { include: { dateType: true }, where: { isActive: true } }
-        }
+  const [assignments, stops] = await Promise.all([
+    prisma.mixAssignment.findMany({
+      where: {
+        isActive: true,
+        ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}),
+        ...(filters.mixId ? { mixId: filters.mixId } : {}),
+        ...(filters.contactId ? { OR: [{ contactId: filters.contactId }, { group: { memberships: { some: { contactId: filters.contactId } } } }] } : {}),
+        mix: { status: "ACTIVE" }
       },
-      group: {
-        include: {
-          memberships: {
-            include: {
-              contact: {
-                include: {
-                  emails: true,
-                  phones: true,
-                  addresses: true,
-                  jumpDates: { include: { dateType: true }, where: { isActive: true } }
+      include: {
+        workspace: { include: { profile: true, owner: true } },
+        contact: {
+          include: {
+            emails: true,
+            phones: true,
+            addresses: true,
+            jumpDates: { include: { dateType: true }, where: { isActive: true } }
+          }
+        },
+        group: {
+          include: {
+            memberships: {
+              include: {
+                contact: {
+                  include: {
+                    emails: true,
+                    phones: true,
+                    addresses: true,
+                    jumpDates: { include: { dateType: true }, where: { isActive: true } }
+                  }
                 }
               }
             }
           }
-        }
-      },
-      mix: {
-        include: {
-          steps: {
-            where: { isActive: true },
-            include: { stepVersion: { include: { stepTemplate: true } } },
-            orderBy: { sortOrder: "asc" }
-          },
-          dateType: true
+        },
+        mix: {
+          include: {
+            steps: {
+              where: { isActive: true },
+              include: { stepVersion: { include: { stepTemplate: true } } },
+              orderBy: { sortOrder: "asc" }
+            },
+            dateType: true
+          }
         }
       }
-    }
-  });
+    }),
+    prisma.mixStop.findMany({
+      where: {
+        ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}),
+        ...(filters.contactId ? { contactId: filters.contactId } : {}),
+        ...(filters.mixId ? { mixId: filters.mixId } : {})
+      },
+      select: { mixId: true, contactId: true }
+    })
+  ]);
 
+  const stopped = new Set(stops.map((item) => stopKey(item.mixId, item.contactId)));
   const desired = new Map<string, DesiredJump>();
+
   for (const assignment of assignments) {
     const contacts = new Map<string, NonNullable<typeof assignment.contact>>();
     if (assignment.contact && !assignment.contact.archivedAt) contacts.set(assignment.contact.id, assignment.contact);
@@ -214,6 +143,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
 
     for (const contact of contacts.values()) {
       if (filters.contactId && contact.id !== filters.contactId) continue;
+      if (stopped.has(stopKey(assignment.mixId, contact.id))) continue;
+
       const triggers: {
         logicalDate: LogicalDate;
         jumpDateId: string | null;
@@ -253,6 +184,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
           const sendTimeMinutes = mixStep.sendTimeMinutes ?? trigger.timeMinutes ?? 600;
           const scheduledAt = zonedDateTimeToUtc(scheduledLogicalDate, sendTimeMinutes, trigger.timezone);
           if (scheduledAt < horizonStart || scheduledAt > horizonEnd) continue;
+
           const localDateTime = scheduledLocalDateTimeKey(scheduledLogicalDate, sendTimeMinutes);
           const uniquenessKey = createJumpUniquenessKey({
             workspaceId: assignment.workspaceId,
@@ -264,7 +196,18 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
             timezone: trigger.timezone
           });
           const channel = mixStep.stepVersion.stepTemplate.channel;
-          const replacementValues = contactValues(contact, assignment.workspace.profile, assignment.workspace.owner, channel);
+          const renderedSnapshot = renderJumpSnapshot(
+            {
+              subject: mixStep.stepVersion.subject,
+              body: mixStep.stepVersion.body,
+              script: mixStep.stepVersion.script
+            },
+            contact,
+            assignment.workspace.profile,
+            assignment.workspace.owner,
+            channel
+          );
+
           desired.set(uniquenessKey, {
             uniquenessKey,
             workspaceId: assignment.workspaceId,
@@ -283,11 +226,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
               localDateTime,
               timezone: trigger.timezone
             },
-            renderedSnapshot: {
-              subject: render(mixStep.stepVersion.subject, replacementValues),
-              body: render(mixStep.stepVersion.body, replacementValues),
-              script: render(mixStep.stepVersion.script, replacementValues)
-            }
+            renderedSnapshot
           });
         }
       }
@@ -340,6 +279,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}),
       ...(filters.contactId ? { contactId: filters.contactId } : {}),
       ...(filters.mixId ? { mixId: filters.mixId } : {}),
+      mix: { source: { not: "ONE_TIME" } },
       status: { in: PENDING_STATUSES },
       scheduledAt: { gte: horizonStart, lte: horizonEnd }
     },
