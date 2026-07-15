@@ -12,11 +12,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="page">
       {saved && <Notice type="success">My Info saved.</Notice>}
-      <header className="page-header"><div><h1>Settings</h1><p>Manage reusable Jumps, Mixes, and the information used for personalization.</p></div></header>
+      <header className="page-header"><div><h1>Settings</h1><p>Manage reusable Jumps, Mixes, trigger classifications, and personalization.</p></div></header>
 
       <div className="settings-hub-grid">
         <Link className="settings-hub-card" href="/settings/jumps"><span className="settings-hub-icon">↗</span><span><strong>Jumps</strong><small>Reusable messages, call scripts, and voicemail content.</small></span></Link>
         <Link className="settings-hub-card" href="/mixes"><span className="settings-hub-icon">⎇</span><span><strong>Mixes</strong><small>Ordered Jump sequences, triggers, audiences, and timing.</small></span></Link>
+        <Link className="settings-hub-card" href="/settings/jump-date-types"><span className="settings-hub-icon">◫</span><span><strong>Jump Date Types</strong><small>Manage custom trigger classifications and active plan limits.</small></span></Link>
         <a className="settings-hub-card" href="#my-info"><span className="settings-hub-icon">✎</span><span><strong>My Info</strong><small>Your business context, timezone, and signatures.</small></span></a>
       </div>
 
