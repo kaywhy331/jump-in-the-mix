@@ -63,17 +63,16 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
       <section className="card">
         <div className="card-header"><div><h2>Manage custom types</h2><p>Choose which remain active after a plan change. Inactive types and their data are preserved.</p></div></div>
         <form className="filter-bar" action="/settings/jump-date-types" method="get"><input name="q" defaultValue={q} placeholder="Search custom types" aria-label="Search custom Jump Date Types" /><button className="button" type="submit">Search</button>{q && <Link className="button" href="/settings/jump-date-types">Clear</Link>}</form>
-        <form action={saveActiveDateTypesAction} className="date-type-activation-form">
-          {customTypes.length ? <div className="date-type-list">{customTypes.map((dateType) => (
-            <article className={dateType.isActive ? "date-type-row" : "date-type-row inactive"} key={dateType.id}>
-              <label className="date-type-active-choice"><input type="checkbox" name="activeDateTypeIds" value={dateType.id} defaultChecked={dateType.isActive} /><span>{dateType.isActive ? "Active" : "Inactive"}</span></label>
-              <div><strong>{dateType.name}</strong><div className="jump-meta"><span>{dateType._count.jumpDates} Jump Date{dateType._count.jumpDates === 1 ? "" : "s"}</span><span>{dateType._count.mixes} Mix{dateType._count.mixes === 1 ? "" : "es"}</span></div></div>
-              <details className="date-type-edit"><summary className="button small">Edit</summary><form action={renameCustomDateTypeAction} className="date-type-edit-panel"><input type="hidden" name="dateTypeId" value={dateType.id} /><input name="name" defaultValue={dateType.name} required /><button className="button small primary" type="submit">Save name</button></form></details>
-              <details className="destructive-confirm"><summary className="button small danger">Delete…</summary><div className="destructive-confirm-panel"><p>Deletion is allowed only when no Jump Dates or active Mixes use this type. Otherwise, leave it inactive.</p><form action={deleteCustomDateTypeAction}><input type="hidden" name="dateTypeId" value={dateType.id} /><button className="button small danger" type="submit">Confirm delete</button></form></div></details>
-            </article>
-          ))}</div> : <p className="muted-copy">No custom Jump Date Types match this view.</p>}
-          <div className="form-actions"><button className="button primary" type="submit">Save active selection</button></div>
-        </form>
+        <form id="date-type-activation-form" action={saveActiveDateTypesAction} />
+        {customTypes.length ? <div className="date-type-list">{customTypes.map((dateType) => (
+          <article className={dateType.isActive ? "date-type-row" : "date-type-row inactive"} key={dateType.id}>
+            <label className="date-type-active-choice"><input form="date-type-activation-form" type="checkbox" name="activeDateTypeIds" value={dateType.id} defaultChecked={dateType.isActive} /><span>{dateType.isActive ? "Active" : "Inactive"}</span></label>
+            <div><strong>{dateType.name}</strong><div className="jump-meta"><span>{dateType._count.jumpDates} Jump Date{dateType._count.jumpDates === 1 ? "" : "s"}</span><span>{dateType._count.mixes} Mix{dateType._count.mixes === 1 ? "" : "es"}</span></div></div>
+            <details className="date-type-edit"><summary className="button small">Edit</summary><form action={renameCustomDateTypeAction} className="date-type-edit-panel"><input type="hidden" name="dateTypeId" value={dateType.id} /><input name="name" defaultValue={dateType.name} required /><button className="button small primary" type="submit">Save name</button></form></details>
+            <details className="destructive-confirm"><summary className="button small danger">Delete…</summary><div className="destructive-confirm-panel"><p>Deletion is allowed only when no Jump Dates or active Mixes use this type. Otherwise, leave it inactive.</p><form action={deleteCustomDateTypeAction}><input type="hidden" name="dateTypeId" value={dateType.id} /><button className="button small danger" type="submit">Confirm delete</button></form></div></details>
+          </article>
+        ))}</div> : <p className="muted-copy">No custom Jump Date Types match this view.</p>}
+        <div className="form-actions"><button className="button primary" form="date-type-activation-form" type="submit">Save active selection</button></div>
       </section>
 
       <section className="card">
