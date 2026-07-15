@@ -20,6 +20,10 @@ function fail(path: string, message: string): never {
   redirect(`${path}?error=${encodeURIComponent(message)}`);
 }
 
+async function queueJumpReconciliation(workspaceId: string, payload: { contactId?: string; mixId?: string } = {}): Promise<void> {
+  await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload } });
+}
+
 export async function registerAction(formData: FormData): Promise<void> {
   const name = value(formData, "name");
   const email = value(formData, "email").toLowerCase();
@@ -55,7 +59,7 @@ export async function loginAction(formData: FormData): Promise<void> {
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) fail("/login", "The email or password is incorrect.");
   await createSession(user.id);
   const membership = await prisma.workspaceMember.findFirst({ where: { userId: user.id }, include: { workspace: { include: { profile: true } } } });
-  redirect(membership?.workspace.profile?.onboardingDone ? "/dashboard" : "/onboarding");
+  redirect(membership?.workspace.profile?.onboardingDone ? "/jumps" : "/onboarding");
 }
 
 export async function demoLoginAction(): Promise<void> {
@@ -63,7 +67,7 @@ export async function demoLoginAction(): Promise<void> {
   const user = await prisma.user.findUnique({ where: { email: env.demoEmail } });
   if (!user) fail("/login", "The demo workspace is not ready yet. Run the seed command and try again.");
   await createSession(user.id);
-  redirect("/dashboard?demo=1");
+  redirect("/jumps?demo=1");
 }
 
 export async function logoutAction(): Promise<void> {
@@ -89,7 +93,8 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
     })
   ]);
   if (formData.get("createStarterMix") === "on") await ensureStarterMix(workspace.id);
-  redirect("/dashboard?welcome=1");
+  await queueJumpReconciliation(workspace.id);
+  redirect("/jumps?welcome=1");
 }
 
 export async function skipOnboardingAction(): Promise<void> {
@@ -100,7 +105,8 @@ export async function skipOnboardingAction(): Promise<void> {
     update: { onboardingStep: 5, onboardingDone: true }
   });
   await ensureStarterMix(workspace.id);
-  redirect("/dashboard?welcome=1");
+  await queueJumpReconciliation(workspace.id);
+  redirect("/jumps?welcome=1");
 }
 
 export async function createContactAction(formData: FormData): Promise<void> {
@@ -140,7 +146,13 @@ export async function createContactAction(formData: FormData): Promise<void> {
 export async function archiveContactAction(formData: FormData): Promise<void> {
   const { workspace } = await requireWorkspace();
   const contactId = value(formData, "contactId");
-  await prisma.contact.updateMany({ where: { id: contactId, workspaceId: workspace.id }, data: { archivedAt: new Date() } });
+  await prisma.$transaction([
+    prisma.contact.updateMany({ where: { id: contactId, workspaceId: workspace.id }, data: { archivedAt: new Date() } }),
+    prisma.jump.updateMany({
+      where: { contactId, workspaceId: workspace.id, status: { in: ["PENDING", "COPIED"] } },
+      data: { status: "CANCELED", completionMethod: "contact_archived" }
+    })
+  ]);
   redirect("/contacts?archived=1");
 }
 
@@ -148,11 +160,15 @@ export async function updateJumpStatusAction(formData: FormData): Promise<void> 
   const { workspace } = await requireWorkspace();
   const jumpId = value(formData, "jumpId");
   const status = value(formData, "status") as JumpStatus;
-  const allowed: JumpStatus[] = ["PENDING", "COPIED", "SENT", "DONE", "SKIPPED"];
-  if (!allowed.includes(status)) fail("/jumps", "Invalid Jump status.");
+  const allowed: JumpStatus[] = ["PENDING", "DONE", "SKIPPED"];
+  if (!allowed.includes(status)) fail("/jumps", "Choose Pending, Done, or Skipped.");
   await prisma.jump.updateMany({
-    where: { id: jumpId, workspaceId: workspace.id },
-    data: { status, completedAt: ["DONE", "SKIPPED", "SENT"].includes(status) ? new Date() : null, completionMethod: status.toLowerCase() }
+    where: { id: jumpId, workspaceId: workspace.id, status: { not: "CANCELED" } },
+    data: {
+      status,
+      completedAt: status === "DONE" || status === "SKIPPED" ? new Date() : null,
+      completionMethod: status === "PENDING" ? null : status.toLowerCase()
+    }
   });
   redirect("/jumps");
 }
@@ -172,7 +188,7 @@ export async function createWizardMixAction(formData: FormData): Promise<void> {
   const mixId = randomUUID();
   await prisma.$transaction(async (tx) => {
     await tx.mix.create({
-      data: { id: mixId, workspaceId: workspace.id, name: draft.name, description: draft.description, framework: "Question-Led Consultative", category: "Sales", triggerMode: "MANUAL_START", status: "DRAFT", durationDays, source: "AI_WIZARD" }
+      data: { id: mixId, workspaceId: workspace.id, name: draft.name, description: draft.description, framework: "Question-Led Consultative", category: "Sales & Prospecting", triggerMode: "MANUAL_START", status: "DRAFT", durationDays, source: "AI_WIZARD" }
     });
     for (const [index, step] of draft.steps.entries()) {
       const template = await tx.stepTemplate.create({ data: { workspaceId: workspace.id, name: `${draft.name} — ${step.name}`, channel: step.channel } });
@@ -194,12 +210,12 @@ export async function createImportantDateAction(formData: FormData): Promise<voi
   const contact = await prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null } });
   if (!contact) fail("/contacts", "Contact not found.");
   const dateType = await prisma.dateType.findFirst({ where: { id: dateTypeId, OR: [{ workspaceId: workspace.id }, { workspaceId: null }] } });
-  if (!dateType) fail(`/contacts/${contactId}`, "Choose a valid date type.");
-  const parsed = new Date(`${dateValueRaw}T12:00:00`);
+  if (!dateType) fail(`/contacts/${contactId}`, "Choose a valid Jump Date Type.");
+  const parsed = new Date(`${dateValueRaw}T12:00:00Z`);
   if (!dateValueRaw || Number.isNaN(parsed.getTime())) fail(`/contacts/${contactId}`, "Choose a valid date.");
   const timezone = workspace.profile?.timezone ?? "America/New_York";
   await prisma.jumpDate.create({
-    data: { workspaceId: workspace.id, contactId, dateTypeId, dateValue: parsed, month: parsed.getMonth() + 1, day: parsed.getDate(), recurrence: ["NONE", "MONTHLY", "YEARLY"].includes(recurrence) ? recurrence : "NONE", timezone, label: label || null }
+    data: { workspaceId: workspace.id, contactId, dateTypeId, dateValue: parsed, month: parsed.getUTCMonth() + 1, day: parsed.getUTCDate(), recurrence: ["NONE", "MONTHLY", "YEARLY"].includes(recurrence) ? recurrence : "NONE", timezone, label: label || null }
   });
   let assignedMixId: string | null = null;
   if (autoAssignRecommended) {
@@ -210,7 +226,7 @@ export async function createImportantDateAction(formData: FormData): Promise<voi
       assignedMixId = matchingMix.id;
     }
   }
-  await prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId, ...(assignedMixId ? { mixId: assignedMixId } : {}) } } });
+  await queueJumpReconciliation(workspace.id, { contactId, ...(assignedMixId ? { mixId: assignedMixId } : {}) });
   redirect(`/contacts/${contactId}?dateCreated=1${assignedMixId ? "&mixAssigned=1" : ""}`);
 }
 
@@ -221,6 +237,7 @@ export async function createStarterMixAction(): Promise<void> {
   const current = await prisma.mix.count({ where: { workspaceId: workspace.id, status: { in: ["DRAFT", "ACTIVE"] } } });
   if (current >= PLAN_LIMITS[workspace.planTier].mixes) fail("/mixes", "Your plan's Mix limit has been reached.");
   try { await ensureStarterMix(workspace.id); } catch (error) { fail("/mixes", error instanceof Error ? error.message : "The starter Mix could not be created."); }
+  await queueJumpReconciliation(workspace.id);
   redirect("/mixes?created=starter");
 }
 
@@ -228,8 +245,36 @@ export async function activateMixAction(formData: FormData): Promise<void> {
   const { workspace } = await requireWorkspace();
   const mixId = value(formData, "mixId");
   await prisma.mix.updateMany({ where: { id: mixId, workspaceId: workspace.id, status: { in: ["DRAFT", "PAUSED"] } }, data: { status: "ACTIVE" } });
-  await prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });
+  await queueJumpReconciliation(workspace.id, { mixId });
   redirect("/mixes?activated=1");
+}
+
+export async function pauseMixAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireWorkspace();
+  const mixId = value(formData, "mixId");
+  await prisma.$transaction([
+    prisma.mix.updateMany({ where: { id: mixId, workspaceId: workspace.id, status: "ACTIVE" }, data: { status: "PAUSED" } }),
+    prisma.jump.updateMany({
+      where: { mixId, workspaceId: workspace.id, status: { in: ["PENDING", "COPIED"] }, scheduledAt: { gte: new Date() } },
+      data: { status: "CANCELED", completedAt: null, completionMethod: "mix_paused" }
+    })
+  ]);
+  await queueJumpReconciliation(workspace.id, { mixId });
+  redirect("/mixes?paused=1");
+}
+
+export async function archiveMixAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireWorkspace();
+  const mixId = value(formData, "mixId");
+  await prisma.$transaction([
+    prisma.mix.updateMany({ where: { id: mixId, workspaceId: workspace.id, status: { not: "ARCHIVED" } }, data: { status: "ARCHIVED" } }),
+    prisma.mixAssignment.updateMany({ where: { mixId, workspaceId: workspace.id }, data: { isActive: false } }),
+    prisma.jump.updateMany({
+      where: { mixId, workspaceId: workspace.id, status: { in: ["PENDING", "COPIED"] }, scheduledAt: { gte: new Date() } },
+      data: { status: "CANCELED", completedAt: null, completionMethod: "mix_archived" }
+    })
+  ]);
+  redirect("/mixes?archived=1");
 }
 
 export async function assignMixToContactAction(formData: FormData): Promise<void> {
@@ -247,7 +292,7 @@ export async function assignMixToContactAction(formData: FormData): Promise<void
     create: { assignmentKey, workspaceId: workspace.id, mixId, contactId, startDate: mix.triggerMode === "MANUAL_START" ? new Date() : null },
     update: { isActive: true }
   });
-  await prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId, mixId } } });
+  await queueJumpReconciliation(workspace.id, { contactId, mixId });
   redirect(`/contacts/${contactId}?mixAssigned=1`);
 }
 
