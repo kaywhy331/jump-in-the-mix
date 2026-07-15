@@ -14,6 +14,11 @@ function fail(message: string): never {
   redirect(`/settings/jumps?error=${encodeURIComponent(message)}`);
 }
 
+function normalizedChannel(raw: string): Channel | null {
+  const allowed: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
+  return allowed.includes(raw as Channel) ? raw as Channel : null;
+}
+
 function validateContent(channel: Channel, formData: FormData) {
   const name = value(formData, "name");
   const subject = value(formData, "subject");
@@ -38,6 +43,38 @@ function validateContent(channel: Channel, formData: FormData) {
   };
 }
 
+export async function createReusableJumpAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireWorkspace();
+  const channel = normalizedChannel(value(formData, "channel"));
+  if (!channel) fail("Choose a valid Jump channel.");
+  if (channel === "VOICEMAIL" && workspace.planTier !== "PRO") {
+    fail("Ringless Voicemail Jumps are available on Pro.");
+  }
+  let payload: ReturnType<typeof validateContent>;
+  try {
+    payload = validateContent(channel, formData);
+  } catch (error) {
+    fail(error instanceof Error ? error.message : "The Jump could not be created.");
+  }
+  await prisma.stepTemplate.create({
+    data: {
+      workspaceId: workspace.id,
+      name: payload.name,
+      channel,
+      versions: {
+        create: {
+          version: 1,
+          subject: payload.subject,
+          body: payload.body,
+          script: payload.script,
+          longSms: payload.longSms
+        }
+      }
+    }
+  });
+  redirect("/settings/jumps?created=1");
+}
+
 export async function updateReusableJumpAction(formData: FormData): Promise<void> {
   const { workspace } = await requireWorkspace();
   const stepTemplateId = value(formData, "stepTemplateId");
@@ -48,6 +85,9 @@ export async function updateReusableJumpAction(formData: FormData): Promise<void
   if (!template) fail("Jump not found.");
   if (value(formData, "channel") !== template.channel) {
     fail("A reusable Jump's channel cannot change after creation. Create a new Jump for the other channel.");
+  }
+  if (template.channel === "VOICEMAIL" && workspace.planTier !== "PRO") {
+    fail("Ringless Voicemail Jumps require an active Pro plan.");
   }
 
   let payload: ReturnType<typeof validateContent>;
