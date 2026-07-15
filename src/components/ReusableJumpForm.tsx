@@ -1,9 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { createReusableJumpAction } from "@/lib/actions";
 import { CONTACT_PLACEHOLDERS, MY_INFO_PLACEHOLDERS, PRIVATE_NOTE_PLACEHOLDERS } from "@/lib/placeholders";
-import { updateReusableJumpAction } from "@/lib/reusable-jump-update";
+import { createReusableJumpAction, updateReusableJumpAction } from "@/lib/reusable-jump-update";
 
 type Channel = "SMS" | "EMAIL" | "PHONE_CALL" | "VOICEMAIL" | "WHATSAPP";
 
