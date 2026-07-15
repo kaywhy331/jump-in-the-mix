@@ -7,8 +7,10 @@ describe("placeholder validation", () => {
   });
 
   it("returns each unknown placeholder once", () => {
-    expect(findUnknownPlaceholders("{{Unknown}} and {{Unknown}} plus {{Other}}"))
-      .toEqual(["{{Unknown}}", "{{Other}}");
+    const unknown = findUnknownPlaceholders("{{Unknown}} and {{Unknown}} plus {{Other}}");
+    expect(unknown).toHaveLength(2);
+    expect(unknown[0]).toBe("{{Unknown}}");
+    expect(unknown[1]).toBe("{{Other}}");
   });
 
   it("recognizes both Private Notes aliases", () => {
