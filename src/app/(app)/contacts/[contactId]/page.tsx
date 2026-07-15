@@ -1,33 +1,63 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/Notice";
-import { assignMixToContactAction, createImportantDateAction } from "@/lib/actions";
+import {
+  assignMixToContactAction,
+  createImportantDateAction,
+  deleteJumpDateAction,
+  removeMixAssignmentAction
+} from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Contact details" };
 
+type SearchParams = {
+  dateCreated?: string;
+  dateDeleted?: string;
+  mixAssigned?: string;
+  mixRemoved?: string;
+  updated?: string;
+  error?: string;
+};
+
+function addressText(address: {
+  street1: string | null;
+  street2: string | null;
+  city: string | null;
+  state: string | null;
+  postalCode: string | null;
+  country: string | null;
+}): string {
+  return [address.street1, address.street2, address.city, address.state, address.postalCode, address.country].filter(Boolean).join(", ");
+}
+
 export default async function ContactDetailPage({
   params,
   searchParams
 }: {
   params: Promise<{ contactId: string }>;
-  searchParams: Promise<{ dateCreated?: string; mixAssigned?: string; error?: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
-  const [{ contactId }, query] = await Promise.all([params, searchParams]);
-  const { workspace } = await requireWorkspace();
+  const [{ contactId }, query, { workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
   const [contact, dateTypes, mixes] = await Promise.all([
     prisma.contact.findFirst({
       where: { id: contactId, workspaceId: workspace.id, archivedAt: null },
       include: {
-        emails: true,
-        phones: true,
+        emails: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
+        phones: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
+        addresses: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
+        groupMemberships: { include: { group: true } },
         jumpDates: { include: { dateType: true }, orderBy: { dateValue: "asc" } },
-        mixAssignments: { include: { mix: true }, where: { isActive: true } }
+        mixAssignments: { include: { mix: true }, where: { isActive: true, contactId }, orderBy: { createdAt: "asc" } }
       }
     }),
-    prisma.dateType.findMany({ where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null }] }, orderBy: [{ isSystem: "desc" }, { name: "asc" }] }),
+    prisma.dateType.findMany({
+      where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null }] },
+      orderBy: [{ isSystem: "asc" }, { name: "asc" }]
+    }),
     prisma.mix.findMany({ where: { workspaceId: workspace.id, status: "ACTIVE" }, orderBy: { name: "asc" } })
   ]);
   if (!contact) notFound();
@@ -35,62 +65,84 @@ export default async function ContactDetailPage({
 
   return (
     <div className="page">
-      {query.dateCreated && <Notice type="success">Important Date added. Any matching Mix can now generate future Jumps.</Notice>}
-      {query.mixAssigned && <Notice type="success">Mix assigned. The background worker will prepare the matching Jumps.</Notice>}
+      {query.updated && <Notice type="success">Contact details updated. Future pending Jumps are being refreshed.</Notice>}
+      {query.dateCreated && <Notice type="success">Jump Date added. Matching Mixes can now create future Jumps.</Notice>}
+      {query.dateDeleted && <Notice type="success">Jump Date removed. Obsolete future Jumps are being reconciled.</Notice>}
+      {query.mixAssigned && <Notice type="success">Mix assigned. The background worker is preparing matching Jumps.</Notice>}
+      {query.mixRemoved && <Notice type="success">Mix removed from this Contact. Completed history remains available.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
       <header className="page-header">
         <div><h1>{contact.displayName}</h1><p>{contact.company || "Relationship details and follow-up timing"}</p></div>
+        <div className="page-actions"><Link href={`/contacts/${contact.id}/edit`} className="button primary">Edit contact</Link><Link href="/contacts" className="button">Back</Link></div>
       </header>
+
+      {contact.groupMemberships.length > 0 && <div className="contact-group-strip">{contact.groupMemberships.map(({ group }) => (
+        <span className="group-chip" key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}</span>
+      ))}</div>}
 
       <div className="dashboard-grid">
         <section>
           <div className="card">
-            <div className="card-header"><div><h2>Important Dates</h2><p>Dates are the moments that can trigger a follow-up Mix.</p></div></div>
+            <div className="card-header"><div><h2>Jump Dates</h2><p>Dates are the moments that can trigger a Mix.</p></div></div>
             {contact.jumpDates.length ? (
               <div className="jump-list">
                 {contact.jumpDates.map((item) => (
-                  <article className="jump-card" key={item.id}>
+                  <article className="jump-card contact-date-card" key={item.id}>
                     <div><h3>{item.dateType.name}</h3><div className="jump-meta"><span>{item.dateValue ? formatDate(item.dateValue) : `${item.month}/${item.day}`}</span><span>{item.recurrence.toLowerCase()}</span>{item.label && <span>{item.label}</span>}</div></div>
-                    <span className="status-pill">Active</span>
+                    <details className="destructive-confirm">
+                      <summary className="button small danger">Remove…</summary>
+                      <div className="destructive-confirm-panel"><p>Remove this Jump Date? Future pending work tied to it will be canceled.</p><form action={deleteJumpDateAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} /><button className="button small danger" type="submit">Confirm removal</button></form></div>
+                    </details>
                   </article>
                 ))}
               </div>
-            ) : <p style={{ color: "var(--muted)" }}>No Important Dates yet. Add the next date you genuinely need to remember.</p>}
+            ) : <p className="muted-copy">No Jump Dates yet. Add the next date you genuinely need to remember.</p>}
           </div>
 
           <div className="card">
-            <div className="card-header"><div><h2>Add an Important Date</h2><p>Examples include a follow-up, renewal, event, birthday, or custom milestone.</p></div></div>
+            <div className="card-header"><div><h2>Add a Jump Date</h2><p>Custom types appear before global system types.</p></div></div>
             <form action={createImportantDateAction} className="form-grid">
               <input type="hidden" name="contactId" value={contact.id} />
-              <div className="field"><label htmlFor="dateTypeId">What is this date for?</label><select id="dateTypeId" name="dateTypeId" required defaultValue={followUpType?.id}>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></div>
+              <div className="field"><label htmlFor="dateTypeId">Jump Date Type</label><select id="dateTypeId" name="dateTypeId" required defaultValue={followUpType?.id}>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.isSystem ? `System · ${type.name}` : type.name}</option>)}</select></div>
               <div className="field"><label htmlFor="dateValue">Date</label><input id="dateValue" name="dateValue" type="date" required /></div>
               <div className="field"><label htmlFor="recurrence">Repeat</label><select id="recurrence" name="recurrence"><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></div>
               <div className="field"><label htmlFor="label">Optional label</label><input id="label" name="label" placeholder="Proposal follow-up" /></div>
-              <label className="checkbox-card field full onboarding-default"><input type="checkbox" name="autoAssignRecommended" defaultChecked /><span><strong>Use a matching follow-up Mix automatically</strong><small>If an active Mix matches this date type, it will be assigned so Jumps can appear without another setup step.</small></span></label>
-              <div className="form-actions field full"><button className="button primary" type="submit">Add Important Date</button></div>
+              <label className="checkbox-card field full onboarding-default"><input type="checkbox" name="autoAssignRecommended" defaultChecked /><span><strong>Assign a matching active Mix</strong><small>The first active Mix using this Jump Date Type will be assigned automatically.</small></span></label>
+              <div className="form-actions field full"><button className="button primary" type="submit">Add Jump Date</button></div>
             </form>
           </div>
         </section>
 
         <aside>
           <div className="card">
-            <div className="card-header"><div><h2>Contact details</h2></div></div>
-            <div className="form-stack">
-              <div><small className="field-label">Email</small><div>{contact.emails[0]?.email || "Not added"}</div></div>
-              <div><small className="field-label">Phone</small><div>{contact.phones[0]?.phone || "Not added"}</div></div>
-              <div><small className="field-label">Notes</small><div>{contact.publicNotes || "No private notes"}</div></div>
+            <div className="card-header"><div><h2>Contact methods</h2><p>Primary values appear first.</p></div></div>
+            <div className="contact-method-sections">
+              <section><h3>Email</h3>{contact.emails.length ? contact.emails.map((item) => <div className="contact-method-row" key={item.id}><span>{item.email}</span><small>{item.label || "Email"}{item.isPrimary ? " · Primary" : ""}</small></div>) : <p className="muted-copy">Not added</p>}</section>
+              <section><h3>Phone</h3>{contact.phones.length ? contact.phones.map((item) => <div className="contact-method-row" key={item.id}><span>{item.phone}</span><small>{item.label || "Phone"}{item.isPrimary ? " · Primary" : ""}</small></div>) : <p className="muted-copy">Not added</p>}</section>
+              <section><h3>Address</h3>{contact.addresses.length ? contact.addresses.map((item) => <div className="contact-method-row" key={item.id}><span>{addressText(item) || "Address details incomplete"}</span><small>{item.label || "Address"}{item.isPrimary ? " · Primary" : ""}</small></div>) : <p className="muted-copy">Not added</p>}</section>
             </div>
           </div>
+
           <div className="card">
-            <div className="card-header"><div><h2>Follow-up Mixes</h2><p>Assign an active plan to this person.</p></div></div>
+            <div className="card-header"><div><h2>Notes</h2></div></div>
+            <div className="form-stack">
+              <div><small className="field-label">Public Notes</small><p className="note-copy">{contact.publicNotes || "No Public Notes"}</p></div>
+              <div><small className="field-label">Private Notes</small><p className="note-copy">{contact.privateNotes || "No Private Notes"}</p><small className="muted-copy">Available only to Phone Call Jump scripts.</small></div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header"><div><h2>Assigned Mixes</h2><p>Direct assignments for this Contact.</p></div></div>
             {mixes.length ? (
               <form action={assignMixToContactAction} className="form-stack">
                 <input type="hidden" name="contactId" value={contact.id} />
                 <div className="field"><label htmlFor="mixId">Mix</label><select id="mixId" name="mixId">{mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></div>
                 <button className="button primary" type="submit">Assign Mix</button>
               </form>
-            ) : <p style={{ color: "var(--muted)" }}>Create or activate a Mix first.</p>}
-            {contact.mixAssignments.length > 0 && <div className="checklist">{contact.mixAssignments.map((assignment) => <div className="check-row done" key={assignment.id}><span>✓</span><span>{assignment.mix.name}</span></div>)}</div>}
+            ) : <p className="muted-copy">Create or activate a Mix first.</p>}
+            {contact.mixAssignments.length > 0 && <div className="assigned-mix-list">{contact.mixAssignments.map((assignment) => (
+              <div className="assigned-mix-row" key={assignment.id}><Link href={`/mixes/${assignment.mix.id}/edit`}>{assignment.mix.name}</Link><form action={removeMixAssignmentAction}><input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Remove</button></form></div>
+            ))}</div>}
           </div>
         </aside>
       </div>
