@@ -1,4 +1,4 @@
-import type { JumpStatus, Prisma, WorkspaceProfile } from "@/generated/prisma/client";
+import type { Channel, JumpStatus, Prisma, WorkspaceProfile } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   addLogicalDays,
@@ -43,9 +43,9 @@ type DesiredJump = {
   renderedSnapshot: Prisma.InputJsonValue;
 };
 
-function chunks<T>(values: T[], size = BATCH_SIZE): T[][] {
+function chunks<T>(items: T[], size = BATCH_SIZE): T[][] {
   const result: T[][] = [];
-  for (let index = 0; index < values.length; index += size) result.push(values.slice(index, index + size));
+  for (let index = 0; index < items.length; index += size) result.push(items.slice(index, index + size));
   return result;
 }
 
@@ -73,18 +73,21 @@ function contactValues(
     lastName: string | null;
     company: string | null;
     publicNotes: string | null;
+    privateNotes: string | null;
     emails: { email: string; isPrimary: boolean }[];
     phones: { phone: string; isPrimary: boolean }[];
     addresses: { street1: string | null; city: string | null; state: string | null; postalCode: string | null; isPrimary: boolean }[];
   },
   profile: WorkspaceProfile | null,
-  owner: { name: string; email: string }
+  owner: { name: string; email: string },
+  channel: Channel
 ): Record<string, string> {
   const email = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email ?? "";
   const phone = contact.phones.find((item) => item.isPrimary)?.phone ?? contact.phones[0]?.phone ?? "";
   const address = contact.addresses.find((item) => item.isPrimary) ?? contact.addresses[0];
   const formattedAddress = address ? [address.street1, address.city, address.state, address.postalCode].filter(Boolean).join(", ") : "";
   const ownerName = ownerNameParts(owner.name);
+  const privateNotes = channel === "PHONE_CALL" ? contact.privateNotes ?? "" : "";
 
   return {
     "{{First Name}}": contact.firstName ?? "there",
@@ -94,6 +97,7 @@ function contactValues(
     "{{Phone}}": phone,
     "{{Address}}": formattedAddress,
     "{{Public Notes}}": contact.publicNotes ?? "",
+    "{{Private Notes}}": privateNotes,
     "{{contact.first_name}}": contact.firstName ?? "there",
     "{{contact.last_name}}": contact.lastName ?? "",
     "{{contact.company}}": contact.company ?? "",
@@ -101,6 +105,7 @@ function contactValues(
     "{{contact.phone}}": phone,
     "{{contact.address}}": formattedAddress,
     "{{contact.public_notes}}": contact.publicNotes ?? "",
+    "{{contact.private_notes}}": privateNotes,
     "{{My First Name}}": ownerName.firstName,
     "{{My Last Name}}": ownerName.lastName,
     "{{My Email}}": owner.email,
@@ -157,14 +162,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       isActive: true,
       ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}),
       ...(filters.mixId ? { mixId: filters.mixId } : {}),
-      ...(filters.contactId
-        ? {
-            OR: [
-              { contactId: filters.contactId },
-              { group: { memberships: { some: { contactId: filters.contactId } } } }
-            ]
-          }
-        : {}),
+      ...(filters.contactId ? { OR: [{ contactId: filters.contactId }, { group: { memberships: { some: { contactId: filters.contactId } } } }] } : {}),
       mix: { status: "ACTIVE" }
     },
     include: {
@@ -196,6 +194,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       mix: {
         include: {
           steps: {
+            where: { isActive: true },
             include: { stepVersion: { include: { stepTemplate: true } } },
             orderBy: { sortOrder: "asc" }
           },
@@ -206,7 +205,6 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   });
 
   const desired = new Map<string, DesiredJump>();
-
   for (const assignment of assignments) {
     const contacts = new Map<string, NonNullable<typeof assignment.contact>>();
     if (assignment.contact && !assignment.contact.archivedAt) contacts.set(assignment.contact.id, assignment.contact);
@@ -216,7 +214,6 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
 
     for (const contact of contacts.values()) {
       if (filters.contactId && contact.id !== filters.contactId) continue;
-
       const triggers: {
         logicalDate: LogicalDate;
         jumpDateId: string | null;
@@ -250,14 +247,12 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         });
       }
 
-      const values = contactValues(contact, assignment.workspace.profile, assignment.workspace.owner);
       for (const trigger of triggers) {
         for (const mixStep of assignment.mix.steps) {
           const scheduledLogicalDate = addLogicalDays(trigger.logicalDate, mixStep.dayOffset);
           const sendTimeMinutes = mixStep.sendTimeMinutes ?? trigger.timeMinutes ?? 600;
           const scheduledAt = zonedDateTimeToUtc(scheduledLogicalDate, sendTimeMinutes, trigger.timezone);
           if (scheduledAt < horizonStart || scheduledAt > horizonEnd) continue;
-
           const localDateTime = scheduledLocalDateTimeKey(scheduledLogicalDate, sendTimeMinutes);
           const uniquenessKey = createJumpUniquenessKey({
             workspaceId: assignment.workspaceId,
@@ -268,7 +263,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
             scheduledLocalDateTime: localDateTime,
             timezone: trigger.timezone
           });
-
+          const channel = mixStep.stepVersion.stepTemplate.channel;
+          const replacementValues = contactValues(contact, assignment.workspace.profile, assignment.workspace.owner, channel);
           desired.set(uniquenessKey, {
             uniquenessKey,
             workspaceId: assignment.workspaceId,
@@ -283,14 +279,14 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
               subject: mixStep.stepVersion.subject,
               body: mixStep.stepVersion.body,
               script: mixStep.stepVersion.script,
-              channel: mixStep.stepVersion.stepTemplate.channel,
+              channel,
               localDateTime,
               timezone: trigger.timezone
             },
             renderedSnapshot: {
-              subject: render(mixStep.stepVersion.subject, values),
-              body: render(mixStep.stepVersion.body, values),
-              script: render(mixStep.stepVersion.script, values)
+              subject: render(mixStep.stepVersion.subject, replacementValues),
+              body: render(mixStep.stepVersion.body, replacementValues),
+              script: render(mixStep.stepVersion.script, replacementValues)
             }
           });
         }
@@ -299,16 +295,9 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   }
 
   const desiredKeys = [...desired.keys()];
-  const existingDesired = [] as {
-    id: string;
-    uniquenessKey: string;
-    status: JumpStatus;
-  }[];
-  for (const keyBatch of chunks(desiredKeys)) {
-    existingDesired.push(...await prisma.jump.findMany({
-      where: { uniquenessKey: { in: keyBatch } },
-      select: { id: true, uniquenessKey: true, status: true }
-    }));
+  const existingDesired: { id: string; uniquenessKey: string; status: JumpStatus }[] = [];
+  for (const batch of chunks(desiredKeys)) {
+    existingDesired.push(...await prisma.jump.findMany({ where: { uniquenessKey: { in: batch } }, select: { id: true, uniquenessKey: true, status: true } }));
   }
   const existingByKey = new Map(existingDesired.map((item) => [item.uniquenessKey, item]));
 
@@ -329,7 +318,6 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       templateSnapshot: desiredJump.templateSnapshot,
       renderedSnapshot: desiredJump.renderedSnapshot
     };
-
     if (!existing) {
       created += 1;
       writes.push(prisma.jump.upsert({
@@ -341,16 +329,11 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       updated += 1;
       writes.push(prisma.jump.update({
         where: { id: existing.id },
-        data: {
-          ...sharedData,
-          status: existing.status === "CANCELED" ? "PENDING" : existing.status,
-          completedAt: null,
-          completionMethod: null
-        }
+        data: { ...sharedData, status: existing.status === "CANCELED" ? "PENDING" : existing.status, completedAt: null, completionMethod: null }
       }));
     }
   }
-  for (const writeBatch of chunks(writes, 100)) await prisma.$transaction(writeBatch);
+  for (const batch of chunks(writes, 100)) await prisma.$transaction(batch);
 
   const staleCandidates = await prisma.jump.findMany({
     where: {
@@ -363,9 +346,9 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
     select: { id: true, uniquenessKey: true }
   });
   const staleIds = staleCandidates.filter((item) => !desired.has(item.uniquenessKey)).map((item) => item.id);
-  for (const idBatch of chunks(staleIds)) {
+  for (const batch of chunks(staleIds)) {
     await prisma.jump.updateMany({
-      where: { id: { in: idBatch }, status: { in: PENDING_STATUSES } },
+      where: { id: { in: batch }, status: { in: PENDING_STATUSES } },
       data: { status: "CANCELED", completedAt: null, completionMethod: "reconciled" }
     });
   }
