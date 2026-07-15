@@ -132,10 +132,11 @@ export function getJumpDateOccurrences(
 
   const storedMonth = jumpDate.month ?? (jumpDate.dateValue ? jumpDate.dateValue.getUTCMonth() + 1 : null);
   const storedDay = jumpDate.day ?? (jumpDate.dateValue ? jumpDate.dateValue.getUTCDate() : null);
-  if (!storedMonth || !storedDay) return [];
+  if (!storedDay) return [];
 
   const occurrences: LogicalDate[] = [];
   if (jumpDate.recurrence === "YEARLY") {
+    if (!storedMonth) return [];
     for (let year = start.year; year <= end.year; year += 1) {
       const occurrence = clampLogicalDate(year, storedMonth, storedDay);
       if (isWithinLogicalRange(occurrence, start, end)) occurrences.push(occurrence);
