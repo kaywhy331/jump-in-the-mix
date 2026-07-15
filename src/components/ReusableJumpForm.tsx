@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { createReusableJumpAction, updateReusableJumpAction } from "@/lib/actions";
+import { createReusableJumpAction } from "@/lib/actions";
 import { CONTACT_PLACEHOLDERS, MY_INFO_PLACEHOLDERS, PRIVATE_NOTE_PLACEHOLDERS } from "@/lib/placeholders";
+import { updateReusableJumpAction } from "@/lib/reusable-jump-update";
 
 type Channel = "SMS" | "EMAIL" | "PHONE_CALL" | "VOICEMAIL" | "WHATSAPP";
 
@@ -29,6 +30,10 @@ function insertAtCursor(element: HTMLInputElement | HTMLTextAreaElement | null, 
   });
 }
 
+function channelOptions() {
+  return <><option value="SMS">SMS</option><option value="EMAIL">Email</option><option value="PHONE_CALL">Phone Call</option><option value="VOICEMAIL">Ringless Voicemail</option><option value="WHATSAPP">WhatsApp</option></>;
+}
+
 export function ReusableJumpForm({ mode, jump }: { mode: "create" | "edit"; jump?: JumpValue }) {
   const [channel, setChannel] = useState<Channel>(jump?.channel ?? "SMS");
   const [activeField, setActiveField] = useState<"subject" | "body" | "script">(channel === "PHONE_CALL" || channel === "VOICEMAIL" ? "script" : "body");
@@ -48,7 +53,10 @@ export function ReusableJumpForm({ mode, jump }: { mode: "create" | "edit"; jump
       {jump?.id && <input type="hidden" name="stepTemplateId" value={jump.id} />}
       <div className="form-grid">
         <div className="field full"><label htmlFor={`jump-name-${jump?.id ?? "new"}`}>Jump name</label><input id={`jump-name-${jump?.id ?? "new"}`} name="name" defaultValue={jump?.name ?? ""} placeholder="Birthday text" required /></div>
-        <div className="field"><label htmlFor={`jump-channel-${jump?.id ?? "new"}`}>Channel</label><select id={`jump-channel-${jump?.id ?? "new"}`} name="channel" value={channel} onChange={(event) => { const next = event.target.value as Channel; setChannel(next); setActiveField(next === "PHONE_CALL" || next === "VOICEMAIL" ? "script" : "body"); }}><option value="SMS">SMS</option><option value="EMAIL">Email</option><option value="PHONE_CALL">Phone Call</option><option value="VOICEMAIL">Ringless Voicemail</option><option value="WHATSAPP">WhatsApp</option></select></div>
+        <div className="field">
+          <label htmlFor={`jump-channel-${jump?.id ?? "new"}`}>Channel</label>
+          {mode === "edit" ? <><select id={`jump-channel-${jump?.id ?? "new"}`} value={channel} disabled aria-describedby={`jump-channel-note-${jump?.id ?? "new"}`}>{channelOptions()}</select><input type="hidden" name="channel" value={channel} /><small id={`jump-channel-note-${jump?.id ?? "new"}`}>Create a new reusable Jump to use another channel.</small></> : <select id={`jump-channel-${jump?.id ?? "new"}`} name="channel" value={channel} onChange={(event) => { const next = event.target.value as Channel; setChannel(next); setActiveField(next === "PHONE_CALL" || next === "VOICEMAIL" ? "script" : "body"); }}>{channelOptions()}</select>}
+        </div>
         {channel === "EMAIL" && <div className="field full"><label htmlFor={`jump-subject-${jump?.id ?? "new"}`}>Email subject</label><input ref={subjectRef} onFocus={() => setActiveField("subject")} id={`jump-subject-${jump?.id ?? "new"}`} name="subject" defaultValue={jump?.subject ?? ""} placeholder="A quick note for {{First Name}}" required /></div>}
         {["SMS", "EMAIL", "WHATSAPP"].includes(channel) && <div className="field full"><label htmlFor={`jump-body-${jump?.id ?? "new"}`}>Message</label><textarea ref={bodyRef} onFocus={() => setActiveField("body")} id={`jump-body-${jump?.id ?? "new"}`} name="body" defaultValue={jump?.body ?? ""} placeholder="Write the message exactly as it should appear…" required /></div>}
         {["PHONE_CALL", "VOICEMAIL"].includes(channel) && <div className="field full"><label htmlFor={`jump-script-${jump?.id ?? "new"}`}>{channel === "PHONE_CALL" ? "Call script or notes" : "Voicemail script"}</label><textarea ref={scriptRef} onFocus={() => setActiveField("script")} id={`jump-script-${jump?.id ?? "new"}`} name="script" defaultValue={jump?.script ?? ""} placeholder={channel === "PHONE_CALL" ? "Type your call script or notes here…" : "Type the voicemail script here…"} required /></div>}
