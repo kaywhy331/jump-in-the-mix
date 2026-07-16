@@ -182,7 +182,7 @@ const admin = new Client({ connectionString: pgConnectionUrl() });
 try {
   await admin.connect();
   await admin.query(`CREATE SCHEMA "${schemaName}"`);
-  runPrisma(["db", "push", "--schema", legacySchemaPath, "--skip-generate", "--accept-data-loss"], databaseUrl);
+  runPrisma(["db", "push", "--schema", legacySchemaPath, "--accept-data-loss"], databaseUrl);
   await seedLegacyDatabase(admin);
 
   runPrisma(["migrate", "deploy"], databaseUrl);
