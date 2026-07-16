@@ -1,0 +1,232 @@
+.ai-wizard-page { padding-bottom: 100px; }
+
+.ai-wizard-intro,
+.ai-review-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.ai-wizard-intro p,
+.ai-review-status p,
+.ai-wizard-section > p,
+.ai-draft-step-card > p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+
+.ai-wizard-form,
+.ai-draft-editor-form {
+  display: grid;
+  gap: 18px;
+}
+
+.ai-wizard-form > .card,
+.ai-draft-editor-form > .card {
+  margin-top: 0;
+}
+
+.ai-wizard-section {
+  min-width: 0;
+}
+
+.ai-wizard-section legend,
+.ai-draft-step-card legend {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+  font-weight: 820;
+  color: var(--ink);
+}
+
+.ai-wizard-section legend span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  color: white;
+  background: var(--brand);
+  font-size: .88rem;
+}
+
+.ai-wizard-section > .form-grid {
+  margin-top: 18px;
+}
+
+.ai-audience-groups,
+.ai-channel-options {
+  align-items: stretch;
+}
+
+.ai-audience-groups .checkbox-card,
+.ai-channel-options .checkbox-card {
+  flex: 1 1 210px;
+  min-height: 62px;
+  align-items: flex-start;
+}
+
+.ai-audience-groups .checkbox-card span,
+.ai-channel-options .checkbox-card span,
+.ai-step-keep span {
+  display: grid;
+  gap: 2px;
+}
+
+.ai-audience-groups small,
+.ai-channel-options small,
+.ai-step-keep small {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.ai-wizard-submit,
+.ai-review-actions {
+  margin-top: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: rgba(245, 247, 251, .94);
+  backdrop-filter: blur(12px);
+  z-index: 8;
+}
+
+.ai-recent-drafts {
+  margin-top: 22px;
+}
+
+.ai-recent-draft-list {
+  display: grid;
+  gap: 9px;
+}
+
+.ai-recent-draft-list .quick-action span:first-child {
+  display: grid;
+}
+
+.ai-review-status {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+}
+
+.ai-review-status > div {
+  min-width: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.ai-review-status strong {
+  display: block;
+  font-size: .78rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.ai-review-status p {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.ai-review-preview .shared-mix-preview {
+  margin-top: 4px;
+}
+
+.ai-draft-step-list {
+  display: grid;
+  gap: 16px;
+}
+
+.ai-draft-step-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--surface-soft);
+}
+
+.ai-draft-step-card .form-grid {
+  margin-top: 14px;
+}
+
+.ai-step-keep {
+  margin-top: 8px;
+  background: white;
+}
+
+.ai-refinement-card {
+  border-color: #d8d3ff;
+  background: linear-gradient(180deg, #ffffff, #faf9ff);
+}
+
+.ai-review-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 840px) {
+  .ai-review-status {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .ai-wizard-page {
+    padding-bottom: 120px;
+  }
+
+  .ai-wizard-intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ai-wizard-section,
+  .ai-draft-step-card {
+    padding: 16px;
+  }
+
+  .ai-wizard-section legend,
+  .ai-draft-step-card legend {
+    max-width: calc(100vw - 68px);
+    line-height: 1.2;
+  }
+
+  .ai-review-status {
+    grid-template-columns: 1fr;
+  }
+
+  .ai-audience-groups,
+  .ai-channel-options {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .ai-audience-groups .checkbox-card,
+  .ai-channel-options .checkbox-card {
+    width: 100%;
+    min-height: 58px;
+  }
+
+  .ai-wizard-submit,
+  .ai-review-actions {
+    position: sticky;
+    bottom: 74px;
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .ai-wizard-submit .button,
+  .ai-review-actions .button {
+    width: 100%;
+    min-height: 48px;
+  }
+}
