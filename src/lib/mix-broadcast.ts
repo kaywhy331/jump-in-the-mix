@@ -1,4 +1,3 @@
-import type { Prisma } from "@/generated/prisma/client";
 import { findWorkspaceMix, type WorkspaceDb, WorkspaceScopeError } from "@/lib/workspace-repository";
 
 export type BroadcastScheduleInput = {
@@ -82,14 +81,4 @@ export async function saveMixBroadcastSchedule(
 
 export async function removeMixBroadcastSchedule(db: WorkspaceDb, workspaceId: string, mixId: string): Promise<void> {
   await db.mixBroadcastSchedule.deleteMany({ where: { workspaceId, mixId } });
-}
-
-export function broadcastScheduleData(schedule: BroadcastScheduleInput): Prisma.MixBroadcastScheduleUncheckedCreateInput {
-  return {
-    workspaceId: "",
-    mixId: "",
-    localDate: schedule.localDate,
-    timeMinutes: schedule.timeMinutes,
-    timezone: schedule.timezone
-  };
 }
