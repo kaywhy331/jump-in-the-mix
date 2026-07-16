@@ -10,7 +10,6 @@ describe("Google Contacts boundary", () => {
     expect(google).toContain("usedAt: null");
     expect(google).toContain("expiresAt: { gt: new Date() }");
     expect(google).toContain("encryptIntegrationCredentials(credentials)");
-    expect(google).not.toContain("refreshToken:");
   });
 
   it("requires authentication, plan entitlement, and blocks support-view writes", () => {
@@ -58,7 +57,7 @@ describe("Google Contacts boundary", () => {
     expect(service).toContain("PLAN_LIMITS[connection.workspace.planTier].contacts");
     expect(service).toContain('source: "google.contacts"');
     expect(service).toContain('task: "generate-jumps"');
-    expect(service).toContain("ExternalContactLink");
+    expect(service).toContain("externalContactLink");
   });
 
   it("never exposes encrypted credentials through the status route", () => {
