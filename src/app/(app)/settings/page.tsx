@@ -38,7 +38,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </section>
         <aside>
           <div className="card"><div className="card-header"><div><h2>Plan</h2><p>Entitlements are enforced by server actions and background jobs.</p></div></div><span className="plan-pill">{workspace.planTier} · {workspace.subscriptionStatus}</span><p className="muted-copy">Stripe Checkout and Customer Portal remain a later implementation package.</p></div>
-          <div className="card"><div className="card-header"><div><h2>Connections</h2><p>Provider routes remain disabled until their production implementation is security-tested.</p></div></div><div className="checklist"><div className="check-row"><span>○</span><span>Google Contacts</span></div><div className="check-row"><span>○</span><span>Microsoft Outlook</span></div><div className="check-row"><span>○</span><span>WhatsApp Assistant</span></div><div className="check-row"><span>○</span><span>Website inquiry webhook</span></div></div></div>
+          <div className="card"><div className="card-header"><div><h2>Connections</h2><p>Account-level integrations are managed separately from application settings.</p></div></div><div className="checklist"><div className="check-row"><span>✓</span><span>Google Contacts · Plus/Pro</span></div><div className="check-row"><span>○</span><span>Microsoft Outlook · later</span></div><div className="check-row"><span>○</span><span>WhatsApp Assistant · later</span></div><div className="check-row"><span>○</span><span>Website inquiry webhook · later</span></div></div><Link className="button" href="/account#google-contacts">Manage connections</Link></div>
         </aside>
       </div>
     </div>
