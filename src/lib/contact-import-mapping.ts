@@ -48,8 +48,18 @@ export function guessImportMappings(
   customFields: ImportCustomFieldOption[]
 ): ImportColumnMapping {
   const result: ImportColumnMapping = {};
-  const dateTypeBySlug = new Map(dateTypes.map((type) => [stableKey(type.slug || type.name), type]));
-  const customByKey = new Map(customFields.flatMap((field) => [[stableKey(field.key), field], [stableKey(field.name), field]]));
+  const dateTypeBySlug = new Map(
+    dateTypes.flatMap((type) => [
+      [stableKey(type.slug || type.name), type] as const,
+      [stableKey(type.name), type] as const
+    ])
+  );
+  const customByKey = new Map(
+    customFields.flatMap((field) => [
+      [stableKey(field.key), field] as const,
+      [stableKey(field.name), field] as const
+    ])
+  );
 
   for (const header of headers) {
     const normalized = normalizedImportText(header);
@@ -62,9 +72,9 @@ export function guessImportMappings(
     else if (/company|organization|organisation|employer/.test(normalized)) target = { kind: "FIELD", field: "company" };
     else if (/^e ?mail( address)?( \d+)?$/.test(normalized) && !/label|type/.test(normalized)) target = { kind: "FIELD", field: "email" };
     else if (/^(mobile|cell|phone|telephone|tel)( number)?( \d+)?$/.test(normalized) && !/label|type/.test(normalized)) target = { kind: "FIELD", field: "phone" };
-    else if (/^address( \d+)?$/.test(normalized) || normalized === "mailing address") target = { kind: "FIELD", field: "address" };
-    else if (/address 1|street 1|street address|address line 1/.test(normalized)) target = { kind: "FIELD", field: "street1" };
-    else if (/address 2|street 2|address line 2|suite|unit/.test(normalized)) target = { kind: "FIELD", field: "street2" };
+    else if ((/^address( \d+)?$/.test(normalized) || normalized === "mailing address") && !/label|type/.test(normalized)) target = { kind: "FIELD", field: "address" };
+    else if (/address 1|street 1|street address|address line 1/.test(normalized) && !/label|type/.test(normalized)) target = { kind: "FIELD", field: "street1" };
+    else if (/address 2|street 2|address line 2|suite|unit/.test(normalized) && !/label|type/.test(normalized)) target = { kind: "FIELD", field: "street2" };
     else if (/^city$|locality/.test(normalized)) target = { kind: "FIELD", field: "city" };
     else if (/^state$|province|region/.test(normalized)) target = { kind: "FIELD", field: "state" };
     else if (/zip|postal/.test(normalized)) target = { kind: "FIELD", field: "postalCode" };
