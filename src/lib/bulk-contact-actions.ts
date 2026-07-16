@@ -28,7 +28,8 @@ async function scopedContacts(workspaceId: string, contactIds: string[]) {
     include: {
       emails: true,
       phones: true,
-      addresses: true
+      addresses: true,
+      customFieldValues: { include: { definition: true } }
     },
     orderBy: { displayName: "asc" }
   });
