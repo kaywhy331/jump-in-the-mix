@@ -22,16 +22,43 @@ type SearchParams = {
 };
 
 export default async function AccountPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [params, { session, user, workspace }] = await Promise.all([searchParams, requireWorkspace()]);
-  const sessions = await prisma.session.findMany({
-    where: { userId: user.id, expiresAt: { gt: new Date() } },
-    orderBy: [{ lastSeenAt: "desc" }, { createdAt: "desc" }]
-  });
+  const [params, context] = await Promise.all([searchParams, requireWorkspace()]);
+  const { session, user, workspace, impersonation } = context;
+  const sessions = impersonation
+    ? []
+    : await prisma.session.findMany({
+        where: { userId: user.id, expiresAt: { gt: new Date() } },
+        orderBy: [{ lastSeenAt: "desc" }, { createdAt: "desc" }]
+      });
   const emailStatus = user.emailVerifiedAt
     ? `Verified ${formatDate(user.emailVerifiedAt)}`
     : env.requireEmailVerification
       ? "Verification required"
       : "Verification not enforced";
+
+  const accountSummary = (
+    <section className="card account-summary-card">
+      <div className="card-header"><div><h2>Account</h2><p>These details identify the owner of this workspace.</p></div></div>
+      <dl className="account-definition-list">
+        <div><dt>Name</dt><dd>{user.name}</dd></div>
+        <div><dt>Email</dt><dd>{user.email}</dd></div>
+        <div><dt>Email status</dt><dd>{emailStatus}</dd></div>
+        <div><dt>Workspace</dt><dd>{workspace.name}</dd></div>
+        <div><dt>Plan</dt><dd>{workspace.planTier.toLowerCase()}</dd></div>
+        <div><dt>Subscription</dt><dd>{workspace.subscriptionStatus.toLowerCase().replaceAll("_", " ")}</dd></div>
+      </dl>
+    </section>
+  );
+
+  if (impersonation) {
+    return (
+      <div className="page account-page">
+        <header className="page-header"><div><h1>My Account</h1><p>Account identity is visible; security controls remain private during support access.</p></div></header>
+        <Notice type="info">This is a view-only administrator support session. Password controls, active devices, billing changes, and every other browser mutation are unavailable.</Notice>
+        <div className="account-grid">{accountSummary}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="page account-page">
@@ -45,18 +72,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       {params.sessionsClosed !== undefined && <Notice type="success">Signed out {params.sessionsClosed} other session{params.sessionsClosed === "1" ? "" : "s"}.</Notice>}
 
       <div className="account-grid">
-        <section className="card account-summary-card">
-          <div className="card-header"><div><h2>Account</h2><p>These details identify the owner of this workspace.</p></div></div>
-          <dl className="account-definition-list">
-            <div><dt>Name</dt><dd>{user.name}</dd></div>
-            <div><dt>Email</dt><dd>{user.email}</dd></div>
-            <div><dt>Email status</dt><dd>{emailStatus}</dd></div>
-            <div><dt>Workspace</dt><dd>{workspace.name}</dd></div>
-            <div><dt>Plan</dt><dd>{workspace.planTier.toLowerCase()}</dd></div>
-            <div><dt>Subscription</dt><dd>{workspace.subscriptionStatus.toLowerCase().replaceAll("_", " ")}</dd></div>
-          </dl>
-        </section>
-
+        {accountSummary}
         <section className="card account-password-card">
           <div className="card-header"><div><h2>Change password</h2><p>Changing it keeps this device signed in and closes every other session.</p></div></div>
           <form action={changePasswordAction} className="form-stack">
