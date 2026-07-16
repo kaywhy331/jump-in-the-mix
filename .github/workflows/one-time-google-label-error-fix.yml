@@ -1,0 +1,53 @@
+name: One-time Google label error-state fix
+
+on:
+  push:
+    branches: [agent/prd-core-foundation]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/prd-core-foundation
+          fetch-depth: 0
+      - name: Stop automatic retries after a label-load error
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/components/GoogleContactsPanel.tsx')
+          text = path.read_text()
+          old_success = '''      setGroups(result.groups);
+            setGroupsLoaded(true);
+            setSelectedGroups(new Set(result.selectedGroupResourceNames));'''.replace('            ', '')
+          new_success = '''      setGroups(result.groups);
+            setSelectedGroups(new Set(result.selectedGroupResourceNames));'''.replace('            ', '')
+          old_finally = '''    } finally {
+              setBusy(null);
+            }
+          }, []);'''.replace('            ', '')
+          new_finally = '''    } finally {
+              setGroupsLoaded(true);
+              setBusy(null);
+            }
+          }, []);'''.replace('            ', '')
+          for old, new in [(old_success, new_success), (old_finally, new_finally)]:
+              if old not in text:
+                  raise SystemExit(f'Expected Google label state block was not found: {old!r}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+      - name: Commit correction
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/GoogleContactsPanel.tsx
+          git commit -m "fix: stop retrying failed Google label loads"
+          git push origin HEAD:agent/prd-core-foundation
