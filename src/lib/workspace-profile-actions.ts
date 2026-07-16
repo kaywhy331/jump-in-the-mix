@@ -24,14 +24,16 @@ function optionalHttpsUrl(formData: FormData, key: string, label: string): strin
 }
 
 export async function updateWorkspaceProfileAction(formData: FormData): Promise<void> {
-  const { workspace, impersonation } = await requireWorkspace();
+  const { workspace, user, impersonation } = await requireWorkspace();
   if (impersonation) redirect(`/settings?error=${encodeURIComponent("Administrator support sessions are view-only.")}`);
+  const existingContributor = await prisma.sharedMixContributorProfile.findUnique({ where: { workspaceId: workspace.id } });
   const contributorEnabled = formData.get("communityProfileEnabled") === "on";
   const contributorDisplayName = value(formData, "communityDisplayName", 120) || null;
   if (contributorEnabled && !contributorDisplayName) {
     redirect(`/settings?error=${encodeURIComponent("Add a Community display name before making the profile public.")}#community-profile`);
   }
 
+  const contributorWebsite = optionalHttpsUrl(formData, "communityWebsite", "Community website");
   const workspaceData = {
     company: value(formData, "company", 200) || null,
     industry: value(formData, "industry", 160) || null,
@@ -60,20 +62,64 @@ export async function updateWorkspaceProfileAction(formData: FormData): Promise<
     title: value(formData, "communityTitle", 160) || null,
     bio: value(formData, "communityBio", 500) || null,
     avatarUrl: optionalHttpsUrl(formData, "communityAvatarUrl", "Profile image"),
-    website: optionalHttpsUrl(formData, "communityWebsite", "Community website")
+    website: contributorWebsite
   };
+  const reviewRequired = Boolean(
+    (contributorWebsite && contributorWebsite !== existingContributor?.website)
+    || (existingContributor?.enabled && !contributorEnabled)
+  );
+  const approvedShares = reviewRequired
+    ? await prisma.sharedMixMetadata.findMany({
+        where: {
+          publisherWorkspaceId: workspace.id,
+          isPlatform: false,
+          reviewState: "APPROVED"
+        },
+        select: { sharedMixId: true }
+      })
+    : [];
+  const affectedSharedMixIds = approvedShares.map((item) => item.sharedMixId);
 
-  await prisma.$transaction([
-    prisma.workspaceProfile.upsert({
+  await prisma.$transaction(async (tx) => {
+    await tx.workspaceProfile.upsert({
       where: { workspaceId: workspace.id },
       create: { workspaceId: workspace.id, ...workspaceData, onboardingDone: true },
       update: workspaceData
-    }),
-    prisma.sharedMixContributorProfile.upsert({
+    });
+    await tx.sharedMixContributorProfile.upsert({
       where: { workspaceId: workspace.id },
       create: { workspaceId: workspace.id, ...contributorData },
       update: contributorData
-    })
-  ]);
-  redirect("/settings?saved=1");
+    });
+    if (affectedSharedMixIds.length) {
+      await tx.sharedMixMetadata.updateMany({
+        where: { sharedMixId: { in: affectedSharedMixIds } },
+        data: {
+          reviewState: "FLAGGED",
+          moderationNote: contributorEnabled
+            ? "The contributor website changed and requires administrator review."
+            : "The contributor disabled their public profile.",
+          reviewedAt: null,
+          reviewedByUserId: null
+        }
+      });
+      await tx.sharedMix.updateMany({
+        where: { id: { in: affectedSharedMixIds } },
+        data: { status: "PENDING" }
+      });
+      await tx.auditLog.create({
+        data: {
+          workspaceId: workspace.id,
+          actorType: "USER",
+          actorUserId: user.id,
+          action: "shared-mix.profile-review-required",
+          entityType: "SharedMixContributorProfile",
+          entityId: workspace.id,
+          source: "settings.community-profile",
+          metadata: { affectedSharedMixIds, websiteChanged: contributorWebsite !== existingContributor?.website, profileDisabled: !contributorEnabled }
+        }
+      });
+    }
+  });
+  redirect(`/settings?saved=1${affectedSharedMixIds.length ? "&communityReview=1" : ""}`);
 }
