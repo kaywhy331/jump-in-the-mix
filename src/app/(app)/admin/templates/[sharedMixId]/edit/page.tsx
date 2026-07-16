@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { SharedMixReviewState, SharedMixStatus } from "@/generated/prisma/client";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/Notice";
@@ -8,13 +9,21 @@ import {
   MIX_TEMPLATE_CATEGORIES,
   MIX_TEMPLATE_INDUSTRIES,
   normalizeSharedMixSteps,
-  sharedMixChannelLabel
+  sharedMixChannelLabel,
+  type SharedMixStep
 } from "@/lib/shared-mix";
 import { saveSharedMixAdminAction } from "@/lib/shared-mix-admin-actions";
 
 export const metadata: Metadata = { title: "Admin · Edit Mix Template" };
 
 type SearchParams = { created?: string; saved?: string; error?: string };
+
+function reviewStateFromStatus(status: SharedMixStatus): SharedMixReviewState {
+  if (status === "APPROVED") return "APPROVED";
+  if (status === "REJECTED") return "REJECTED";
+  if (status === "UNPUBLISHED") return "UNPUBLISHED";
+  return "PENDING";
+}
 
 export default async function AdminEditTemplatePage({
   params,
@@ -29,25 +38,23 @@ export default async function AdminEditTemplatePage({
     include: {
       publisherWorkspace: {
         select: {
+          id: true,
           name: true,
           planTier: true,
-          profile: {
-            select: {
-              communityDisplayName: true,
-              communityTitle: true,
-              communityBio: true,
-              communityWebsite: true,
-              company: true,
-              industry: true
-            }
-          }
+          profile: { select: { company: true, industry: true } }
         }
       }
     }
   });
   if (!template) notFound();
+  const [templateMetadata, contributorProfile] = await Promise.all([
+    prisma.sharedMixMetadata.findUnique({ where: { sharedMixId: template.id } }),
+    template.publisherWorkspaceId
+      ? prisma.sharedMixContributorProfile.findUnique({ where: { workspaceId: template.publisherWorkspaceId } })
+      : Promise.resolve(null)
+  ]);
 
-  let steps;
+  let steps: SharedMixStep[];
   try {
     steps = normalizeSharedMixSteps(template.steps);
   } catch (error) {
@@ -59,24 +66,25 @@ export default async function AdminEditTemplatePage({
     );
   }
 
-  const profile = template.publisherWorkspace?.profile;
+  const isPlatform = templateMetadata?.isPlatform ?? template.publisherWorkspaceId === null;
+  const reviewState = templateMetadata?.reviewState ?? reviewStateFromStatus(template.status);
   return (
     <div className="page admin-template-editor-page">
       {query.created && <Notice type="success">Platform template created from the source Mix.</Notice>}
-      {query.saved && <Notice type="success">Mix Template saved as version {template.version}.</Notice>}
+      {query.saved && <Notice type="success">Mix Template saved as version {templateMetadata?.version ?? 1}.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
       <header className="page-header">
         <div><h1>Edit {template.title}</h1><p>Review the exact Jump content users will preview and import.</p></div>
         <div className="page-actions"><Link className="button" href="/admin/templates">Back to moderation</Link><Link className="button" href="/templates">Public library</Link></div>
       </header>
 
-      {!template.isPlatform && (
+      {!isPlatform && (
         <section className="card admin-contributor-review">
           <div className="section-label"><h2>Contributor</h2><span>{template.publisherWorkspace?.planTier.toLowerCase()}</span></div>
-          <strong>{profile?.communityDisplayName || template.publisherWorkspace?.name || "Unknown contributor"}</strong>
-          <p>{[profile?.communityTitle, profile?.company, profile?.industry].filter(Boolean).join(" · ")}</p>
-          {profile?.communityBio && <p>{profile.communityBio}</p>}
-          {profile?.communityWebsite && <p><a href={profile.communityWebsite} rel="nofollow noopener" target="_blank">Review contributor website</a></p>}
+          <strong>{contributorProfile?.displayName || template.publisherWorkspace?.name || "Unknown contributor"}</strong>
+          <p>{[contributorProfile?.title, template.publisherWorkspace?.profile?.company, template.publisherWorkspace?.profile?.industry].filter(Boolean).join(" · ")}</p>
+          {contributorProfile?.bio && <p>{contributorProfile.bio}</p>}
+          {contributorProfile?.website && <p><a href={contributorProfile.website} rel="nofollow noopener" target="_blank">Review contributor website</a></p>}
         </section>
       )}
 
@@ -90,12 +98,12 @@ export default async function AdminEditTemplatePage({
             <div className="field"><label htmlFor="category">Category</label><select id="category" name="category" defaultValue={template.category} required>{MIX_TEMPLATE_CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></div>
             <div className="field"><label htmlFor="industry">Industry</label><select id="industry" name="industry" defaultValue={template.industry ?? "General / Other"} required>{MIX_TEMPLATE_INDUSTRIES.map((item) => <option key={item}>{item}</option>)}</select></div>
             <div className="field"><label htmlFor="framework">Framework</label><input id="framework" name="framework" defaultValue={template.framework ?? ""} maxLength={160} /></div>
-            <div className="field"><label htmlFor="status">Moderation status</label><select id="status" name="status" defaultValue={template.status}><option value="PENDING">Pending</option><option value="APPROVED">Approved</option><option value="FLAGGED">Flagged</option><option value="REJECTED">Rejected</option><option value="UNPUBLISHED">Unpublished</option></select></div>
-            <div className="field"><label htmlFor="triggerMode">Trigger mode</label><select id="triggerMode" name="triggerMode" defaultValue={template.triggerMode}><option value="MANUAL_START">Manual start</option><option value="DATE_TRIGGERED">Target Jump Date Type</option><option value="BROADCAST">Broadcast draft</option></select></div>
-            <div className="field"><label htmlFor="dateTypeName">Target Jump Date Type name</label><input id="dateTypeName" name="dateTypeName" defaultValue={template.dateTypeName ?? ""} maxLength={120} /></div>
-            <div className="field"><label htmlFor="dateTypeSlug">Target Jump Date Type slug</label><input id="dateTypeSlug" name="dateTypeSlug" defaultValue={template.dateTypeSlug ?? ""} maxLength={120} /></div>
-            <div className="field full"><label htmlFor="moderationNote">Moderation note</label><textarea id="moderationNote" name="moderationNote" defaultValue={template.moderationNote ?? ""} maxLength={1200} placeholder="Explain a rejection, flag, or required change." /></div>
-            <label className="checkbox-card field full"><input type="checkbox" name="featured" defaultChecked={Boolean(template.featuredAt)} /><span><strong>Feature this template</strong><small>Featured templates appear before ordinary results.</small></span></label>
+            <div className="field"><label htmlFor="status">Moderation status</label><select id="status" name="status" defaultValue={reviewState}><option value="PENDING">Pending</option><option value="APPROVED">Approved</option><option value="FLAGGED">Flagged</option><option value="REJECTED">Rejected</option><option value="UNPUBLISHED">Unpublished</option></select></div>
+            <div className="field"><label htmlFor="triggerMode">Trigger mode</label><select id="triggerMode" name="triggerMode" defaultValue={templateMetadata?.triggerMode ?? "MANUAL_START"}><option value="MANUAL_START">Manual start</option><option value="DATE_TRIGGERED">Target Jump Date Type</option><option value="BROADCAST">Broadcast draft</option></select></div>
+            <div className="field"><label htmlFor="dateTypeName">Target Jump Date Type name</label><input id="dateTypeName" name="dateTypeName" defaultValue={templateMetadata?.dateTypeName ?? ""} maxLength={120} /></div>
+            <div className="field"><label htmlFor="dateTypeSlug">Target Jump Date Type slug</label><input id="dateTypeSlug" name="dateTypeSlug" defaultValue={templateMetadata?.dateTypeSlug ?? ""} maxLength={120} /></div>
+            <div className="field full"><label htmlFor="moderationNote">Moderation note</label><textarea id="moderationNote" name="moderationNote" defaultValue={templateMetadata?.moderationNote ?? ""} maxLength={1200} placeholder="Explain a rejection, flag, or required change." /></div>
+            <label className="checkbox-card field full"><input type="checkbox" name="featured" defaultChecked={Boolean(templateMetadata?.featuredAt)} /><span><strong>Feature this template</strong><small>Featured templates appear before ordinary results.</small></span></label>
           </div>
         </section>
 
