@@ -31,7 +31,7 @@ describe("integration credential encryption", () => {
     expect(() => decryptWithSecret(ciphertext, "another-key")).toThrow(/could not be decrypted/i);
 
     const envelope = JSON.parse(ciphertext) as { v: number; iv: string; tag: string; data: string };
-    envelope.tag = `${envelope.tag.slice(0, -1)}${envelope.tag.endsWith("A") ? "B" : "A"}`;
+    envelope.tag = `${envelope.tag.startsWith("A") ? "B" : "A"}${envelope.tag.slice(1)}`;
     expect(() => decryptWithSecret(JSON.stringify(envelope), secret)).toThrow(/could not be decrypted/i);
   });
 
