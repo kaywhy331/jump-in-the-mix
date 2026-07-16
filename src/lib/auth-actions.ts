@@ -6,6 +6,7 @@ import { createSession, destroyAllSessionsForUser, destroyOtherSessions, destroy
 import { AUTH_TOKEN_PURPOSES, findUsableAuthToken, hashAuthToken, issueAuthToken } from "@/lib/auth-tokens";
 import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/auth-email";
 import { env } from "@/lib/env";
+import { passwordValidationError } from "@/lib/password-policy";
 import { prisma } from "@/lib/prisma";
 import { clearRateLimit, consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
@@ -29,12 +30,6 @@ function normalizedEmail(value: string): string {
 
 function validEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
-}
-
-export function passwordValidationError(password: string): string | null {
-  if (password.length < 12) return "Use a password with at least 12 characters.";
-  if (Buffer.byteLength(password, "utf8") > 72) return "Use a password shorter than 72 bytes.";
-  return null;
 }
 
 function rateLimitMessage(seconds: number): string {
