@@ -17,6 +17,8 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const PROCESSING_STALE_MS = 10 * 60 * 1000;
+
 function isUniqueViolation(error: unknown): boolean {
   return Boolean(error && typeof error === "object" && "code" in error && error.code === "P2002");
 }
@@ -27,6 +29,17 @@ function parseStripeEvent(payload: string): StripeEvent {
     throw new Error("The Stripe event payload is incomplete.");
   }
   return value as StripeEvent;
+}
+
+function processingIsFresh(createdAt: Date): boolean {
+  return Date.now() - createdAt.getTime() < PROCESSING_STALE_MS;
+}
+
+function processingResponse() {
+  return NextResponse.json(
+    { error: "This Stripe event is already being processed. Stripe can retry it." },
+    { status: 409, headers: { "Retry-After": "30" } }
+  );
 }
 
 async function reconcileEvent(event: StripeEvent): Promise<{ workspaceId: string | null }> {
@@ -66,6 +79,9 @@ export async function POST(request: Request) {
   if (stored?.status === "PROCESSED") {
     return NextResponse.json({ received: true, duplicate: true });
   }
+  if (stored?.status === "PROCESSING" && processingIsFresh(stored.createdAt)) {
+    return processingResponse();
+  }
 
   if (!stored) {
     try {
@@ -85,8 +101,13 @@ export async function POST(request: Request) {
       if (stored.status === "PROCESSED") {
         return NextResponse.json({ received: true, duplicate: true });
       }
+      if (stored.status === "PROCESSING" && processingIsFresh(stored.createdAt)) {
+        return processingResponse();
+      }
     }
-  } else {
+  }
+
+  if (stored.status !== "PROCESSING" || !processingIsFresh(stored.createdAt)) {
     stored = await prisma.webhookEvent.update({
       where: { id: stored.id },
       data: { status: "PROCESSING", error: null, payloadHash }
