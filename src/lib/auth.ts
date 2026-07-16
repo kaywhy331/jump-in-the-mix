@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
+import { endAdminImpersonationGrant, resolveAdminImpersonationGrant } from "@/lib/impersonation";
 import { getRequestMetadata } from "@/lib/request-context";
 
 export function hashSessionToken(token: string): string {
@@ -40,6 +41,7 @@ export async function createSession(userId: string): Promise<string> {
   }
 
   const store = await cookies();
+  store.delete(env.impersonationCookieName);
   store.set(env.cookieName, token, {
     httpOnly: true,
     sameSite: "lax",
@@ -54,9 +56,18 @@ export async function createSession(userId: string): Promise<string> {
 export async function destroySession(): Promise<void> {
   const store = await cookies();
   const token = store.get(env.cookieName)?.value;
+  const impersonationToken = store.get(env.impersonationCookieName)?.value;
+  const session = token
+    ? await prisma.session.findUnique({ where: { tokenHash: hashSessionToken(token) }, select: { userId: true } })
+    : null;
+
+  if (impersonationToken && session) {
+    await endAdminImpersonationGrant(impersonationToken, session.userId).catch(() => false);
+  }
   if (token) {
     await prisma.session.deleteMany({ where: { tokenHash: hashSessionToken(token) } });
   }
+  store.delete(env.impersonationCookieName);
   store.delete(env.cookieName);
 }
 
@@ -81,11 +92,7 @@ export async function getCurrentSession() {
       user: {
         include: {
           memberships: {
-            include: {
-              workspace: {
-                include: { profile: true }
-              }
-            },
+            include: { workspace: { include: { profile: true } } },
             orderBy: { createdAt: "asc" },
             take: 1
           }
@@ -96,6 +103,7 @@ export async function getCurrentSession() {
 
   if (!session || session.expiresAt <= new Date()) {
     if (session) await prisma.session.delete({ where: { id: session.id } });
+    store.delete(env.impersonationCookieName);
     store.delete(env.cookieName);
     return null;
   }
@@ -105,7 +113,31 @@ export async function getCurrentSession() {
     await prisma.session.updateMany({ where: { id: session.id }, data: { lastSeenAt: new Date() } });
   }
 
-  return session;
+  const authUser = session.user;
+  const impersonationToken = store.get(env.impersonationCookieName)?.value;
+  if (impersonationToken && authUser.isPlatformAdmin) {
+    const impersonation = await resolveAdminImpersonationGrant(impersonationToken, authUser.id);
+    if (impersonation) {
+      return {
+        ...session,
+        authUser,
+        user: impersonation.targetUser,
+        impersonation: {
+          id: impersonation.id,
+          actorUserId: impersonation.actorUserId,
+          targetUserId: impersonation.targetUserId,
+          workspaceId: impersonation.workspaceId,
+          reason: impersonation.reason,
+          expiresAt: impersonation.expiresAt
+        }
+      };
+    }
+    store.delete(env.impersonationCookieName);
+  } else if (impersonationToken) {
+    store.delete(env.impersonationCookieName);
+  }
+
+  return { ...session, authUser, impersonation: null };
 }
 
 export async function requireSession() {
@@ -116,15 +148,23 @@ export async function requireSession() {
 
 export async function requireWorkspace() {
   const session = await requireSession();
-  if (env.requireEmailVerification && !session.user.emailVerifiedAt) {
+  if (!session.impersonation && env.requireEmailVerification && !session.user.emailVerifiedAt) {
     redirect(verificationPath(session.user.email));
   }
   const membership = session.user.memberships[0];
   if (!membership) redirect("/register");
   return {
     session,
+    actorUser: session.authUser,
     user: session.user,
     membership,
-    workspace: membership.workspace
+    workspace: membership.workspace,
+    impersonation: session.impersonation
   };
+}
+
+export async function requirePlatformAdmin() {
+  const session = await requireSession();
+  if (session.impersonation || !session.authUser.isPlatformAdmin) redirect("/jumps");
+  return { session, user: session.authUser };
 }
