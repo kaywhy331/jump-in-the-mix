@@ -1,0 +1,39 @@
+name: One-time Google sync syntax correction
+
+on:
+  push:
+    branches: [agent/prd-core-foundation]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/prd-core-foundation
+          fetch-depth: 0
+      - name: Correct nullish-coalescing grouping
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/lib/google-sync-service.ts')
+          text = path.read_text()
+          old = 'const proposedName = input.record.displayName ?? [firstName, lastName].filter(Boolean).join(" ") || company;'
+          new = 'const proposedName = input.record.displayName ?? ([firstName, lastName].filter(Boolean).join(" ") || company);'
+          if old not in text:
+              raise SystemExit('Expected Google sync expression was not found.')
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Commit correction
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/google-sync-service.ts
+          git commit -m "fix: group Google sync fallback expression"
+          git push origin HEAD:agent/prd-core-foundation
