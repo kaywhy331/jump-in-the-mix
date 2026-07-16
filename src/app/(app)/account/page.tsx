@@ -15,6 +15,7 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { formatPlanLimit, PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 import { describeUserAgent } from "@/lib/request-context";
+import { supportCategoryLabel, supportStatusLabel } from "@/lib/support-content";
 
 export const metadata: Metadata = { title: "My Account" };
 
@@ -40,7 +41,7 @@ type UsageRow = {
 export default async function AccountPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, context] = await Promise.all([searchParams, requireWorkspace()]);
   const { session, user, workspace, impersonation } = context;
-  const [sessions, subscription, usage] = await Promise.all([
+  const [sessions, subscription, usage, supportTickets] = await Promise.all([
     impersonation
       ? Promise.resolve([])
       : prisma.session.findMany({
@@ -62,7 +63,13 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           reviewState: { in: ["PENDING", "APPROVED", "FLAGGED"] }
         }
       })
-    ]).then(([contacts, groups, customDateTypes, mixes, sharedMixes]) => ({ contacts, groups, customDateTypes, mixes, sharedMixes }))
+    ]).then(([contacts, groups, customDateTypes, mixes, sharedMixes]) => ({ contacts, groups, customDateTypes, mixes, sharedMixes })),
+    prisma.supportTicket.findMany({
+      where: { workspaceId: workspace.id, requesterUserId: user.id },
+      include: { _count: { select: { messages: true } } },
+      orderBy: { lastActivityAt: "desc" },
+      take: 8
+    })
   ]);
   const emailStatus = user.emailVerifiedAt
     ? `Verified ${formatDate(user.emailVerifiedAt)}`
@@ -144,12 +151,43 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     </section>
   );
 
+  const supportSummary = (
+    <section className="card account-support-card" id="support">
+      <div className="card-header">
+        <div><h2>Help and support tickets</h2><p>Review complete conversations, reply, or reopen a resolved issue without losing its history.</p></div>
+        <span className="status-pill">{supportTickets.length}</span>
+      </div>
+      <div className="support-ticket-list">
+        {supportTickets.map((ticket) => (
+          <Link className="support-ticket-row" href={`/account/tickets/${ticket.id}`} key={ticket.id}>
+            <div>
+              <strong>{ticket.title}</strong>
+              <span>{ticket.reference} · {supportCategoryLabel(ticket.category)}</span>
+              <small>{ticket._count.messages} message{ticket._count.messages === 1 ? "" : "s"} · Updated {formatDateTime(ticket.lastActivityAt)}</small>
+            </div>
+            <span className={`status-pill ${ticket.status === "RESOLVED" ? "done" : ""}`}>{supportStatusLabel(ticket.status)}</span>
+          </Link>
+        ))}
+        {!supportTickets.length && (
+          <div className="support-inline-empty">
+            <strong>No support conversations yet.</strong>
+            <span>Search the FAQ or submit a private ticket when you need help.</span>
+          </div>
+        )}
+      </div>
+      <div className="account-support-actions">
+        <Link className="button" href="/help">Search Help & FAQ</Link>
+        {!impersonation && <Link className="button primary" href="/help#contact-support">Open a support ticket</Link>}
+      </div>
+    </section>
+  );
+
   if (impersonation) {
     return (
       <div className="page account-page">
-        <header className="page-header"><div><h1>My Account</h1><p>Account identity, plan, and integration state are visible; security controls remain private and billing changes remain unavailable during support access.</p></div></header>
-        <Notice type="info">This is a view-only administrator support session. Password controls, active devices, billing changes, integrations, and every other browser mutation are unavailable.</Notice>
-        <div className="account-grid">{accountSummary}{billingSummary}{usageSummary}</div>
+        <header className="page-header"><div><h1>My Account</h1><p>Account identity, plan, integration state, and support history are visible; security controls and mutations remain private during support access.</p></div></header>
+        <Notice type="info">This is a view-only administrator support session. Password controls, active devices, billing changes, integrations, ticket replies, and every other browser mutation are unavailable.</Notice>
+        <div className="account-grid">{accountSummary}{billingSummary}{usageSummary}{supportSummary}</div>
         <GoogleContactsPanel />
       </div>
     );
@@ -158,7 +196,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   return (
     <div className="page account-page">
       <header className="page-header">
-        <div><h1>My Account</h1><p>Review identity, billing, integrations, password security, and active devices.</p></div>
+        <div><h1>My Account</h1><p>Review identity, billing, integrations, support, password security, and active devices.</p></div>
       </header>
 
       {params.error && <Notice type="error">{params.error}</Notice>}
@@ -176,6 +214,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         {accountSummary}
         {billingSummary}
         {usageSummary}
+        {supportSummary}
         <section className="card account-password-card">
           <div className="card-header"><div><h2>Change password</h2><p>Changing it keeps this device signed in and closes every other session.</p></div></div>
           <form action={changePasswordAction} className="form-stack">
