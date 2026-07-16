@@ -20,7 +20,7 @@ This document distinguishes the runnable independent application from the comple
 - Corrected Free/Plus/Pro limits for Contacts, Groups, custom Jump Date Types, active Mixes, sharing, Google Contacts, AI, and voicemail.
 - Timezone-aware logical-date scheduling and deterministic Jump keys.
 - Lifecycle reconciliation that creates missing work, updates mutable work, restores resumed occurrences, and cancels obsolete pending work.
-- Automatic reconciliation after Contact, Jump Date, Mix, audience, lifecycle, personalization, import, provider-sync, and template-import changes.
+- Automatic reconciliation after Contact, Jump Date, Mix, audience, lifecycle, personalization, import, provider-sync, template-import, and AI-draft publication changes.
 - Explicit Mix pause/archive and Contact-specific Stop/Resume behavior while preserving completed history.
 - Fixed-date broadcasts with a logical date, local time, IANA timezone, and explicit audience.
 - Jump page defaults to overdue plus today, orders Pending above Completed, and supports Done, Undo, Skip, direct actions, date/status/channel filters, and durable action events.
@@ -91,6 +91,20 @@ This document distinguishes the runnable independent application from the comple
 - Official seed templates include complete, validated Jump content for lead follow-up, referrals, client onboarding, and renewals.
 - Unit, static-boundary, and PostgreSQL integration coverage for normalization, privacy boundaries, plan limits, atomic Draft imports, date-type creation, versioning, voting, repeated imports, and cross-workspace source rejection.
 
+### AI Mix Wizard
+
+- Plus/Pro four-part preflight covering objective/framework, trigger/audience, timing/intensity, and channels/My Info context.
+- Custom objective, custom strategic approach, custom market context, one of five My Product placeholders, Contact Group labels, broadcast scheduling, preferred local time, and workspace quiet-hour context.
+- Built-in deterministic strategist that remains usable without a provider key and optional provider-backed generation/refinement through strict structured output.
+- Provider requests use `store: false`, contain business strategy and audience labels only, and never query or transmit Contact rows, contact methods, addresses, Group memberships, or Private Notes.
+- Every generated, refined, or manually edited draft is normalized and revalidated for channels, content, timing, approved placeholders, and Phone-Call-only Private Notes.
+- Personal SMS copy rejects automated-marketing phrases such as `Reply STOP` or unsubscribe language; the opt-out checkbox remains delivery metadata only.
+- Workspace-scoped, resumable AI review drafts expire after 48 hours and cannot activate automation or publish more than once.
+- Review UI provides human-readable previews, structured Jump editing, removal, preset refinement, custom provider refinement, and visible provider/fallback warnings.
+- Atomic publication creates a normal editable Draft Mix, reusable Jumps and immutable first versions, ordered Mix rows, audience assignments, an optional broadcast schedule, audit records, and a Jump-reconciliation job.
+- Generation and refinement use separate database-backed request limits and block administrator support-session writes.
+- Unit, static-boundary, and PostgreSQL integration coverage for deterministic generation, provider request privacy, strict output parsing, validation, fallback refinement, tenant isolation, and atomic one-time publication.
+
 ### Jump Date Types
 
 - Tenant-owned custom Jump Date Types without per-user duplication of global system records.
@@ -127,7 +141,7 @@ This document distinguishes the runnable independent application from the comple
 
 ### Authentication, request security, and My Account
 
-- Database-backed IP/email throttling for registration, login, verification, recovery, password changes, Jump events, Contact imports, and Google integration routes.
+- Database-backed IP/email throttling for registration, login, verification, recovery, password changes, Jump events, Contact imports, Google integration routes, and AI Mix generation/refinement.
 - Unknown-account bcrypt comparison and generic invalid-login errors.
 - Minimum 12-character passwords within bcrypt's supported input size.
 - Optional one-time email verification and password recovery with hashed, expiring tokens.
@@ -156,7 +170,7 @@ This document distinguishes the runnable independent application from the comple
 ## Remaining P0 work
 
 - Restore a real encrypted backup in production-like staging and complete the documented application/worker smoke matrix.
-- Add full browser-driven end-to-end tests for authenticated routes, import, Google, template-library, and mutation-rejection behavior.
+- Add full browser-driven end-to-end tests for authenticated routes, import, Google, template-library, AI-wizard, and mutation-rejection behavior.
 - Require MFA for platform administrators before support views are enabled operationally.
 - Validate production transactional-email delivery and inbox placement before mandatory verification is enabled.
 - Complete the final security, accessibility, and operational launch review.
@@ -164,7 +178,6 @@ This document distinguishes the runnable independent application from the comple
 ## Remaining P1 work
 
 - Device Contact Picker / Quick Add capability and browser fallback polish.
-- Final four-question AI Mix Wizard and provider-backed refinement.
 - Stripe Checkout, Customer Portal, verified webhook reconciliation, downgrade workflow, and production Price IDs.
 - My Account billing, referrals, Help/FAQ, support tickets, and the broader administration dashboard.
 - Observability, encrypted backup automation, load testing, and full production-like staging validation.
