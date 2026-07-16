@@ -31,6 +31,10 @@ export function AppShell({
           </div>
         </div>
       </aside>
+      <header className="mobile-app-header">
+        <Logo />
+        <Link className="button small" href="/account" aria-label={`Open My Account for ${userName}`}>My Account</Link>
+      </header>
       <main className="app-main">{children}</main>
       <div className="mobile-nav"><Nav /></div>
     </div>
