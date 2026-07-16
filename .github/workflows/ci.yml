@@ -71,4 +71,15 @@ jobs:
           name: test-diagnostics
           path: test.log
           retention-days: 7
-      - run: npm run build
+      - name: Production build
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee build.log
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          path: build.log
+          retention-days: 7
