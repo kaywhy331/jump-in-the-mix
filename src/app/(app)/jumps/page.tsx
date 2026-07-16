@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { EmptyState } from "@/components/EmptyState";
+import { JumpActionLink, JumpCopyButton } from "@/components/JumpActionControls";
 import { Notice } from "@/components/Notice";
 import { updateJumpStatusAction } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { addLogicalDays, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
+import { stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
 import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 
@@ -17,7 +19,12 @@ type SearchParams = {
   channel?: string;
   welcome?: string;
   demo?: string;
+  applied?: string;
+  mixStopped?: string;
+  mixStopError?: string;
 };
+
+type ActionType = "COMPOSED" | "CALLED" | "VOICEMAIL_STARTED";
 
 const pendingStatuses: JumpStatus[] = ["PENDING", "COPIED"];
 const doneStatuses: JumpStatus[] = ["DONE", "SENT"];
@@ -31,6 +38,12 @@ function actionUrl(channel: Channel, email: string | undefined, phone: string | 
   if (channel === "WHATSAPP" && phone) return `https://wa.me/${phone.replace(/\D/g, "")}?text=${body}`;
   if ((channel === "PHONE_CALL" || channel === "VOICEMAIL") && phone) return `tel:${phone}`;
   return null;
+}
+
+function actionType(channel: Channel): ActionType {
+  if (channel === "PHONE_CALL") return "CALLED";
+  if (channel === "VOICEMAIL") return "VOICEMAIL_STARTED";
+  return "COMPOSED";
 }
 
 function channelIcon(channel: Channel): string {
@@ -51,6 +64,14 @@ function taskStatusLabel(status: JumpStatus): string {
   return "Done";
 }
 
+function eventLabel(action: string): string {
+  if (action === "COPIED") return "Copied prepared content";
+  if (action === "CALLED") return "Opened phone call";
+  if (action === "VOICEMAIL_STARTED") return "Opened voicemail action";
+  if (action === "COMPOSED") return "Opened channel composer";
+  return "Opened Jump";
+}
+
 function filterHref(current: { range: string; status: string; channel: string }, key: "range" | "status" | "channel", value: string): string {
   const params = new URLSearchParams({ ...current, [key]: value });
   return `/jumps?${params.toString()}`;
@@ -69,9 +90,7 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
   const endWeek = zonedDateTimeToUtc(addLogicalDays(today, 7), 0, timezone);
   const endMonth = zonedDateTimeToUtc(addLogicalDays(today, 30), 0, timezone);
 
-  const channelWhere: Prisma.JumpWhereInput = channel === "all"
-    ? {}
-    : { stepVersion: { stepTemplate: { channel } } };
+  const channelWhere: Prisma.JumpWhereInput = channel === "all" ? {} : { stepVersion: { stepTemplate: { channel } } };
 
   let statusWhere: Prisma.JumpWhereInput;
   if (status === "pending") statusWhere = { status: { in: pendingStatuses } };
@@ -104,6 +123,19 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
     orderBy: { scheduledAt: "asc" },
     take: 300
   });
+  const actionEvents = jumps.length
+    ? await prisma.jumpActionEvent.findMany({
+        where: { workspaceId: workspace.id, jumpId: { in: jumps.map((jump) => jump.id) } },
+        orderBy: { occurredAt: "desc" },
+        take: 900
+      })
+    : [];
+  const eventsByJump = new Map<string, typeof actionEvents>();
+  for (const event of actionEvents) {
+    const events = eventsByJump.get(event.jumpId) ?? [];
+    if (events.length < 3) events.push(event);
+    eventsByJump.set(event.jumpId, events);
+  }
 
   const ordered = [...jumps].sort((left, right) => {
     const leftPending = pendingStatuses.includes(left.status) ? 0 : 1;
@@ -121,9 +153,11 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
     const jumpChannel = jump.stepVersion.stepTemplate.channel;
     const url = actionUrl(jumpChannel, email, phone, snapshot);
     const content = snapshot.body ?? snapshot.script ?? snapshot.subject ?? "No message content was saved for this Jump.";
+    const copyContent = [snapshot.subject, snapshot.body ?? snapshot.script].filter(Boolean).join("\n\n");
     const snippet = content.length > 120 ? `${content.slice(0, 117)}…` : content;
     const isPending = pendingStatuses.includes(jump.status);
     const nextStatus: JumpStatus = isPending ? "DONE" : "PENDING";
+    const recentEvents = eventsByJump.get(jump.id) ?? [];
 
     return (
       <article className={`jump-card jump-task-card ${isPending ? "" : "jump-task-complete"}`} key={jump.id}>
@@ -138,31 +172,37 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
 
         <details className="jump-details">
           <summary>
-            <div className="jump-card-heading">
-              <h3>{jump.contact.displayName}</h3>
-              <span className="channel-pill">{channelLabel(jumpChannel)}</span>
-            </div>
+            <div className="jump-card-heading"><h3>{jump.contact.displayName}</h3><span className="channel-pill">{channelLabel(jumpChannel)}</span></div>
             <div className="jump-meta"><span>{jump.mix.name}</span><span>{jump.reason}</span></div>
             <p className="jump-snippet">{snippet}</p>
           </summary>
           <div className="jump-expanded-content">
             {snapshot.subject && <div><small className="field-label">Subject</small><p>{snapshot.subject}</p></div>}
             <div><small className="field-label">Prepared content</small><p>{snapshot.body ?? snapshot.script ?? "No content available."}</p></div>
+            {recentEvents.length > 0 && <div className="jump-action-history"><small className="field-label">Recent actions</small>{recentEvents.map((event) => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt)}</span>)}</div>}
             <div className="jump-secondary-actions">
+              {copyContent && <JumpCopyButton jumpId={jump.id} text={copyContent} />}
               {isPending && <form action={updateJumpStatusAction}><input type="hidden" name="jumpId" value={jump.id} /><input type="hidden" name="status" value="SKIPPED" /><button className="button small danger" type="submit">Skip</button></form>}
               {!isPending && <form action={updateJumpStatusAction}><input type="hidden" name="jumpId" value={jump.id} /><input type="hidden" name="status" value="PENDING" /><button className="button small" type="submit">Undo</button></form>}
+              {jump.mix.source !== "ONE_TIME" && <details className="destructive-confirm"><summary className="button small danger">Stop Mix…</summary><div className="destructive-confirm-panel"><p>Stop {jump.mix.name} for {jump.contact.displayName}? Every pending Jump from this Mix will leave the action queue.</p><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={jump.mixId} /><input type="hidden" name="contactId" value={jump.contactId} /><input type="hidden" name="returnTo" value="/jumps" /><button className="button small danger" type="submit">Stop this Mix</button></form></div></details>}
             </div>
           </div>
         </details>
 
         <div className="jump-primary-action">
           {url ? (
-            <a href={url} target={jumpChannel === "WHATSAPP" ? "_blank" : undefined} rel="noreferrer" className="button primary icon-button" aria-label={`Open ${channelLabel(jumpChannel)} for ${jump.contact.displayName}`} title={`Open ${channelLabel(jumpChannel)}`}>
+            <JumpActionLink
+              jumpId={jump.id}
+              action={actionType(jumpChannel)}
+              href={url}
+              target={jumpChannel === "WHATSAPP" ? "_blank" : undefined}
+              className="button primary icon-button"
+              ariaLabel={`Open ${channelLabel(jumpChannel)} for ${jump.contact.displayName}`}
+              title={`Open ${channelLabel(jumpChannel)}`}
+            >
               <span aria-hidden="true">{channelIcon(jumpChannel)}</span>
-            </a>
-          ) : (
-            <span className="status-pill" title={`Add a primary ${jumpChannel === "EMAIL" ? "email" : "phone"} to this contact first`}>Missing</span>
-          )}
+            </JumpActionLink>
+          ) : <span className="status-pill" title={`Add a primary ${jumpChannel === "EMAIL" ? "email" : "phone"} to this contact first`}>Missing</span>}
         </div>
       </article>
     );
@@ -172,13 +212,14 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
     <div className="page">
       {params.welcome && <Notice type="success">Your workspace is ready. Complete a prepared Jump or add a Contact and Jump Date to create more.</Notice>}
       {params.demo && <Notice type="info">You are in the local demo workspace. Actions remain on this computer.</Notice>}
+      {params.applied && <Notice type="success">Created {params.applied} one-time Jump{params.applied === "1" ? "" : "s"} for the selected Contacts.</Notice>}
+      {params.mixStopped && <Notice type="success">The Mix was stopped for this Contact. Its pending Jumps were removed from the queue.</Notice>}
+      {params.mixStopError && <Notice type="error">The Mix could not be stopped for this Contact.</Notice>}
       <header className="page-header"><div><h1>Jump</h1><p>Complete overdue and due outreach without hunting through a CRM.</p></div></header>
 
       <div className="filter-stack" aria-label="Jump filters">
         <div className="filter-bar filter-presets">
-          {[["due", "Due"], ["week", "Week"], ["month", "Month"], ["all", "All dates"]].map(([key, label]) => (
-            <a key={key} className={range === key ? "button primary" : "button"} href={filterHref(currentFilters, "range", key)}>{label}</a>
-          ))}
+          {[["due", "Due"], ["week", "Week"], ["month", "Month"], ["all", "All dates"]].map(([key, label]) => <a key={key} className={range === key ? "button primary" : "button"} href={filterHref(currentFilters, "range", key)}>{label}</a>)}
         </div>
         <form className="filter-bar" method="get" action="/jumps">
           <input type="hidden" name="range" value={range} />
