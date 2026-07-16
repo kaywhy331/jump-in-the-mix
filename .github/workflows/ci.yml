@@ -44,6 +44,7 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm run db:generate
       - run: npm run validate:static
+      - run: npm run db:push
       - name: TypeScript semantic validation
         shell: bash
         run: |
