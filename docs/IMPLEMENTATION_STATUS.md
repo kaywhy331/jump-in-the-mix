@@ -25,14 +25,17 @@ The `agent/prd-core-foundation` change set now includes:
 - Stable deterministic Jump keys based on workspace, Contact, Mix, Mix Jump, occurrence, local schedule, and timezone.
 - Lifecycle reconciliation that creates missing records, updates mutable records, reactivates resumed occurrences, and cancels obsolete pending records.
 - Automatic reconciliation after onboarding, Contact and Jump Date changes, Mix changes, activation, assignment, and audience changes.
-- Explicit Mix pause and archive behavior that removes future pending work while preserving history.
+- Explicit Mix pause and archive behavior that removes incomplete work while preserving completed history.
+- Fixed-date broadcasts with a required local date, local time, IANA timezone, and explicit Contact/Group audience.
+- Broadcast edits reconcile future pending work, so date, time, timezone, sequence, and audience changes do not leave duplicates or stale tasks.
+- Manual-start assignments retain their original start date when the Mix is edited; broadcasts use a separate persisted trigger record.
 - A mobile-oriented Jump page that defaults to overdue plus today, places Pending above Completed, supports Done/Undo/Skip, and exposes direct channel actions.
 - Due, Week, Month, status, and channel filters.
 - Durable communication action events for copied content, opened composers, phone calls, and voicemail actions.
 - Recent action history in the expanded Jump view.
-- Jump scheduling and rendering unit coverage for leap years, month-end behavior, timezones, key stability, and private-note restrictions.
+- Jump scheduling, broadcast validation, and rendering unit coverage for leap years, month-end behavior, timezones, key stability, and private-note restrictions.
 
-### Contacts and Groups
+### Contacts, Groups, and custom fields
 
 - Structured Contact creation and editing.
 - Multiple email addresses, phone numbers, and structured addresses.
@@ -49,7 +52,11 @@ The `agent/prd-core-foundation` change set now includes:
 - One-time applied Jumps are protected from normal Mix reconciliation and appear immediately in the Jump queue.
 - Selected-Contact CSV export with primary values, Groups, Jump Dates, and Public Notes; Private Notes are excluded.
 - Bulk archive with pending-Jump cancellation and completed-history preservation.
-- Contact-input and export unit coverage for normalization, deduplication, addresses, primary selections, and CSV escaping.
+- Workspace-owned Contact custom-field definitions with stable placeholder keys.
+- Custom-field create, rename, delete, usage counts, Contact value editing, Contact search, and Contact detail display.
+- Dynamic `{{contact.custom.<key>}}` placeholders in reusable and one-time Jumps.
+- Scheduled and one-time rendering use the same custom-field and Private Notes rules.
+- Contact-input, custom-field, rendering, and export unit coverage for normalization, deduplication, addresses, primary selections, placeholders, and CSV escaping.
 
 ### Jump Date Types
 
@@ -66,7 +73,7 @@ The `agent/prd-core-foundation` change set now includes:
 - Searchable reusable Jumps manager.
 - SMS, email, phone-call, voicemail-script, and WhatsApp content.
 - Channel-specific validation and Pro enforcement for Ringless Voicemail content.
-- Click-to-insert Contact and My Info placeholders.
+- Click-to-insert Contact, Contact custom-field, and My Info placeholders.
 - Phone-call-only Private Notes placeholders.
 - Immutable content versions.
 - Existing active Mix sequence items move to the new content version while completed Jump snapshots remain unchanged.
@@ -77,11 +84,11 @@ The `agent/prd-core-foundation` change set now includes:
 
 - Manual Mix creation and editing.
 - Draft, Active, and Paused states with active-plan-limit enforcement.
-- Target Jump Date Type, manual-start, and broadcast action modes.
+- Target Jump Date Type, manual-start, and fixed-date broadcast modes.
 - Contact Group and all-active-Contacts audience options.
 - Ordered Jump #1, Jump #2, and later sequence editing.
 - Add, remove, move, and replace reusable Jumps.
-- Day offsets and optional local send times.
+- Day offsets and optional local send-time overrides.
 - Category, industry, framework, and description fields.
 - Transactional saves.
 - Removed sequence rows with completed history are retained internally as inactive; unused rows are deleted.
@@ -90,13 +97,20 @@ The `agent/prd-core-foundation` change set now includes:
 - Stop Mix from a Jump or Contact record, and Resume from the Contact record.
 - Reconciliation excludes stopped Contact/Mix pairs and restores valid future work after resume.
 
+### Tenancy and authorization validation
+
+- Central workspace-scoped repository functions for Contacts, Groups, Mixes, reusable Jumps, generated Jumps, custom fields, and available Jump Date Types.
+- PostgreSQL integration tests prove that Workspace A cannot retrieve Workspace B core records, mix Contact IDs across bulk operations, write custom values to another workspace's Contact, or schedule another workspace's Mix.
+- Global system Jump Date Types remain visible across workspaces while tenant custom types remain private.
+- Static regression tests require every tenant server action export to derive the workspace through `requireWorkspace()`.
+- The Jump action-event endpoint is regression-tested for authenticated, workspace-scoped lookup.
+- CI now provisions the real Prisma schema in PostgreSQL before running the isolation suite.
+
 ## Remaining P0 work
 
-- Reviewed production Prisma migration and populated-database migration test.
-- Cross-workspace authorization test suite for every read and mutation.
-- Contact custom-field definition and value management UI.
-- Fixed-date broadcast scheduling and a clearer distinction between broadcast snapshots and manual starts.
-- Email verification, password recovery, rate limiting, CSRF/origin review, and session management.
+- Reviewed production Prisma migration and populated-database migration/rollback test.
+- Browser-level cross-workspace route matrix, administrator impersonation controls, and authorization tests for future modules as they are added.
+- Email verification, password recovery, login/API rate limiting, CSRF/origin enforcement, and session/device management.
 
 ## Remaining P1 work
 
