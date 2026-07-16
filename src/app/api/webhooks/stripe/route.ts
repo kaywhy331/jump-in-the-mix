@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { processStripeEvent, type StripeEvent } from "@/lib/billing-service";
+import { enforceCurrentWorkspacePlanLimits } from "@/lib/plan-downgrade";
 import { prisma } from "@/lib/prisma";
 import {
   StripeConfigurationError,
@@ -78,6 +79,12 @@ export async function POST(request: Request) {
 
   try {
     const result = await processStripeEvent(event);
+    const workspace = result.workspaceId
+      ? await prisma.workspace.findUnique({ where: { id: result.workspaceId }, select: { planTier: true } })
+      : null;
+    const safeguards = result.workspaceId && workspace
+      ? await enforceCurrentWorkspacePlanLimits(result.workspaceId, workspace.planTier)
+      : null;
     await prisma.webhookEvent.update({
       where: { id: stored.id },
       data: {
@@ -87,7 +94,7 @@ export async function POST(request: Request) {
         processedAt: new Date()
       }
     });
-    return NextResponse.json({ received: true });
+    return NextResponse.json({ received: true, safeguards });
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 2000) : "Stripe event processing failed.";
     await prisma.webhookEvent.update({
