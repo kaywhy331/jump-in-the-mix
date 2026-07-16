@@ -29,7 +29,7 @@ Before enabling mandatory verification in production, configure and validate the
 
 Every business entity is associated with a `workspaceId`. API and server actions locate records through the authenticated workspace rather than trusting browser-supplied ownership fields.
 
-PostgreSQL integration tests create two independent workspaces and verify that one cannot retrieve or mutate the other's Contacts, Groups, Mixes, reusable Jumps, generated Jumps, custom fields, or broadcast schedules. Static regression tests require tenant mutation modules to derive the workspace from the authenticated session.
+PostgreSQL integration tests create two independent workspaces and verify that one cannot retrieve or mutate the other's Contacts, Groups, Mixes, reusable Jumps, generated Jumps, custom fields, broadcasts, imports, or provider links. Static regression tests require tenant mutation modules to derive the workspace from the authenticated session.
 
 The complete authenticated application subtree resolves its workspace through the server layout. Administrator pages add an explicit platform-administrator guard. Support impersonation changes only the read context after confirming that the target user belongs to the selected workspace; the authenticated actor remains the administrator for auditing and authorization.
 
@@ -37,9 +37,24 @@ For defense in depth, production PostgreSQL may add row-level policies after dec
 
 ## Integration credentials
 
-OAuth refresh tokens and provider secrets are designed to be encrypted using AES-256-GCM before database storage. `DATA_ENCRYPTION_KEY` must be unique per environment, stored in the hosting secret manager, and excluded from logs and backups that are not independently encrypted.
+OAuth refresh tokens and provider secrets are encrypted with AES-256-GCM before database storage. `DATA_ENCRYPTION_KEY` must be unique per environment, stored in the hosting secret manager, and excluded from logs and backups that are not independently encrypted.
 
-Provider integrations are not considered complete until their encryption, rotation, revocation, and recovery paths have passed production-like staging tests.
+Google Contacts controls:
+
+- The OAuth redirect URI is explicit and must exactly match the configured Google OAuth web client.
+- OAuth `state` is random, expires after ten minutes, can be used once, and is stored only as a SHA-256 hash.
+- The integration requests read-only Google Contacts access and does not write to Google.
+- Access and refresh tokens are encrypted before storage and never returned by the account status API.
+- Access-token refresh happens server-side.
+- Revoked credentials change the connection state and require reconnecting.
+- Connecting a different Google account retires old provider links and cancels active provider jobs while preserving local Contacts.
+- Disconnect removes locally stored credentials, stops future syncs, attempts provider revocation, and preserves local Contacts.
+- Provider reads and user-initiated sync actions are authenticated, workspace-scoped, plan-gated, rate-limited, and blocked during view-only administrator support sessions.
+- Google deletions do not delete local Contacts.
+
+Do not rotate `DATA_ENCRYPTION_KEY` without a credential re-encryption plan. A destructive rotation requires every connected provider account to reconnect.
+
+Provider integrations are not considered production-ready until credential rotation, OAuth consent, revocation, inbox/provider behavior, and recovery paths pass production-like staging tests.
 
 ## Webhooks
 
@@ -51,6 +66,8 @@ Planned provider webhooks must meet all of the following requirements before lau
 - Provider event IDs are stored to prevent duplicate processing.
 - Expensive work is queued rather than performed inline.
 - Public webhook routes do not rely on a browser session and remain outside the browser Origin gate only after provider signature verification is implemented.
+
+Google Contacts in this release uses OAuth plus scheduled/delta pulls rather than an inbound webhook.
 
 ## AI
 
@@ -68,12 +85,14 @@ Operational logs must not contain:
 - Raw session tokens.
 - Raw administrator impersonation tokens.
 - Raw email-verification or password-reset tokens.
-- OAuth refresh tokens.
+- OAuth authorization codes.
+- OAuth access or refresh tokens.
+- Provider client secrets.
 - Stripe secrets.
 - Full webhook secrets.
-- Unredacted contact exports.
+- Unredacted contact exports or Google People responses.
 
-Authentication rate-limit keys are derived with a keyed SHA-256 digest rather than storing raw email/IP combinations as the bucket key. Session and administrator-support tables contain only token hashes.
+Authentication rate-limit keys are derived with a keyed SHA-256 digest rather than storing raw email/IP combinations as the bucket key. Session and administrator-support tables contain only token hashes. Google account status responses contain connection state, labels, counts, and errors but never encrypted or decrypted credentials.
 
 ## Administrative access
 
