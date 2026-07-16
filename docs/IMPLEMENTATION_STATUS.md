@@ -1,173 +1,135 @@
 # Implementation Status
 
-This document distinguishes the runnable independent application from the complete product described in the approved Master PRD.
+This document distinguishes the runnable independent application from the complete product described in the approved Master PRD. A documentation claim is not completion: a capability is complete only when its acceptance criteria pass automated tests and production-like staging.
 
 ## Implemented foundation
 
 - Dockerized Next.js application, PostgreSQL, Prisma, and background worker.
 - Registration, password login, opaque hashed sessions, and workspace ownership.
 - Public landing page and local guided demo.
-- Contact creation, Jump Dates, starter Mixes, and direct Contact-to-Mix assignment.
-- Deterministic AI-Wizard fallback.
+- Contacts, Jump Dates, reusable Jumps, Mixes, and the Jump action queue.
 - Background Jump generation and reconciliation.
-- Native SMS, email, phone, and WhatsApp compose actions.
-- Server-side plan limits.
+- Native SMS, email, phone, voicemail-script, and WhatsApp compose actions.
+- Server-side plan limits and downgrade-safe inactive records.
 
-## PRD core-foundation tranche
-
-The `agent/prd-core-foundation` change set now includes:
+## PRD core-foundation change set
 
 ### Scheduling and action queue
 
-- The canonical product decision record.
+- Canonical Jump, Jumps, Mix, Jump Date, and Jump Date Type decisions.
 - Corrected Free/Plus/Pro limits for Contacts, Groups, custom Jump Date Types, active Mixes, sharing, Google Contacts, AI, and voicemail.
-- Timezone-aware logical-date scheduling helpers.
-- Stable deterministic Jump keys based on workspace, Contact, Mix, Mix Jump, occurrence, local schedule, and timezone.
-- Lifecycle reconciliation that creates missing records, updates mutable records, reactivates resumed occurrences, and cancels obsolete pending records.
-- Automatic reconciliation after onboarding, Contact and Jump Date changes, Mix changes, activation, assignment, and audience changes.
-- Explicit Mix pause and archive behavior that removes incomplete work while preserving completed history.
-- Fixed-date broadcasts with a required local date, local time, IANA timezone, and explicit Contact/Group audience.
-- Broadcast edits reconcile future pending work, so date, time, timezone, sequence, and audience changes do not leave duplicates or stale tasks.
-- Manual-start assignments retain their original start date when the Mix is edited; broadcasts use a separate persisted trigger record.
-- A mobile-oriented Jump page that defaults to overdue plus today, places Pending above Completed, supports Done/Undo/Skip, and exposes direct channel actions.
-- Due, Week, Month, status, and channel filters.
-- Durable communication action events for copied content, opened composers, phone calls, and voicemail actions.
-- Recent action history in the expanded Jump view.
-- Jump scheduling, broadcast validation, and rendering unit coverage for leap years, month-end behavior, timezones, key stability, and private-note restrictions.
+- Timezone-aware logical-date scheduling and deterministic Jump keys.
+- Lifecycle reconciliation that creates missing work, updates mutable work, restores resumed occurrences, and cancels obsolete pending work.
+- Automatic reconciliation after Contact, Jump Date, Mix, audience, lifecycle, and personalization changes.
+- Explicit Mix pause/archive and Contact-specific Stop/Resume behavior while preserving completed history.
+- Fixed-date broadcasts with a logical date, local time, IANA timezone, and explicit audience.
+- Jump page defaults to overdue plus today, orders Pending above Completed, and supports Done, Undo, Skip, direct actions, date/status/channel filters, and durable action events.
 
 ### Contacts, Groups, and custom fields
 
 - Structured Contact creation and editing.
-- Multiple email addresses, phone numbers, and structured addresses.
-- One explicit primary email, phone, and address.
-- Email normalization and duplicate checks scoped to the active workspace.
-- Phone normalization and validation.
-- Public Notes and Private Notes stored separately.
-- Private Notes available only to Phone Call Jump scripts.
-- Contact Group creation, deletion, filtering, display, and individual membership editing from the Contacts experience.
-- Jump Date removal and Mix-assignment removal with reconciliation.
-- Mobile-first multi-select, Select All/Deselect All, and a persistent bulk action bar.
-- Bulk Contact Group assignment and removal.
-- Apply Jump for an existing reusable Jump or one-time channel content.
-- One-time applied Jumps are protected from normal Mix reconciliation and appear immediately in the Jump queue.
-- Selected-Contact CSV export with primary values, Groups, Jump Dates, Public Notes, and custom fields; Private Notes are excluded.
-- Bulk archive with pending-Jump cancellation and completed-history preservation.
-- Workspace-owned Contact custom-field definitions with stable placeholder keys.
-- Custom-field create, rename, delete, usage counts, Contact value editing, Contact search, and Contact detail display.
-- Dynamic `{{contact.custom.<key>}}` placeholders in reusable and one-time Jumps.
-- Scheduled and one-time rendering use the same custom-field and Private Notes rules.
-- Contact-input, custom-field, rendering, and export unit coverage for normalization, deduplication, addresses, primary selections, placeholders, and CSV escaping.
+- Multiple labeled emails, phones, and structured addresses with one explicit primary value for each.
+- Workspace-scoped normalization, validation, and exact-duplicate prevention.
+- Public Notes and Phone-Call-only Private Notes.
+- Contact Group creation, deletion, filtering, display, individual editing, and bulk assignment/removal.
+- Mobile-first multi-select, Select All/Deselect All, Apply Jump, selected CSV export, and bulk archive.
+- Workspace-owned custom-field definitions, values, search, stable placeholders, and export.
+- Contact and personalization changes reconcile future pending Jumps automatically.
+
+### Contact import and acquisition
+
+- Local-first CSV and VCF parsing with a 10 MB and 5,000-row boundary.
+- Upload → Map → Dedupe → Review → Import → Summary workflow.
+- Native CSV support for quoted values, embedded newlines, comma/tab/semicolon exports, repeated methods, and mobile file selection.
+- vCard 3.0/4.0 support for names, organizations, labeled emails, phones, addresses, notes, birthdays, and anniversaries.
+- Automatic mapping for core Contact fields, repeated methods, structured addresses, Public Notes, workspace custom fields, Birthdays, Anniversaries, and unfamiliar date columns.
+- One-time, monthly, and yearly Jump Date mapping without converting logical dates through the browser timezone.
+- Existing global or workspace Jump Date Type reuse by normalized name; unfamiliar types become workspace-owned custom types.
+- Custom Jump Date Types beyond a downgraded plan allowance remain preserved but inactive.
+- Exact email matching, then exact normalized-phone matching, followed by conservative fuzzy name/company review with a supporting partial contact-method overlap.
+- Explicit Create, non-destructive Merge, Prefer Imported, and Skip decisions; ambiguous exact matches cannot create another duplicate through the review UI.
+- Merge unions methods, addresses, Groups, Jump Dates, and custom values while retaining Public Notes with import provenance and preserving existing primary choices unless the user selects Prefer Imported.
+- Server-side workspace, plan, Group, custom-field, calendar, contact-method, and primary-value validation.
+- Authenticated and rate-limited import API; administrator support sessions remain view-only.
+- Idempotent 25-row browser batches with per-row isolation, audit records, automatic Jump reconciliation, progress, downloadable error CSV, and retryable server failures.
+- Unit, route-boundary, and PostgreSQL integration coverage for parsing, matching, plan handling, workspace isolation, merge preservation, inactive-type creation, and retries.
 
 ### Jump Date Types
 
 - Tenant-owned custom Jump Date Types without per-user duplication of global system records.
-- Create, search, rename, safely delete, activate, and deactivate custom types.
-- Deletion protection while a type is used by Jump Dates or active Mixes.
-- Free/Plus/Pro active-type limits.
-- Downgrade-safe active selection that preserves inactive overage records.
-- Custom types shown before global system types in Contact and Mix flows.
-- Contextual management from the Mix editor and Settings hub.
+- Create, search, rename, safe delete, activate, deactivate, and downgrade-safe active selection.
+- Custom types appear before global types in Contact and Mix flows.
 
 ### Reusable Jumps
 
-- Searchable reusable Jumps manager.
-- SMS, email, phone-call, voicemail-script, and WhatsApp content.
-- Channel-specific validation and Pro enforcement for Ringless Voicemail content.
-- Click-to-insert Contact, Contact custom-field, and My Info placeholders.
+- Searchable reusable SMS, email, phone-call, voicemail-script, and WhatsApp Jumps.
+- Channel-specific validation, Pro enforcement for Ringless Voicemail content, and click-to-insert Contact/My Info/custom placeholders.
 - Phone-call-only Private Notes placeholders.
-- Immutable content versions.
-- Existing active Mix sequence items move to the new content version while completed Jump snapshots remain unchanged.
-- Channel immutability after creation to preserve historical interpretation.
-- Mix association display and archive protection while a Jump is actively used.
+- Immutable content versions; active Mix associations move forward while completed Jump snapshots remain unchanged.
+- Mix association display, links to associated Mixes, and archive protection while actively used.
 
 ### Mix builder and Contact-specific stops
 
-- Manual Mix creation and editing.
+- Manual Mix creation and transactional editing.
 - Draft, Active, and Paused states with active-plan-limit enforcement.
 - Target Jump Date Type, manual-start, and fixed-date broadcast modes.
-- Contact Group and all-active-Contacts audience options.
-- Ordered Jump #1, Jump #2, and later sequence editing.
-- Add, remove, move, and replace reusable Jumps.
-- Day offsets and optional local send-time overrides.
-- Category, industry, framework, and description fields.
-- Transactional saves.
-- Removed sequence rows with completed history are retained internally as inactive; unused rows are deleted.
+- Contact Group and all-active-Contacts audiences.
+- Ordered Jump #1, Jump #2, and later sequence editing with add/remove/replace/reorder, offsets, and optional local times.
+- Category, industry, framework, and description metadata.
+- Removed sequence rows with history remain internally inactive; unused rows are deleted.
 - Future pending Jumps reconcile after every save without rewriting completed history.
-- A Contact-specific Mix stop that cancels pending work without deleting the Mix, assignment, or history.
-- Stop Mix from a Jump or Contact record, and Resume from the Contact record.
-- Reconciliation excludes stopped Contact/Mix pairs and restores valid future work after resume.
+- Contact-specific Mix Stop and Resume preserve the assignment and completed history.
 
 ### Tenancy and authorization validation
 
-- Central workspace-scoped repository functions for Contacts, Groups, Mixes, reusable Jumps, generated Jumps, custom fields, and available Jump Date Types.
-- PostgreSQL integration tests prove that Workspace A cannot retrieve Workspace B core records, mix Contact IDs across bulk operations, write custom values to another workspace's Contact, or schedule another workspace's Mix.
-- Global system Jump Date Types remain visible across workspaces while tenant custom types remain private.
-- Static regression tests require every tenant server action export to derive the workspace through `requireWorkspace()`.
-- The Jump action-event endpoint is regression-tested for authenticated, workspace-scoped lookup.
-- The complete authenticated application subtree is protected by a server layout; admin pages additionally require `requirePlatformAdmin()`.
-- A server-enforced route matrix verifies the authenticated layout, admin pages, impersonation entry points, and the central mutation boundary.
-- CI provisions the real Prisma schema in PostgreSQL before running isolation and authorization integration suites.
+- Central workspace-scoped repositories for Contacts, Groups, Mixes, reusable Jumps, generated Jumps, custom fields, and Jump Date Types.
+- PostgreSQL tests prove Workspace A cannot retrieve or mutate Workspace B core records, import into another workspace, mix Contact IDs across bulk actions, or schedule another workspace's Mix.
+- Global system Jump Date Types remain visible while tenant custom types remain private.
+- Static regression tests require tenant server actions to derive workspace identity from the authenticated session.
+- The authenticated application subtree is protected by its server layout; admin pages additionally require platform-admin authorization.
 
 ### Authentication, request security, and My Account
 
-- Registration and login use database-backed IP and email throttling with time-bounded blocks.
-- Unknown accounts still execute a bcrypt comparison, reducing account-enumeration timing differences.
-- Passwords require at least 12 characters and remain within bcrypt's supported input length.
-- Optional email verification uses one-time, expiring tokens stored only as SHA-256 hashes.
-- Password recovery uses one-time, expiring links; completing a reset invalidates every active session.
-- Transactional verification, reset, and password-change emails support Resend in production and a development-only preview path.
-- The authenticated request boundary rejects untrusted cross-origin mutations while leaving explicit webhook routes available for future signed provider callbacks.
-- Security headers, constrained Server Action origins, and a one-megabyte Server Action body limit are applied centrally.
-- Sessions store the device user agent, client IP, last-seen time, expiration, and only a hash of the opaque cookie token.
-- A configurable per-user session cap removes the oldest sessions when the cap is exceeded.
-- My Account displays identity, plan state, password controls, and active sessions on desktop and mobile.
-- Users can revoke one remote session, sign out other devices, or sign out everywhere.
-- Changing a password retains the current session and closes every other session.
-- The Jump action-event API has an authenticated per-user/workspace throttle and returns `429` with `Retry-After` when exceeded.
-- Unit, PostgreSQL integration, and static boundary tests cover password policy, token invalidation, throttling, origin enforcement, and session/recovery wiring.
+- Database-backed IP/email throttling for registration, login, verification, recovery, password changes, Jump events, and Contact imports.
+- Unknown-account bcrypt comparison and generic invalid-login errors.
+- Minimum 12-character passwords within bcrypt's supported input size.
+- Optional one-time email verification and password recovery with hashed, expiring tokens.
+- Branded HTML/text transactional email through Resend with development-only previews.
+- Central Origin and Fetch Metadata mutation boundary, constrained Server Action origins, security headers, and request-size limits.
+- Hashed opaque session tokens with device/IP/last-seen/expiration metadata, session caps, remote revocation, and sign-out-everywhere.
+- My Account identity, plan state, password, and active-device controls.
 
 ### Production migration and restoration foundation
 
-- The repository now contains complete Prisma migration history instead of relying exclusively on `db push`.
-- The legacy baseline is generated directly from the schema represented by `main`; CI byte-compares the generated portable SQL with the committed migration to prevent drift.
-- Existing populated MVP databases enter migration history through a one-time `migrate resolve --applied` baseline step, after which only the guarded forward migration runs.
-- Clean databases can run `prisma migrate deploy` directly; the complete baseline creates the MVP schema before the forward migration runs.
-- The guarded forward migration adds Private Notes, historical Mix sequence support, authentication throttling, Mix stops, action events, fixed-date broadcast schedules, and administrator support-session records.
-- Existing MixStep rows are backfilled with `isActive = true` and a non-null `updatedAt`; the old unique sort-position index is replaced by an active-sequence ordering index.
-- CI automatically rehearses both a populated legacy upgrade and a clean database deployment.
-- The populated rehearsal validates legacy-data preservation, executes reviewed pre-traffic reverse SQL, and reapplies the forward migration.
-- A production runbook documents backup, staging restoration, row-count checks, worker pausing, existing/clean deployment paths, smoke testing, and backup-based production rollback.
+- Complete Prisma migration history instead of relying exclusively on `db push`.
+- A generated and drift-checked legacy baseline plus a guarded PRD forward migration.
+- Supported clean-database deployment and existing populated-MVP upgrade paths.
+- Automated populated migration, data-preservation, reverse-SQL, forward-reapplication, and clean-deployment rehearsals.
+- Production runbook for backup, restore, row-count checks, worker pause/restart, smoke testing, and backup-based rollback.
 
 ### Audited view-only administrator support
 
-- A protected Admin Users page searches accounts and workspace memberships without exposing the feature to ordinary users.
-- Starting a support view requires a platform administrator, a valid target workspace membership, and a 10–500 character support reason.
-- The support token is cryptographically random, stored only as a SHA-256 hash, and expires after 30 minutes by default.
-- The authenticated actor remains the administrator while the application read context is switched to the selected target workspace.
-- A persistent banner identifies the viewed user, reason, expiration, and view-only restrictions.
-- Every impersonated browser mutation is rejected centrally with HTTP 403 except the explicit End View-Only Session route.
-- Target-account password, device-session, and other security controls are hidden during support access.
-- Start and end events are written to the target workspace audit log with the administrator, reason, expiry, and view-only mode.
-- PostgreSQL integration tests cover token hashing, actor binding, target membership, expiry, non-admin rejection, and start/end audit records.
+- Protected Admin Users search with workspace, plan, verification, and usage context.
+- Time-limited support views require a valid target membership and documented support reason.
+- Random support token stored only as a SHA-256 hash.
+- Real administrator remains the audit actor while the read context switches to the selected workspace.
+- Persistent view-only banner; every browser mutation is rejected except ending the support session.
+- Target password/device controls remain hidden; start/end events are audited.
 
 ## Remaining P0 work
 
 - Restore a real encrypted backup in production-like staging and complete the documented application/worker smoke matrix.
-- Add full browser-driven end-to-end tests for authenticated routes and cross-workspace 404/redirect behavior; the current matrix is server-enforced and integration-tested but not yet browser-automated.
-- Require MFA for platform administrators before enabling support impersonation in production.
-- Validate production transactional-email delivery and inbox placement before enabling mandatory email verification.
+- Add full browser-driven end-to-end tests for authenticated routes, import UI, cross-workspace 404/redirect behavior, and mutation rejection.
+- Require MFA for platform administrators before support views are enabled operationally.
+- Validate production transactional-email delivery and inbox placement before mandatory verification is enabled.
 - Complete the final security, accessibility, and operational launch review.
 
 ## Remaining P1 work
 
-- CSV/VCF import, mapping, deduplication, merge review, export, and error report.
-- Google Contacts OAuth, encrypted credential service, preview, incremental sync, and logs.
-- Platform/community Mix Templates, moderation, voting, contributor profiles, and atomic imports.
+- Device Contact Picker / Quick Add capability and browser fallback polish.
+- Google Contacts OAuth, encrypted credential service, selective preview, incremental sync, reconnect flow, and logs.
+- Platform/community Mix Templates, moderation, voting, contributor profiles, sharing limits, and atomic imports.
 - Final four-question AI Mix Wizard and provider-backed refinement.
-- Stripe Checkout, Customer Portal, verified webhook reconciliation, and downgrade workflow.
+- Stripe Checkout, Customer Portal, verified webhook reconciliation, downgrade workflow, and production Price IDs.
 - My Account billing/integrations, referrals, Help/FAQ, support tickets, and the broader administration dashboard.
-- Observability, encrypted backup automation, load testing, and production-like staging validation.
-
-## Validation policy
-
-A documentation claim is not completion. A feature is complete only when its acceptance criteria in the Master PRD pass in automated tests and production-like staging.
+- Observability, encrypted backup automation, load testing, and full production-like staging validation.
