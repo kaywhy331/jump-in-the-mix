@@ -1,0 +1,62 @@
+.contacts-page-actions { align-items: flex-start; }
+.contact-select-row { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; }
+.contact-select-row.selected { border-color: #b9b0ff; background: #fbfaff; box-shadow: 0 0 0 2px rgba(93, 76, 242, .08); }
+.contact-select-control { width: 48px; height: 48px; display: grid; place-items: center; cursor: pointer; }
+.contact-select-control input { position: absolute; opacity: 0; pointer-events: none; }
+.contact-select-control span { width: 28px; height: 28px; display: grid; place-items: center; border: 2px solid #cbd2df; border-radius: 9px; background: white; color: white; font-weight: 900; }
+.contact-select-control input:checked + span { background: var(--brand); border-color: var(--brand); }
+
+.bulk-contact-bar { position: fixed; z-index: 45; left: max(18px, calc(250px + 18px)); right: 18px; bottom: 18px; max-width: 1120px; margin: 0 auto; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 17px; background: rgba(255,255,255,.97); box-shadow: var(--shadow); backdrop-filter: blur(14px); }
+.bulk-selection-count { min-width: 132px; display: flex; align-items: baseline; gap: 5px; white-space: nowrap; padding: 0 8px; }
+.bulk-selection-count strong { font-size: 1.05rem; }
+.bulk-selection-count span { color: var(--muted); font-size: .82rem; }
+.bulk-selection-count .text-button { margin-left: 5px; }
+.bulk-action-menu { position: relative; }
+.bulk-action-menu > summary { list-style: none; cursor: pointer; }
+.bulk-action-menu > summary::-webkit-details-marker { display: none; }
+.bulk-action-button { min-width: 48px; }
+.bulk-action-panel { position: absolute; z-index: 60; left: 0; bottom: calc(100% + 10px); width: min(360px, 84vw); max-height: min(620px, 72vh); overflow-y: auto; padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: white; box-shadow: var(--shadow); }
+.bulk-action-panel h3 { margin: 0 0 7px; }
+.bulk-apply-panel { width: min(540px, 90vw); }
+.bulk-danger-panel { border-color: #f1c7cd; }
+.bulk-secondary-form { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+.bulk-mode-choice { display: flex; gap: 8px; flex-wrap: wrap; }
+.bulk-mode-choice input { width: auto; }
+
+.jump-action-history { display: grid; gap: 5px; }
+.jump-action-history > span { color: var(--muted); font-size: .76rem; }
+.assigned-mix-actions { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.assigned-mix-row > div:first-child { display: grid; gap: 2px; }
+.stopped-mix-label { color: var(--warning); font-weight: 780; }
+.stopped-mix-section { display: grid; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.stopped-mix-section h3 { margin: 0; font-size: .86rem; }
+
+@media (max-width: 980px) {
+  .bulk-contact-bar { left: 16px; }
+}
+
+@media (max-width: 760px) {
+  .contacts-page-header { display: grid; }
+  .contacts-page-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+  .contacts-page-actions .button, .contacts-page-actions .group-manager { width: 100%; }
+  .contacts-page-actions .group-manager > summary { width: 100%; }
+  .contact-select-row { grid-template-columns: 44px minmax(0, 1fr); gap: 7px; }
+  .contact-select-row .table-actions { grid-column: 2; }
+  .contact-select-control { width: 44px; height: 48px; }
+  .bulk-contact-bar { left: 10px; right: 10px; bottom: 88px; gap: 5px; padding: 8px; overflow: visible; }
+  .bulk-selection-count { min-width: 92px; padding: 0 4px; }
+  .bulk-selection-count .text-button { display: none; }
+  .bulk-action-label { display: none; }
+  .bulk-action-button { width: 48px; min-width: 48px; padding: 0; }
+  .bulk-action-panel { position: fixed; left: 12px; right: 12px; bottom: 150px; width: auto; max-height: calc(100vh - 230px); }
+  .bulk-mode-choice { display: grid; grid-template-columns: 1fr 1fr; }
+  .assigned-mix-row { align-items: flex-start; }
+  .assigned-mix-actions { width: 100%; justify-content: flex-start; }
+}
+
+@media (max-width: 430px) {
+  .contacts-page-actions { grid-template-columns: 1fr 1fr; }
+  .contacts-page-actions .group-manager { grid-column: 1 / -1; }
+  .bulk-selection-count { min-width: 74px; }
+  .bulk-selection-count span { display: none; }
+}
