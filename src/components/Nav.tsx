@@ -8,7 +8,8 @@ const links = [
   ["/jumps", "Jumps", "↗"],
   ["/contacts", "Contacts", "◎"],
   ["/mixes", "Mixes", "⎇"],
-  ["/settings", "Settings", "⚙"]
+  ["/settings", "Settings", "⚙"],
+  ["/help", "Help", "?"]
 ] as const;
 
 export function Nav() {
