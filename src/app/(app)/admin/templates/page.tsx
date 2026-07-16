@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { SharedMixReviewState, SharedMixStatus } from "@/generated/prisma/client";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
 import { SharedMixPreview } from "@/components/SharedMixPreview";
@@ -18,50 +19,43 @@ type SearchParams = {
   error?: string;
 };
 
+function reviewStateFromStatus(status: SharedMixStatus): SharedMixReviewState {
+  if (status === "APPROVED") return "APPROVED";
+  if (status === "REJECTED") return "REJECTED";
+  if (status === "UNPUBLISHED") return "UNPUBLISHED";
+  return "PENDING";
+}
+
 export default async function AdminTemplatesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, { user }] = await Promise.all([searchParams, requirePlatformAdmin()]);
   const workspaceId = user.memberships[0]?.workspaceId;
   const query = params.q?.trim() ?? "";
   const source = params.source === "platform" || params.source === "community" ? params.source : "all";
-  const status = ["PENDING", "APPROVED", "REJECTED", "UNPUBLISHED", "FLAGGED"].includes(params.status ?? "") ? params.status : "";
+  const status = ["PENDING", "APPROVED", "REJECTED", "UNPUBLISHED", "FLAGGED"].includes(params.status ?? "") ? params.status as SharedMixReviewState : "";
 
-  const [templates, sourceMixes] = await Promise.all([
+  const [candidates, sourceMixes] = await Promise.all([
     prisma.sharedMix.findMany({
-      where: {
-        ...(source === "platform" ? { isPlatform: true } : source === "community" ? { isPlatform: false } : {}),
-        ...(status ? { status: status as "PENDING" | "APPROVED" | "REJECTED" | "UNPUBLISHED" | "FLAGGED" } : {}),
-        ...(query ? {
-          OR: [
-            { title: { contains: query, mode: "insensitive" } },
-            { description: { contains: query, mode: "insensitive" } },
-            { category: { contains: query, mode: "insensitive" } },
-            { industry: { contains: query, mode: "insensitive" } },
-            { publisherWorkspace: { name: { contains: query, mode: "insensitive" } } }
-          ]
-        } : {})
-      },
+      where: query ? {
+        OR: [
+          { title: { contains: query, mode: "insensitive" } },
+          { description: { contains: query, mode: "insensitive" } },
+          { category: { contains: query, mode: "insensitive" } },
+          { industry: { contains: query, mode: "insensitive" } },
+          { publisherWorkspace: { name: { contains: query, mode: "insensitive" } } }
+        ]
+      } : undefined,
       include: {
         publisherWorkspace: {
           select: {
             id: true,
             name: true,
             planTier: true,
-            profile: {
-              select: {
-                communityProfileEnabled: true,
-                communityDisplayName: true,
-                communityTitle: true,
-                communityBio: true,
-                communityWebsite: true,
-                company: true,
-                industry: true
-              }
-            }
+            profile: { select: { company: true, industry: true } }
           }
         }
       },
-      orderBy: [{ status: "asc" }, { featuredAt: "desc" }, { updatedAt: "desc" }],
-      take: 200
+      orderBy: { updatedAt: "desc" },
+      take: 300
     }),
     workspaceId ? prisma.mix.findMany({
       where: { workspaceId, status: { not: "ARCHIVED" }, steps: { some: { isActive: true } } },
@@ -71,10 +65,39 @@ export default async function AdminTemplatesPage({ searchParams }: { searchParam
     }) : Promise.resolve([])
   ]);
 
+  const ids = candidates.map((item) => item.id);
+  const publisherIds = [...new Set(candidates.map((item) => item.publisherWorkspaceId).filter((item): item is string => Boolean(item)))];
+  const [metadataRows, contributorProfiles] = await Promise.all([
+    ids.length ? prisma.sharedMixMetadata.findMany({ where: { sharedMixId: { in: ids } } }) : [],
+    publisherIds.length ? prisma.sharedMixContributorProfile.findMany({ where: { workspaceId: { in: publisherIds } } }) : []
+  ]);
+  const metadataById = new Map(metadataRows.map((item) => [item.sharedMixId, item]));
+  const contributorByWorkspace = new Map(contributorProfiles.map((item) => [item.workspaceId, item]));
+  const templates = candidates.filter((item) => {
+    const metadata = metadataById.get(item.id);
+    const isPlatform = metadata?.isPlatform ?? item.publisherWorkspaceId === null;
+    const reviewState = metadata?.reviewState ?? reviewStateFromStatus(item.status);
+    if (source === "platform" && !isPlatform) return false;
+    if (source === "community" && isPlatform) return false;
+    return !status || reviewState === status;
+  });
+  templates.sort((left, right) => {
+    const leftMetadata = metadataById.get(left.id);
+    const rightMetadata = metadataById.get(right.id);
+    const leftState = leftMetadata?.reviewState ?? reviewStateFromStatus(left.status);
+    const rightState = rightMetadata?.reviewState ?? reviewStateFromStatus(right.status);
+    const stateOrder: Record<SharedMixReviewState, number> = { PENDING: 0, FLAGGED: 1, APPROVED: 2, REJECTED: 3, UNPUBLISHED: 4 };
+    return stateOrder[leftState] - stateOrder[rightState]
+      || Number(Boolean(rightMetadata?.featuredAt)) - Number(Boolean(leftMetadata?.featuredAt))
+      || right.updatedAt.getTime() - left.updatedAt.getTime();
+  });
+
   const counts = templates.reduce((result, item) => {
-    result[item.status] = (result[item.status] ?? 0) + 1;
+    const state = metadataById.get(item.id)?.reviewState ?? reviewStateFromStatus(item.status);
+    result[state] = (result[state] ?? 0) + 1;
     return result;
   }, {} as Record<string, number>);
+  const platformCount = templates.filter((item) => metadataById.get(item.id)?.isPlatform ?? item.publisherWorkspaceId === null).length;
 
   return (
     <div className="page admin-template-page">
@@ -90,7 +113,7 @@ export default async function AdminTemplatesPage({ searchParams }: { searchParam
       </header>
 
       <div className="admin-template-metrics">
-        <div className="card"><strong>{templates.filter((item) => item.isPlatform).length}</strong><span>Platform</span></div>
+        <div className="card"><strong>{platformCount}</strong><span>Platform</span></div>
         <div className="card"><strong>{counts.PENDING ?? 0}</strong><span>Pending review</span></div>
         <div className="card"><strong>{counts.FLAGGED ?? 0}</strong><span>Flagged</span></div>
         <div className="card"><strong>{templates.reduce((sum, item) => sum + item.importCount, 0)}</strong><span>Total imports</span></div>
@@ -123,43 +146,46 @@ export default async function AdminTemplatesPage({ searchParams }: { searchParam
 
       <div className="admin-template-list">
         {templates.map((template) => {
+          const metadata = metadataById.get(template.id);
+          const isPlatform = metadata?.isPlatform ?? template.publisherWorkspaceId === null;
+          const reviewState = metadata?.reviewState ?? reviewStateFromStatus(template.status);
           const issue = sharedMixContentIssue(template.steps);
           const steps = issue ? [] : normalizeSharedMixSteps(template.steps);
-          const profile = template.publisherWorkspace?.profile;
-          const contributor = template.isPlatform
+          const contributorProfile = template.publisherWorkspaceId ? contributorByWorkspace.get(template.publisherWorkspaceId) : null;
+          const contributor = isPlatform
             ? "Jump in the Mix"
-            : profile?.communityDisplayName || template.publisherWorkspace?.name || "Unknown contributor";
+            : contributorProfile?.displayName || template.publisherWorkspace?.name || "Unknown contributor";
           return (
             <article className="card admin-template-card" key={template.id}>
               <div className="admin-template-heading">
                 <div>
-                  <div className="template-badges"><span className="status-pill">{template.isPlatform ? "Platform" : "Community"}</span><span className={`status-pill ${template.status === "APPROVED" ? "done" : ""}`}>{template.status.toLowerCase()}</span>{template.featuredAt && <span className="status-pill done">Featured</span>}</div>
+                  <div className="template-badges"><span className="status-pill">{isPlatform ? "Platform" : "Community"}</span><span className={`status-pill ${reviewState === "APPROVED" ? "done" : ""}`}>{reviewState.toLowerCase()}</span>{metadata?.featuredAt && <span className="status-pill done">Featured</span>}</div>
                   <h2>{template.title}</h2>
                   <p>{template.description}</p>
-                  <small>{contributor} · v{template.version} · Updated {formatDate(template.updatedAt)} · {template.voteCount} votes · {template.importCount} imports</small>
+                  <small>{contributor} · v{metadata?.version ?? 1} · Updated {formatDate(template.updatedAt)} · {metadata?.voteCount ?? 0} votes · {template.importCount} imports</small>
                 </div>
                 <Link className="button small" href={`/admin/templates/${template.id}/edit`}>Edit & review</Link>
               </div>
 
-              {!template.isPlatform && (
+              {!isPlatform && (
                 <div className="admin-contributor-summary">
                   <strong>{contributor}</strong>
-                  <span>{[profile?.communityTitle, profile?.company, profile?.industry].filter(Boolean).join(" · ") || template.publisherWorkspace?.planTier.toLowerCase()}</span>
-                  {profile?.communityBio && <p>{profile.communityBio}</p>}
-                  {profile?.communityWebsite && <a href={profile.communityWebsite} target="_blank" rel="nofollow noopener">Review website</a>}
+                  <span>{[contributorProfile?.title, template.publisherWorkspace?.profile?.company, template.publisherWorkspace?.profile?.industry].filter(Boolean).join(" · ") || template.publisherWorkspace?.planTier.toLowerCase()}</span>
+                  {contributorProfile?.bio && <p>{contributorProfile.bio}</p>}
+                  {contributorProfile?.website && <a href={contributorProfile.website} target="_blank" rel="nofollow noopener">Review website</a>}
                 </div>
               )}
 
               {issue ? <Notice type="error">Invalid template content: {issue}</Notice> : (
-                <SharedMixPreview title={template.title} triggerMode={template.triggerMode} dateTypeName={template.dateTypeName} durationDays={template.durationDays} steps={steps} />
+                <SharedMixPreview title={template.title} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} durationDays={template.durationDays} steps={steps} />
               )}
-              {template.moderationNote && <Notice type={template.status === "REJECTED" || template.status === "FLAGGED" ? "error" : "info"}>{template.moderationNote}</Notice>}
+              {metadata?.moderationNote && <Notice type={reviewState === "REJECTED" || reviewState === "FLAGGED" ? "error" : "info"}>{metadata.moderationNote}</Notice>}
 
-              {!template.isPlatform && (
+              {!isPlatform && (
                 <div className="admin-template-quick-actions">
-                  {template.status !== "APPROVED" && <form action={quickModerateSharedMixAction}><input type="hidden" name="sharedMixId" value={template.id} /><input type="hidden" name="status" value="APPROVED" /><button className="button small primary" type="submit">Approve</button></form>}
-                  {template.status !== "FLAGGED" && <form action={quickModerateSharedMixAction}><input type="hidden" name="sharedMixId" value={template.id} /><input type="hidden" name="status" value="FLAGGED" /><button className="button small" type="submit">Flag</button></form>}
-                  {template.status !== "REJECTED" && <details className="destructive-confirm"><summary className="button small danger">Reject…</summary><div className="destructive-confirm-panel"><form action={quickModerateSharedMixAction} className="form-stack"><input type="hidden" name="sharedMixId" value={template.id} /><input type="hidden" name="status" value="REJECTED" /><label>Reason<textarea name="moderationNote" minLength={10} maxLength={1200} required /></label><button className="button small danger" type="submit">Confirm rejection</button></form></div></details>}
+                  {reviewState !== "APPROVED" && <form action={quickModerateSharedMixAction}><input type="hidden" name="sharedMixId" value={template.id} /><input type="hidden" name="status" value="APPROVED" /><button className="button small primary" type="submit">Approve</button></form>}
+                  {reviewState !== "FLAGGED" && <form action={quickModerateSharedMixAction}><input type="hidden" name="sharedMixId" value={template.id} /><input type="hidden" name="status" value="FLAGGED" /><button className="button small" type="submit">Flag</button></form>}
+                  {reviewState !== "REJECTED" && <details className="destructive-confirm"><summary className="button small danger">Reject…</summary><div className="destructive-confirm-panel"><form action={quickModerateSharedMixAction} className="form-stack"><input type="hidden" name="sharedMixId" value={template.id} /><input type="hidden" name="status" value="REJECTED" /><label>Reason<textarea name="moderationNote" minLength={10} maxLength={1200} required /></label><button className="button small danger" type="submit">Confirm rejection</button></form></div></details>}
                 </div>
               )}
             </article>
