@@ -48,7 +48,7 @@ export async function createSupportTicketAction(formData: FormData): Promise<voi
     helpError(`Too many support tickets were opened recently. Try again in about ${Math.ceil(decision.retryAfterSeconds / 60)} minute(s).`);
   }
 
-  let ticketId: string;
+  let ticketId = "";
   try {
     const ticket = await createSupportTicketRecord({
       workspaceId: workspace.id,
@@ -61,6 +61,7 @@ export async function createSupportTicketAction(formData: FormData): Promise<voi
   } catch (error) {
     helpError(error instanceof Error ? error.message : "The support ticket could not be created.");
   }
+  if (!ticketId) helpError("The support ticket could not be created.");
   redirect(`/account/tickets/${ticketId}?created=1`);
 }
 
