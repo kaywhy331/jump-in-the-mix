@@ -16,7 +16,6 @@ import {
 import { sendSupportReplyNotification } from "@/lib/support-email";
 import {
   adminReplyToSupportTicketRecord,
-  SupportTicketError,
   updateSupportMessageEmailStatus,
   updateSupportTicketStatus,
   updateSupportTicketTriage
@@ -83,7 +82,7 @@ export async function adminReplyToSupportTicketAction(formData: FormData): Promi
   if (!ticketId) adminTicketError("unknown", "Support ticket not found.");
   if (body.length < 2) adminTicketError(ticketId, "Write a response before sending it.");
 
-  let result: Awaited<ReturnType<typeof adminReplyToSupportTicketRecord>>;
+  let result: Awaited<ReturnType<typeof adminReplyToSupportTicketRecord>> | null = null;
   try {
     result = await adminReplyToSupportTicketRecord({
       ticketId,
@@ -94,6 +93,7 @@ export async function adminReplyToSupportTicketAction(formData: FormData): Promi
     const message = error instanceof Error ? error.message : "The response could not be saved.";
     adminTicketError(ticketId, message);
   }
+  if (!result) adminTicketError(ticketId, "The response could not be saved.");
 
   const email = await deliverAdminReplyEmail({
     messageId: result.message.id,
