@@ -44,6 +44,13 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
     }),
     prisma.mixBroadcastSchedule.findMany({ where: { workspaceId: workspace.id } })
   ]);
+  const mixIds = mixes.map((mix) => mix.id);
+  const sharingRows = mixIds.length
+    ? await prisma.sharedMixMetadata.findMany({
+        where: { publisherWorkspaceId: workspace.id, publisherMixId: { in: mixIds } }
+      })
+    : [];
+  const sharingByMixId = new Map(sharingRows.map((item) => [item.publisherMixId, item]));
   const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
   const limits = PLAN_LIMITS[workspace.planTier];
   const canUseWizard = limits.aiWizard;
@@ -61,8 +68,9 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
       {params.starter === "exists" && <Notice type="info">Your simple starter Mix is already available below.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
       <header className="page-header">
-        <div><h1>Mixes</h1><p>Build ordered Jump sequences and control their trigger, audience, and lifecycle.</p></div>
+        <div><h1>Mixes</h1><p>Build ordered Jump sequences and control their trigger, audience, lifecycle, and Community sharing.</p></div>
         <div className="page-actions">
+          <Link href="/templates" className="button">Browse Templates</Link>
           <Link href="/settings/jumps" className="button">Manage Jumps</Link>
           {canUseWizard && <Link href="/mixes/wizard" className="button">Create with AI</Link>}
           <Link href="/mixes/new" className="button primary">+ New Mix</Link>
@@ -75,6 +83,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
         <div className="mix-list">
           {mixes.map((mix) => {
             const broadcast = broadcastByMixId.get(mix.id);
+            const sharing = sharingByMixId.get(mix.id);
             return (
               <article className="mix-row mix-card" key={mix.id}>
                 <div className="card-header">
@@ -82,6 +91,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                     <h3>{mix.name}</h3>
                     <div className="mix-meta">
                       <span className={`status-pill ${mix.status === "ACTIVE" ? "done" : ""}`}>{mix.status.toLowerCase()}</span>
+                      {sharing && <span className={`status-pill ${sharing.reviewState === "APPROVED" ? "done" : ""}`}>Community: {sharing.reviewState.toLowerCase()}</span>}
                       <span>{mix.triggerMode.replaceAll("_", " ").toLowerCase()}</span>
                       {mix.dateType && <span>Target Jump Date Type: {mix.dateType.name}</span>}
                       {broadcast && <span>Broadcast: {formatDateInput(broadcast.localDate)} · {formatTimeInput(broadcast.timeMinutes)} {broadcast.timezone}</span>}
@@ -90,6 +100,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                   </div>
                   <div className="mix-card-actions">
                     <Link href={`/mixes/${mix.id}/edit`} className="button small">Edit</Link>
+                    <Link href={`/mixes/${mix.id}/share`} className="button small">{sharing ? "Manage sharing" : "Share"}</Link>
                     {mix.status === "ACTIVE" ? (
                       <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id} /><button className="button small" type="submit">Pause</button></form>
                     ) : (
@@ -97,7 +108,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                     )}
                     <details className="destructive-confirm">
                       <summary className="button small danger">Archive…</summary>
-                      <div className="destructive-confirm-panel"><p>Archive this Mix? Incomplete Jumps will be canceled; completed history stays intact.</p><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id} /><button className="button small danger" type="submit">Confirm archive</button></form></div>
+                      <div className="destructive-confirm-panel"><p>Archive this Mix? Incomplete Jumps will be canceled; completed history stays intact. Shared template snapshots remain independently moderated.</p><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id} /><button className="button small danger" type="submit">Confirm archive</button></form></div>
                     </details>
                   </div>
                 </div>
@@ -116,7 +127,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
           })}
         </div>
       ) : (
-        <EmptyState title="Create your first Mix" description="Start with a reusable Jump sequence, then choose its trigger and audience." actionHref="/mixes/new" actionLabel="Create a Mix" />
+        <EmptyState title="Create your first Mix" description="Start from a reviewed template or build a reusable Jump sequence with your own trigger and audience." actionHref="/templates" actionLabel="Browse Mix Templates" />
       )}
 
       {!mixes.length && <form action={createStarterMixAction} className="starter-mix-inline"><button className="button" type="submit">Or create the simple starter Mix</button></form>}
