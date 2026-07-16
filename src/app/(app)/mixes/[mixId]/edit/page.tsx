@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { MixEditor } from "@/components/MixEditor";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
+import { formatDateInput, formatTimeInput } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Edit Mix" };
@@ -15,22 +16,25 @@ export default async function EditMixPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const [{ mixId }, query, { workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
-  const mix = await prisma.mix.findFirst({
-    where: { id: mixId, workspaceId: workspace.id, status: { not: "ARCHIVED" } },
-    include: {
-      steps: {
-        where: { isActive: true },
-        include: { stepVersion: { include: { stepTemplate: true } } },
-        orderBy: { sortOrder: "asc" }
-      },
-      assignments: { where: { isActive: true, mode: "DYNAMIC" } }
-    }
-  });
+  const [mix, broadcastSchedule] = await Promise.all([
+    prisma.mix.findFirst({
+      where: { id: mixId, workspaceId: workspace.id, status: { not: "ARCHIVED" } },
+      include: {
+        steps: {
+          where: { isActive: true },
+          include: { stepVersion: { include: { stepTemplate: true } } },
+          orderBy: { sortOrder: "asc" }
+        },
+        assignments: { where: { isActive: true, mode: "DYNAMIC" } }
+      }
+    }),
+    prisma.mixBroadcastSchedule.findFirst({ where: { workspaceId: workspace.id, mixId } })
+  ]);
   if (!mix) notFound();
 
   const selectedTemplateIds = mix.steps.map((step) => step.stepVersion.stepTemplateId);
   const [dateTypes, groups, jumps] = await Promise.all([
-    prisma.dateType.findMany({ where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null }] }, orderBy: [{ isSystem: "asc" }, { name: "asc" }] }),
+    prisma.dateType.findMany({ where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null, isSystem: true }] }, orderBy: [{ isSystem: "asc" }, { name: "asc" }] }),
     prisma.group.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
     prisma.stepTemplate.findMany({ where: { workspaceId: workspace.id, OR: [{ isActive: true }, { id: { in: selectedTemplateIds } }] }, orderBy: [{ channel: "asc" }, { name: "asc" }] })
   ]);
@@ -45,6 +49,7 @@ export default async function EditMixPage({
         dateTypes={dateTypes.map((item) => ({ id: item.id, name: item.name, isSystem: item.isSystem }))}
         groups={groups.map((item) => ({ id: item.id, name: item.name, color: item.color }))}
         jumps={jumps.map((item) => ({ id: item.id, name: item.name, channel: item.channel }))}
+        workspaceTimezone={workspace.profile?.timezone ?? "UTC"}
         mix={{
           id: mix.id,
           name: mix.name,
@@ -57,6 +62,9 @@ export default async function EditMixPage({
           status: mix.status === "ARCHIVED" ? "DRAFT" : mix.status,
           groupIds,
           assignAllContacts,
+          broadcastDate: formatDateInput(broadcastSchedule?.localDate),
+          broadcastTime: formatTimeInput(broadcastSchedule?.timeMinutes),
+          broadcastTimezone: broadcastSchedule?.timezone ?? workspace.profile?.timezone ?? "UTC",
           steps: mix.steps.map((step) => ({
             id: step.id,
             stepTemplateId: step.stepVersion.stepTemplateId,
