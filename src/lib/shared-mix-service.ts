@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { Channel, MixTriggerMode, Prisma, SharedMixStatus } from "@/generated/prisma/client";
+import type {
+  MixTriggerMode,
+  Prisma,
+  SharedMixReviewState,
+  SharedMixStatus
+} from "@/generated/prisma/client";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 import {
@@ -10,9 +15,9 @@ import {
 } from "@/lib/shared-mix";
 import { slugify } from "@/lib/slug";
 
-const ACTIVE_SHARE_STATUSES: SharedMixStatus[] = ["PENDING", "APPROVED", "FLAGGED"];
+const ACTIVE_SHARE_STATES: SharedMixReviewState[] = ["PENDING", "APPROVED", "FLAGGED"];
 
-type TemplateMetadata = {
+export type TemplateMetadata = {
   title: string;
   description: string;
   category: string;
@@ -20,7 +25,7 @@ type TemplateMetadata = {
   framework: string | null;
 };
 
-type MixSnapshot = {
+export type MixSnapshot = {
   mixId: string;
   name: string;
   description: string | null;
@@ -49,6 +54,20 @@ function validateMetadata(input: TemplateMetadata): TemplateMetadata {
   if (!(MIX_TEMPLATE_CATEGORIES as readonly string[]).includes(category)) throw new Error("Choose a supported Mix Template category.");
   if (!(MIX_TEMPLATE_INDUSTRIES as readonly string[]).includes(industry)) throw new Error("Choose a supported Mix Template industry.");
   return { title, description, category, industry, framework };
+}
+
+function publicStatus(reviewState: SharedMixReviewState): SharedMixStatus {
+  if (reviewState === "APPROVED") return "APPROVED";
+  if (reviewState === "REJECTED") return "REJECTED";
+  if (reviewState === "UNPUBLISHED") return "UNPUBLISHED";
+  return "PENDING";
+}
+
+function reviewStateFromStatus(status: SharedMixStatus): SharedMixReviewState {
+  if (status === "APPROVED") return "APPROVED";
+  if (status === "REJECTED") return "REJECTED";
+  if (status === "UNPUBLISHED") return "UNPUBLISHED";
+  return "PENDING";
 }
 
 export async function snapshotWorkspaceMix(workspaceId: string, mixId: string): Promise<MixSnapshot> {
@@ -99,22 +118,33 @@ export async function publishWorkspaceMix(input: {
   actorUserId: string;
   mixId: string;
   metadata: TemplateMetadata;
-}): Promise<{ sharedMixId: string; status: SharedMixStatus }> {
+}): Promise<{ sharedMixId: string; reviewState: SharedMixReviewState }> {
   const metadata = validateMetadata(input.metadata);
-  const [workspace, profile, existing, snapshot] = await Promise.all([
+  const [workspace, contributorProfile, existingMetadata, snapshot] = await Promise.all([
     prisma.workspace.findUnique({ where: { id: input.workspaceId }, select: { planTier: true } }),
-    prisma.workspaceProfile.findUnique({ where: { workspaceId: input.workspaceId } }),
-    prisma.sharedMix.findFirst({ where: { publisherWorkspaceId: input.workspaceId, publisherMixId: input.mixId } }),
+    prisma.sharedMixContributorProfile.findUnique({ where: { workspaceId: input.workspaceId } }),
+    prisma.sharedMixMetadata.findUnique({
+      where: {
+        publisherWorkspaceId_publisherMixId: {
+          publisherWorkspaceId: input.workspaceId,
+          publisherMixId: input.mixId
+        }
+      }
+    }),
     snapshotWorkspaceMix(input.workspaceId, input.mixId)
   ]);
   if (!workspace) throw new Error("Workspace not found.");
-  if (!profile?.communityProfileEnabled || !profile.communityDisplayName?.trim()) {
+  if (!contributorProfile?.enabled || !contributorProfile.displayName?.trim()) {
     throw new Error("Complete and enable your Community Public Profile before sharing a Mix.");
   }
 
-  if (!existing || !ACTIVE_SHARE_STATUSES.includes(existing.status)) {
-    const activeShares = await prisma.sharedMix.count({
-      where: { publisherWorkspaceId: input.workspaceId, isPlatform: false, status: { in: ACTIVE_SHARE_STATUSES } }
+  if (!existingMetadata || !ACTIVE_SHARE_STATES.includes(existingMetadata.reviewState)) {
+    const activeShares = await prisma.sharedMixMetadata.count({
+      where: {
+        publisherWorkspaceId: input.workspaceId,
+        isPlatform: false,
+        reviewState: { in: ACTIVE_SHARE_STATES }
+      }
     });
     const limit = PLAN_LIMITS[workspace.planTier].sharedMixes;
     if (Number.isFinite(limit) && activeShares >= limit) {
@@ -123,44 +153,64 @@ export async function publishWorkspaceMix(input: {
   }
 
   return prisma.$transaction(async (tx) => {
-    const data = {
+    const baseData = {
+      publisherWorkspaceId: input.workspaceId,
       title: metadata.title,
       description: metadata.description,
       category: metadata.category,
       industry: metadata.industry,
       framework: metadata.framework,
-      triggerMode: snapshot.triggerMode,
-      dateTypeName: snapshot.dateTypeName,
-      dateTypeSlug: snapshot.dateTypeSlug,
       durationDays: snapshot.durationDays,
       steps: snapshot.steps as unknown as Prisma.InputJsonValue,
-      status: "PENDING" as SharedMixStatus,
-      moderationNote: null,
-      reviewedAt: null,
-      reviewedByUserId: null,
-      publishedAt: new Date()
+      status: "PENDING" as SharedMixStatus
     };
-    const shared = existing
-      ? await tx.sharedMix.update({
-          where: { id: existing.id },
-          data: { ...data, publisherWorkspaceId: input.workspaceId, publisherMixId: input.mixId, isPlatform: false, version: { increment: 1 } }
+    const shared = existingMetadata
+      ? await tx.sharedMix.update({ where: { id: existingMetadata.sharedMixId }, data: baseData })
+      : await tx.sharedMix.create({ data: baseData });
+    const nextMetadata = existingMetadata
+      ? await tx.sharedMixMetadata.update({
+          where: { sharedMixId: shared.id },
+          data: {
+            publisherWorkspaceId: input.workspaceId,
+            publisherMixId: input.mixId,
+            isPlatform: false,
+            triggerMode: snapshot.triggerMode,
+            dateTypeName: snapshot.dateTypeName,
+            dateTypeSlug: snapshot.dateTypeSlug,
+            version: { increment: 1 },
+            reviewState: "PENDING",
+            moderationNote: null,
+            reviewedAt: null,
+            reviewedByUserId: null,
+            publishedAt: new Date()
+          }
         })
-      : await tx.sharedMix.create({
-          data: { ...data, publisherWorkspaceId: input.workspaceId, publisherMixId: input.mixId, isPlatform: false }
+      : await tx.sharedMixMetadata.create({
+          data: {
+            sharedMixId: shared.id,
+            publisherWorkspaceId: input.workspaceId,
+            publisherMixId: input.mixId,
+            isPlatform: false,
+            triggerMode: snapshot.triggerMode,
+            dateTypeName: snapshot.dateTypeName,
+            dateTypeSlug: snapshot.dateTypeSlug,
+            reviewState: "PENDING",
+            publishedAt: new Date()
+          }
         });
     await tx.auditLog.create({
       data: {
         workspaceId: input.workspaceId,
         actorType: "USER",
         actorUserId: input.actorUserId,
-        action: existing ? "shared-mix.resubmit" : "shared-mix.submit",
+        action: existingMetadata ? "shared-mix.resubmit" : "shared-mix.submit",
         entityType: "SharedMix",
         entityId: shared.id,
         source: "mixes.share",
-        metadata: { mixId: input.mixId, version: shared.version }
+        metadata: { mixId: input.mixId, version: nextMetadata.version }
       }
     });
-    return { sharedMixId: shared.id, status: shared.status };
+    return { sharedMixId: shared.id, reviewState: nextMetadata.reviewState };
   });
 }
 
@@ -169,13 +219,18 @@ export async function unpublishWorkspaceMix(input: {
   actorUserId: string;
   mixId: string;
 }): Promise<void> {
-  const shared = await prisma.sharedMix.findFirst({
-    where: { publisherWorkspaceId: input.workspaceId, publisherMixId: input.mixId, isPlatform: false },
-    select: { id: true }
+  const metadata = await prisma.sharedMixMetadata.findUnique({
+    where: {
+      publisherWorkspaceId_publisherMixId: {
+        publisherWorkspaceId: input.workspaceId,
+        publisherMixId: input.mixId
+      }
+    }
   });
-  if (!shared) throw new Error("Shared Mix not found.");
+  if (!metadata || metadata.isPlatform) throw new Error("Shared Mix not found.");
   await prisma.$transaction([
-    prisma.sharedMix.update({ where: { id: shared.id }, data: { status: "UNPUBLISHED" } }),
+    prisma.sharedMix.update({ where: { id: metadata.sharedMixId }, data: { status: "UNPUBLISHED" } }),
+    prisma.sharedMixMetadata.update({ where: { sharedMixId: metadata.sharedMixId }, data: { reviewState: "UNPUBLISHED" } }),
     prisma.auditLog.create({
       data: {
         workspaceId: input.workspaceId,
@@ -183,7 +238,7 @@ export async function unpublishWorkspaceMix(input: {
         actorUserId: input.actorUserId,
         action: "shared-mix.unpublish",
         entityType: "SharedMix",
-        entityId: shared.id,
+        entityId: metadata.sharedMixId,
         source: "mixes.share"
       }
     })
@@ -205,10 +260,7 @@ async function resolveImportedDateType(
   const existing = await tx.dateType.findFirst({
     where: {
       slug,
-      OR: [
-        { workspaceId, isSystem: false },
-        { workspaceId: null, isSystem: true }
-      ]
+      OR: [{ workspaceId, isSystem: false }, { workspaceId: null, isSystem: true }]
     },
     orderBy: { isSystem: "desc" }
   });
@@ -237,18 +289,18 @@ export async function importSharedMixIntoWorkspace(input: {
   if (!workspace) throw new Error("Workspace not found.");
 
   return prisma.$transaction(async (tx) => {
-    const shared = await tx.sharedMix.findFirst({
-      where: { id: input.sharedMixId, status: "APPROVED" }
-    });
+    const shared = await tx.sharedMix.findFirst({ where: { id: input.sharedMixId, status: "APPROVED" } });
     if (!shared) throw new Error("This Mix Template is not currently available.");
+    const metadata = await tx.sharedMixMetadata.findUnique({ where: { sharedMixId: shared.id } });
     const steps = normalizeSharedMixSteps(shared.steps);
+    const triggerMode = metadata?.triggerMode ?? "MANUAL_START";
     const dateTypeId = await resolveImportedDateType(
       tx,
       input.workspaceId,
       workspace.planTier,
-      shared.triggerMode,
-      shared.dateTypeName,
-      shared.dateTypeSlug
+      triggerMode,
+      metadata?.dateTypeName ?? null,
+      metadata?.dateTypeSlug ?? null
     );
 
     const mix = await tx.mix.create({
@@ -259,7 +311,7 @@ export async function importSharedMixIntoWorkspace(input: {
         framework: shared.framework,
         category: shared.category,
         industry: shared.industry,
-        triggerMode: shared.triggerMode,
+        triggerMode,
         dateTypeId,
         status: "DRAFT",
         durationDays: shared.durationDays,
@@ -300,17 +352,17 @@ export async function importSharedMixIntoWorkspace(input: {
       });
     }
 
-    const priorImports = await tx.sharedMixImport.count({
-      where: { workspaceId: input.workspaceId, sharedMixId: shared.id }
-    });
-    await tx.sharedMixImport.create({
+    const priorImports = await tx.sharedMixImport.count({ where: { workspaceId: input.workspaceId, sharedMixId: shared.id } });
+    const importRecord = await tx.sharedMixImport.create({
       data: {
         importKey: `${input.workspaceId}:${shared.id}:${randomUUID()}`,
         workspaceId: input.workspaceId,
         sharedMixId: shared.id,
-        sharedMixVersion: shared.version,
         mixId: mix.id
       }
+    });
+    await tx.sharedMixImportMetadata.create({
+      data: { importId: importRecord.id, sharedMixVersion: metadata?.version ?? 1 }
     });
     await tx.sharedMix.update({ where: { id: shared.id }, data: { importCount: { increment: 1 } } });
     await tx.auditLog.create({
@@ -322,7 +374,11 @@ export async function importSharedMixIntoWorkspace(input: {
         entityType: "SharedMix",
         entityId: shared.id,
         source: "templates.library",
-        metadata: { mixId: mix.id, sharedMixVersion: shared.version, repeatedImport: priorImports > 0 }
+        metadata: {
+          mixId: mix.id,
+          sharedMixVersion: metadata?.version ?? 1,
+          repeatedImport: priorImports > 0
+        }
       }
     });
     return { mixId: mix.id, importNumber: priorImports + 1 };
@@ -335,22 +391,39 @@ export async function toggleSharedMixVote(input: {
   sharedMixId: string;
 }): Promise<{ voted: boolean; voteCount: number }> {
   return prisma.$transaction(async (tx) => {
-    const shared = await tx.sharedMix.findFirst({ where: { id: input.sharedMixId, status: "APPROVED" }, select: { id: true } });
+    const shared = await tx.sharedMix.findFirst({
+      where: { id: input.sharedMixId, status: "APPROVED" },
+      select: { id: true, status: true, publisherWorkspaceId: true, createdAt: true }
+    });
     if (!shared) throw new Error("This Mix Template is not currently available.");
+    if (shared.publisherWorkspaceId === input.workspaceId) throw new Error("You cannot vote for your own Mix contribution.");
     const existing = await tx.sharedMixVote.findUnique({
       where: { workspaceId_sharedMixId: { workspaceId: input.workspaceId, sharedMixId: input.sharedMixId } }
     });
     let voted: boolean;
     if (existing) {
       await tx.sharedMixVote.delete({ where: { id: existing.id } });
-      await tx.sharedMix.updateMany({ where: { id: shared.id, voteCount: { gt: 0 } }, data: { voteCount: { decrement: 1 } } });
+      await tx.sharedMixMetadata.updateMany({
+        where: { sharedMixId: shared.id, voteCount: { gt: 0 } },
+        data: { voteCount: { decrement: 1 } }
+      });
       voted = false;
     } else {
       await tx.sharedMixVote.create({ data: { workspaceId: input.workspaceId, sharedMixId: input.sharedMixId } });
-      await tx.sharedMix.update({ where: { id: shared.id }, data: { voteCount: { increment: 1 } } });
+      await tx.sharedMixMetadata.upsert({
+        where: { sharedMixId: shared.id },
+        create: {
+          sharedMixId: shared.id,
+          isPlatform: shared.publisherWorkspaceId === null,
+          reviewState: reviewStateFromStatus(shared.status),
+          publishedAt: shared.createdAt,
+          voteCount: 1
+        },
+        update: { voteCount: { increment: 1 } }
+      });
       voted = true;
     }
-    const current = await tx.sharedMix.findUniqueOrThrow({ where: { id: shared.id }, select: { voteCount: true } });
+    const current = await tx.sharedMixMetadata.findUnique({ where: { sharedMixId: shared.id }, select: { voteCount: true } });
     await tx.auditLog.create({
       data: {
         workspaceId: input.workspaceId,
@@ -362,7 +435,7 @@ export async function toggleSharedMixVote(input: {
         source: "templates.library"
       }
     });
-    return { voted, voteCount: current.voteCount };
+    return { voted, voteCount: current?.voteCount ?? 0 };
   });
 }
 
@@ -376,33 +449,56 @@ export async function createOrRefreshPlatformSharedMix(input: {
   const metadata = validateMetadata(input.metadata);
   const snapshot = await snapshotWorkspaceMix(input.sourceWorkspaceId, input.sourceMixId);
   const existing = input.sharedMixId
-    ? await prisma.sharedMix.findFirst({ where: { id: input.sharedMixId, isPlatform: true } })
+    ? await prisma.sharedMix.findUnique({ where: { id: input.sharedMixId } })
     : null;
+  if (existing) {
+    const existingMetadata = await prisma.sharedMixMetadata.findUnique({ where: { sharedMixId: existing.id } });
+    if (existingMetadata && !existingMetadata.isPlatform) throw new Error("Community submissions cannot be converted into platform templates.");
+  }
+
   return prisma.$transaction(async (tx) => {
-    const data = {
-      sourceMixId: input.sourceMixId,
-      isPlatform: true,
+    const baseData = {
       publisherWorkspaceId: null,
-      publisherMixId: null,
       title: metadata.title,
       description: metadata.description,
       category: metadata.category,
       industry: metadata.industry,
       framework: metadata.framework,
-      triggerMode: snapshot.triggerMode,
-      dateTypeName: snapshot.dateTypeName,
-      dateTypeSlug: snapshot.dateTypeSlug,
       durationDays: snapshot.durationDays,
       steps: snapshot.steps as unknown as Prisma.InputJsonValue,
-      status: "APPROVED" as SharedMixStatus,
-      publishedAt: existing?.publishedAt ?? new Date(),
-      reviewedAt: new Date(),
-      reviewedByUserId: input.actorUserId,
-      moderationNote: null
+      status: "APPROVED" as SharedMixStatus
     };
     const template = existing
-      ? await tx.sharedMix.update({ where: { id: existing.id }, data: { ...data, version: { increment: 1 } } })
-      : await tx.sharedMix.create({ data });
+      ? await tx.sharedMix.update({ where: { id: existing.id }, data: baseData })
+      : await tx.sharedMix.create({ data: baseData });
+    const metadataRow = await tx.sharedMixMetadata.upsert({
+      where: { sharedMixId: template.id },
+      create: {
+        sharedMixId: template.id,
+        sourceMixId: input.sourceMixId,
+        isPlatform: true,
+        triggerMode: snapshot.triggerMode,
+        dateTypeName: snapshot.dateTypeName,
+        dateTypeSlug: snapshot.dateTypeSlug,
+        reviewState: "APPROVED",
+        publishedAt: new Date(),
+        reviewedAt: new Date(),
+        reviewedByUserId: input.actorUserId
+      },
+      update: {
+        sourceMixId: input.sourceMixId,
+        isPlatform: true,
+        triggerMode: snapshot.triggerMode,
+        dateTypeName: snapshot.dateTypeName,
+        dateTypeSlug: snapshot.dateTypeSlug,
+        reviewState: "APPROVED",
+        publishedAt: new Date(),
+        reviewedAt: new Date(),
+        reviewedByUserId: input.actorUserId,
+        moderationNote: null,
+        version: { increment: 1 }
+      }
+    });
     await tx.auditLog.create({
       data: {
         workspaceId: input.sourceWorkspaceId,
@@ -412,7 +508,7 @@ export async function createOrRefreshPlatformSharedMix(input: {
         entityType: "SharedMix",
         entityId: template.id,
         source: "admin.templates",
-        metadata: { sourceMixId: input.sourceMixId, version: template.version }
+        metadata: { sourceMixId: input.sourceMixId, version: metadataRow.version }
       }
     });
     return template.id;
@@ -424,7 +520,7 @@ export async function updateSharedMixAsAdmin(input: {
   auditWorkspaceId: string;
   sharedMixId: string;
   metadata: TemplateMetadata;
-  status: SharedMixStatus;
+  reviewState: SharedMixReviewState;
   triggerMode: MixTriggerMode;
   dateTypeName: string | null;
   dateTypeSlug: string | null;
@@ -434,27 +530,53 @@ export async function updateSharedMixAsAdmin(input: {
 }): Promise<void> {
   const metadata = validateMetadata(input.metadata);
   const steps = normalizeSharedMixSteps(input.steps);
-  const allowedStatuses: SharedMixStatus[] = ["PENDING", "APPROVED", "REJECTED", "UNPUBLISHED", "FLAGGED"];
-  if (!allowedStatuses.includes(input.status)) throw new Error("Choose a valid moderation status.");
+  const allowedStates: SharedMixReviewState[] = ["PENDING", "APPROVED", "REJECTED", "UNPUBLISHED", "FLAGGED"];
+  if (!allowedStates.includes(input.reviewState)) throw new Error("Choose a valid moderation status.");
   if (input.triggerMode === "DATE_TRIGGERED" && (!input.dateTypeName || !input.dateTypeSlug)) {
     throw new Error("Date-triggered templates require a Target Jump Date Type name and slug.");
   }
+  const shared = await prisma.sharedMix.findUnique({ where: { id: input.sharedMixId } });
+  if (!shared) throw new Error("Mix Template not found.");
   await prisma.$transaction([
     prisma.sharedMix.update({
       where: { id: input.sharedMixId },
       data: {
-        ...metadata,
-        status: input.status,
+        title: metadata.title,
+        description: metadata.description,
+        category: metadata.category,
+        industry: metadata.industry,
+        framework: metadata.framework,
+        status: publicStatus(input.reviewState),
+        durationDays: Math.max(...steps.map((item) => Math.abs(item.dayOffset)), 0),
+        steps: steps as unknown as Prisma.InputJsonValue
+      }
+    }),
+    prisma.sharedMixMetadata.upsert({
+      where: { sharedMixId: input.sharedMixId },
+      create: {
+        sharedMixId: input.sharedMixId,
+        publisherWorkspaceId: shared.publisherWorkspaceId,
+        isPlatform: shared.publisherWorkspaceId === null,
         triggerMode: input.triggerMode,
         dateTypeName: input.triggerMode === "DATE_TRIGGERED" ? clean(input.dateTypeName, 120) : null,
         dateTypeSlug: input.triggerMode === "DATE_TRIGGERED" ? slugify(input.dateTypeSlug || input.dateTypeName || "") : null,
-        durationDays: Math.max(...steps.map((item) => Math.abs(item.dayOffset)), 0),
-        steps: steps as unknown as Prisma.InputJsonValue,
+        reviewState: input.reviewState,
         moderationNote: clean(input.moderationNote, 1200) || null,
         featuredAt: input.featured ? new Date() : null,
+        publishedAt: input.reviewState === "APPROVED" ? new Date() : null,
+        reviewedAt: new Date(),
+        reviewedByUserId: input.actorUserId
+      },
+      update: {
+        triggerMode: input.triggerMode,
+        dateTypeName: input.triggerMode === "DATE_TRIGGERED" ? clean(input.dateTypeName, 120) : null,
+        dateTypeSlug: input.triggerMode === "DATE_TRIGGERED" ? slugify(input.dateTypeSlug || input.dateTypeName || "") : null,
+        reviewState: input.reviewState,
+        moderationNote: clean(input.moderationNote, 1200) || null,
+        featuredAt: input.featured ? new Date() : null,
+        publishedAt: input.reviewState === "APPROVED" ? new Date() : undefined,
         reviewedAt: new Date(),
         reviewedByUserId: input.actorUserId,
-        publishedAt: input.status === "APPROVED" ? new Date() : undefined,
         version: { increment: 1 }
       }
     }),
@@ -467,7 +589,7 @@ export async function updateSharedMixAsAdmin(input: {
         entityType: "SharedMix",
         entityId: input.sharedMixId,
         source: "admin.templates",
-        metadata: { status: input.status, featured: input.featured }
+        metadata: { reviewState: input.reviewState, featured: input.featured }
       }
     })
   ]);
