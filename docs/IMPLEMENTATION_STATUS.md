@@ -105,6 +105,25 @@ This document distinguishes the runnable independent application from the comple
 - Generation and refinement use separate database-backed request limits and block administrator support-session writes.
 - Unit, static-boundary, and PostgreSQL integration coverage for deterministic generation, provider request privacy, strict output parsing, validation, fallback refinement, tenant isolation, and atomic one-time publication.
 
+### Stripe billing and plan lifecycle
+
+- Server-side Plus and Pro catalog with monthly and annual Price-ID allowlists; the browser cannot submit an arbitrary Stripe Price ID.
+- Stripe-hosted Checkout for new subscriptions and short-lived Customer Portal sessions for payment methods, invoices, supported plan changes, and cancellations.
+- One Stripe Customer per workspace with workspace/user metadata copied to the Checkout Session and Subscription for lifecycle identity resolution.
+- Authenticated, owner/admin-only, database-rate-limited Checkout and portal routes; view-only support sessions cannot mutate billing.
+- Public raw-body Stripe webhook route with HMAC timestamp/signature verification and no login dependency.
+- Webhook event-ID idempotency with persistent Processing, Processed, and Failed diagnostics.
+- Reconciliation for Checkout completion, Subscription create/update/delete, invoice paid, and invoice payment-failed events.
+- Strict entitlement mapping from four approved recurring Stripe Price IDs; paid metadata alone cannot grant a tier.
+- Stripe Subscription period dates, status, cancellation-at-period-end, Customer ID, and Subscription ID mirrored into workspace and historical Subscription records.
+- Success-page server verification confirms the Checkout Session belongs to the active workspace while the signed webhook provides asynchronous lifecycle updates.
+- Past-due workspaces keep paid access during Stripe recovery and display a billing warning; canceled/unpaid/incomplete-expired subscriptions return to Free.
+- Downgrade safeguards preserve every record while pausing excess active Mixes, canceling their future pending Jumps, deactivating excess custom Jump Date Types, and unpublishing excess Community contributions.
+- Contacts and Groups beyond the new limit remain stored; creation stays blocked until the user archives or removes enough records or upgrades.
+- My Account billing summary, usage/overage guidance, annual-first plan selection, billing return state, and mobile-first verification/cancel pages.
+- Platform-admin Billing diagnostics for subscriptions, renewals, canceling workspaces, payment issues, configuration gaps, and recent webhook events.
+- Unit, static-boundary, webhook-signature, Price-allowlist, PostgreSQL subscription-reconciliation, and downgrade-preservation coverage.
+
 ### Jump Date Types
 
 - Tenant-owned custom Jump Date Types without per-user duplication of global system records.
@@ -141,14 +160,14 @@ This document distinguishes the runnable independent application from the comple
 
 ### Authentication, request security, and My Account
 
-- Database-backed IP/email throttling for registration, login, verification, recovery, password changes, Jump events, Contact imports, Google integration routes, and AI Mix generation/refinement.
+- Database-backed IP/email throttling for registration, login, verification, recovery, password changes, Jump events, Contact imports, Google integration routes, AI Mix generation/refinement, and billing session creation.
 - Unknown-account bcrypt comparison and generic invalid-login errors.
 - Minimum 12-character passwords within bcrypt's supported input size.
 - Optional one-time email verification and password recovery with hashed, expiring tokens.
 - Branded HTML/text transactional email through Resend with development-only previews.
 - Central Origin and Fetch Metadata mutation boundary, constrained Server Action origins, security headers, and request-size limits.
 - Hashed opaque session tokens with device/IP/last-seen/expiration metadata, session caps, remote revocation, and sign-out-everywhere.
-- My Account identity, plan state, Google Contacts, password, and active-device controls.
+- My Account identity, plan state, billing, plan usage, Google Contacts, password, and active-device controls.
 
 ### Production migration and restoration foundation
 
@@ -157,6 +176,7 @@ This document distinguishes the runnable independent application from the comple
 - Supported clean-database deployment and existing populated-MVP upgrade paths.
 - Automated populated migration, data-preservation, reverse-SQL, forward-reapplication, and clean-deployment rehearsals.
 - Production runbooks for backup, restore, row-count checks, worker pause/restart, smoke testing, and backup-based rollback.
+- The Stripe tranche uses existing Workspace, Subscription, WebhookEvent, AuditLog, and AuthRateLimit structures and adds no production migration.
 
 ### Audited view-only administrator support
 
@@ -165,19 +185,20 @@ This document distinguishes the runnable independent application from the comple
 - Random support token stored only as a SHA-256 hash.
 - Real administrator remains the audit actor while the read context switches to the selected workspace.
 - Persistent view-only banner; every browser mutation is rejected except ending the support session.
-- Target password/device controls remain hidden; start/end events are audited.
+- Target password/device/billing controls remain hidden; start/end events are audited.
 
 ## Remaining P0 work
 
 - Restore a real encrypted backup in production-like staging and complete the documented application/worker smoke matrix.
-- Add full browser-driven end-to-end tests for authenticated routes, import, Google, template-library, AI-wizard, and mutation-rejection behavior.
+- Add full browser-driven end-to-end tests for authenticated routes, import, Google, template-library, AI-wizard, billing, and mutation-rejection behavior.
 - Require MFA for platform administrators before support views are enabled operationally.
 - Validate production transactional-email delivery and inbox placement before mandatory verification is enabled.
+- Complete a real Stripe test-mode Checkout, Customer Portal, subscription-update, failed-payment, cancellation, duplicate-webhook, and reconnect smoke matrix with production-like secrets.
 - Complete the final security, accessibility, and operational launch review.
 
 ## Remaining P1 work
 
 - Device Contact Picker / Quick Add capability and browser fallback polish.
-- Stripe Checkout, Customer Portal, verified webhook reconciliation, downgrade workflow, and production Price IDs.
-- My Account billing, referrals, Help/FAQ, support tickets, and the broader administration dashboard.
+- Referrals, Help/FAQ, support tickets, and the broader administration dashboard.
+- User-guided selection for which over-limit Contact Groups remain active after a downgrade; Groups are currently preserved and new creation is blocked until within the plan limit.
 - Observability, encrypted backup automation, load testing, and full production-like staging validation.
