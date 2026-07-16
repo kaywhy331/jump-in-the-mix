@@ -10,7 +10,8 @@ const ACTION_MODULES = [
   "src/lib/mix-editor-actions.ts",
   "src/lib/mix-lifecycle-actions.ts",
   "src/lib/mix-stop-actions.ts",
-  "src/lib/reusable-jump-update.ts"
+  "src/lib/reusable-jump-update.ts",
+  "src/lib/support-actions.ts"
 ] as const;
 
 const PUBLIC_AUTH_ACTIONS = new Set([
