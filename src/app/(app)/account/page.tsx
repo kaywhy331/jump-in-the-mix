@@ -12,6 +12,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { billingPeriodLabel, checkoutConfigured, subscriptionStatusLabel } from "@/lib/billing";
 import { env } from "@/lib/env";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { formatPlanLimit, PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 import { describeUserAgent } from "@/lib/request-context";
 
@@ -28,10 +29,18 @@ type SearchParams = {
   billingError?: string;
 };
 
+type UsageRow = {
+  label: string;
+  value: number;
+  limit: number;
+  href: string;
+  action: string;
+};
+
 export default async function AccountPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, context] = await Promise.all([searchParams, requireWorkspace()]);
   const { session, user, workspace, impersonation } = context;
-  const [sessions, subscription] = await Promise.all([
+  const [sessions, subscription, usage] = await Promise.all([
     impersonation
       ? Promise.resolve([])
       : prisma.session.findMany({
@@ -40,13 +49,35 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         }),
     workspace.stripeSubscriptionId
       ? prisma.subscription.findUnique({ where: { stripeSubscriptionId: workspace.stripeSubscriptionId } })
-      : Promise.resolve(null)
+      : Promise.resolve(null),
+    Promise.all([
+      prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null } }),
+      prisma.group.count({ where: { workspaceId: workspace.id } }),
+      prisma.dateType.count({ where: { workspaceId: workspace.id, isSystem: false, isActive: true } }),
+      prisma.mix.count({ where: { workspaceId: workspace.id, status: "ACTIVE" } }),
+      prisma.sharedMixMetadata.count({
+        where: {
+          publisherWorkspaceId: workspace.id,
+          isPlatform: false,
+          reviewState: { in: ["PENDING", "APPROVED", "FLAGGED"] }
+        }
+      })
+    ]).then(([contacts, groups, customDateTypes, mixes, sharedMixes]) => ({ contacts, groups, customDateTypes, mixes, sharedMixes }))
   ]);
   const emailStatus = user.emailVerifiedAt
     ? `Verified ${formatDate(user.emailVerifiedAt)}`
     : env.requireEmailVerification
       ? "Verification required"
       : "Verification not enforced";
+  const limits = PLAN_LIMITS[workspace.planTier];
+  const usageRows: UsageRow[] = [
+    { label: "Active Contacts", value: usage.contacts, limit: limits.contacts, href: "/contacts", action: "Manage Contacts" },
+    { label: "Contact Groups", value: usage.groups, limit: limits.groups, href: "/contacts", action: "Manage Groups" },
+    { label: "Active custom Jump Date Types", value: usage.customDateTypes, limit: limits.customDateTypes, href: "/settings/jump-date-types", action: "Choose active types" },
+    { label: "Active Mixes", value: usage.mixes, limit: limits.mixes, href: "/mixes", action: "Choose active Mixes" },
+    { label: "Shared Community Mixes", value: usage.sharedMixes, limit: limits.sharedMixes, href: "/templates?source=community", action: "Review sharing" }
+  ];
+  const overageRows = usageRows.filter((row) => Number.isFinite(row.limit) && row.value > row.limit);
 
   const accountSummary = (
     <section className="card account-summary-card">
@@ -89,12 +120,36 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     </section>
   );
 
+  const usageSummary = (
+    <section className="card account-plan-usage-card">
+      <div className="card-header">
+        <div><h2>Plan usage</h2><p>Your records are preserved when a plan changes. Active workflow limits are enforced without deleting completed work.</p></div>
+        <span className={`status-pill ${overageRows.length ? "" : "done"}`}>{overageRows.length ? `${overageRows.length} over limit` : "Within limits"}</span>
+      </div>
+      {overageRows.length > 0 && <Notice type="info">After a downgrade, excess active Mixes are paused, future pending Jumps from them are canceled, excess custom Jump Date Types are made inactive, and excess Community shares are unpublished. Contacts and Groups remain stored; archive or remove extras before creating more.</Notice>}
+      <div className="plan-usage-list">
+        {usageRows.map((row) => {
+          const unlimited = !Number.isFinite(row.limit);
+          const over = !unlimited && row.value > row.limit;
+          const percentage = unlimited ? 0 : Math.min((row.value / Math.max(row.limit, 1)) * 100, 100);
+          return (
+            <article className={`plan-usage-row ${over ? "over" : ""}`} key={row.label}>
+              <div><strong>{row.label}</strong><span>{row.value}/{formatPlanLimit(row.limit)}</span></div>
+              {!unlimited && <div className="plan-usage-track" aria-label={`${row.label}: ${row.value} of ${row.limit}`}><span style={{ width: `${percentage}%` }} /></div>}
+              <Link href={row.href} className="text-button">{row.action}</Link>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+
   if (impersonation) {
     return (
       <div className="page account-page">
         <header className="page-header"><div><h1>My Account</h1><p>Account identity, plan, and integration state are visible; security controls remain private and billing changes remain unavailable during support access.</p></div></header>
         <Notice type="info">This is a view-only administrator support session. Password controls, active devices, billing changes, integrations, and every other browser mutation are unavailable.</Notice>
-        <div className="account-grid">{accountSummary}{billingSummary}</div>
+        <div className="account-grid">{accountSummary}{billingSummary}{usageSummary}</div>
         <GoogleContactsPanel />
       </div>
     );
@@ -120,6 +175,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       <div className="account-grid">
         {accountSummary}
         {billingSummary}
+        {usageSummary}
         <section className="card account-password-card">
           <div className="card-header"><div><h2>Change password</h2><p>Changing it keeps this device signed in and closes every other session.</p></div></div>
           <form action={changePasswordAction} className="form-stack">
