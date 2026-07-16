@@ -50,6 +50,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         phones: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
         addresses: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
         groupMemberships: { include: { group: true } },
+        customFieldValues: { include: { definition: true } },
         jumpDates: { include: { dateType: true }, orderBy: { dateValue: "asc" } }
       },
       orderBy: { displayName: "asc" }
@@ -91,6 +92,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     })),
     groups: contact.groupMemberships.map(({ group }) => group.name),
     groupDetails: contact.groupMemberships.map(({ group }) => ({ id: group.id, name: group.name, color: group.color })),
+    customFields: contact.customFieldValues.map((item) => ({ key: item.definition.key, name: item.definition.name, value: item.value })),
     jumpDateCount: contact.jumpDates.length,
     jumpDates: contact.jumpDates.map((item) => ({
       type: item.dateType.name,
