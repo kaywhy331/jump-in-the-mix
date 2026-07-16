@@ -26,17 +26,32 @@ export default async function ShareMixPage({
   searchParams: Promise<SearchParams>;
 }) {
   const [{ mixId }, query, { workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
-  const [mix, shared, activeShareCount] = await Promise.all([
+  const [mix, sharedMetadata, activeShareCount, contributorProfile] = await Promise.all([
     prisma.mix.findFirst({
       where: { id: mixId, workspaceId: workspace.id, status: { not: "ARCHIVED" } },
       select: { id: true, name: true, description: true, category: true, industry: true, framework: true }
     }),
-    prisma.sharedMix.findFirst({ where: { publisherWorkspaceId: workspace.id, publisherMixId: mixId, isPlatform: false } }),
-    prisma.sharedMix.count({
-      where: { publisherWorkspaceId: workspace.id, isPlatform: false, status: { in: ["PENDING", "APPROVED", "FLAGGED"] } }
-    })
+    prisma.sharedMixMetadata.findUnique({
+      where: {
+        publisherWorkspaceId_publisherMixId: {
+          publisherWorkspaceId: workspace.id,
+          publisherMixId: mixId
+        }
+      }
+    }),
+    prisma.sharedMixMetadata.count({
+      where: {
+        publisherWorkspaceId: workspace.id,
+        isPlatform: false,
+        reviewState: { in: ["PENDING", "APPROVED", "FLAGGED"] }
+      }
+    }),
+    prisma.sharedMixContributorProfile.findUnique({ where: { workspaceId: workspace.id } })
   ]);
   if (!mix) notFound();
+  const shared = sharedMetadata
+    ? await prisma.sharedMix.findUnique({ where: { id: sharedMetadata.sharedMixId } })
+    : null;
 
   let snapshot: Awaited<ReturnType<typeof snapshotWorkspaceMix>> | null = null;
   let snapshotError: string | null = null;
@@ -46,10 +61,9 @@ export default async function ShareMixPage({
     snapshotError = error instanceof Error ? error.message : "This Mix cannot be previewed.";
   }
 
-  const profile = workspace.profile;
-  const profileReady = Boolean(profile?.communityProfileEnabled && profile.communityDisplayName?.trim());
+  const profileReady = Boolean(contributorProfile?.enabled && contributorProfile.displayName?.trim());
   const shareLimit = PLAN_LIMITS[workspace.planTier].sharedMixes;
-  const existingCounts = Boolean(shared && ["PENDING", "APPROVED", "FLAGGED"].includes(shared.status));
+  const existingCounts = Boolean(sharedMetadata && ["PENDING", "APPROVED", "FLAGGED"].includes(sharedMetadata.reviewState));
   const atLimit = Number.isFinite(shareLimit) && activeShareCount >= shareLimit && !existingCounts;
   const canSubmit = profileReady && !atLimit && Boolean(snapshot);
 
@@ -77,12 +91,12 @@ export default async function ShareMixPage({
       )}
       {snapshotError && <Notice type="error">{snapshotError}</Notice>}
 
-      {shared && (
+      {shared && sharedMetadata && (
         <section className="card shared-mix-status-card">
-          <div className="section-label"><h2>Current sharing status</h2><span className={`status-pill ${shared.status === "APPROVED" ? "done" : ""}`}>{shared.status.toLowerCase()}</span></div>
-          <p className="muted-copy">Version {shared.version} · {shared.importCount} imports · {shared.voteCount} votes</p>
-          {shared.moderationNote && <Notice type={shared.status === "REJECTED" || shared.status === "FLAGGED" ? "error" : "info"}>{shared.moderationNote}</Notice>}
-          {["PENDING", "APPROVED", "FLAGGED"].includes(shared.status) && (
+          <div className="section-label"><h2>Current sharing status</h2><span className={`status-pill ${sharedMetadata.reviewState === "APPROVED" ? "done" : ""}`}>{sharedMetadata.reviewState.toLowerCase()}</span></div>
+          <p className="muted-copy">Version {sharedMetadata.version} · {shared.importCount} imports · {sharedMetadata.voteCount} votes</p>
+          {sharedMetadata.moderationNote && <Notice type={sharedMetadata.reviewState === "REJECTED" || sharedMetadata.reviewState === "FLAGGED" ? "error" : "info"}>{sharedMetadata.moderationNote}</Notice>}
+          {["PENDING", "APPROVED", "FLAGGED"].includes(sharedMetadata.reviewState) && (
             <details className="destructive-confirm">
               <summary className="button small danger">Unshare…</summary>
               <div className="destructive-confirm-panel">
