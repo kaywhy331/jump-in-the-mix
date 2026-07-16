@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
-import { passwordValidationError } from "../src/lib/auth-actions";
 import { AUTH_TOKEN_PURPOSES, findUsableAuthToken, hashAuthToken, issueAuthToken } from "../src/lib/auth-tokens";
+import { passwordValidationError } from "../src/lib/password-policy";
 import { prisma } from "../src/lib/prisma";
 import { consumeRateLimit, rateLimitKey } from "../src/lib/rate-limit";
 
