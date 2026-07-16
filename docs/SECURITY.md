@@ -106,6 +106,8 @@ Before enabling administrator support views in production:
 - Use encrypted offsite backups.
 - Test restoration.
 - Rotate integration, authentication, and webhook secrets after suspected exposure.
-- The first migration-based deployment to an existing `db push` database must resolve the historical no-op baseline before `migrate deploy`.
-- CI rehearses a populated legacy database migration, validates preservation, executes pre-traffic reverse SQL, and reapplies the forward migration.
+- The committed legacy baseline is generated directly from `main` and CI byte-compares it with a fresh Prisma diff to prevent drift.
+- Existing populated `db push` databases resolve that complete baseline as applied once before the first `migrate deploy`.
+- Clean databases execute the complete baseline and guarded forward migration directly through `migrate deploy`.
+- CI rehearses both clean and populated deployments, validates preservation, executes pre-traffic reverse SQL, and reapplies the forward migration.
 - Production rollback uses a validated backup restore; reverse SQL is not a substitute after new-schema data exists.
