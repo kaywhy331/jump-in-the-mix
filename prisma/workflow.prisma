@@ -36,3 +36,17 @@ model JumpActionEvent {
   @@index([workspaceId, occurredAt])
   @@index([jumpId, occurredAt])
 }
+
+model MixBroadcastSchedule {
+  id          String   @id @default(cuid())
+  workspaceId String
+  mixId       String   @unique
+  localDate   DateTime
+  timeMinutes Int
+  timezone    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId, localDate])
+  @@index([workspaceId, mixId])
+}
