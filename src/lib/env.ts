@@ -1,6 +1,7 @@
 const DEFAULT_COOKIE = "jitm_session";
 const DEFAULT_IMPERSONATION_COOKIE = "jitm_impersonation";
 const isProduction = process.env.NODE_ENV === "production";
+const appUrl = process.env.APP_URL ?? "http://localhost:3000";
 
 function positiveNumber(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -15,7 +16,7 @@ function commaSeparated(value: string | undefined): string[] {
 }
 
 export const env = {
-  appUrl: process.env.APP_URL ?? "http://localhost:3000",
+  appUrl,
   cookieName: process.env.AUTH_COOKIE_NAME ?? DEFAULT_COOKIE,
   impersonationCookieName: process.env.AUTH_IMPERSONATION_COOKIE_NAME ?? DEFAULT_IMPERSONATION_COOKIE,
   sessionDays: positiveNumber(process.env.AUTH_SESSION_DAYS, 30),
@@ -30,10 +31,16 @@ export const env = {
     process.env.AUTH_RATE_LIMIT_SECRET ??
     process.env.DATA_ENCRYPTION_KEY ??
     "local-development-rate-limit-secret",
+  dataEncryptionKey: process.env.DATA_ENCRYPTION_KEY ?? "",
   allowedOrigins: commaSeparated(process.env.AUTH_ALLOWED_ORIGINS),
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   emailFrom: process.env.EMAIL_FROM ?? "",
   emailReplyTo: process.env.EMAIL_REPLY_TO ?? "",
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+  googleRedirectUri:
+    process.env.GOOGLE_REDIRECT_URI ?? `${appUrl.replace(/\/$/, "")}/api/integrations/google/callback`,
+  googleSyncHours: positiveNumber(process.env.GOOGLE_SYNC_HOURS, 24),
   demoMode: (process.env.DEMO_MODE ?? (isProduction ? "false" : "true")).toLowerCase() === "true",
   demoEmail: process.env.DEMO_USER_EMAIL ?? "demo@jumpinthemix.local",
   demoPassword: process.env.DEMO_USER_PASSWORD ?? "JumpInTheMix123!"
