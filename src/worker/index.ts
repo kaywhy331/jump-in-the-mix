@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { generateJumps } from "@/lib/jump-engine";
+import {
+  enqueueDueGoogleContactsSyncs,
+  googleSyncJobTask,
+  runGoogleContactsSync
+} from "@/lib/google-sync-service";
 
 const workerId = `worker-${randomUUID().slice(0, 8)}`;
 let stopping = false;
@@ -28,6 +33,14 @@ async function processJob(job: Awaited<ReturnType<typeof claimJob>>) {
     if (job.task === "generate-jumps") {
       const payload = job.payload as { contactId?: string; mixId?: string };
       await generateJumps({ workspaceId: job.workspaceId ?? undefined, contactId: payload.contactId, mixId: payload.mixId });
+    } else if (job.task === googleSyncJobTask()) {
+      const payload = job.payload as { connectionId?: string; syncRunId?: string; actorUserId?: string | null };
+      if (!payload.connectionId || !payload.syncRunId) throw new Error("Google Contacts sync job is missing its connection or run identifier.");
+      await runGoogleContactsSync({
+        connectionId: payload.connectionId,
+        syncRunId: payload.syncRunId,
+        actorUserId: payload.actorUserId ?? null
+      });
     }
     await prisma.job.update({ where: { id: job.id }, data: { completedAt: new Date(), lockedAt: null, lockedBy: null } });
   } catch (error) {
@@ -57,6 +70,7 @@ async function main() {
     data: { lockedAt: null, lockedBy: null }
   });
   let lastReconciliation = 0;
+  let lastGoogleSchedule = 0;
   while (!stopping) {
     const job = await claimJob();
     if (job) {
@@ -66,6 +80,10 @@ async function main() {
     if (Date.now() - lastReconciliation > 5 * 60_000) {
       try { await generateJumps(); } catch (error) { console.error("Periodic Jump reconciliation failed", error); }
       lastReconciliation = Date.now();
+    }
+    if (Date.now() - lastGoogleSchedule > 5 * 60_000) {
+      try { await enqueueDueGoogleContactsSyncs(); } catch (error) { console.error("Google Contacts scheduling failed", error); }
+      lastGoogleSchedule = Date.now();
     }
     await sleep(2000);
   }
