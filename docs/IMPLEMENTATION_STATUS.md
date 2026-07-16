@@ -50,7 +50,7 @@ The `agent/prd-core-foundation` change set now includes:
 - Bulk Contact Group assignment and removal.
 - Apply Jump for an existing reusable Jump or one-time channel content.
 - One-time applied Jumps are protected from normal Mix reconciliation and appear immediately in the Jump queue.
-- Selected-Contact CSV export with primary values, Groups, Jump Dates, and Public Notes; Private Notes are excluded.
+- Selected-Contact CSV export with primary values, Groups, Jump Dates, Public Notes, and custom fields; Private Notes are excluded.
 - Bulk archive with pending-Jump cancellation and completed-history preservation.
 - Workspace-owned Contact custom-field definitions with stable placeholder keys.
 - Custom-field create, rename, delete, usage counts, Contact value editing, Contact search, and Contact detail display.
@@ -104,11 +104,13 @@ The `agent/prd-core-foundation` change set now includes:
 - Global system Jump Date Types remain visible across workspaces while tenant custom types remain private.
 - Static regression tests require every tenant server action export to derive the workspace through `requireWorkspace()`.
 - The Jump action-event endpoint is regression-tested for authenticated, workspace-scoped lookup.
-- CI provisions the real Prisma schema in PostgreSQL before running the isolation suite.
+- The complete authenticated application subtree is protected by a server layout; admin pages additionally require `requirePlatformAdmin()`.
+- A server-enforced route matrix verifies the authenticated layout, admin pages, impersonation entry points, and the central mutation boundary.
+- CI provisions the real Prisma schema in PostgreSQL before running isolation and authorization integration suites.
 
 ### Authentication, request security, and My Account
 
-- Registration and login now use database-backed IP and email throttling with time-bounded blocks.
+- Registration and login use database-backed IP and email throttling with time-bounded blocks.
 - Unknown accounts still execute a bcrypt comparison, reducing account-enumeration timing differences.
 - Passwords require at least 12 characters and remain within bcrypt's supported input length.
 - Optional email verification uses one-time, expiring tokens stored only as SHA-256 hashes.
@@ -124,11 +126,34 @@ The `agent/prd-core-foundation` change set now includes:
 - The Jump action-event API has an authenticated per-user/workspace throttle and returns `429` with `Retry-After` when exceeded.
 - Unit, PostgreSQL integration, and static boundary tests cover password policy, token invalidation, throttling, origin enforcement, and session/recovery wiring.
 
+### Production migration and restoration foundation
+
+- The repository now contains Prisma migration history instead of relying exclusively on `db push`.
+- A no-op historical marker supports existing populated MVP databases after a one-time `migrate resolve --applied` baseline step.
+- The guarded forward migration adds Private Notes, historical Mix sequence support, authentication throttling, Mix stops, action events, fixed-date broadcast schedules, and administrator support-session records.
+- Existing MixStep rows are backfilled with `isActive = true` and a non-null `updatedAt`; the old unique sort-position index is replaced by an active-sequence ordering index.
+- CI automatically provisions a populated legacy database, resolves the historical baseline, applies the forward migration, validates legacy-data preservation, executes the reviewed pre-traffic reverse SQL, and reapplies the forward migration.
+- A production runbook documents backup, staging restoration, row-count checks, worker pausing, first deployment, smoke testing, and backup-based production rollback.
+
+### Audited view-only administrator support
+
+- A protected Admin Users page searches accounts and workspace memberships without exposing the feature to ordinary users.
+- Starting a support view requires a platform administrator, a valid target workspace membership, and a 10–500 character support reason.
+- The support token is cryptographically random, stored only as a SHA-256 hash, and expires after 30 minutes by default.
+- The authenticated actor remains the administrator while the application read context is switched to the selected target workspace.
+- A persistent banner identifies the viewed user, reason, expiration, and view-only restrictions.
+- Every impersonated browser mutation is rejected centrally with HTTP 403 except the explicit End View-Only Session route.
+- Target-account password, device-session, and other security controls are hidden during support access.
+- Start and end events are written to the target workspace audit log with the administrator, reason, expiry, and view-only mode.
+- PostgreSQL integration tests cover token hashing, actor binding, target membership, expiry, non-admin rejection, and start/end audit records.
+
 ## Remaining P0 work
 
-- Reviewed production Prisma migration and populated-database migration/rollback and restoration test.
-- Browser-level cross-workspace route matrix, audited administrator impersonation controls, and authorization tests for future modules as they are added.
-- Production transactional-email configuration and end-to-end inbox verification before enabling mandatory email verification.
+- Restore a real encrypted backup in production-like staging and complete the documented application/worker smoke matrix.
+- Add full browser-driven end-to-end tests for authenticated routes and cross-workspace 404/redirect behavior; the current matrix is server-enforced and integration-tested but not yet browser-automated.
+- Require MFA for platform administrators before enabling support impersonation in production.
+- Validate production transactional-email delivery and inbox placement before enabling mandatory email verification.
+- Complete the final security, accessibility, and operational launch review.
 
 ## Remaining P1 work
 
@@ -137,8 +162,8 @@ The `agent/prd-core-foundation` change set now includes:
 - Platform/community Mix Templates, moderation, voting, contributor profiles, and atomic imports.
 - Final four-question AI Mix Wizard and provider-backed refinement.
 - Stripe Checkout, Customer Portal, verified webhook reconciliation, and downgrade workflow.
-- My Account billing/integrations, referrals, Help/FAQ, support tickets, and administration dashboard.
-- Accessibility, observability, encrypted backup/restore, security review, load testing, and staging validation.
+- My Account billing/integrations, referrals, Help/FAQ, support tickets, and the broader administration dashboard.
+- Observability, encrypted backup automation, load testing, and production-like staging validation.
 
 ## Validation policy
 
