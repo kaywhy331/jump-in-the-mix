@@ -11,6 +11,7 @@ import {
 } from "@/lib/bulk-contact-actions";
 import { createContactsCsv, type ExportContact } from "@/lib/contact-export";
 import { archiveContactAction, createGroupAction, deleteGroupAction } from "@/lib/actions";
+import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 
 export type ContactBulkDto = ExportContact & {
   id: string;
@@ -33,6 +34,12 @@ export type ContactBulkJump = {
   channel: string;
 };
 
+export type ContactBulkCustomField = {
+  id: string;
+  name: string;
+  key: string;
+};
+
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
 }
@@ -45,6 +52,7 @@ export function ContactsBulkWorkspace({
   contacts,
   groups,
   jumps,
+  customFields,
   groupLimit,
   query,
   groupFilter
@@ -52,6 +60,7 @@ export function ContactsBulkWorkspace({
   contacts: ContactBulkDto[];
   groups: ContactBulkGroup[];
   jumps: ContactBulkJump[];
+  customFields: ContactBulkCustomField[];
   groupLimit: string;
   query: string;
   groupFilter: string;
@@ -91,7 +100,7 @@ export function ContactsBulkWorkspace({
   return (
     <>
       <header className="page-header contacts-page-header">
-        <div><h1>Contacts</h1><p>Keep relationship details, Jump Dates, and group classifications together.</p></div>
+        <div><h1>Contacts</h1><p>Keep relationship details, Jump Dates, groups, and custom data together.</p></div>
         <div className="page-actions contacts-page-actions">
           <details className="group-manager">
             <summary className="button">Manage groups</summary>
@@ -112,13 +121,14 @@ export function ContactsBulkWorkspace({
               ))}</div>}
             </div>
           </details>
+          <Link className="button" href="/contacts/custom-fields">Custom fields</Link>
           {contacts.length > 0 && <button className="button" type="button" onClick={toggleAll}>{allSelected ? "Deselect all" : "Select all"}</button>}
           <Link href="/contacts/new" className="button primary">+ Add contact</Link>
         </div>
       </header>
 
       <form className="filter-bar contact-filter-bar" action="/contacts" method="get">
-        <input name="q" defaultValue={query} placeholder="Search name, company, email, or phone" aria-label="Search contacts" />
+        <input name="q" defaultValue={query} placeholder="Search name, company, contact method, or custom value" aria-label="Search contacts" />
         <select name="group" defaultValue={groupFilter} aria-label="Filter Contacts by group"><option value="">All groups</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
         <button className="button" type="submit">Filter</button>
         {(query || groupFilter) && <Link className="button" href="/contacts">Clear</Link>}
@@ -189,7 +199,8 @@ export function ContactsBulkWorkspace({
                   {manualChannel === "EMAIL" && <div className="field"><label htmlFor="bulk-manual-subject">Email subject</label><input id="bulk-manual-subject" name="manualSubject" placeholder="A quick note for {{First Name}}" required /></div>}
                   {["SMS", "EMAIL", "WHATSAPP"].includes(manualChannel) && <div className="field"><label htmlFor="bulk-manual-body">Message</label><textarea id="bulk-manual-body" name="manualBody" placeholder="Hi {{First Name}}, …" required /></div>}
                   {["PHONE_CALL", "VOICEMAIL"].includes(manualChannel) && <div className="field"><label htmlFor="bulk-manual-script">{manualChannel === "PHONE_CALL" ? "Call script or notes" : "Voicemail script"}</label><textarea id="bulk-manual-script" name="manualScript" placeholder={manualChannel === "PHONE_CALL" ? "Type your call script or notes here…" : "Type the voicemail script here…"} required /></div>}
-                  <small className="muted-copy">Supported placeholders include {"{{First Name}}"}, {"{{Company}}"}, {"{{Public Notes}}"}, and My Info fields.</small>
+                  <small className="muted-copy">Supported placeholders include {"{{First Name}}"}, {"{{Company}}"}, {"{{Public Notes}}"}, My Info, and the custom fields below.</small>
+                  {customFields.length > 0 && <div className="placeholder-chip-list" aria-label="Contact custom field placeholders">{customFields.map((field) => <code className="placeholder-chip static" key={field.id} title={field.name}>{customFieldPlaceholder(field.key)}</code>)}</div>}
                 </>
               )}
               <div className="field"><label htmlFor="bulk-jump-reason">Reason shown on Jump page</label><input id="bulk-jump-reason" name="reason" placeholder="Personal check-in" /></div>
