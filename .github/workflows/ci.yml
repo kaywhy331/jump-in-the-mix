@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -46,7 +46,7 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
-      - name: Generate main-schema baseline SQL
+      - name: Verify committed main-schema baseline SQL
         shell: bash
         run: |
           set -euo pipefail
@@ -59,20 +59,7 @@ jobs:
           # Prisma emits a hard-coded public-schema preamble. All remaining SQL is
           # unqualified and therefore portable to the schema in DATABASE_URL.
           tail -n +4 .artifacts/main-baseline.sql > .artifacts/main-baseline-portable.sql
-      - name: Commit generated legacy baseline once
-        if: github.event_name == 'pull_request' && github.head_ref == 'agent/prd-core-foundation' && github.event.pull_request.head.repo.full_name == github.repository
-        shell: bash
-        run: |
-          set -euo pipefail
-          cp .artifacts/main-baseline-portable.sql prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql
-          if git diff --quiet -- prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql
-          git commit -m "chore: commit generated Prisma MVP baseline"
-          git push origin "HEAD:${GITHUB_HEAD_REF}"
+          cmp .artifacts/main-baseline-portable.sql prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql
       - name: Upload generated baseline SQL
         uses: actions/upload-artifact@v4
         with:
