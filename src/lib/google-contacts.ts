@@ -309,6 +309,8 @@ export async function createGoogleAuthorizationUrl(input: {
 }): Promise<string> {
   if (!googleIntegrationConfigured()) throw new Error("Google Contacts is not configured for this environment.");
   const state = randomBytes(32).toString("base64url");
+  const codeVerifier = randomBytes(64).toString("base64url");
+  const codeChallenge = createHash("sha256").update(codeVerifier, "utf8").digest("base64url");
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
   await prisma.$transaction([
     prisma.oAuthState.deleteMany({
@@ -323,7 +325,7 @@ export async function createGoogleAuthorizationUrl(input: {
         workspaceId: input.workspaceId,
         provider: GOOGLE_CONTACTS_PROVIDER,
         tokenHash: hashToken(state),
-        returnTo: normalizedReturnTo(input.returnTo),
+        returnTo: encryptIntegrationCredentials({ returnTo: normalizedReturnTo(input.returnTo), codeVerifier }),
         expiresAt
       }
     })
@@ -338,11 +340,16 @@ export async function createGoogleAuthorizationUrl(input: {
   url.searchParams.set("include_granted_scopes", "true");
   url.searchParams.set("prompt", "consent select_account");
   url.searchParams.set("state", state);
+  url.searchParams.set("code_challenge", codeChallenge);
+  url.searchParams.set("code_challenge_method", "S256");
   if (input.loginHint) url.searchParams.set("login_hint", input.loginHint);
   return url.toString();
 }
 
-export async function consumeGoogleOAuthState(workspaceId: string, state: string): Promise<{ returnTo: string }> {
+export async function consumeGoogleOAuthState(
+  workspaceId: string,
+  state: string
+): Promise<{ returnTo: string; codeVerifier: string | null }> {
   const tokenHash = hashToken(state);
   const row = await prisma.oAuthState.findFirst({
     where: {
@@ -360,7 +367,15 @@ export async function consumeGoogleOAuthState(workspaceId: string, state: string
     data: { usedAt: new Date() }
   });
   if (claimed.count !== 1) throw new Error("The Google connection request was already completed.");
-  return { returnTo: normalizedReturnTo(row.returnTo) };
+  try {
+    const payload = decryptIntegrationCredentials<{ returnTo?: string; codeVerifier?: string }>(row.returnTo);
+    return {
+      returnTo: normalizedReturnTo(payload.returnTo),
+      codeVerifier: payload.codeVerifier?.trim() || null
+    };
+  } catch {
+    return { returnTo: normalizedReturnTo(row.returnTo), codeVerifier: null };
+  }
 }
 
 async function tokenRequest(parameters: Record<string, string>): Promise<GoogleTokenResponse> {
@@ -379,15 +394,18 @@ async function tokenRequest(parameters: Record<string, string>): Promise<GoogleT
 
 export async function exchangeGoogleAuthorizationCode(
   code: string,
-  existingRefreshToken?: string | null
+  existingRefreshToken?: string | null,
+  codeVerifier?: string | null
 ): Promise<GoogleCredentials> {
-  const payload = await tokenRequest({
+  const parameters: Record<string, string> = {
     code,
     client_id: env.googleClientId,
     client_secret: env.googleClientSecret,
     redirect_uri: env.googleRedirectUri,
     grant_type: "authorization_code"
-  });
+  };
+  if (codeVerifier) parameters.code_verifier = codeVerifier;
+  const payload = await tokenRequest(parameters);
   if (!payload.access_token) throw new Error("Google did not return an access token.");
   const refreshToken = payload.refresh_token || existingRefreshToken || "";
   if (!refreshToken) throw new Error("Google did not return a refresh token. Reconnect and approve offline access.");
