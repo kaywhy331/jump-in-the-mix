@@ -54,6 +54,25 @@ This document distinguishes the runnable independent application from the comple
 - Idempotent 25-row browser batches with per-row isolation, audit records, automatic Jump reconciliation, progress, downloadable error CSV, and retryable server failures.
 - Unit, route-boundary, and PostgreSQL integration coverage for parsing, matching, plan handling, workspace isolation, merge preservation, inactive-type creation, and retries.
 
+### Google Contacts
+
+- Plus/Pro one-way Google-to-Jump-in-the-Mix connection managed from My Account.
+- Exact configured redirect URI, short-lived one-time OAuth state stored only as a SHA-256 hash, read-only Contacts scope, and explicit offline access.
+- OAuth access and refresh tokens encrypted with AES-256-GCM before database storage; tokens are never returned by the account status API.
+- Automatic access-token refresh, revoked-credential handling, reconnect flow, remote revocation, and local credential removal.
+- Google label/group discovery with All Contacts or selected-label import configuration.
+- Review preview with new, linked/exact, ambiguous/fuzzy, and remotely deleted classifications.
+- Exact normalized email/phone auto-merge option; fuzzy and ambiguous matches are held safely for review rather than merged silently.
+- Contact plan-capacity validation before a sync is queued.
+- Structured names, company, labeled emails, phones, addresses, Public Notes, Birthdays, and Anniversaries; Private Notes are never imported.
+- Existing primary email, phone, and address remain selected during merges.
+- External provider links preserve identity across incremental updates; a Google deletion retires the link but never deletes the local Contact.
+- Full initial sync, stored incremental sync cursor, expired-cursor recovery through a new full sync, and scheduled daily refresh through the background worker.
+- Provider changes queue automatic Jump reconciliation after successful Contact creates or updates.
+- User-visible sync progress, recent run history, counts, errors, next scheduled refresh, and reconnect/disconnect state.
+- Workspace-scoped audit records, authenticated provider routes, rate limits, support-view mutation blocking, scheduled-run idempotency, and encrypted-secret tests.
+- Unit, static-boundary, and PostgreSQL integration coverage for credential encryption, Person normalization, group selection, cursor handling, Contact creation/update, provider links, remote deletion preservation, and duplicate prevention.
+
 ### Jump Date Types
 
 - Tenant-owned custom Jump Date Types without per-user duplication of global system records.
@@ -90,14 +109,14 @@ This document distinguishes the runnable independent application from the comple
 
 ### Authentication, request security, and My Account
 
-- Database-backed IP/email throttling for registration, login, verification, recovery, password changes, Jump events, and Contact imports.
+- Database-backed IP/email throttling for registration, login, verification, recovery, password changes, Jump events, Contact imports, and Google integration routes.
 - Unknown-account bcrypt comparison and generic invalid-login errors.
 - Minimum 12-character passwords within bcrypt's supported input size.
 - Optional one-time email verification and password recovery with hashed, expiring tokens.
 - Branded HTML/text transactional email through Resend with development-only previews.
 - Central Origin and Fetch Metadata mutation boundary, constrained Server Action origins, security headers, and request-size limits.
 - Hashed opaque session tokens with device/IP/last-seen/expiration metadata, session caps, remote revocation, and sign-out-everywhere.
-- My Account identity, plan state, password, and active-device controls.
+- My Account identity, plan state, Google Contacts, password, and active-device controls.
 
 ### Production migration and restoration foundation
 
@@ -119,7 +138,7 @@ This document distinguishes the runnable independent application from the comple
 ## Remaining P0 work
 
 - Restore a real encrypted backup in production-like staging and complete the documented application/worker smoke matrix.
-- Add full browser-driven end-to-end tests for authenticated routes, import UI, cross-workspace 404/redirect behavior, and mutation rejection.
+- Add full browser-driven end-to-end tests for authenticated routes, import and Google UI, cross-workspace 404/redirect behavior, and mutation rejection.
 - Require MFA for platform administrators before support views are enabled operationally.
 - Validate production transactional-email delivery and inbox placement before mandatory verification is enabled.
 - Complete the final security, accessibility, and operational launch review.
@@ -127,9 +146,8 @@ This document distinguishes the runnable independent application from the comple
 ## Remaining P1 work
 
 - Device Contact Picker / Quick Add capability and browser fallback polish.
-- Google Contacts OAuth, encrypted credential service, selective preview, incremental sync, reconnect flow, and logs.
 - Platform/community Mix Templates, moderation, voting, contributor profiles, sharing limits, and atomic imports.
 - Final four-question AI Mix Wizard and provider-backed refinement.
 - Stripe Checkout, Customer Portal, verified webhook reconciliation, downgrade workflow, and production Price IDs.
-- My Account billing/integrations, referrals, Help/FAQ, support tickets, and the broader administration dashboard.
+- My Account billing, referrals, Help/FAQ, support tickets, and the broader administration dashboard.
 - Observability, encrypted backup automation, load testing, and full production-like staging validation.
