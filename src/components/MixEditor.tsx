@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { saveMixAction } from "@/lib/actions";
+import { saveMixAction } from "@/lib/mix-editor-actions";
 
 type TriggerMode = "DATE_TRIGGERED" | "MANUAL_START" | "BROADCAST";
 type MixStatus = "DRAFT" | "ACTIVE" | "PAUSED";
@@ -23,11 +23,23 @@ type MixValue = {
   status?: MixStatus;
   groupIds?: string[];
   assignAllContacts?: boolean;
+  broadcastDate?: string | null;
+  broadcastTime?: string | null;
+  broadcastTimezone?: string | null;
   steps?: { id: string; stepTemplateId: string; dayOffset: number; sendTimeMinutes: number | null }[];
 };
 
 const CATEGORIES = ["Business", "Sales & Prospecting", "Client Success / Retention", "Events & Networking", "Personal / Relationships", "Marketing Campaigns", "General / Other"];
 const INDUSTRIES = ["Real Estate", "Insurance", "Finance", "Healthcare", "Contractors / Home Services", "Coaching / Consulting", "Nonprofit", "General / Other"];
+const TIMEZONES = [
+  ["America/New_York", "Eastern"],
+  ["America/Chicago", "Central"],
+  ["America/Denver", "Mountain"],
+  ["America/Los_Angeles", "Pacific"],
+  ["America/Phoenix", "Arizona"],
+  ["Pacific/Honolulu", "Hawaii"],
+  ["UTC", "UTC"]
+] as const;
 
 function timeValue(minutes: number | null): string {
   if (minutes === null) return "";
@@ -45,12 +57,14 @@ export function MixEditor({
   mix,
   jumps,
   dateTypes,
-  groups
+  groups,
+  workspaceTimezone
 }: {
   mix?: MixValue;
   jumps: JumpOption[];
   dateTypes: DateTypeOption[];
   groups: GroupOption[];
+  workspaceTimezone: string;
 }) {
   const defaultDateType = mix?.dateTypeId ?? dateTypes[0]?.id ?? "";
   const [triggerMode, setTriggerMode] = useState<TriggerMode>(mix?.triggerMode ?? "DATE_TRIGGERED");
@@ -88,12 +102,20 @@ export function MixEditor({
       <section className="card mix-editor-section">
         <div className="card-header"><div><h2>Trigger and audience</h2><p>Choose what starts the Mix and which Contacts should be eligible.</p></div></div>
         <div className="form-grid">
-          <div className="field"><label htmlFor="mix-trigger">Trigger mode</label><select id="mix-trigger" name="triggerMode" value={triggerMode} onChange={(event) => setTriggerMode(event.target.value as TriggerMode)}><option value="DATE_TRIGGERED">Target Jump Date Type</option><option value="MANUAL_START">Manual start</option><option value="BROADCAST">Broadcast snapshot</option></select></div>
+          <div className="field"><label htmlFor="mix-trigger">Trigger mode</label><select id="mix-trigger" name="triggerMode" value={triggerMode} onChange={(event) => setTriggerMode(event.target.value as TriggerMode)}><option value="DATE_TRIGGERED">Target Jump Date Type</option><option value="MANUAL_START">Manual start</option><option value="BROADCAST">Fixed-date broadcast</option></select></div>
           {triggerMode === "DATE_TRIGGERED" && <div className="field"><label htmlFor="mix-date-type">Target Jump Date Type</label><select id="mix-date-type" name="dateTypeId" defaultValue={defaultDateType} required>{dateTypes.map((dateType) => <option key={dateType.id} value={dateType.id}>{dateType.isSystem ? `System · ${dateType.name}` : dateType.name}</option>)}</select><div className="mix-date-type-tools"><Link href="/settings/jump-date-types">+ New or Manage Custom</Link></div></div>}
-          {triggerMode !== "DATE_TRIGGERED" && <div className="field full"><p className="inline-help">The start time is recorded when the audience assignment is saved. Broadcast currently prepares user-confirmed actions; it does not automatically send them.</p></div>}
+          {triggerMode === "MANUAL_START" && <div className="field full"><p className="inline-help">Each Contact or Group starts when it is first assigned. Editing the Mix does not restart existing assignments.</p></div>}
+          {triggerMode === "BROADCAST" && <div className="field full broadcast-fields">
+            <div className="broadcast-field-grid">
+              <label className="field"><span>Broadcast date</span><input name="broadcastDate" type="date" defaultValue={mix?.broadcastDate ?? ""} required /></label>
+              <label className="field"><span>Broadcast time</span><input name="broadcastTime" type="time" defaultValue={mix?.broadcastTime ?? "10:00"} required /></label>
+              <label className="field"><span>Timezone</span><select name="broadcastTimezone" defaultValue={mix?.broadcastTimezone ?? workspaceTimezone}>{TIMEZONES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+            </div>
+            <p className="inline-help">The date and time are the fixed trigger for Jump #1. Day offsets schedule later or earlier Jumps. The app prepares user-confirmed actions; it does not send automatically.</p>
+          </div>}
         </div>
         <div className="audience-options">
-          <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" defaultChecked={mix?.assignAllContacts ?? true} /><span><strong>All active Contacts</strong><small>Create a snapshot assignment for everyone currently active.</small></span></label>
+          <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" defaultChecked={mix?.assignAllContacts ?? true} /><span><strong>All active Contacts</strong><small>{triggerMode === "BROADCAST" ? "Use a snapshot of everyone active when the Mix is saved." : "Include everyone currently active."}</small></span></label>
           {groups.length > 0 && <div><h3>Contact Groups</h3><div className="group-choice-grid">{groups.map((group) => <label className="checkbox-card" key={group.id}><input type="checkbox" name="groupIds" value={group.id} defaultChecked={mix?.groupIds?.includes(group.id)} /><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} /><span>{group.name}</span></label>)}</div></div>}
           <small className="muted-copy">Direct Contact assignments made from a Contact profile are preserved separately.</small>
         </div>
@@ -110,7 +132,7 @@ export function MixEditor({
               <div className="form-grid">
                 <div className="field full"><label>Reusable Jump</label><select name="stepTemplateId" value={item.stepTemplateId} onChange={(event) => setSequence((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, stepTemplateId: event.target.value } : row))} required>{jumps.map((jump) => <option value={jump.id} key={jump.id}>{jump.channel.replaceAll("_", " ")} · {jump.name}</option>)}</select>{selected && <small>{selected.channel.replaceAll("_", " ").toLowerCase()}</small>}</div>
                 <div className="field"><label>Day offset</label><input name="dayOffset" type="number" value={item.dayOffset} onChange={(event) => setSequence((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, dayOffset: Number(event.target.value) } : row))} /><small>Negative is before; positive is after.</small></div>
-                <div className="field"><label>Optional local time</label><input type="time" value={timeValue(item.sendTimeMinutes)} onChange={(event) => setSequence((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, sendTimeMinutes: minutesValue(event.target.value) } : row))} /><input type="hidden" name="sendTimeMinutes" value={item.sendTimeMinutes ?? ""} /></div>
+                <div className="field"><label>Optional local time override</label><input type="time" value={timeValue(item.sendTimeMinutes)} onChange={(event) => setSequence((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, sendTimeMinutes: minutesValue(event.target.value) } : row))} /><input type="hidden" name="sendTimeMinutes" value={item.sendTimeMinutes ?? ""} /><small>Leave blank to use the Jump Date or broadcast time.</small></div>
               </div>
               <div className="sequence-controls"><button className="button small" type="button" onClick={() => moveSequenceItem(index, -1)} disabled={index === 0}>Move up</button><button className="button small" type="button" onClick={() => moveSequenceItem(index, 1)} disabled={index === sequence.length - 1}>Move down</button><button className="button small danger" type="button" onClick={() => removeSequenceItem(index)} disabled={sequence.length === 1}>Remove</button></div>
             </fieldset>
