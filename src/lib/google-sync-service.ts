@@ -144,15 +144,18 @@ function addressKey(value: {
 function jumpDateKey(value: {
   dateTypeId: string;
   label: string | null;
-  dateValue: Date | null;
+  dateValue: Date | string | null;
   month: number | null;
   day: number | null;
   recurrence: string;
 }): string {
+  const logicalDate = value.dateValue instanceof Date
+    ? value.dateValue.toISOString().slice(0, 10)
+    : value.dateValue?.slice(0, 10) ?? "";
   return [
     value.dateTypeId,
     normalizedImportText(value.label ?? ""),
-    value.dateValue?.toISOString().slice(0, 10) ?? "",
+    logicalDate,
     value.month ?? "",
     value.day ?? "",
     value.recurrence
