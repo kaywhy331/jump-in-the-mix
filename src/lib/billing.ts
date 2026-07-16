@@ -57,6 +57,14 @@ export function isBillingPeriod(value: unknown): value is BillingPeriod {
   return value === "MONTHLY" || value === "ANNUAL";
 }
 
+export function planRank(planTier: PlanTier): number {
+  return planTier === "PRO" ? 2 : planTier === "PLUS" ? 1 : 0;
+}
+
+export function isPlanDowngrade(from: PlanTier, to: PlanTier): boolean {
+  return planRank(to) < planRank(from);
+}
+
 export function billingPriceId(planTier: PaidPlanTier, billingPeriod: BillingPeriod): string {
   if (planTier === "PLUS") {
     return billingPeriod === "MONTHLY" ? env.stripePlusMonthlyPriceId : env.stripePlusAnnualPriceId;
@@ -67,6 +75,7 @@ export function billingPriceId(planTier: PaidPlanTier, billingPeriod: BillingPer
 export function billingSelectionForPriceId(priceId: string | null | undefined): {
   planTier: PaidPlanTier;
   billingPeriod: BillingPeriod;
+  priceId: string;
 } | null {
   if (!priceId) return null;
   const candidates: Array<{ planTier: PaidPlanTier; billingPeriod: BillingPeriod; priceId: string }> = [
