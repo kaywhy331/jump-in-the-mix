@@ -10,6 +10,10 @@ function ticketUrl(ticketId: string): string {
   return new URL(`/account/tickets/${encodeURIComponent(ticketId)}`, env.appUrl).toString();
 }
 
+function headerText(value: string, fallback = ""): string {
+  return value.replace(/[\r\n]+/g, " ").trim() || fallback;
+}
+
 function bodyHtml(body: string): string {
   return body
     .trim()
@@ -27,15 +31,18 @@ export function buildSupportReplyEmail(input: {
   responseBody: string;
 }): TransactionalEmail {
   const url = ticketUrl(input.ticketId);
-  const safeName = escapeHtml(input.recipientName || "there");
-  const safeTitle = escapeHtml(input.title);
-  const safeReference = escapeHtml(input.reference);
+  const recipientName = headerText(input.recipientName, "there");
+  const reference = headerText(input.reference, "Support ticket");
+  const title = headerText(input.title, "Support request");
+  const safeName = escapeHtml(recipientName);
+  const safeTitle = escapeHtml(title);
+  const safeReference = escapeHtml(reference);
   const safeUrl = escapeHtml(url);
-  const subject = `Jump in the Mix Response · ${input.reference} · ${input.title}`;
+  const subject = `Jump in the Mix Response · ${reference} · ${title}`;
   const text = [
-    `Hello ${input.recipientName || "there"},`,
+    `Hello ${recipientName},`,
     "",
-    `Jump in the Mix Response for ${input.reference}: ${input.title}`,
+    `Jump in the Mix Response for ${reference}: ${title}`,
     "",
     input.responseBody.trim(),
     "",
