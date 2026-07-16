@@ -98,6 +98,7 @@ function decisionLabel(value: string): string {
 export function GoogleContactsPanel() {
   const [status, setStatus] = useState<GoogleStatus | null>(null);
   const [groups, setGroups] = useState<GoogleGroup[]>([]);
+  const [groupsLoaded, setGroupsLoaded] = useState(false);
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(() => new Set());
   const [autoMergeExact, setAutoMergeExact] = useState(true);
   const [preview, setPreview] = useState<GooglePreview | null>(null);
@@ -126,6 +127,7 @@ export function GoogleContactsPanel() {
         autoMergeExact: boolean;
       }>("/api/integrations/google/groups", { cache: "no-store" });
       setGroups(result.groups);
+      setGroupsLoaded(true);
       setSelectedGroups(new Set(result.selectedGroupResourceNames));
       setAutoMergeExact(result.autoMergeExact);
     } catch (cause) {
@@ -140,9 +142,9 @@ export function GoogleContactsPanel() {
   }, [loadStatus]);
 
   useEffect(() => {
-    if (!status?.connection || !status.configured || !status.entitled || groups.length) return;
+    if (!status?.connection || !status.configured || !status.entitled || groupsLoaded) return;
     void loadGroups();
-  }, [groups.length, loadGroups, status?.configured, status?.connection, status?.entitled]);
+  }, [groupsLoaded, loadGroups, status?.configured, status?.connection, status?.entitled]);
 
   const latestRun = status?.runs[0];
   useEffect(() => {
@@ -227,6 +229,7 @@ export function GoogleContactsPanel() {
     try {
       const result = await jsonRequest<{ disconnected: boolean; warning: string | null }>("/api/integrations/google/disconnect", { method: "POST", body: "{}" });
       setGroups([]);
+      setGroupsLoaded(false);
       setPreview(null);
       setSelectedGroups(new Set());
       setMessage(result.warning ? `Disconnected locally. ${result.warning}` : "Google Contacts disconnected. Existing local Contacts were preserved.");
