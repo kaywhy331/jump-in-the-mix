@@ -11,3 +11,20 @@ model AuthRateLimit {
   @@index([scope, updatedAt])
   @@index([blockedUntil])
 }
+
+model AdminImpersonation {
+  id           String   @id @default(cuid())
+  tokenHash    String   @unique
+  actorUserId  String
+  targetUserId String
+  workspaceId  String
+  reason       String
+  expiresAt    DateTime
+  endedAt      DateTime?
+  lastSeenAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  @@index([actorUserId, expiresAt])
+  @@index([targetUserId, workspaceId, expiresAt])
+  @@index([workspaceId, endedAt])
+}
