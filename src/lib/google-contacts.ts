@@ -367,14 +367,16 @@ export async function consumeGoogleOAuthState(
     data: { usedAt: new Date() }
   });
   if (claimed.count !== 1) throw new Error("The Google connection request was already completed.");
+  const storedState = row.returnTo;
+  if (!storedState) return { returnTo: "/account", codeVerifier: null };
   try {
-    const payload = decryptIntegrationCredentials<{ returnTo?: string; codeVerifier?: string }>(row.returnTo);
+    const payload = decryptIntegrationCredentials<{ returnTo?: string; codeVerifier?: string }>(storedState);
     return {
       returnTo: normalizedReturnTo(payload.returnTo),
       codeVerifier: payload.codeVerifier?.trim() || null
     };
   } catch {
-    return { returnTo: normalizedReturnTo(row.returnTo), codeVerifier: null };
+    return { returnTo: normalizedReturnTo(storedState), codeVerifier: null };
   }
 }
 
