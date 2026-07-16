@@ -577,7 +577,7 @@ async function mergeGoogleContact(input: {
     const company = input.preferGoogleCanonical
       ? clean(input.record.company, 240) ?? existing.company
       : existing.company ?? clean(input.record.company, 240);
-    const proposedName = input.record.displayName ?? [firstName, lastName].filter(Boolean).join(" ") || company;
+    const proposedName = input.record.displayName ?? ([firstName, lastName].filter(Boolean).join(" ") || company);
     const displayName = input.preferGoogleCanonical
       ? proposedName || existing.displayName
       : existing.displayName || proposedName || "Google Contact";
