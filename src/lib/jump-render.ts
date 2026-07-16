@@ -17,6 +17,10 @@ export type JumpRenderContact = {
     country?: string | null;
     isPrimary: boolean;
   }[];
+  customFieldValues?: {
+    value: string;
+    definition: { key: string };
+  }[];
 };
 
 export type JumpRenderOwner = { name: string; email: string };
@@ -66,7 +70,7 @@ export function buildJumpReplacementValues(
   const privateNotes = channel === "PHONE_CALL" ? contact.privateNotes ?? "" : "";
   const myAddress = profile?.mailingAddress ?? [profile?.street, profile?.city, profile?.state, profile?.postalCode].filter(Boolean).join(", ");
 
-  return {
+  const values: Record<string, string> = {
     "{{First Name}}": contact.firstName ?? "there",
     "{{Last Name}}": contact.lastName ?? "",
     "{{Company}}": contact.company ?? "",
@@ -120,6 +124,11 @@ export function buildJumpReplacementValues(
     "{{my.sms_signature}}": profile?.smsSignature ?? "",
     "{{my.email_signature}}": profile?.emailSignature ?? ""
   };
+
+  for (const item of contact.customFieldValues ?? []) {
+    values[`{{contact.custom.${item.definition.key}}}`] = item.value;
+  }
+  return values;
 }
 
 export function renderJumpTemplate(template: string | null | undefined, values: Record<string, string>): string | null {
