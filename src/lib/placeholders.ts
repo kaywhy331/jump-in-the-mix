@@ -65,10 +65,16 @@ export const APPROVED_PLACEHOLDERS = [
   ...MY_INFO_PLACEHOLDERS
 ] as const;
 
+const CUSTOM_CONTACT_PLACEHOLDER = /^{{contact\.custom\.[a-z0-9_]{1,64}}}$/;
+
+export function isContactCustomFieldPlaceholder(value: string): boolean {
+  return CUSTOM_CONTACT_PLACEHOLDER.test(value);
+}
+
 export function findUnknownPlaceholders(value: string): string[] {
   const matches = value.match(/{{[^}]+}}/g) ?? [];
   const approved = new Set<string>(APPROVED_PLACEHOLDERS);
-  return [...new Set(matches.filter((item) => !approved.has(item)))];
+  return [...new Set(matches.filter((item) => !approved.has(item) && !isContactCustomFieldPlaceholder(item)))];
 }
 
 export function containsPrivateNotesPlaceholder(value: string): boolean {
