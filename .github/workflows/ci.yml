@@ -6,161 +6,114 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  patch-shared-mix-schema:
-    if: github.event_name == 'pull_request' && github.head_ref == 'agent/prd-core-foundation' && github.actor != 'github-actions[bot]'
+  validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_URL: http://localhost:3000
+      DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_test?schema=public
+      DATA_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+      AUTH_RATE_LIMIT_SECRET: ci-auth-rate-limit-secret
+      AUTH_REQUIRE_EMAIL_VERIFICATION: "false"
+      DEMO_MODE: "false"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: jitm_test
+          POSTGRES_USER: jitm
+          POSTGRES_PASSWORD: jitm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jitm -d jitm_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: agent/prd-core-foundation
           fetch-depth: 0
-      - name: Apply the versioned Mix Template schema
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Verify committed main-schema baseline SQL
         shell: bash
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          import re
-
-          path = Path('prisma/schema.prisma')
-          text = path.read_text()
-
-          text, count = re.subn(
-              r'enum SharedMixStatus \{\n(?P<body>.*?)\n\}',
-              lambda match: 'enum SharedMixStatus {\n' + match.group('body') + ('\n  FLAGGED' if 'FLAGGED' not in match.group('body') else '') + '\n}',
-              text,
-              count=1,
-              flags=re.S,
-          )
-          if count != 1:
-              raise SystemExit('SharedMixStatus enum was not found exactly once.')
-
-          if 'sharedMixVotes' not in text:
-              marker = '  importedSharedMixes    SharedMixImport[]\n'
-              if marker not in text:
-                  raise SystemExit('Workspace shared Mix relation marker was not found.')
-              text = text.replace(marker, marker + '  sharedMixVotes         SharedMixVote[]\n', 1)
-
-          if 'communityProfileEnabled' not in text:
-              marker = '  onboardingDone  Boolean   @default(false)\n'
-              if marker not in text:
-                  raise SystemExit('WorkspaceProfile onboarding marker was not found.')
-              fields = '''  communityProfileEnabled Boolean   @default(false)
-  communityDisplayName    String?
-  communityTitle          String?
-  communityBio            String?
-  communityAvatarUrl      String?
-  communityWebsite        String?
-'''
-              text = text.replace(marker, marker + fields, 1)
-
-          shared_models = '''model SharedMix {
-  id                   String          @id @default(cuid())
-  publisherWorkspaceId String?
-  publisherMixId       String?
-  sourceMixId          String?
-  isPlatform           Boolean         @default(false)
-  title                String
-  description          String
-  category             String
-  industry             String?
-  framework            String?
-  triggerMode          MixTriggerMode  @default(MANUAL_START)
-  dateTypeName         String?
-  dateTypeSlug         String?
-  durationDays         Int
-  steps                Json
-  status               SharedMixStatus @default(PENDING)
-  version              Int             @default(1)
-  importCount          Int             @default(0)
-  voteCount            Int             @default(0)
-  rating               Float?
-  featuredAt           DateTime?
-  publishedAt          DateTime?
-  reviewedAt           DateTime?
-  reviewedByUserId     String?
-  moderationNote       String?
-  publisherWorkspace   Workspace?      @relation("SharedMixPublisher", fields: [publisherWorkspaceId], references: [id], onDelete: SetNull)
-  imports              SharedMixImport[]
-  votes                SharedMixVote[]
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
-
-  @@unique([publisherWorkspaceId, publisherMixId])
-  @@index([isPlatform, status, category])
-  @@index([industry])
-  @@index([voteCount, importCount])
-}
-
-model SharedMixImport {
-  id               String    @id @default(cuid())
-  importKey        String    @unique
-  workspaceId      String
-  sharedMixId      String
-  sharedMixVersion Int       @default(1)
-  mixId            String?
-  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  sharedMix        SharedMix @relation(fields: [sharedMixId], references: [id], onDelete: Cascade)
-  createdAt        DateTime  @default(now())
-
-  @@index([workspaceId, sharedMixId])
-}
-
-model SharedMixVote {
-  id          String    @id @default(cuid())
-  workspaceId String
-  sharedMixId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  sharedMix   SharedMix @relation(fields: [sharedMixId], references: [id], onDelete: Cascade)
-  createdAt   DateTime  @default(now())
-
-  @@unique([workspaceId, sharedMixId])
-  @@index([sharedMixId, createdAt])
-}
-'''
-          pattern = r'model SharedMix \{.*?\n\}\n\nmodel SharedMixImport \{.*?\n\}\n(?=\nmodel Subscription \{)'
-          text, count = re.subn(pattern, shared_models.rstrip(), text, count=1, flags=re.S)
-          if count != 1:
-              raise SystemExit('SharedMix and SharedMixImport model block was not found exactly once.')
-
-          required = [
-              'FLAGGED',
-              'communityProfileEnabled',
-              'sharedMixVotes',
-              'model SharedMixVote',
-              'publisherMixId',
-              'sharedMixVersion',
-              'voteCount',
-          ]
-          missing = [item for item in required if item not in text]
-          if missing:
-              raise SystemExit(f'Schema patch is incomplete: {missing}')
-          path.write_text(text)
-          PY
-      - name: Restore ordinary CI and commit the schema
-        shell: bash
-        run: |
-          echo 'bmFtZTogQ0kKCm9uOgogIHB1c2g6CiAgICBicmFuY2hlczogW21haW5dCiAgcHVsbF9yZXF1ZXN0OgoKcGVybWlzc2lvbnM6CiAgY29udGVudHM6IHJlYWQKCmNvbmN1cnJlbmN5OgogIGdyb3VwOiBjaS0ke3sgZ2l0aHViLndvcmtmbG93IH19LSR7eyBnaXRodWIucmVmIH19CiAgY2FuY2VsLWluLXByb2dyZXNzOiB0cnVlCgpqb2JzOgogIHZhbGlkYXRlOgogICAgcnVucy1vbjogdWJ1bnR1LWxhdGVzdAogICAgdGltZW91dC1taW51dGVzOiAyMAogICAgZW52OgogICAgICBBUFBfVVJMOiBodHRwOi8vbG9jYWxob3N0OjMwMDAKICAgICAgREFUQUJBU0VfVVJMOiBwb3N0Z3Jlc3FsOi8vaml0bTpqaXRtQGxvY2FsaG9zdDo1NDMyL2ppdG1fdGVzdD9zY2hlbWE9cHVibGljCiAgICAgIERBVEFfRU5DUllQVElPTl9LRVk6IDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAKICAgICAgQVVUSF9SQVRFX0xJTUlUX1NFQ1JFVDogY2ktYXV0aC1yYXRlLWxpbWl0LXNlY3JldAogICAgICBBVVRIX1JFUVVJUkVfRU1BSUxfVkVSSUZJQ0FUSU9OOiAiZmFsc2UiCiAgICAgIERFTU9fTU9ERTogImZhbHNlIgogICAgc2VydmljZXM6CiAgICAgIHBvc3RncmVzOgogICAgICAgIGltYWdlOiBwb3N0Z3JlczoxNi1hbHBpbmUKICAgICAgICBlbnY6CiAgICAgICAgICBQT1NUR1JFU19EQjogaml0bV90ZXN0CiAgICAgICAgICBQT1NUR1JFU19VU0VSOiBqaXRtCiAgICAgICAgICBQT1NUR1JFU19QQVNTV09SRDogaml0bQogICAgICAgIHBvcnRzOgogICAgICAgICAgLSA1NDMyOjU0MzIKICAgICAgICBvcHRpb25zOiA+LQogICAgICAgICAgLS1oZWFsdGgtY21kICJwZ19pc3JlYWR5IC1VIGppdG0gLWQgaml0bV90ZXN0IgogICAgICAgICAgLS1oZWFsdGgtaW50ZXJ2YWwgNXMKICAgICAgICAgIC0taGVhbHRoLXRpbWVvdXQgNXMKICAgICAgICAgIC0taGVhbHRoLXJldHJpZXMgMjAKCiAgICBzdGVwczoKICAgICAgLSB1c2VzOiBhY3Rpb25zL2NoZWNrb3V0QHY0CiAgICAgICAgd2l0aDoKICAgICAgICAgIGZldGNoLWRlcHRoOiAwCiAgICAgIC0gdXNlczogYWN0aW9ucy9zZXR1cC1ub2RlQHY0CiAgICAgICAgd2l0aDoKICAgICAgICAgIG5vZGUtdmVyc2lvbjogMjIKICAgICAgLSBydW46IG5wbSBpbnN0YWxsIC0tbm8tYXVkaXQgLS1uby1mdW5kCiAgICAgIC0gbmFtZTogVmVyaWZ5IGNvbW1pdHRlZCBtYWluLXNjaGVtYSBiYXNlbGluZSBTUUwKICAgICAgICBzaGVsbDogYmFzaAogICAgICAgIHJ1bjogfAogICAgICAgICAgc2V0IC1ldW8gcGlwZWZhaWwKICAgICAgICAgIG1rZGlyIC1wIC5hcnRpZmFjdHMKICAgICAgICAgIGdpdCBzaG93IG9yaWdpbi9tYWluOnByaXNtYS9zY2hlbWEucHJpc21hID4gLmFydGlmYWN0cy9tYWluLXNjaGVtYS5wcmlzbWEKICAgICAgICAgIGlmICEgbnB4IHByaXNtYSBtaWdyYXRlIGRpZmYgLS1mcm9tLWVtcHR5IC0tdG8tc2NoZW1hIC5hcnRpZmFjdHMvbWFpbi1zY2hlbWEucHJpc21hIC0tc2NyaXB0ID4gLmFydGlmYWN0cy9tYWluLWJhc2VsaW5lLnNxbDsgdGhlbgogICAgICAgICAgICBucHggcHJpc21hIG1pZ3JhdGUgZGlmZiAtLWZyb20tZW1wdHkgLS10by1zY2hlbWEtZGF0YW1vZGVsIC5hcnRpZmFjdHMvbWFpbi1zY2hlbWEucHJpc21hIC0tc2NyaXB0ID4gLmFydGlmYWN0cy9tYWluLWJhc2VsaW5lLnNxbAogICAgICAgICAgZmkKICAgICAgICAgIHRlc3QgLXMgLmFydGlmYWN0cy9tYWluLWJhc2VsaW5lLnNxbAogICAgICAgICAgIyBQcmlzbWEgZW1pdHMgYSBoYXJkLWNvZGVkIHB1YmxpYy1zY2hlbWEgcHJlYW1ibGUuIEFsbCByZW1haW5pbmcgU1FMIGlzCiAgICAgICAgICAjIHVucXVhbGlmaWVkIGFuZCB0aGVyZWZvcmUgcG9ydGFibGUgdG8gdGhlIHNjaGVtYSBpbiBEQVRBQkFTRV9VUkwuCiAgICAgICAgICB0YWlsIC1uICs0IC5hcnRpZmFjdHMvbWFpbi1iYXNlbGluZS5zcWwgPiAuYXJ0aWZhY3RzL21haW4tYmFzZWxpbmUtcG9ydGFibGUuc3FsCiAgICAgICAgICBjbXAgLmFydGlmYWN0cy9tYWluLWJhc2VsaW5lLXBvcnRhYmxlLnNxbCBwcmlzbWEvbWlncmF0aW9ucy8yMDI2MDcxNTAwMDAwMF9leGlzdGluZ19tdnBfYmFzZWxpbmUvbWlncmF0aW9uLnNxbAogICAgICAtIG5hbWU6IFVwbG9hZCBnZW5lcmF0ZWQgYmFzZWxpbmUgU1FMCiAgICAgICAgdXNlczogYWN0aW9ucy91cGxvYWQtYXJ0aWZhY3RAdjQKICAgICAgICB3aXRoOgogICAgICAgICAgbmFtZTogcHJpc21hLW1haW4tYmFzZWxpbmUKICAgICAgICAgIHBhdGg6IC5hcnRpZmFjdHMvbWFpbi1iYXNlbGluZS1wb3J0YWJsZS5zcWwKICAgICAgICAgIHJldGVudGlvbi1kYXlzOiA3CiAgICAgIC0gcnVuOiBucG0gcnVuIGRiOmdlbmVyYXRlCiAgICAgIC0gcnVuOiBucG0gcnVuIHZhbGlkYXRlOnN0YXRpYwogICAgICAtIG5hbWU6IFBvcHVsYXRlZCBtaWdyYXRpb24sIHJvbGxiYWNrLCBhbmQgcmVhcHBseSByZWhlYXJzYWwKICAgICAgICBzaGVsbDogYmFzaAogICAgICAgIHJ1bjogfAogICAgICAgICAgc2V0IC1vIHBpcGVmYWlsCiAgICAgICAgICBucG0gcnVuIGRiOnJlaGVhcnNlLW1pZ3JhdGlvbiAyPiYxIHwgdGVlIG1pZ3JhdGlvbi1yZWhlYXJzYWwubG9nCiAgICAgIC0gbmFtZTogVXBsb2FkIG1pZ3JhdGlvbiByZWhlYXJzYWwgZGlhZ25vc3RpY3MKICAgICAgICBpZjogZmFpbHVyZSgpCiAgICAgICAgdXNlczogYWN0aW9ucy91cGxvYWQtYXJ0aWZhY3RAdjQKICAgICAgICB3aXRoOgogICAgICAgICAgbmFtZTogbWlncmF0aW9uLXJlaGVhcnNhbC1kaWFnbm9zdGljcwogICAgICAgICAgcGF0aDogbWlncmF0aW9uLXJlaGVhcnNhbC5sb2cKICAgICAgICAgIHJldGVudGlvbi1kYXlzOiA3CiAgICAgIC0gcnVuOiBucG0gcnVuIGRiOnB1c2gKICAgICAgLSBuYW1lOiBUeXBlU2NyaXB0IHNlbWFudGljIHZhbGlkYXRpb24KICAgICAgICBzaGVsbDogYmFzaAogICAgICAgIHJ1bjogfAogICAgICAgICAgc2V0IC1vIHBpcGVmYWlsCiAgICAgICAgICBucG0gcnVuIHR5cGVjaGVjayAyPiYxIHwgdGVlIHR5cGVjaGVjay5sb2cKICAgICAgLSBuYW1lOiBVcGxvYWQgVHlwZVNjcmlwdCBkaWFnbm9zdGljcwogICAgICAgIGlmOiBmYWlsdXJlKCkKICAgICAgICB1c2VzOiBhY3Rpb25zL3VwbG9hZC1hcnRpZmFjdEB2NAogICAgICAgIHdpdGg6CiAgICAgICAgICBuYW1lOiB0eXBlY2hlY2stZGlhZ25vc3RpY3MKICAgICAgICAgIHBhdGg6IHR5cGVjaGVjay5sb2cKICAgICAgICAgIHJldGVudGlvbi1kYXlzOiA3CiAgICAgIC0gbmFtZTogVW5pdCBhbmQgaW50ZWdyYXRpb24gdGVzdHMKICAgICAgICBzaGVsbDogYmFzaAogICAgICAgIHJ1bjogfAogICAgICAgICAgc2V0IC1vIHBpcGVmYWlsCiAgICAgICAgICBucG0gdGVzdCAyPiYxIHwgdGVlIHRlc3QubG9nCiAgICAgIC0gbmFtZTogVXBsb2FkIHRlc3QgZGlhZ25vc3RpY3MKICAgICAgICBpZjogZmFpbHVyZSgpCiAgICAgICAgdXNlczogYWN0aW9ucy91cGxvYWQtYXJ0aWZhY3RAdjQKICAgICAgICB3aXRoOgogICAgICAgICAgbmFtZTogdGVzdC1kaWFnbm9zdGljcwogICAgICAgICAgcGF0aDogdGVzdC5sb2cKICAgICAgICAgIHJldGVudGlvbi1kYXlzOiA3CiAgICAgIC0gbmFtZTogUHJvZHVjdGlvbiBidWlsZAogICAgICAgIHNoZWxsOiBiYXNoCiAgICAgICAgcnVuOiB8CiAgICAgICAgICBzZXQgLW8gcGlwZWZhaWwKICAgICAgICAgIG5wbSBydW4gYnVpbGQgMj4mMSB8IHRlZSBidWlsZC5sb2cKICAgICAgLSBuYW1lOiBVcGxvYWQgYnVpbGQgZGlhZ25vc3RpY3MKICAgICAgICBpZjogZmFpbHVyZSgpCiAgICAgICAgdXNlczogYWN0aW9ucy91cGxvYWQtYXJ0aWZhY3RAdjQKICAgICAgICB3aXRoOgogICAgICAgICAgbmFtZTogYnVpbGQtZGlhZ25vc3RpY3MKICAgICAgICAgIHBhdGg6IGJ1aWxkLmxvZwogICAgICAgICAgcmV0ZW50aW9uLWRheXM6IDcK' | base64 --decode > .github/workflows/ci.yml
-          rm -f .github/workflows/one-time-shared-mix-schema.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add prisma/schema.prisma .github/workflows/ci.yml .github/workflows/one-time-shared-mix-schema.yml
-          if git diff --cached --quiet; then
-            echo "No schema patch was needed."
-            exit 0
+          set -euo pipefail
+          mkdir -p .artifacts
+          git show origin/main:prisma/schema.prisma > .artifacts/main-schema.prisma
+          if ! npx prisma migrate diff --from-empty --to-schema .artifacts/main-schema.prisma --script > .artifacts/main-baseline.sql; then
+            npx prisma migrate diff --from-empty --to-schema-datamodel .artifacts/main-schema.prisma --script > .artifacts/main-baseline.sql
           fi
-          git commit -m "feat: expand shared Mix schema"
-          git push origin HEAD:agent/prd-core-foundation
-
-  validate:
-    if: github.event_name != 'pull_request' || github.head_ref != 'agent/prd-core-foundation'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - run: echo "The ordinary quality gate is restored by the schema patch commit."
+          test -s .artifacts/main-baseline.sql
+          # Prisma emits a hard-coded public-schema preamble. All remaining SQL is
+          # unqualified and therefore portable to the schema in DATABASE_URL.
+          tail -n +4 .artifacts/main-baseline.sql > .artifacts/main-baseline-portable.sql
+          cmp .artifacts/main-baseline-portable.sql prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql
+      - name: Upload generated baseline SQL
+        uses: actions/upload-artifact@v4
+        with:
+          name: prisma-main-baseline
+          path: .artifacts/main-baseline-portable.sql
+          retention-days: 7
+      - run: npm run db:generate
+      - run: npm run validate:static
+      - name: Populated migration, rollback, and reapply rehearsal
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run db:rehearse-migration 2>&1 | tee migration-rehearsal.log
+      - name: Upload migration rehearsal diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-rehearsal-diagnostics
+          path: migration-rehearsal.log
+          retention-days: 7
+      - run: npm run db:push
+      - name: TypeScript semantic validation
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee typecheck.log
+      - name: Upload TypeScript diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-diagnostics
+          path: typecheck.log
+          retention-days: 7
+      - name: Unit and integration tests
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test.log
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-diagnostics
+          path: test.log
+          retention-days: 7
+      - name: Production build
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee build.log
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          path: build.log
+          retention-days: 7
