@@ -1,4 +1,5 @@
 const DEFAULT_COOKIE = "jitm_session";
+const DEFAULT_IMPERSONATION_COOKIE = "jitm_impersonation";
 const isProduction = process.env.NODE_ENV === "production";
 
 function positiveNumber(value: string | undefined, fallback: number): number {
@@ -16,9 +17,12 @@ function commaSeparated(value: string | undefined): string[] {
 export const env = {
   appUrl: process.env.APP_URL ?? "http://localhost:3000",
   cookieName: process.env.AUTH_COOKIE_NAME ?? DEFAULT_COOKIE,
+  impersonationCookieName: process.env.AUTH_IMPERSONATION_COOKIE_NAME ?? DEFAULT_IMPERSONATION_COOKIE,
   sessionDays: positiveNumber(process.env.AUTH_SESSION_DAYS, 30),
   sessionTouchMinutes: positiveNumber(process.env.AUTH_SESSION_TOUCH_MINUTES, 5),
   maxSessionsPerUser: positiveNumber(process.env.AUTH_MAX_SESSIONS_PER_USER, 10),
+  impersonationMinutes: positiveNumber(process.env.AUTH_IMPERSONATION_MINUTES, 30),
+  impersonationTouchMinutes: positiveNumber(process.env.AUTH_IMPERSONATION_TOUCH_MINUTES, 5),
   requireEmailVerification: (process.env.AUTH_REQUIRE_EMAIL_VERIFICATION ?? "false").toLowerCase() === "true",
   emailVerificationHours: positiveNumber(process.env.AUTH_EMAIL_VERIFICATION_HOURS, 24),
   passwordResetMinutes: positiveNumber(process.env.AUTH_PASSWORD_RESET_MINUTES, 60),
