@@ -36,6 +36,10 @@ export const env = {
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   emailFrom: process.env.EMAIL_FROM ?? "",
   emailReplyTo: process.env.EMAIL_REPLY_TO ?? "",
+  aiProvider: (process.env.AI_PROVIDER ?? "openai").trim().toLowerCase(),
+  aiApiKey: process.env.AI_API_KEY ?? "",
+  aiModel: process.env.AI_MODEL ?? "gpt-5.6-luna",
+  aiBaseUrl: (process.env.AI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, ""),
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
   googleRedirectUri:
