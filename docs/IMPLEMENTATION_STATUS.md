@@ -104,13 +104,31 @@ The `agent/prd-core-foundation` change set now includes:
 - Global system Jump Date Types remain visible across workspaces while tenant custom types remain private.
 - Static regression tests require every tenant server action export to derive the workspace through `requireWorkspace()`.
 - The Jump action-event endpoint is regression-tested for authenticated, workspace-scoped lookup.
-- CI now provisions the real Prisma schema in PostgreSQL before running the isolation suite.
+- CI provisions the real Prisma schema in PostgreSQL before running the isolation suite.
+
+### Authentication, request security, and My Account
+
+- Registration and login now use database-backed IP and email throttling with time-bounded blocks.
+- Unknown accounts still execute a bcrypt comparison, reducing account-enumeration timing differences.
+- Passwords require at least 12 characters and remain within bcrypt's supported input length.
+- Optional email verification uses one-time, expiring tokens stored only as SHA-256 hashes.
+- Password recovery uses one-time, expiring links; completing a reset invalidates every active session.
+- Transactional verification, reset, and password-change emails support Resend in production and a development-only preview path.
+- The authenticated request boundary rejects untrusted cross-origin mutations while leaving explicit webhook routes available for future signed provider callbacks.
+- Security headers, constrained Server Action origins, and a one-megabyte Server Action body limit are applied centrally.
+- Sessions store the device user agent, client IP, last-seen time, expiration, and only a hash of the opaque cookie token.
+- A configurable per-user session cap removes the oldest sessions when the cap is exceeded.
+- My Account displays identity, plan state, password controls, and active sessions on desktop and mobile.
+- Users can revoke one remote session, sign out other devices, or sign out everywhere.
+- Changing a password retains the current session and closes every other session.
+- The Jump action-event API has an authenticated per-user/workspace throttle and returns `429` with `Retry-After` when exceeded.
+- Unit, PostgreSQL integration, and static boundary tests cover password policy, token invalidation, throttling, origin enforcement, and session/recovery wiring.
 
 ## Remaining P0 work
 
-- Reviewed production Prisma migration and populated-database migration/rollback test.
-- Browser-level cross-workspace route matrix, administrator impersonation controls, and authorization tests for future modules as they are added.
-- Email verification, password recovery, login/API rate limiting, CSRF/origin enforcement, and session/device management.
+- Reviewed production Prisma migration and populated-database migration/rollback and restoration test.
+- Browser-level cross-workspace route matrix, audited administrator impersonation controls, and authorization tests for future modules as they are added.
+- Production transactional-email configuration and end-to-end inbox verification before enabling mandatory email verification.
 
 ## Remaining P1 work
 
@@ -119,7 +137,7 @@ The `agent/prd-core-foundation` change set now includes:
 - Platform/community Mix Templates, moderation, voting, contributor profiles, and atomic imports.
 - Final four-question AI Mix Wizard and provider-backed refinement.
 - Stripe Checkout, Customer Portal, verified webhook reconciliation, and downgrade workflow.
-- My Account, referrals, Help/FAQ, support tickets, and administration dashboard.
+- My Account billing/integrations, referrals, Help/FAQ, support tickets, and administration dashboard.
 - Accessibility, observability, encrypted backup/restore, security review, load testing, and staging validation.
 
 ## Validation policy
