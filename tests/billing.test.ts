@@ -51,18 +51,19 @@ describe("billing catalog", () => {
     expect(mapStripeSubscriptionStatus("active")).toBe("ACTIVE");
     expect(mapStripeSubscriptionStatus("trialing")).toBe("TRIALING");
     expect(mapStripeSubscriptionStatus("past_due")).toBe("PAST_DUE");
-    expect(mapStripeSubscriptionStatus("paused")).toBe("PAST_DUE");
+    expect(mapStripeSubscriptionStatus("paused")).toBe("INCOMPLETE");
     expect(mapStripeSubscriptionStatus("incomplete")).toBe("INCOMPLETE");
     expect(mapStripeSubscriptionStatus("unpaid")).toBe("UNPAID");
     expect(mapStripeSubscriptionStatus("incomplete_expired")).toBe("CANCELED");
   });
 
-  it("keeps paid access during recovery but returns canceled subscriptions to Free", () => {
+  it("keeps paid access during recovery but returns inactive subscriptions to Free", () => {
     expect(subscriptionHasPaidAccess("ACTIVE")).toBe(true);
     expect(subscriptionHasPaidAccess("TRIALING")).toBe(true);
     expect(subscriptionHasPaidAccess("PAST_DUE")).toBe(true);
     expect(effectivePlanTier("PLUS", "PAST_DUE")).toBe("PLUS");
     expect(effectivePlanTier("PRO", "CANCELED")).toBe("FREE");
     expect(effectivePlanTier("PLUS", "UNPAID")).toBe("FREE");
+    expect(effectivePlanTier("PLUS", "INCOMPLETE")).toBe("FREE");
   });
 });
