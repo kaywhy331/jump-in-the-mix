@@ -94,7 +94,8 @@ export async function deleteContactCustomFieldAction(formData: FormData): Promis
         source: "contacts.custom_fields",
         beforeData: { name: existing.name, key: existing.key, valueCount: existing._count.values }
       }
-    })
+    }),
+    prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: {} } })
   ]);
   redirect(`/contacts/custom-fields?deleted=1&values=${existing._count.values}`);
 }
