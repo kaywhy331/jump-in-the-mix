@@ -1,6 +1,6 @@
 "use server";
 
-import type { MixTriggerMode, SharedMixStatus } from "@/generated/prisma/client";
+import type { MixTriggerMode, SharedMixReviewState, SharedMixStatus } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -17,6 +17,13 @@ function values(formData: FormData, key: string): string[] {
 
 function fail(path: string, message: string): never {
   redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
+}
+
+function publicStatus(reviewState: SharedMixReviewState): SharedMixStatus {
+  if (reviewState === "APPROVED") return "APPROVED";
+  if (reviewState === "REJECTED") return "REJECTED";
+  if (reviewState === "UNPUBLISHED") return "UNPUBLISHED";
+  return "PENDING";
 }
 
 async function adminContext() {
@@ -52,19 +59,34 @@ export async function createPlatformSharedMixAction(formData: FormData): Promise
 export async function quickModerateSharedMixAction(formData: FormData): Promise<void> {
   const { user, workspaceId } = await adminContext();
   const sharedMixId = value(formData, "sharedMixId");
-  const status = value(formData, "status") as SharedMixStatus;
-  const allowed: SharedMixStatus[] = ["PENDING", "APPROVED", "REJECTED", "UNPUBLISHED", "FLAGGED"];
-  if (!sharedMixId || !allowed.includes(status)) fail("/admin/templates", "Choose a valid Mix Template moderation action.");
-  const shared = await prisma.sharedMix.findUnique({ where: { id: sharedMixId }, select: { id: true, publisherWorkspaceId: true } });
+  const reviewState = value(formData, "status") as SharedMixReviewState;
+  const allowed: SharedMixReviewState[] = ["PENDING", "APPROVED", "REJECTED", "UNPUBLISHED", "FLAGGED"];
+  if (!sharedMixId || !allowed.includes(reviewState)) fail("/admin/templates", "Choose a valid Mix Template moderation action.");
+  const shared = await prisma.sharedMix.findUnique({
+    where: { id: sharedMixId },
+    select: { id: true, status: true, publisherWorkspaceId: true, createdAt: true }
+  });
   if (!shared) fail("/admin/templates", "Mix Template not found.");
+  const now = new Date();
   await prisma.$transaction([
-    prisma.sharedMix.update({
-      where: { id: shared.id },
-      data: {
-        status,
-        reviewedAt: new Date(),
+    prisma.sharedMix.update({ where: { id: shared.id }, data: { status: publicStatus(reviewState) } }),
+    prisma.sharedMixMetadata.upsert({
+      where: { sharedMixId: shared.id },
+      create: {
+        sharedMixId: shared.id,
+        publisherWorkspaceId: shared.publisherWorkspaceId,
+        isPlatform: shared.publisherWorkspaceId === null,
+        reviewState,
+        publishedAt: reviewState === "APPROVED" ? now : shared.status === "APPROVED" ? shared.createdAt : null,
+        reviewedAt: now,
         reviewedByUserId: user.id,
-        publishedAt: status === "APPROVED" ? new Date() : undefined,
+        moderationNote: value(formData, "moderationNote") || null
+      },
+      update: {
+        reviewState,
+        publishedAt: reviewState === "APPROVED" ? now : undefined,
+        reviewedAt: now,
+        reviewedByUserId: user.id,
         moderationNote: value(formData, "moderationNote") || null
       }
     }),
@@ -77,11 +99,11 @@ export async function quickModerateSharedMixAction(formData: FormData): Promise<
         entityType: "SharedMix",
         entityId: shared.id,
         source: "admin.templates",
-        metadata: { status, publisherWorkspaceId: shared.publisherWorkspaceId }
+        metadata: { reviewState, publisherWorkspaceId: shared.publisherWorkspaceId }
       }
     })
   ]);
-  redirect(`/admin/templates?moderated=${status.toLowerCase()}`);
+  redirect(`/admin/templates?moderated=${reviewState.toLowerCase()}`);
 }
 
 export async function saveSharedMixAdminAction(formData: FormData): Promise<void> {
@@ -121,7 +143,7 @@ export async function saveSharedMixAdminAction(formData: FormData): Promise<void
   const triggerMode = value(formData, "triggerMode") as MixTriggerMode;
   const allowedTriggers: MixTriggerMode[] = ["DATE_TRIGGERED", "MANUAL_START", "BROADCAST"];
   if (!allowedTriggers.includes(triggerMode)) fail(path, "Choose a valid Mix trigger mode.");
-  const status = value(formData, "status") as SharedMixStatus;
+  const reviewState = value(formData, "status") as SharedMixReviewState;
   try {
     await updateSharedMixAsAdmin({
       actorUserId: user.id,
@@ -134,7 +156,7 @@ export async function saveSharedMixAdminAction(formData: FormData): Promise<void
         industry: value(formData, "industry"),
         framework: value(formData, "framework") || null
       },
-      status,
+      reviewState,
       triggerMode,
       dateTypeName: value(formData, "dateTypeName") || null,
       dateTypeSlug: value(formData, "dateTypeSlug") || null,
