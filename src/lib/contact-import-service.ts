@@ -337,7 +337,7 @@ function jumpDateKey(value: {
   dateValue?: Date | string | null;
   month?: number | null;
   day?: number | null;
-  recurrence: string;
+  recurrence?: string;
 }): string {
   const logicalDate = value.dateValue instanceof Date
     ? value.dateValue.toISOString().slice(0, 10)
@@ -348,7 +348,7 @@ function jumpDateKey(value: {
     logicalDate,
     value.month ?? "",
     value.day ?? "",
-    value.recurrence
+    value.recurrence ?? ""
   ].join("|");
 }
 
