@@ -31,8 +31,9 @@ function parseStripeEvent(payload: string): StripeEvent {
   return value as StripeEvent;
 }
 
-function processingIsFresh(createdAt: Date): boolean {
-  return Date.now() - createdAt.getTime() < PROCESSING_STALE_MS;
+function processingIsFresh(input: { createdAt: Date; processedAt: Date | null }): boolean {
+  const leaseStartedAt = input.processedAt ?? input.createdAt;
+  return Date.now() - leaseStartedAt.getTime() < PROCESSING_STALE_MS;
 }
 
 function processingResponse() {
@@ -73,13 +74,14 @@ export async function POST(request: Request) {
   }
 
   const payloadHash = stripePayloadHash(payload);
+  const leaseStartedAt = new Date();
   let stored = await prisma.webhookEvent.findFirst({
     where: { provider: "STRIPE", externalId: event.id }
   });
   if (stored?.status === "PROCESSED") {
     return NextResponse.json({ received: true, duplicate: true });
   }
-  if (stored?.status === "PROCESSING" && processingIsFresh(stored.createdAt)) {
+  if (stored?.status === "PROCESSING" && processingIsFresh(stored)) {
     return processingResponse();
   }
 
@@ -90,7 +92,8 @@ export async function POST(request: Request) {
           provider: "STRIPE",
           externalId: event.id,
           payloadHash,
-          status: "PROCESSING"
+          status: "PROCESSING",
+          processedAt: leaseStartedAt
         }
       });
     } catch (error) {
@@ -101,16 +104,16 @@ export async function POST(request: Request) {
       if (stored.status === "PROCESSED") {
         return NextResponse.json({ received: true, duplicate: true });
       }
-      if (stored.status === "PROCESSING" && processingIsFresh(stored.createdAt)) {
+      if (stored.status === "PROCESSING" && processingIsFresh(stored)) {
         return processingResponse();
       }
     }
   }
 
-  if (stored.status !== "PROCESSING" || !processingIsFresh(stored.createdAt)) {
+  if (stored.status !== "PROCESSING" || !processingIsFresh(stored)) {
     stored = await prisma.webhookEvent.update({
       where: { id: stored.id },
-      data: { status: "PROCESSING", error: null, payloadHash }
+      data: { status: "PROCESSING", error: null, payloadHash, processedAt: leaseStartedAt }
     });
   }
 
