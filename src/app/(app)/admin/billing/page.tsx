@@ -48,7 +48,7 @@ export default async function AdminBillingPage({ searchParams }: { searchParams:
     <div className="page admin-billing-page">
       <header className="page-header">
         <div><h1>Admin · Billing</h1><p>Monitor server-verified subscriptions, renewal state, payment issues, and Stripe webhook processing.</p></div>
-        <div className="page-actions"><Link className="button" href="/admin/users">Users</Link><Link className="button" href="/admin/integrations">Integrations</Link><Link className="button" href="/admin/templates">Templates</Link></div>
+        <div className="page-actions"><Link className="button" href="/admin/users">Users</Link><Link className="button" href="/admin/support">Support</Link><Link className="button" href="/admin/integrations">Integrations</Link><Link className="button" href="/admin/templates">Templates</Link></div>
       </header>
 
       {configurationIssues.length > 0 && <Notice type="error">Billing configuration is incomplete: {configurationIssues.join(", ")}.</Notice>}
