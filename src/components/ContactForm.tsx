@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { createContactAction, updateContactAction } from "@/lib/actions";
+import { createContactAction, updateContactAction } from "@/lib/contact-actions";
+import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 
 type GroupOption = { id: string; name: string; color: string | null };
+type CustomFieldOption = { id: string; name: string; key: string };
 type ContactMethod = { value: string; label: string };
 type ContactAddress = {
   label: string;
@@ -36,6 +38,7 @@ type ContactFormValue = {
     isPrimary: boolean;
   }[];
   groupIds?: string[];
+  customFieldValues?: { definitionId: string; value: string }[];
 };
 
 function primaryIndex<T extends { isPrimary: boolean }>(values: T[] | undefined): number {
@@ -50,11 +53,13 @@ function removeAt<T>(values: T[], index: number): T[] {
 export function ContactForm({
   mode,
   contact,
-  groups
+  groups,
+  customFields
 }: {
   mode: "create" | "edit";
   contact?: ContactFormValue;
   groups: GroupOption[];
+  customFields: CustomFieldOption[];
 }) {
   const startingEmails = useMemo<ContactMethod[]>(() => {
     const values = contact?.emails?.map((item) => ({ value: item.email, label: item.label ?? "" })) ?? [];
@@ -77,6 +82,10 @@ export function ContactForm({
     return values.length ? values : [{ label: "", street1: "", street2: "", city: "", state: "", postalCode: "", country: "" }];
   }, [contact?.addresses]);
 
+  const customValueByDefinition = useMemo(
+    () => new Map((contact?.customFieldValues ?? []).map((item) => [item.definitionId, item.value])),
+    [contact?.customFieldValues]
+  );
   const [emails, setEmails] = useState(startingEmails);
   const [phones, setPhones] = useState(startingPhones);
   const [addresses, setAddresses] = useState(startingAddresses);
@@ -176,6 +185,17 @@ export function ContactForm({
           <div className="field full"><label htmlFor="publicNotes">Public Notes</label><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Context that may be used in approved Jump placeholders." /></div>
           <div className="field full"><label htmlFor="privateNotes">Private Notes</label><textarea id="privateNotes" name="privateNotes" defaultValue={contact?.privateNotes ?? ""} placeholder="Sensitive call context. Never inserted into SMS or email Jumps." /></div>
         </div>
+      </section>
+
+      <section className="card contact-editor-section">
+        <div className="card-header"><div><h2>Custom fields</h2><p>Workspace-specific values can be inserted into Jumps using their stable placeholder.</p></div><Link className="button small" href="/contacts/custom-fields">Manage fields</Link></div>
+        {customFields.length ? <div className="form-grid">{customFields.map((field) => (
+          <div className="field" key={field.id}>
+            <input type="hidden" name="customFieldDefinitionId" value={field.id} />
+            <label htmlFor={`custom-field-${field.id}`}><span>{field.name}</span><code>{customFieldPlaceholder(field.key)}</code></label>
+            <input id={`custom-field-${field.id}`} name="customFieldValue" defaultValue={customValueByDefinition.get(field.id) ?? ""} maxLength={2000} />
+          </div>
+        ))}</div> : <p className="muted-copy">No custom fields yet. Create one when your workflow needs data beyond the standard Contact fields.</p>}
       </section>
 
       <div className="sticky-form-actions">
