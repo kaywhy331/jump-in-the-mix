@@ -64,6 +64,18 @@ jobs:
           retention-days: 7
       - run: npm run db:generate
       - run: npm run validate:static
+      - name: Populated migration, rollback, and reapply rehearsal
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run db:rehearse-migration 2>&1 | tee migration-rehearsal.log
+      - name: Upload migration rehearsal diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-rehearsal-diagnostics
+          path: migration-rehearsal.log
+          retention-days: 7
       - run: npm run db:push
       - name: TypeScript semantic validation
         shell: bash
