@@ -1,0 +1,112 @@
+import type { PlanTier, Prisma } from "@/generated/prisma/client";
+import { isPlanDowngrade } from "@/lib/billing";
+import { PLAN_LIMITS } from "@/lib/plans";
+
+export type PlanDowngradeSafeguards = {
+  applied: boolean;
+  pausedMixes: number;
+  deactivatedDateTypes: number;
+  unpublishedCommunityMixes: number;
+  groupsOverLimit: number;
+  contactsOverLimit: number;
+};
+
+const EMPTY_RESULT: PlanDowngradeSafeguards = {
+  applied: false,
+  pausedMixes: 0,
+  deactivatedDateTypes: 0,
+  unpublishedCommunityMixes: 0,
+  groupsOverLimit: 0,
+  contactsOverLimit: 0
+};
+
+function excessIds<T extends { id: string }>(items: T[], limit: number): string[] {
+  if (!Number.isFinite(limit) || items.length <= limit) return [];
+  return items.slice(limit).map((item) => item.id);
+}
+
+export async function applyPlanDowngradeSafeguards(
+  tx: Prisma.TransactionClient,
+  input: { workspaceId: string; previousTier: PlanTier; nextTier: PlanTier; now?: Date }
+): Promise<PlanDowngradeSafeguards> {
+  if (!isPlanDowngrade(input.previousTier, input.nextTier)) return EMPTY_RESULT;
+  const limits = PLAN_LIMITS[input.nextTier];
+  const now = input.now ?? new Date();
+
+  const [activeMixes, activeDateTypes, sharedMixes, groupCount, contactCount] = await Promise.all([
+    tx.mix.findMany({
+      where: { workspaceId: input.workspaceId, status: "ACTIVE" },
+      select: { id: true },
+      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }]
+    }),
+    tx.dateType.findMany({
+      where: { workspaceId: input.workspaceId, isSystem: false, isActive: true },
+      select: { id: true },
+      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }]
+    }),
+    tx.sharedMixMetadata.findMany({
+      where: {
+        publisherWorkspaceId: input.workspaceId,
+        isPlatform: false,
+        reviewState: { in: ["PENDING", "APPROVED", "FLAGGED"] }
+      },
+      select: { sharedMixId: true },
+      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }]
+    }),
+    tx.group.count({ where: { workspaceId: input.workspaceId } }),
+    tx.contact.count({ where: { workspaceId: input.workspaceId, archivedAt: null } })
+  ]);
+
+  const pausedMixIds = excessIds(activeMixes, limits.mixes);
+  const inactiveDateTypeIds = excessIds(activeDateTypes, limits.customDateTypes);
+  const unpublishedSharedMixIds = Number.isFinite(limits.sharedMixes) && sharedMixes.length > limits.sharedMixes
+    ? sharedMixes.slice(limits.sharedMixes).map((item) => item.sharedMixId)
+    : [];
+
+  if (pausedMixIds.length) {
+    await tx.mix.updateMany({
+      where: { workspaceId: input.workspaceId, id: { in: pausedMixIds }, status: "ACTIVE" },
+      data: { status: "PAUSED" }
+    });
+    await tx.jump.updateMany({
+      where: {
+        workspaceId: input.workspaceId,
+        mixId: { in: pausedMixIds },
+        status: { in: ["PENDING", "COPIED"] },
+        scheduledAt: { gte: now }
+      },
+      data: { status: "CANCELED", completedAt: null, completionMethod: "plan_downgrade" }
+    });
+  }
+
+  if (inactiveDateTypeIds.length) {
+    await tx.dateType.updateMany({
+      where: { workspaceId: input.workspaceId, id: { in: inactiveDateTypeIds }, isSystem: false },
+      data: { isActive: false }
+    });
+  }
+
+  if (unpublishedSharedMixIds.length) {
+    await tx.sharedMixMetadata.updateMany({
+      where: { sharedMixId: { in: unpublishedSharedMixIds }, publisherWorkspaceId: input.workspaceId },
+      data: {
+        reviewState: "UNPUBLISHED",
+        featuredAt: null,
+        moderationNote: "Automatically unpublished because the workspace changed to a plan with a lower sharing allowance."
+      }
+    });
+    await tx.sharedMix.updateMany({
+      where: { id: { in: unpublishedSharedMixIds }, publisherWorkspaceId: input.workspaceId },
+      data: { status: "UNPUBLISHED" }
+    });
+  }
+
+  return {
+    applied: true,
+    pausedMixes: pausedMixIds.length,
+    deactivatedDateTypes: inactiveDateTypeIds.length,
+    unpublishedCommunityMixes: unpublishedSharedMixIds.length,
+    groupsOverLimit: Number.isFinite(limits.groups) ? Math.max(groupCount - limits.groups, 0) : 0,
+    contactsOverLimit: Number.isFinite(limits.contacts) ? Math.max(contactCount - limits.contacts, 0) : 0
+  };
+}
