@@ -22,20 +22,27 @@ function channelIcon(channel: string): string {
 export default async function ReusableJumpsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
   const q = params.q?.trim() ?? "";
-  const templates = await prisma.stepTemplate.findMany({
-    where: {
-      workspaceId: workspace.id,
-      isActive: true,
-      ...(q ? { name: { contains: q, mode: "insensitive" } } : {})
-    },
-    include: {
-      versions: {
-        orderBy: { version: "desc" },
-        include: { mixSteps: { where: { isActive: true }, include: { mix: true } } }
-      }
-    },
-    orderBy: { updatedAt: "desc" }
-  });
+  const [templates, customFields] = await Promise.all([
+    prisma.stepTemplate.findMany({
+      where: {
+        workspaceId: workspace.id,
+        isActive: true,
+        ...(q ? { name: { contains: q, mode: "insensitive" } } : {})
+      },
+      include: {
+        versions: {
+          orderBy: { version: "desc" },
+          include: { mixSteps: { where: { isActive: true }, include: { mix: true } } }
+        }
+      },
+      orderBy: { updatedAt: "desc" }
+    }),
+    prisma.contactCustomFieldDefinition.findMany({
+      where: { workspaceId: workspace.id },
+      select: { id: true, name: true, key: true },
+      orderBy: [{ createdAt: "asc" }, { name: "asc" }]
+    })
+  ]);
 
   return (
     <div className="page">
@@ -43,11 +50,11 @@ export default async function ReusableJumpsPage({ searchParams }: { searchParams
       {params.updated && <Notice type="success">Jump updated. Future pending work is being reconciled while completed snapshots remain unchanged.</Notice>}
       {params.archived && <Notice type="success">Jump archived.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
-      <header className="page-header"><div><h1>Jumps</h1><p>Create reusable SMS, email, phone, voicemail, and WhatsApp content for Mixes.</p></div><div className="page-actions"><Link className="button" href="/settings">Settings</Link><Link className="button" href="/mixes">Mixes</Link></div></header>
+      <header className="page-header"><div><h1>Jumps</h1><p>Create reusable SMS, email, phone, voicemail, and WhatsApp content for Mixes.</p></div><div className="page-actions"><Link className="button" href="/contacts/custom-fields">Contact fields</Link><Link className="button" href="/settings">Settings</Link><Link className="button" href="/mixes">Mixes</Link></div></header>
 
       <details className="card create-panel" open={params.created ? false : undefined}>
         <summary><strong>+ Create a reusable Jump</strong><span>Build content once, then use it in any Mix.</span></summary>
-        <div className="create-panel-body"><ReusableJumpForm mode="create" /></div>
+        <div className="create-panel-body"><ReusableJumpForm mode="create" customFields={customFields} /></div>
       </details>
 
       <form className="filter-bar" action="/settings/jumps" method="get"><input name="q" defaultValue={q} placeholder="Search reusable Jumps" aria-label="Search reusable Jumps" /><button className="button" type="submit">Search</button>{q && <Link className="button" href="/settings/jumps">Clear</Link>}</form>
@@ -65,7 +72,7 @@ export default async function ReusableJumpsPage({ searchParams }: { searchParams
             </div>
             {latest && <div className="jump-content-preview">{latest.subject && <strong>{latest.subject}</strong>}<p>{latest.body ?? latest.script ?? "No content"}</p></div>}
             {mixes.length > 0 && <div className="association-list"><span>Used in</span>{mixes.map((mix) => <Link href={`/mixes/${mix.id}/edit`} className="group-chip" key={mix.id}>{mix.name}</Link>)}</div>}
-            <details className="mix-details jump-edit-details"><summary>Edit Jump</summary><div className="jump-edit-body"><ReusableJumpForm mode="edit" jump={{ id: template.id, name: template.name, channel: template.channel, subject: latest?.subject, body: latest?.body, script: latest?.script }} /></div></details>
+            <details className="mix-details jump-edit-details"><summary>Edit Jump</summary><div className="jump-edit-body"><ReusableJumpForm mode="edit" customFields={customFields} jump={{ id: template.id, name: template.name, channel: template.channel, subject: latest?.subject, body: latest?.body, script: latest?.script }} /></div></details>
           </article>
         );
       })}</div> : <EmptyState title={q ? "No Jumps matched that search" : "Create your first reusable Jump"} description="Reusable Jumps are the messages and call scripts arranged inside a Mix." actionHref="/settings/jumps" actionLabel={q ? "Clear search" : "Open the creator above"} />}
