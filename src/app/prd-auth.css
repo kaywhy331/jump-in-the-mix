@@ -1,5 +1,6 @@
 .auth-inline-actions { display: flex; justify-content: flex-end; margin-top: -4px; font-size: .85rem; }
 .auth-inline-actions a { color: var(--brand-dark); font-weight: 750; }
+.mobile-app-header { display: none; }
 .account-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
 .account-summary-card, .account-password-card, .account-sessions-card { margin-top: 0; }
 .account-definition-list { display: grid; gap: 0; margin: 0; }
@@ -23,6 +24,8 @@
 }
 
 @media (max-width: 760px) {
+  .mobile-app-header { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: 10px 16px; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--line); backdrop-filter: blur(12px); }
+  .mobile-app-header .button { min-height: 44px; }
   .session-row { grid-template-columns: 42px minmax(0, 1fr); align-items: start; }
   .session-row form { grid-column: 2; }
   .session-row .button { width: 100%; }
