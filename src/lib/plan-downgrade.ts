@@ -1,6 +1,7 @@
 import type { PlanTier, Prisma } from "@/generated/prisma/client";
 import { isPlanDowngrade } from "@/lib/billing";
 import { PLAN_LIMITS } from "@/lib/plans";
+import { prisma } from "@/lib/prisma";
 
 export type PlanDowngradeSafeguards = {
   applied: boolean;
@@ -25,12 +26,11 @@ function excessIds<T extends { id: string }>(items: T[], limit: number): string[
   return items.slice(limit).map((item) => item.id);
 }
 
-export async function applyPlanDowngradeSafeguards(
+async function enforceLimits(
   tx: Prisma.TransactionClient,
-  input: { workspaceId: string; previousTier: PlanTier; nextTier: PlanTier; now?: Date }
+  input: { workspaceId: string; planTier: PlanTier; now?: Date; applied: boolean }
 ): Promise<PlanDowngradeSafeguards> {
-  if (!isPlanDowngrade(input.previousTier, input.nextTier)) return EMPTY_RESULT;
-  const limits = PLAN_LIMITS[input.nextTier];
+  const limits = PLAN_LIMITS[input.planTier];
   const now = input.now ?? new Date();
 
   const [activeMixes, activeDateTypes, sharedMixes, groupCount, contactCount] = await Promise.all([
@@ -102,11 +102,37 @@ export async function applyPlanDowngradeSafeguards(
   }
 
   return {
-    applied: true,
+    applied: input.applied,
     pausedMixes: pausedMixIds.length,
     deactivatedDateTypes: inactiveDateTypeIds.length,
     unpublishedCommunityMixes: unpublishedSharedMixIds.length,
     groupsOverLimit: Number.isFinite(limits.groups) ? Math.max(groupCount - limits.groups, 0) : 0,
     contactsOverLimit: Number.isFinite(limits.contacts) ? Math.max(contactCount - limits.contacts, 0) : 0
   };
+}
+
+export async function applyPlanDowngradeSafeguards(
+  tx: Prisma.TransactionClient,
+  input: { workspaceId: string; previousTier: PlanTier; nextTier: PlanTier; now?: Date }
+): Promise<PlanDowngradeSafeguards> {
+  if (!isPlanDowngrade(input.previousTier, input.nextTier)) return EMPTY_RESULT;
+  return enforceLimits(tx, {
+    workspaceId: input.workspaceId,
+    planTier: input.nextTier,
+    now: input.now,
+    applied: true
+  });
+}
+
+export async function enforceCurrentWorkspacePlanLimits(
+  workspaceId: string,
+  planTier: PlanTier,
+  now = new Date()
+): Promise<PlanDowngradeSafeguards> {
+  return prisma.$transaction((tx) => enforceLimits(tx, {
+    workspaceId,
+    planTier,
+    now,
+    applied: true
+  }));
 }
