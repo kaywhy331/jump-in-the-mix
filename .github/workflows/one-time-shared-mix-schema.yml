@@ -1,0 +1,179 @@
+name: One-time shared Mix schema expansion
+
+on:
+  push:
+    branches: [agent/prd-core-foundation]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/prd-core-foundation
+          fetch-depth: 0
+      - name: Expand shared Mix schema
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('prisma/schema.prisma')
+          text = path.read_text()
+
+          old_enum = '''enum SharedMixStatus {
+            PENDING
+            APPROVED
+            REJECTED
+            UNPUBLISHED
+          }'''.replace('          ', '')
+          new_enum = '''enum SharedMixStatus {
+            PENDING
+            APPROVED
+            REJECTED
+            UNPUBLISHED
+            FLAGGED
+          }'''.replace('          ', '')
+
+          old_workspace = '''  sharedMixes            SharedMix[]                    @relation("SharedMixPublisher")
+            importedSharedMixes    SharedMixImport[]
+            subscriptions          Subscription[]'''.replace('          ', '')
+          new_workspace = '''  sharedMixes            SharedMix[]                    @relation("SharedMixPublisher")
+            importedSharedMixes    SharedMixImport[]
+            sharedMixVotes         SharedMixVote[]
+            subscriptions          Subscription[]'''.replace('          ', '')
+
+          old_profile = '''  onboardingStep  Int       @default(0)
+            onboardingDone  Boolean   @default(false)
+            workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)'''.replace('          ', '')
+          new_profile = '''  onboardingStep          Int       @default(0)
+            onboardingDone          Boolean   @default(false)
+            communityProfileEnabled Boolean   @default(false)
+            communityDisplayName    String?
+            communityTitle          String?
+            communityBio            String?
+            communityAvatarUrl      String?
+            communityWebsite        String?
+            workspace               Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)'''.replace('          ', '')
+
+          old_shared = '''model SharedMix {
+            id                   String          @id @default(cuid())
+            publisherWorkspaceId String?
+            title                String
+            description          String
+            category             String
+            industry             String?
+            framework            String?
+            durationDays         Int
+            steps                Json
+            status               SharedMixStatus @default(PENDING)
+            importCount          Int             @default(0)
+            rating               Float?
+            publisherWorkspace   Workspace?      @relation("SharedMixPublisher", fields: [publisherWorkspaceId], references: [id], onDelete: SetNull)
+            imports              SharedMixImport[]
+            createdAt            DateTime        @default(now())
+            updatedAt            DateTime        @updatedAt
+
+            @@index([status, category])
+            @@index([industry])
+          }
+
+          model SharedMixImport {
+            id          String    @id @default(cuid())
+            importKey   String    @unique
+            workspaceId String
+            sharedMixId String
+            mixId       String?
+            workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+            sharedMix   SharedMix @relation(fields: [sharedMixId], references: [id], onDelete: Cascade)
+            createdAt   DateTime  @default(now())
+
+            @@index([workspaceId, sharedMixId])
+          }'''.replace('          ', '')
+          new_shared = '''model SharedMix {
+            id                   String           @id @default(cuid())
+            publisherWorkspaceId String?
+            publisherMixId       String?
+            sourceMixId          String?
+            isPlatform           Boolean          @default(false)
+            title                String
+            description          String
+            category             String
+            industry             String?
+            framework            String?
+            triggerMode          MixTriggerMode   @default(MANUAL_START)
+            dateTypeName         String?
+            dateTypeSlug         String?
+            durationDays         Int
+            steps                Json
+            status               SharedMixStatus  @default(PENDING)
+            version              Int              @default(1)
+            importCount          Int              @default(0)
+            voteCount            Int              @default(0)
+            rating               Float?
+            featuredAt           DateTime?
+            publishedAt          DateTime?
+            reviewedAt           DateTime?
+            reviewedByUserId     String?
+            moderationNote       String?
+            publisherWorkspace   Workspace?       @relation("SharedMixPublisher", fields: [publisherWorkspaceId], references: [id], onDelete: SetNull)
+            imports              SharedMixImport[]
+            votes                SharedMixVote[]
+            createdAt            DateTime         @default(now())
+            updatedAt            DateTime         @updatedAt
+
+            @@unique([publisherWorkspaceId, publisherMixId])
+            @@index([isPlatform, status, category])
+            @@index([industry])
+            @@index([voteCount, importCount])
+          }
+
+          model SharedMixImport {
+            id               String    @id @default(cuid())
+            importKey        String    @unique
+            workspaceId      String
+            sharedMixId      String
+            sharedMixVersion Int       @default(1)
+            mixId            String?
+            workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+            sharedMix        SharedMix @relation(fields: [sharedMixId], references: [id], onDelete: Cascade)
+            createdAt        DateTime  @default(now())
+
+            @@index([workspaceId, sharedMixId])
+          }
+
+          model SharedMixVote {
+            id          String    @id @default(cuid())
+            workspaceId String
+            sharedMixId String
+            workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+            sharedMix   SharedMix @relation(fields: [sharedMixId], references: [id], onDelete: Cascade)
+            createdAt   DateTime  @default(now())
+
+            @@unique([workspaceId, sharedMixId])
+            @@index([sharedMixId, createdAt])
+          }'''.replace('          ', '')
+
+          replacements = [
+            (old_enum, new_enum),
+            (old_workspace, new_workspace),
+            (old_profile, new_profile),
+            (old_shared, new_shared),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'Expected schema block was not found: {old[:100]!r}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+      - name: Commit schema expansion
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add prisma/schema.prisma
+          git commit -m "feat: expand shared Mix schema"
+          git push origin HEAD:agent/prd-core-foundation
