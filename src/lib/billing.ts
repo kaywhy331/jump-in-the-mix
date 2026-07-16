@@ -121,10 +121,10 @@ export function mapStripeSubscriptionStatus(value: string | null | undefined): S
     case "trialing":
       return "TRIALING";
     case "past_due":
-    case "paused":
       return "PAST_DUE";
     case "unpaid":
       return "UNPAID";
+    case "paused":
     case "incomplete":
       return "INCOMPLETE";
     case "canceled":
