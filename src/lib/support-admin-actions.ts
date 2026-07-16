@@ -148,7 +148,7 @@ export async function adminUpdateSupportTicketStatusAction(formData: FormData): 
 }
 
 export async function adminRetrySupportEmailAction(formData: FormData): Promise<void> {
-  await requirePlatformAdmin();
+  const { user: adminUser } = await requirePlatformAdmin();
   const ticketId = value(formData, "ticketId", 100);
   const messageId = value(formData, "messageId", 100);
   if (!ticketId || !messageId) adminTicketError(ticketId || "unknown", "Support response not found.");
@@ -158,8 +158,16 @@ export async function adminRetrySupportEmailAction(formData: FormData): Promise<
     include: { ticket: true }
   });
   if (!message) adminTicketError(ticketId, "Support response not found.");
+  if (message.emailStatus !== "FAILED" && message.emailStatus !== "PREVIEWED") {
+    adminTicketError(ticketId, "Only failed or development-previewed emails can be retried.");
+  }
 
-  await updateSupportMessageEmailStatus({ messageId: message.id, status: "PENDING" });
+  const claimed = await prisma.supportTicketMessage.updateMany({
+    where: { id: message.id, emailStatus: message.emailStatus },
+    data: { emailStatus: "PENDING", emailError: null, emailProviderId: null, emailSentAt: null }
+  });
+  if (claimed.count !== 1) adminTicketError(ticketId, "Another administrator already claimed this email retry.");
+
   const email = await deliverAdminReplyEmail({
     messageId: message.id,
     ticketId: message.ticket.id,
@@ -167,6 +175,18 @@ export async function adminRetrySupportEmailAction(formData: FormData): Promise<
     title: message.ticket.title,
     requesterUserId: message.ticket.requesterUserId,
     responseBody: message.body
+  });
+  await prisma.auditLog.create({
+    data: {
+      workspaceId: message.ticket.workspaceId,
+      actorType: "ADMIN",
+      actorUserId: adminUser.id,
+      action: "support.ticket.email-retry",
+      entityType: "SupportTicketMessage",
+      entityId: message.id,
+      source: "admin.support",
+      metadata: { ticketId: message.ticket.id, reference: message.ticket.reference, result: email }
+    }
   });
   redirect(`/admin/support/${ticketId}?emailRetried=1&email=${email}`);
 }
