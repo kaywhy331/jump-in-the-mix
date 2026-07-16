@@ -7,6 +7,7 @@ import {
   signOutOtherSessionsAction
 } from "@/lib/auth-actions";
 import { requireWorkspace } from "@/lib/auth";
+import { env } from "@/lib/env";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { describeUserAgent } from "@/lib/request-context";
@@ -26,6 +27,11 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     where: { userId: user.id, expiresAt: { gt: new Date() } },
     orderBy: [{ lastSeenAt: "desc" }, { createdAt: "desc" }]
   });
+  const emailStatus = user.emailVerifiedAt
+    ? `Verified ${formatDate(user.emailVerifiedAt)}`
+    : env.requireEmailVerification
+      ? "Verification required"
+      : "Verification not enforced";
 
   return (
     <div className="page account-page">
@@ -44,7 +50,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <dl className="account-definition-list">
             <div><dt>Name</dt><dd>{user.name}</dd></div>
             <div><dt>Email</dt><dd>{user.email}</dd></div>
-            <div><dt>Email status</dt><dd>{user.emailVerifiedAt ? `Verified ${formatDate(user.emailVerifiedAt)}` : "Verification required"}</dd></div>
+            <div><dt>Email status</dt><dd>{emailStatus}</dd></div>
             <div><dt>Workspace</dt><dd>{workspace.name}</dd></div>
             <div><dt>Plan</dt><dd>{workspace.planTier.toLowerCase()}</dd></div>
             <div><dt>Subscription</dt><dd>{workspace.subscriptionStatus.toLowerCase().replaceAll("_", " ")}</dd></div>
