@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/lib/auth";
+import { stableKey } from "@/lib/contact-import-shared";
 import { commitContactImportBatch, findImportMatches } from "@/lib/contact-import-service";
+import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 
@@ -56,6 +58,27 @@ const requestSchema = z.discriminatedUnion("mode", [
   }).strict()
 ]);
 
+type CommitItems = Extract<z.infer<typeof requestSchema>, { mode: "commit" }>["items"];
+
+async function reuseAvailableDateTypes(workspaceId: string, items: CommitItems): Promise<CommitItems> {
+  const available = await prisma.dateType.findMany({
+    where: { OR: [{ workspaceId }, { workspaceId: null, isSystem: true }] },
+    select: { id: true, name: true }
+  });
+  const byName = new Map(available.map((type) => [stableKey(type.name), type.id]));
+  return items.map((item) => ({
+    ...item,
+    record: {
+      ...item.record,
+      jumpDates: item.record.jumpDates.map((jumpDate) => {
+        if (jumpDate.dateTypeId || !jumpDate.dateTypeName) return jumpDate;
+        const existingId = byName.get(stableKey(jumpDate.dateTypeName));
+        return existingId ? { ...jumpDate, dateTypeId: existingId, dateTypeName: null } : jumpDate;
+      })
+    }
+  }));
+}
+
 export async function POST(request: Request) {
   const session = await getCurrentSession();
   const membership = session?.user.memberships[0];
@@ -87,13 +110,14 @@ export async function POST(request: Request) {
       const result = await findImportMatches(membership.workspaceId, membership.workspace.planTier, parsed.data.records);
       return NextResponse.json(result);
     }
+    const items = await reuseAvailableDateTypes(membership.workspaceId, parsed.data.items);
     const results = await commitContactImportBatch({
       workspaceId: membership.workspaceId,
       actorUserId: session.authUser.id,
       planTier: membership.workspace.planTier,
       timezone: membership.workspace.profile?.timezone ?? "America/New_York",
       importId: parsed.data.importId,
-      items: parsed.data.items
+      items
     });
     return NextResponse.json({ results });
   } catch (error) {
