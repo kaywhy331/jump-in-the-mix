@@ -8,12 +8,14 @@ import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Edit Mix" };
 
+type SearchParams = { error?: string; created?: string };
+
 export default async function EditMixPage({
   params,
   searchParams
 }: {
   params: Promise<{ mixId: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
   const [{ mixId }, query, { workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
   const [mix, broadcastSchedule] = await Promise.all([
@@ -44,6 +46,7 @@ export default async function EditMixPage({
   return (
     <div className="page">
       <header className="page-header"><div><h1>Edit {mix.name}</h1><p>Saving reconciles future pending Jumps without rewriting completed history.</p></div></header>
+      {query.created === "wizard" && <Notice type="success">Your AI-assisted Mix Draft is now a normal editable Mix. Review the trigger, audience, schedule, and every Jump before activation.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
       <MixEditor
         dateTypes={dateTypes.map((item) => ({ id: item.id, name: item.name, isSystem: item.isSystem }))}
