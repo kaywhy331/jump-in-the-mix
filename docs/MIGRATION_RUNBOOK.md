@@ -2,18 +2,18 @@
 
 This runbook covers the first committed Prisma migration history for Jump in the Mix.
 
-## Why the first migration contains a no-op baseline
+## Migration sequence
 
-The independent MVP historically created databases with `prisma db push`. Existing deployments therefore contain the schema represented by `main`, but do not contain Prisma migration history. The migration sequence is intentionally:
+The independent MVP historically created databases with `prisma db push`. Existing deployments therefore contain the schema represented by `main`, but do not contain Prisma migration history. The repository now commits the complete `main` schema as a portable Prisma baseline:
 
-1. `20260715000000_existing_mvp_baseline` — no-op marker for the existing MVP schema.
+1. `20260715000000_existing_mvp_baseline` — complete schema represented by `main`, generated through `prisma migrate diff`.
 2. `20260716020000_prd_core_foundation` — guarded additive migration for the PRD core features.
 
-A populated MVP database must mark the no-op baseline as applied **once** before the first migration-based deployment. Prisma otherwise correctly refuses to deploy into a non-empty database without migration history. After the baseline is resolved, `prisma migrate deploy` applies the guarded forward migration. The forward migration uses idempotent additions so a preview database that already received selected fields through `db push` can still enter migration history safely.
+A populated MVP database must mark the complete baseline as applied **once** before the first migration-based deployment. Prisma otherwise correctly refuses to deploy into a non-empty database without migration history. After the baseline is resolved, `prisma migrate deploy` applies only the guarded forward migration.
 
-Greenfield/local installations continue to use `npm run db:setup` until a future release replaces the historical bootstrap with a complete empty-database baseline.
+A clean database does not resolve anything manually: `prisma migrate deploy` executes the complete baseline followed by the forward migration. CI regenerates the baseline from `main` and byte-compares it with the committed SQL to prevent drift.
 
-## Objects added or changed
+## Objects added or changed by the forward migration
 
 - `Contact.privateNotes`.
 - `MixStep.isActive` and `MixStep.updatedAt`.
@@ -24,7 +24,7 @@ Greenfield/local installations continue to use `npm run db:setup` until a future
 - `MixBroadcastSchedule`.
 - `AdminImpersonation`.
 
-The migration does not rename or drop existing business tables.
+The forward migration does not rename or drop existing business tables.
 
 ## Mandatory pre-deployment gates
 
@@ -36,7 +36,7 @@ The migration does not rename or drop existing business tables.
 6. Pause the background worker and prevent application writes during the deployment window.
 7. Confirm the deployment uses the same PostgreSQL major version rehearsed in CI.
 
-## Staging rehearsal
+## Automated rehearsal
 
 ```bash
 npm install --no-audit --no-fund
@@ -44,7 +44,27 @@ npm run db:generate
 npm run db:rehearse-migration
 ```
 
-The rehearsal creates an isolated schema, provisions the legacy `main` schema, inserts representative populated records, resolves the historical baseline, applies the forward migration, validates data preservation and new objects, executes the pre-traffic reverse SQL, and reapplies the forward migration. It drops the isolated schema when complete.
+The rehearsal validates both supported paths:
+
+### Populated MVP upgrade
+
+1. Creates an isolated schema from the legacy `main` Prisma model through `db push`.
+2. Inserts representative User, Workspace, Contact, reusable Jump, Mix, and MixStep data.
+3. Resolves the committed complete baseline as already applied.
+4. Applies the guarded forward migration.
+5. Verifies legacy data, new columns, new tables, indexes, and migration history.
+6. Writes representative records into new tables.
+7. Executes the reviewed pre-traffic reverse SQL.
+8. Validates legacy readability and reapplies the forward migration.
+
+### Clean database deployment
+
+1. Creates a second empty schema.
+2. Runs `prisma migrate deploy` with no manual baseline resolution.
+3. Verifies the complete MVP schema and all forward-migration objects exist.
+4. Verifies both migration records completed successfully.
+
+Both isolated schemas are removed when the rehearsal finishes.
 
 ## First production deployment for an existing MVP database
 
@@ -63,6 +83,20 @@ Run the `migrate resolve` command only for a populated database that has never e
 Do not run `prisma db push` against a populated production database during this release.
 
 After deployment, restart the web application first and the worker second.
+
+## Clean installation
+
+For a new empty production database:
+
+```bash
+export DATABASE_URL='postgresql://...'
+npm install --no-audit --no-fund
+npm run db:generate
+npm run db:deploy
+npm run db:seed
+```
+
+The baseline creates the complete MVP schema and the forward migration adds the PRD core objects.
 
 ## Post-deployment verification
 
@@ -134,6 +168,8 @@ Document:
 
 The migration work package is complete only when:
 
+- The committed baseline exactly matches the schema represented by `main`.
+- Both clean and populated deployment rehearsals pass.
 - Both migration records finish without `rolled_back_at`.
 - Existing Contact, Mix, MixStep, and Jump rows remain readable.
 - Existing MixStep rows have `isActive = true` and a non-null `updatedAt`.
