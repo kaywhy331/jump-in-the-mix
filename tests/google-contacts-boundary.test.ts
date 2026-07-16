@@ -75,6 +75,14 @@ describe("Google Contacts boundary", () => {
     expect(service).toContain("externalContactLink");
   });
 
+  it("does not let a stale sync overwrite a disconnected or reconnected account", () => {
+    const service = read("src/lib/google-sync-service.ts");
+    expect(service).toContain("credentialsCiphertext: connection.credentialsCiphertext");
+    expect(service).toContain("externalAccountId: connection.externalAccountId");
+    expect(service).toContain('status: { not: "REVOKED" }');
+    expect(service).toContain('"The Google connection changed while this sync was running."');
+  });
+
   it("never exposes encrypted credentials through the status route", () => {
     const status = read("src/app/api/integrations/google/status/route.ts");
     expect(status).not.toContain("credentialsCiphertext");
