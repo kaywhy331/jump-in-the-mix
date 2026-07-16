@@ -7,7 +7,8 @@ import { prisma } from "../src/lib/prisma";
 describe.sequential("fixed-date broadcast reconciliation", () => {
   const suffix = randomUUID().replaceAll("-", "");
   const ids: Record<string, string> = {};
-  const firstLocalDate = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 2, 12));
+  const now = new Date();
+  const firstLocalDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 2, 12));
 
   beforeAll(async () => {
     const user = await prisma.user.create({ data: { email: `broadcast-${suffix}@example.com`, name: "Broadcast Owner", passwordHash: "test-only" } });
@@ -21,22 +22,19 @@ describe.sequential("fixed-date broadcast reconciliation", () => {
       }
     });
     ids.workspace = workspace.id;
+    const definition = await prisma.contactCustomFieldDefinition.create({
+      data: { workspaceId: workspace.id, name: "Account code", key: `account_code_${suffix.slice(0, 8)}` }
+    });
     const contact = await prisma.contact.create({
       data: {
         workspaceId: workspace.id,
         firstName: "Jordan",
         displayName: "Jordan",
-        customFieldValues: {
-          create: {
-            value: "AC-2048",
-            definition: { create: { workspaceId: workspace.id, name: "Account code", key: `account_code_${suffix.slice(0, 8)}` } }
-          }
-        }
+        customFieldValues: { create: { definitionId: definition.id, value: "AC-2048" } }
       }
     });
     ids.contact = contact.id;
     const template = await prisma.stepTemplate.create({ data: { workspaceId: workspace.id, name: "Broadcast SMS", channel: "SMS" } });
-    const definition = await prisma.contactCustomFieldDefinition.findFirstOrThrow({ where: { workspaceId: workspace.id } });
     const version = await prisma.stepVersion.create({
       data: { stepTemplateId: template.id, version: 1, body: `Hi {{First Name}} — {{contact.custom.${definition.key}}}` }
     });
