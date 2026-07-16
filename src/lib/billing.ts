@@ -84,7 +84,9 @@ export function billingSelectionForPriceId(priceId: string | null | undefined): 
     { planTier: "PRO", billingPeriod: "MONTHLY", priceId: env.stripeProMonthlyPriceId },
     { planTier: "PRO", billingPeriod: "ANNUAL", priceId: env.stripeProAnnualPriceId }
   ];
-  return candidates.find((candidate) => candidate.priceId && candidate.priceId === priceId) ?? null;
+  const selection = candidates.find((candidate) => candidate.priceId && candidate.priceId === priceId);
+  if (!selection) throw new Error(`Stripe Price ${priceId} is not in the Jump in the Mix billing allowlist.`);
+  return selection;
 }
 
 export function billingConfigurationIssues(): string[] {
