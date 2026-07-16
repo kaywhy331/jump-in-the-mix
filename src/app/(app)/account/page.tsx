@@ -92,7 +92,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   if (impersonation) {
     return (
       <div className="page account-page">
-        <header className="page-header"><div><h1>My Account</h1><p>Account identity, plan, and integration state are visible; security and billing changes remain private during support access.</p></div></header>
+        <header className="page-header"><div><h1>My Account</h1><p>Account identity, plan, and integration state are visible; security controls remain private and billing changes remain unavailable during support access.</p></div></header>
         <Notice type="info">This is a view-only administrator support session. Password controls, active devices, billing changes, integrations, and every other browser mutation are unavailable.</Notice>
         <div className="account-grid">{accountSummary}{billingSummary}</div>
         <GoogleContactsPanel />
