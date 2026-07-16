@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: "Create Mix" };
 export default async function NewMixPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const [query, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
   const [dateTypes, groups, jumps] = await Promise.all([
-    prisma.dateType.findMany({ where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null }] }, orderBy: [{ isSystem: "asc" }, { name: "asc" }] }),
+    prisma.dateType.findMany({ where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null, isSystem: true }] }, orderBy: [{ isSystem: "asc" }, { name: "asc" }] }),
     prisma.group.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
     prisma.stepTemplate.findMany({ where: { workspaceId: workspace.id, isActive: true }, orderBy: [{ channel: "asc" }, { name: "asc" }] })
   ]);
@@ -22,6 +22,7 @@ export default async function NewMixPage({ searchParams }: { searchParams: Promi
         dateTypes={dateTypes.map((item) => ({ id: item.id, name: item.name, isSystem: item.isSystem }))}
         groups={groups.map((item) => ({ id: item.id, name: item.name, color: item.color }))}
         jumps={jumps.map((item) => ({ id: item.id, name: item.name, channel: item.channel }))}
+        workspaceTimezone={workspace.profile?.timezone ?? "UTC"}
       />
     </div>
   );
