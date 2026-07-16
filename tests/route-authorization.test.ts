@@ -40,9 +40,11 @@ describe("server-enforced route authorization matrix", () => {
 
   it("does not expose target-account password or device controls during impersonation", () => {
     const account = read("src/app/(app)/account/page.tsx");
-    expect(account).toContain("if (impersonation)");
-    expect(account).toContain("security controls remain private");
-    expect(account.indexOf("if (impersonation)")).toBeLessThan(account.indexOf("changePasswordAction"));
+    const impersonationBranch = account.match(/if \(impersonation\) \{[\s\S]*?\n  \}\n\n  return \(/)?.[0] ?? "";
+    expect(impersonationBranch).toContain("security controls remain private");
+    expect(impersonationBranch).toContain("every other browser mutation are unavailable");
+    expect(impersonationBranch).not.toContain("changePasswordAction");
+    expect(impersonationBranch).not.toContain("revokeSessionAction");
   });
 
   it("keeps the administrator identity separate from the viewed user identity", () => {
