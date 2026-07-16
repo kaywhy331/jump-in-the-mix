@@ -23,12 +23,15 @@ Before enabling mandatory verification in production, configure and validate the
 - Signed provider webhook routes are explicitly separated from the browser-origin rule.
 - Next.js Server Actions keep their built-in origin comparison, accept only configured additional origins, and use a one-megabyte body limit.
 - Responses apply `nosniff`, clickjacking protection, a strict referrer policy, restrictive browser permissions, COOP/CORP, and production HSTS.
+- While an administrator support-view cookie is present, all unsafe browser methods are rejected with HTTP 403 except the dedicated endpoint that ends the view-only session.
 
 ## Tenant isolation
 
 Every business entity is associated with a `workspaceId`. API and server actions locate records through the authenticated workspace rather than trusting browser-supplied ownership fields.
 
 PostgreSQL integration tests create two independent workspaces and verify that one cannot retrieve or mutate the other's Contacts, Groups, Mixes, reusable Jumps, generated Jumps, custom fields, or broadcast schedules. Static regression tests require tenant mutation modules to derive the workspace from the authenticated session.
+
+The complete authenticated application subtree resolves its workspace through the server layout. Administrator pages add an explicit platform-administrator guard. Support impersonation changes only the read context after confirming that the target user belongs to the selected workspace; the authenticated actor remains the administrator for auditing and authorization.
 
 For defense in depth, production PostgreSQL may add row-level policies after deciding how application and migration roles are separated.
 
@@ -61,27 +64,41 @@ Planned provider webhooks must meet all of the following requirements before lau
 
 Operational logs must not contain:
 
-- Passwords
-- Raw session tokens
-- Raw email-verification or password-reset tokens
-- OAuth refresh tokens
-- Stripe secrets
-- Full webhook secrets
-- Unredacted contact exports
+- Passwords.
+- Raw session tokens.
+- Raw administrator impersonation tokens.
+- Raw email-verification or password-reset tokens.
+- OAuth refresh tokens.
+- Stripe secrets.
+- Full webhook secrets.
+- Unredacted contact exports.
 
-Authentication rate-limit keys are derived with a keyed SHA-256 digest rather than storing raw email/IP combinations as the bucket key. Session tables contain only the session-token hash.
+Authentication rate-limit keys are derived with a keyed SHA-256 digest rather than storing raw email/IP combinations as the bucket key. Session and administrator-support tables contain only token hashes.
 
 ## Administrative access
 
-Platform administration is controlled by `isPlatformAdmin`. Before production:
+Platform administration is controlled by `isPlatformAdmin`.
+
+Implemented support-view controls:
+
+- The target user and workspace membership are revalidated server-side before a session begins.
+- A support reason of 10–500 characters is mandatory.
+- Tokens are random, HTTP-only, stored only as SHA-256 hashes, and expire after 30 minutes by default.
+- Only one active support-view grant is retained per administrator.
+- The application displays a persistent banner identifying the target, reason, expiry, and view-only mode.
+- Password, device-session, and other target-account security controls are not exposed.
+- All impersonated browser writes are blocked centrally.
+- Start and end events are written to the target workspace audit log with the real administrator actor.
+
+Before enabling administrator support views in production:
 
 - Require MFA for platform administrators.
-- Audit every admin change.
-- Implement clearly indicated, time-limited, view-only impersonation.
-- Mask sensitive Contact and integration fields.
+- Review all administrator actions for comprehensive audit coverage.
+- Mask sensitive Contact and integration fields according to support role.
 - Use separate operational accounts rather than shared credentials.
+- Complete browser-driven route and mutation tests in production-like staging.
 
-## Infrastructure
+## Infrastructure and migrations
 
 - Place the database on a private network when possible.
 - Restrict database access to application and migration roles.
@@ -89,4 +106,6 @@ Platform administration is controlled by `isPlatformAdmin`. Before production:
 - Use encrypted offsite backups.
 - Test restoration.
 - Rotate integration, authentication, and webhook secrets after suspected exposure.
-- Rehearse the production Prisma migration against a populated database and validate rollback/restoration before deployment.
+- The first migration-based deployment to an existing `db push` database must resolve the historical no-op baseline before `migrate deploy`.
+- CI rehearses a populated legacy database migration, validates preservation, executes pre-traffic reverse SQL, and reapplies the forward migration.
+- Production rollback uses a validated backup restore; reverse SQL is not a substitute after new-schema data exists.
