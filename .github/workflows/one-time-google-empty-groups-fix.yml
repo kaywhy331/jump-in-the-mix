@@ -1,0 +1,61 @@
+name: One-time empty Google label state fix
+
+on:
+  push:
+    branches: [agent/prd-core-foundation]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/prd-core-foundation
+          fetch-depth: 0
+      - name: Treat an empty Google label list as loaded
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/components/GoogleContactsPanel.tsx')
+          text = path.read_text()
+          replacements = [
+            (
+              '  const [groups, setGroups] = useState<GoogleGroup[]>([]);\n',
+              '  const [groups, setGroups] = useState<GoogleGroup[]>([]);\n  const [groupsLoaded, setGroupsLoaded] = useState(false);\n'
+            ),
+            (
+              '      setGroups(result.groups);\n',
+              '      setGroups(result.groups);\n      setGroupsLoaded(true);\n'
+            ),
+            (
+              '    if (!status?.connection || !status.configured || !status.entitled || groups.length) return;\n',
+              '    if (!status?.connection || !status.configured || !status.entitled || groupsLoaded) return;\n'
+            ),
+            (
+              '  }, [groups.length, loadGroups, status?.configured, status?.connection, status?.entitled]);\n',
+              '  }, [groupsLoaded, loadGroups, status?.configured, status?.connection, status?.entitled]);\n'
+            ),
+            (
+              '      setGroups([]);\n      setPreview(null);\n',
+              '      setGroups([]);\n      setGroupsLoaded(false);\n      setPreview(null);\n'
+            ),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'Expected Google panel block was not found: {old!r}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+      - name: Commit correction
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/GoogleContactsPanel.tsx
+          git commit -m "fix: stop refetching an empty Google label list"
+          git push origin HEAD:agent/prd-core-foundation
