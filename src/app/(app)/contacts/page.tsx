@@ -29,7 +29,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const { workspace } = await requireWorkspace();
   const q = params.q?.trim() ?? "";
   const groupId = params.group?.trim() ?? "";
-  const [contacts, groups, jumps] = await Promise.all([
+  const [contacts, groups, jumps, customFields] = await Promise.all([
     prisma.contact.findMany({
       where: {
         workspaceId: workspace.id,
@@ -40,7 +40,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
             { displayName: { contains: q, mode: "insensitive" } },
             { company: { contains: q, mode: "insensitive" } },
             { emails: { some: { email: { contains: q, mode: "insensitive" } } } },
-            { phones: { some: { phone: { contains: q } } } }
+            { phones: { some: { phone: { contains: q } } } },
+            { customFieldValues: { some: { value: { contains: q, mode: "insensitive" } } } }
           ]
         } : {})
       },
@@ -62,6 +63,11 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       where: { workspaceId: workspace.id, isActive: true },
       select: { id: true, name: true, channel: true },
       orderBy: [{ channel: "asc" }, { name: "asc" }]
+    }),
+    prisma.contactCustomFieldDefinition.findMany({
+      where: { workspaceId: workspace.id },
+      select: { id: true, name: true, key: true },
+      orderBy: [{ createdAt: "asc" }, { name: "asc" }]
     })
   ]);
 
@@ -108,6 +114,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         contacts={contactDtos}
         groups={groups.map((group) => ({ id: group.id, name: group.name, description: group.description, color: group.color, contactCount: group._count.memberships }))}
         jumps={jumps.map((jump) => ({ id: jump.id, name: jump.name, channel: jump.channel }))}
+        customFields={customFields}
         groupLimit={formatPlanLimit(PLAN_LIMITS[workspace.planTier].groups)}
         query={q}
         groupFilter={groupId}
