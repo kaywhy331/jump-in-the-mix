@@ -11,8 +11,13 @@ describe("server-enforced route authorization matrix", () => {
     expect(layout).toContain("impersonation=");
   });
 
-  it("requires platform-admin authorization for every admin page", () => {
-    for (const path of ["src/app/(app)/admin/page.tsx", "src/app/(app)/admin/users/page.tsx"]) {
+  it("requires platform-admin authorization for every covered admin page", () => {
+    for (const path of [
+      "src/app/(app)/admin/page.tsx",
+      "src/app/(app)/admin/users/page.tsx",
+      "src/app/(app)/admin/support/page.tsx",
+      "src/app/(app)/admin/support/[ticketId]/page.tsx"
+    ]) {
       expect(read(path), `${path} must require a platform administrator`).toContain("requirePlatformAdmin(");
     }
   });
@@ -38,13 +43,14 @@ describe("server-enforced route authorization matrix", () => {
     expect(proxy).toContain("Administrator impersonation is view-only");
   });
 
-  it("does not expose target-account password or device controls during impersonation", () => {
+  it("does not expose target-account password, device, or ticket mutation controls during impersonation", () => {
     const account = read("src/app/(app)/account/page.tsx");
     const impersonationBranch = account.match(/if \(impersonation\) \{[\s\S]*?\n  \}\n\n  return \(/)?.[0] ?? "";
-    expect(impersonationBranch).toContain("security controls remain private");
+    expect(impersonationBranch).toContain("support history are visible");
     expect(impersonationBranch).toContain("every other browser mutation are unavailable");
     expect(impersonationBranch).not.toContain("changePasswordAction");
     expect(impersonationBranch).not.toContain("revokeSessionAction");
+    expect(impersonationBranch).not.toContain("Open a support ticket");
   });
 
   it("keeps the administrator identity separate from the viewed user identity", () => {
