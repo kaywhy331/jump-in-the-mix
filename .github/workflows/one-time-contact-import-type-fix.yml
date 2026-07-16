@@ -1,0 +1,75 @@
+name: One-time Contact import type fix
+
+on:
+  push:
+    branches: [agent/prd-core-foundation]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/prd-core-foundation
+      - name: Normalize Prisma date input before building the dedupe key
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/lib/contact-import-service.ts')
+          source = path.read_text()
+          old = '''function jumpDateKey(value: {
+            dateTypeId: string;
+            label?: string | null;
+            dateValue?: Date | null;
+            month?: number | null;
+            day?: number | null;
+            recurrence: string;
+          }): string {
+            return [
+              value.dateTypeId,
+              normalizedText(value.label),
+              value.dateValue?.toISOString().slice(0, 10) ?? "",
+              value.month ?? "",
+              value.day ?? "",
+              value.recurrence
+            ].join("|");
+          }'''
+          new = '''function jumpDateKey(value: {
+            dateTypeId: string;
+            label?: string | null;
+            dateValue?: Date | string | null;
+            month?: number | null;
+            day?: number | null;
+            recurrence: string;
+          }): string {
+            const logicalDate = value.dateValue instanceof Date
+              ? value.dateValue.toISOString().slice(0, 10)
+              : value.dateValue?.slice(0, 10) ?? "";
+            return [
+              value.dateTypeId,
+              normalizedText(value.label),
+              logicalDate,
+              value.month ?? "",
+              value.day ?? "",
+              value.recurrence
+            ].join("|");
+          }'''
+          if old not in source:
+              raise SystemExit('Expected Contact import type snippet was not found; refusing to patch.')
+          path.write_text(source.replace(old, new, 1))
+          PY
+      - name: Commit patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/contact-import-service.ts
+          git commit -m "fix: normalize Prisma date inputs in Contact imports"
+          git push origin HEAD:agent/prd-core-foundation
