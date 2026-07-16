@@ -1,0 +1,126 @@
+# Stripe Billing
+
+Jump in the Mix uses Stripe-hosted Checkout for new Plus and Pro subscriptions and Stripe's hosted Customer Portal for payment methods, invoices, plan changes, and cancellation. The browser never receives the Stripe secret key and never grants plan access by navigating to a success URL.
+
+## Product and Price setup
+
+Create four recurring Stripe Prices and store their IDs in the server environment:
+
+| Plan | Billing period | Application display |
+|---|---|---:|
+| Plus | Monthly | $15/month |
+| Plus | Annual | $144/year ($12/month equivalent) |
+| Pro | Monthly | $18/month |
+| Pro | Annual | $180/year ($15/month equivalent) |
+
+```text
+STRIPE_PLUS_MONTHLY_PRICE_ID=price_...
+STRIPE_PLUS_ANNUAL_PRICE_ID=price_...
+STRIPE_PRO_MONTHLY_PRICE_ID=price_...
+STRIPE_PRO_ANNUAL_PRICE_ID=price_...
+```
+
+Price IDs are selected from this server-side allowlist. `/api/billing/checkout` accepts only a plan and billing period; it never trusts an arbitrary Price ID submitted by the browser.
+
+## Required server configuration
+
+```text
+APP_URL=https://YOUR_HOST
+STRIPE_SECRET_KEY=sk_live_...        # use sk_test_... in staging
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_API_VERSION=2026-02-25.clover
+STRIPE_WEBHOOK_TOLERANCE_SECONDS=300
+```
+
+Hosted Checkout does not require Stripe.js or a publishable key in the browser.
+
+## Webhook registration
+
+Register this public endpoint in Stripe Workbench:
+
+```text
+https://YOUR_HOST/api/webhooks/stripe
+```
+
+Use the same API version configured by `STRIPE_API_VERSION`. Enable at least:
+
+```text
+checkout.session.completed
+checkout.session.async_payment_succeeded
+customer.subscription.created
+customer.subscription.updated
+customer.subscription.deleted
+invoice.paid
+invoice.payment_failed
+```
+
+After the endpoint is created, copy its signing secret into `STRIPE_WEBHOOK_SECRET`.
+
+The route is intentionally under `/api/webhooks/`, which is exempt from the browser Origin/CSRF boundary. It does not require a login. Instead, it reads the raw request body and verifies the `Stripe-Signature` HMAC with a bounded timestamp tolerance before parsing JSON.
+
+## Identity mapping
+
+Checkout creates or reuses one Stripe Customer per workspace. The Customer, Checkout Session, and Subscription carry:
+
+```text
+workspace_id
+user_id
+plan_tier
+billing_period
+```
+
+The Checkout Session also sets `client_reference_id` to the workspace ID. Renewal and lifecycle events resolve the workspace from Subscription metadata first, then the stored Stripe Subscription/Customer IDs, then Customer metadata.
+
+## Checkout and verification flow
+
+1. A workspace owner or administrator chooses a server-approved Plus/Pro option on `/plans`.
+2. `POST /api/billing/checkout` creates a hosted Checkout Session.
+3. Stripe returns to `/billing/success?session_id={CHECKOUT_SESSION_ID}`.
+4. The success view polls `GET /api/billing/verify`.
+5. The server retrieves the Checkout Session directly from Stripe, confirms it belongs to the active workspace, retrieves the Subscription, and reconciles the database.
+6. The signed webhook performs the same reconciliation asynchronously and remains the long-term source of lifecycle updates.
+
+A copied success URL cannot grant access because the server verifies both the Stripe object and workspace metadata.
+
+## Subscription lifecycle
+
+The database stores both a current workspace summary and historical `Subscription` records.
+
+- `active` and `trialing` provide the purchased tier.
+- `past_due` keeps the tier during Stripe's recovery period and displays an account warning.
+- `invoice.payment_failed` records `PAST_DUE` immediately.
+- `canceled`, `incomplete_expired`, `unpaid`, and unresolved invalid statuses fall back to Free access.
+- `currentPeriodStart`, `currentPeriodEnd`, and `cancelAtPeriodEnd` come from Stripe's Subscription data rather than local date arithmetic.
+- Customer Portal changes reconcile through subscription webhooks.
+
+The webhook event ID is unique in `WebhookEvent`. A successfully processed duplicate returns HTTP 200 without applying the event again. Failed events remain retryable and visible in **Admin · Billing**.
+
+## Customer Portal
+
+`POST /api/billing/portal` creates a short-lived portal session on demand. Only the active workspace owner or administrator can open it. Configure the portal in Stripe to support the policies you intend to offer, including payment-method updates, invoice history, cancellations, and supported plan switches.
+
+## Staging smoke test
+
+1. Configure `sk_test_...`, four test Price IDs, and a staging webhook endpoint.
+2. Register a new Free workspace.
+3. Purchase Plus Monthly with a Stripe test card.
+4. Confirm the success screen verifies the Checkout Session and My Account shows Plus, Active, and Stripe's period end.
+5. Confirm Admin · Billing shows the Subscription and processed webhook events.
+6. Deliver the same event twice and confirm the second delivery is reported as a duplicate without a second database effect.
+7. Switch plans in Customer Portal and confirm `customer.subscription.updated` changes the workspace.
+8. Set cancellation at period end and confirm My Account shows the access-end date.
+9. Trigger `invoice.payment_failed` with a real test subscription flow and confirm the Past Due warning.
+10. Cancel the subscription and confirm the workspace returns to Free while its Contacts, Jumps, Mixes, and completed history remain stored.
+11. Attempt to verify another workspace's Checkout Session and confirm HTTP 403.
+12. Start a view-only administrator support session and confirm Checkout and portal mutations are blocked.
+
+Dashboard-generated webhook fixtures are useful for signature and routing checks, but a real Stripe test subscription is the reliable qualification path because generic fixtures might not correspond to retrievable Customer or Subscription objects.
+
+## Operational checks
+
+- Alert on `WebhookEvent.status = FAILED`.
+- Alert when paid workspaces remain `PAST_DUE` beyond the chosen grace policy.
+- Keep the webhook endpoint public but never bypass signature verification.
+- Rotate secret keys and webhook signing secrets through the deployment secret manager.
+- Do not log card details, raw secret keys, or complete webhook payloads.
+- Restore-test the PostgreSQL backup before the first live billing deployment.
