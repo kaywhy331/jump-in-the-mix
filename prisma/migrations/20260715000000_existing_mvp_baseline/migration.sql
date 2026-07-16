@@ -1,0 +1,11 @@
+-- Existing-production baseline
+--
+-- This repository originally provisioned PostgreSQL through `prisma db push`, so
+-- deployed MVP databases already contain the schema represented by `main` but do
+-- not have a `_prisma_migrations` history. This intentional no-op establishes the
+-- starting point before the additive PRD core-foundation migration.
+--
+-- Existing populated databases may run `prisma migrate deploy` directly: this
+-- marker is recorded first, followed by the guarded forward migration.
+-- Greenfield/local installs continue to use `npm run db:setup` until a full
+-- empty-database baseline replaces the historical db-push bootstrap.
