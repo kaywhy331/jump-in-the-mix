@@ -11,6 +11,9 @@ const legacySchemaPath = `${artifactsDir}/main-schema.prisma`;
 const rollbackPath = "prisma/migrations/20260716020000_prd_core_foundation/rollback.sql";
 const baselineMigration = "20260715000000_existing_mvp_baseline";
 const forwardMigration = "20260716020000_prd_core_foundation";
+const mixTemplateMigration = "20260716170000_mix_template_library";
+const supportMigration = "20260716210000_support_center";
+const requiredMigrations = [baselineMigration, forwardMigration, mixTemplateMigration, supportMigration];
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const schemaName = `jitm_rehearsal_${suffix}`;
 const greenfieldSchemaName = `jitm_greenfield_${suffix}`;
@@ -80,6 +83,13 @@ async function indexExists(client, indexName, schema = schemaName) {
   return Boolean(result.rows[0]?.exists);
 }
 
+function assertRequiredMigrations(names, context) {
+  const missing = requiredMigrations.filter((migration) => !names.includes(migration));
+  if (missing.length) {
+    throw new Error(`${context} did not finish required migrations ${missing.join(", ")}; received ${names.join(", ")}.`);
+  }
+}
+
 async function seedLegacyDatabase(client) {
   const now = new Date().toISOString();
   await client.query(`SET search_path TO "${schemaName}"`);
@@ -127,7 +137,19 @@ async function seedLegacyDatabase(client) {
 
 async function assertForwardState(client) {
   await client.query(`SET search_path TO "${schemaName}"`);
-  for (const table of ["AuthRateLimit", "MixStop", "JumpActionEvent", "MixBroadcastSchedule", "AdminImpersonation"]) {
+  for (const table of [
+    "AuthRateLimit",
+    "MixStop",
+    "JumpActionEvent",
+    "MixBroadcastSchedule",
+    "AdminImpersonation",
+    "SharedMixMetadata",
+    "SharedMixContributorProfile",
+    "SharedMixVote",
+    "SharedMixImportMetadata",
+    "SupportTicket",
+    "SupportTicketMessage"
+  ]) {
     if (!(await tableExists(client, table))) throw new Error(`Expected migrated table ${table}.`);
   }
   for (const [table, column] of [["Contact", "privateNotes"], ["MixStep", "isActive"], ["MixStep", "updatedAt"]]) {
@@ -146,9 +168,7 @@ async function assertForwardState(client) {
   }
   const migrations = await client.query(`SELECT "migration_name", "finished_at", "rolled_back_at" FROM "_prisma_migrations" ORDER BY "started_at"`);
   const names = migrations.rows.filter((row) => row.finished_at && !row.rolled_back_at).map((row) => row.migration_name);
-  if (!names.includes(baselineMigration) || !names.includes(forwardMigration)) {
-    throw new Error(`Expected both migrations to finish; received ${names.join(", ")}.`);
-  }
+  assertRequiredMigrations(names, "Populated deployment");
 
   const now = new Date().toISOString();
   await client.query(
@@ -163,6 +183,27 @@ async function assertForwardState(client) {
      ON CONFLICT ("tokenHash") DO NOTHING`,
     [new Date(Date.now() + 60_000).toISOString(), now]
   );
+  await client.query(
+    `INSERT INTO "SupportTicket" ("id", "reference", "workspaceId", "requesterUserId", "title", "category", "priority", "status", "lastActivityAt", "createdAt", "updatedAt")
+     VALUES ('rehearsal-ticket', 'JITM-REHEARSAL', 'legacy-workspace', 'legacy-user', 'Migration rehearsal ticket', 'GENERAL', 'NORMAL', 'OPEN', $1, $1, $1)
+     ON CONFLICT ("reference") DO NOTHING`,
+    [now]
+  );
+  await client.query(
+    `INSERT INTO "SupportTicketMessage" ("id", "ticketId", "authorUserId", "authorType", "body", "emailStatus", "createdAt")
+     VALUES ('rehearsal-ticket-message', 'rehearsal-ticket', 'legacy-user', 'USER', 'Migration rehearsal message', 'NOT_REQUESTED', $1)
+     ON CONFLICT ("id") DO NOTHING`,
+    [now]
+  );
+  const supportThread = await client.query(
+    `SELECT t."reference", m."body"
+     FROM "SupportTicket" t
+     JOIN "SupportTicketMessage" m ON m."ticketId" = t."id"
+     WHERE t."id" = 'rehearsal-ticket'`
+  );
+  if (supportThread.rows[0]?.reference !== "JITM-REHEARSAL" || supportThread.rows[0]?.body !== "Migration rehearsal message") {
+    throw new Error("Support ticket migration did not accept a durable thread write.");
+  }
 }
 
 async function assertRollbackState(client) {
@@ -180,7 +221,18 @@ async function assertRollbackState(client) {
 }
 
 async function assertGreenfieldState(client) {
-  for (const table of ["User", "Workspace", "Contact", "Mix", "Jump", "AuthRateLimit", "AdminImpersonation"]) {
+  for (const table of [
+    "User",
+    "Workspace",
+    "Contact",
+    "Mix",
+    "Jump",
+    "AuthRateLimit",
+    "AdminImpersonation",
+    "SharedMixMetadata",
+    "SupportTicket",
+    "SupportTicketMessage"
+  ]) {
     if (!(await tableExists(client, table, greenfieldSchemaName))) {
       throw new Error(`Greenfield migration did not create ${table}.`);
     }
@@ -194,9 +246,7 @@ async function assertGreenfieldState(client) {
      ORDER BY "started_at"`
   );
   const names = migrations.rows.filter((row) => row.finished_at && !row.rolled_back_at).map((row) => row.migration_name);
-  if (!names.includes(baselineMigration) || !names.includes(forwardMigration)) {
-    throw new Error(`Greenfield deployment did not apply both migrations; received ${names.join(", ")}.`);
-  }
+  assertRequiredMigrations(names, "Greenfield deployment");
 }
 
 ensureLegacySchemaSnapshot();
@@ -218,8 +268,9 @@ try {
   await admin.query(readFileSync(rollbackPath, "utf8"));
   await assertRollbackState(admin);
 
-  // Isolated rehearsal only: retain the applied baseline and remove the forward
-  // record so the guarded migration can be exercised a second time.
+  // Isolated rehearsal only: retain the applied baseline and remove the core
+  // forward record so that guarded migration can be exercised a second time.
+  // Later independent migrations remain applied and their data must survive.
   await admin.query(
     `DELETE FROM "${schemaName}"."_prisma_migrations" WHERE "migration_name" = $1`,
     [forwardMigration]
@@ -227,8 +278,8 @@ try {
   runPrisma(["migrate", "deploy"], databaseUrl);
   await assertForwardState(admin);
 
-  // Clean database path proves the committed baseline can provision the complete
-  // MVP schema without falling back to db push.
+  // Clean database path proves the committed baseline and every forward
+  // migration can provision the complete application without db push.
   await admin.query(`CREATE SCHEMA "${greenfieldSchemaName}"`);
   runPrisma(["migrate", "deploy"], databaseUrlForSchema(greenfieldSchemaName));
   await assertGreenfieldState(admin);
