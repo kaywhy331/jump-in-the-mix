@@ -127,12 +127,12 @@ export function GoogleContactsPanel() {
         autoMergeExact: boolean;
       }>("/api/integrations/google/groups", { cache: "no-store" });
       setGroups(result.groups);
-      setGroupsLoaded(true);
       setSelectedGroups(new Set(result.selectedGroupResourceNames));
       setAutoMergeExact(result.autoMergeExact);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Google Contact groups could not be loaded.");
     } finally {
+      setGroupsLoaded(true);
       setBusy(null);
     }
   }, []);
