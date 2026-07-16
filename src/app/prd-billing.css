@@ -47,11 +47,30 @@
 .billing-plan-card form, .billing-plan-card > .button { margin-top: auto; }
 .billing-plan-card form .button, .billing-plan-card > .button { width: 100%; min-height: 48px; }
 .billing-policy-note { margin: 22px 0 0; font-size: .88rem; }
-.account-billing-card { grid-column: 1 / -1; }
+.account-billing-card, .account-plan-usage-card { grid-column: 1 / -1; }
 .billing-definition-list { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .account-billing-actions { margin-top: 18px; }
 .account-billing-actions form { display: inline-flex; }
 .account-billing-actions .button { min-height: 48px; }
+.plan-usage-list { display: grid; gap: 11px; }
+.plan-usage-row {
+  display: grid;
+  grid-template-columns: minmax(200px, .8fr) minmax(140px, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  min-height: 56px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface-soft);
+}
+.plan-usage-row > div:first-child { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.plan-usage-row > div:first-child span { color: var(--muted); font-weight: 720; white-space: nowrap; }
+.plan-usage-track { height: 8px; overflow: hidden; border-radius: 999px; background: #e2e6ef; }
+.plan-usage-track span { display: block; height: 100%; border-radius: inherit; background: var(--brand); }
+.plan-usage-row.over { border-color: #efc1c8; background: #fff7f8; }
+.plan-usage-row.over .plan-usage-track span { background: var(--danger); }
+.plan-usage-row .text-button { min-height: 44px; display: inline-flex; align-items: center; justify-content: flex-end; text-align: right; }
 .billing-result-page { min-height: calc(100vh - 160px); display: grid; place-items: center; }
 .billing-verification-card { width: min(100%, 720px); display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 22px; align-items: start; padding: 30px; }
 .billing-verification-card h1 { margin: 0 0 8px; font-size: clamp(1.8rem, 5vw, 2.6rem); letter-spacing: -.045em; }
@@ -80,6 +99,8 @@
   .billing-plan-grid { grid-template-columns: 1fr; }
   .billing-plan-card ul { min-height: 0; }
   .billing-definition-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .plan-usage-row { grid-template-columns: 1fr; gap: 8px; }
+  .plan-usage-row .text-button { justify-content: flex-start; text-align: left; }
   .admin-billing-row, .admin-webhook-row { grid-template-columns: 1fr; align-items: start; }
   .admin-webhook-row p { grid-column: auto; }
 }
@@ -89,6 +110,7 @@
   .billing-period-toggle a { padding-inline: 10px; }
   .billing-plan-card { padding: 20px; }
   .billing-definition-list { grid-template-columns: 1fr; }
+  .plan-usage-row > div:first-child { align-items: flex-start; }
   .billing-verification-card { grid-template-columns: 1fr; padding: 22px; }
   .billing-verification-icon { width: 52px; height: 52px; border-radius: 16px; }
   .billing-verification-card .page-actions, .account-billing-actions { display: grid; grid-template-columns: 1fr; width: 100%; }
