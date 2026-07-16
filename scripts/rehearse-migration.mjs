@@ -11,7 +11,9 @@ const legacySchemaPath = `${artifactsDir}/main-schema.prisma`;
 const rollbackPath = "prisma/migrations/20260716020000_prd_core_foundation/rollback.sql";
 const baselineMigration = "20260715000000_existing_mvp_baseline";
 const forwardMigration = "20260716020000_prd_core_foundation";
-const schemaName = `jitm_rehearsal_${randomUUID().replaceAll("-", "").slice(0, 12)}`;
+const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
+const schemaName = `jitm_rehearsal_${suffix}`;
+const greenfieldSchemaName = `jitm_greenfield_${suffix}`;
 
 function databaseUrlForSchema(schema) {
   const url = new URL(rootUrl);
@@ -45,35 +47,35 @@ function ensureLegacySchemaSnapshot() {
   writeFileSync(legacySchemaPath, content, "utf8");
 }
 
-async function tableExists(client, tableName) {
+async function tableExists(client, tableName, schema = schemaName) {
   const result = await client.query(
     `SELECT EXISTS (
        SELECT 1 FROM information_schema.tables
        WHERE table_schema = $1 AND table_name = $2
      ) AS "exists"`,
-    [schemaName, tableName]
+    [schema, tableName]
   );
   return Boolean(result.rows[0]?.exists);
 }
 
-async function columnExists(client, tableName, columnName) {
+async function columnExists(client, tableName, columnName, schema = schemaName) {
   const result = await client.query(
     `SELECT EXISTS (
        SELECT 1 FROM information_schema.columns
        WHERE table_schema = $1 AND table_name = $2 AND column_name = $3
      ) AS "exists"`,
-    [schemaName, tableName, columnName]
+    [schema, tableName, columnName]
   );
   return Boolean(result.rows[0]?.exists);
 }
 
-async function indexExists(client, indexName) {
+async function indexExists(client, indexName, schema = schemaName) {
   const result = await client.query(
     `SELECT EXISTS (
        SELECT 1 FROM pg_indexes
        WHERE schemaname = $1 AND indexname = $2
      ) AS "exists"`,
-    [schemaName, indexName]
+    [schema, indexName]
   );
   return Boolean(result.rows[0]?.exists);
 }
@@ -177,18 +179,37 @@ async function assertRollbackState(client) {
   }
 }
 
+async function assertGreenfieldState(client) {
+  for (const table of ["User", "Workspace", "Contact", "Mix", "Jump", "AuthRateLimit", "AdminImpersonation"]) {
+    if (!(await tableExists(client, table, greenfieldSchemaName))) {
+      throw new Error(`Greenfield migration did not create ${table}.`);
+    }
+  }
+  if (!(await columnExists(client, "Contact", "privateNotes", greenfieldSchemaName))) {
+    throw new Error("Greenfield migration did not create Contact.privateNotes.");
+  }
+  const migrations = await client.query(
+    `SELECT "migration_name", "finished_at", "rolled_back_at"
+     FROM "${greenfieldSchemaName}"."_prisma_migrations"
+     ORDER BY "started_at"`
+  );
+  const names = migrations.rows.filter((row) => row.finished_at && !row.rolled_back_at).map((row) => row.migration_name);
+  if (!names.includes(baselineMigration) || !names.includes(forwardMigration)) {
+    throw new Error(`Greenfield deployment did not apply both migrations; received ${names.join(", ")}.`);
+  }
+}
+
 ensureLegacySchemaSnapshot();
 const databaseUrl = databaseUrlForSchema(schemaName);
 const admin = new Client({ connectionString: pgConnectionUrl() });
 
 try {
   await admin.connect();
+
+  // Existing populated MVP database path.
   await admin.query(`CREATE SCHEMA "${schemaName}"`);
   runPrisma(["db", "push", "--schema", legacySchemaPath, "--accept-data-loss"], databaseUrl);
   await seedLegacyDatabase(admin);
-
-  // Existing MVP databases are non-empty and have no migration history. Prisma
-  // requires the historical marker to be resolved before the first deploy.
   runPrisma(["migrate", "resolve", "--applied", baselineMigration], databaseUrl);
   runPrisma(["migrate", "deploy"], databaseUrl);
   await assertForwardState(admin);
@@ -206,8 +227,15 @@ try {
   runPrisma(["migrate", "deploy"], databaseUrl);
   await assertForwardState(admin);
 
-  console.log(`Migration rehearsal passed in schema ${schemaName}.`);
+  // Clean database path proves the committed baseline can provision the complete
+  // MVP schema without falling back to db push.
+  await admin.query(`CREATE SCHEMA "${greenfieldSchemaName}"`);
+  runPrisma(["migrate", "deploy"], databaseUrlForSchema(greenfieldSchemaName));
+  await assertGreenfieldState(admin);
+
+  console.log(`Migration rehearsal passed in populated schema ${schemaName} and clean schema ${greenfieldSchemaName}.`);
 } finally {
   await admin.query(`DROP SCHEMA IF EXISTS "${schemaName}" CASCADE`).catch(() => undefined);
+  await admin.query(`DROP SCHEMA IF EXISTS "${greenfieldSchemaName}" CASCADE`).catch(() => undefined);
   await admin.end().catch(() => undefined);
 }
