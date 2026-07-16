@@ -62,8 +62,8 @@ export async function GET(request: Request) {
     const previousMetadata = accountChanged ? {} : readGoogleConnectionMetadata(existing?.metadata);
     const metadata = {
       ...previousMetadata,
-      accountEmail: account.email,
-      accountName: account.name,
+      ...(account.email ? { accountEmail: account.email } : {}),
+      ...(account.name ? { accountName: account.name } : {}),
       connectedAt: new Date().toISOString(),
       selectedGroupResourceNames: accountChanged ? [] : previousMetadata.selectedGroupResourceNames ?? [],
       selectedGroupLabels: accountChanged ? {} : previousMetadata.selectedGroupLabels ?? {},
@@ -71,6 +71,25 @@ export async function GET(request: Request) {
     } as Prisma.InputJsonValue;
 
     const connection = await prisma.$transaction(async (tx) => {
+      if (accountChanged && existing) {
+        await tx.externalContactLink.updateMany({
+          where: { workspaceId: membership.workspaceId, provider: "GOOGLE_CONTACTS", deletedAt: null },
+          data: { deletedAt: new Date() }
+        });
+        await tx.syncRun.updateMany({
+          where: { connectionId: existing.id, status: { in: ["QUEUED", "RUNNING"] } },
+          data: { status: "CANCELED", completedAt: new Date(), errorSummary: "A different Google account was connected." }
+        });
+        await tx.job.updateMany({
+          where: {
+            workspaceId: membership.workspaceId,
+            task: "sync-google-contacts",
+            completedAt: null,
+            failedAt: null
+          },
+          data: { failedAt: new Date(), lastError: "A different Google account was connected.", lockedAt: null, lockedBy: null }
+        });
+      }
       const saved = await tx.integrationConnection.upsert({
         where: {
           workspaceId_provider: {
@@ -112,7 +131,7 @@ export async function GET(request: Request) {
       return saved;
     });
 
-    return NextResponse.redirect(resultUrl(request, returnTo, "google", connection.id ? "connected" : "connected"));
+    return NextResponse.redirect(resultUrl(request, returnTo, "google", "connected"));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Google Contacts could not be connected.";
     return NextResponse.redirect(resultUrl(request, returnTo, "googleError", message));
