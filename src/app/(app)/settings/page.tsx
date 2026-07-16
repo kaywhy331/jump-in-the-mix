@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { updateWorkspaceProfileAction } from "@/lib/workspace-profile-actions";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -10,7 +11,10 @@ type SearchParams = { saved?: string; error?: string };
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
-  const profile = workspace.profile;
+  const [profile, contributorProfile] = await Promise.all([
+    Promise.resolve(workspace.profile),
+    prisma.sharedMixContributorProfile.findUnique({ where: { workspaceId: workspace.id } })
+  ]);
   return (
     <div className="page">
       {params.saved && <Notice type="success">My Info and Community Public Profile saved.</Notice>}
@@ -61,12 +65,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <section className="card" id="community-profile">
           <div className="card-header"><div><h2>Community Public Profile</h2><p>Shown beside approved Mixes you contribute. Profile edits update every shared template automatically.</p></div></div>
           <div className="form-grid">
-            <label className="checkbox-card field full"><input type="checkbox" name="communityProfileEnabled" defaultChecked={profile?.communityProfileEnabled ?? false} /><span><strong>Make this profile available for Community contributions</strong><small>Your private account email and workspace data are never exposed.</small></span></label>
-            <div className="field"><label htmlFor="communityDisplayName">Display name</label><input id="communityDisplayName" name="communityDisplayName" defaultValue={profile?.communityDisplayName ?? ""} maxLength={120} /></div>
-            <div className="field"><label htmlFor="communityTitle">Display title</label><input id="communityTitle" name="communityTitle" defaultValue={profile?.communityTitle ?? ""} maxLength={160} placeholder="Example: Client Retention Strategist" /></div>
-            <div className="field full"><label htmlFor="communityBio">Short bio</label><textarea id="communityBio" name="communityBio" defaultValue={profile?.communityBio ?? ""} maxLength={500} placeholder="Share the experience behind your Mixes without including private client information." /></div>
-            <div className="field"><label htmlFor="communityAvatarUrl">Profile image URL</label><input id="communityAvatarUrl" name="communityAvatarUrl" type="url" inputMode="url" defaultValue={profile?.communityAvatarUrl ?? ""} placeholder="https://…" /></div>
-            <div className="field"><label htmlFor="communityWebsite">Public website</label><input id="communityWebsite" name="communityWebsite" type="url" inputMode="url" defaultValue={profile?.communityWebsite ?? ""} placeholder="https://…" /></div>
+            <label className="checkbox-card field full"><input type="checkbox" name="communityProfileEnabled" defaultChecked={contributorProfile?.enabled ?? false} /><span><strong>Make this profile available for Community contributions</strong><small>Your private account email and workspace data are never exposed.</small></span></label>
+            <div className="field"><label htmlFor="communityDisplayName">Display name</label><input id="communityDisplayName" name="communityDisplayName" defaultValue={contributorProfile?.displayName ?? ""} maxLength={120} /></div>
+            <div className="field"><label htmlFor="communityTitle">Display title</label><input id="communityTitle" name="communityTitle" defaultValue={contributorProfile?.title ?? ""} maxLength={160} placeholder="Example: Client Retention Strategist" /></div>
+            <div className="field full"><label htmlFor="communityBio">Short bio</label><textarea id="communityBio" name="communityBio" defaultValue={contributorProfile?.bio ?? ""} maxLength={500} placeholder="Share the experience behind your Mixes without including private client information." /></div>
+            <div className="field"><label htmlFor="communityAvatarUrl">Profile image URL</label><input id="communityAvatarUrl" name="communityAvatarUrl" type="url" inputMode="url" defaultValue={contributorProfile?.avatarUrl ?? ""} placeholder="https://…" /></div>
+            <div className="field"><label htmlFor="communityWebsite">Public website</label><input id="communityWebsite" name="communityWebsite" type="url" inputMode="url" defaultValue={contributorProfile?.website ?? ""} placeholder="https://…" /></div>
           </div>
         </section>
 
