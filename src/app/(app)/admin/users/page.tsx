@@ -54,7 +54,10 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
           <h1>Admin · Users</h1>
           <p>Find an account and open a time-limited, fully audited, view-only support session.</p>
         </div>
-        <div className="page-actions"><Link className="button" href="/admin/integrations">Integrations</Link></div>
+        <div className="page-actions">
+          <Link className="button" href="/admin/templates">Mix Templates</Link>
+          <Link className="button" href="/admin/integrations">Integrations</Link>
+        </div>
       </header>
 
       {params.error && <Notice type="error">{params.error}</Notice>}
