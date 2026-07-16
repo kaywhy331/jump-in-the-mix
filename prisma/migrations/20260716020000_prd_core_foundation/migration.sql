@@ -52,7 +52,13 @@ CREATE INDEX IF NOT EXISTS "MixStop_workspaceId_mixId_stoppedAt_idx" ON "MixStop
 -- Communication action history remains independent from task completion status.
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'JumpActionType') THEN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_type type
+    JOIN pg_namespace namespace ON namespace.oid = type.typnamespace
+    WHERE type.typname = 'JumpActionType'
+      AND namespace.nspname = current_schema()
+  ) THEN
     CREATE TYPE "JumpActionType" AS ENUM ('OPENED', 'COPIED', 'COMPOSED', 'CALLED', 'VOICEMAIL_STARTED');
   END IF;
 END $$;
