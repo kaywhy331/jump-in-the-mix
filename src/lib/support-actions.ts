@@ -48,6 +48,7 @@ export async function createSupportTicketAction(formData: FormData): Promise<voi
     helpError(`Too many support tickets were opened recently. Try again in about ${Math.ceil(decision.retryAfterSeconds / 60)} minute(s).`);
   }
 
+  let ticketId: string;
   try {
     const ticket = await createSupportTicketRecord({
       workspaceId: workspace.id,
@@ -56,10 +57,11 @@ export async function createSupportTicketAction(formData: FormData): Promise<voi
       category: categoryValue as SupportTicketCategory,
       body
     });
-    redirect(`/account/tickets/${ticket.id}?created=1`);
+    ticketId = ticket.id;
   } catch (error) {
     helpError(error instanceof Error ? error.message : "The support ticket could not be created.");
   }
+  redirect(`/account/tickets/${ticketId}?created=1`);
 }
 
 export async function replyToSupportTicketAction(formData: FormData): Promise<void> {
@@ -87,13 +89,11 @@ export async function replyToSupportTicketAction(formData: FormData): Promise<vo
       requesterUserId: user.id,
       body
     });
-    redirect(`/account/tickets/${ticketId}?replied=1`);
   } catch (error) {
-    const message = error instanceof SupportTicketError || error instanceof Error
-      ? error.message
-      : "The reply could not be added.";
+    const message = error instanceof Error ? error.message : "The reply could not be added.";
     ticketError(ticketId, message);
   }
+  redirect(`/account/tickets/${ticketId}?replied=1`);
 }
 
 export async function reopenSupportTicketAction(formData: FormData): Promise<void> {
@@ -108,11 +108,11 @@ export async function reopenSupportTicketAction(formData: FormData): Promise<voi
       workspaceId: workspace.id,
       requesterUserId: user.id
     });
-    redirect(`/account/tickets/${ticketId}?reopened=1`);
   } catch (error) {
     const message = error instanceof SupportTicketError || error instanceof Error
       ? error.message
       : "The ticket could not be reopened.";
     ticketError(ticketId, message);
   }
+  redirect(`/account/tickets/${ticketId}?reopened=1`);
 }
