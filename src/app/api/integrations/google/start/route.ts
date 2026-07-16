@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth";
 import { createGoogleAuthorizationUrl } from "@/lib/google-contacts";
 import { PLAN_LIMITS } from "@/lib/plans";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { getRequestMetadata } from "@/lib/request-context";
 
 export async function GET(request: Request) {
   const session = await getCurrentSession();
@@ -12,6 +14,17 @@ export async function GET(request: Request) {
   }
   if (!PLAN_LIMITS[membership.workspace.planTier].googleContacts) {
     return NextResponse.redirect(new URL("/account?google=upgrade", request.url));
+  }
+  const metadata = await getRequestMetadata();
+  const rateLimit = await consumeRateLimit({
+    scope: "api.google.oauth-start",
+    identifiers: [membership.workspaceId, session.authUser.id, metadata.ipAddress],
+    limit: 10,
+    windowMs: 60 * 60 * 1000,
+    blockMs: 30 * 60 * 1000
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.redirect(new URL("/account?googleError=Too+many+connection+attempts.+Try+again+later.", request.url));
   }
   try {
     const requestUrl = new URL(request.url);
