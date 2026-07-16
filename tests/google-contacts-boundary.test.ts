@@ -27,8 +27,9 @@ describe("Google Contacts boundary", () => {
     expect(read("src/app/api/integrations/google/sync/route.ts")).toContain("PLAN_LIMITS[membership.workspace.planTier].googleContacts");
   });
 
-  it("rate limits provider reads and writes", () => {
+  it("rate limits OAuth, provider reads, and writes", () => {
     for (const path of [
+      "src/app/api/integrations/google/start/route.ts",
       "src/app/api/integrations/google/groups/route.ts",
       "src/app/api/integrations/google/preview/route.ts",
       "src/app/api/integrations/google/sync/route.ts",
@@ -36,7 +37,14 @@ describe("Google Contacts boundary", () => {
     ]) {
       const route = read(path);
       expect(route).toContain("consumeRateLimit(");
-      expect(route).toContain('"Retry-After"');
+    }
+    for (const path of [
+      "src/app/api/integrations/google/groups/route.ts",
+      "src/app/api/integrations/google/preview/route.ts",
+      "src/app/api/integrations/google/sync/route.ts",
+      "src/app/api/integrations/google/disconnect/route.ts"
+    ]) {
+      expect(read(path)).toContain('"Retry-After"');
     }
   });
 
@@ -65,5 +73,13 @@ describe("Google Contacts boundary", () => {
     expect(status).not.toContain("credentialsCiphertext");
     expect(status).not.toContain("accessToken");
     expect(status).not.toContain("refreshToken");
+  });
+
+  it("protects administrator integration diagnostics", () => {
+    const page = read("src/app/(app)/admin/integrations/page.tsx");
+    expect(page).toContain("requirePlatformAdmin()");
+    expect(page).not.toContain("credentialsCiphertext");
+    expect(page).not.toContain("accessToken");
+    expect(page).not.toContain("refreshToken");
   });
 });
