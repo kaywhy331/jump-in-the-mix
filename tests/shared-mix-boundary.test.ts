@@ -21,14 +21,19 @@ describe("Mix Template boundary", () => {
   it("uses human-readable previews instead of exposing raw JSON", () => {
     for (const path of [
       "src/app/(app)/templates/page.tsx",
-      "src/app/(app)/admin/templates/page.tsx",
-      "src/app/(app)/admin/templates/[sharedMixId]/edit/page.tsx"
+      "src/app/(app)/admin/templates/page.tsx"
     ]) {
       const source = read(path);
       expect(source).toContain("SharedMixPreview");
       expect(source).not.toContain("JSON.stringify(template.steps");
       expect(source).not.toContain("<pre>");
     }
+    const editor = read("src/app/(app)/admin/templates/[sharedMixId]/edit/page.tsx");
+    expect(editor).toContain("Prepared Jumps");
+    expect(editor).toContain('name="stepBody"');
+    expect(editor).toContain('name="stepScript"');
+    expect(editor).not.toContain("JSON.stringify(template.steps");
+    expect(editor).not.toContain("<pre>");
   });
 
   it("imports through one server transaction and creates an editable Draft", () => {
