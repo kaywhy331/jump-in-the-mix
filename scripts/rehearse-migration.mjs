@@ -9,6 +9,8 @@ if (!rootUrl) throw new Error("DATABASE_URL is required for the migration rehear
 const artifactsDir = ".artifacts";
 const legacySchemaPath = `${artifactsDir}/main-schema.prisma`;
 const rollbackPath = "prisma/migrations/20260716020000_prd_core_foundation/rollback.sql";
+const baselineMigration = "20260715000000_existing_mvp_baseline";
+const forwardMigration = "20260716020000_prd_core_foundation";
 const schemaName = `jitm_rehearsal_${randomUUID().replaceAll("-", "").slice(0, 12)}`;
 
 function databaseUrlForSchema(schema) {
@@ -142,7 +144,7 @@ async function assertForwardState(client) {
   }
   const migrations = await client.query(`SELECT "migration_name", "finished_at", "rolled_back_at" FROM "_prisma_migrations" ORDER BY "started_at"`);
   const names = migrations.rows.filter((row) => row.finished_at && !row.rolled_back_at).map((row) => row.migration_name);
-  if (!names.includes("20260715000000_existing_mvp_baseline") || !names.includes("20260716020000_prd_core_foundation")) {
+  if (!names.includes(baselineMigration) || !names.includes(forwardMigration)) {
     throw new Error(`Expected both migrations to finish; received ${names.join(", ")}.`);
   }
 
@@ -185,6 +187,9 @@ try {
   runPrisma(["db", "push", "--schema", legacySchemaPath, "--accept-data-loss"], databaseUrl);
   await seedLegacyDatabase(admin);
 
+  // Existing MVP databases are non-empty and have no migration history. Prisma
+  // requires the historical marker to be resolved before the first deploy.
+  runPrisma(["migrate", "resolve", "--applied", baselineMigration], databaseUrl);
   runPrisma(["migrate", "deploy"], databaseUrl);
   await assertForwardState(admin);
 
@@ -192,9 +197,11 @@ try {
   await admin.query(readFileSync(rollbackPath, "utf8"));
   await assertRollbackState(admin);
 
+  // Isolated rehearsal only: retain the applied baseline and remove the forward
+  // record so the guarded migration can be exercised a second time.
   await admin.query(
-    `DELETE FROM "${schemaName}"."_prisma_migrations"
-     WHERE "migration_name" IN ('20260715000000_existing_mvp_baseline', '20260716020000_prd_core_foundation')`
+    `DELETE FROM "${schemaName}"."_prisma_migrations" WHERE "migration_name" = $1`,
+    [forwardMigration]
   );
   runPrisma(["migrate", "deploy"], databaseUrl);
   await assertForwardState(admin);
