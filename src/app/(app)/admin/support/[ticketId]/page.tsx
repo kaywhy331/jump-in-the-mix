@@ -112,7 +112,7 @@ export default async function AdminSupportTicketPage({
                       <span className={`status-pill email-${message.emailStatus.toLowerCase()}`}>{supportEmailStatusLabel(message.emailStatus)}</span>
                       {message.emailSentAt && <small>Sent {formatDateTime(message.emailSentAt)}</small>}
                       {message.emailError && <small className="support-email-error">{message.emailError}</small>}
-                      {message.emailStatus === "FAILED" && (
+                      {["FAILED", "PREVIEWED"].includes(message.emailStatus) && (
                         <form action={adminRetrySupportEmailAction}>
                           <input type="hidden" name="ticketId" value={ticket.id} />
                           <input type="hidden" name="messageId" value={message.id} />
