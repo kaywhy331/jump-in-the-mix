@@ -15,6 +15,8 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     Promise.resolve(workspace.profile),
     prisma.sharedMixContributorProfile.findUnique({ where: { workspaceId: workspace.id } })
   ]);
+  const products = [profile?.product1, profile?.product2, profile?.product3, profile?.product4, profile?.product5];
+  const customValues = [profile?.myCustom1, profile?.myCustom2, profile?.myCustom3];
   return (
     <div className="page">
       {params.saved && <Notice type="success">My Info and Community Public Profile saved.</Notice>}
@@ -43,13 +45,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             <div className="field"><label htmlFor="postalCode">Postal code</label><input id="postalCode" name="postalCode" defaultValue={profile?.postalCode ?? ""} /></div>
             <div className="field"><label htmlFor="timezone">Timezone</label><select id="timezone" name="timezone" defaultValue={profile?.timezone ?? "America/New_York"}><option value="America/New_York">Eastern</option><option value="America/Chicago">Central</option><option value="America/Denver">Mountain</option><option value="America/Los_Angeles">Pacific</option><option value="America/Phoenix">Arizona</option><option value="Pacific/Honolulu">Hawaii</option><option value="UTC">UTC</option></select></div>
             <div className="field full"><label htmlFor="mailingAddress">Mailing address</label><textarea id="mailingAddress" name="mailingAddress" defaultValue={profile?.mailingAddress ?? ""} /></div>
-            {[1, 2, 3, 4, 5].map((number) => {
-              const key = `product${number}` as const;
-              return <div className="field" key={key}><label htmlFor={key}>Product or service {number}</label><input id={key} name={key} defaultValue={profile?.[key] ?? ""} /></div>;
+            {products.map((defaultValue, index) => {
+              const number = index + 1;
+              const key = `product${number}`;
+              return <div className="field" key={key}><label htmlFor={key}>Product or service {number}</label><input id={key} name={key} defaultValue={defaultValue ?? ""} /></div>;
             })}
-            {[1, 2, 3].map((number) => {
-              const key = `myCustom${number}` as const;
-              return <div className="field" key={key}><label htmlFor={key}>My custom field {number}</label><input id={key} name={key} defaultValue={profile?.[key] ?? ""} /></div>;
+            {customValues.map((defaultValue, index) => {
+              const number = index + 1;
+              const key = `myCustom${number}`;
+              return <div className="field" key={key}><label htmlFor={key}>My custom field {number}</label><input id={key} name={key} defaultValue={defaultValue ?? ""} /></div>;
             })}
           </div>
         </section>
