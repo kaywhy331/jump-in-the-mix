@@ -10,6 +10,7 @@ import {
 } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
+import { resumeMixForContactAction, stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Contact details" };
@@ -19,6 +20,10 @@ type SearchParams = {
   dateDeleted?: string;
   mixAssigned?: string;
   mixRemoved?: string;
+  mixStopped?: string;
+  mixResumed?: string;
+  mixStopError?: string;
+  mixResumeError?: string;
   updated?: string;
   error?: string;
 };
@@ -42,7 +47,7 @@ export default async function ContactDetailPage({
   searchParams: Promise<SearchParams>;
 }) {
   const [{ contactId }, query, { workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
-  const [contact, dateTypes, mixes] = await Promise.all([
+  const [contact, dateTypes, mixes, stops] = await Promise.all([
     prisma.contact.findFirst({
       where: { id: contactId, workspaceId: workspace.id, archivedAt: null },
       include: {
@@ -58,10 +63,14 @@ export default async function ContactDetailPage({
       where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null }] },
       orderBy: [{ isSystem: "asc" }, { name: "asc" }]
     }),
-    prisma.mix.findMany({ where: { workspaceId: workspace.id, status: "ACTIVE" }, orderBy: { name: "asc" } })
+    prisma.mix.findMany({ where: { workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } }, orderBy: { name: "asc" } }),
+    prisma.mixStop.findMany({ where: { workspaceId: workspace.id, contactId }, orderBy: { stoppedAt: "desc" } })
   ]);
   if (!contact) notFound();
   const followUpType = dateTypes.find((type) => type.slug === "follow-up");
+  const stopByMixId = new Map(stops.map((stop) => [stop.mixId, stop]));
+  const directMixIds = new Set(contact.mixAssignments.map((assignment) => assignment.mixId));
+  const additionalStoppedMixes = mixes.filter((mix) => stopByMixId.has(mix.id) && !directMixIds.has(mix.id));
 
   return (
     <div className="page">
@@ -70,33 +79,28 @@ export default async function ContactDetailPage({
       {query.dateDeleted && <Notice type="success">Jump Date removed. Obsolete future Jumps are being reconciled.</Notice>}
       {query.mixAssigned && <Notice type="success">Mix assigned. The background worker is preparing matching Jumps.</Notice>}
       {query.mixRemoved && <Notice type="success">Mix removed from this Contact. Completed history remains available.</Notice>}
+      {query.mixStopped && <Notice type="success">Mix stopped for this Contact. Its pending Jumps were removed.</Notice>}
+      {query.mixResumed && <Notice type="success">Mix resumed for this Contact. Valid future Jumps are being restored.</Notice>}
+      {query.mixStopError && <Notice type="error">The Mix could not be stopped for this Contact.</Notice>}
+      {query.mixResumeError && <Notice type="error">The Mix stop could not be removed.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
       <header className="page-header">
         <div><h1>{contact.displayName}</h1><p>{contact.company || "Relationship details and follow-up timing"}</p></div>
         <div className="page-actions"><Link href={`/contacts/${contact.id}/edit`} className="button primary">Edit contact</Link><Link href="/contacts" className="button">Back</Link></div>
       </header>
 
-      {contact.groupMemberships.length > 0 && <div className="contact-group-strip">{contact.groupMemberships.map(({ group }) => (
-        <span className="group-chip" key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}</span>
-      ))}</div>}
+      {contact.groupMemberships.length > 0 && <div className="contact-group-strip">{contact.groupMemberships.map(({ group }) => <span className="group-chip" key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}</span>)}</div>}
 
       <div className="dashboard-grid">
         <section>
           <div className="card">
             <div className="card-header"><div><h2>Jump Dates</h2><p>Dates are the moments that can trigger a Mix.</p></div></div>
-            {contact.jumpDates.length ? (
-              <div className="jump-list">
-                {contact.jumpDates.map((item) => (
-                  <article className="jump-card contact-date-card" key={item.id}>
-                    <div><h3>{item.dateType.name}</h3><div className="jump-meta"><span>{item.dateValue ? formatDate(item.dateValue) : `${item.month}/${item.day}`}</span><span>{item.recurrence.toLowerCase()}</span>{item.label && <span>{item.label}</span>}</div></div>
-                    <details className="destructive-confirm">
-                      <summary className="button small danger">Remove…</summary>
-                      <div className="destructive-confirm-panel"><p>Remove this Jump Date? Future pending work tied to it will be canceled.</p><form action={deleteJumpDateAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} /><button className="button small danger" type="submit">Confirm removal</button></form></div>
-                    </details>
-                  </article>
-                ))}
-              </div>
-            ) : <p className="muted-copy">No Jump Dates yet. Add the next date you genuinely need to remember.</p>}
+            {contact.jumpDates.length ? <div className="jump-list">{contact.jumpDates.map((item) => (
+              <article className="jump-card contact-date-card" key={item.id}>
+                <div><h3>{item.dateType.name}</h3><div className="jump-meta"><span>{item.dateValue ? formatDate(item.dateValue) : `${item.month}/${item.day}`}</span><span>{item.recurrence.toLowerCase()}</span>{item.label && <span>{item.label}</span>}</div></div>
+                <details className="destructive-confirm"><summary className="button small danger">Remove…</summary><div className="destructive-confirm-panel"><p>Remove this Jump Date? Future pending work tied to it will be canceled.</p><form action={deleteJumpDateAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} /><button className="button small danger" type="submit">Confirm removal</button></form></div></details>
+              </article>
+            ))}</div> : <p className="muted-copy">No Jump Dates yet. Add the next date you genuinely need to remember.</p>}
           </div>
 
           <div className="card">
@@ -132,17 +136,13 @@ export default async function ContactDetailPage({
           </div>
 
           <div className="card">
-            <div className="card-header"><div><h2>Assigned Mixes</h2><p>Direct assignments for this Contact.</p></div></div>
-            {mixes.length ? (
-              <form action={assignMixToContactAction} className="form-stack">
-                <input type="hidden" name="contactId" value={contact.id} />
-                <div className="field"><label htmlFor="mixId">Mix</label><select id="mixId" name="mixId">{mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></div>
-                <button className="button primary" type="submit">Assign Mix</button>
-              </form>
-            ) : <p className="muted-copy">Create or activate a Mix first.</p>}
-            {contact.mixAssignments.length > 0 && <div className="assigned-mix-list">{contact.mixAssignments.map((assignment) => (
-              <div className="assigned-mix-row" key={assignment.id}><Link href={`/mixes/${assignment.mix.id}/edit`}>{assignment.mix.name}</Link><form action={removeMixAssignmentAction}><input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Remove</button></form></div>
-            ))}</div>}
+            <div className="card-header"><div><h2>Assigned Mixes</h2><p>Stop pauses one Mix for this Contact without deleting history or the assignment.</p></div></div>
+            {mixes.length ? <form action={assignMixToContactAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><div className="field"><label htmlFor="mixId">Mix</label><select id="mixId" name="mixId">{mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></div><button className="button primary" type="submit">Assign Mix</button></form> : <p className="muted-copy">Create or activate a Mix first.</p>}
+            {contact.mixAssignments.length > 0 && <div className="assigned-mix-list">{contact.mixAssignments.map((assignment) => {
+              const stop = stopByMixId.get(assignment.mix.id);
+              return <div className="assigned-mix-row" key={assignment.id}><div><Link href={`/mixes/${assignment.mix.id}/edit`}>{assignment.mix.name}</Link>{stop && <small className="stopped-mix-label">Stopped</small>}</div><div className="assigned-mix-actions">{stop ? <form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small primary" type="submit">Resume</button></form> : <details className="destructive-confirm"><summary className="button small">Stop…</summary><div className="destructive-confirm-panel"><p>Stop this Mix only for {contact.displayName}? Pending Jumps from it will leave the queue.</p><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small danger" type="submit">Stop Mix</button></form></div></details>}<form action={removeMixAssignmentAction}><input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Remove</button></form></div></div>;
+            })}</div>}
+            {additionalStoppedMixes.length > 0 && <div className="stopped-mix-section"><h3>Stopped from other audiences</h3>{additionalStoppedMixes.map((mix) => <div className="assigned-mix-row" key={mix.id}><div><Link href={`/mixes/${mix.id}/edit`}>{mix.name}</Link><small className="stopped-mix-label">Stopped</small></div><form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small primary" type="submit">Resume</button></form></div>)}</div>}
           </div>
         </aside>
       </div>
