@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./prd-core.css";
 import "./prd-date-types.css";
+import "./prd-bulk.css";
 
 export const metadata: Metadata = {
   title: {
