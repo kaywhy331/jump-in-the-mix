@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { requireWorkspace } from "@/lib/auth";
 import { isBillingPeriod, isPaidPlanTier } from "@/lib/billing";
 import { BillingUserError, createStripeCheckoutSession } from "@/lib/billing-service";
-import { requireWorkspace } from "@/lib/auth";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { getRequestMetadata } from "@/lib/request-context";
 
 export const runtime = "nodejs";
 
@@ -15,6 +17,18 @@ export async function POST(request: Request) {
   const { user, workspace, membership, impersonation } = await requireWorkspace();
   if (impersonation) return redirectWithError(request, "Administrator support sessions are view-only.");
   if (membership.role === "MEMBER") return redirectWithError(request, "Only a workspace owner or administrator can change billing.");
+
+  const requestMetadata = await getRequestMetadata();
+  const rateLimit = await consumeRateLimit({
+    scope: "api.billing.checkout",
+    identifiers: [workspace.id, user.id, requestMetadata.ipAddress],
+    limit: 12,
+    windowMs: 60 * 60 * 1000,
+    blockMs: 30 * 60 * 1000
+  });
+  if (!rateLimit.allowed) {
+    return redirectWithError(request, `Too many Checkout attempts. Try again in ${rateLimit.retryAfterSeconds} seconds.`);
+  }
 
   const formData = await request.formData();
   const planTierValue = String(formData.get("planTier") ?? "").toUpperCase();
