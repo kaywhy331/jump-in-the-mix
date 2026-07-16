@@ -6,6 +6,7 @@ import "./prd-bulk.css";
 import "./prd-auth.css";
 import "./prd-admin.css";
 import "./prd-import.css";
+import "./prd-google.css";
 
 export const metadata: Metadata = {
   title: {
