@@ -14,6 +14,8 @@ describe("Stripe billing boundaries", () => {
     expect(checkout).toContain('formData.get("billingPeriod")');
     expect(checkout).toContain('membership.role === "MEMBER"');
     expect(portal).toContain('membership.role === "MEMBER"');
+    expect(checkout).toContain('scope: "api.billing.checkout"');
+    expect(portal).toContain('scope: "api.billing.portal"');
   });
 
   it("keeps the webhook public while requiring raw-body signature verification", () => {
@@ -33,6 +35,7 @@ describe("Stripe billing boundaries", () => {
     const service = read("src/lib/billing-service.ts");
     expect(route).toContain("requireWorkspace()");
     expect(route).toContain("reconcileCheckoutSessionForWorkspace");
+    expect(route).toContain("enforceCurrentWorkspacePlanLimits");
     expect(service).toContain("sessionWorkspaceId !== workspaceId");
     expect(service).toContain("retrieveStripeCheckoutSession");
     expect(service).toContain("syncStripeSubscription");
@@ -53,8 +56,21 @@ describe("Stripe billing boundaries", () => {
     expect(service).toContain('case "invoice.paid"');
     expect(service).toContain('case "invoice.payment_failed"');
     expect(service).toContain('case "customer.subscription.deleted"');
+    expect(webhook).toContain('event.type === "customer.subscription.paused"');
+    expect(webhook).toContain('event.type === "customer.subscription.resumed"');
     expect(webhook).toContain("payloadHash");
     expect(webhook).toContain('status: "PROCESSED"');
+  });
+
+  it("preserves records while reducing active work to the downgraded plan", () => {
+    const safeguards = read("src/lib/plan-downgrade.ts");
+    expect(safeguards).toContain('data: { status: "PAUSED" }');
+    expect(safeguards).toContain('completionMethod: "plan_downgrade"');
+    expect(safeguards).toContain("isActive: false");
+    expect(safeguards).toContain('reviewState: "UNPUBLISHED"');
+    expect(safeguards).not.toContain("tx.contact.delete");
+    expect(safeguards).not.toContain("tx.group.delete");
+    expect(safeguards).not.toContain("tx.mix.delete");
   });
 
   it("provides user and administrator billing surfaces without exposing secrets", () => {
@@ -62,6 +78,7 @@ describe("Stripe billing boundaries", () => {
     const plans = read("src/app/(app)/plans/page.tsx");
     const admin = read("src/app/(app)/admin/billing/page.tsx");
     expect(account).toContain("Billing and subscription");
+    expect(account).toContain("Plan usage");
     expect(plans).toContain('action="/api/billing/checkout"');
     expect(plans).toContain('action="/api/billing/portal"');
     expect(admin).toContain("Admin · Billing");
