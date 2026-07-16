@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { CONTACT_PLACEHOLDERS, MY_INFO_PLACEHOLDERS, PRIVATE_NOTE_PLACEHOLDERS } from "@/lib/placeholders";
 import { createReusableJumpAction, updateReusableJumpAction } from "@/lib/reusable-jump-update";
 
@@ -13,6 +14,12 @@ type JumpValue = {
   subject?: string | null;
   body?: string | null;
   script?: string | null;
+};
+
+type CustomFieldOption = {
+  id: string;
+  name: string;
+  key: string;
 };
 
 function insertAtCursor(element: HTMLInputElement | HTMLTextAreaElement | null, token: string) {
@@ -33,7 +40,15 @@ function channelOptions() {
   return <><option value="SMS">SMS</option><option value="EMAIL">Email</option><option value="PHONE_CALL">Phone Call</option><option value="VOICEMAIL">Ringless Voicemail</option><option value="WHATSAPP">WhatsApp</option></>;
 }
 
-export function ReusableJumpForm({ mode, jump }: { mode: "create" | "edit"; jump?: JumpValue }) {
+export function ReusableJumpForm({
+  mode,
+  jump,
+  customFields
+}: {
+  mode: "create" | "edit";
+  jump?: JumpValue;
+  customFields: CustomFieldOption[];
+}) {
   const [channel, setChannel] = useState<Channel>(jump?.channel ?? "SMS");
   const [activeField, setActiveField] = useState<"subject" | "body" | "script">(channel === "PHONE_CALL" || channel === "VOICEMAIL" ? "script" : "body");
   const subjectRef = useRef<HTMLInputElement>(null);
@@ -65,6 +80,7 @@ export function ReusableJumpForm({ mode, jump }: { mode: "create" | "edit"; jump
         <summary>Insert a dynamic placeholder</summary>
         <div className="placeholder-groups">
           <section><h3>Contact</h3><div className="placeholder-chip-list">{CONTACT_PLACEHOLDERS.map((token) => <button type="button" className="placeholder-chip" onClick={() => insert(token)} key={token}>{token}</button>)}</div></section>
+          {customFields.length > 0 && <section><h3>Contact custom fields</h3><div className="placeholder-chip-list">{customFields.map((field) => { const token = customFieldPlaceholder(field.key); return <button type="button" className="placeholder-chip" title={field.name} onClick={() => insert(token)} key={field.id}>{field.name} · {token}</button>; })}</div></section>}
           {channel === "PHONE_CALL" && <section><h3>Private call context</h3><div className="placeholder-chip-list">{PRIVATE_NOTE_PLACEHOLDERS.map((token) => <button type="button" className="placeholder-chip" onClick={() => insert(token)} key={token}>{token}</button>)}</div></section>}
           <section><h3>My Info</h3><div className="placeholder-chip-list">{MY_INFO_PLACEHOLDERS.map((token) => <button type="button" className="placeholder-chip" onClick={() => insert(token)} key={token}>{token}</button>)}</div></section>
         </div>
