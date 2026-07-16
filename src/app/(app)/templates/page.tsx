@@ -59,10 +59,9 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
   const category = params.category?.trim() ?? "";
   const industry = params.industry?.trim() ?? "";
 
-  const templates = await prisma.sharedMix.findMany({
+  const candidates = await prisma.sharedMix.findMany({
     where: {
       status: "APPROVED",
-      isPlatform: source === "platform",
       ...(category ? { category } : {}),
       ...(industry ? { industry } : {}),
       ...(query ? {
@@ -80,32 +79,54 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
         select: {
           id: true,
           name: true,
-          profile: {
-            select: {
-              communityProfileEnabled: true,
-              communityDisplayName: true,
-              communityTitle: true,
-              communityBio: true,
-              communityAvatarUrl: true,
-              communityWebsite: true,
-              company: true,
-              industry: true
-            }
-          }
+          profile: { select: { company: true, industry: true } }
         }
       }
     },
-    orderBy: sort === "newest"
-      ? [{ publishedAt: "desc" }, { createdAt: "desc" }]
-      : sort === "popular"
-        ? [{ importCount: "desc" }, { voteCount: "desc" }, { publishedAt: "desc" }]
-        : [{ featuredAt: "desc" }, { voteCount: "desc" }, { importCount: "desc" }, { publishedAt: "desc" }],
-    take: 100
+    orderBy: [{ importCount: "desc" }, { updatedAt: "desc" }],
+    take: 200
   });
 
-  if (sort === "trending") {
-    templates.sort((left, right) => sharedMixTrendingScore(right) - sharedMixTrendingScore(left));
-  }
+  const candidateIds = candidates.map((item) => item.id);
+  const publisherIds = [...new Set(candidates.map((item) => item.publisherWorkspaceId).filter((item): item is string => Boolean(item)))];
+  const [metadataRows, contributorProfiles] = await Promise.all([
+    candidateIds.length ? prisma.sharedMixMetadata.findMany({ where: { sharedMixId: { in: candidateIds } } }) : [],
+    publisherIds.length ? prisma.sharedMixContributorProfile.findMany({ where: { workspaceId: { in: publisherIds } } }) : []
+  ]);
+  const metadataById = new Map(metadataRows.map((item) => [item.sharedMixId, item]));
+  const contributorByWorkspace = new Map(contributorProfiles.map((item) => [item.workspaceId, item]));
+
+  const templates = candidates.filter((item) => {
+    const metadata = metadataById.get(item.id);
+    const isPlatform = metadata?.isPlatform ?? item.publisherWorkspaceId === null;
+    return source === "platform" ? isPlatform : !isPlatform;
+  });
+  templates.sort((left, right) => {
+    const leftMetadata = metadataById.get(left.id);
+    const rightMetadata = metadataById.get(right.id);
+    if (sort === "newest") {
+      return (rightMetadata?.publishedAt ?? right.createdAt).getTime() - (leftMetadata?.publishedAt ?? left.createdAt).getTime();
+    }
+    if (sort === "popular") {
+      return right.importCount - left.importCount || (rightMetadata?.voteCount ?? 0) - (leftMetadata?.voteCount ?? 0);
+    }
+    if (sort === "trending") {
+      return sharedMixTrendingScore({
+        voteCount: rightMetadata?.voteCount ?? 0,
+        importCount: right.importCount,
+        publishedAt: rightMetadata?.publishedAt ?? null,
+        updatedAt: right.updatedAt
+      }) - sharedMixTrendingScore({
+        voteCount: leftMetadata?.voteCount ?? 0,
+        importCount: left.importCount,
+        publishedAt: leftMetadata?.publishedAt ?? null,
+        updatedAt: left.updatedAt
+      });
+    }
+    return Number(Boolean(rightMetadata?.featuredAt)) - Number(Boolean(leftMetadata?.featuredAt))
+      || (rightMetadata?.voteCount ?? 0) - (leftMetadata?.voteCount ?? 0)
+      || right.importCount - left.importCount;
+  });
 
   const templateIds = templates.map((item) => item.id);
   const [votes, imports] = templateIds.length ? await Promise.all([
@@ -115,17 +136,22 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
     }),
     prisma.sharedMixImport.findMany({
       where: { workspaceId: workspace.id, sharedMixId: { in: templateIds } },
-      select: { sharedMixId: true, sharedMixVersion: true, createdAt: true },
+      select: { id: true, sharedMixId: true, createdAt: true },
       orderBy: { createdAt: "desc" }
     })
   ]) : [[], []];
+  const importIds = imports.map((item) => item.id);
+  const importMetadata = importIds.length
+    ? await prisma.sharedMixImportMetadata.findMany({ where: { importId: { in: importIds } } })
+    : [];
+  const importMetadataById = new Map(importMetadata.map((item) => [item.importId, item]));
   const votedIds = new Set(votes.map((item) => item.sharedMixId));
   const importsById = new Map<string, { count: number; latestVersion: number }>();
   for (const item of imports) {
     const current = importsById.get(item.sharedMixId);
     importsById.set(item.sharedMixId, {
       count: (current?.count ?? 0) + 1,
-      latestVersion: Math.max(current?.latestVersion ?? 0, item.sharedMixVersion)
+      latestVersion: Math.max(current?.latestVersion ?? 0, importMetadataById.get(item.id)?.sharedMixVersion ?? 1)
     });
   }
   const currentReturnTo = returnTo(params);
@@ -175,16 +201,20 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
       {templates.length ? (
         <div className="mix-template-grid">
           {templates.map((template) => {
+            const metadata = metadataById.get(template.id);
+            const isPlatform = metadata?.isPlatform ?? template.publisherWorkspaceId === null;
             const issue = sharedMixContentIssue(template.steps);
             const steps = issue ? [] : normalizeSharedMixSteps(template.steps);
             const imported = importsById.get(template.id);
             const voted = votedIds.has(template.id);
-            const profile = template.publisherWorkspace?.profile;
-            const contributorName = profile?.communityProfileEnabled
-              ? profile.communityDisplayName || template.publisherWorkspace?.name || "Community contributor"
+            const contributorProfile = template.publisherWorkspaceId ? contributorByWorkspace.get(template.publisherWorkspaceId) : null;
+            const contributorName = contributorProfile?.enabled
+              ? contributorProfile.displayName || template.publisherWorkspace?.name || "Community contributor"
               : "Community contributor";
-            const contributorSubtitle = [profile?.communityTitle, profile?.company].filter(Boolean).join(" · ");
+            const contributorSubtitle = [contributorProfile?.title, template.publisherWorkspace?.profile?.company].filter(Boolean).join(" · ");
             const ownsTemplate = template.publisherWorkspaceId === workspace.id;
+            const voteCount = metadata?.voteCount ?? 0;
+            const version = metadata?.version ?? 1;
 
             return (
               <article className="card mix-template-card" key={template.id}>
@@ -193,25 +223,25 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
                     <div className="template-badges">
                       <span className="status-pill">{template.category}</span>
                       {template.industry && <span className="status-pill">{template.industry}</span>}
-                      {template.featuredAt && <span className="status-pill done">Featured</span>}
+                      {metadata?.featuredAt && <span className="status-pill done">Featured</span>}
                     </div>
                     <h2>{template.title}</h2>
                     <p>{template.description}</p>
                   </div>
-                  <div className="template-score" aria-label={`${template.voteCount} votes and ${template.importCount} imports`}>
-                    <span>♥ {template.voteCount}</span>
+                  <div className="template-score" aria-label={`${voteCount} votes and ${template.importCount} imports`}>
+                    <span>♥ {voteCount}</span>
                     <span>⇩ {template.importCount}</span>
                   </div>
                 </div>
 
-                {!template.isPlatform && (
+                {!isPlatform && (
                   <div className="template-contributor">
-                    {profile?.communityAvatarUrl ? (
-                      <img src={profile.communityAvatarUrl} alt="" width={44} height={44} loading="lazy" />
+                    {contributorProfile?.avatarUrl ? (
+                      <img src={contributorProfile.avatarUrl} alt="" width={44} height={44} loading="lazy" />
                     ) : (
                       <span className="template-contributor-avatar" aria-hidden="true">{initials(contributorName)}</span>
                     )}
-                    <span><strong>{contributorName}</strong><small>{contributorSubtitle || profile?.industry || "Jump in the Mix community"}</small></span>
+                    <span><strong>{contributorName}</strong><small>{contributorSubtitle || template.publisherWorkspace?.profile?.industry || "Jump in the Mix community"}</small></span>
                   </div>
                 )}
 
@@ -220,18 +250,18 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
                 ) : (
                   <SharedMixPreview
                     title={template.title}
-                    triggerMode={template.triggerMode}
-                    dateTypeName={template.dateTypeName}
+                    triggerMode={metadata?.triggerMode ?? "MANUAL_START"}
+                    dateTypeName={metadata?.dateTypeName ?? null}
                     durationDays={template.durationDays}
                     steps={steps}
                   />
                 )}
 
-                {profile?.communityProfileEnabled && (profile.communityBio || profile.communityWebsite) && (
+                {contributorProfile?.enabled && (contributorProfile.bio || contributorProfile.website) && (
                   <details className="template-profile-details">
                     <summary>About the contributor</summary>
-                    {profile.communityBio && <p>{profile.communityBio}</p>}
-                    {profile.communityWebsite && <p><a href={profile.communityWebsite} rel="nofollow noopener" target="_blank">Visit contributor website</a></p>}
+                    {contributorProfile.bio && <p>{contributorProfile.bio}</p>}
+                    {contributorProfile.website && <p><a href={contributorProfile.website} rel="nofollow noopener" target="_blank">Visit contributor website</a></p>}
                   </details>
                 )}
 
@@ -243,7 +273,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
                       <button className={voted ? "button small primary" : "button small"} type="submit" aria-pressed={voted}>{voted ? "♥ Voted" : "♡ Vote"}</button>
                     </form>
                   )}
-                  {ownsTemplate && template.publisherMixId && <Link className="button small" href={`/mixes/${template.publisherMixId}/share`}>Manage sharing</Link>}
+                  {ownsTemplate && metadata?.publisherMixId && <Link className="button small" href={`/mixes/${metadata.publisherMixId}/share`}>Manage sharing</Link>}
                   {!issue && !ownsTemplate && !imported && (
                     <form action={importSharedMixAction}>
                       <input type="hidden" name="sharedMixId" value={template.id} />
@@ -265,7 +295,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
                     </details>
                   )}
                 </div>
-                <small className="template-updated">Version {template.version} · Updated {formatDate(template.updatedAt)}</small>
+                <small className="template-updated">Version {version} · Updated {formatDate(template.updatedAt)}</small>
               </article>
             );
           })}
