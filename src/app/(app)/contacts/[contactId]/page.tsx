@@ -9,6 +9,7 @@ import {
   removeMixAssignmentAction
 } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
+import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { formatDate } from "@/lib/format";
 import { resumeMixForContactAction, stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
@@ -55,6 +56,7 @@ export default async function ContactDetailPage({
         phones: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
         addresses: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
         groupMemberships: { include: { group: true } },
+        customFieldValues: { include: { definition: true }, orderBy: { definition: { name: "asc" } } },
         jumpDates: { include: { dateType: true }, orderBy: { dateValue: "asc" } },
         mixAssignments: { include: { mix: true }, where: { isActive: true, contactId }, orderBy: { createdAt: "asc" } }
       }
@@ -133,6 +135,11 @@ export default async function ContactDetailPage({
               <div><small className="field-label">Public Notes</small><p className="note-copy">{contact.publicNotes || "No Public Notes"}</p></div>
               <div><small className="field-label">Private Notes</small><p className="note-copy">{contact.privateNotes || "No Private Notes"}</p><small className="muted-copy">Available only to Phone Call Jump scripts.</small></div>
             </div>
+          </div>
+
+          <div className="card">
+            <div className="card-header"><div><h2>Custom fields</h2><p>Values are available as dynamic Jump placeholders.</p></div><Link className="button small" href="/contacts/custom-fields">Manage</Link></div>
+            {contact.customFieldValues.length ? <div className="contact-method-sections">{contact.customFieldValues.map((item) => <div className="contact-method-row" key={item.id}><span>{item.value}</span><small>{item.definition.name} · {customFieldPlaceholder(item.definition.key)}</small></div>)}</div> : <p className="muted-copy">No custom values saved for this Contact.</p>}
           </div>
 
           <div className="card">
