@@ -1,38 +1,39 @@
--- Add the moderation state used when a Community submission needs review.
-ALTER TYPE "SharedMixStatus" ADD VALUE IF NOT EXISTS 'FLAGGED';
+CREATE TYPE "SharedMixReviewState" AS ENUM ('PENDING', 'APPROVED', 'REJECTED', 'UNPUBLISHED', 'FLAGGED');
 
--- Contributor profiles remain workspace-scoped and contain only explicitly public fields.
-ALTER TABLE "WorkspaceProfile"
-  ADD COLUMN "communityProfileEnabled" BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN "communityDisplayName" TEXT,
-  ADD COLUMN "communityTitle" TEXT,
-  ADD COLUMN "communityBio" TEXT,
-  ADD COLUMN "communityAvatarUrl" TEXT,
-  ADD COLUMN "communityWebsite" TEXT;
+CREATE TABLE "SharedMixMetadata" (
+  "sharedMixId" TEXT NOT NULL,
+  "publisherWorkspaceId" TEXT,
+  "publisherMixId" TEXT,
+  "sourceMixId" TEXT,
+  "isPlatform" BOOLEAN NOT NULL DEFAULT false,
+  "triggerMode" "MixTriggerMode" NOT NULL DEFAULT 'MANUAL_START',
+  "dateTypeName" TEXT,
+  "dateTypeSlug" TEXT,
+  "version" INTEGER NOT NULL DEFAULT 1,
+  "voteCount" INTEGER NOT NULL DEFAULT 0,
+  "reviewState" "SharedMixReviewState" NOT NULL DEFAULT 'PENDING',
+  "featuredAt" TIMESTAMP(3),
+  "publishedAt" TIMESTAMP(3),
+  "reviewedAt" TIMESTAMP(3),
+  "reviewedByUserId" TEXT,
+  "moderationNote" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "SharedMixMetadata_pkey" PRIMARY KEY ("sharedMixId")
+);
 
--- Shared Mixes are immutable snapshots from the importing workspace's point of view.
-ALTER TABLE "SharedMix"
-  ADD COLUMN "publisherMixId" TEXT,
-  ADD COLUMN "sourceMixId" TEXT,
-  ADD COLUMN "isPlatform" BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN "triggerMode" "MixTriggerMode" NOT NULL DEFAULT 'MANUAL_START',
-  ADD COLUMN "dateTypeName" TEXT,
-  ADD COLUMN "dateTypeSlug" TEXT,
-  ADD COLUMN "version" INTEGER NOT NULL DEFAULT 1,
-  ADD COLUMN "voteCount" INTEGER NOT NULL DEFAULT 0,
-  ADD COLUMN "featuredAt" TIMESTAMP(3),
-  ADD COLUMN "publishedAt" TIMESTAMP(3),
-  ADD COLUMN "reviewedAt" TIMESTAMP(3),
-  ADD COLUMN "reviewedByUserId" TEXT,
-  ADD COLUMN "moderationNote" TEXT;
-
-ALTER TABLE "SharedMixImport"
-  ADD COLUMN "sharedMixVersion" INTEGER NOT NULL DEFAULT 1;
-
-UPDATE "SharedMix"
-SET "isPlatform" = true,
-    "publishedAt" = CASE WHEN "status" = 'APPROVED' THEN COALESCE("publishedAt", "createdAt") ELSE "publishedAt" END
-WHERE "publisherWorkspaceId" IS NULL;
+CREATE TABLE "SharedMixContributorProfile" (
+  "workspaceId" TEXT NOT NULL,
+  "enabled" BOOLEAN NOT NULL DEFAULT false,
+  "displayName" TEXT,
+  "title" TEXT,
+  "bio" TEXT,
+  "avatarUrl" TEXT,
+  "website" TEXT,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt" TIMESTAMP(3) NOT NULL,
+  CONSTRAINT "SharedMixContributorProfile_pkey" PRIMARY KEY ("workspaceId")
+);
 
 CREATE TABLE "SharedMixVote" (
   "id" TEXT NOT NULL,
@@ -42,23 +43,49 @@ CREATE TABLE "SharedMixVote" (
   CONSTRAINT "SharedMixVote_pkey" PRIMARY KEY ("id")
 );
 
-ALTER TABLE "SharedMixVote"
-  ADD CONSTRAINT "SharedMixVote_workspaceId_fkey"
-  FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+CREATE TABLE "SharedMixImportMetadata" (
+  "importId" TEXT NOT NULL,
+  "sharedMixVersion" INTEGER NOT NULL DEFAULT 1,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "SharedMixImportMetadata_pkey" PRIMARY KEY ("importId")
+);
 
-ALTER TABLE "SharedMixVote"
-  ADD CONSTRAINT "SharedMixVote_sharedMixId_fkey"
-  FOREIGN KEY ("sharedMixId") REFERENCES "SharedMix"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
-DROP INDEX IF EXISTS "SharedMix_status_category_idx";
-
-CREATE UNIQUE INDEX "SharedMix_publisherWorkspaceId_publisherMixId_key"
-  ON "SharedMix"("publisherWorkspaceId", "publisherMixId");
-CREATE INDEX "SharedMix_isPlatform_status_category_idx"
-  ON "SharedMix"("isPlatform", "status", "category");
-CREATE INDEX "SharedMix_voteCount_importCount_idx"
-  ON "SharedMix"("voteCount", "importCount");
+CREATE UNIQUE INDEX "SharedMixMetadata_publisherWorkspaceId_publisherMixId_key"
+  ON "SharedMixMetadata"("publisherWorkspaceId", "publisherMixId");
+CREATE INDEX "SharedMixMetadata_isPlatform_reviewState_idx"
+  ON "SharedMixMetadata"("isPlatform", "reviewState");
+CREATE INDEX "SharedMixMetadata_voteCount_publishedAt_idx"
+  ON "SharedMixMetadata"("voteCount", "publishedAt");
 CREATE UNIQUE INDEX "SharedMixVote_workspaceId_sharedMixId_key"
   ON "SharedMixVote"("workspaceId", "sharedMixId");
 CREATE INDEX "SharedMixVote_sharedMixId_createdAt_idx"
   ON "SharedMixVote"("sharedMixId", "createdAt");
+
+INSERT INTO "SharedMixMetadata" (
+  "sharedMixId",
+  "isPlatform",
+  "triggerMode",
+  "version",
+  "voteCount",
+  "reviewState",
+  "publishedAt",
+  "createdAt",
+  "updatedAt"
+)
+SELECT
+  "id",
+  CASE WHEN "publisherWorkspaceId" IS NULL THEN true ELSE false END,
+  'MANUAL_START'::"MixTriggerMode",
+  1,
+  0,
+  CASE
+    WHEN "status" = 'APPROVED' THEN 'APPROVED'::"SharedMixReviewState"
+    WHEN "status" = 'REJECTED' THEN 'REJECTED'::"SharedMixReviewState"
+    WHEN "status" = 'UNPUBLISHED' THEN 'UNPUBLISHED'::"SharedMixReviewState"
+    ELSE 'PENDING'::"SharedMixReviewState"
+  END,
+  CASE WHEN "status" = 'APPROVED' THEN "createdAt" ELSE NULL END,
+  "createdAt",
+  "updatedAt"
+FROM "SharedMix"
+ON CONFLICT ("sharedMixId") DO NOTHING;
