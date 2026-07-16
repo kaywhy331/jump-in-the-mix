@@ -20,6 +20,8 @@ jobs:
       APP_URL: http://localhost:3000
       DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_test?schema=public
       DATA_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+      AUTH_RATE_LIMIT_SECRET: ci-auth-rate-limit-secret
+      AUTH_REQUIRE_EMAIL_VERIFICATION: "false"
       DEMO_MODE: "false"
     services:
       postgres:
