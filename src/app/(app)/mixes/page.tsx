@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
-import { activateMixAction, archiveMixAction, createStarterMixAction, pauseMixAction } from "@/lib/actions";
+import { createStarterMixAction } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
+import { formatDateInput, formatTimeInput } from "@/lib/mix-broadcast";
+import { activateMixAction, archiveMixAction, pauseMixAction } from "@/lib/mix-lifecycle-actions";
 import { formatPlanLimit, PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
@@ -30,15 +32,19 @@ function channelIcon(channel: string): string {
 export default async function MixesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const { workspace } = await requireWorkspace();
-  const mixes = await prisma.mix.findMany({
-    where: { workspaceId: workspace.id, status: { not: "ARCHIVED" } },
-    include: {
-      steps: { where: { isActive: true }, include: { stepVersion: { include: { stepTemplate: true } } }, orderBy: { sortOrder: "asc" } },
-      dateType: true,
-      _count: { select: { assignments: true, jumps: true } }
-    },
-    orderBy: { createdAt: "desc" }
-  });
+  const [mixes, broadcastSchedules] = await Promise.all([
+    prisma.mix.findMany({
+      where: { workspaceId: workspace.id, status: { not: "ARCHIVED" } },
+      include: {
+        steps: { where: { isActive: true }, include: { stepVersion: { include: { stepTemplate: true } } }, orderBy: { sortOrder: "asc" } },
+        dateType: true,
+        _count: { select: { assignments: true, jumps: true } }
+      },
+      orderBy: { createdAt: "desc" }
+    }),
+    prisma.mixBroadcastSchedule.findMany({ where: { workspaceId: workspace.id } })
+  ]);
+  const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
   const limits = PLAN_LIMITS[workspace.planTier];
   const canUseWizard = limits.aiWizard;
   const activeCount = mixes.filter((mix) => mix.status === "ACTIVE").length;
@@ -51,7 +57,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
       {params.updated === "manual" && <Notice type="success">Mix updated. Removed or rescheduled future work is being reconciled.</Notice>}
       {params.activated && <Notice type="success">Mix activated. Matching future Jumps are being reconciled automatically.</Notice>}
       {params.paused && <Notice type="success">Mix paused. Future pending Jumps from this Mix were removed from the action queue.</Notice>}
-      {params.archived && <Notice type="success">Mix archived. Completed history remains available.</Notice>}
+      {params.archived && <Notice type="success">Mix archived. Incomplete Jumps were removed while completed history remains available.</Notice>}
       {params.starter === "exists" && <Notice type="info">Your simple starter Mix is already available below.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
       <header className="page-header">
@@ -67,43 +73,47 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
 
       {mixes.length ? (
         <div className="mix-list">
-          {mixes.map((mix) => (
-            <article className="mix-row mix-card" key={mix.id}>
-              <div className="card-header">
-                <div>
-                  <h3>{mix.name}</h3>
-                  <div className="mix-meta">
-                    <span className={`status-pill ${mix.status === "ACTIVE" ? "done" : ""}`}>{mix.status.toLowerCase()}</span>
-                    <span>{mix.triggerMode.replaceAll("_", " ").toLowerCase()}</span>
-                    {mix.dateType && <span>Target Jump Date Type: {mix.dateType.name}</span>}
-                    <span>{mix._count.assignments} assignments</span>
+          {mixes.map((mix) => {
+            const broadcast = broadcastByMixId.get(mix.id);
+            return (
+              <article className="mix-row mix-card" key={mix.id}>
+                <div className="card-header">
+                  <div>
+                    <h3>{mix.name}</h3>
+                    <div className="mix-meta">
+                      <span className={`status-pill ${mix.status === "ACTIVE" ? "done" : ""}`}>{mix.status.toLowerCase()}</span>
+                      <span>{mix.triggerMode.replaceAll("_", " ").toLowerCase()}</span>
+                      {mix.dateType && <span>Target Jump Date Type: {mix.dateType.name}</span>}
+                      {broadcast && <span>Broadcast: {formatDateInput(broadcast.localDate)} · {formatTimeInput(broadcast.timeMinutes)} {broadcast.timezone}</span>}
+                      <span>{mix._count.assignments} assignments</span>
+                    </div>
+                  </div>
+                  <div className="mix-card-actions">
+                    <Link href={`/mixes/${mix.id}/edit`} className="button small">Edit</Link>
+                    {mix.status === "ACTIVE" ? (
+                      <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id} /><button className="button small" type="submit">Pause</button></form>
+                    ) : (
+                      <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id} /><button className="button small primary" type="submit">Activate</button></form>
+                    )}
+                    <details className="destructive-confirm">
+                      <summary className="button small danger">Archive…</summary>
+                      <div className="destructive-confirm-panel"><p>Archive this Mix? Incomplete Jumps will be canceled; completed history stays intact.</p><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id} /><button className="button small danger" type="submit">Confirm archive</button></form></div>
+                    </details>
                   </div>
                 </div>
-                <div className="mix-card-actions">
-                  <Link href={`/mixes/${mix.id}/edit`} className="button small">Edit</Link>
-                  {mix.status === "ACTIVE" ? (
-                    <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id} /><button className="button small" type="submit">Pause</button></form>
-                  ) : (
-                    <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id} /><button className="button small primary" type="submit">Activate</button></form>
-                  )}
-                  <details className="destructive-confirm">
-                    <summary className="button small danger">Archive…</summary>
-                    <div className="destructive-confirm-panel"><p>Archive this Mix? Future pending Jumps will be canceled; completed history stays intact.</p><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id} /><button className="button small danger" type="submit">Confirm archive</button></form></div>
-                  </details>
+                {mix.description && <p className="muted-copy">{mix.description}</p>}
+                <div className="mix-sequence-preview" aria-label={`${mix.name} Jump sequence`}>
+                  {mix.steps.length ? mix.steps.map((step, index) => (
+                    <div className="mix-sequence-item" key={step.id}><span className="mix-sequence-number">Jump #{index + 1}</span><span className="timeline-icon" aria-hidden="true">{channelIcon(step.stepVersion.stepTemplate.channel)}</span><span><strong>{step.stepVersion.stepTemplate.name}</strong><small>Day {step.dayOffset}</small></span></div>
+                  )) : <span className="status-pill">No Jumps added yet</span>}
                 </div>
-              </div>
-              {mix.description && <p className="muted-copy">{mix.description}</p>}
-              <div className="mix-sequence-preview" aria-label={`${mix.name} Jump sequence`}>
-                {mix.steps.length ? mix.steps.map((step, index) => (
-                  <div className="mix-sequence-item" key={step.id}><span className="mix-sequence-number">Jump #{index + 1}</span><span className="timeline-icon" aria-hidden="true">{channelIcon(step.stepVersion.stepTemplate.channel)}</span><span><strong>{step.stepVersion.stepTemplate.name}</strong><small>Day {step.dayOffset}</small></span></div>
-                )) : <span className="status-pill">No Jumps added yet</span>}
-              </div>
-              <details className="mix-details"><summary>View prepared content</summary><div className="timeline">{mix.steps.map((step, index) => {
-                const content = step.stepVersion.body ?? step.stepVersion.script ?? "No message content";
-                return <div className="timeline-step" key={step.id}><div className="timeline-day">Jump #{index + 1}<small>Day {step.dayOffset}</small></div><div className="timeline-icon">{channelIcon(step.stepVersion.stepTemplate.channel)}</div><div className="timeline-content"><strong>{step.stepVersion.stepTemplate.name}</strong><span className="channel-pill">{step.stepVersion.stepTemplate.channel.replaceAll("_", " ")}</span><p>{step.stepVersion.subject && `${step.stepVersion.subject}\n`}{content}</p></div></div>;
-              })}</div></details>
-            </article>
-          ))}
+                <details className="mix-details"><summary>View prepared content</summary><div className="timeline">{mix.steps.map((step, index) => {
+                  const content = step.stepVersion.body ?? step.stepVersion.script ?? "No message content";
+                  return <div className="timeline-step" key={step.id}><div className="timeline-day">Jump #{index + 1}<small>Day {step.dayOffset}</small></div><div className="timeline-icon">{channelIcon(step.stepVersion.stepTemplate.channel)}</div><div className="timeline-content"><strong>{step.stepVersion.stepTemplate.name}</strong><span className="channel-pill">{step.stepVersion.stepTemplate.channel.replaceAll("_", " ")}</span><p>{step.stepVersion.subject && `${step.stepVersion.subject}\n`}{content}</p></div></div>;
+                })}</div></details>
+              </article>
+            );
+          })}
         </div>
       ) : (
         <EmptyState title="Create your first Mix" description="Start with a reusable Jump sequence, then choose its trigger and audience." actionHref="/mixes/new" actionLabel="Create a Mix" />
