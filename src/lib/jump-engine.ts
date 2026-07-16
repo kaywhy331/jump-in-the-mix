@@ -90,6 +90,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
             emails: true,
             phones: true,
             addresses: true,
+            customFieldValues: { include: { definition: true } },
             jumpDates: { include: { dateType: true }, where: { isActive: true } }
           }
         },
@@ -102,6 +103,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
                     emails: true,
                     phones: true,
                     addresses: true,
+                    customFieldValues: { include: { definition: true } },
                     jumpDates: { include: { dateType: true }, where: { isActive: true } }
                   }
                 }
@@ -131,6 +133,15 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
     })
   ]);
 
+  const broadcastSchedules = assignments.length
+    ? await prisma.mixBroadcastSchedule.findMany({
+        where: {
+          mixId: { in: [...new Set(assignments.map((assignment) => assignment.mixId))] },
+          ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {})
+        }
+      })
+    : [];
+  const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
   const stopped = new Set(stops.map((item) => stopKey(item.mixId, item.contactId)));
   const desired = new Map<string, DesiredJump>();
 
@@ -166,6 +177,19 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
               timeMinutes: jumpDate.timeMinutes
             });
           }
+        }
+      } else if (assignment.mix.triggerMode === "BROADCAST") {
+        const schedule = broadcastByMixId.get(assignment.mixId);
+        if (schedule) {
+          const logicalDate = logicalDateFromDate(schedule.localDate);
+          triggers.push({
+            logicalDate,
+            jumpDateId: null,
+            occurrenceKey: `broadcast:${schedule.id}:${logicalDateKey(logicalDate)}`,
+            reason: assignment.mix.name,
+            timezone: schedule.timezone,
+            timeMinutes: schedule.timeMinutes
+          });
         }
       } else {
         const manual = triggerForManualAssignment(assignment.startDate ?? assignment.createdAt);
