@@ -31,13 +31,25 @@
 .stopped-mix-section { display: grid; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 .stopped-mix-section h3 { margin: 0; font-size: .86rem; }
 
+.custom-field-list { display: grid; gap: 10px; }
+.custom-field-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 13px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-soft); }
+.custom-field-row > div:first-child { display: grid; gap: 4px; min-width: 0; }
+.custom-field-row code, .contact-editor .field label code { width: fit-content; max-width: 100%; overflow-wrap: anywhere; color: var(--brand-dark); font-size: .72rem; }
+.custom-field-row small { color: var(--muted); }
+.contact-editor .field label { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.placeholder-chip.static { display: inline-flex; align-items: center; cursor: default; user-select: text; }
+
+.broadcast-fields { display: grid; gap: 12px; }
+.broadcast-field-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.broadcast-field-grid .field { margin: 0; }
+
 @media (max-width: 980px) {
   .bulk-contact-bar { left: 16px; }
 }
 
 @media (max-width: 760px) {
   .contacts-page-header { display: grid; }
-  .contacts-page-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+  .contacts-page-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
   .contacts-page-actions .button, .contacts-page-actions .group-manager { width: 100%; }
   .contacts-page-actions .group-manager > summary { width: 100%; }
   .contact-select-row { grid-template-columns: 44px minmax(0, 1fr); gap: 7px; }
@@ -52,11 +64,14 @@
   .bulk-mode-choice { display: grid; grid-template-columns: 1fr 1fr; }
   .assigned-mix-row { align-items: flex-start; }
   .assigned-mix-actions { width: 100%; justify-content: flex-start; }
+  .custom-field-row { grid-template-columns: 1fr 1fr; }
+  .custom-field-row > div:first-child { grid-column: 1 / -1; }
+  .broadcast-field-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 430px) {
-  .contacts-page-actions { grid-template-columns: 1fr 1fr; }
   .contacts-page-actions .group-manager { grid-column: 1 / -1; }
   .bulk-selection-count { min-width: 74px; }
   .bulk-selection-count span { display: none; }
+  .custom-field-row { grid-template-columns: 1fr; }
 }
