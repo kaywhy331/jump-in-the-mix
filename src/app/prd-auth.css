@@ -1,0 +1,33 @@
+.auth-inline-actions { display: flex; justify-content: flex-end; margin-top: -4px; font-size: .85rem; }
+.auth-inline-actions a { color: var(--brand-dark); font-weight: 750; }
+.account-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
+.account-summary-card, .account-password-card, .account-sessions-card { margin-top: 0; }
+.account-definition-list { display: grid; gap: 0; margin: 0; }
+.account-definition-list > div { display: grid; grid-template-columns: minmax(115px, .38fr) minmax(0, 1fr); gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.account-definition-list > div:last-child { border-bottom: 0; }
+.account-definition-list dt { color: var(--muted); font-size: .78rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.account-definition-list dd { margin: 0; overflow-wrap: anywhere; font-weight: 700; text-transform: capitalize; }
+.session-list { display: grid; gap: 9px; }
+.session-row { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 11px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-soft); }
+.session-row h3 { margin: 0; display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: .95rem; }
+.session-row p { margin: 4px 0 2px; color: var(--muted); font-size: .82rem; }
+.session-row small { color: var(--muted); }
+.session-device-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; background: var(--brand-soft); color: var(--brand-dark); font-weight: 900; }
+.account-signout-all { margin-top: 16px; display: inline-block; }
+.account-sidebar-footer { display: grid; gap: 8px; }
+.account-sidebar-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.account-sidebar-actions form { margin: 0; }
+
+@media (max-width: 860px) {
+  .account-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .session-row { grid-template-columns: 42px minmax(0, 1fr); align-items: start; }
+  .session-row form { grid-column: 2; }
+  .session-row .button { width: 100%; }
+  .account-definition-list > div { grid-template-columns: 1fr; gap: 3px; }
+  .account-sessions-card .card-header { align-items: stretch; }
+  .account-sessions-card .card-header form, .account-sessions-card .card-header .button { width: 100%; }
+  .account-signout-all, .account-signout-all > summary { width: 100%; }
+}
