@@ -128,12 +128,15 @@ The `agent/prd-core-foundation` change set now includes:
 
 ### Production migration and restoration foundation
 
-- The repository now contains Prisma migration history instead of relying exclusively on `db push`.
-- A no-op historical marker supports existing populated MVP databases after a one-time `migrate resolve --applied` baseline step.
+- The repository now contains complete Prisma migration history instead of relying exclusively on `db push`.
+- The legacy baseline is generated directly from the schema represented by `main`; CI byte-compares the generated portable SQL with the committed migration to prevent drift.
+- Existing populated MVP databases enter migration history through a one-time `migrate resolve --applied` baseline step, after which only the guarded forward migration runs.
+- Clean databases can run `prisma migrate deploy` directly; the complete baseline creates the MVP schema before the forward migration runs.
 - The guarded forward migration adds Private Notes, historical Mix sequence support, authentication throttling, Mix stops, action events, fixed-date broadcast schedules, and administrator support-session records.
 - Existing MixStep rows are backfilled with `isActive = true` and a non-null `updatedAt`; the old unique sort-position index is replaced by an active-sequence ordering index.
-- CI automatically provisions a populated legacy database, resolves the historical baseline, applies the forward migration, validates legacy-data preservation, executes the reviewed pre-traffic reverse SQL, and reapplies the forward migration.
-- A production runbook documents backup, staging restoration, row-count checks, worker pausing, first deployment, smoke testing, and backup-based production rollback.
+- CI automatically rehearses both a populated legacy upgrade and a clean database deployment.
+- The populated rehearsal validates legacy-data preservation, executes reviewed pre-traffic reverse SQL, and reapplies the forward migration.
+- A production runbook documents backup, staging restoration, row-count checks, worker pausing, existing/clean deployment paths, smoke testing, and backup-based production rollback.
 
 ### Audited view-only administrator support
 
