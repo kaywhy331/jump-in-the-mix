@@ -9,7 +9,7 @@ The independent MVP historically created databases with `prisma db push`. Existi
 1. `20260715000000_existing_mvp_baseline` — no-op marker for the existing MVP schema.
 2. `20260716020000_prd_core_foundation` — guarded additive migration for the PRD core features.
 
-A populated MVP database can run `prisma migrate deploy` directly. Prisma records the no-op marker and then applies the additive migration. The forward migration uses guarded additions so a preview database that already received selected fields through `db push` can still enter migration history safely.
+A populated MVP database must mark the no-op baseline as applied **once** before the first migration-based deployment. Prisma otherwise correctly refuses to deploy into a non-empty database without migration history. After the baseline is resolved, `prisma migrate deploy` applies the guarded forward migration. The forward migration uses idempotent additions so a preview database that already received selected fields through `db push` can still enter migration history safely.
 
 Greenfield/local installations continue to use `npm run db:setup` until a future release replaces the historical bootstrap with a complete empty-database baseline.
 
@@ -44,16 +44,21 @@ npm run db:generate
 npm run db:rehearse-migration
 ```
 
-The rehearsal creates an isolated schema, provisions the legacy `main` schema, inserts representative populated records, applies both migrations, validates data preservation and new objects, executes the pre-traffic rollback, and reapplies the migrations. It drops the isolated schema when complete.
+The rehearsal creates an isolated schema, provisions the legacy `main` schema, inserts representative populated records, resolves the historical baseline, applies the forward migration, validates data preservation and new objects, executes the pre-traffic reverse SQL, and reapplies the forward migration. It drops the isolated schema when complete.
 
-## Production deployment
+## First production deployment for an existing MVP database
+
+During the write-frozen deployment window:
 
 ```bash
 export DATABASE_URL='postgresql://...'
 npm install --no-audit --no-fund
 npm run db:generate
+npx prisma migrate resolve --applied 20260715000000_existing_mvp_baseline
 npm run db:deploy
 ```
+
+Run the `migrate resolve` command only for a populated database that has never entered Prisma migration history. If the baseline is already present in `_prisma_migrations`, run only `npm run db:deploy`.
 
 Do not run `prisma db push` against a populated production database during this release.
 
@@ -93,7 +98,9 @@ Compare the recorded row counts with the pre-deployment values. Expected changes
 
 ## Rollback and restoration policy
 
-### Before production traffic reaches the new schema
+Prisma Migrate does not provide automatic down migrations. Production rollback is therefore **backup restoration**, not an attempt to edit a successfully applied migration record in place.
+
+### Automated rehearsal and isolated staging
 
 The reviewed reverse SQL is stored at:
 
@@ -101,17 +108,19 @@ The reviewed reverse SQL is stored at:
 prisma/migrations/20260716020000_prd_core_foundation/rollback.sql
 ```
 
-It may be executed only before any new-schema data is relied upon. It refuses to restore the legacy MixStep uniqueness rule when duplicate sort positions exist.
+It is exercised automatically in an isolated schema to prove that the additive changes can be removed while legacy records remain readable. It refuses to restore the legacy MixStep uniqueness rule when duplicate sort positions exist.
 
-After running the reverse SQL, mark the forward migration rolled back before another deployment attempt:
+### Production
 
-```bash
-npx prisma migrate resolve --rolled-back 20260716020000_prd_core_foundation
-```
+If a launch-blocking problem is discovered before or after traffic reaches the new schema:
 
-### After production traffic reaches the new schema
+1. Stop application and worker writes.
+2. Restore the validated pre-deployment backup into a clean database or schema.
+3. Point the application and worker at the restored database.
+4. Run the pre-migration application version.
+5. Verify row counts and critical workflows before reopening traffic.
 
-Restore the validated pre-deployment backup instead of running destructive reverse SQL. The new tables may contain security events, action history, stops, broadcast schedules, or support-view audit information that cannot be safely represented in the legacy schema.
+Do not run the reverse SQL on an active production database after users have created new-schema data. The new tables may contain security events, action history, stops, broadcast schedules, or support-view audit information that cannot be represented in the legacy schema.
 
 Document:
 
