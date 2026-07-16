@@ -36,7 +36,7 @@ describe("billing catalog", () => {
     expect(billingPriceId("PLUS", "MONTHLY")).toBe("price_plus_monthly");
     expect(billingPriceId("PRO", "ANNUAL")).toBe("price_pro_annual");
     expect(billingSelectionForPriceId("price_plus_annual")).toEqual({ planTier: "PLUS", billingPeriod: "ANNUAL", priceId: "price_plus_annual" });
-    expect(billingSelectionForPriceId("price_unknown")).toBeNull();
+    expect(() => billingSelectionForPriceId("price_unknown")).toThrow(/allowlist/i);
   });
 
   it("uses the approved monthly and annual display pricing", () => {
