@@ -13,7 +13,10 @@ import {
   SUPPORT_STATUSES,
   supportCategoryLabel,
   supportPriorityLabel,
-  supportStatusLabel
+  supportStatusLabel,
+  type SupportCategoryValue,
+  type SupportPriorityValue,
+  type SupportStatusValue
 } from "@/lib/support-content";
 
 export const metadata: Metadata = { title: "Admin · Support" };
@@ -28,9 +31,12 @@ type SearchParams = {
 export default async function AdminSupportPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params] = await Promise.all([searchParams, requirePlatformAdmin()]);
   const query = params.q?.trim() ?? "";
-  const status = isSupportStatus(params.status ?? "") ? params.status! : "all";
-  const category = isSupportCategory(params.category ?? "") ? params.category! : "all";
-  const priority = isSupportPriority(params.priority ?? "") ? params.priority! : "all";
+  const statusValue = params.status ?? "";
+  const categoryValue = params.category ?? "";
+  const priorityValue = params.priority ?? "";
+  const status: SupportStatusValue | "all" = isSupportStatus(statusValue) ? statusValue : "all";
+  const category: SupportCategoryValue | "all" = isSupportCategory(categoryValue) ? categoryValue : "all";
+  const priority: SupportPriorityValue | "all" = isSupportPriority(priorityValue) ? priorityValue : "all";
 
   const [matchingUsers, matchingWorkspaces] = query
     ? await Promise.all([
