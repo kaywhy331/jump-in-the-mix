@@ -1,6 +1,7 @@
+import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
-import { logoutAction } from "@/lib/actions";
+import { logoutAction } from "@/lib/auth-actions";
 
 export function AppShell({
   children,
@@ -22,10 +23,13 @@ export function AppShell({
           <small>{planTier} plan</small>
         </div>
         <Nav />
-        <form action={logoutAction} className="sidebar-footer">
+        <div className="sidebar-footer account-sidebar-footer">
           <span className="user-label">Signed in as {userName}</span>
-          <button className="text-button" type="submit">Sign out</button>
-        </form>
+          <div className="account-sidebar-actions">
+            <Link className="text-button" href="/account">My Account</Link>
+            <form action={logoutAction}><button className="text-button" type="submit">Sign out</button></form>
+          </div>
+        </div>
       </aside>
       <main className="app-main">{children}</main>
       <div className="mobile-nav"><Nav /></div>
