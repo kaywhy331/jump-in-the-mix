@@ -10,6 +10,7 @@ import "./prd-google.css";
 import "./prd-templates.css";
 import "./prd-ai.css";
 import "./prd-billing.css";
+import "./prd-support.css";
 
 export const metadata: Metadata = {
   title: {
