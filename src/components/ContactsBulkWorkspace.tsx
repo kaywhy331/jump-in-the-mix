@@ -123,7 +123,17 @@ export function ContactsBulkWorkspace({
           </details>
           <Link className="button" href="/contacts/custom-fields">Custom fields</Link>
           {contacts.length > 0 && <button className="button" type="button" onClick={toggleAll}>{allSelected ? "Deselect all" : "Select all"}</button>}
-          <Link href="/contacts/new" className="button primary">+ Add contact</Link>
+          <details className="group-manager contact-add-menu">
+  <summary className="button primary">+ Add</summary>
+  <div className="group-manager-panel contact-add-panel">
+    <div className="section-label"><h2>Add Contacts</h2><span>Choose a source</span></div>
+    <div className="settings-hub-grid contact-acquisition-grid">
+      <Link className="settings-hub-card" href="/contacts/new"><span className="settings-hub-icon">＋</span><span><strong>New Contact</strong><small>Enter one person manually.</small></span></Link>
+      <Link className="settings-hub-card" href="/contacts/import"><span className="settings-hub-icon">⇧</span><span><strong>Import CSV / VCF</strong><small>Map, deduplicate, review, and import a file.</small></span></Link>
+      <Link className="settings-hub-card" href="/account#google-contacts"><span className="settings-hub-icon">G</span><span><strong>Google Contacts</strong><small>Connect labels or all Contacts on Plus and Pro.</small></span></Link>
+    </div>
+  </div>
+</details>
         </div>
       </header>
 
