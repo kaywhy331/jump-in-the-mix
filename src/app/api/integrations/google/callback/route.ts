@@ -28,8 +28,9 @@ export async function GET(request: Request) {
   if (!state) return NextResponse.redirect(new URL("/account?googleError=Missing+OAuth+state", request.url));
 
   let returnTo = "/account";
+  let codeVerifier: string | null = null;
   try {
-    ({ returnTo } = await consumeGoogleOAuthState(membership.workspaceId, state));
+    ({ returnTo, codeVerifier } = await consumeGoogleOAuthState(membership.workspaceId, state));
     const oauthError = requestUrl.searchParams.get("error");
     if (oauthError) {
       const description = requestUrl.searchParams.get("error_description") || "Google access was not approved.";
@@ -55,7 +56,7 @@ export async function GET(request: Request) {
       }
     }
 
-    const credentials = await exchangeGoogleAuthorizationCode(code, existingRefreshToken);
+    const credentials = await exchangeGoogleAuthorizationCode(code, existingRefreshToken, codeVerifier);
     const account = await fetchGoogleUserInfo(credentials.accessToken);
     const externalAccountId = account.sub || account.email || null;
     const accountChanged = Boolean(existing?.externalAccountId && externalAccountId && existing.externalAccountId !== externalAccountId);
