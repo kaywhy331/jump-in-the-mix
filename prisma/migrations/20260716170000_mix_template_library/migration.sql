@@ -63,6 +63,7 @@ CREATE INDEX "SharedMixVote_sharedMixId_createdAt_idx"
 
 INSERT INTO "SharedMixMetadata" (
   "sharedMixId",
+  "publisherWorkspaceId",
   "isPlatform",
   "triggerMode",
   "version",
@@ -74,6 +75,7 @@ INSERT INTO "SharedMixMetadata" (
 )
 SELECT
   "id",
+  "publisherWorkspaceId",
   CASE WHEN "publisherWorkspaceId" IS NULL THEN true ELSE false END,
   'MANUAL_START'::"MixTriggerMode",
   1,
