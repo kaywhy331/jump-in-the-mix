@@ -28,7 +28,9 @@ The `agent/prd-core-foundation` change set now includes:
 - Explicit Mix pause and archive behavior that removes future pending work while preserving history.
 - A mobile-oriented Jump page that defaults to overdue plus today, places Pending above Completed, supports Done/Undo/Skip, and exposes direct channel actions.
 - Due, Week, Month, status, and channel filters.
-- Jump scheduling unit coverage for leap years, month-end behavior, timezones, and key stability.
+- Durable communication action events for copied content, opened composers, phone calls, and voicemail actions.
+- Recent action history in the expanded Jump view.
+- Jump scheduling and rendering unit coverage for leap years, month-end behavior, timezones, key stability, and private-note restrictions.
 
 ### Contacts and Groups
 
@@ -41,7 +43,13 @@ The `agent/prd-core-foundation` change set now includes:
 - Private Notes available only to Phone Call Jump scripts.
 - Contact Group creation, deletion, filtering, display, and individual membership editing from the Contacts experience.
 - Jump Date removal and Mix-assignment removal with reconciliation.
-- Contact-input unit coverage for normalization, deduplication, addresses, and primary selections.
+- Mobile-first multi-select, Select All/Deselect All, and a persistent bulk action bar.
+- Bulk Contact Group assignment and removal.
+- Apply Jump for an existing reusable Jump or one-time channel content.
+- One-time applied Jumps are protected from normal Mix reconciliation and appear immediately in the Jump queue.
+- Selected-Contact CSV export with primary values, Groups, Jump Dates, and Public Notes; Private Notes are excluded.
+- Bulk archive with pending-Jump cancellation and completed-history preservation.
+- Contact-input and export unit coverage for normalization, deduplication, addresses, primary selections, and CSV escaping.
 
 ### Jump Date Types
 
@@ -65,7 +73,7 @@ The `agent/prd-core-foundation` change set now includes:
 - Channel immutability after creation to preserve historical interpretation.
 - Mix association display and archive protection while a Jump is actively used.
 
-### Mix builder
+### Mix builder and Contact-specific stops
 
 - Manual Mix creation and editing.
 - Draft, Active, and Paused states with active-plan-limit enforcement.
@@ -78,15 +86,16 @@ The `agent/prd-core-foundation` change set now includes:
 - Transactional saves.
 - Removed sequence rows with completed history are retained internally as inactive; unused rows are deleted.
 - Future pending Jumps reconcile after every save without rewriting completed history.
+- A Contact-specific Mix stop that cancels pending work without deleting the Mix, assignment, or history.
+- Stop Mix from a Jump or Contact record, and Resume from the Contact record.
+- Reconciliation excludes stopped Contact/Mix pairs and restores valid future work after resume.
 
 ## Remaining P0 work
 
 - Reviewed production Prisma migration and populated-database migration test.
 - Cross-workspace authorization test suite for every read and mutation.
 - Contact custom-field definition and value management UI.
-- Bulk Contact selection, Group assignment, Apply Jump, CSV export, and archive actions.
 - Fixed-date broadcast scheduling and a clearer distinction between broadcast snapshots and manual starts.
-- MixStop and communication action-event models/UI.
 - Email verification, password recovery, rate limiting, CSRF/origin review, and session management.
 
 ## Remaining P1 work
