@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ContactsBulkWorkspace, type ContactBulkDto } from "@/components/ContactsBulkWorkspace";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
@@ -112,6 +113,10 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.bulkRemoved && <Notice type="success">Removed the group from {params.bulkRemoved} selected Contact{params.bulkRemoved === "1" ? "" : "s"}.</Notice>}
       {params.bulkArchived && <Notice type="success">Archived {params.bulkArchived} Contact{params.bulkArchived === "1" ? "" : "s"}. Completed history remains preserved.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
+      <div className="contact-import-shortcut">
+        <span>Moving from a spreadsheet, CRM export, or phone address book?</span>
+        <Link className="button" href="/contacts/import">Import CSV / VCF</Link>
+      </div>
       <ContactsBulkWorkspace
         contacts={contactDtos}
         groups={groups.map((group) => ({ id: group.id, name: group.name, description: group.description, color: group.color, contactCount: group._count.memberships }))}
