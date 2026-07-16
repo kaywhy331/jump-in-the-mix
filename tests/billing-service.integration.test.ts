@@ -157,15 +157,17 @@ describe.sequential("Stripe subscription reconciliation", () => {
     expect(await prisma.auditLog.count({ where: { workspaceId: ids.workspace, action: "billing.subscription.sync" } })).toBe(3);
   });
 
-  it("rejects an unknown Price when trusted plan metadata is absent", async () => {
+  it("rejects an unknown Price even when subscription metadata claims a paid tier", async () => {
     const unknown = subscription({
       id: `sub_unknown_${suffix}`,
       workspaceId: ids.workspace,
       customerId: ids.customer,
       priceId: `price_unknown_${suffix}`,
-      status: "active"
+      status: "active",
+      planTier: "PRO",
+      billingPeriod: "ANNUAL"
     });
-    await expect(syncStripeSubscription({ subscription: unknown, eventType: "customer.subscription.created" })).rejects.toThrow(/unrecognized price/i);
+    await expect(syncStripeSubscription({ subscription: unknown, eventType: "customer.subscription.created" })).rejects.toThrow(/allowlist/i);
     expect(await prisma.subscription.count({ where: { stripeSubscriptionId: unknown.id } })).toBe(0);
   });
 });
