@@ -56,6 +56,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
           <p>Find an account and open a time-limited, fully audited, view-only support session.</p>
         </div>
         <div className="page-actions">
+          <Link className="button" href="/admin/support">Support</Link>
           <Link className="button" href="/admin/billing">Billing</Link>
           <Link className="button" href="/admin/templates">Mix Templates</Link>
           <Link className="button" href="/admin/integrations">Integrations</Link>
