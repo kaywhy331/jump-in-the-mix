@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { processStripeEvent, type StripeEvent } from "@/lib/billing-service";
+import {
+  processStripeEvent,
+  syncStripeSubscription,
+  type StripeEvent,
+  type StripeSubscription
+} from "@/lib/billing-service";
 import { enforceCurrentWorkspacePlanLimits } from "@/lib/plan-downgrade";
 import { prisma } from "@/lib/prisma";
 import {
@@ -22,6 +27,17 @@ function parseStripeEvent(payload: string): StripeEvent {
     throw new Error("The Stripe event payload is incomplete.");
   }
   return value as StripeEvent;
+}
+
+async function reconcileEvent(event: StripeEvent): Promise<{ workspaceId: string | null }> {
+  if (event.type === "customer.subscription.paused" || event.type === "customer.subscription.resumed") {
+    const synced = await syncStripeSubscription({
+      subscription: event.data.object as StripeSubscription,
+      eventType: event.type
+    });
+    return { workspaceId: synced.workspaceId };
+  }
+  return processStripeEvent(event);
 }
 
 export async function POST(request: Request) {
@@ -78,7 +94,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await processStripeEvent(event);
+    const result = await reconcileEvent(event);
     const workspace = result.workspaceId
       ? await prisma.workspace.findUnique({ where: { id: result.workspaceId }, select: { planTier: true } })
       : null;
