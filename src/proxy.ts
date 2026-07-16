@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const IMPERSONATION_COOKIE = process.env.AUTH_IMPERSONATION_COOKIE_NAME ?? "jitm_impersonation";
+const IMPERSONATION_END_PATH = "/api/admin/impersonation/end";
 
 function configuredOrigins(): Set<string> {
   const values = [process.env.APP_URL, ...(process.env.AUTH_ALLOWED_ORIGINS ?? "").split(",")]
@@ -37,6 +39,12 @@ function mutationAllowed(request: NextRequest): boolean {
   return allowed.has(origin);
 }
 
+function impersonationMutationAllowed(request: NextRequest): boolean {
+  if (SAFE_METHODS.has(request.method.toUpperCase())) return true;
+  if (!request.cookies.get(IMPERSONATION_COOKIE)?.value) return true;
+  return request.nextUrl.pathname === IMPERSONATION_END_PATH;
+}
+
 function applySecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
@@ -57,6 +65,14 @@ export function proxy(request: NextRequest) {
       : new NextResponse("The request origin is not allowed.", { status: 403 });
     return applySecurityHeaders(response);
   }
+
+  if (!impersonationMutationAllowed(request)) {
+    const response = request.nextUrl.pathname.startsWith("/api/")
+      ? NextResponse.json({ error: "Administrator impersonation is view-only. End the session before making changes." }, { status: 403 })
+      : new NextResponse("Administrator impersonation is view-only. End the session before making changes.", { status: 403 });
+    return applySecurityHeaders(response);
+  }
+
   return applySecurityHeaders(NextResponse.next());
 }
 
