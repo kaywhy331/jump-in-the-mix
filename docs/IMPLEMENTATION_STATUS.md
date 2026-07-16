@@ -20,7 +20,7 @@ This document distinguishes the runnable independent application from the comple
 - Corrected Free/Plus/Pro limits for Contacts, Groups, custom Jump Date Types, active Mixes, sharing, Google Contacts, AI, and voicemail.
 - Timezone-aware logical-date scheduling and deterministic Jump keys.
 - Lifecycle reconciliation that creates missing work, updates mutable work, restores resumed occurrences, and cancels obsolete pending work.
-- Automatic reconciliation after Contact, Jump Date, Mix, audience, lifecycle, and personalization changes.
+- Automatic reconciliation after Contact, Jump Date, Mix, audience, lifecycle, personalization, import, provider-sync, and template-import changes.
 - Explicit Mix pause/archive and Contact-specific Stop/Resume behavior while preserving completed history.
 - Fixed-date broadcasts with a logical date, local time, IANA timezone, and explicit audience.
 - Jump page defaults to overdue plus today, orders Pending above Completed, and supports Done, Undo, Skip, direct actions, date/status/channel filters, and durable action events.
@@ -73,6 +73,24 @@ This document distinguishes the runnable independent application from the comple
 - Workspace-scoped audit records, authenticated provider routes, rate limits, support-view mutation blocking, scheduled-run idempotency, and encrypted-secret tests.
 - Unit, static-boundary, and PostgreSQL integration coverage for credential encryption, Person normalization, group selection, cursor handling, Contact creation/update, provider links, remote deletion preservation, and duplicate prevention.
 
+### Platform and Community Mix Templates
+
+- Separate Jump in the Mix and Community libraries with full-text search, Category and Industry filters, and Featured, Trending, Most Imported, and Newest ordering.
+- Human-readable previews of channel, timing, Target Jump Date Type, subjects, messages, and call/voicemail scripts instead of raw JSON.
+- Compatibility normalization for canonical and legacy `steps`, `jumps`, `sequence`, and nested `content` payload shapes.
+- Strict validation of channels, required content, day offsets, approved placeholders, and Phone-Call-only Private Notes before import or moderation.
+- Atomic import into an independent Draft Mix with new reusable Jump templates, immutable first versions, ordered Mix rows, versioned import record, audit record, and import count.
+- Explicit repeated-import confirmation; each import remains an independent Draft and cannot inherit a contributor's audience or activation state.
+- Date-triggered imports reuse an existing system/workspace Jump Date Type or create a custom type only within the importing plan's active allowance.
+- Community Public Profiles with display name, title, short bio, HTTPS avatar, and HTTPS website; private account and workspace data are not exposed.
+- Free/Plus/Pro Community sharing limits of 0/3/10 pending, approved, or flagged Mixes.
+- Versioned submission and resubmission, contributor-controlled unpublishing, one-vote-per-workspace toggling, self-vote rejection, and trending scoring.
+- Platform-admin moderation queue with search, source/status filters, human previews, contributor context, approve/flag/reject/unpublish states, moderation notes, and featured placement.
+- Platform templates created from tested administrator-workspace Mixes and edited through structured Jump fields rather than raw JSON.
+- Companion metadata tables preserve compatibility with existing seeded Shared Mix records while adding review state, versions, votes, contributor profiles, and import-version history.
+- Official seed templates include complete, validated Jump content for lead follow-up, referrals, client onboarding, and renewals.
+- Unit, static-boundary, and PostgreSQL integration coverage for normalization, privacy boundaries, plan limits, atomic Draft imports, date-type creation, versioning, voting, repeated imports, and cross-workspace source rejection.
+
 ### Jump Date Types
 
 - Tenant-owned custom Jump Date Types without per-user duplication of global system records.
@@ -121,10 +139,10 @@ This document distinguishes the runnable independent application from the comple
 ### Production migration and restoration foundation
 
 - Complete Prisma migration history instead of relying exclusively on `db push`.
-- A generated and drift-checked legacy baseline plus a guarded PRD forward migration.
+- A generated and drift-checked legacy baseline plus guarded forward migrations.
 - Supported clean-database deployment and existing populated-MVP upgrade paths.
 - Automated populated migration, data-preservation, reverse-SQL, forward-reapplication, and clean-deployment rehearsals.
-- Production runbook for backup, restore, row-count checks, worker pause/restart, smoke testing, and backup-based rollback.
+- Production runbooks for backup, restore, row-count checks, worker pause/restart, smoke testing, and backup-based rollback.
 
 ### Audited view-only administrator support
 
@@ -138,7 +156,7 @@ This document distinguishes the runnable independent application from the comple
 ## Remaining P0 work
 
 - Restore a real encrypted backup in production-like staging and complete the documented application/worker smoke matrix.
-- Add full browser-driven end-to-end tests for authenticated routes, import and Google UI, cross-workspace 404/redirect behavior, and mutation rejection.
+- Add full browser-driven end-to-end tests for authenticated routes, import, Google, template-library, and mutation-rejection behavior.
 - Require MFA for platform administrators before support views are enabled operationally.
 - Validate production transactional-email delivery and inbox placement before mandatory verification is enabled.
 - Complete the final security, accessibility, and operational launch review.
@@ -146,7 +164,6 @@ This document distinguishes the runnable independent application from the comple
 ## Remaining P1 work
 
 - Device Contact Picker / Quick Add capability and browser fallback polish.
-- Platform/community Mix Templates, moderation, voting, contributor profiles, sharing limits, and atomic imports.
 - Final four-question AI Mix Wizard and provider-backed refinement.
 - Stripe Checkout, Customer Portal, verified webhook reconciliation, downgrade workflow, and production Price IDs.
 - My Account billing, referrals, Help/FAQ, support tickets, and the broader administration dashboard.
