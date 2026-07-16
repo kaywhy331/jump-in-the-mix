@@ -333,10 +333,10 @@ async function resolveJumpDates(
 
 function jumpDateKey(value: {
   dateTypeId: string;
-  label: string | null;
-  dateValue: Date | null;
-  month: number | null;
-  day: number | null;
+  label?: string | null;
+  dateValue?: Date | null;
+  month?: number | null;
+  day?: number | null;
   recurrence: string;
 }): string {
   return [
