@@ -40,10 +40,28 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - name: Generate main-schema baseline SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts
+          git show origin/main:prisma/schema.prisma > .artifacts/main-schema.prisma
+          if ! npx prisma migrate diff --from-empty --to-schema .artifacts/main-schema.prisma --script > .artifacts/main-baseline.sql; then
+            npx prisma migrate diff --from-empty --to-schema-datamodel .artifacts/main-schema.prisma --script > .artifacts/main-baseline.sql
+          fi
+          test -s .artifacts/main-baseline.sql
+      - name: Upload generated baseline SQL
+        uses: actions/upload-artifact@v4
+        with:
+          name: prisma-main-baseline
+          path: .artifacts/main-baseline.sql
+          retention-days: 7
       - run: npm run db:generate
       - run: npm run validate:static
       - run: npm run db:push
