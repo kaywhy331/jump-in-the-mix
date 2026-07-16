@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GoogleContactsPanel } from "@/components/GoogleContactsPanel";
 import { Notice } from "@/components/Notice";
 import {
   changePasswordAction,
@@ -19,6 +20,8 @@ type SearchParams = {
   passwordChanged?: string;
   sessionRevoked?: string;
   sessionsClosed?: string;
+  google?: string;
+  googleError?: string;
 };
 
 export default async function AccountPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -53,9 +56,10 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   if (impersonation) {
     return (
       <div className="page account-page">
-        <header className="page-header"><div><h1>My Account</h1><p>Account identity is visible; security controls remain private during support access.</p></div></header>
-        <Notice type="info">This is a view-only administrator support session. Password controls, active devices, billing changes, and every other browser mutation are unavailable.</Notice>
+        <header className="page-header"><div><h1>My Account</h1><p>Account identity and integration state are visible; security controls remain private during support access.</p></div></header>
+        <Notice type="info">This is a view-only administrator support session. Password controls, active devices, billing changes, integrations, and every other browser mutation are unavailable.</Notice>
         <div className="account-grid">{accountSummary}</div>
+        <GoogleContactsPanel />
       </div>
     );
   }
@@ -63,10 +67,14 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   return (
     <div className="page account-page">
       <header className="page-header">
-        <div><h1>My Account</h1><p>Review account identity, password security, and active devices.</p></div>
+        <div><h1>My Account</h1><p>Review account identity, integrations, password security, and active devices.</p></div>
       </header>
 
       {params.error && <Notice type="error">{params.error}</Notice>}
+      {params.google === "connected" && <Notice type="success">Google Contacts connected. Choose labels, preview the import, and start the first sync below.</Notice>}
+      {params.google === "upgrade" && <Notice type="info">Google Contacts is available on Plus and Pro plans.</Notice>}
+      {params.google === "readonly" && <Notice type="info">End the view-only support session before connecting an external account.</Notice>}
+      {params.googleError && <Notice type="error">{params.googleError}</Notice>}
       {params.passwordChanged && <Notice type="success">Password updated. Other active sessions were signed out.</Notice>}
       {params.sessionRevoked && <Notice type="success">That session was signed out.</Notice>}
       {params.sessionsClosed !== undefined && <Notice type="success">Signed out {params.sessionsClosed} other session{params.sessionsClosed === "1" ? "" : "s"}.</Notice>}
@@ -83,6 +91,8 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           </form>
         </section>
       </div>
+
+      <GoogleContactsPanel />
 
       <section className="card account-sessions-card">
         <div className="card-header">
