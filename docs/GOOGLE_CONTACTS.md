@@ -55,6 +55,7 @@ Requirements:
 ## OAuth and credential controls
 
 - OAuth `state` is random, short-lived, one-time, and stored only as a SHA-256 hash.
+- Authorization codes are bound to the initiating request with an S256 PKCE verifier and challenge.
 - Tokens are encrypted with AES-256-GCM before database storage.
 - The account status route never returns encrypted credentials or decrypted tokens.
 - Access tokens are refreshed server-side.
