@@ -54,4 +54,11 @@ describe("Mix Template boundary", () => {
     expect(snapshot).not.toContain("group.find");
     expect(snapshot).not.toContain("jump.find");
   });
+
+  it("removes approved contributions from discovery when a public URL changes", () => {
+    const actions = read("src/lib/workspace-profile-actions.ts");
+    expect(actions).toContain('reviewState: "FLAGGED"');
+    expect(actions).toContain('data: { status: "PENDING" }');
+    expect(actions).toContain("profile-review-required");
+  });
 });
