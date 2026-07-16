@@ -36,6 +36,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
               planTier: true,
               subscriptionStatus: true,
               currentPeriodEnd: true,
+              cancelAtPeriodEnd: true,
               _count: { select: { contacts: true, mixes: true, jumps: true } }
             }
           }
@@ -55,6 +56,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
           <p>Find an account and open a time-limited, fully audited, view-only support session.</p>
         </div>
         <div className="page-actions">
+          <Link className="button" href="/admin/billing">Billing</Link>
           <Link className="button" href="/admin/templates">Mix Templates</Link>
           <Link className="button" href="/admin/integrations">Integrations</Link>
         </div>
@@ -97,7 +99,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                   <section className="admin-workspace-row" key={workspace.id}>
                     <div>
                       <strong>{workspace.name}</strong>
-                      <span>{role.toLowerCase()} · {workspace.planTier.toLowerCase()} · {workspace.subscriptionStatus.toLowerCase().replaceAll("_", " ")}</span>
+                      <span>{role.toLowerCase()} · {workspace.planTier.toLowerCase()} · {workspace.subscriptionStatus.toLowerCase().replaceAll("_", " ")}{workspace.cancelAtPeriodEnd ? " · canceling" : ""}</span>
                       <small>
                         {workspace._count.contacts} Contacts · {workspace._count.mixes} Mixes · {workspace._count.jumps} Jumps
                         {workspace.currentPeriodEnd ? ` · Period ends ${formatDate(workspace.currentPeriodEnd)}` : ""}
