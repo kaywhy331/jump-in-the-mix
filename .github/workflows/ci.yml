@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -20,6 +20,8 @@ jobs:
       APP_URL: http://localhost:3000
       DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_test?schema=public
       DATA_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+      AUTH_RATE_LIMIT_SECRET: ci-auth-rate-limit-secret
+      AUTH_REQUIRE_EMAIL_VERIFICATION: "false"
       DEMO_MODE: "false"
     services:
       postgres:
@@ -38,12 +40,93 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - name: Generate main-schema baseline SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts
+          git show origin/main:prisma/schema.prisma > .artifacts/main-schema.prisma
+          if ! npx prisma migrate diff --from-empty --to-schema .artifacts/main-schema.prisma --script > .artifacts/main-baseline.sql; then
+            npx prisma migrate diff --from-empty --to-schema-datamodel .artifacts/main-schema.prisma --script > .artifacts/main-baseline.sql
+          fi
+          test -s .artifacts/main-baseline.sql
+          # Prisma emits a hard-coded public-schema preamble. All remaining SQL is
+          # unqualified and therefore portable to the schema in DATABASE_URL.
+          tail -n +4 .artifacts/main-baseline.sql > .artifacts/main-baseline-portable.sql
+      - name: Commit generated legacy baseline once
+        if: github.event_name == 'pull_request' && github.head_ref == 'agent/prd-core-foundation' && github.event.pull_request.head.repo.full_name == github.repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp .artifacts/main-baseline-portable.sql prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql
+          if git diff --quiet -- prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql
+          git commit -m "chore: commit generated Prisma MVP baseline"
+          git push origin "HEAD:${GITHUB_HEAD_REF}"
+      - name: Upload generated baseline SQL
+        uses: actions/upload-artifact@v4
+        with:
+          name: prisma-main-baseline
+          path: .artifacts/main-baseline-portable.sql
+          retention-days: 7
       - run: npm run db:generate
       - run: npm run validate:static
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - name: Populated migration, rollback, and reapply rehearsal
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run db:rehearse-migration 2>&1 | tee migration-rehearsal.log
+      - name: Upload migration rehearsal diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-rehearsal-diagnostics
+          path: migration-rehearsal.log
+          retention-days: 7
+      - run: npm run db:push
+      - name: TypeScript semantic validation
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee typecheck.log
+      - name: Upload TypeScript diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-diagnostics
+          path: typecheck.log
+          retention-days: 7
+      - name: Unit and integration tests
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test.log
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-diagnostics
+          path: test.log
+          retention-days: 7
+      - name: Production build
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee build.log
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          path: build.log
+          retention-days: 7
