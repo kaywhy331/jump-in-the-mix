@@ -14,7 +14,15 @@ const forwardMigration = "20260716020000_prd_core_foundation";
 const mixTemplateMigration = "20260716170000_mix_template_library";
 const supportMigration = "20260716210000_support_center";
 const referralMigration = "20260717010000_referral_rewards";
-const requiredMigrations = [baselineMigration, forwardMigration, mixTemplateMigration, supportMigration, referralMigration];
+const contactGroupActivationMigration = "20260717120000_contact_group_activation";
+const requiredMigrations = [
+  baselineMigration,
+  forwardMigration,
+  mixTemplateMigration,
+  supportMigration,
+  referralMigration,
+  contactGroupActivationMigration
+];
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const schemaName = `jitm_rehearsal_${suffix}`;
 const greenfieldSchemaName = `jitm_greenfield_${suffix}`;
@@ -115,6 +123,11 @@ async function seedLegacyDatabase(client) {
     [now]
   );
   await client.query(
+    `INSERT INTO "Group" ("id", "workspaceId", "name", "description", "createdAt", "updatedAt")
+     VALUES ('legacy-group', 'legacy-workspace', 'Legacy Group', 'Preserve this group', $1, $1)`,
+    [now]
+  );
+  await client.query(
     `INSERT INTO "StepTemplate" ("id", "workspaceId", "name", "channel", "isActive", "currentVersion", "createdAt", "updatedAt")
      VALUES ('legacy-template', 'legacy-workspace', 'Legacy SMS', 'SMS', true, 1, $1, $1)`,
     [now]
@@ -152,7 +165,8 @@ async function assertForwardState(client) {
     "SupportTicketMessage",
     "ReferralAccount",
     "Referral",
-    "ReferralReward"
+    "ReferralReward",
+    "ContactGroupState"
   ]) {
     if (!(await tableExists(client, table))) throw new Error(`Expected migrated table ${table}.`);
   }
@@ -240,6 +254,19 @@ async function assertForwardState(client) {
   if (referralThread.rows[0]?.code !== "LEGACYREF1" || referralThread.rows[0]?.status !== "QUALIFIED" || referralThread.rows[0]?.rewardCount !== 2) {
     throw new Error("Referral migration did not accept a qualified attribution and both reward records.");
   }
+
+  await client.query(
+    `INSERT INTO "ContactGroupState" ("groupId", "workspaceId", "isActive", "createdAt", "updatedAt")
+     VALUES ('legacy-group', 'legacy-workspace', false, $1, $1)
+     ON CONFLICT ("groupId") DO UPDATE SET "isActive" = EXCLUDED."isActive", "updatedAt" = EXCLUDED."updatedAt"`,
+    [now]
+  );
+  const groupState = await client.query(
+    `SELECT "workspaceId", "isActive" FROM "ContactGroupState" WHERE "groupId" = 'legacy-group'`
+  );
+  if (groupState.rows[0]?.workspaceId !== "legacy-workspace" || groupState.rows[0]?.isActive !== false) {
+    throw new Error("Contact Group activation migration did not accept a durable inactive-state write.");
+  }
 }
 
 async function assertRollbackState(client) {
@@ -270,7 +297,8 @@ async function assertGreenfieldState(client) {
     "SupportTicketMessage",
     "ReferralAccount",
     "Referral",
-    "ReferralReward"
+    "ReferralReward",
+    "ContactGroupState"
   ]) {
     if (!(await tableExists(client, table, greenfieldSchemaName))) {
       throw new Error(`Greenfield migration did not create ${table}.`);
