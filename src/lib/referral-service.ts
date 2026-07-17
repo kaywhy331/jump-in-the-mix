@@ -26,6 +26,8 @@ type ReferralAccountState = {
   code: string;
   plusExpiresAt: Date | null;
   bankedDays: number;
+  createdAt: Date;
+  updatedAt: Date;
 };
 
 export type ReferralInvite = {
@@ -461,7 +463,7 @@ export async function resolveWorkspacePlanAfterStripe(
 export async function reconcileWorkspaceReferralEntitlement(workspaceId: string, now = new Date()) {
   return prisma.$transaction(async (tx) => {
     const workspace = await tx.workspace.findUnique({ where: { id: workspaceId } });
-    let account = await tx.referralAccount.findUnique({ where: { workspaceId } });
+    let account: ReferralAccountState | null = await tx.referralAccount.findUnique({ where: { workspaceId } });
     if (!workspace || !account) return workspace;
 
     await markConsumedRewards(tx, workspaceId, now);
