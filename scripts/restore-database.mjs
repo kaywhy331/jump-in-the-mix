@@ -42,6 +42,7 @@ async function main() {
   if (process.env.DATABASE_URL && sameDatabase(process.env.DATABASE_URL, targetUrl)) {
     throw new Error("Restore target must be a different database from DATABASE_URL. In-place production restores are intentionally blocked.");
   }
+  const target = databaseIdentity(targetUrl);
 
   const manifestFile = resolve(argument("--manifest") ?? `${archivePath}.manifest.json`);
   const manifest = await loadManifest(manifestFile);
@@ -57,6 +58,8 @@ async function main() {
     const pgRestoreVersion = await commandVersion("pg_restore");
     await decryptFile(archivePath, rawDumpPath);
     await runCommand("pg_restore", [
+      "--dbname",
+      target.database,
       "--exit-on-error",
       "--no-owner",
       "--no-privileges",
@@ -69,7 +72,6 @@ async function main() {
       throw new Error(`Restored database did not match the backup manifest: ${differences.join("; ")}`);
     }
 
-    const target = databaseIdentity(targetUrl);
     console.log(JSON.stringify({
       status: "ok",
       targetDatabase: target.database,
