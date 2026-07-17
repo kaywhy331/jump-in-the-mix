@@ -7,6 +7,7 @@ describe("operations readiness boundaries", () => {
   it("keeps encrypted backup and restore commands explicit and safe", () => {
     const backup = read("scripts/backup-database.mjs");
     const archive = read("scripts/lib/backup-archive.mjs");
+    const postgres = read("scripts/lib/postgres-ops.mjs");
     const restore = read("scripts/restore-database.mjs");
     const smoke = read("scripts/smoke-restored-database.mjs");
     const rehearsal = read("scripts/rehearse-backup-restore.mjs");
@@ -15,8 +16,13 @@ describe("operations readiness boundaries", () => {
     expect(restore).toContain("Restore target must be a different database from DATABASE_URL");
     expect(restore).toContain("assertDatabaseEmpty");
     expect(restore).toContain("compareSnapshots");
-    expect(backup).toContain("PGDATABASE");
-    expect(restore).toContain("PGDATABASE");
+    expect(backup).toContain("postgresCliEnv");
+    expect(restore).toContain("postgresCliEnv");
+    expect(postgres).toContain("PGHOST");
+    expect(postgres).toContain("PGPORT");
+    expect(postgres).toContain("PGUSER");
+    expect(postgres).toContain("PGPASSWORD");
+    expect(postgres).toContain("PGDATABASE");
     expect(backup).not.toContain('"--dbname"');
     expect(restore).not.toContain('"--dbname"');
     expect(restore).not.toContain("--target-url");
