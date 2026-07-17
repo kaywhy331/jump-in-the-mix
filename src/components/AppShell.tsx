@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
+import { ReferralShareButton } from "@/components/ReferralShareButton";
 import { logoutAction } from "@/lib/auth-actions";
 
 export function AppShell({
@@ -9,6 +10,7 @@ export function AppShell({
   workspaceName,
   planTier,
   isPlatformAdmin,
+  referralMessage,
   impersonation
 }: {
   children: React.ReactNode;
@@ -16,6 +18,7 @@ export function AppShell({
   workspaceName: string;
   planTier: string;
   isPlatformAdmin: boolean;
+  referralMessage: string | null;
   impersonation: {
     targetName: string;
     targetEmail: string;
@@ -47,6 +50,7 @@ export function AppShell({
           <div className="account-sidebar-actions">
             {impersonation ? endImpersonationForm : (
               <>
+                {referralMessage && <ReferralShareButton message={referralMessage} compact className="referral-sidebar-share" />}
                 <Link className="text-button" href="/account">My Account</Link>
                 {isPlatformAdmin && <Link className="text-button" href="/admin/users">Admin</Link>}
                 <form action={logoutAction}><button className="text-button" type="submit">Sign out</button></form>
@@ -59,6 +63,7 @@ export function AppShell({
         <Logo />
         {impersonation ? endImpersonationForm : (
           <div className="mobile-account-actions">
+            {referralMessage && <ReferralShareButton message={referralMessage} compact />}
             {isPlatformAdmin && <Link className="button small" href="/admin/users">Admin</Link>}
             <Link className="button small" href="/account" aria-label={`Open My Account for ${userName}`}>My Account</Link>
           </div>
