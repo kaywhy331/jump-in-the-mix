@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { createAdminImpersonationGrant, impersonationCookieOptions } from "@/lib/impersonation";
+import { requestPublicUrl } from "@/lib/request-url";
 
 function redirectWithError(request: Request, message: string) {
-  const url = new URL("/admin/users", request.url);
+  const url = requestPublicUrl(request, "/admin/users");
   url.searchParams.set("error", message);
   return NextResponse.redirect(url, 303);
 }
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
       workspaceId,
       reason
     });
-    const response = NextResponse.redirect(new URL("/jumps?impersonating=1", request.url), 303);
+    const response = NextResponse.redirect(requestPublicUrl(request, "/jumps?impersonating=1"), 303);
     response.cookies.set(env.impersonationCookieName, rawToken, impersonationCookieOptions(grant.expiresAt));
     response.headers.set("Cache-Control", "no-store");
     return response;
