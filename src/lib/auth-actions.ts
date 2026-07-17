@@ -242,6 +242,7 @@ export async function resetPasswordAction(formData: FormData): Promise<void> {
     });
     if (claim.count !== 1) throw new Error("Password reset token has already been used.");
     await tx.user.update({ where: { id: user.id }, data: { passwordHash } });
+    await tx.adminMfaSession.deleteMany({ where: { userId: user.id } });
     await tx.session.deleteMany({ where: { userId: user.id } });
   });
 
@@ -266,6 +267,7 @@ export async function changePasswordAction(formData: FormData): Promise<void> {
   const passwordHash = await bcrypt.hash(password, 12);
   await prisma.$transaction([
     prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
+    prisma.adminMfaSession.deleteMany({ where: { userId: user.id } }),
     prisma.session.deleteMany({ where: { userId: user.id, id: { not: session.id } } })
   ]);
   sendPasswordChangedEmail(user.email, user.name).catch((error) => console.error("Password changed email failed", error));
@@ -276,7 +278,10 @@ export async function revokeSessionAction(formData: FormData): Promise<void> {
   const { session, user } = await requireWorkspace();
   const sessionId = value(formData, "sessionId");
   if (!sessionId || sessionId === session.id) fail("/account", "Use Sign out to end the current session.");
-  await prisma.session.deleteMany({ where: { id: sessionId, userId: user.id } });
+  await prisma.$transaction([
+    prisma.adminMfaSession.deleteMany({ where: { sessionId, userId: user.id } }),
+    prisma.session.deleteMany({ where: { id: sessionId, userId: user.id } })
+  ]);
   redirect("/account?sessionRevoked=1");
 }
 
