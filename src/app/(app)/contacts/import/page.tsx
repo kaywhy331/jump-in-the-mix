@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ContactImportWizard } from "@/components/ContactImportWizard";
 import { requireWorkspace } from "@/lib/auth";
+import { mergeGroupActivity } from "@/lib/group-activity";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
@@ -9,11 +10,15 @@ export const metadata: Metadata = { title: "Import Contacts" };
 
 export default async function ImportContactsPage() {
   const { workspace } = await requireWorkspace();
-  const [groups, customFields, dateTypes, activeContacts] = await Promise.all([
+  const [rawGroups, groupStates, customFields, dateTypes, activeContacts] = await Promise.all([
     prisma.group.findMany({
       where: { workspaceId: workspace.id },
       select: { id: true, name: true, _count: { select: { memberships: true } } },
       orderBy: { name: "asc" }
+    }),
+    prisma.contactGroupState.findMany({
+      where: { workspaceId: workspace.id },
+      select: { groupId: true, isActive: true }
     }),
     prisma.contactCustomFieldDefinition.findMany({
       where: { workspaceId: workspace.id },
@@ -27,6 +32,7 @@ export default async function ImportContactsPage() {
     }),
     prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null } })
   ]);
+  const groups = mergeGroupActivity(rawGroups, groupStates).filter((group) => group.isActive);
   const contactLimit = PLAN_LIMITS[workspace.planTier].contacts;
 
   return (
