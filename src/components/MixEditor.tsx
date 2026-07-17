@@ -8,7 +8,7 @@ type TriggerMode = "DATE_TRIGGERED" | "MANUAL_START" | "BROADCAST";
 type MixStatus = "DRAFT" | "ACTIVE" | "PAUSED";
 type JumpOption = { id: string; name: string; channel: string };
 type DateTypeOption = { id: string; name: string; isSystem: boolean };
-type GroupOption = { id: string; name: string; color: string | null };
+type GroupOption = { id: string; name: string; color: string | null; isActive: boolean };
 type SequenceItem = { key: string; id?: string; stepTemplateId: string; dayOffset: number; sendTimeMinutes: number | null };
 
 type MixValue = {
@@ -75,6 +75,7 @@ export function MixEditor({
     return existing.length ? existing : [{ key: "new-0", stepTemplateId: jumps[0]?.id ?? "", dayOffset: 0, sendTimeMinutes: null }];
   });
   const jumpById = useMemo(() => new Map(jumps.map((jump) => [jump.id, jump])), [jumps]);
+  const selectedGroupIds = useMemo(() => new Set(mix?.groupIds ?? []), [mix?.groupIds]);
 
   const addSequenceItem = () => setSequence((current) => [...current, { key: `new-${Date.now()}-${current.length}`, stepTemplateId: jumps[0]?.id ?? "", dayOffset: current.length ? current[current.length - 1].dayOffset + 1 : 0, sendTimeMinutes: null }]);
   const removeSequenceItem = (index: number) => setSequence((current) => current.filter((_, itemIndex) => itemIndex !== index));
@@ -102,7 +103,7 @@ export function MixEditor({
       </section>
 
       <section className="card mix-editor-section">
-        <div className="card-header"><div><h2>Trigger and audience</h2><p>Choose what starts the Mix and which Contacts should be eligible.</p></div></div>
+        <div className="card-header"><div><h2>Trigger and audience</h2><p>Choose what starts the Mix and which Contacts should be eligible. Inactive groups are preserved but do not generate Jumps.</p></div></div>
         <div className="form-grid">
           <div className="field"><label htmlFor="mix-trigger">Trigger mode</label><select id="mix-trigger" name="triggerMode" value={triggerMode} onChange={(event) => setTriggerMode(event.target.value as TriggerMode)}><option value="DATE_TRIGGERED">Target Jump Date Type</option><option value="MANUAL_START">Manual start</option><option value="BROADCAST">Fixed-date broadcast</option></select></div>
           {triggerMode === "DATE_TRIGGERED" && <div className="field"><label htmlFor="mix-date-type">Target Jump Date Type</label><select id="mix-date-type" name="dateTypeId" defaultValue={defaultDateType} required>{dateTypes.map((dateType) => <option key={dateType.id} value={dateType.id}>{dateType.isSystem ? `System · ${dateType.name}` : dateType.name}</option>)}</select><div className="mix-date-type-tools"><Link href="/settings/jump-date-types">+ New or Manage Custom</Link></div></div>}
@@ -118,8 +119,26 @@ export function MixEditor({
         </div>
         <div className="audience-options">
           <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" defaultChecked={mix?.assignAllContacts ?? true} /><span><strong>All active Contacts</strong><small>{triggerMode === "BROADCAST" ? "Use a snapshot of everyone active when the Mix is saved." : "Include everyone currently active."}</small></span></label>
-          {groups.length > 0 && <div><h3>Contact Groups</h3><div className="group-choice-grid">{groups.map((group) => <label className="checkbox-card" key={group.id}><input type="checkbox" name="groupIds" value={group.id} defaultChecked={mix?.groupIds?.includes(group.id)} /><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} /><span>{group.name}</span></label>)}</div></div>}
-          <small className="muted-copy">Direct Contact assignments made from a Contact profile are preserved separately.</small>
+          {groups.length > 0 && <div><h3>Contact Groups</h3><div className="group-choice-grid">{groups.map((group) => {
+            const selected = selectedGroupIds.has(group.id);
+            return (
+              <div key={group.id}>
+                {!group.isActive && selected && <input type="hidden" name="groupIds" value={group.id} />}
+                <label className={`checkbox-card ${group.isActive ? "" : "inactive"}`}>
+                  <input
+                    type="checkbox"
+                    name={group.isActive ? "groupIds" : undefined}
+                    value={group.id}
+                    defaultChecked={selected}
+                    disabled={!group.isActive}
+                  />
+                  <span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />
+                  <span><strong>{group.name}</strong>{!group.isActive && <small>{selected ? "Inactive · audience preserved" : "Inactive under current plan"}</small>}</span>
+                </label>
+              </div>
+            );
+          })}</div></div>}
+          <small className="muted-copy">Direct Contact assignments made from a Contact profile are preserved separately. Reactivating a group restores its eligible future Jumps through reconciliation.</small>
         </div>
       </section>
 
