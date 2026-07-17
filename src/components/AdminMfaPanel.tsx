@@ -3,11 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useState } from "react";
-import {
-  enableAdminMfaAction,
-  INITIAL_ADMIN_MFA_STATE,
-  verifyAdminMfaAction
-} from "@/lib/admin-mfa-actions";
+import { enableAdminMfaAction, verifyAdminMfaAction } from "@/lib/admin-mfa-actions";
+import { INITIAL_ADMIN_MFA_STATE } from "@/lib/admin-mfa-action-state";
 
 export function AdminMfaPanel({
   mode,
