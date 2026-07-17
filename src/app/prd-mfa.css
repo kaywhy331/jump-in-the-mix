@@ -1,0 +1,17 @@
+.admin-mfa-page { max-width: 860px; }
+.admin-mfa-form, .admin-mfa-recovery-card, .admin-mfa-ready-card { margin-top: 0; display: grid; gap: 18px; }
+.admin-mfa-setup-grid { display: grid; grid-template-columns: minmax(180px, 230px) minmax(0, 1fr); gap: 20px; align-items: center; }
+.admin-mfa-qr { width: min(220px, 100%); height: auto; margin-inline: auto; border: 1px solid var(--line); border-radius: 16px; background: white; padding: 10px; }
+.admin-mfa-manual-key { min-width: 0; display: grid; gap: 8px; }
+.admin-mfa-manual-key span, .admin-mfa-manual-key small { color: var(--muted); }
+.admin-mfa-manual-key code { display: block; max-width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-soft); font-size: .94rem; letter-spacing: .08em; overflow-wrap: anywhere; user-select: all; }
+.admin-mfa-recovery-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.admin-mfa-recovery-grid code { padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-soft); text-align: center; letter-spacing: .06em; user-select: all; }
+
+@media (max-width: 640px) {
+  .admin-mfa-page { padding-bottom: 100px; }
+  .admin-mfa-setup-grid { grid-template-columns: 1fr; }
+  .admin-mfa-recovery-grid { grid-template-columns: 1fr; }
+  .admin-mfa-form .form-actions, .admin-mfa-recovery-card .form-actions, .admin-mfa-ready-card .form-actions { display: grid; }
+  .admin-mfa-form .button, .admin-mfa-recovery-card .button, .admin-mfa-ready-card .button { width: 100%; min-height: 48px; }
+}
