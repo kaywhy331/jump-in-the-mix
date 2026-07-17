@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { endAdminImpersonationGrant, resolveAdminImpersonationGrant } from "@/lib/impersonation";
+import { reconcileWorkspaceReferralEntitlement } from "@/lib/referral-service";
 import { getRequestMetadata } from "@/lib/request-context";
 
 export function hashSessionToken(token: string): string {
@@ -153,12 +154,17 @@ export async function requireWorkspace() {
   }
   const membership = session.user.memberships[0];
   if (!membership) redirect("/register");
+  let workspace = membership.workspace;
+  if (!session.impersonation && workspace.planTier === "PLUS" && !workspace.stripeSubscriptionId) {
+    const reconciled = await reconcileWorkspaceReferralEntitlement(workspace.id);
+    if (reconciled) workspace = { ...workspace, ...reconciled, profile: workspace.profile };
+  }
   return {
     session,
     actorUser: session.authUser,
     user: session.user,
     membership,
-    workspace: membership.workspace,
+    workspace,
     impersonation: session.impersonation
   };
 }
