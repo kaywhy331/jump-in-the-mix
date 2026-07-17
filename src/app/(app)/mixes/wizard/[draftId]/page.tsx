@@ -18,9 +18,10 @@ import {
 } from "@/lib/ai-mix-actions";
 import { requireWorkspace } from "@/lib/auth";
 import { formatTimeInput } from "@/lib/mix-broadcast";
+import { getPlatformStringList } from "@/lib/platform-settings";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
-import { MIX_TEMPLATE_CATEGORIES, MIX_TEMPLATE_INDUSTRIES, sharedMixChannelLabel } from "@/lib/shared-mix";
+import { sharedMixChannelLabel } from "@/lib/shared-mix";
 
 export const metadata: Metadata = { title: "Review AI Mix Draft" };
 
@@ -39,7 +40,14 @@ export default async function AiMixDraftPage({
   params: Promise<{ draftId: string }>;
   searchParams: Promise<SearchParams>;
 }) {
-  const [{ draftId }, query, { workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
+  const [{ draftId }, query, { workspace }, categories, industries, refinementLabels] = await Promise.all([
+    params,
+    searchParams,
+    requireWorkspace(),
+    getPlatformStringList("mix.categories"),
+    getPlatformStringList("mix.industries"),
+    getPlatformStringList("ai.refinementReasons")
+  ]);
   const draftRecord = await prisma.aiMixDraft.findFirst({ where: { id: draftId, workspaceId: workspace.id } });
   if (!draftRecord) notFound();
 
@@ -77,6 +85,13 @@ export default async function AiMixDraftPage({
   const audience = preflight.assignAllContacts ? "All active Contacts" : preflight.groupNames.join(", ");
   const allowedChannels = AI_MIX_CHANNELS.filter((channel) => channel !== "VOICEMAIL" || PLAN_LIMITS[workspace.planTier].ringlessVoicemailsPerMonth > 0);
   const expires = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(draftRecord.expiresAt);
+  const presetByLabel = new Map(AI_MIX_REFINEMENT_PRESETS.map(([value, label]) => [label, value]));
+  const refinementOptions = refinementLabels
+    .map((label) => ({ label, value: presetByLabel.get(label) }))
+    .filter((item): item is { label: string; value: typeof AI_MIX_REFINEMENT_PRESETS[number][0] } => Boolean(item.value));
+  const effectiveRefinementOptions = refinementOptions.length
+    ? refinementOptions
+    : AI_MIX_REFINEMENT_PRESETS.map(([value, label]) => ({ value, label }));
 
   return (
     <div className="page ai-wizard-page ai-review-page">
@@ -107,8 +122,8 @@ export default async function AiMixDraftPage({
           <div className="form-grid">
             <div className="field full"><label htmlFor="name">Mix name</label><input id="name" name="name" defaultValue={generatedMix.name} maxLength={160} required /></div>
             <div className="field full"><label htmlFor="description">Description</label><textarea id="description" name="description" defaultValue={generatedMix.description} minLength={20} maxLength={1200} required /></div>
-            <div className="field"><label htmlFor="category">Category</label><select id="category" name="category" defaultValue={generatedMix.category}>{MIX_TEMPLATE_CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></div>
-            <div className="field"><label htmlFor="industry">Industry</label><select id="industry" name="industry" defaultValue={generatedMix.industry}>{MIX_TEMPLATE_INDUSTRIES.map((item) => <option key={item}>{item}</option>)}</select></div>
+            <div className="field"><label htmlFor="category">Category</label><select id="category" name="category" defaultValue={generatedMix.category}>{categories.map((item) => <option key={item}>{item}</option>)}</select></div>
+            <div className="field"><label htmlFor="industry">Industry</label><select id="industry" name="industry" defaultValue={generatedMix.industry}>{industries.map((item) => <option key={item}>{item}</option>)}</select></div>
             <div className="field full"><label htmlFor="draftFramework">Framework or approach</label><input id="draftFramework" name="draftFramework" defaultValue={generatedMix.framework} maxLength={160} required /></div>
           </div>
         </section>
@@ -150,7 +165,7 @@ export default async function AiMixDraftPage({
         <section className="card ai-refinement-card">
           <div className="card-header"><div><h2>Optional refinement</h2><p>Refinement uses your current editor values, so save-first is not required.</p></div></div>
           <div className="form-grid">
-            <div className="field"><label htmlFor="refinementPreset">Refinement instruction</label><select id="refinementPreset" name="refinementPreset" defaultValue="FRIENDLIER">{AI_MIX_REFINEMENT_PRESETS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+            <div className="field"><label htmlFor="refinementPreset">Refinement instruction</label><select id="refinementPreset" name="refinementPreset" defaultValue={effectiveRefinementOptions[0]?.value}>{effectiveRefinementOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></div>
             <div className="field"><label htmlFor="customRefinement">Custom instruction</label><input id="customRefinement" name="customRefinement" maxLength={500} placeholder="Example: Make the final call-to-action less sales-oriented" /></div>
             <div className="form-actions field full"><button type="submit" className="button" formAction={refineAiMixDraftAction}>Apply refinement</button></div>
           </div>
