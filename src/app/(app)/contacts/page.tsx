@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ContactsBulkWorkspace, type ContactBulkDto } from "@/components/ContactsBulkWorkspace";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
+import { mergeGroupActivity } from "@/lib/group-activity";
 import { formatPlanLimit, PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
@@ -14,7 +15,9 @@ type SearchParams = {
   created?: string;
   archived?: string;
   groupCreated?: string;
+  groupInactive?: string;
   groupDeleted?: string;
+  groupsActiveSaved?: string;
   bulkAssigned?: string;
   bulkRemoved?: string;
   bulkArchived?: string;
@@ -30,7 +33,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const { workspace } = await requireWorkspace();
   const q = params.q?.trim() ?? "";
   const groupId = params.group?.trim() ?? "";
-  const [contacts, groups, jumps, customFields] = await Promise.all([
+  const [contacts, rawGroups, groupStates, jumps, customFields] = await Promise.all([
     prisma.contact.findMany({
       where: {
         workspaceId: workspace.id,
@@ -61,6 +64,10 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       include: { _count: { select: { memberships: true } } },
       orderBy: { name: "asc" }
     }),
+    prisma.contactGroupState.findMany({
+      where: { workspaceId: workspace.id },
+      select: { groupId: true, isActive: true }
+    }),
     prisma.stepTemplate.findMany({
       where: { workspaceId: workspace.id, isActive: true },
       select: { id: true, name: true, channel: true },
@@ -72,6 +79,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       orderBy: [{ createdAt: "asc" }, { name: "asc" }]
     })
   ]);
+  const groups = mergeGroupActivity(rawGroups, groupStates);
+  const activeByGroupId = new Map(groups.map((group) => [group.id, group.isActive]));
 
   const contactDtos: ContactBulkDto[] = contacts.map((contact) => ({
     id: contact.id,
@@ -92,7 +101,12 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       isPrimary: item.isPrimary
     })),
     groups: contact.groupMemberships.map(({ group }) => group.name),
-    groupDetails: contact.groupMemberships.map(({ group }) => ({ id: group.id, name: group.name, color: group.color })),
+    groupDetails: contact.groupMemberships.map(({ group }) => ({
+      id: group.id,
+      name: group.name,
+      color: group.color,
+      isActive: activeByGroupId.get(group.id) !== false
+    })),
     customFields: contact.customFieldValues.map((item) => ({ key: item.definition.key, name: item.definition.name, value: item.value })),
     jumpDateCount: contact.jumpDates.length,
     jumpDates: contact.jumpDates.map((item) => ({
@@ -108,7 +122,9 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.created && <Notice type="success">Contact added. Add a Jump Date or assign a Mix when you are ready.</Notice>}
       {params.archived && <Notice type="success">Contact archived. Completed history remains preserved.</Notice>}
       {params.groupCreated && <Notice type="success">Contact Group created.</Notice>}
+      {params.groupInactive && <Notice type="info">The new group was preserved as inactive because your active-group allowance is already full. Choose the groups that should remain active from Manage groups.</Notice>}
       {params.groupDeleted && <Notice type="success">Contact Group removed. Contacts were preserved.</Notice>}
+      {params.groupsActiveSaved && <Notice type="success">Active Contact Groups updated. Existing memberships are preserved and future Jumps are being reconciled.</Notice>}
       {params.bulkAssigned && <Notice type="success">Assigned {params.bulkAssigned} selected Contact{params.bulkAssigned === "1" ? "" : "s"} to the group.</Notice>}
       {params.bulkRemoved && <Notice type="success">Removed the group from {params.bulkRemoved} selected Contact{params.bulkRemoved === "1" ? "" : "s"}.</Notice>}
       {params.bulkArchived && <Notice type="success">Archived {params.bulkArchived} Contact{params.bulkArchived === "1" ? "" : "s"}. Completed history remains preserved.</Notice>}
@@ -119,7 +135,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       </div>
       <ContactsBulkWorkspace
         contacts={contactDtos}
-        groups={groups.map((group) => ({ id: group.id, name: group.name, description: group.description, color: group.color, contactCount: group._count.memberships }))}
+        groups={groups.map((group) => ({ id: group.id, name: group.name, description: group.description, color: group.color, contactCount: group._count.memberships, isActive: group.isActive }))}
         jumps={jumps.map((jump) => ({ id: jump.id, name: jump.name, channel: jump.channel }))}
         customFields={customFields}
         groupLimit={formatPlanLimit(PLAN_LIMITS[workspace.planTier].groups)}
