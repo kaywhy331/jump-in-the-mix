@@ -13,6 +13,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { billingPeriodLabel, checkoutConfigured, subscriptionStatusLabel } from "@/lib/billing";
 import { env } from "@/lib/env";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { countActiveGroups } from "@/lib/group-activity";
 import { formatPlanLimit, PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 import { describeUserAgent } from "@/lib/request-context";
@@ -54,7 +55,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       : Promise.resolve(null),
     Promise.all([
       prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null } }),
-      prisma.group.count({ where: { workspaceId: workspace.id } }),
+      countActiveGroups(workspace.id),
       prisma.dateType.count({ where: { workspaceId: workspace.id, isSystem: false, isActive: true } }),
       prisma.mix.count({ where: { workspaceId: workspace.id, status: "ACTIVE" } }),
       prisma.sharedMixMetadata.count({
@@ -80,7 +81,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const limits = PLAN_LIMITS[workspace.planTier];
   const usageRows: UsageRow[] = [
     { label: "Active Contacts", value: usage.contacts, limit: limits.contacts, href: "/contacts", action: "Manage Contacts" },
-    { label: "Contact Groups", value: usage.groups, limit: limits.groups, href: "/contacts", action: "Manage Groups" },
+    { label: "Active Contact Groups", value: usage.groups, limit: limits.groups, href: "/contacts", action: "Choose active Groups" },
     { label: "Active custom Jump Date Types", value: usage.customDateTypes, limit: limits.customDateTypes, href: "/settings/jump-date-types", action: "Choose active types" },
     { label: "Active Mixes", value: usage.mixes, limit: limits.mixes, href: "/mixes", action: "Choose active Mixes" },
     { label: "Shared Community Mixes", value: usage.sharedMixes, limit: limits.sharedMixes, href: "/templates?source=community", action: "Review sharing" }
@@ -134,7 +135,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <div><h2>Plan usage</h2><p>Your records are preserved when a plan changes. Active workflow limits are enforced without deleting completed work.</p></div>
         <span className={`status-pill ${overageRows.length ? "" : "done"}`}>{overageRows.length ? `${overageRows.length} over limit` : "Within limits"}</span>
       </div>
-      {overageRows.length > 0 && <Notice type="info">After a downgrade, excess active Mixes are paused, future pending Jumps from them are canceled, excess custom Jump Date Types are made inactive, and excess Community shares are unpublished. Contacts and Groups remain stored; archive or remove extras before creating more.</Notice>}
+      <Notice type="info">After a downgrade, excess active Mixes are paused, future incomplete Jumps from them are canceled, excess custom Jump Date Types and Contact Groups become inactive, and excess Community shares are unpublished. Contacts, memberships, assignments, and history stay stored. Choose the active Groups and Jump Date Types you want to keep from their management pages.</Notice>
       <div className="plan-usage-list">
         {usageRows.map((row) => {
           const unlimited = !Number.isFinite(row.limit);
