@@ -1,0 +1,49 @@
+.contact-acquisition-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.contact-acquisition-grid > .device-contact-quick-add,
+.contact-acquisition-grid > .device-contact-quick-add > .settings-hub-card { height: 100%; }
+.device-contact-quick-add { min-width: 0; display: grid; gap: 8px; }
+button.settings-hub-card.device-contact-picker {
+  width: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+button.settings-hub-card.device-contact-picker:disabled { cursor: progress; opacity: .72; }
+.device-contact-picker { min-height: 76px; }
+.quick-add-result {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid #b9e7d5;
+  border-radius: 12px;
+  background: #f2fbf7;
+  font-size: .78rem;
+  line-height: 1.42;
+}
+.quick-add-result span { color: var(--muted); }
+.quick-add-result a { color: var(--brand-dark); font-weight: 800; }
+.quick-add-result.error { border-color: #efc1c8; background: #fff7f8; }
+.quick-add-review { margin-top: 3px; }
+.quick-add-review summary { cursor: pointer; color: var(--brand-dark); font-weight: 800; }
+.quick-add-review > div { display: grid; gap: 5px; margin: 7px 0; }
+.quick-add-review > div > span { display: grid; gap: 1px; padding: 7px 8px; border-radius: 9px; background: white; }
+.quick-add-review small { color: var(--muted); }
+
+.field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.voice-note-control { display: inline-flex; align-items: center; gap: 8px; }
+.voice-note-button { min-width: 48px; min-height: 48px; }
+.voice-note-button > span:first-child { color: #c44157; font-size: .72rem; }
+.voice-note-error { color: #a72f42; max-width: 220px; }
+
+@media (max-width: 980px) {
+  .contact-acquisition-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 680px) {
+  .device-contact-picker { min-height: 72px; }
+  .quick-add-result { padding: 10px; }
+  .field-label-row { align-items: flex-start; }
+  .voice-note-control { align-items: flex-end; flex-direction: column; }
+  .voice-note-error { max-width: 150px; text-align: right; }
+}
