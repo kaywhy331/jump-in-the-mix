@@ -1,3 +1,8 @@
+enum WorkerHeartbeatStatus {
+  RUNNING
+  STOPPED
+}
+
 enum JumpActionType {
   OPENED
   COPIED
@@ -49,4 +54,20 @@ model MixBroadcastSchedule {
 
   @@index([workspaceId, localDate])
   @@index([workspaceId, mixId])
+}
+
+model WorkerHeartbeat {
+  id         String                @id @default(cuid())
+  workerId   String                @unique
+  status     WorkerHeartbeatStatus @default(RUNNING)
+  startedAt  DateTime              @default(now())
+  lastSeenAt DateTime              @default(now())
+  lastJobAt  DateTime?
+  stoppedAt  DateTime?
+  metadata   Json?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@index([status, lastSeenAt])
+  @@index([lastSeenAt])
 }
