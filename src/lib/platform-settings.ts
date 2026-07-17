@@ -1,6 +1,8 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
+const AI_TONE_VALUES = ["Warm", "Professional", "Conversational", "Direct"] as const;
+
 export const PLATFORM_SETTING_DEFINITIONS = {
   "mix.categories": {
     category: "Mixes and Templates",
@@ -42,23 +44,25 @@ export const PLATFORM_SETTING_DEFINITIONS = {
     kind: "string-list",
     isPublic: true,
     defaultValue: [
+      "Book Discovery Calls",
       "Follow Up With New Leads",
-      "Book Calls",
-      "Onboard New Clients",
-      "Renewals and Retention",
-      "Re-engage Dormant Contacts",
-      "Event Follow-up",
+      "Client Onboarding",
+      "Renewal and Retention",
+      "Re-engage Past Contacts",
+      "Referral Outreach",
+      "Event Follow-Up",
       "Upsell or Cross-sell",
+      "General Check-In",
       "Other"
     ]
   },
   "ai.tones": {
     category: "AI Mix Wizard",
     label: "AI tones",
-    description: "Tone choices available to the AI Mix Wizard.",
+    description: "Reviewed tone choices available to the AI Mix Wizard. These can be reordered or hidden without changing the generation schema.",
     kind: "string-list",
     isPublic: true,
-    defaultValue: ["Warm", "Professional", "Friendly", "Direct", "Consultative", "Concise"]
+    defaultValue: [...AI_TONE_VALUES]
   },
   "ai.frameworks": {
     category: "AI Mix Wizard",
@@ -68,52 +72,45 @@ export const PLATFORM_SETTING_DEFINITIONS = {
     isPublic: true,
     defaultValue: [
       "Question-Led Consultative",
+      "Problem, Impact, Next Step",
+      "Teaching-Led Reframe",
+      "Mutual Qualification",
       "SPIN Selling",
       "Challenger Sale",
       "Sandler System",
       "AIDA",
-      "PAS",
-      "Customer Onboarding",
-      "Renewal Value Review",
+      "Relationship Nurture",
       "Other"
     ]
   },
   "ai.refinementReasons": {
     category: "AI Mix Wizard",
     label: "AI refinement reasons",
-    description: "Preset instructions offered when requesting a different AI option.",
+    description: "Human-readable guidance used beside the built-in refinement controls.",
     kind: "string-list",
     isPublic: true,
     defaultValue: [
       "Make it friendlier",
       "Make it more formal",
-      "Shorten SMS messages",
-      "Make it more consultative",
-      "Use stronger curiosity",
-      "Create stronger subject lines",
-      "Try a different strategic approach"
+      "Shorten every message",
+      "Use more question-led language",
+      "Make the next step more direct",
+      "Strengthen email subject lines",
+      "Use a custom instruction"
     ]
-  },
-  "feature.promotionalProTrial": {
-    category: "Feature flags",
-    label: "Promotional Pro trial",
-    description: "Allows eligible registration and onboarding flows to advertise a promotional Pro trial.",
-    kind: "boolean",
-    isPublic: false,
-    defaultValue: false
   },
   "feature.communityTemplates": {
     category: "Feature flags",
     label: "Community Mix Templates",
-    description: "Controls public discovery and new Community Mix submissions without deleting existing history.",
+    description: "Controls public Community discovery without deleting submissions, votes, imports, or moderation history.",
     kind: "boolean",
     isPublic: false,
     defaultValue: true
   },
   "feature.aiProviderGeneration": {
     category: "Feature flags",
-    label: "Provider-backed AI generation",
-    description: "Allows configured external AI generation; the deterministic strategist remains available as a fallback.",
+    label: "Provider-backed AI draft generation",
+    description: "Controls new external-provider draft generation. The built-in strategist remains available when this is disabled.",
     kind: "boolean",
     isPublic: false,
     defaultValue: true
@@ -147,6 +144,12 @@ export function validatePlatformSettingValue(key: PlatformSettingKey, value: unk
   const list = uniqueStrings(value);
   if (!list.length) throw new Error(`${definition.label} needs at least one option.`);
   if (list.length > 100) throw new Error(`${definition.label} may contain at most 100 options.`);
+  if (key === "ai.tones") {
+    const unsupported = list.filter((item) => !AI_TONE_VALUES.includes(item as typeof AI_TONE_VALUES[number]));
+    if (unsupported.length) {
+      throw new Error(`AI tones may only use the reviewed values: ${AI_TONE_VALUES.join(", ")}.`);
+    }
+  }
   return list;
 }
 
