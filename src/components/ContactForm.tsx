@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { VoiceNoteButton } from "@/components/VoiceNoteButton";
 import { createContactAction, updateContactAction } from "@/lib/contact-actions";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 
@@ -182,7 +183,7 @@ export function ContactForm({
           </label>
         ))}</div> : <p className="muted-copy">No groups have been created yet. You can add them from the Contacts page.</p>}
         <div className="form-grid notes-grid">
-          <div className="field full"><label htmlFor="publicNotes">Public Notes</label><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Context that may be used in approved Jump placeholders." /></div>
+          <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Public Notes</label>{mode === "create" && <VoiceNoteButton targetId="publicNotes" />}</div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Context that may be used in approved Jump placeholders." /></div>
           <div className="field full"><label htmlFor="privateNotes">Private Notes</label><textarea id="privateNotes" name="privateNotes" defaultValue={contact?.privateNotes ?? ""} placeholder="Sensitive call context. Never inserted into SMS or email Jumps." /></div>
         </div>
       </section>
