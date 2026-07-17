@@ -32,6 +32,8 @@ This document distinguishes the runnable independent application from the comple
 - Workspace-scoped normalization, validation, and exact-duplicate prevention.
 - Public Notes and Phone-Call-only Private Notes.
 - Contact Group creation, deletion, filtering, display, individual editing, and bulk assignment/removal.
+- Plan-aware active Contact Group selection preserves every membership and Mix assignment after downgrade while preventing new assignments to inactive groups.
+- Group deactivation cancels future incomplete group-derived Jumps through normal reconciliation; reactivation restores eligible work without duplicating history.
 - Mobile-first multi-select, Select All/Deselect All, Apply Jump, selected CSV export, and bulk archive.
 - Workspace-owned custom-field definitions, values, search, stable placeholders, and export.
 - Contact and personalization changes reconcile future pending Jumps automatically.
@@ -48,7 +50,7 @@ This document distinguishes the runnable independent application from the comple
 - Custom Jump Date Types beyond a downgraded plan allowance remain preserved but inactive.
 - Exact email matching, then exact normalized-phone matching, followed by conservative fuzzy name/company review with supporting contact-method overlap.
 - Explicit Create, non-destructive Merge, Prefer Imported, and Skip decisions.
-- Server-side workspace, plan, Group, custom-field, calendar, contact-method, and primary-value validation.
+- Server-side workspace, plan, active-Group, custom-field, calendar, contact-method, and primary-value validation.
 - Authenticated, rate-limited, idempotent browser batches with per-row isolation, audit records, automatic Jump reconciliation, progress, error CSV, and retries.
 - Progressive Device Contact Picker on supported secure-context browsers with one-or-many selection and no photo access.
 - Stable Quick Add fallback to the compact manual Contact form on unsupported browsers.
@@ -110,8 +112,8 @@ This document distinguishes the runnable independent application from the comple
 - Strict entitlement mapping from approved recurring Price IDs.
 - Stripe period dates, status, cancellation state, Customer ID, and Subscription ID mirrored into workspace and Subscription records.
 - Past-due workspaces keep paid access during recovery; fully paused/canceled/unpaid/incomplete subscriptions return to Free.
-- Downgrade safeguards preserve records while pausing excess active Mixes, canceling their future incomplete Jumps, deactivating excess custom Jump Date Types, and unpublishing excess Community contributions.
-- My Account billing summary, usage guidance, annual-first plan selection, billing return state, verification/cancel pages, and admin Billing diagnostics.
+- Downgrade safeguards preserve records while pausing excess active Mixes, canceling their future incomplete Jumps, deactivating excess custom Jump Date Types and Contact Groups, and unpublishing excess Community contributions.
+- My Account billing summary, active-usage guidance, annual-first plan selection, billing return state, verification/cancel pages, and admin Billing diagnostics.
 
 ### Referral rewards
 
@@ -138,7 +140,7 @@ This document distinguishes the runnable independent application from the comple
 - Searchable reusable SMS, email, phone-call, voicemail-script, and WhatsApp Jumps.
 - Channel validation, Pro voicemail enforcement, Contact/My Info/custom placeholders, and Phone-Call-only Private Notes.
 - Immutable content versions; active Mix associations move forward while completed snapshots remain unchanged.
-- Transactional Mix creation/editing with Draft, Active, Paused, Target Jump Date Type, manual-start, fixed broadcast, Contact Group/all-active-Contact audiences, ordered Jumps, offsets, times, and metadata.
+- Transactional Mix creation/editing with Draft, Active, Paused, Target Jump Date Type, manual-start, fixed broadcast, active Contact Group/all-active-Contact audiences, ordered Jumps, offsets, times, and metadata.
 - Removed sequence rows with history remain internally inactive; unused rows are deleted.
 - Contact-specific Mix Stop and Resume preserve assignments and completed history.
 - New and existing Mix editors consume validated administrator-managed Category and Industry lists.
@@ -176,8 +178,8 @@ This document distinguishes the runnable independent application from the comple
 - Supported clean-database deployment and existing populated-MVP upgrade paths.
 - Automated populated migration, data-preservation, reverse-SQL, forward-reapplication, and clean-deployment rehearsals.
 - Production runbooks for backup, restore, row-count checks, worker pause/restart, smoke testing, and backup-based rollback.
-- Dedicated forward migrations for the PRD core, Mix Template library, Help/support center, referral rewards, administrator control plane, and administrator MFA.
-- Independent clean-schema rehearsals verify the control-plane and MFA migration records, tables, and durable writes.
+- Dedicated forward migrations for the PRD core, Mix Template library, Help/support center, referral rewards, administrator control plane, administrator MFA, and Contact Group activation state.
+- Independent clean-schema rehearsals verify the control-plane and MFA migration records, tables, and durable writes; the main populated/greenfield rehearsal verifies durable Contact Group activation state.
 
 ### Audited view-only administrator support
 
@@ -222,6 +224,5 @@ This document distinguishes the runnable independent application from the comple
 
 ## Remaining P1 work
 
-- User-guided selection for which over-limit Contact Groups remain active after a downgrade; Groups are currently preserved and new creation is blocked until within the plan limit.
 - Encrypted backup automation, alert delivery, load testing, and full production-like staging validation.
 - Optional background/resumable import jobs for very large files; the current bounded browser workflow requires the page to remain open while batches finish.
