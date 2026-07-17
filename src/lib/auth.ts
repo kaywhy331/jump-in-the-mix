@@ -1,6 +1,11 @@
 import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import {
+  adminMfaCredentialStatus,
+  adminMfaSessionIsVerified,
+  clearAdminMfaSession
+} from "@/lib/admin-mfa";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { endAdminImpersonationGrant, resolveAdminImpersonationGrant } from "@/lib/impersonation";
@@ -38,7 +43,11 @@ export async function createSession(userId: string): Promise<string> {
     select: { id: true }
   });
   if (excessSessions.length) {
-    await prisma.session.deleteMany({ where: { id: { in: excessSessions.map((item) => item.id) } } });
+    const sessionIds = excessSessions.map((item) => item.id);
+    await prisma.$transaction([
+      prisma.adminMfaSession.deleteMany({ where: { sessionId: { in: sessionIds } } }),
+      prisma.session.deleteMany({ where: { id: { in: sessionIds } } })
+    ]);
   }
 
   const store = await cookies();
@@ -59,13 +68,14 @@ export async function destroySession(): Promise<void> {
   const token = store.get(env.cookieName)?.value;
   const impersonationToken = store.get(env.impersonationCookieName)?.value;
   const session = token
-    ? await prisma.session.findUnique({ where: { tokenHash: hashSessionToken(token) }, select: { userId: true } })
+    ? await prisma.session.findUnique({ where: { tokenHash: hashSessionToken(token) }, select: { id: true, userId: true } })
     : null;
 
   if (impersonationToken && session) {
     await endAdminImpersonationGrant(impersonationToken, session.userId).catch(() => false);
   }
   if (token) {
+    if (session) await clearAdminMfaSession(session.id);
     await prisma.session.deleteMany({ where: { tokenHash: hashSessionToken(token) } });
   }
   store.delete(env.impersonationCookieName);
@@ -73,12 +83,24 @@ export async function destroySession(): Promise<void> {
 }
 
 export async function destroyOtherSessions(userId: string, currentSessionId: string): Promise<number> {
-  const result = await prisma.session.deleteMany({ where: { userId, id: { not: currentSessionId } } });
+  const sessions = await prisma.session.findMany({
+    where: { userId, id: { not: currentSessionId } },
+    select: { id: true }
+  });
+  if (!sessions.length) return 0;
+  const sessionIds = sessions.map((item) => item.id);
+  const [, result] = await prisma.$transaction([
+    prisma.adminMfaSession.deleteMany({ where: { sessionId: { in: sessionIds } } }),
+    prisma.session.deleteMany({ where: { userId, id: { in: sessionIds } } })
+  ]);
   return result.count;
 }
 
 export async function destroyAllSessionsForUser(userId: string): Promise<number> {
-  const result = await prisma.session.deleteMany({ where: { userId } });
+  const [, result] = await prisma.$transaction([
+    prisma.adminMfaSession.deleteMany({ where: { userId } }),
+    prisma.session.deleteMany({ where: { userId } })
+  ]);
   return result.count;
 }
 
@@ -103,7 +125,12 @@ export async function getCurrentSession() {
   });
 
   if (!session || session.expiresAt <= new Date()) {
-    if (session) await prisma.session.delete({ where: { id: session.id } });
+    if (session) {
+      await prisma.$transaction([
+        prisma.adminMfaSession.deleteMany({ where: { sessionId: session.id } }),
+        prisma.session.delete({ where: { id: session.id } })
+      ]);
+    }
     store.delete(env.impersonationCookieName);
     store.delete(env.cookieName);
     return null;
@@ -169,8 +196,21 @@ export async function requireWorkspace() {
   };
 }
 
-export async function requirePlatformAdmin() {
+export async function requirePlatformAdminIdentity() {
   const session = await requireSession();
   if (session.impersonation || !session.authUser.isPlatformAdmin) redirect("/jumps");
   return { session, user: session.authUser };
+}
+
+export async function requirePlatformAdmin() {
+  const identity = await requirePlatformAdminIdentity();
+  if (env.requireAdminMfa) {
+    const [credential, verified] = await Promise.all([
+      adminMfaCredentialStatus(identity.user.id),
+      adminMfaSessionIsVerified(identity.session.id, identity.user.id)
+    ]);
+    if (!credential.enabledAt) redirect("/account/admin-mfa?setup=1&returnTo=%2Fadmin");
+    if (!verified) redirect("/account/admin-mfa?verify=1&returnTo=%2Fadmin");
+  }
+  return identity;
 }
