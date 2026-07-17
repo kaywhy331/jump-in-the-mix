@@ -11,6 +11,7 @@ import "./prd-templates.css";
 import "./prd-ai.css";
 import "./prd-billing.css";
 import "./prd-support.css";
+import "./prd-referrals.css";
 
 export const metadata: Metadata = {
   title: {
