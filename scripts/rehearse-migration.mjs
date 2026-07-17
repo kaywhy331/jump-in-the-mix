@@ -13,7 +13,8 @@ const baselineMigration = "20260715000000_existing_mvp_baseline";
 const forwardMigration = "20260716020000_prd_core_foundation";
 const mixTemplateMigration = "20260716170000_mix_template_library";
 const supportMigration = "20260716210000_support_center";
-const requiredMigrations = [baselineMigration, forwardMigration, mixTemplateMigration, supportMigration];
+const referralMigration = "20260717010000_referral_rewards";
+const requiredMigrations = [baselineMigration, forwardMigration, mixTemplateMigration, supportMigration, referralMigration];
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const schemaName = `jitm_rehearsal_${suffix}`;
 const greenfieldSchemaName = `jitm_greenfield_${suffix}`;
@@ -148,7 +149,10 @@ async function assertForwardState(client) {
     "SharedMixVote",
     "SharedMixImportMetadata",
     "SupportTicket",
-    "SupportTicketMessage"
+    "SupportTicketMessage",
+    "ReferralAccount",
+    "Referral",
+    "ReferralReward"
   ]) {
     if (!(await tableExists(client, table))) throw new Error(`Expected migrated table ${table}.`);
   }
@@ -204,6 +208,38 @@ async function assertForwardState(client) {
   if (supportThread.rows[0]?.reference !== "JITM-REHEARSAL" || supportThread.rows[0]?.body !== "Migration rehearsal message") {
     throw new Error("Support ticket migration did not accept a durable thread write.");
   }
+
+  await client.query(
+    `INSERT INTO "ReferralAccount" ("workspaceId", "code", "bankedDays", "createdAt", "updatedAt")
+     VALUES ('legacy-workspace', 'LEGACYREF1', 30, $1, $1)
+     ON CONFLICT ("workspaceId") DO NOTHING`,
+    [now]
+  );
+  await client.query(
+    `INSERT INTO "Referral" ("id", "codeUsed", "referrerWorkspaceId", "referredWorkspaceId", "status", "qualifiedAt", "createdAt", "updatedAt")
+     VALUES ('rehearsal-referral', 'LEGACYREF1', 'legacy-workspace', 'rehearsal-friend-workspace', 'QUALIFIED', $1, $1, $1)
+     ON CONFLICT ("id") DO NOTHING`,
+    [now]
+  );
+  await client.query(
+    `INSERT INTO "ReferralReward" ("id", "referralId", "workspaceId", "recipient", "days", "status", "appliedAt", "createdAt", "updatedAt")
+     VALUES
+       ('rehearsal-referrer-reward', 'rehearsal-referral', 'legacy-workspace', 'REFERRER', 30, 'BANKED', $1, $1, $1),
+       ('rehearsal-friend-reward', 'rehearsal-referral', 'rehearsal-friend-workspace', 'REFERRED', 30, 'ACTIVE', $1, $1, $1)
+     ON CONFLICT ("id") DO NOTHING`,
+    [now]
+  );
+  const referralThread = await client.query(
+    `SELECT a."code", r."status", COUNT(w."id")::int AS "rewardCount"
+     FROM "ReferralAccount" a
+     JOIN "Referral" r ON r."referrerWorkspaceId" = a."workspaceId"
+     JOIN "ReferralReward" w ON w."referralId" = r."id"
+     WHERE a."workspaceId" = 'legacy-workspace'
+     GROUP BY a."code", r."status"`
+  );
+  if (referralThread.rows[0]?.code !== "LEGACYREF1" || referralThread.rows[0]?.status !== "QUALIFIED" || referralThread.rows[0]?.rewardCount !== 2) {
+    throw new Error("Referral migration did not accept a qualified attribution and both reward records.");
+  }
 }
 
 async function assertRollbackState(client) {
@@ -231,7 +267,10 @@ async function assertGreenfieldState(client) {
     "AdminImpersonation",
     "SharedMixMetadata",
     "SupportTicket",
-    "SupportTicketMessage"
+    "SupportTicketMessage",
+    "ReferralAccount",
+    "Referral",
+    "ReferralReward"
   ]) {
     if (!(await tableExists(client, table, greenfieldSchemaName))) {
       throw new Error(`Greenfield migration did not create ${table}.`);
