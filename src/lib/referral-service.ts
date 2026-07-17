@@ -4,6 +4,7 @@ import { applyPlanDowngradeSafeguards } from "@/lib/plan-downgrade";
 import { prisma } from "@/lib/prisma";
 import {
   addReferralDays,
+  DAY_MS,
   generateReferralCode,
   normalizeReferralCode,
   REFERRAL_MAX_REFERRER_DAYS,
@@ -18,6 +19,13 @@ type WorkspacePlanState = {
   planTier: PlanTier;
   subscriptionStatus: SubscriptionStatus;
   stripeSubscriptionId: string | null;
+};
+
+type ReferralAccountState = {
+  workspaceId: string;
+  code: string;
+  plusExpiresAt: Date | null;
+  bankedDays: number;
 };
 
 export type ReferralInvite = {
@@ -121,7 +129,7 @@ export async function findReferralInvite(rawCode: string): Promise<ReferralInvit
   };
 }
 
-async function accountForWorkspace(tx: Tx, workspaceId: string) {
+async function accountForWorkspace(tx: Tx, workspaceId: string): Promise<ReferralAccountState> {
   const existing = await tx.referralAccount.findUnique({ where: { workspaceId } });
   if (existing) return existing;
   return createReferralAccountWithCode(tx, workspaceId, generateReferralCode());
@@ -134,10 +142,59 @@ async function markConsumedRewards(tx: Tx, workspaceId: string, now: Date): Prom
   });
 }
 
+async function bankActiveReferralWindow(
+  tx: Tx,
+  workspaceId: string,
+  account: ReferralAccountState,
+  now: Date
+): Promise<ReferralAccountState> {
+  if (!account.plusExpiresAt || account.plusExpiresAt <= now) return account;
+
+  const activeRewards = await tx.referralReward.findMany({
+    where: { workspaceId, status: "ACTIVE", endsAt: { gt: now } },
+    orderBy: [{ startsAt: "asc" }, { createdAt: "asc" }]
+  });
+  let remainingDays = 0;
+  for (const reward of activeRewards) {
+    if (!reward.endsAt) continue;
+    const segmentStart = reward.startsAt && reward.startsAt > now ? reward.startsAt : now;
+    const days = Math.max(Math.ceil((reward.endsAt.getTime() - segmentStart.getTime()) / DAY_MS), 0);
+    if (days <= 0) {
+      await tx.referralReward.update({
+        where: { id: reward.id },
+        data: { status: "CONSUMED", consumedAt: now }
+      });
+      continue;
+    }
+    remainingDays += days;
+    await tx.referralReward.update({
+      where: { id: reward.id },
+      data: {
+        status: "BANKED",
+        startsAt: null,
+        endsAt: null,
+        appliedAt: now,
+        consumedAt: null
+      }
+    });
+  }
+
+  if (remainingDays === 0) {
+    remainingDays = Math.max(Math.ceil((account.plusExpiresAt.getTime() - now.getTime()) / DAY_MS), 0);
+  }
+  return tx.referralAccount.update({
+    where: { workspaceId },
+    data: {
+      plusExpiresAt: null,
+      bankedDays: Math.min(account.bankedDays + remainingDays, REFERRAL_MAX_REFERRER_DAYS)
+    }
+  });
+}
+
 async function activateBankedRewards(
   tx: Tx,
   workspaceId: string,
-  account: { workspaceId: string; code: string; plusExpiresAt: Date | null; bankedDays: number },
+  account: ReferralAccountState,
   now: Date
 ): Promise<Date | null> {
   if (account.bankedDays <= 0) return account.plusExpiresAt;
@@ -154,7 +211,6 @@ async function activateBankedRewards(
     await tx.referralReward.update({
       where: { id: reward.id },
       data: {
-        days,
         status: "ACTIVE",
         startsAt: cursor,
         endsAt,
@@ -186,11 +242,12 @@ async function applyReward(
     bankForProOrPaid: boolean;
   }
 ): Promise<{ status: ReferralRewardStatus; startsAt: Date | null; endsAt: Date | null }> {
-  const account = await accountForWorkspace(tx, input.workspace.id);
+  let account = await accountForWorkspace(tx, input.workspace.id);
   const shouldBank = input.bankForProOrPaid
     && (input.workspace.planTier === "PRO" || workspaceHasPaidStripeAccess(input.workspace));
 
   if (shouldBank) {
+    account = await bankActiveReferralWindow(tx, input.workspace.id, account, input.now);
     const bankedDays = Math.min(account.bankedDays + input.days, REFERRAL_MAX_REFERRER_DAYS);
     await tx.referralAccount.update({ where: { workspaceId: input.workspace.id }, data: { bankedDays } });
     await tx.referralReward.update({
@@ -404,11 +461,14 @@ export async function resolveWorkspacePlanAfterStripe(
 export async function reconcileWorkspaceReferralEntitlement(workspaceId: string, now = new Date()) {
   return prisma.$transaction(async (tx) => {
     const workspace = await tx.workspace.findUnique({ where: { id: workspaceId } });
-    const account = await tx.referralAccount.findUnique({ where: { workspaceId } });
+    let account = await tx.referralAccount.findUnique({ where: { workspaceId } });
     if (!workspace || !account) return workspace;
 
     await markConsumedRewards(tx, workspaceId, now);
-    if (workspaceHasPaidStripeAccess(workspace) || workspace.planTier === "PRO") return workspace;
+    if (workspaceHasPaidStripeAccess(workspace) || workspace.planTier === "PRO") {
+      account = await bankActiveReferralWindow(tx, workspaceId, account, now);
+      return workspace;
+    }
 
     if (account.plusExpiresAt && account.plusExpiresAt > now) {
       return workspace.planTier === "PLUS"
