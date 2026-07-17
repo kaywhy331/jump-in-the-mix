@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("authentication request boundary", () => {
-  it("routes public authentication forms through the hardened action module", () => {
+  it("routes public authentication forms through hardened action modules", () => {
     const login = readFileSync("src/app/login/page.tsx", "utf8");
     const register = readFileSync("src/app/register/page.tsx", "utf8");
     const shell = readFileSync("src/components/AppShell.tsx", "utf8");
     expect(login).toContain('from "@/lib/auth-actions"');
-    expect(register).toContain('from "@/lib/auth-actions"');
+    expect(register).toContain('from "@/lib/register-action"');
     expect(shell).toContain('from "@/lib/auth-actions"');
   });
 
