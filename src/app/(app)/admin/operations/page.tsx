@@ -23,6 +23,11 @@ function jobStatus(job: { completedAt: Date | null; failedAt: Date | null; locke
   return "Pending";
 }
 
+function heartbeatStaleSeconds(): number {
+  const parsed = Number(process.env.WORKER_HEARTBEAT_STALE_SECONDS ?? "90");
+  return Number.isFinite(parsed) && parsed >= 30 && parsed <= 3600 ? parsed : 90;
+}
+
 export default async function AdminOperationsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   await requirePlatformAdmin();
   const params = await searchParams;
@@ -38,7 +43,9 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
           ? { lockedAt: null, completedAt: null, failedAt: null }
           : {};
 
-  const [jobs, taskRows, failedJobs, pendingJobs, runningJobs, failedWebhooks, errorConnections, syncRuns, webhookEvents, integrations] = await Promise.all([
+  const staleSeconds = heartbeatStaleSeconds();
+  const staleCutoff = new Date(Date.now() - staleSeconds * 1000);
+  const [jobs, taskRows, failedJobs, pendingJobs, runningJobs, healthyWorkerCount, staleWorkerCount, failedWebhooks, errorConnections, syncRuns, webhookEvents, integrations, workers] = await Promise.all([
     prisma.job.findMany({
       where: { ...statusWhere, ...(task ? { task: { contains: task, mode: "insensitive" } } : {}) },
       include: { workspace: { select: { id: true, name: true } } },
@@ -49,6 +56,8 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
     prisma.job.count({ where: { failedAt: { not: null } } }),
     prisma.job.count({ where: { lockedAt: null, completedAt: null, failedAt: null } }),
     prisma.job.count({ where: { lockedAt: { not: null }, completedAt: null, failedAt: null } }),
+    prisma.workerHeartbeat.count({ where: { status: "RUNNING", lastSeenAt: { gte: staleCutoff } } }),
+    prisma.workerHeartbeat.count({ where: { status: "RUNNING", lastSeenAt: { lt: staleCutoff } } }),
     prisma.webhookEvent.count({ where: { status: "FAILED" } }),
     prisma.integrationConnection.count({ where: { status: "ERROR" } }),
     prisma.syncRun.findMany({
@@ -66,13 +75,14 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
       include: { workspace: { select: { name: true } } },
       orderBy: { updatedAt: "desc" },
       take: 30
-    })
+    }),
+    prisma.workerHeartbeat.findMany({ orderBy: { lastSeenAt: "desc" }, take: 20 })
   ]);
 
   return (
     <div className="page admin-control-page">
       <header className="page-header">
-        <div><h1>Admin · Operations</h1><p>Inspect background work, provider synchronization, webhook delivery, and recoverable failures.</p></div>
+        <div><h1>Admin · Operations</h1><p>Inspect background work, worker health, provider synchronization, webhook delivery, and recoverable failures.</p></div>
       </header>
       <AdminNav current="/admin/operations" />
 
@@ -80,8 +90,27 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
         <Link className={`card admin-metric-card ${failedJobs ? "critical" : "healthy"}`} href="/admin/operations?status=failed"><span>Failed jobs</span><strong>{failedJobs}</strong><small>Eligible failures can be retried safely.</small></Link>
         <Link className="card admin-metric-card" href="/admin/operations?status=pending"><span>Pending jobs</span><strong>{pendingJobs}</strong><small>Waiting for a worker lease.</small></Link>
         <Link className="card admin-metric-card" href="/admin/operations?status=running"><span>Running jobs</span><strong>{runningJobs}</strong><small>Currently locked by a worker.</small></Link>
+        <div className={`card admin-metric-card ${healthyWorkerCount ? "healthy" : "critical"}`}><span>Healthy workers</span><strong>{healthyWorkerCount}</strong><small>Heartbeat received within {staleSeconds} seconds.</small></div>
+        <div className={`card admin-metric-card ${staleWorkerCount ? "critical" : "healthy"}`}><span>Stale workers</span><strong>{staleWorkerCount}</strong><small>Running records missing a current heartbeat.</small></div>
         <div className={`card admin-metric-card ${failedWebhooks ? "critical" : "healthy"}`}><span>Failed webhooks</span><strong>{failedWebhooks}</strong><small>Inspect Stripe and provider delivery state below.</small></div>
         <div className={`card admin-metric-card ${errorConnections ? "critical" : "healthy"}`}><span>Integration errors</span><strong>{errorConnections}</strong><small>Connections requiring customer or operator action.</small></div>
+      </section>
+
+      <section className="card admin-operation-section">
+        <div className="card-header"><div><h2>Worker heartbeats</h2><p>Each running worker records a durable heartbeat for health checks and staging qualification.</p></div></div>
+        <div className="admin-operation-list">
+          {workers.map((worker) => {
+            const ageSeconds = Math.max(0, Math.floor((Date.now() - worker.lastSeenAt.getTime()) / 1000));
+            const healthy = worker.status === "RUNNING" && ageSeconds <= staleSeconds;
+            return (
+              <article className="admin-operation-row" key={worker.id}>
+                <div><strong>{worker.workerId}</strong><span>{worker.status} · {healthy ? "Healthy" : worker.status === "RUNNING" ? "Stale" : "Stopped"}</span><small>Started {timestamp(worker.startedAt)} · last seen {timestamp(worker.lastSeenAt)} ({ageSeconds}s ago) · last job {timestamp(worker.lastJobAt)}</small></div>
+                <span className={`status-pill ${healthy ? "done" : ""}`}>{healthy ? "Ready" : "Attention"}</span>
+              </article>
+            );
+          })}
+          {!workers.length && <div className="empty-state compact"><h3>No worker heartbeat recorded</h3><p>Start the worker service after deploying the WorkerHeartbeat migration.</p></div>}
+        </div>
       </section>
 
       <section className="card admin-operation-section">
