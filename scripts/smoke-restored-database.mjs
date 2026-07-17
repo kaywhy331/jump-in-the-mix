@@ -9,13 +9,6 @@ import {
 } from "./lib/postgres-ops.mjs";
 import { sendOpsAlert } from "./lib/ops-alert.mjs";
 
-function argument(name) {
-  const direct = process.argv.find((item) => item.startsWith(`${name}=`));
-  if (direct) return direct.slice(name.length + 1);
-  const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
-
 async function tableExists(client, schema, table) {
   const result = await client.query(
     `SELECT EXISTS (
@@ -62,8 +55,8 @@ async function assertNoOrphans(client, schema, relation) {
 }
 
 async function main() {
-  const databaseUrl = argument("--database-url") ?? process.env.RESTORE_DATABASE_URL?.trim();
-  if (!databaseUrl) throw new Error("RESTORE_DATABASE_URL or --database-url is required.");
+  const databaseUrl = process.env.RESTORE_DATABASE_URL?.trim();
+  if (!databaseUrl) throw new Error("RESTORE_DATABASE_URL is required. Database credentials are not accepted as command-line arguments.");
   const identity = databaseIdentity(databaseUrl);
   const snapshot = await collectDatabaseSnapshot(databaseUrl);
   if (!snapshot.tableCount) throw new Error("Restored database contains no application tables.");
