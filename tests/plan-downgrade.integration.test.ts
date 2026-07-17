@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { countActiveGroups } from "../src/lib/group-activity";
 import { enforceCurrentWorkspacePlanLimits } from "../src/lib/plan-downgrade";
 import { prisma } from "../src/lib/prisma";
 
@@ -53,6 +54,7 @@ describe.sequential("plan downgrade safeguards", () => {
   });
 
   afterAll(async () => {
+    if (ids.workspace) await prisma.contactGroupState.deleteMany({ where: { workspaceId: ids.workspace } });
     if (ids.workspace) await prisma.workspace.deleteMany({ where: { id: ids.workspace } });
     if (ids.user) await prisma.user.deleteMany({ where: { id: ids.user } });
   });
@@ -70,6 +72,7 @@ describe.sequential("plan downgrade safeguards", () => {
       applied: true,
       pausedMixes: 2,
       deactivatedDateTypes: 2,
+      deactivatedGroups: 2,
       unpublishedCommunityMixes: 0,
       groupsOverLimit: 2,
       contactsOverLimit: 2
@@ -78,6 +81,8 @@ describe.sequential("plan downgrade safeguards", () => {
     expect(await prisma.mix.count({ where: { workspaceId: ids.workspace, status: "PAUSED" } })).toBe(2);
     expect(await prisma.dateType.count({ where: { workspaceId: ids.workspace, isSystem: false, isActive: true } })).toBe(3);
     expect(await prisma.dateType.count({ where: { workspaceId: ids.workspace, isSystem: false, isActive: false } })).toBe(2);
+    expect(await countActiveGroups(ids.workspace)).toBe(3);
+    expect(await prisma.contactGroupState.count({ where: { workspaceId: ids.workspace, isActive: false } })).toBe(2);
 
     expect(await prisma.mix.count({ where: { workspaceId: ids.workspace } })).toBe(before.mixes);
     expect(await prisma.dateType.count({ where: { workspaceId: ids.workspace, isSystem: false } })).toBe(before.dateTypes);
@@ -87,8 +92,9 @@ describe.sequential("plan downgrade safeguards", () => {
 
   it("is idempotent when the current workspace already satisfies its plan", async () => {
     const result = await enforceCurrentWorkspacePlanLimits(ids.workspace, "FREE");
-    expect(result).toMatchObject({ pausedMixes: 0, deactivatedDateTypes: 0 });
+    expect(result).toMatchObject({ pausedMixes: 0, deactivatedDateTypes: 0, deactivatedGroups: 0 });
     expect(await prisma.mix.count({ where: { workspaceId: ids.workspace, status: "ACTIVE" } })).toBe(3);
     expect(await prisma.dateType.count({ where: { workspaceId: ids.workspace, isSystem: false, isActive: true } })).toBe(3);
+    expect(await countActiveGroups(ids.workspace)).toBe(3);
   });
 });
