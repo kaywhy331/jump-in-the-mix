@@ -22,7 +22,9 @@ describe("AI Mix Wizard boundary", () => {
     const actions = read("src/lib/ai-mix-actions.ts");
     const wizard = read("src/app/(app)/mixes/wizard/page.tsx");
     expect(actions).toContain("activeGroupIdsForWorkspace(workspace.id, groupIds)");
+    expect(actions).toContain("activeGroupIdsForWorkspace(context.workspace.id, groupIds)");
     expect(actions).toContain("Choose only active Contact Groups");
+    expect(actions).toContain("became inactive");
     expect(wizard).toContain("mergeGroupActivity(rawGroups, groupStates).filter((group) => group.isActive)");
   });
 
