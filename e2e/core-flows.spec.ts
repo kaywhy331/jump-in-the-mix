@@ -44,12 +44,13 @@ test("workspace user can complete the primary discovery and support journey", as
   const ticketTitle = `E2E browser support ticket ${testInfo.project.name}`;
   await page.goto("/help");
   await expect(page.getByRole("heading", { name: "Help & Support" })).toBeVisible();
-  await page.getByLabel("Topic").selectOption("GENERAL");
-  await page.getByLabel("Ticket title").fill(ticketTitle);
-  await page.getByLabel("What happened?").fill("Browser coverage is verifying that a private support conversation can be submitted and opened.");
+  const supportForm = page.locator("#contact-support form");
+  await supportForm.getByLabel("Topic").selectOption("GENERAL");
+  await supportForm.getByLabel("Ticket title").fill(ticketTitle);
+  await supportForm.getByLabel("What happened?").fill("Browser coverage is verifying that a private support conversation can be submitted and opened.");
   await Promise.all([
     page.waitForURL(/\/account\/tickets\//),
-    page.getByRole("button", { name: "Submit support ticket" }).click()
+    supportForm.getByRole("button", { name: "Submit support ticket" }).click()
   ]);
   await expect(page.getByRole("heading", { name: ticketTitle })).toBeVisible();
 });
