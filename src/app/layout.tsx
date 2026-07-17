@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./prd-core.css";
 import "./prd-date-types.css";
+import "./prd-group-activation.css";
 import "./prd-bulk.css";
 import "./prd-auth.css";
 import "./prd-admin.css";
