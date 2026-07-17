@@ -32,12 +32,13 @@ async function loadManifest(path) {
 }
 
 async function main() {
-  const archivePath = resolve(argument("--input") ?? "");
-  if (!argument("--input")) throw new Error("Pass the encrypted archive with --input <path>.");
+  const archiveInput = argument("--input");
+  if (!archiveInput) throw new Error("Pass the encrypted archive with --input <path>.");
+  const archivePath = resolve(archiveInput);
   await access(archivePath);
 
-  const targetUrl = argument("--target-url") ?? process.env.RESTORE_DATABASE_URL?.trim();
-  if (!targetUrl) throw new Error("RESTORE_DATABASE_URL or --target-url is required.");
+  const targetUrl = process.env.RESTORE_DATABASE_URL?.trim();
+  if (!targetUrl) throw new Error("RESTORE_DATABASE_URL is required. Database credentials are not accepted as command-line arguments.");
   if (process.env.DATABASE_URL && sameDatabase(process.env.DATABASE_URL, targetUrl)) {
     throw new Error("Restore target must be a different database from DATABASE_URL. In-place production restores are intentionally blocked.");
   }
