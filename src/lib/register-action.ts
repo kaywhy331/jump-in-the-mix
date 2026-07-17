@@ -58,8 +58,13 @@ async function deliverVerification(email: string, name: string): Promise<{ devTo
   }
 }
 
-function retryableUniqueError(error: unknown): boolean {
-  return Boolean(error && typeof error === "object" && "code" in error && error.code === "P2002");
+function prismaErrorCode(error: unknown): string {
+  return error && typeof error === "object" && "code" in error ? String(error.code) : "";
+}
+
+function retryableRegistrationError(error: unknown): boolean {
+  const code = prismaErrorCode(error);
+  return code === "P2002" || code === "P2034";
 }
 
 export async function registerWithReferralAction(formData: FormData): Promise<void> {
@@ -132,9 +137,11 @@ export async function registerWithReferralAction(formData: FormData): Promise<vo
         return created;
       }, { isolationLevel: "Serializable" });
     } catch (error) {
-      if (!retryableUniqueError(error) || attempt === 3) {
-        const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
-        if (code === "P2002") fail("/login", "An account with that email already exists.");
+      if (!retryableRegistrationError(error) || attempt === 3) {
+        if (prismaErrorCode(error) === "P2002") {
+          const existingAfterRace = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+          if (existingAfterRace) fail("/login", "An account with that email already exists.");
+        }
         throw error;
       }
     }
