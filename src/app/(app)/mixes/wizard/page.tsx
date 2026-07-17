@@ -3,15 +3,13 @@ import Link from "next/link";
 import { Notice } from "@/components/Notice";
 import {
   AI_MIX_CADENCES,
-  AI_MIX_FRAMEWORKS,
-  AI_MIX_OBJECTIVES,
   AI_MIX_PRODUCT_PLACEHOLDERS,
-  AI_MIX_TONES,
   isAiMixProviderConfigured
 } from "@/lib/ai-mix";
 import { generateAiMixDraftAction } from "@/lib/ai-mix-actions";
 import { requireWorkspace } from "@/lib/auth";
 import { formatTimeInput } from "@/lib/mix-broadcast";
+import { getPlatformBoolean, getPlatformStringList } from "@/lib/platform-settings";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
@@ -30,6 +28,10 @@ function productLabel(index: number, value: string | null | undefined): string {
   return value?.trim() ? `Product ${index}: ${value.trim()}` : `My Product ${index}`;
 }
 
+function preferredOption(values: string[], preferred: string): string {
+  return values.includes(preferred) ? preferred : values[0] ?? preferred;
+}
+
 export default async function MixWizardPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
   const limits = PLAN_LIMITS[workspace.planTier];
@@ -44,7 +46,7 @@ export default async function MixWizardPage({ searchParams }: { searchParams: Pr
     );
   }
 
-  const [groups, dateTypes, recentDrafts] = await Promise.all([
+  const [groups, dateTypes, recentDrafts, objectives, frameworks, tones, providerEnabled] = await Promise.all([
     prisma.group.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
     prisma.dateType.findMany({
       where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null, isSystem: true }] },
@@ -54,12 +56,16 @@ export default async function MixWizardPage({ searchParams }: { searchParams: Pr
       where: { workspaceId: workspace.id, status: "DRAFT", expiresAt: { gt: new Date() } },
       orderBy: { updatedAt: "desc" },
       take: 5
-    })
+    }),
+    getPlatformStringList("ai.objectives"),
+    getPlatformStringList("ai.frameworks"),
+    getPlatformStringList("ai.tones"),
+    getPlatformBoolean("feature.aiProviderGeneration")
   ]);
   const profile = workspace.profile;
   const products = [profile?.product1, profile?.product2, profile?.product3, profile?.product4, profile?.product5];
   const timezone = profile?.timezone ?? "UTC";
-  const providerConnected = isAiMixProviderConfigured();
+  const providerConnected = providerEnabled && isAiMixProviderConfigured();
 
   return (
     <div className="page ai-wizard-page">
@@ -80,11 +86,11 @@ export default async function MixWizardPage({ searchParams }: { searchParams: Pr
           <legend><span>1</span> Outcome and approach</legend>
           <p>Choose the result you want and the strategic style the Jumps should follow.</p>
           <div className="form-grid">
-            <div className="field"><label htmlFor="objective">Primary objective</label><select id="objective" name="objective" defaultValue="Follow Up With New Leads">{AI_MIX_OBJECTIVES.map((item) => <option key={item}>{item}</option>)}</select></div>
+            <div className="field"><label htmlFor="objective">Primary objective</label><select id="objective" name="objective" defaultValue={preferredOption(objectives, "Follow Up With New Leads")}>{objectives.map((item) => <option key={item}>{item}</option>)}</select></div>
             <div className="field"><label htmlFor="customObjective">Other objective</label><input id="customObjective" name="customObjective" maxLength={200} placeholder="Example: Invite former clients to an annual review" /></div>
-            <div className="field"><label htmlFor="framework">Strategic framework</label><select id="framework" name="framework" defaultValue="Question-Led Consultative">{AI_MIX_FRAMEWORKS.map((item) => <option key={item}>{item}</option>)}</select></div>
+            <div className="field"><label htmlFor="framework">Strategic framework</label><select id="framework" name="framework" defaultValue={preferredOption(frameworks, "Question-Led Consultative")}>{frameworks.map((item) => <option key={item}>{item}</option>)}</select></div>
             <div className="field"><label htmlFor="customFramework">Other framework or strategist style</label><input id="customFramework" name="customFramework" maxLength={160} placeholder="Describe the approach without copying protected material" /></div>
-            <div className="field"><label htmlFor="tone">Tone</label><select id="tone" name="tone" defaultValue="Warm">{AI_MIX_TONES.map((item) => <option key={item}>{item}</option>)}</select></div>
+            <div className="field"><label htmlFor="tone">Tone</label><select id="tone" name="tone" defaultValue={preferredOption(tones, "Warm")}>{tones.map((item) => <option key={item}>{item}</option>)}</select></div>
             <div className="field"><label htmlFor="customContext">Helpful context</label><textarea id="customContext" name="customContext" maxLength={1200} placeholder="Optional: offer details, situation, objections, or the desired next step. Do not paste Contact data." /></div>
           </div>
         </fieldset>
