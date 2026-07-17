@@ -13,6 +13,7 @@ The independent MVP historically created databases with `prisma db push`. Existi
 5. `20260717010000_referral_rewards` — referral accounts, attribution, and reward lifecycle records.
 6. `20260717050000_admin_control_plane` — validated platform settings used by the administrator control plane.
 7. `20260717070000_admin_mfa` — encrypted administrator TOTP credentials, recovery-code hashes, replay counters, and per-session step-up records.
+8. `20260717120000_contact_group_activation` — preserved active/inactive Contact Group state used by plan-downgrade selection and Jump reconciliation.
 
 A populated MVP database must mark the complete baseline as applied **once** before the first migration-based deployment. Prisma otherwise correctly refuses to deploy into a non-empty database without migration history. After the baseline is resolved, `prisma migrate deploy` applies every remaining forward migration in order.
 
@@ -63,6 +64,13 @@ A clean database does not resolve anything manually: `prisma migrate deploy` exe
 - `AdminMfaSession`.
 - Enabled-credential and session-expiry lookup indexes.
 
+### Contact Group activation
+
+- `ContactGroupState`.
+- One durable active/inactive state per Group.
+- Workspace/active-state lookup index.
+- Missing state is interpreted as active for compatibility with existing Groups; the application writes explicit state when a Group is created, selected, or deactivated by a downgrade.
+
 The forward migrations do not rename or drop existing business tables.
 
 ## Mandatory pre-deployment gates
@@ -71,7 +79,7 @@ The forward migrations do not rename or drop existing business tables.
 2. Run `npm run db:rehearse-migration` against an isolated PostgreSQL database.
 3. Take an encrypted logical backup with `pg_dump`.
 4. Restore that backup into a separate database and complete an application smoke test against the restored copy.
-5. Record row counts for `User`, `Workspace`, `Contact`, `Mix`, `MixStep`, `Jump`, `SupportTicket`, `Referral`, `PlatformSetting`, `AdminMfaCredential`, and `AdminMfaSession`.
+5. Record row counts for `User`, `Workspace`, `Contact`, `Group`, `ContactGroupState`, `Mix`, `MixStep`, `Jump`, `SupportTicket`, `Referral`, `PlatformSetting`, `AdminMfaCredential`, and `AdminMfaSession`.
 6. Pause the background worker and prevent application writes during the deployment window.
 7. Confirm the deployment uses the same PostgreSQL major version rehearsed in CI.
 8. Confirm `DATA_ENCRYPTION_KEY`, `AUTH_RATE_LIMIT_SECRET`, `AUTH_REQUIRE_ADMIN_MFA`, and the administrator step-up age are configured in the deployment secret manager.
@@ -89,11 +97,11 @@ The command runs the main populated/clean migration rehearsal followed by indepe
 ### Populated MVP upgrade
 
 1. Creates an isolated schema from the legacy `main` Prisma model through `db push`.
-2. Inserts representative User, Workspace, Contact, reusable Jump, Mix, and MixStep data.
+2. Inserts representative User, Workspace, Contact, Contact Group, reusable Jump, Mix, and MixStep data.
 3. Resolves the committed complete baseline as already applied.
-4. Applies every forward migration, including the administrator-control-plane and administrator-MFA migrations.
+4. Applies every forward migration, including the administrator-control-plane, administrator-MFA, and Contact Group activation migrations.
 5. Verifies legacy data, new columns, new tables, indexes, and complete migration history.
-6. Writes representative security, support-thread, and qualified-referral records into new tables.
+6. Writes representative security, support-thread, qualified-referral, and inactive Contact Group state records into new tables.
 7. Executes the reviewed pre-traffic reverse SQL for the PRD-core migration.
 8. Validates legacy readability and reapplies the PRD-core migration while later independent migrations and their data remain present.
 
@@ -173,6 +181,8 @@ WHERE table_schema = current_schema()
   AND column_name IN ('privateNotes', 'isActive', 'updatedAt');
 
 SELECT COUNT(*) FROM "Contact";
+SELECT COUNT(*) FROM "Group";
+SELECT COUNT(*) FROM "ContactGroupState";
 SELECT COUNT(*) FROM "Mix";
 SELECT COUNT(*) FROM "MixStep";
 SELECT COUNT(*) FROM "Jump";
@@ -194,7 +204,8 @@ WHERE table_schema = current_schema()
     'ReferralReward',
     'PlatformSetting',
     'AdminMfaCredential',
-    'AdminMfaSession'
+    'AdminMfaSession',
+    'ContactGroupState'
   )
 ORDER BY table_name;
 ```
@@ -204,6 +215,9 @@ Application smoke tests:
 - Sign in with an existing user.
 - Open Contacts, Quick Add fallback, one Contact, Jumps, Mixes, Settings, Templates, Help, and My Account.
 - Update a non-production test Contact and confirm reconciliation completes.
+- Create more Contact Groups than the current plan allows, choose the active set, and confirm inactive memberships remain visible but unavailable for new assignments.
+- Deactivate a Group used by an active Mix and confirm future incomplete group-derived Jumps are canceled while the Group membership and Mix assignment remain stored.
+- Reactivate that Group and confirm eligible future Jumps return without duplicate history.
 - Enroll one non-production platform administrator in TOTP MFA and securely record the recovery codes.
 - Sign in again and verify that Admin requires a fresh code or one-time recovery code.
 - Open Admin · Overview, Operations, Audit, and System Settings.
@@ -241,7 +255,7 @@ If a launch-blocking problem is discovered before or after traffic reaches the n
 4. Run the pre-migration application version.
 5. Verify row counts and critical workflows before reopening traffic.
 
-Do not run the reverse SQL on an active production database after users have created new-schema data. New tables may contain security events, action history, stops, schedules, support conversations, template contributions, referral rewards, platform settings, MFA credentials, or MFA session state that cannot be represented in the legacy schema.
+Do not run the reverse SQL on an active production database after users have created new-schema data. New tables may contain security events, action history, stops, schedules, support conversations, template contributions, referral rewards, platform settings, MFA credentials, MFA session state, or Contact Group activation choices that cannot be represented in the legacy schema.
 
 Document:
 
@@ -261,12 +275,12 @@ The migration work package is complete only when:
 - The independent administrator-control-plane rehearsal passes.
 - The independent administrator-MFA rehearsal passes.
 - Every required migration record finishes without `rolled_back_at`.
-- Existing Contact, Mix, MixStep, and Jump rows remain readable.
+- Existing Contact, Group, Mix, MixStep, and Jump rows remain readable.
 - Existing MixStep rows have `isActive = true` and a non-null `updatedAt`.
 - The legacy `MixStep_mixId_sortOrder_key` index is absent after forward migration.
 - `MixStep_mixId_isActive_sortOrder_idx` exists.
 - Every newly added table is writable through its application service or rehearsal write.
-- The support thread, referral reward, platform-setting, and MFA migration writes pass automatically.
+- The support thread, referral reward, platform-setting, MFA, and Contact Group activation migration writes pass automatically.
 - The PRD-core rollback rehearsal and forward reapplication pass automatically.
 - A real backup has been restored successfully in staging.
 - Administrator MFA and view-only mutation smoke tests pass on the deployed origin.
