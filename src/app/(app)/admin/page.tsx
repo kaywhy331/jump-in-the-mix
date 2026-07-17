@@ -38,7 +38,7 @@ export default async function AdminPage() {
     prisma.jump.count({ where: { status: { in: ["PENDING", "COPIED"] } } }),
     prisma.jump.count({ where: { status: "DONE", completedAt: { gte: weekAgo } } }),
     prisma.supportTicket.count({ where: { status: { in: ["OPEN", "WAITING_ON_SUPPORT"] } } }),
-    prisma.sharedMixMetadata.count({ where: { reviewStatus: "PENDING" } }),
+    prisma.sharedMixMetadata.count({ where: { reviewState: "PENDING" } }),
     prisma.job.count({ where: { failedAt: { not: null } } }),
     prisma.webhookEvent.count({ where: { status: "FAILED" } }),
     prisma.integrationConnection.count({ where: { status: "ERROR" } }),
