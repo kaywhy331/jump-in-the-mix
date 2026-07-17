@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentSession } from "@/lib/auth";
 import { stableKey } from "@/lib/contact-import-shared";
 import { commitContactImportBatch, findImportMatches } from "@/lib/contact-import-service";
+import { activeGroupIdsForWorkspace } from "@/lib/group-activity";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
@@ -79,6 +80,15 @@ async function reuseAvailableDateTypes(workspaceId: string, items: CommitItems):
   }));
 }
 
+async function assertActiveGroupReferences(workspaceId: string, items: CommitItems): Promise<void> {
+  const requestedIds = [...new Set(items.flatMap((item) => item.record.groupIds))];
+  if (!requestedIds.length) return;
+  const activeIds = await activeGroupIdsForWorkspace(workspaceId, requestedIds);
+  if (activeIds.length !== requestedIds.length) {
+    throw new Error("One or more selected Contact Groups are inactive. Choose an active group from Contacts before importing.");
+  }
+}
+
 export async function POST(request: Request) {
   const session = await getCurrentSession();
   const membership = session?.user.memberships[0];
@@ -110,6 +120,7 @@ export async function POST(request: Request) {
       const result = await findImportMatches(membership.workspaceId, membership.workspace.planTier, parsed.data.records);
       return NextResponse.json(result);
     }
+    await assertActiveGroupReferences(membership.workspaceId, parsed.data.items);
     const items = await reuseAvailableDateTypes(membership.workspaceId, parsed.data.items);
     const results = await commitContactImportBatch({
       workspaceId: membership.workspaceId,
