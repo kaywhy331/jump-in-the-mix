@@ -58,6 +58,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
         <div className="page-actions">
           <Link className="button" href="/admin/support">Support</Link>
           <Link className="button" href="/admin/billing">Billing</Link>
+          <Link className="button" href="/admin/referrals">Referrals</Link>
           <Link className="button" href="/admin/templates">Mix Templates</Link>
           <Link className="button" href="/admin/integrations">Integrations</Link>
         </div>
