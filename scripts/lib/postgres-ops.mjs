@@ -65,6 +65,30 @@ export function postgresCliUrl(databaseUrl) {
   return url.toString();
 }
 
+export function postgresCliEnv(databaseUrl) {
+  const url = new URL(databaseUrl);
+  const env = {
+    PGHOST: decodeURIComponent(url.hostname),
+    PGPORT: url.port || "5432",
+    PGDATABASE: decodeURIComponent(url.pathname.replace(/^\//u, ""))
+  };
+  if (url.username) env.PGUSER = decodeURIComponent(url.username);
+  if (url.password) env.PGPASSWORD = decodeURIComponent(url.password);
+
+  const mappings = {
+    sslmode: "PGSSLMODE",
+    sslcert: "PGSSLCERT",
+    sslkey: "PGSSLKEY",
+    sslrootcert: "PGSSLROOTCERT",
+    application_name: "PGAPPNAME"
+  };
+  for (const [queryParameter, environmentName] of Object.entries(mappings)) {
+    const value = url.searchParams.get(queryParameter);
+    if (value) env[environmentName] = value;
+  }
+  return env;
+}
+
 export function databaseUrlWithDatabase(databaseUrl, databaseName, schema = "public") {
   const url = new URL(databaseUrl);
   url.pathname = `/${encodeURIComponent(databaseName)}`;
