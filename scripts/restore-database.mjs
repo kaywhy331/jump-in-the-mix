@@ -9,7 +9,7 @@ import {
   commandVersion,
   compareSnapshots,
   databaseIdentity,
-  postgresCliUrl,
+  postgresCliEnv,
   runCommand,
   sameDatabase
 } from "./lib/postgres-ops.mjs";
@@ -61,7 +61,7 @@ async function main() {
       "--no-owner",
       "--no-privileges",
       rawDumpPath
-    ], { env: { PGDATABASE: postgresCliUrl(targetUrl) } });
+    ], { env: postgresCliEnv(targetUrl) });
 
     const restored = await collectDatabaseSnapshot(targetUrl);
     const differences = compareSnapshots(manifest.source, restored);
