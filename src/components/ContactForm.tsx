@@ -6,7 +6,7 @@ import { VoiceNoteButton } from "@/components/VoiceNoteButton";
 import { createContactAction, updateContactAction } from "@/lib/contact-actions";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 
-type GroupOption = { id: string; name: string; color: string | null };
+type GroupOption = { id: string; name: string; color: string | null; isActive: boolean };
 type CustomFieldOption = { id: string; name: string; key: string };
 type ContactMethod = { value: string; label: string };
 type ContactAddress = {
@@ -87,6 +87,7 @@ export function ContactForm({
     () => new Map((contact?.customFieldValues ?? []).map((item) => [item.definitionId, item.value])),
     [contact?.customFieldValues]
   );
+  const selectedGroupIds = useMemo(() => new Set(contact?.groupIds ?? []), [contact?.groupIds]);
   const [emails, setEmails] = useState(startingEmails);
   const [phones, setPhones] = useState(startingPhones);
   const [addresses, setAddresses] = useState(startingAddresses);
@@ -174,14 +175,26 @@ export function ContactForm({
       </section>
 
       <section className="card contact-editor-section">
-        <div className="card-header"><div><h2>Groups and notes</h2><p>Private Notes are intended only for phone-call context.</p></div></div>
-        {groups.length ? <div className="group-choice-grid">{groups.map((group) => (
-          <label className="checkbox-card" key={group.id}>
-            <input type="checkbox" name="groupIds" value={group.id} defaultChecked={contact?.groupIds?.includes(group.id)} />
-            <span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />
-            <span>{group.name}</span>
-          </label>
-        ))}</div> : <p className="muted-copy">No groups have been created yet. You can add them from the Contacts page.</p>}
+        <div className="card-header"><div><h2>Groups and notes</h2><p>Inactive memberships remain attached to this Contact but cannot be newly assigned. Private Notes are intended only for phone-call context.</p></div></div>
+        {groups.length ? <div className="group-choice-grid">{groups.map((group) => {
+          const selected = selectedGroupIds.has(group.id);
+          return (
+            <div key={group.id}>
+              {!group.isActive && selected && <input type="hidden" name="groupIds" value={group.id} />}
+              <label className={`checkbox-card ${group.isActive ? "" : "inactive"}`}>
+                <input
+                  type="checkbox"
+                  name={group.isActive ? "groupIds" : undefined}
+                  value={group.id}
+                  defaultChecked={selected}
+                  disabled={!group.isActive}
+                />
+                <span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />
+                <span><strong>{group.name}</strong>{!group.isActive && <small>{selected ? "Inactive · membership preserved" : "Inactive under current plan"}</small>}</span>
+              </label>
+            </div>
+          );
+        })}</div> : <p className="muted-copy">No groups have been created yet. You can add them from the Contacts page.</p>}
         <div className="form-grid notes-grid">
           <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Public Notes</label>{mode === "create" && <VoiceNoteButton targetId="publicNotes" />}</div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Context that may be used in approved Jump placeholders." /></div>
           <div className="field full"><label htmlFor="privateNotes">Private Notes</label><textarea id="privateNotes" name="privateNotes" defaultValue={contact?.privateNotes ?? ""} placeholder="Sensitive call context. Never inserted into SMS or email Jumps." /></div>
