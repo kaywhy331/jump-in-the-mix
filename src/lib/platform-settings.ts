@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { MIX_TEMPLATE_CATEGORIES, MIX_TEMPLATE_INDUSTRIES } from "@/lib/shared-mix";
 
 const AI_TONE_VALUES = ["Warm", "Professional", "Conversational", "Direct"] as const;
 
@@ -7,35 +8,18 @@ export const PLATFORM_SETTING_DEFINITIONS = {
   "mix.categories": {
     category: "Mixes and Templates",
     label: "Mix categories",
-    description: "Categories available when organizing Mixes and publishing Mix Templates.",
+    description: "Reviewed categories available when organizing Mixes and publishing Mix Templates. They can be reordered or hidden without invalidating existing content.",
     kind: "string-list",
     isPublic: true,
-    defaultValue: [
-      "Business",
-      "Sales & Prospecting",
-      "Client Success / Retention",
-      "Events & Networking",
-      "Personal / Relationships",
-      "Marketing Campaigns",
-      "General / Other"
-    ]
+    defaultValue: [...MIX_TEMPLATE_CATEGORIES]
   },
   "mix.industries": {
     category: "Mixes and Templates",
     label: "Industries",
-    description: "Industry filters available on Mixes and Mix Templates.",
+    description: "Reviewed industry filters available on Mixes and Mix Templates. They can be reordered or hidden without invalidating existing content.",
     kind: "string-list",
     isPublic: true,
-    defaultValue: [
-      "Real Estate",
-      "Insurance",
-      "Finance",
-      "Healthcare",
-      "Contractors / Home Services",
-      "Coaching / Consulting",
-      "Nonprofit",
-      "General / Other"
-    ]
+    defaultValue: [...MIX_TEMPLATE_INDUSTRIES]
   },
   "ai.objectives": {
     category: "AI Mix Wizard",
@@ -135,6 +119,11 @@ function uniqueStrings(value: unknown): string[] {
   return result;
 }
 
+function assertAllowedSubset(label: string, list: string[], allowed: readonly string[]): void {
+  const unsupported = list.filter((item) => !allowed.includes(item));
+  if (unsupported.length) throw new Error(`${label} may only use the reviewed values: ${allowed.join(", ")}.`);
+}
+
 export function validatePlatformSettingValue(key: PlatformSettingKey, value: unknown): Prisma.InputJsonValue {
   const definition = PLATFORM_SETTING_DEFINITIONS[key];
   if (definition.kind === "boolean") {
@@ -144,12 +133,9 @@ export function validatePlatformSettingValue(key: PlatformSettingKey, value: unk
   const list = uniqueStrings(value);
   if (!list.length) throw new Error(`${definition.label} needs at least one option.`);
   if (list.length > 100) throw new Error(`${definition.label} may contain at most 100 options.`);
-  if (key === "ai.tones") {
-    const unsupported = list.filter((item) => !AI_TONE_VALUES.includes(item as typeof AI_TONE_VALUES[number]));
-    if (unsupported.length) {
-      throw new Error(`AI tones may only use the reviewed values: ${AI_TONE_VALUES.join(", ")}.`);
-    }
-  }
+  if (key === "ai.tones") assertAllowedSubset(definition.label, list, AI_TONE_VALUES);
+  if (key === "mix.categories") assertAllowedSubset(definition.label, list, MIX_TEMPLATE_CATEGORIES);
+  if (key === "mix.industries") assertAllowedSubset(definition.label, list, MIX_TEMPLATE_INDUSTRIES);
   return list;
 }
 
