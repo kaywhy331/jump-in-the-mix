@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { MixStatus, MixTriggerMode } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
+import { listGroupStates, mergeGroupActivity } from "@/lib/group-activity";
 import { parseBroadcastScheduleInput } from "@/lib/mix-broadcast";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
@@ -70,18 +71,38 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   const sendTimes = values(formData, "sendTimeMinutes");
   if (!stepTemplateIds.length || stepTemplateIds.some((id) => !id)) fail(path, "Add at least one reusable Jump to the Mix.");
 
-  const templates = await prisma.stepTemplate.findMany({
-    where: { id: { in: [...new Set(stepTemplateIds)] }, workspaceId: workspace.id, isActive: true },
-    include: { versions: { orderBy: { version: "desc" }, take: 1 } }
-  });
+  const [templates, existingMix] = await Promise.all([
+    prisma.stepTemplate.findMany({
+      where: { id: { in: [...new Set(stepTemplateIds)] }, workspaceId: workspace.id, isActive: true },
+      include: { versions: { orderBy: { version: "desc" }, take: 1 } }
+    }),
+    mixIdRaw
+      ? prisma.mix.findFirst({
+          where: { id: mixIdRaw, workspaceId: workspace.id, status: { not: "ARCHIVED" } },
+          include: { steps: { where: { isActive: true } }, assignments: { where: { mode: "DYNAMIC" } } }
+        })
+      : Promise.resolve(null)
+  ]);
+  if (mixIdRaw && !existingMix) fail("/mixes", "Mix not found.");
+
   const templateById = new Map(templates.map((template) => [template.id, template]));
   if (stepTemplateIds.some((id) => !templateById.get(id)?.versions[0])) fail(path, "One or more selected Jumps are unavailable.");
 
   const groupIds = [...new Set(values(formData, "groupIds").filter(Boolean))];
   if (groupIds.length) {
-    const validGroups = await prisma.group.count({ where: { workspaceId: workspace.id, id: { in: groupIds } } });
-    if (validGroups !== groupIds.length) fail(path, "One or more selected Contact Groups are unavailable.");
+    const [availableGroups, groupStates] = await Promise.all([
+      prisma.group.findMany({ where: { workspaceId: workspace.id, id: { in: groupIds } }, select: { id: true } }),
+      listGroupStates(workspace.id)
+    ]);
+    if (availableGroups.length !== groupIds.length) fail(path, "One or more selected Contact Groups are unavailable.");
+    const existingGroupIds = new Set((existingMix?.assignments ?? []).flatMap((assignment) => assignment.groupId ? [assignment.groupId] : []));
+    const unavailableNewGroup = mergeGroupActivity(availableGroups, groupStates)
+      .some((group) => !group.isActive && !existingGroupIds.has(group.id));
+    if (unavailableNewGroup) {
+      fail(path, "Inactive Contact Groups cannot be added to a Mix. Reactivate the group from Contacts or choose an active group.");
+    }
   }
+
   const assignAllContacts = formData.get("assignAllContacts") === "on";
   if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) {
     fail(path, "Choose All active Contacts or at least one Contact Group for the broadcast.");
@@ -89,14 +110,6 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   const allContactIds = assignAllContacts
     ? (await prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true } })).map((contact) => contact.id)
     : [];
-
-  const existingMix = mixIdRaw
-    ? await prisma.mix.findFirst({
-        where: { id: mixIdRaw, workspaceId: workspace.id, status: { not: "ARCHIVED" } },
-        include: { steps: { where: { isActive: true } }, assignments: { where: { mode: "DYNAMIC" } } }
-      })
-    : null;
-  if (mixIdRaw && !existingMix) fail("/mixes", "Mix not found.");
 
   if (status === "ACTIVE" && existingMix?.status !== "ACTIVE") {
     const activeCount = await prisma.mix.count({
