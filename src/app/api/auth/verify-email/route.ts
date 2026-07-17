@@ -49,8 +49,8 @@ export async function GET(request: Request) {
         data: { emailVerifiedAt: now },
         select: { id: true, email: true }
       });
-      await qualifyAttributedReferralForUser(tx, verified.id, now);
-      return verified;
+      const referralQualified = await qualifyAttributedReferralForUser(tx, verified.id, now);
+      return { ...verified, referralQualified };
     });
 
     if (!user) return redirectTo(request, "/verify-email/pending?error=That%20verification%20link%20is%20invalid%20or%20expired.");
@@ -59,8 +59,10 @@ export async function GET(request: Request) {
       where: { userId: user.id },
       include: { workspace: { include: { profile: true } } }
     });
-    const suffix = membership?.workspace.profile?.onboardingDone ? "/jumps?verified=1" : "/onboarding?verified=1";
-    return redirectTo(request, `${suffix}&referral=qualified`);
+    const destination = new URL(membership?.workspace.profile?.onboardingDone ? "/jumps" : "/onboarding", request.url);
+    destination.searchParams.set("verified", "1");
+    if (user.referralQualified) destination.searchParams.set("referral", "qualified");
+    return NextResponse.redirect(destination);
   } catch (error) {
     console.error("Email verification failed", error);
     return redirectTo(request, `/verify-email/pending?error=${encodeURIComponent("That verification link could not be completed. Request a new one.")}`);
