@@ -105,6 +105,24 @@ This document distinguishes the runnable independent application from the comple
 - Downgrade safeguards preserve records while pausing excess active Mixes, canceling their future incomplete Jumps, deactivating excess custom Jump Date Types, and unpublishing excess Community contributions.
 - My Account billing summary, usage guidance, annual-first plan selection, billing return state, verification/cancel pages, and admin Billing diagnostics.
 
+### Referral rewards
+
+- One unique, workspace-scoped invitation code with a short `/r/<code>` route and a 30-day HTTP-only attribution cookie.
+- Server-side invitation resolution; public registration never accepts a trusted referrer workspace ID.
+- A qualified friend and the referrer each receive 30 days of Plus.
+- Mandatory email verification delays qualification until the friend verifies the account.
+- One referred workspace may be attributed once, and each referral has one Referrer and one Referred reward record.
+- Referrer earnings are capped at 360 days from durable reward history.
+- Paid Plus and Pro remain controlled by Stripe while referral days are banked separately.
+- Unused active referral time is banked during a paid upgrade and resumes after paid access ends.
+- Referral expiration returns the workspace to Free through the existing downgrade-preservation safeguards.
+- Worker, authenticated-request, Checkout-verification, and Stripe-webhook reconciliation keep entitlement state current.
+- Mobile and desktop share controls use the Web Share API with a clipboard fallback and friendly invitation copy.
+- My Account shows the invite, qualified/pending history, active and banked days, expiration, and cap progress.
+- View-only support access can inspect existing history without creating or exposing an invitation code.
+- Admin · Referrals provides search, status filtering, qualification counts, active referral Plus, banked days, reward state, and cap visibility.
+- Dedicated Prisma migration plus static, boundary, migration-rehearsal, and PostgreSQL lifecycle coverage.
+
 ### Jump Date Types, reusable Jumps, and Mix builder
 
 - Tenant-owned custom Jump Date Types without per-user duplication of global system records.
@@ -125,7 +143,7 @@ This document distinguishes the runnable independent application from the comple
 - Branded HTML/text transactional email through Resend with development previews.
 - Central Origin and Fetch Metadata mutation boundary, constrained Server Action origins, security headers, and request-size limits.
 - Hashed opaque sessions with device/IP/last-seen/expiration metadata, caps, remote revocation, and sign-out-everywhere.
-- My Account identity, plan state, billing, usage, Google Contacts, Help/tickets, password, and active-device controls.
+- My Account identity, plan state, billing, usage, Google Contacts, referrals, Help/tickets, password, and active-device controls.
 
 ### Help, FAQ, and support tickets
 
@@ -148,7 +166,7 @@ This document distinguishes the runnable independent application from the comple
 - Supported clean-database deployment and existing populated-MVP upgrade paths.
 - Automated populated migration, data-preservation, reverse-SQL, forward-reapplication, and clean-deployment rehearsals.
 - Production runbooks for backup, restore, row-count checks, worker pause/restart, smoke testing, and backup-based rollback.
-- Dedicated forward migrations for the PRD core, Mix Template library, and Help/support center.
+- Dedicated forward migrations for the PRD core, Mix Template library, Help/support center, and referral rewards.
 
 ### Audited view-only administrator support
 
@@ -157,20 +175,20 @@ This document distinguishes the runnable independent application from the comple
 - Random support token stored only as a SHA-256 hash.
 - Real administrator remains the audit actor while the read context switches to the selected workspace.
 - Persistent view-only banner; every browser mutation is rejected except ending the session.
-- Target password/device/billing/ticket controls remain hidden; start/end events are audited.
+- Target password/device/billing/ticket/referral-sharing controls remain hidden; start/end events are audited.
 
 ## Remaining P0 work
 
 - Restore a real encrypted backup in production-like staging and complete the documented application/worker smoke matrix.
-- Add full browser-driven end-to-end tests for authenticated routes, imports, Google, Templates, AI Wizard, billing, Help/tickets, and mutation rejection.
+- Add full browser-driven end-to-end tests for authenticated routes, imports, Google, Templates, AI Wizard, billing, referrals, Help/tickets, and mutation rejection.
 - Require MFA for platform administrators before support views are enabled operationally.
 - Validate production transactional-email delivery and inbox placement before mandatory verification and support-email reliance.
-- Complete a real Stripe test-mode Checkout, Customer Portal, plan-change, failed-payment, cancellation, duplicate-webhook, pause/resume, and downgrade smoke matrix.
+- Complete a real Stripe test-mode Checkout, Customer Portal, plan-change, failed-payment, cancellation, duplicate-webhook, pause/resume, downgrade, and referral-bank handoff smoke matrix.
 - Complete the final security, accessibility, and operational launch review.
 
 ## Remaining P1 work
 
 - Device Contact Picker / Quick Add capability and browser fallback polish.
-- Referral rewards and the broader administration/observability control plane.
+- Broader administration and observability control plane.
 - User-guided selection for which over-limit Contact Groups remain active after a downgrade; Groups are currently preserved and new creation is blocked until within the plan limit.
 - Encrypted backup automation, load testing, and full production-like staging validation.
