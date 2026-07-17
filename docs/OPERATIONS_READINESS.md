@@ -52,7 +52,7 @@ npm run db:backup -- --output /secure/export/pre-deploy.jitm-backup.enc
 
 ## Restore into a separate empty database
 
-Production in-place restore is intentionally blocked. Create a separate empty target and provide its URL:
+Production in-place restore is intentionally blocked. Create a separate empty target and provide its URL through the environment so database credentials never appear in process arguments:
 
 ```text
 RESTORE_DATABASE_URL=postgresql://.../jitm_restore?schema=public
@@ -62,7 +62,7 @@ Then run:
 
 ```bash
 npm run db:restore -- --input /secure/export/pre-deploy.jitm-backup.enc
-npm run db:smoke-restored -- --database-url "$RESTORE_DATABASE_URL"
+npm run db:smoke-restored
 ```
 
 Restore validation performs all of the following:
