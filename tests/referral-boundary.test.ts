@@ -21,14 +21,17 @@ describe("referral boundaries and public flow", () => {
     expect(REFERRAL_MAX_REFERRER_DAYS).toBe(360);
   });
 
-  it("captures referral identity through a short public route without exposing a workspace id", () => {
+  it("captures and can explicitly clear referral identity without exposing a workspace id", () => {
     const route = read("src/app/r/[code]/route.ts");
+    const clearRoute = read("src/app/r/clear/route.ts");
     const register = read("src/app/register/page.tsx");
     expect(route).toContain("REFERRAL_COOKIE");
     expect(route).toContain("httpOnly: true");
     expect(route).toContain('sameSite: "lax"');
+    expect(clearRoute).toContain("response.cookies.delete(REFERRAL_COOKIE)");
     expect(register).toContain('name="referralCode"');
     expect(register).toContain("findReferralInvite");
+    expect(register).toContain('href="/r/clear"');
     expect(register).not.toContain('name="referrerWorkspaceId"');
   });
 
