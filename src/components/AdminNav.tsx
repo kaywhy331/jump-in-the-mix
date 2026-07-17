@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const items = [
   ["Overview", "/admin"],
@@ -13,11 +16,17 @@ const items = [
   ["System Settings", "/admin/settings"]
 ] as const;
 
-export function AdminNav({ current }: { current: string }) {
+function isActive(pathname: string, href: string): boolean {
+  return href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function AdminNav({ current }: { current?: string }) {
+  const pathname = usePathname();
+  const activePath = current ?? pathname;
   return (
     <nav className="admin-nav" aria-label="Administration">
       {items.map(([label, href]) => (
-        <Link className={current === href ? "active" : ""} href={href} key={href}>
+        <Link className={isActive(activePath, href) ? "active" : ""} href={href} key={href}>
           {label}
         </Link>
       ))}
