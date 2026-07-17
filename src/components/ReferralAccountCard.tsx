@@ -1,6 +1,7 @@
 import { ReferralShareButton } from "@/components/ReferralShareButton";
 import { env } from "@/lib/env";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { prisma } from "@/lib/prisma";
 import {
   referralDaysRemaining,
   referralRewardStatusLabel,
@@ -19,6 +20,21 @@ export async function ReferralAccountCard({
   planTier: "FREE" | "PLUS" | "PRO";
   impersonation: boolean;
 }) {
+  if (impersonation) {
+    const existing = await prisma.referralAccount.findUnique({ where: { workspaceId }, select: { workspaceId: true } });
+    if (!existing) {
+      return (
+        <section className="card account-referral-card" id="referrals">
+          <div className="card-header"><div><h2>Referral history</h2><p>No referral account has been initialized for this workspace.</p></div></div>
+          <div className="support-inline-empty referral-empty-state">
+            <strong>No referral records are available.</strong>
+            <span>View-only support access does not create referral codes or modify account state.</span>
+          </div>
+        </section>
+      );
+    }
+  }
+
   const dashboard = await getReferralDashboard(workspaceId);
   const shareUrl = referralShareUrl(env.appUrl, dashboard.account.code);
   const shareMessage = referralShareMessage(shareUrl);
@@ -29,18 +45,20 @@ export async function ReferralAccountCard({
     <section className="card account-referral-card" id="referrals">
       <div className="card-header referral-card-header">
         <div>
-          <h2>Invite friends to Jump in the Mix</h2>
-          {planTier !== "PRO" && (
-            <p>Friends start with 30 days of Plus. Each qualified signup earns your workspace 30 Plus days, up to 360 days.</p>
-          )}
+          <h2>{impersonation ? "Referral history" : "Invite friends to Jump in the Mix"}</h2>
+          {impersonation
+            ? <p>Review qualification, reward, and entitlement state without exposing the shareable invite code.</p>
+            : planTier !== "PRO" && <p>Friends start with 30 days of Plus. Each qualified signup earns your workspace 30 Plus days, up to 360 days.</p>}
         </div>
         {!impersonation && <ReferralShareButton message={shareMessage} />}
       </div>
 
-      <div className="referral-code-row">
-        <div><small>Your invite code</small><strong>{dashboard.account.code}</strong></div>
-        <code>{shareUrl}</code>
-      </div>
+      {!impersonation && (
+        <div className="referral-code-row">
+          <div><small>Your invite code</small><strong>{dashboard.account.code}</strong></div>
+          <code>{shareUrl}</code>
+        </div>
+      )}
 
       <div className="referral-stats-grid">
         <article><small>Qualified friends</small><strong>{dashboard.qualifiedCount}</strong></article>
@@ -69,7 +87,7 @@ export async function ReferralAccountCard({
       )}
       {dashboard.receivedFrom && (
         <div className="notice success referral-entitlement-notice">
-          You joined through {dashboard.receivedFrom.ownerName}&apos;s invitation and received a 30-day Plus signup reward.
+          This workspace joined through {dashboard.receivedFrom.ownerName}&apos;s invitation and received a 30-day Plus signup reward.
         </div>
       )}
 
@@ -95,7 +113,7 @@ export async function ReferralAccountCard({
         {!dashboard.history.length && (
           <div className="support-inline-empty referral-empty-state">
             <strong>No invitations have qualified yet.</strong>
-            <span>Share your invite from the header or this card. Rewards appear after the friend completes qualification.</span>
+            <span>{impersonation ? "This workspace has no qualified referral history." : "Share your invite from the header or this card. Rewards appear after the friend completes qualification."}</span>
           </div>
         )}
       </div>
