@@ -7,6 +7,7 @@ import {
   validateContactCustomFieldInputs
 } from "@/lib/contact-custom-fields";
 import { buildAddressInputs, buildEmailInputs, buildPhoneInputs } from "@/lib/contact-input";
+import { listGroupStates, mergeGroupActivity } from "@/lib/group-activity";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
@@ -62,10 +63,23 @@ function contactPayload(formData: FormData) {
 }
 
 async function validateContactPayload(workspaceId: string, payload: ReturnType<typeof contactPayload>, excludeContactId?: string) {
-  const groups = payload.groupIds.length
-    ? await prisma.group.findMany({ where: { workspaceId, id: { in: payload.groupIds } }, select: { id: true } })
-    : [];
+  const [groups, groupStates, existingMemberships] = await Promise.all([
+    payload.groupIds.length
+      ? prisma.group.findMany({ where: { workspaceId, id: { in: payload.groupIds } }, select: { id: true } })
+      : [],
+    listGroupStates(workspaceId),
+    excludeContactId
+      ? prisma.contactGroupMembership.findMany({ where: { contactId: excludeContactId }, select: { groupId: true } })
+      : []
+  ]);
   if (groups.length !== payload.groupIds.length) throw new Error("One or more selected groups are not available in this workspace.");
+  const existingGroupIds = new Set(existingMemberships.map((membership) => membership.groupId));
+  const unavailableNewGroup = mergeGroupActivity(groups, groupStates)
+    .some((group) => !group.isActive && !existingGroupIds.has(group.id));
+  if (unavailableNewGroup) {
+    throw new Error("Inactive Contact Groups cannot receive new assignments. Choose an active group or change the active selection from Contacts.");
+  }
+
   await validateContactCustomFieldInputs(prisma, workspaceId, payload.customFields);
 
   for (const email of payload.emails) {
