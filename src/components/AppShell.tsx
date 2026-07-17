@@ -52,7 +52,7 @@ export function AppShell({
               <>
                 {referralMessage && <ReferralShareButton message={referralMessage} compact className="referral-sidebar-share" />}
                 <Link className="text-button" href="/account">My Account</Link>
-                {isPlatformAdmin && <Link className="text-button" href="/admin/users">Admin</Link>}
+                {isPlatformAdmin && <Link className="text-button" href="/admin">Admin</Link>}
                 <form action={logoutAction}><button className="text-button" type="submit">Sign out</button></form>
               </>
             )}
@@ -64,7 +64,7 @@ export function AppShell({
         {impersonation ? endImpersonationForm : (
           <div className="mobile-account-actions">
             {referralMessage && <ReferralShareButton message={referralMessage} compact />}
-            {isPlatformAdmin && <Link className="button small" href="/admin/users">Admin</Link>}
+            {isPlatformAdmin && <Link className="button small" href="/admin">Admin</Link>}
             <Link className="button small" href="/account" aria-label={`Open My Account for ${userName}`}>My Account</Link>
           </div>
         )}
