@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { endAdminImpersonationGrant } from "@/lib/impersonation";
+import { requestPublicUrl } from "@/lib/request-url";
 
 export async function POST(request: Request) {
   const session = await getCurrentSession();
@@ -15,7 +16,10 @@ export async function POST(request: Request) {
     await endAdminImpersonationGrant(decodeURIComponent(rawToken), session.authUser.id).catch(() => false);
   }
 
-  const response = NextResponse.redirect(new URL(session?.authUser.isPlatformAdmin ? "/admin/users?impersonationEnded=1" : "/login", request.url), 303);
+  const response = NextResponse.redirect(
+    requestPublicUrl(request, session?.authUser.isPlatformAdmin ? "/admin/users?impersonationEnded=1" : "/login"),
+    303
+  );
   response.cookies.set(env.impersonationCookieName, "", {
     httpOnly: true,
     sameSite: "lax",
