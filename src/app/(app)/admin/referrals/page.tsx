@@ -20,7 +20,9 @@ const statuses: Array<{ value: ReferralStatus | "all"; label: string }> = [
 export default async function AdminReferralsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params] = await Promise.all([searchParams, requirePlatformAdmin()]);
   const query = params.q?.trim() ?? "";
-  const status = statuses.some((item) => item.value === params.status) ? params.status as ReferralStatus : null;
+  const status = params.status && params.status !== "all" && statuses.some((item) => item.value === params.status)
+    ? params.status as ReferralStatus
+    : null;
   const matchingWorkspaces = query
     ? await prisma.workspace.findMany({
         where: {
@@ -39,7 +41,10 @@ export default async function AdminReferralsPage({ searchParams }: { searchParam
         select: { workspaceId: true }
       })
     : [];
-  const workspaceIds = [...new Set([...matchingWorkspaces, ...matchingAccounts].map((item) => item.id ?? item.workspaceId))];
+  const workspaceIds = [...new Set([
+    ...matchingWorkspaces.map((item) => item.id),
+    ...matchingAccounts.map((item) => item.workspaceId)
+  ])];
   const where: Prisma.ReferralWhereInput = {
     ...(status ? { status } : {}),
     ...(query
