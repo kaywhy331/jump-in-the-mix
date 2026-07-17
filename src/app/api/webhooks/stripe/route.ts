@@ -7,6 +7,7 @@ import {
 } from "@/lib/billing-service";
 import { enforceCurrentWorkspacePlanLimits } from "@/lib/plan-downgrade";
 import { prisma } from "@/lib/prisma";
+import { reconcileWorkspaceReferralEntitlement } from "@/lib/referral-service";
 import {
   StripeConfigurationError,
   StripeWebhookSignatureError,
@@ -119,6 +120,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await reconcileEvent(event);
+    if (result.workspaceId) await reconcileWorkspaceReferralEntitlement(result.workspaceId);
     const workspace = result.workspaceId
       ? await prisma.workspace.findUnique({ where: { id: result.workspaceId }, select: { planTier: true } })
       : null;
