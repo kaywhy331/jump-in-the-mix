@@ -8,6 +8,7 @@ import {
 } from "@/lib/ai-mix";
 import { generateAiMixDraftAction } from "@/lib/ai-mix-actions";
 import { requireWorkspace } from "@/lib/auth";
+import { mergeGroupActivity } from "@/lib/group-activity";
 import { formatTimeInput } from "@/lib/mix-broadcast";
 import { getPlatformBoolean, getPlatformStringList } from "@/lib/platform-settings";
 import { PLAN_LIMITS } from "@/lib/plans";
@@ -46,8 +47,9 @@ export default async function MixWizardPage({ searchParams }: { searchParams: Pr
     );
   }
 
-  const [groups, dateTypes, recentDrafts, objectives, frameworks, tones, providerEnabled] = await Promise.all([
+  const [rawGroups, groupStates, dateTypes, recentDrafts, objectives, frameworks, tones, providerEnabled] = await Promise.all([
     prisma.group.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
+    prisma.contactGroupState.findMany({ where: { workspaceId: workspace.id }, select: { groupId: true, isActive: true } }),
     prisma.dateType.findMany({
       where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null, isSystem: true }] },
       orderBy: [{ isSystem: "asc" }, { name: "asc" }]
@@ -62,6 +64,7 @@ export default async function MixWizardPage({ searchParams }: { searchParams: Pr
     getPlatformStringList("ai.tones"),
     getPlatformBoolean("feature.aiProviderGeneration")
   ]);
+  const groups = mergeGroupActivity(rawGroups, groupStates).filter((group) => group.isActive);
   const profile = workspace.profile;
   const products = [profile?.product1, profile?.product2, profile?.product3, profile?.product4, profile?.product5];
   const timezone = profile?.timezone ?? "UTC";
@@ -97,7 +100,7 @@ export default async function MixWizardPage({ searchParams }: { searchParams: Pr
 
         <fieldset className="card ai-wizard-section">
           <legend><span>2</span> Trigger and audience</legend>
-          <p>Decide what starts the Mix and who should receive its Jumps.</p>
+          <p>Decide what starts the Mix and who should receive its Jumps. Only active Contact Groups are available; inactive memberships remain preserved outside the wizard.</p>
           <div className="form-grid">
             <div className="field"><label htmlFor="triggerMode">How should the Mix start?</label><select id="triggerMode" name="triggerMode" defaultValue="MANUAL_START"><option value="MANUAL_START">Manual start</option><option value="DATE_TRIGGERED">Target Jump Date Type</option><option value="BROADCAST">Fixed-date broadcast</option></select></div>
             <div className="field"><label htmlFor="dateTypeId">Target Jump Date Type</label><select id="dateTypeId" name="dateTypeId" defaultValue=""><option value="">Used only for date-triggered Mixes</option>{dateTypes.map((item) => <option key={item.id} value={item.id}>{item.isSystem ? "System" : "Custom"} · {item.name}</option>)}</select></div>
@@ -105,7 +108,7 @@ export default async function MixWizardPage({ searchParams }: { searchParams: Pr
             <div className="field"><label htmlFor="broadcastTime">Broadcast time</label><input id="broadcastTime" name="broadcastTime" type="time" defaultValue="10:00" /></div>
             <div className="field full"><label htmlFor="broadcastTimezone">Broadcast timezone</label><input id="broadcastTimezone" name="broadcastTimezone" defaultValue={timezone} /></div>
             <label className="checkbox-card field full"><input type="checkbox" name="assignAllContacts" /><span><strong>All active Contacts</strong><small>Use a snapshot of every active Contact currently in this workspace.</small></span></label>
-            <div className="field full"><span className="field-label">Or choose Contact Groups</span>{groups.length ? <div className="checkbox-row ai-audience-groups">{groups.map((group) => <label className="checkbox-card" key={group.id}><input type="checkbox" name="groupIds" value={group.id} /><span><strong>{group.name}</strong><small>{group.description || "Dynamic Group audience"}</small></span></label>)}</div> : <Notice type="info">No Contact Groups exist yet. Choose All active Contacts or create a Group from Contacts first.</Notice>}</div>
+            <div className="field full"><span className="field-label">Or choose active Contact Groups</span>{groups.length ? <div className="checkbox-row ai-audience-groups">{groups.map((group) => <label className="checkbox-card" key={group.id}><input type="checkbox" name="groupIds" value={group.id} /><span><strong>{group.name}</strong><small>{group.description || "Dynamic Group audience"}</small></span></label>)}</div> : <Notice type="info">No active Contact Groups are available. Choose All active Contacts or select active Groups from Contacts first.</Notice>}</div>
           </div>
         </fieldset>
 
