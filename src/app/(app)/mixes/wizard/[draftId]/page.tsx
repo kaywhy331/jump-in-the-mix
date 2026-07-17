@@ -26,6 +26,7 @@ import { sharedMixChannelLabel } from "@/lib/shared-mix";
 export const metadata: Metadata = { title: "Review AI Mix Draft" };
 
 type SearchParams = { generated?: string; saved?: string; refined?: string; error?: string };
+type RefinementPreset = (typeof AI_MIX_REFINEMENT_PRESETS)[number][0];
 
 function triggerLabel(triggerMode: string): string {
   if (triggerMode === "DATE_TRIGGERED") return "Target Jump Date Type";
@@ -85,13 +86,16 @@ export default async function AiMixDraftPage({
   const audience = preflight.assignAllContacts ? "All active Contacts" : preflight.groupNames.join(", ");
   const allowedChannels = AI_MIX_CHANNELS.filter((channel) => channel !== "VOICEMAIL" || PLAN_LIMITS[workspace.planTier].ringlessVoicemailsPerMonth > 0);
   const expires = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(draftRecord.expiresAt);
-  const presetByLabel = new Map(AI_MIX_REFINEMENT_PRESETS.map(([value, label]) => [label, value]));
-  const refinementOptions = refinementLabels
-    .map((label) => ({ label, value: presetByLabel.get(label) }))
-    .filter((item): item is { label: string; value: typeof AI_MIX_REFINEMENT_PRESETS[number][0] } => Boolean(item.value));
+  const presetByLabel = new Map<string, RefinementPreset>(
+    AI_MIX_REFINEMENT_PRESETS.map(([presetValue, label]) => [label, presetValue])
+  );
+  const refinementOptions = refinementLabels.flatMap((label) => {
+    const presetValue = presetByLabel.get(label);
+    return presetValue ? [{ label, value: presetValue }] : [];
+  });
   const effectiveRefinementOptions = refinementOptions.length
     ? refinementOptions
-    : AI_MIX_REFINEMENT_PRESETS.map(([value, label]) => ({ value, label }));
+    : AI_MIX_REFINEMENT_PRESETS.map(([presetValue, label]) => ({ value: presetValue, label }));
 
   return (
     <div className="page ai-wizard-page ai-review-page">
