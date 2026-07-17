@@ -18,6 +18,14 @@ describe("AI Mix Wizard boundary", () => {
     expect(actions).toContain('scope: "ai-mix.refine"');
   });
 
+  it("accepts only active workspace Contact Groups as AI audiences", () => {
+    const actions = read("src/lib/ai-mix-actions.ts");
+    const wizard = read("src/app/(app)/mixes/wizard/page.tsx");
+    expect(actions).toContain("activeGroupIdsForWorkspace(workspace.id, groupIds)");
+    expect(actions).toContain("Choose only active Contact Groups");
+    expect(wizard).toContain("mergeGroupActivity(rawGroups, groupStates).filter((group) => group.isActive)");
+  });
+
   it("uses schema-constrained provider output with storage disabled", () => {
     const service = read("src/lib/ai-mix.ts");
     expect(service).toContain('type: "json_schema"');
