@@ -106,11 +106,14 @@ A lower plan never deletes workspace records. After Checkout verification or a s
 - Excess active Mixes become Paused.
 - Future Pending or Copied Jumps from those paused Mixes become Canceled with `plan_downgrade` as the reason.
 - Excess active custom Jump Date Types become inactive and can later be selected again after an upgrade or another type is deactivated.
+- Excess active Contact Groups become inactive while their Contacts, memberships, and Mix assignments remain stored.
+- Inactive Contact Groups cannot receive new Contact assignments, cannot be newly added to a Mix, and do not generate group-derived Jumps.
+- Choosing a different active Contact Group set from Contacts queues reconciliation; future incomplete work from a deactivated group is canceled and eligible work from a reactivated group is restored.
 - Excess pending, approved, or flagged Community Mix contributions become Unpublished.
-- Contacts and Contact Groups remain stored. Creating more is blocked while the active count exceeds the current allowance.
+- Contacts remain stored. Creating new Contacts is blocked while the active Contact count exceeds the current allowance.
 - Completed and Skipped Jump history remains unchanged.
 
-My Account shows all current usage, limits, overages, and direct links to the corresponding management pages. The current automatic selection preserves the most recently maintained Mixes and Jump Date Types; users can change that selection by pausing/reactivating Mixes or through the active Jump Date Type selector.
+My Account shows current active usage, limits, and direct links to the corresponding management pages. Automatic downgrade selection preserves the most recently maintained Mixes, custom Jump Date Types, and Contact Groups; users can change the active Date Type and Group selections without deleting their work.
 
 ## Customer Portal
 
@@ -128,10 +131,11 @@ My Account shows all current usage, limits, overages, and direct links to the co
 8. Set cancellation at period end and confirm My Account shows the access-end date.
 9. Trigger `invoice.payment_failed` with a real test subscription flow and confirm the Past Due warning.
 10. Pause and resume a test subscription and confirm paid access is removed and restored.
-11. Create more than three active Mixes and custom Jump Date Types on Pro, cancel the subscription, and confirm all records remain while only three of each stay active.
-12. Cancel the subscription and confirm the workspace returns to Free while its Contacts, Jumps, Mixes, and completed history remain stored.
-13. Attempt to verify another workspace's Checkout Session and confirm HTTP 403.
-14. Start a view-only administrator support session and confirm Checkout and portal mutations are blocked.
+11. Create more than three active Mixes, custom Jump Date Types, and Contact Groups on Pro, cancel the subscription, and confirm every record remains while only three of each stay active.
+12. From Contacts, choose a different set of three active Groups and confirm memberships and Mix assignments remain intact, old future group-derived Jumps are canceled, and newly eligible Jumps are restored.
+13. Cancel the subscription and confirm the workspace returns to Free while its Contacts, Jumps, Mixes, Groups, and completed history remain stored.
+14. Attempt to verify another workspace's Checkout Session and confirm HTTP 403.
+15. Start a view-only administrator support session and confirm Checkout and portal mutations are blocked.
 
 Dashboard-generated webhook fixtures are useful for signature and routing checks, but a real Stripe test subscription is the reliable qualification path because generic fixtures might not correspond to retrievable Customer or Subscription objects.
 
