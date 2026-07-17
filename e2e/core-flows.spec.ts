@@ -30,7 +30,7 @@ test("workspace user can complete the primary discovery and support journey", as
   await groupManager.locator("summary").click();
   await expect(groupManager.getByText("3/10 active · 3 stored", { exact: true })).toBeVisible();
   await expect(groupManager.getByRole("button", { name: "Save active selection" })).toBeVisible();
-  await groupManager.locator("summary").click();
+  await groupManager.evaluate((element) => { (element as HTMLDetailsElement).open = false; });
   await page.locator("summary").filter({ hasText: "+ Add" }).click();
   const addPanel = page.locator(".contact-add-panel");
   await expect(addPanel.locator(".device-contact-picker")).toBeVisible();
