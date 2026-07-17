@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { GoogleContactsPanel } from "@/components/GoogleContactsPanel";
 import { Notice } from "@/components/Notice";
+import { ReferralAccountCard } from "@/components/ReferralAccountCard";
 import {
   changePasswordAction,
   revokeSessionAction,
@@ -182,12 +183,20 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     </section>
   );
 
+  const referralSummary = (
+    <ReferralAccountCard
+      workspaceId={workspace.id}
+      planTier={workspace.planTier}
+      impersonation={Boolean(impersonation)}
+    />
+  );
+
   if (impersonation) {
     return (
       <div className="page account-page">
-        <header className="page-header"><div><h1>My Account</h1><p>Account identity, plan, integration state, and support history are visible; security controls and mutations remain private during support access.</p></div></header>
-        <Notice type="info">This is a view-only administrator support session. Password controls, active devices, billing changes, integrations, ticket replies, and every other browser mutation are unavailable.</Notice>
-        <div className="account-grid">{accountSummary}{billingSummary}{usageSummary}{supportSummary}</div>
+        <header className="page-header"><div><h1>My Account</h1><p>Account identity, plan, integration state, referral history, and support history are visible; security controls and mutations remain private during support access.</p></div></header>
+        <Notice type="info">This is a view-only administrator support session. Password controls, active devices, billing changes, integrations, referral sharing, ticket replies, and every other browser mutation are unavailable.</Notice>
+        <div className="account-grid">{accountSummary}{billingSummary}{usageSummary}{referralSummary}{supportSummary}</div>
         <GoogleContactsPanel />
       </div>
     );
@@ -196,7 +205,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   return (
     <div className="page account-page">
       <header className="page-header">
-        <div><h1>My Account</h1><p>Review identity, billing, integrations, support, password security, and active devices.</p></div>
+        <div><h1>My Account</h1><p>Review identity, billing, integrations, referrals, support, password security, and active devices.</p></div>
       </header>
 
       {params.error && <Notice type="error">{params.error}</Notice>}
@@ -214,6 +223,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         {accountSummary}
         {billingSummary}
         {usageSummary}
+        {referralSummary}
         {supportSummary}
         <section className="card account-password-card">
           <div className="card-header"><div><h2>Change password</h2><p>Changing it keeps this device signed in and closes every other session.</p></div></div>
