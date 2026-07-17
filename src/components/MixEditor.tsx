@@ -29,8 +29,6 @@ type MixValue = {
   steps?: { id: string; stepTemplateId: string; dayOffset: number; sendTimeMinutes: number | null }[];
 };
 
-const CATEGORIES = ["Business", "Sales & Prospecting", "Client Success / Retention", "Events & Networking", "Personal / Relationships", "Marketing Campaigns", "General / Other"];
-const INDUSTRIES = ["Real Estate", "Insurance", "Finance", "Healthcare", "Contractors / Home Services", "Coaching / Consulting", "Nonprofit", "General / Other"];
 const TIMEZONES = [
   ["America/New_York", "Eastern"],
   ["America/Chicago", "Central"],
@@ -58,12 +56,16 @@ export function MixEditor({
   jumps,
   dateTypes,
   groups,
+  categories,
+  industries,
   workspaceTimezone
 }: {
   mix?: MixValue;
   jumps: JumpOption[];
   dateTypes: DateTypeOption[];
   groups: GroupOption[];
+  categories: string[];
+  industries: string[];
   workspaceTimezone: string;
 }) {
   const defaultDateType = mix?.dateTypeId ?? dateTypes[0]?.id ?? "";
@@ -94,8 +96,8 @@ export function MixEditor({
           <div className="field full"><label htmlFor="mix-description">Description</label><textarea id="mix-description" name="description" defaultValue={mix?.description ?? ""} placeholder="What this Mix is designed to accomplish." /></div>
           <div className="field"><label htmlFor="mix-status">Status</label><select id="mix-status" name="status" defaultValue={mix?.status ?? "DRAFT"}><option value="DRAFT">Draft</option><option value="ACTIVE">Active</option><option value="PAUSED">Paused</option></select></div>
           <div className="field"><label htmlFor="mix-framework">Strategy / framework</label><input id="mix-framework" name="framework" defaultValue={mix?.framework ?? ""} placeholder="Question-led consultative" /></div>
-          <div className="field"><label htmlFor="mix-category">Category</label><select id="mix-category" name="category" defaultValue={mix?.category ?? ""}><option value="">Not classified</option>{CATEGORIES.map((category) => <option key={category}>{category}</option>)}</select></div>
-          <div className="field"><label htmlFor="mix-industry">Industry</label><select id="mix-industry" name="industry" defaultValue={mix?.industry ?? ""}><option value="">Not classified</option>{INDUSTRIES.map((industry) => <option key={industry}>{industry}</option>)}</select></div>
+          <div className="field"><label htmlFor="mix-category">Category</label><select id="mix-category" name="category" defaultValue={mix?.category ?? ""}><option value="">Not classified</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></div>
+          <div className="field"><label htmlFor="mix-industry">Industry</label><select id="mix-industry" name="industry" defaultValue={mix?.industry ?? ""}><option value="">Not classified</option>{industries.map((industry) => <option key={industry}>{industry}</option>)}</select></div>
         </div>
       </section>
 
