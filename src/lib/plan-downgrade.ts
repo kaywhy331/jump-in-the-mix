@@ -1,5 +1,6 @@
 import type { PlanTier, Prisma } from "@/generated/prisma/client";
 import { isPlanDowngrade } from "@/lib/billing";
+import { mergeGroupActivity } from "@/lib/group-activity";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
@@ -7,6 +8,7 @@ export type PlanDowngradeSafeguards = {
   applied: boolean;
   pausedMixes: number;
   deactivatedDateTypes: number;
+  deactivatedGroups: number;
   unpublishedCommunityMixes: number;
   groupsOverLimit: number;
   contactsOverLimit: number;
@@ -16,6 +18,7 @@ const EMPTY_RESULT: PlanDowngradeSafeguards = {
   applied: false,
   pausedMixes: 0,
   deactivatedDateTypes: 0,
+  deactivatedGroups: 0,
   unpublishedCommunityMixes: 0,
   groupsOverLimit: 0,
   contactsOverLimit: 0
@@ -33,7 +36,7 @@ async function enforceLimits(
   const limits = PLAN_LIMITS[input.planTier];
   const now = input.now ?? new Date();
 
-  const [activeMixes, activeDateTypes, sharedMixes, groupCount, contactCount] = await Promise.all([
+  const [activeMixes, activeDateTypes, sharedMixes, groups, groupStates, contactCount] = await Promise.all([
     tx.mix.findMany({
       where: { workspaceId: input.workspaceId, status: "ACTIVE" },
       select: { id: true },
@@ -53,12 +56,22 @@ async function enforceLimits(
       select: { sharedMixId: true },
       orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }]
     }),
-    tx.group.count({ where: { workspaceId: input.workspaceId } }),
+    tx.group.findMany({
+      where: { workspaceId: input.workspaceId },
+      select: { id: true },
+      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }]
+    }),
+    tx.contactGroupState.findMany({
+      where: { workspaceId: input.workspaceId },
+      select: { groupId: true, isActive: true }
+    }),
     tx.contact.count({ where: { workspaceId: input.workspaceId, archivedAt: null } })
   ]);
 
+  const activeGroups = mergeGroupActivity(groups, groupStates).filter((group) => group.isActive);
   const pausedMixIds = excessIds(activeMixes, limits.mixes);
   const inactiveDateTypeIds = excessIds(activeDateTypes, limits.customDateTypes);
+  const inactiveGroupIds = excessIds(activeGroups, limits.groups);
   const unpublishedSharedMixIds = Number.isFinite(limits.sharedMixes) && sharedMixes.length > limits.sharedMixes
     ? sharedMixes.slice(limits.sharedMixes).map((item) => item.sharedMixId)
     : [];
@@ -86,6 +99,14 @@ async function enforceLimits(
     });
   }
 
+  for (const groupId of inactiveGroupIds) {
+    await tx.contactGroupState.upsert({
+      where: { groupId },
+      create: { groupId, workspaceId: input.workspaceId, isActive: false },
+      update: { workspaceId: input.workspaceId, isActive: false }
+    });
+  }
+
   if (unpublishedSharedMixIds.length) {
     await tx.sharedMixMetadata.updateMany({
       where: { sharedMixId: { in: unpublishedSharedMixIds }, publisherWorkspaceId: input.workspaceId },
@@ -105,8 +126,9 @@ async function enforceLimits(
     applied: input.applied,
     pausedMixes: pausedMixIds.length,
     deactivatedDateTypes: inactiveDateTypeIds.length,
+    deactivatedGroups: inactiveGroupIds.length,
     unpublishedCommunityMixes: unpublishedSharedMixIds.length,
-    groupsOverLimit: Number.isFinite(limits.groups) ? Math.max(groupCount - limits.groups, 0) : 0,
+    groupsOverLimit: inactiveGroupIds.length,
     contactsOverLimit: Number.isFinite(limits.contacts) ? Math.max(contactCount - limits.contacts, 0) : 0
   };
 }
