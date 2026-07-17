@@ -1,0 +1,12 @@
+.group-manage-row { grid-template-columns: 100px 12px minmax(0, 1fr) auto; }
+.group-manage-row.inactive,
+.checkbox-card.inactive,
+.group-chip.inactive { opacity: .62; background: var(--surface-soft); }
+.checkbox-card.inactive { cursor: not-allowed; }
+.checkbox-card.inactive input { cursor: not-allowed; }
+.group-chip.inactive { border: 1px solid var(--line); }
+
+@media (max-width: 760px) {
+  .group-manage-row { grid-template-columns: 12px minmax(0, 1fr) auto; }
+  .group-manage-row > .date-type-active-choice { grid-column: 1 / -1; }
+}
