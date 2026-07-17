@@ -86,65 +86,69 @@ test("supported mobile browsers can Quick Add a selected device Contact", async 
   await expect(page.getByText(/\d+ added · \d+ merged/)).toBeVisible();
 });
 
-test("platform administrator must enroll and re-verify MFA before using Admin", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Administrator enrollment runs once against the shared seeded account.");
+test.describe("stateful administrator security journey", () => {
+  test.describe.configure({ retries: 0 });
 
-  await signIn(page, adminEmail, adminPassword);
-  await page.goto("/admin");
-  await page.waitForURL(/\/account\/admin-mfa/);
-  await expect(page.getByRole("heading", { name: "Secure administrator access" })).toBeVisible();
+  test("platform administrator must enroll and re-verify MFA before using Admin", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop-chromium", "Administrator enrollment runs once against the shared seeded account.");
 
-  const secret = (await page.getByTestId("mfa-secret").textContent())?.trim();
-  expect(secret).toBeTruthy();
-  await page.getByLabel("Current password").fill(adminPassword);
-  await page.getByLabel("Authenticator code").fill(generateTotpCode(secret!));
-  await page.getByRole("button", { name: "Enable administrator MFA" }).click();
+    await signIn(page, adminEmail, adminPassword);
+    await page.goto("/admin");
+    await page.waitForURL(/\/account\/admin-mfa/);
+    await expect(page.getByRole("heading", { name: "Secure administrator access" })).toBeVisible();
 
-  const recoveryCodes = page.getByTestId("mfa-recovery-code");
-  await expect(recoveryCodes).toHaveCount(10);
-  const firstRecoveryCode = (await recoveryCodes.first().textContent())?.trim();
-  expect(firstRecoveryCode).toBeTruthy();
+    const secret = (await page.getByTestId("mfa-secret").textContent())?.trim();
+    expect(secret).toBeTruthy();
+    await page.getByLabel("Current password").fill(adminPassword);
+    await page.getByLabel("Authenticator code").fill(generateTotpCode(secret!));
+    await page.getByRole("button", { name: "Enable administrator MFA" }).click();
 
-  await page.getByRole("link", { name: "Continue to Admin" }).click();
-  await expect(page.getByRole("heading", { name: "Admin · Overview" })).toBeVisible();
+    const recoveryCodes = page.getByTestId("mfa-recovery-code");
+    await expect(recoveryCodes).toHaveCount(10);
+    const firstRecoveryCode = (await recoveryCodes.first().textContent())?.trim();
+    expect(firstRecoveryCode).toBeTruthy();
 
-  await page.context().clearCookies();
-  await signIn(page, adminEmail, adminPassword);
-  await page.goto("/admin");
-  await page.waitForURL(/\/account\/admin-mfa/);
-  await expect(page.getByRole("heading", { name: "Administrator verification" })).toBeVisible();
-  await page.getByLabel("Verification code").fill(firstRecoveryCode!);
-  await page.getByRole("button", { name: "Verify and continue" }).click();
-  await page.waitForURL(/\/admin$/);
-  await expect(page.getByRole("heading", { name: "Admin · Overview" })).toBeVisible();
+    await page.getByRole("link", { name: "Continue to Admin" }).click();
+    await expect(page.getByRole("heading", { name: "Admin · Overview" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Support", exact: true }).first().click();
-  await expect(page.getByRole("heading", { name: "Admin · Support" })).toBeVisible();
+    await page.context().clearCookies();
+    await signIn(page, adminEmail, adminPassword);
+    await page.goto("/admin");
+    await page.waitForURL(/\/account\/admin-mfa/);
+    await expect(page.getByRole("heading", { name: "Administrator verification" })).toBeVisible();
+    await page.getByLabel("Verification code").fill(firstRecoveryCode!);
+    await page.getByRole("button", { name: "Verify and continue" }).click();
+    await page.waitForURL(/\/admin$/);
+    await expect(page.getByRole("heading", { name: "Admin · Overview" })).toBeVisible();
 
-  await page.goto("/admin/users");
-  const targetCard = page.locator(".admin-user-card").filter({ hasText: userEmail });
-  await targetCard.locator("summary").filter({ hasText: "View account" }).click();
-  await targetCard.getByLabel("Support reason").fill("E2E verification of the centrally enforced view-only mutation boundary.");
-  await Promise.all([
-    page.waitForURL(/\/jumps\?impersonating=1/),
-    targetCard.getByRole("button", { name: "Start 30-minute view-only session" }).click()
-  ]);
-  await expect(page.getByText("View-only support session", { exact: true }).first()).toBeVisible();
+    await page.getByRole("link", { name: "Support", exact: true }).first().click();
+    await expect(page.getByRole("heading", { name: "Admin · Support" })).toBeVisible();
 
-  const blockedMutation = await page.evaluate(async () => {
-    const response = await fetch("/api/contacts/quick-add", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requestId: "e2e-impersonation-write", contacts: [] })
+    await page.goto("/admin/users");
+    const targetCard = page.locator(".admin-user-card").filter({ hasText: userEmail });
+    await targetCard.locator("summary").filter({ hasText: "View account" }).click();
+    await targetCard.getByLabel("Support reason").fill("E2E verification of the centrally enforced view-only mutation boundary.");
+    await Promise.all([
+      page.waitForURL(/\/jumps\?impersonating=1/),
+      targetCard.getByRole("button", { name: "Start 30-minute view-only session" }).click()
+    ]);
+    await expect(page.getByText("View-only support session", { exact: true }).first()).toBeVisible();
+
+    const blockedMutation = await page.evaluate(async () => {
+      const response = await fetch("/api/contacts/quick-add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId: "e2e-impersonation-write", contacts: [] })
+      });
+      return { status: response.status, body: await response.text() };
     });
-    return { status: response.status, body: await response.text() };
-  });
-  expect(blockedMutation.status).toBe(403);
-  expect(blockedMutation.body).toContain("view-only");
+    expect(blockedMutation.status).toBe(403);
+    expect(blockedMutation.body).toContain("view-only");
 
-  await Promise.all([
-    page.waitForURL(/\/admin\/users\?impersonationEnded=1/),
-    page.getByRole("button", { name: "End view-only session" }).first().click()
-  ]);
-  await expect(page.getByText("The view-only support session has ended.")).toBeVisible();
+    await Promise.all([
+      page.waitForURL(/\/admin\/users\?impersonationEnded=1/),
+      page.getByRole("button", { name: "End view-only session" }).first().click()
+    ]);
+    await expect(page.getByText("The view-only support session has ended.")).toBeVisible();
+  });
 });
