@@ -8,7 +8,7 @@ import {
   commandVersion,
   compareSnapshots,
   databaseIdentity,
-  postgresCliUrl,
+  postgresCliEnv,
   runCommand
 } from "./lib/postgres-ops.mjs";
 import { sendOpsAlert } from "./lib/ops-alert.mjs";
@@ -76,7 +76,7 @@ async function main() {
       identity.schema,
       "--file",
       rawDumpPath
-    ], { env: { PGDATABASE: postgresCliUrl(databaseUrl) } });
+    ], { env: postgresCliEnv(databaseUrl) });
 
     const after = await collectDatabaseSnapshot(databaseUrl);
     const sourceChanges = compareSnapshots(before, after);
