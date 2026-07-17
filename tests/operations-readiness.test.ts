@@ -8,6 +8,8 @@ describe("operations readiness boundaries", () => {
     const backup = read("scripts/backup-database.mjs");
     const archive = read("scripts/lib/backup-archive.mjs");
     const restore = read("scripts/restore-database.mjs");
+    const smoke = read("scripts/smoke-restored-database.mjs");
+    const rehearsal = read("scripts/rehearse-backup-restore.mjs");
     expect(archive).toContain('createCipheriv("aes-256-gcm"');
     expect(backup).toContain("Database changed while the backup was being captured");
     expect(restore).toContain("Restore target must be a different database from DATABASE_URL");
@@ -17,6 +19,10 @@ describe("operations readiness boundaries", () => {
     expect(restore).toContain("PGDATABASE");
     expect(backup).not.toContain('"--dbname"');
     expect(restore).not.toContain('"--dbname"');
+    expect(restore).not.toContain("--target-url");
+    expect(smoke).not.toContain("--database-url");
+    expect(rehearsal).not.toContain("--target-url");
+    expect(rehearsal).not.toContain("--database-url");
   });
 
   it("records worker heartbeats and exposes a bounded readiness endpoint", () => {
