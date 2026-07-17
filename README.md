@@ -71,14 +71,17 @@ The demo starts on Plus and includes sample Contacts, Jump Dates, a Mix, reusabl
 - Production-default administrator MFA with TOTP, encrypted secrets, current-password enrollment confirmation, ten one-time recovery codes, replay protection, rate limits, bounded per-session step-up, and credential-event invalidation.
 - Time-limited, audited, view-only administrator support sessions with central mutation rejection.
 - Admin overview, User directory, Billing, Support, Mix Templates, Integrations, Referrals, Operations, Audit, and validated System Settings.
-- Audited failed-job retry, sanitized provider diagnostics, webhook visibility, and allowlisted no-code options/feature flags.
+- Audited failed-job retry, sanitized provider diagnostics, webhook visibility, allowlisted no-code options/feature flags, and durable worker-heartbeat visibility.
 
 ### Operations and validation
 
 - PostgreSQL and Prisma with complete committed migration history.
-- Populated-upgrade, PRD-core rollback/reapply, clean-deployment, administrator-control-plane, and administrator-MFA migration rehearsals.
+- Populated-upgrade, PRD-core rollback/reapply, clean-deployment, administrator-control-plane, administrator-MFA, Contact-Group-activation, and worker-heartbeat migration rehearsals.
+- AES-256-GCM encrypted backup archives, checksummed manifests, empty-target restoration, critical row-count comparison, relational integrity smoke checks, and automated CI restore rehearsal.
+- Separate web/database and worker readiness endpoints, with healthy/stale workers visible in Admin · Operations.
+- Explicit production-like staging smoke and a bounded readiness load probe with configurable thresholds and optional operational alerts.
 - Background worker for Jump reconciliation, Google Contacts synchronization, and referral entitlement maintenance.
-- Unit, static-boundary, PostgreSQL integration, migration, tenancy, authentication, import, Quick Add, Google, Templates, AI, billing, support, referral, administrator, and production-build validation.
+- Unit, static-boundary, PostgreSQL integration, migration, tenancy, authentication, import, Quick Add, Google, Templates, AI, billing, support, referral, administrator, backup/restore, and production-build validation.
 - Playwright desktop Chromium and Pixel 7 coverage for sign-in, Jump rendering, Contact acquisition, Quick Add, platform Templates, AI Wizard, support submission, administrator MFA, Admin access, and view-only mutation rejection.
 
 See [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md) for the exact completion boundary.
@@ -92,7 +95,7 @@ Checked-in implementation and deterministic CI do not replace production qualifi
 - Validate the complete Stripe test-mode lifecycle, including Checkout, Customer Portal, plan changes, failed payments, duplicate events, cancellation, downgrade, and referral-bank handoff.
 - Validate production transactional-email delivery and inbox placement.
 - Qualify the Contact Picker on physical Android devices.
-- Complete final accessibility, security, alerting, load, privacy, backup, and incident-response reviews.
+- Complete final accessibility, security, alert ownership, load/capacity, privacy, backup-retention, and incident-response reviews.
 
 ## Architecture
 
@@ -104,7 +107,8 @@ Next.js web application
 PostgreSQL ← background worker
                  ├─ Jump reconciliation
                  ├─ Google Contacts sync
-                 └─ referral entitlement reconciliation
+                 ├─ referral entitlement reconciliation
+                 └─ durable health heartbeat
 ```
 
 The default Compose stack exposes only the application on `127.0.0.1`. PostgreSQL remains on Docker's private network.
@@ -130,24 +134,35 @@ npm run dev:worker
 ## Useful commands
 
 ```bash
-npm run quickstart          # Docker launcher flow
-npm run setup               # Generate Prisma client, create schema, and seed
-npm run dev                 # Web application
-npm run dev:worker          # Background worker
-npm run db:deploy           # Apply committed Prisma migrations
-npm run db:rehearse-migration # All isolated migration rehearsals
-npm run db:studio           # Prisma Studio in native development
-npm run validate:static     # Schema, syntax, and local-import validation
-npm run typecheck           # TypeScript semantic validation
-npm test                    # Unit and PostgreSQL integration tests
-npm run test:e2e            # Desktop/mobile Playwright tests
-npm run build               # Production Next.js build
-npm run check               # Static, type, unit/integration, and build gate
+npm run quickstart             # Docker launcher flow
+npm run setup                  # Generate Prisma client, create schema, and seed
+npm run dev                    # Web application
+npm run dev:worker             # Background worker
+npm run db:deploy              # Apply committed Prisma migrations
+npm run db:rehearse-migration  # All isolated migration rehearsals
+npm run db:backup              # Encrypted pg_dump archive plus manifest
+npm run db:restore             # Restore into a separate empty database
+npm run db:rehearse-restore    # Encrypted backup/restore/relational smoke rehearsal
+npm run smoke:staging          # Desktop/mobile production-like staging smoke
+npm run load:smoke             # Bounded readiness load probe
+npm run db:studio              # Prisma Studio in native development
+npm run validate:static        # Schema, syntax, and local-import validation
+npm run typecheck              # TypeScript semantic validation
+npm test                       # Unit and PostgreSQL integration tests
+npm run test:e2e               # Desktop/mobile Playwright tests
+npm run build                  # Production Next.js build
+npm run check                  # Static, type, unit/integration, and build gate
+```
+
+The optional Compose operations image includes PostgreSQL client tools:
+
+```bash
+docker compose --profile ops run --rm operations npm run db:backup
 ```
 
 ## Local configuration
 
-The launchers create `.env` from `.env.example` and generate local encryption/rate-limit secrets.
+The launchers create `.env` from `.env.example` and generate local encryption/rate-limit secrets. Backup automation additionally requires its own `BACKUP_ENCRYPTION_KEY`.
 
 To change the browser port:
 
@@ -188,6 +203,18 @@ The redirect URI must exactly match an authorized URI on the Google OAuth client
 
 See [docs/GOOGLE_CONTACTS.md](docs/GOOGLE_CONTACTS.md) for deployment and smoke-testing instructions.
 
+### Backup, restore, worker health, and staging
+
+Configure a dedicated backup key and follow [docs/OPERATIONS_READINESS.md](docs/OPERATIONS_READINESS.md). The restore command refuses in-place restoration and requires a separate empty database.
+
+```env
+BACKUP_ENCRYPTION_KEY=<dedicated 32-byte key>
+BACKUP_DIR=/secure/backups
+BACKUP_RETENTION_DAYS=30
+WORKER_HEARTBEAT_STALE_SECONDS=90
+LOAD_SMOKE_MAX_REQUESTS=5000
+```
+
 ## Product vocabulary
 
 - **Jump Date Type** — a trigger classification such as Birthday, Anniversary, or a workspace-specific custom type.
@@ -217,6 +244,7 @@ Stable internal names such as `StepTemplate`, `StepVersion`, and `MixStep` remai
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — architecture direction.
 - [docs/CANONICAL_PRODUCT_DECISIONS.md](docs/CANONICAL_PRODUCT_DECISIONS.md) — canonical product and data decisions.
 - [docs/MIGRATION_RUNBOOK.md](docs/MIGRATION_RUNBOOK.md) — production migration and restoration procedure.
+- [docs/OPERATIONS_READINESS.md](docs/OPERATIONS_READINESS.md) — encrypted backup, restore, worker health, staging smoke, load probe, and alerting.
 - [docs/ADMIN_MFA.md](docs/ADMIN_MFA.md) — administrator enrollment, recovery, and security runbook.
 - [docs/BROWSER_E2E.md](docs/BROWSER_E2E.md) — desktop/mobile browser coverage and provider boundaries.
 - [docs/ADMIN_CONTROL_PLANE.md](docs/ADMIN_CONTROL_PLANE.md) — administrator operations and no-code controls.
