@@ -25,6 +25,8 @@ export const env = {
   impersonationMinutes: positiveNumber(process.env.AUTH_IMPERSONATION_MINUTES, 30),
   impersonationTouchMinutes: positiveNumber(process.env.AUTH_IMPERSONATION_TOUCH_MINUTES, 5),
   requireEmailVerification: (process.env.AUTH_REQUIRE_EMAIL_VERIFICATION ?? "false").toLowerCase() === "true",
+  requireAdminMfa: (process.env.AUTH_REQUIRE_ADMIN_MFA ?? (isProduction ? "true" : "false")).toLowerCase() === "true",
+  adminMfaMaxAgeMinutes: positiveNumber(process.env.AUTH_ADMIN_MFA_MAX_AGE_MINUTES, 12 * 60),
   emailVerificationHours: positiveNumber(process.env.AUTH_EMAIL_VERIFICATION_HOURS, 24),
   passwordResetMinutes: positiveNumber(process.env.AUTH_PASSWORD_RESET_MINUTES, 60),
   authRateLimitSecret:
