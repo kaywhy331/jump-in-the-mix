@@ -89,7 +89,7 @@ describe.sequential("referral rewards and entitlement reconciliation", () => {
     expect(dashboard.account.plusExpiresAt?.getTime()).toBeGreaterThan(Date.now() + 28 * 24 * 60 * 60 * 1000);
   });
 
-  it("banks rewards for Pro and activates them after paid access ends", async () => {
+  it("banks active and newly earned rewards for Pro, then resumes them after paid access ends", async () => {
     await prisma.workspace.update({
       where: { id: referrer.workspace.id },
       data: {
@@ -110,11 +110,13 @@ describe.sequential("referral rewards and entitlement reconciliation", () => {
     }));
 
     const banked = await prisma.referralAccount.findUniqueOrThrow({ where: { workspaceId: referrer.workspace.id } });
-    const bankedReward = await prisma.referralReward.findFirstOrThrow({
+    const bankedRewards = await prisma.referralReward.findMany({
       where: { workspaceId: referrer.workspace.id, recipient: "REFERRER", status: "BANKED" }
     });
-    expect(banked.bankedDays).toBe(30);
-    expect(bankedReward.days).toBe(30);
+    expect(banked.plusExpiresAt).toBeNull();
+    expect(banked.bankedDays).toBe(60);
+    expect(bankedRewards).toHaveLength(2);
+    expect(bankedRewards.every((reward) => reward.days === 30)).toBe(true);
 
     await prisma.workspace.update({
       where: { id: referrer.workspace.id },
@@ -126,15 +128,15 @@ describe.sequential("referral rewards and entitlement reconciliation", () => {
     });
     await reconcileWorkspaceReferralEntitlement(referrer.workspace.id);
 
-    const [activatedWorkspace, activatedAccount, activatedReward] = await Promise.all([
+    const [activatedWorkspace, activatedAccount, activeRewards] = await Promise.all([
       prisma.workspace.findUniqueOrThrow({ where: { id: referrer.workspace.id } }),
       prisma.referralAccount.findUniqueOrThrow({ where: { workspaceId: referrer.workspace.id } }),
-      prisma.referralReward.findUniqueOrThrow({ where: { id: bankedReward.id } })
+      prisma.referralReward.findMany({ where: { workspaceId: referrer.workspace.id, recipient: "REFERRER", status: "ACTIVE" } })
     ]);
     expect(activatedWorkspace.planTier).toBe("PLUS");
     expect(activatedAccount.bankedDays).toBe(0);
-    expect(activatedAccount.plusExpiresAt?.getTime()).toBeGreaterThan(Date.now());
-    expect(activatedReward.status).toBe("ACTIVE");
+    expect(activatedAccount.plusExpiresAt?.getTime()).toBeGreaterThan(Date.now() + 58 * 24 * 60 * 60 * 1000);
+    expect(activeRewards).toHaveLength(2);
   });
 
   it("expires referral Plus safely and applies Free plan safeguards", async () => {
