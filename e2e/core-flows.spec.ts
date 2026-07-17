@@ -16,8 +16,6 @@ async function signIn(page: Page, email: string, password: string) {
   ]);
 }
 
-test.describe.configure({ mode: "serial" });
-
 test("workspace user can complete the primary discovery and support journey", async ({ page }, testInfo) => {
   await signIn(page, userEmail, userPassword);
 
@@ -29,7 +27,7 @@ test("workspace user can complete the primary discovery and support journey", as
   await page.goto("/contacts");
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
   await page.locator("summary").filter({ hasText: "+ Add" }).click();
-  await expect(page.getByText("Pick from device", { exact: true })).toBeVisible();
+  await expect(page.locator(".device-contact-picker")).toBeVisible();
   await expect(page.getByText("Import CSV / VCF", { exact: true })).toBeVisible();
   await expect(page.getByText("Google Contacts", { exact: true })).toBeVisible();
 
@@ -53,6 +51,37 @@ test("workspace user can complete the primary discovery and support journey", as
     page.getByRole("button", { name: "Submit support ticket" }).click()
   ]);
   await expect(page.getByRole("heading", { name: ticketTitle })).toBeVisible();
+});
+
+test("supported mobile browsers can Quick Add a selected device Contact", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "The progressive Contact Picker path is exercised once in the mobile project.");
+
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "contacts", {
+      configurable: true,
+      value: {
+        getProperties: async () => ["name", "email", "tel", "address"],
+        select: async () => [{
+          name: ["E2E Device Contact"],
+          email: ["e2e-device-contact@jumpinthemix.local"],
+          tel: ["+1 (555) 019-9999"],
+          address: [{
+            addressLine: ["100 Device Lane"],
+            city: "Los Angeles",
+            region: "CA",
+            postalCode: "90001",
+            country: "US"
+          }]
+        }]
+      }
+    });
+  });
+
+  await signIn(page, userEmail, userPassword);
+  await page.goto("/contacts");
+  await page.locator("summary").filter({ hasText: "+ Add" }).click();
+  await page.getByRole("button", { name: /Pick from device/ }).click();
+  await expect(page.getByText(/\d+ added · \d+ merged/)).toBeVisible();
 });
 
 test("platform administrator must enroll and re-verify MFA before using Admin", async ({ page }, testInfo) => {
