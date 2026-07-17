@@ -362,6 +362,10 @@ export async function publishAiMixDraftAction(formData: FormData): Promise<void>
   const draftId = value(formData, "draftId");
   const context = await requireEditableDraft(draftId);
   const generatedMix = editorDraft(formData, context.preflight, context.path);
+  const groupIds = [...new Set(context.preflight.groupIds)];
+  if (groupIds.length && (await activeGroupIdsForWorkspace(context.workspace.id, groupIds)).length !== groupIds.length) {
+    fail(context.path, "One or more selected Contact Groups became inactive. Start a new AI Mix draft with an active audience.");
+  }
   let mixId: string;
   try {
     mixId = await publishAiMixDraft({
