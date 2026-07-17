@@ -9,10 +9,50 @@ import {
 import { reconcileDueReferralEntitlements } from "@/lib/referral-service";
 
 const workerId = `worker-${randomUUID().slice(0, 8)}`;
+const workerStartedAt = new Date();
+const heartbeatIntervalMs = 15_000;
 let stopping = false;
+let heartbeatTimer: NodeJS.Timeout | null = null;
+let heartbeatChain: Promise<void> = Promise.resolve();
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function recordHeartbeat(lastJobAt?: Date) {
+  const now = new Date();
+  await prisma.workerHeartbeat.upsert({
+    where: { workerId },
+    create: {
+      workerId,
+      status: "RUNNING",
+      startedAt: workerStartedAt,
+      lastSeenAt: now,
+      lastJobAt,
+      metadata: { pid: process.pid, node: process.version }
+    },
+    update: {
+      status: "RUNNING",
+      lastSeenAt: now,
+      stoppedAt: null,
+      ...(lastJobAt ? { lastJobAt } : {})
+    }
+  });
+}
+
+function queueHeartbeat(lastJobAt?: Date): Promise<void> {
+  const queued = heartbeatChain
+    .catch(() => undefined)
+    .then(() => recordHeartbeat(lastJobAt));
+  heartbeatChain = queued;
+  return queued;
+}
+
+async function markWorkerStopped() {
+  await prisma.workerHeartbeat.updateMany({
+    where: { workerId },
+    data: { status: "STOPPED", stoppedAt: new Date(), lastSeenAt: new Date() }
+  });
 }
 
 async function claimJob() {
@@ -44,6 +84,7 @@ async function processJob(job: Awaited<ReturnType<typeof claimJob>>) {
       });
     }
     await prisma.job.update({ where: { id: job.id }, data: { completedAt: new Date(), lockedAt: null, lockedBy: null } });
+    await queueHeartbeat(new Date()).catch((error) => console.error("Worker heartbeat failed", error));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const shouldFail = job.attempts + 1 >= job.maxAttempts;
@@ -57,11 +98,20 @@ async function processJob(job: Awaited<ReturnType<typeof claimJob>>) {
         runAt: shouldFail ? job.runAt : new Date(Date.now() + Math.min(60_000, 2 ** (job.attempts + 1) * 1000))
       }
     });
+    await queueHeartbeat(new Date()).catch((heartbeatError) => console.error("Worker heartbeat failed", heartbeatError));
   }
 }
 
 async function main() {
   console.log(`[${workerId}] Jump worker started.`);
+  await prisma.workerHeartbeat.deleteMany({
+    where: { lastSeenAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60_000) } }
+  });
+  await queueHeartbeat();
+  heartbeatTimer = setInterval(() => {
+    void queueHeartbeat().catch((error) => console.error("Worker heartbeat failed", error));
+  }, heartbeatIntervalMs);
+  heartbeatTimer.unref();
   await prisma.job.updateMany({
     where: {
       completedAt: null,
@@ -93,13 +143,20 @@ async function main() {
     }
     await sleep(2000);
   }
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  await heartbeatChain.catch(() => undefined);
+  await markWorkerStopped().catch((error) => console.error("Unable to record worker shutdown", error));
   await prisma.$disconnect();
 }
 
 process.on("SIGTERM", () => { stopping = true; });
 process.on("SIGINT", () => { stopping = true; });
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error(error);
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
+  await heartbeatChain.catch(() => undefined);
+  await markWorkerStopped().catch(() => undefined);
+  await prisma.$disconnect().catch(() => undefined);
   process.exit(1);
 });
