@@ -7,18 +7,11 @@ import {
   enableAdminMfaCredential,
   markAdminMfaSessionVerified
 } from "@/lib/admin-mfa";
+import type { AdminMfaActionState } from "@/lib/admin-mfa-action-state";
 import { requirePlatformAdminIdentity } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
-
-export type AdminMfaActionState =
-  | { status: "idle" }
-  | { status: "error"; message: string }
-  | { status: "enabled"; recoveryCodes: string[] }
-  | { status: "verified"; redirectTo: string };
-
-export const INITIAL_ADMIN_MFA_STATE: AdminMfaActionState = { status: "idle" };
 
 function value(formData: FormData, key: string, maxLength = 200): string {
   return String(formData.get(key) ?? "").trim().slice(0, maxLength);
