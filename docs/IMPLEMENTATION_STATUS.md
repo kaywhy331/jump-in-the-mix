@@ -171,15 +171,21 @@ This document distinguishes the runnable independent application from the comple
 - User and administrator ticket actions are audited; view-only support sessions cannot mutate tickets.
 - Dedicated Prisma support migration plus unit, static-boundary, email, migration, PostgreSQL lifecycle/isolation, and browser-submission coverage.
 
-### Production migration and restoration foundation
+### Production migration, backup, restoration, and worker health
 
 - Complete Prisma migration history instead of relying exclusively on `db push`.
 - Generated, drift-checked legacy baseline plus guarded forward migrations.
 - Supported clean-database deployment and existing populated-MVP upgrade paths.
 - Automated populated migration, data-preservation, reverse-SQL, forward-reapplication, and clean-deployment rehearsals.
-- Production runbooks for backup, restore, row-count checks, worker pause/restart, smoke testing, and backup-based rollback.
-- Dedicated forward migrations for the PRD core, Mix Template library, Help/support center, referral rewards, administrator control plane, administrator MFA, and Contact Group activation state.
-- Independent clean-schema rehearsals verify the control-plane and MFA migration records, tables, and durable writes; the main populated/greenfield rehearsal verifies durable Contact Group activation state.
+- Dedicated forward migrations for the PRD core, Mix Template library, Help/support center, referral rewards, administrator control plane, administrator MFA, Contact Group activation state, and WorkerHeartbeat.
+- AES-256-GCM encrypted `pg_dump` archives with a dedicated key, authenticated decryption, SHA-256 manifest checksum, migration history, critical row counts, and retention cleanup.
+- Restore commands intentionally block in-place restoration, require an empty target, compare the manifest with the restored database, check core relationships, and prove transaction read/write/rollback behavior.
+- CI creates an encrypted backup of seeded data, restores it into a temporary database, runs the database smoke suite, and removes the rehearsal database.
+- Worker processes persist a 15-second heartbeat; `/api/health/worker` and Admin · Operations surface healthy, stale, and stopped workers.
+- Explicit production-like staging smoke configuration checks web/database readiness, worker readiness, sign-in, and core authenticated routes on desktop and Pixel 7 profiles.
+- A bounded load probe reports throughput, status distribution, error rate, and latency percentiles with configurable failure thresholds.
+- Optional generic JSON operational alerts redact secret-like fields and report backup, restore, staging-smoke, and load-smoke failures.
+- `docs/OPERATIONS_READINESS.md` and `docs/MIGRATION_RUNBOOK.md` document backup, restore, smoke, worker-start order, and backup-based rollback.
 
 ### Audited view-only administrator support
 
@@ -197,6 +203,7 @@ This document distinguishes the runnable independent application from the comple
 - Operational overview for users, workspaces, plan distribution, active Contacts and Mixes, incomplete/completed Jumps, support queue, moderation queue, and provider/job issues.
 - Shared mobile-friendly administrator navigation across users, billing, support, Mix Templates, integrations, referrals, operations, audit, and system settings.
 - Background-job filtering with a server-validated retry action limited to failed jobs.
+- Healthy/stale worker counts and recent durable heartbeat details in Admin · Operations.
 - Recent synchronization results, sanitized integration failures, and webhook processing diagnostics without provider credentials.
 - Read-only audit explorer with actor, source, workspace, user, action, and entity filters plus collapsed structured event data.
 - Allowlisted `PlatformSetting` model and no-code UI for reviewed dropdown options and feature flags.
@@ -207,11 +214,11 @@ This document distinguishes the runnable independent application from the comple
 
 ### Browser-driven end-to-end coverage
 
-- Playwright runs desktop Chromium and a Pixel 7 mobile profile after all migration, static, TypeScript, unit, PostgreSQL integration, and production-build gates pass.
+- Playwright runs desktop Chromium and a Pixel 7 mobile profile after all migration, static, TypeScript, unit, PostgreSQL integration, production-build, and encrypted backup/restore gates pass.
 - Normal-user coverage includes sign-in, Jump rendering, Contact acquisition lanes, platform Templates, AI Wizard availability, and real private support-ticket submission.
 - Progressive Quick Add coverage proves the unsupported-browser fallback and an injected supported Contact Picker that calls the real API.
 - Administrator coverage proves required TOTP enrollment, ten recovery codes, a fresh sign-in, recovery-code verification, Admin overview/support access, and central view-only mutation rejection.
-- CI retains trace, screenshot, and video diagnostics for failures.
+- CI retains migration, backup/restore, trace, screenshot, and video diagnostics for failures.
 - Provider-specific Google, Stripe, email, and physical-device qualification remains deliberately separate from deterministic repository CI.
 
 ## Remaining P0 work
@@ -224,5 +231,7 @@ This document distinguishes the runnable independent application from the comple
 
 ## Remaining P1 work
 
-- Encrypted backup automation, alert delivery, load testing, and full production-like staging validation.
+- Schedule encrypted backups, copy archives and manifests to durable access-controlled storage, and test retention/rotation ownership.
+- Wire the generic operational alert webhook to the production paging/incident destination and establish alert ownership and escalation policy.
+- Run and tune the bounded load probe against production-like staging, then complete full staging capacity validation.
 - Optional background/resumable import jobs for very large files; the current bounded browser workflow requires the page to remain open while batches finish.
