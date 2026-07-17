@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ContactForm } from "@/components/ContactForm";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
+import { mergeGroupActivity } from "@/lib/group-activity";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Edit contact" };
@@ -15,15 +16,17 @@ export default async function EditContactPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const [{ contactId }, query, { workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
-  const [contact, groups, customFields] = await Promise.all([
+  const [contact, rawGroups, groupStates, customFields] = await Promise.all([
     prisma.contact.findFirst({
       where: { id: contactId, workspaceId: workspace.id, archivedAt: null },
       include: { emails: true, phones: true, addresses: true, groupMemberships: true, customFieldValues: true }
     }),
     prisma.group.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
+    prisma.contactGroupState.findMany({ where: { workspaceId: workspace.id }, select: { groupId: true, isActive: true } }),
     prisma.contactCustomFieldDefinition.findMany({ where: { workspaceId: workspace.id }, orderBy: [{ createdAt: "asc" }, { name: "asc" }] })
   ]);
   if (!contact) notFound();
+  const groups = mergeGroupActivity(rawGroups, groupStates);
 
   return (
     <div className="page">
@@ -31,7 +34,7 @@ export default async function EditContactPage({
       {query.error && <Notice type="error">{query.error}</Notice>}
       <ContactForm
         mode="edit"
-        groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color }))}
+        groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, isActive: group.isActive }))}
         customFields={customFields.map((field) => ({ id: field.id, name: field.name, key: field.key }))}
         contact={{
           id: contact.id,
