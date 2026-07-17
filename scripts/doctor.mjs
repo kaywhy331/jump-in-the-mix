@@ -24,9 +24,14 @@ if (existsSync(".env")) {
   result("ok", ".env present");
   const env = readFileSync(".env", "utf8");
   result(env.includes("DATA_ENCRYPTION_KEY=GENERATE_ME") ? "fail" : "ok", "local encryption key configured");
+  const backupKey = env.match(/^BACKUP_ENCRYPTION_KEY=(.*)$/mu)?.[1]?.trim();
+  result(!backupKey || backupKey === "GENERATE_ME" ? "info" : "ok", "dedicated encrypted-backup key configured");
 } else {
   result("info", ".env is missing; the Docker launcher creates it automatically");
 }
+
+const pgDump = command("pg_dump", ["--version"]);
+result(pgDump.status === 0 ? "ok" : "info", pgDump.status === 0 ? pgDump.stdout.trim() : "PostgreSQL client tools are not installed; db:backup and db:restore require pg_dump/pg_restore");
 
 const docker = command("docker", ["info"]);
 if (docker.error) {

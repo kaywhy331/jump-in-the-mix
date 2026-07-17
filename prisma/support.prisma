@@ -1,0 +1,83 @@
+enum SupportTicketCategory {
+  GENERAL
+  ACCOUNT
+  BILLING
+  CONTACTS
+  JUMPS
+  MIXES
+  JUMP_DATES
+  TEMPLATES
+  AI
+  IMPORTS_SYNC
+  PRIVACY_SECURITY
+  BUG
+  FEATURE_REQUEST
+}
+
+enum SupportTicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum SupportTicketStatus {
+  OPEN
+  WAITING_ON_SUPPORT
+  WAITING_ON_USER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportMessageAuthorType {
+  USER
+  ADMIN
+}
+
+enum SupportEmailStatus {
+  NOT_REQUESTED
+  PENDING
+  SENT
+  PREVIEWED
+  FAILED
+}
+
+model SupportTicket {
+  id               String                @id @default(cuid())
+  reference        String                @unique
+  workspaceId      String
+  requesterUserId  String
+  title            String
+  category         SupportTicketCategory
+  priority         SupportTicketPriority @default(NORMAL)
+  status           SupportTicketStatus   @default(OPEN)
+  lastActivityAt   DateTime              @default(now())
+  resolvedAt       DateTime?
+  resolvedByUserId String?
+  closedAt         DateTime?
+  messages         SupportTicketMessage[]
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@index([workspaceId, requesterUserId, lastActivityAt])
+  @@index([status, priority, lastActivityAt])
+  @@index([category, status])
+}
+
+model SupportTicketMessage {
+  id              String                   @id @default(cuid())
+  ticketId        String
+  authorUserId    String
+  authorType      SupportMessageAuthorType
+  body            String
+  emailStatus     SupportEmailStatus       @default(NOT_REQUESTED)
+  emailProviderId String?
+  emailError      String?
+  emailSentAt     DateTime?
+  ticket          SupportTicket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  createdAt       DateTime                 @default(now())
+
+  @@index([ticketId, createdAt])
+  @@index([authorUserId, createdAt])
+  @@index([emailStatus, createdAt])
+}

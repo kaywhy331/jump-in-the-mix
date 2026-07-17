@@ -1,0 +1,51 @@
+.google-contacts-card { display: grid; gap: 18px; }
+.google-card-header { align-items: flex-start; }
+.google-gate, .google-connect-state { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
+.google-gate p, .google-connect-state p { margin: 4px 0 0; color: var(--muted); }
+.google-account-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.google-account-summary > div { display: grid; gap: 3px; min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-soft); }
+.google-account-summary span, .google-account-summary small { color: var(--muted); font-size: .76rem; }
+.google-account-summary strong, .google-account-summary small { overflow-wrap: anywhere; }
+.google-config-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr); gap: 14px; }
+.google-groups-panel, .google-merge-panel, .google-preview-panel, .google-history-panel { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: white; }
+.google-groups-panel h3, .google-merge-panel h3, .google-preview-panel h3, .google-history-panel h3 { margin: 0; font-size: .96rem; }
+.google-all-choice { margin-bottom: 10px; }
+.google-group-list { display: grid; gap: 7px; max-height: 310px; margin-top: 10px; overflow-y: auto; overscroll-behavior: contain; }
+.google-group-row { min-height: 52px; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 11px; cursor: pointer; }
+.google-group-row:hover { border-color: #bbb2ff; background: #fbfaff; }
+.google-group-row input { width: 20px; height: 20px; }
+.google-group-row strong, .google-group-row small { display: block; }
+.google-group-row small { margin-top: 2px; color: var(--muted); }
+.google-policy-choice { align-items: flex-start; }
+.google-policy-choice span, .google-policy-choice strong, .google-policy-choice small { display: block; }
+.google-policy-choice small { margin-top: 4px; color: var(--muted); }
+.google-safety-list { display: grid; gap: 7px; margin: 14px 0; color: var(--muted); font-size: .84rem; }
+.google-preview-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; margin-bottom: 13px; }
+.google-preview-metrics > div { display: grid; gap: 2px; padding: 12px; border-radius: 11px; background: var(--surface-soft); text-align: center; }
+.google-preview-metrics strong { font-size: 1.15rem; }
+.google-preview-metrics span { color: var(--muted); font-size: .73rem; }
+.google-preview-list, .google-run-list { display: grid; gap: 8px; margin: 12px 0; }
+.google-preview-row { min-height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px; border: 1px solid var(--line); border-radius: 11px; }
+.google-preview-row p, .google-preview-row small { margin: 2px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+.google-preview-row small { display: block; font-size: .74rem; }
+.google-run-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 10px; padding: 10px; border-bottom: 1px solid var(--line); }
+.google-run-row:last-child { border-bottom: 0; }
+.google-run-row p, .google-run-row small { margin: 2px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+.google-run-row small { display: block; font-size: .72rem; }
+.google-disconnect { width: fit-content; }
+.google-contacts-card .checkbox-card { min-height: 52px; }
+.google-contacts-card .button { min-height: 48px; }
+
+@media (max-width: 860px) {
+  .google-account-summary, .google-config-grid { grid-template-columns: 1fr; }
+  .google-preview-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .google-gate, .google-connect-state { align-items: stretch; flex-direction: column; }
+  .google-gate .button, .google-connect-state .button { width: 100%; }
+  .google-preview-row { align-items: flex-start; flex-direction: column; }
+  .google-preview-row .status-pill { align-self: flex-start; }
+  .google-groups-panel, .google-merge-panel, .google-preview-panel, .google-history-panel { padding: 13px; }
+  .google-disconnect, .google-disconnect > summary { width: 100%; }
+}

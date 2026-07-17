@@ -1,0 +1,9 @@
+model ContactGroupState {
+  groupId     String   @id
+  workspaceId String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId, isActive])
+}

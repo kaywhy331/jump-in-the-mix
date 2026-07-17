@@ -78,8 +78,8 @@ export default function HomePage() {
             <h2>Capture the moment. Let the system prepare what happens next.</h2>
           </div>
           <div className="steps-grid">
-            <article className="step-card"><div className="number-badge">1</div><h3>Start with one person</h3><p>Add a contact in seconds. Import and sync options can be connected as the product rollout expands.</p></article>
-            <article className="step-card"><div className="number-badge">2</div><h3>Record what matters</h3><p>Add an Important Date such as a follow-up, referral, renewal, birthday, event, or custom business moment.</p></article>
+            <article className="step-card"><div className="number-badge">1</div><h3>Start with one person</h3><p>Add a Contact in seconds, import a file, or connect Google Contacts on an eligible plan.</p></article>
+            <article className="step-card"><div className="number-badge">2</div><h3>Record what matters</h3><p>Add a Jump Date such as a follow-up, referral, renewal, birthday, event, or custom business moment.</p></article>
             <article className="step-card"><div className="number-badge">3</div><h3>Complete your Jumps</h3><p>See who needs attention, why they matter, and the next email, text, or call to make.</p></article>
           </div>
         </section>
@@ -87,12 +87,12 @@ export default function HomePage() {
         <section id="pricing" className="section">
           <div className="section-heading">
             <span className="eyebrow">Start at your pace</span>
-            <h2>Test the workflow before paying for more automation.</h2>
+            <h2>Test the workflow free, then add more capacity and automation.</h2>
           </div>
           <div className="pricing-grid">
-            <article className="pricing-card"><h3>Free</h3><p>For organizing a focused personal network.</p><h2>$0</h2><Link href="/register" className="button">Start free</Link></article>
-            <article className="pricing-card"><span className="plan-pill">Popular</span><h3>Plus</h3><p>For entrepreneurs building a consistent relationship routine.</p><h2>$15 <small>/ month</small></h2><Link href="/register" className="button primary">Start with Plus</Link></article>
-            <article className="pricing-card"><h3>Pro</h3><p>For growing businesses managing a broader network.</p><h2>$18 <small>/ month</small></h2><Link href="/register" className="button">Start with Pro</Link></article>
+            <article className="pricing-card"><h3>Free</h3><p>For organizing a focused personal network.</p><h2>$0</h2><small>100 Contacts · 3 active Mixes</small><Link href="/register" className="button">Start free</Link></article>
+            <article className="pricing-card"><span className="plan-pill">Popular</span><h3>Plus</h3><p>For entrepreneurs building a consistent relationship routine.</p><h2>$15 <small>/ month</small></h2><small>Or $144 annually · $12/month equivalent</small><Link href="/register" className="button primary">Start with Plus</Link></article>
+            <article className="pricing-card"><h3>Pro</h3><p>For growing businesses managing a broader network.</p><h2>$18 <small>/ month</small></h2><small>Or $180 annually · $15/month equivalent</small><Link href="/register" className="button">Start with Pro</Link></article>
           </div>
         </section>
 
