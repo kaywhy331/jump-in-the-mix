@@ -133,6 +133,19 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
     })
   ]);
 
+  const workspaceIds = [...new Set(assignments.map((assignment) => assignment.workspaceId))];
+  const inactiveGroupIds = new Set(
+    workspaceIds.length
+      ? (await prisma.contactGroupState.findMany({
+          where: {
+            workspaceId: { in: workspaceIds },
+            isActive: false
+          },
+          select: { groupId: true }
+        })).map((state) => state.groupId)
+      : []
+  );
+
   const broadcastSchedules = assignments.length
     ? await prisma.mixBroadcastSchedule.findMany({
         where: {
@@ -146,6 +159,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const desired = new Map<string, DesiredJump>();
 
   for (const assignment of assignments) {
+    if (assignment.groupId && inactiveGroupIds.has(assignment.groupId)) continue;
+
     const contacts = new Map<string, NonNullable<typeof assignment.contact>>();
     if (assignment.contact && !assignment.contact.archivedAt) contacts.set(assignment.contact.id, assignment.contact);
     for (const membership of assignment.group?.memberships ?? []) {
