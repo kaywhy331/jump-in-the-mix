@@ -4,6 +4,7 @@ import { MixEditor } from "@/components/MixEditor";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
 import { formatDateInput, formatTimeInput } from "@/lib/mix-broadcast";
+import { getPlatformStringList } from "@/lib/platform-settings";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Edit Mix" };
@@ -35,10 +36,12 @@ export default async function EditMixPage({
   if (!mix) notFound();
 
   const selectedTemplateIds = mix.steps.map((step) => step.stepVersion.stepTemplateId);
-  const [dateTypes, groups, jumps] = await Promise.all([
+  const [dateTypes, groups, jumps, categories, industries] = await Promise.all([
     prisma.dateType.findMany({ where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null, isSystem: true }] }, orderBy: [{ isSystem: "asc" }, { name: "asc" }] }),
     prisma.group.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
-    prisma.stepTemplate.findMany({ where: { workspaceId: workspace.id, OR: [{ isActive: true }, { id: { in: selectedTemplateIds } }] }, orderBy: [{ channel: "asc" }, { name: "asc" }] })
+    prisma.stepTemplate.findMany({ where: { workspaceId: workspace.id, OR: [{ isActive: true }, { id: { in: selectedTemplateIds } }] }, orderBy: [{ channel: "asc" }, { name: "asc" }] }),
+    getPlatformStringList("mix.categories"),
+    getPlatformStringList("mix.industries")
   ]);
   const groupIds = mix.assignments.flatMap((assignment) => assignment.groupId ? [assignment.groupId] : []);
   const assignAllContacts = mix.assignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:"));
@@ -52,6 +55,8 @@ export default async function EditMixPage({
         dateTypes={dateTypes.map((item) => ({ id: item.id, name: item.name, isSystem: item.isSystem }))}
         groups={groups.map((item) => ({ id: item.id, name: item.name, color: item.color }))}
         jumps={jumps.map((item) => ({ id: item.id, name: item.name, channel: item.channel }))}
+        categories={categories}
+        industries={industries}
         workspaceTimezone={workspace.profile?.timezone ?? "UTC"}
         mix={{
           id: mix.id,
