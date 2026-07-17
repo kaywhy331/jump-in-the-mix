@@ -5,10 +5,9 @@ import { Notice } from "@/components/Notice";
 import { SharedMixPreview } from "@/components/SharedMixPreview";
 import { requireWorkspace } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
+import { getPlatformBoolean, getPlatformStringList } from "@/lib/platform-settings";
 import { prisma } from "@/lib/prisma";
 import {
-  MIX_TEMPLATE_CATEGORIES,
-  MIX_TEMPLATE_INDUSTRIES,
   normalizeSharedMixSteps,
   sharedMixContentIssue,
   sharedMixTrendingScore
@@ -52,8 +51,15 @@ function initials(value: string): string {
 }
 
 export default async function TemplatesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [params, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
-  const source = sourceValue(params.source);
+  const [params, { workspace }, communityEnabled, categories, industries] = await Promise.all([
+    searchParams,
+    requireWorkspace(),
+    getPlatformBoolean("feature.communityTemplates"),
+    getPlatformStringList("mix.categories"),
+    getPlatformStringList("mix.industries")
+  ]);
+  const requestedSource = sourceValue(params.source);
+  const source = communityEnabled ? requestedSource : "platform";
   const sort = sortValue(params.sort);
   const query = params.q?.trim() ?? "";
   const category = params.category?.trim() ?? "";
@@ -161,6 +167,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
       {params.voted && <Notice type="success">Your vote was added.</Notice>}
       {params.unvoted && <Notice type="info">Your vote was removed.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
+      {!communityEnabled && requestedSource === "community" && <Notice type="info">Community Mix Templates are temporarily unavailable. Platform Templates remain available and existing Community records are preserved.</Notice>}
       <header className="page-header">
         <div>
           <h1>Mix Templates</h1>
@@ -174,7 +181,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
 
       <div className="template-source-tabs" role="tablist" aria-label="Mix Template source">
         <Link className={source === "platform" ? "button primary" : "button"} href="/templates?source=platform">Jump in the Mix</Link>
-        <Link className={source === "community" ? "button primary" : "button"} href="/templates?source=community">Community</Link>
+        {communityEnabled ? <Link className={source === "community" ? "button primary" : "button"} href="/templates?source=community">Community</Link> : <span className="button" aria-disabled="true">Community unavailable</span>}
       </div>
 
       <form className="filter-bar template-filter-bar" method="get">
@@ -182,11 +189,11 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
         <input name="q" defaultValue={query} placeholder="Search outcome, situation, framework, or phrase" aria-label="Search Mix Templates" />
         <select name="category" defaultValue={category} aria-label="Filter by category">
           <option value="">All categories</option>
-          {MIX_TEMPLATE_CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
+          {categories.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
         <select name="industry" defaultValue={industry} aria-label="Filter by industry">
           <option value="">All industries</option>
-          {MIX_TEMPLATE_INDUSTRIES.map((item) => <option key={item} value={item}>{item}</option>)}
+          {industries.map((item) => <option key={item} value={item}>{item}</option>)}
         </select>
         <select name="sort" defaultValue={sort} aria-label="Sort Mix Templates">
           <option value="featured">Featured</option>
