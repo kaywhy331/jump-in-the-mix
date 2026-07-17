@@ -35,14 +35,10 @@ async function main() {
     await runCommand(process.execPath, [
       "scripts/restore-database.mjs",
       "--input",
-      archivePath,
-      "--target-url",
-      targetUrl
+      archivePath
     ], { env: { RESTORE_DATABASE_URL: targetUrl } });
     await runCommand(process.execPath, [
-      "scripts/smoke-restored-database.mjs",
-      "--database-url",
-      targetUrl
+      "scripts/smoke-restored-database.mjs"
     ], { env: { RESTORE_DATABASE_URL: targetUrl } });
 
     console.log(JSON.stringify({
