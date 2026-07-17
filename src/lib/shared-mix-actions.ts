@@ -2,6 +2,8 @@
 
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
+import { getPlatformBoolean } from "@/lib/platform-settings";
+import { prisma } from "@/lib/prisma";
 import {
   importSharedMixIntoWorkspace,
   publishWorkspaceMix,
@@ -22,12 +24,24 @@ function fail(path: string, message: string): never {
   redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
 }
 
+async function assertCommunityTemplateEnabled(sharedMixId: string, path: string): Promise<void> {
+  const [enabled, sharedMix, metadata] = await Promise.all([
+    getPlatformBoolean("feature.communityTemplates"),
+    prisma.sharedMix.findUnique({ where: { id: sharedMixId }, select: { publisherWorkspaceId: true } }),
+    prisma.sharedMixMetadata.findUnique({ where: { sharedMixId }, select: { isPlatform: true } })
+  ]);
+  if (!sharedMix) fail(path, "The Mix Template is no longer available.");
+  const isPlatform = metadata?.isPlatform ?? sharedMix.publisherWorkspaceId === null;
+  if (!enabled && !isPlatform) fail(path, "Community Mix Templates are temporarily unavailable. Platform templates remain available.");
+}
+
 export async function importSharedMixAction(formData: FormData): Promise<void> {
   const { workspace, user, impersonation } = await requireWorkspace();
   const returnTo = templatesReturnTo(formData);
   if (impersonation) fail(returnTo, "Administrator support sessions are view-only.");
   const sharedMixId = value(formData, "sharedMixId");
   if (!sharedMixId) fail(returnTo, "Choose a Mix Template to import.");
+  await assertCommunityTemplateEnabled(sharedMixId, returnTo);
   try {
     const result = await importSharedMixIntoWorkspace({ workspaceId: workspace.id, actorUserId: user.id, sharedMixId });
     redirect(`/mixes/${result.mixId}/edit?imported=${result.importNumber}`);
@@ -42,6 +56,7 @@ export async function toggleSharedMixVoteAction(formData: FormData): Promise<voi
   if (impersonation) fail(returnTo, "Administrator support sessions are view-only.");
   const sharedMixId = value(formData, "sharedMixId");
   if (!sharedMixId) fail(returnTo, "Choose a Mix Template.");
+  await assertCommunityTemplateEnabled(sharedMixId, returnTo);
   try {
     const result = await toggleSharedMixVote({ workspaceId: workspace.id, actorUserId: user.id, sharedMixId });
     redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}${result.voted ? "voted" : "unvoted"}=1`);
@@ -56,6 +71,9 @@ export async function shareMixAction(formData: FormData): Promise<void> {
   const path = mixId ? `/mixes/${mixId}/share` : "/mixes";
   if (impersonation) fail(path, "Administrator support sessions are view-only.");
   if (!mixId) fail("/mixes", "Choose a Mix to share.");
+  if (!(await getPlatformBoolean("feature.communityTemplates"))) {
+    fail(path, "New Community Mix submissions are temporarily unavailable. Your existing Mix remains unchanged.");
+  }
   try {
     await publishWorkspaceMix({
       workspaceId: workspace.id,
