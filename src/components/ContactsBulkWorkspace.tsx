@@ -7,18 +7,23 @@ import { EmptyState } from "@/components/EmptyState";
 import {
   applyJumpToContactsAction,
   bulkArchiveContactsAction,
-  bulkAssignGroupAction,
   bulkRemoveGroupAction
 } from "@/lib/bulk-contact-actions";
 import { createContactsCsv, type ExportContact } from "@/lib/contact-export";
-import { archiveContactAction, createGroupAction, deleteGroupAction } from "@/lib/actions";
+import { archiveContactAction } from "@/lib/actions";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
+import {
+  assignSelectedContactsToActiveGroupAction,
+  createContactGroupAction,
+  deleteContactGroupAction,
+  saveActiveGroupsAction
+} from "@/lib/group-actions";
 
 export type ContactBulkDto = ExportContact & {
   id: string;
   displayName: string;
   jumpDateCount: number;
-  groupDetails: { id: string; name: string; color: string | null }[];
+  groupDetails: { id: string; name: string; color: string | null; isActive: boolean }[];
 };
 
 export type ContactBulkGroup = {
@@ -27,6 +32,7 @@ export type ContactBulkGroup = {
   description: string | null;
   color: string | null;
   contactCount: number;
+  isActive: boolean;
 };
 
 export type ContactBulkJump = {
@@ -71,6 +77,8 @@ export function ContactsBulkWorkspace({
   const [manualChannel, setManualChannel] = useState("SMS");
   const selectedIds = useMemo(() => [...selected], [selected]);
   const selectedContacts = useMemo(() => contacts.filter((contact) => selected.has(contact.id)), [contacts, selected]);
+  const activeGroups = useMemo(() => groups.filter((group) => group.isActive), [groups]);
+  const inactiveGroupCount = groups.length - activeGroups.length;
   const allSelected = contacts.length > 0 && selected.size === contacts.length;
 
   const toggleContact = (contactId: string) => {
@@ -106,20 +114,34 @@ export function ContactsBulkWorkspace({
           <details className="group-manager">
             <summary className="button">Manage groups</summary>
             <div className="group-manager-panel">
-              <div className="section-label"><h2>Contact Groups</h2><span>{groups.length}/{groupLimit}</span></div>
-              <form action={createGroupAction} className="group-create-form">
+              <div className="section-label"><h2>Contact Groups</h2><span>{activeGroups.length}/{groupLimit} active · {groups.length} stored</span></div>
+              <p className="muted-copy">Inactive groups keep their Contacts and Mix assignments, but cannot receive new assignments or generate group-based Jumps. Select which groups remain active under your current plan.</p>
+              <form action={createContactGroupAction} className="group-create-form">
                 <input name="name" placeholder="Group name" aria-label="Group name" required />
                 <input name="description" placeholder="Optional description" aria-label="Group description" />
                 <label className="color-input"><span>Color</span><input name="color" type="color" defaultValue="#5d4cf2" /></label>
                 <button className="button primary" type="submit">Add group</button>
               </form>
-              {groups.length > 0 && <div className="group-manage-list">{groups.map((group) => (
-                <div className="group-manage-row" key={group.id}>
-                  <span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />
-                  <span><strong>{group.name}</strong><small>{group.contactCount} contact{group.contactCount === 1 ? "" : "s"}</small></span>
-                  <form action={deleteGroupAction}><input type="hidden" name="groupId" value={group.id} /><button className="button small danger" type="submit">Delete</button></form>
-                </div>
-              ))}</div>}
+              {groups.length > 0 && (
+                <>
+                  <form id="group-activation-form" action={saveActiveGroupsAction} />
+                  <div className="group-manage-list">
+                    {groups.map((group) => (
+                      <div className={`group-manage-row ${group.isActive ? "" : "inactive"}`} key={group.id}>
+                        <label className="date-type-active-choice">
+                          <input form="group-activation-form" type="checkbox" name="activeGroupIds" value={group.id} defaultChecked={group.isActive} />
+                          <span>{group.isActive ? "Active" : "Inactive"}</span>
+                        </label>
+                        <span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />
+                        <span><strong>{group.name}</strong><small>{group.contactCount} contact{group.contactCount === 1 ? "" : "s"}</small></span>
+                        <form action={deleteContactGroupAction}><input type="hidden" name="groupId" value={group.id} /><button className="button small danger" type="submit">Delete</button></form>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="form-actions"><button className="button primary" form="group-activation-form" type="submit">Save active selection</button></div>
+                </>
+              )}
+              {inactiveGroupCount > 0 && <small className="muted-copy">{inactiveGroupCount} group{inactiveGroupCount === 1 ? " is" : "s are"} preserved as inactive. Upgrade or deactivate another group to make one active.</small>}
             </div>
           </details>
           <Link className="button" href="/contacts/custom-fields">Custom fields</Link>
@@ -141,7 +163,7 @@ export function ContactsBulkWorkspace({
 
       <form className="filter-bar contact-filter-bar" action="/contacts" method="get">
         <input name="q" defaultValue={query} placeholder="Search name, company, contact method, or custom value" aria-label="Search contacts" />
-        <select name="group" defaultValue={groupFilter} aria-label="Filter Contacts by group"><option value="">All groups</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
+        <select name="group" defaultValue={groupFilter} aria-label="Filter Contacts by group"><option value="">All groups</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.isActive ? group.name : `Inactive · ${group.name}`}</option>)}</select>
         <button className="button" type="submit">Filter</button>
         {(query || groupFilter) && <Link className="button" href="/contacts">Clear</Link>}
       </form>
@@ -163,7 +185,7 @@ export function ContactsBulkWorkspace({
                   <div>
                     <h3>{contact.displayName}</h3>
                     <div className="contact-meta">{contact.company && <span>{contact.company}</span>}{primaryEmail && <span>{primaryEmail.email}</span>}{primaryPhone && <span>{primaryPhone.phone}</span>}<span>{contact.jumpDateCount} Jump Date{contact.jumpDateCount === 1 ? "" : "s"}</span></div>
-                    {contact.groupDetails.length > 0 && <div className="contact-group-list">{contact.groupDetails.slice(0, 3).map((group) => <span className="group-chip" key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}</span>)}{contact.groupDetails.length > 3 && <span className="group-chip">+{contact.groupDetails.length - 3}</span>}</div>}
+                    {contact.groupDetails.length > 0 && <div className="contact-group-list">{contact.groupDetails.slice(0, 3).map((group) => <span className={`group-chip ${group.isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}{group.isActive ? "" : " · inactive"}</span>)}{contact.groupDetails.length > 3 && <span className="group-chip">+{contact.groupDetails.length - 3}</span>}</div>}
                   </div>
                 </Link>
                 <div className="table-actions"><Link className="button small" href={`/contacts/${contact.id}/edit`}>Edit</Link><details className="destructive-confirm"><summary className="button small danger">Archive…</summary><div className="destructive-confirm-panel"><p>Archive this Contact? Their future pending Jumps will be canceled.</p><form action={archiveContactAction}><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Confirm archive</button></form></div></details></div>
@@ -185,8 +207,8 @@ export function ContactsBulkWorkspace({
           <div className="bulk-action-panel">
             <h3>Update Contact Groups</h3>
             {groups.length ? <>
-              <form action={bulkAssignGroupAction} className="form-stack">{contactIdsInputs(selectedIds)}<div className="field"><label htmlFor="bulk-assign-group">Assign to group</label><select id="bulk-assign-group" name="groupId" required>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></div><button className="button primary" type="submit">Assign group</button></form>
-              <form action={bulkRemoveGroupAction} className="form-stack bulk-secondary-form">{contactIdsInputs(selectedIds)}<div className="field"><label htmlFor="bulk-remove-group">Remove from group</label><select id="bulk-remove-group" name="groupId" required>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></div><button className="button" type="submit">Remove group</button></form>
+              {activeGroups.length ? <form action={assignSelectedContactsToActiveGroupAction} className="form-stack">{contactIdsInputs(selectedIds)}<div className="field"><label htmlFor="bulk-assign-group">Assign to active group</label><select id="bulk-assign-group" name="groupId" required>{activeGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></div><button className="button primary" type="submit">Assign group</button></form> : <p className="muted-copy">No active Contact Groups are available. Choose an active group from Manage groups.</p>}
+              <form action={bulkRemoveGroupAction} className="form-stack bulk-secondary-form">{contactIdsInputs(selectedIds)}<div className="field"><label htmlFor="bulk-remove-group">Remove from group</label><select id="bulk-remove-group" name="groupId" required>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}{group.isActive ? "" : " · inactive"}</option>)}</select></div><button className="button" type="submit">Remove group</button></form>
             </> : <p className="muted-copy">Create a Contact Group first.</p>}
           </div>
         </details>
