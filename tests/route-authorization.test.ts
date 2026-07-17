@@ -46,13 +46,17 @@ describe("server-enforced route authorization matrix", () => {
 
   it("does not expose target-account password, device, referral sharing, or ticket mutation controls during impersonation", () => {
     const account = read("src/app/(app)/account/page.tsx");
+    const referralCard = read("src/components/ReferralAccountCard.tsx");
     const impersonationBranch = account.match(/if \(impersonation\) \{[\s\S]*?\n  \}\n\n  return \(/)?.[0] ?? "";
     expect(impersonationBranch).toContain("support history are visible");
     expect(impersonationBranch).toContain("every other browser mutation are unavailable");
     expect(impersonationBranch).not.toContain("changePasswordAction");
     expect(impersonationBranch).not.toContain("revokeSessionAction");
     expect(impersonationBranch).not.toContain("Open a support ticket");
-    expect(impersonationBranch).toContain("impersonation={Boolean(impersonation)}");
+    expect(account).toContain("impersonation={Boolean(impersonation)}");
+    expect(referralCard).toContain("if (impersonation)");
+    expect(referralCard).toContain("View-only support access does not create referral codes");
+    expect(referralCard).toContain("!impersonation && <ReferralShareButton");
   });
 
   it("keeps the administrator identity separate from the viewed user identity", () => {
