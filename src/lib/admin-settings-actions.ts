@@ -1,5 +1,6 @@
 "use server";
 
+import type { Prisma } from "@/generated/prisma/client";
 import { revalidatePath } from "next/cache";
 import { requirePlatformAdmin } from "@/lib/auth";
 import {
@@ -14,7 +15,9 @@ function value(formData: FormData, key: string): string {
 }
 
 function settingKey(raw: string): PlatformSettingKey {
-  if (!(raw in PLATFORM_SETTING_DEFINITIONS)) throw new Error("Unknown platform setting.");
+  if (!Object.prototype.hasOwnProperty.call(PLATFORM_SETTING_DEFINITIONS, raw)) {
+    throw new Error("Unknown platform setting.");
+  }
   return raw as PlatformSettingKey;
 }
 
@@ -25,28 +28,18 @@ function listValue(raw: string): string[] {
     .filter(Boolean);
 }
 
-async function auditPlatformSetting(input: {
-  actorUserId: string;
-  workspaceId: string | null;
-  action: string;
-  key: string;
-  beforeData?: unknown;
-  afterData?: unknown;
-}) {
-  if (!input.workspaceId) return;
-  await prisma.auditLog.create({
-    data: {
-      workspaceId: input.workspaceId,
-      actorType: "ADMIN",
-      actorUserId: input.actorUserId,
-      action: input.action,
-      entityType: "PlatformSetting",
-      entityId: input.key,
-      source: "admin.settings",
-      beforeData: input.beforeData as never,
-      afterData: input.afterData as never
-    }
-  });
+function jsonInput(value: unknown): Prisma.InputJsonValue | undefined {
+  if (value === undefined) return undefined;
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function revalidateSettingConsumers(): void {
+  revalidatePath("/admin");
+  revalidatePath("/admin/settings");
+  revalidatePath("/mixes/new");
+  revalidatePath("/mixes");
+  revalidatePath("/templates");
+  revalidatePath("/mixes/wizard");
 }
 
 export async function savePlatformSettingAction(formData: FormData): Promise<void> {
@@ -57,57 +50,73 @@ export async function savePlatformSettingAction(formData: FormData): Promise<voi
     key,
     definition.kind === "boolean" ? formData.get("enabled") === "on" : listValue(value(formData, "options"))
   );
-  const existing = await prisma.platformSetting.findUnique({ where: { key } });
-  await prisma.platformSetting.upsert({
-    where: { key },
-    create: {
-      key,
-      category: definition.category,
-      label: definition.label,
-      description: definition.description,
-      value: nextValue,
-      isPublic: definition.isPublic,
-      updatedByUserId: user.id
-    },
-    update: {
-      category: definition.category,
-      label: definition.label,
-      description: definition.description,
-      value: nextValue,
-      isPublic: definition.isPublic,
-      updatedByUserId: user.id
+  const auditWorkspaceId = user.memberships[0]?.workspaceId ?? null;
+
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.platformSetting.findUnique({ where: { key } });
+    await tx.platformSetting.upsert({
+      where: { key },
+      create: {
+        key,
+        category: definition.category,
+        label: definition.label,
+        description: definition.description,
+        value: nextValue,
+        isPublic: definition.isPublic,
+        updatedByUserId: user.id
+      },
+      update: {
+        category: definition.category,
+        label: definition.label,
+        description: definition.description,
+        value: nextValue,
+        isPublic: definition.isPublic,
+        updatedByUserId: user.id
+      }
+    });
+    if (auditWorkspaceId) {
+      await tx.auditLog.create({
+        data: {
+          workspaceId: auditWorkspaceId,
+          actorType: "ADMIN",
+          actorUserId: user.id,
+          action: "admin.platform-setting.update",
+          entityType: "PlatformSetting",
+          entityId: key,
+          source: "admin.settings",
+          beforeData: jsonInput(existing?.value),
+          afterData: nextValue
+        }
+      });
     }
   });
-  await auditPlatformSetting({
-    actorUserId: user.id,
-    workspaceId: user.memberships[0]?.workspaceId ?? null,
-    action: "admin.platform-setting.update",
-    key,
-    beforeData: existing?.value,
-    afterData: nextValue
-  });
-  revalidatePath("/admin/settings");
-  revalidatePath("/mixes/new");
-  revalidatePath("/templates");
-  revalidatePath("/mixes/wizard");
+  revalidateSettingConsumers();
 }
 
 export async function resetPlatformSettingAction(formData: FormData): Promise<void> {
   const { user } = await requirePlatformAdmin();
   const key = settingKey(value(formData, "key"));
-  const existing = await prisma.platformSetting.findUnique({ where: { key } });
-  if (!existing) return;
-  await prisma.platformSetting.delete({ where: { key } });
-  await auditPlatformSetting({
-    actorUserId: user.id,
-    workspaceId: user.memberships[0]?.workspaceId ?? null,
-    action: "admin.platform-setting.reset",
-    key,
-    beforeData: existing.value,
-    afterData: PLATFORM_SETTING_DEFINITIONS[key].defaultValue
+  const auditWorkspaceId = user.memberships[0]?.workspaceId ?? null;
+
+  await prisma.$transaction(async (tx) => {
+    const existing = await tx.platformSetting.findUnique({ where: { key } });
+    if (!existing) return;
+    await tx.platformSetting.delete({ where: { key } });
+    if (auditWorkspaceId) {
+      await tx.auditLog.create({
+        data: {
+          workspaceId: auditWorkspaceId,
+          actorType: "ADMIN",
+          actorUserId: user.id,
+          action: "admin.platform-setting.reset",
+          entityType: "PlatformSetting",
+          entityId: key,
+          source: "admin.settings",
+          beforeData: jsonInput(existing.value),
+          afterData: jsonInput(PLATFORM_SETTING_DEFINITIONS[key].defaultValue)
+        }
+      });
+    }
   });
-  revalidatePath("/admin/settings");
-  revalidatePath("/mixes/new");
-  revalidatePath("/templates");
-  revalidatePath("/mixes/wizard");
+  revalidateSettingConsumers();
 }
