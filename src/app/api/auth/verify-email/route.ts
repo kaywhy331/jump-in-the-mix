@@ -4,6 +4,7 @@ import { AUTH_TOKEN_PURPOSES, hashAuthToken } from "@/lib/auth-tokens";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { qualifyAttributedReferralForUser } from "@/lib/referral-service";
 import { getRequestMetadata } from "@/lib/request-context";
 
 function redirectTo(request: Request, path: string): NextResponse {
@@ -43,11 +44,13 @@ export async function GET(request: Request) {
         data: { usedAt: now }
       });
       if (claim.count !== 1) return null;
-      return tx.user.update({
+      const verified = await tx.user.update({
         where: { email: record.email },
         data: { emailVerifiedAt: now },
         select: { id: true, email: true }
       });
+      await qualifyAttributedReferralForUser(tx, verified.id, now);
+      return verified;
     });
 
     if (!user) return redirectTo(request, "/verify-email/pending?error=That%20verification%20link%20is%20invalid%20or%20expired.");
@@ -56,7 +59,8 @@ export async function GET(request: Request) {
       where: { userId: user.id },
       include: { workspace: { include: { profile: true } } }
     });
-    return redirectTo(request, membership?.workspace.profile?.onboardingDone ? "/jumps?verified=1" : "/onboarding?verified=1");
+    const suffix = membership?.workspace.profile?.onboardingDone ? "/jumps?verified=1" : "/onboarding?verified=1";
+    return redirectTo(request, `${suffix}&referral=qualified`);
   } catch (error) {
     console.error("Email verification failed", error);
     return redirectTo(request, `/verify-email/pending?error=${encodeURIComponent("That verification link could not be completed. Request a new one.")}`);
