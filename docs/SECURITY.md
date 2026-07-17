@@ -14,7 +14,7 @@
 - Verification, recovery, login, registration, and authenticated action-event requests use database-backed rate limits.
 - Public reset and verification responses avoid disclosing whether an email is registered.
 
-Before enabling mandatory verification in production, configure and validate the transactional-email provider. Optional user MFA remains a future hardening item.
+Before enabling mandatory verification in production, configure and validate the transactional-email provider. Optional MFA for normal workspace users remains a future hardening item; platform-administrator MFA is implemented and enforced by default in production.
 
 ## Browser request boundary
 
@@ -24,6 +24,7 @@ Before enabling mandatory verification in production, configure and validate the
 - Next.js Server Actions keep their built-in origin comparison, accept only configured additional origins, and use a one-megabyte body limit.
 - Responses apply `nosniff`, clickjacking protection, a strict referrer policy, restrictive browser permissions, COOP/CORP, and production HSTS.
 - While an administrator support-view cookie is present, all unsafe browser methods are rejected with HTTP 403 except the dedicated endpoint that ends the view-only session.
+- Desktop browser coverage proves administrator enrollment and recovery-code step-up; desktop and mobile coverage prove normal authenticated workflows; and an impersonated browser POST proves the central view-only mutation boundary.
 
 ## Tenant isolation
 
@@ -31,7 +32,7 @@ Every business entity is associated with a `workspaceId`. API and server actions
 
 PostgreSQL integration tests create two independent workspaces and verify that one cannot retrieve or mutate the other's Contacts, Groups, Mixes, reusable Jumps, generated Jumps, custom fields, broadcasts, imports, or provider links. Static regression tests require tenant mutation modules to derive the workspace from the authenticated session.
 
-The complete authenticated application subtree resolves its workspace through the server layout. Administrator pages add an explicit platform-administrator guard. Support impersonation changes only the read context after confirming that the target user belongs to the selected workspace; the authenticated actor remains the administrator for auditing and authorization.
+The complete authenticated application subtree resolves its workspace through the server layout. Administrator pages add an explicit platform-administrator guard and a current MFA step-up. Support impersonation changes only the read context after confirming that the target user belongs to the selected workspace; the authenticated actor remains the administrator for auditing and authorization.
 
 For defense in depth, production PostgreSQL may add row-level policies after deciding how application and migration roles are separated.
 
@@ -52,13 +53,13 @@ Google Contacts controls:
 - Provider reads and user-initiated sync actions are authenticated, workspace-scoped, plan-gated, rate-limited, and blocked during view-only administrator support sessions.
 - Google deletions do not delete local Contacts.
 
-Do not rotate `DATA_ENCRYPTION_KEY` without a credential re-encryption plan. A destructive rotation requires every connected provider account to reconnect.
+Do not rotate `DATA_ENCRYPTION_KEY` without a credential re-encryption plan. A destructive rotation requires every connected provider account and every administrator authenticator to be re-enrolled.
 
 Provider integrations are not considered production-ready until credential rotation, OAuth consent, revocation, inbox/provider behavior, and recovery paths pass production-like staging tests.
 
 ## Webhooks
 
-Planned provider webhooks must meet all of the following requirements before launch:
+Provider webhooks must meet all of the following requirements before launch:
 
 - Stripe verifies the raw body with the Stripe signing secret.
 - WhatsApp validates Meta's HMAC signature.
@@ -84,6 +85,7 @@ Operational logs must not contain:
 - Passwords.
 - Raw session tokens.
 - Raw administrator impersonation tokens.
+- Raw administrator TOTP secrets, TOTP codes, recovery codes, or QR payloads.
 - Raw email-verification or password-reset tokens.
 - OAuth authorization codes.
 - OAuth access or refresh tokens.
@@ -92,14 +94,27 @@ Operational logs must not contain:
 - Full webhook secrets.
 - Unredacted contact exports or Google People responses.
 
-Authentication rate-limit keys are derived with a keyed SHA-256 digest rather than storing raw email/IP combinations as the bucket key. Session and administrator-support tables contain only token hashes. Google account status responses contain connection state, labels, counts, and errors but never encrypted or decrypted credentials.
+Authentication rate-limit keys are derived with a keyed SHA-256 digest rather than storing raw email/IP combinations as the bucket key. Session and administrator-support tables contain only token hashes. Administrator TOTP secrets are AES-256-GCM encrypted, recovery codes are keyed hashes, and only the last accepted TOTP counter is retained for replay prevention. Google account status responses contain connection state, labels, counts, and errors but never encrypted or decrypted credentials.
 
 ## Administrative access
 
-Platform administration is controlled by `isPlatformAdmin`.
+Platform administration is controlled by `isPlatformAdmin` plus a fresh administrator MFA step-up when `AUTH_REQUIRE_ADMIN_MFA` is enabled. Enforcement defaults to enabled in production.
+
+Implemented administrator MFA controls:
+
+- Standards-based six-digit TOTP enrollment with QR and manual-secret options.
+- Current-password confirmation before enrollment.
+- Encrypted TOTP secret storage.
+- Ten one-time recovery codes stored only as keyed hashes.
+- TOTP replay prevention through the last accepted counter.
+- Database-backed rate limits for enrollment and verification.
+- Step-up state scoped to one authenticated application session and bounded by `AUTH_ADMIN_MFA_MAX_AGE_MINUTES`.
+- Step-up invalidation on sign-out, remote session revocation, password change, password reset, expiration, and session-cap eviction.
+- Audited enrollment and verification events.
 
 Implemented support-view controls:
 
+- A fresh administrator MFA step-up is required before the view can begin.
 - The target user and workspace membership are revalidated server-side before a session begins.
 - A support reason of 10–500 characters is mandatory.
 - Tokens are random, HTTP-only, stored only as SHA-256 hashes, and expire after 30 minutes by default.
@@ -109,13 +124,16 @@ Implemented support-view controls:
 - All impersonated browser writes are blocked centrally.
 - Start and end events are written to the target workspace audit log with the real administrator actor.
 
-Before enabling administrator support views in production:
+Before operationally enabling administrator support views in production:
 
-- Require MFA for platform administrators.
+- Confirm `AUTH_REQUIRE_ADMIN_MFA=true`, validate enrollment on the deployed origin, and rehearse the lost-device procedure.
 - Review all administrator actions for comprehensive audit coverage.
 - Mask sensitive Contact and integration fields according to support role.
 - Use separate operational accounts rather than shared credentials.
 - Complete browser-driven route and mutation tests in production-like staging.
+- Alert on repeated administrator verification failures and unusual support-view activity.
+
+Follow `docs/ADMIN_MFA.md` for enrollment, recovery, deployment, and incident procedures.
 
 ## Infrastructure and migrations
 
@@ -128,5 +146,5 @@ Before enabling administrator support views in production:
 - The committed legacy baseline is generated directly from `main` and CI byte-compares it with a fresh Prisma diff to prevent drift.
 - Existing populated `db push` databases resolve that complete baseline as applied once before the first `migrate deploy`.
 - Clean databases execute the complete baseline and guarded forward migration directly through `migrate deploy`.
-- CI rehearses both clean and populated deployments, validates preservation, executes pre-traffic reverse SQL, and reapplies the forward migration.
+- CI rehearses clean and populated deployments, validates preservation, executes pre-traffic reverse SQL, reapplies the forward migration, and independently proves administrator-control-plane and administrator-MFA tables accept durable writes.
 - Production rollback uses a validated backup restore; reverse SQL is not a substitute after new-schema data exists.
