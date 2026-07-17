@@ -120,4 +120,31 @@ test("platform administrator must enroll and re-verify MFA before using Admin", 
 
   await page.getByRole("link", { name: "Support", exact: true }).first().click();
   await expect(page.getByRole("heading", { name: "Admin · Support" })).toBeVisible();
+
+  await page.goto("/admin/users");
+  const targetCard = page.locator(".admin-user-card").filter({ hasText: userEmail });
+  await targetCard.locator("summary").filter({ hasText: "View account" }).click();
+  await targetCard.getByLabel("Support reason").fill("E2E verification of the centrally enforced view-only mutation boundary.");
+  await Promise.all([
+    page.waitForURL(/\/jumps\?impersonating=1/),
+    targetCard.getByRole("button", { name: "Start 30-minute view-only session" }).click()
+  ]);
+  await expect(page.getByText("View-only support session", { exact: true }).first()).toBeVisible();
+
+  const blockedMutation = await page.evaluate(async () => {
+    const response = await fetch("/api/contacts/quick-add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ requestId: "e2e-impersonation-write", contacts: [] })
+    });
+    return { status: response.status, body: await response.text() };
+  });
+  expect(blockedMutation.status).toBe(403);
+  expect(blockedMutation.body).toContain("view-only");
+
+  await Promise.all([
+    page.waitForURL(/\/admin\/users\?impersonationEnded=1/),
+    page.getByRole("button", { name: "End view-only session" }).first().click()
+  ]);
+  await expect(page.getByText("The view-only support session has ended.")).toBeVisible();
 });
