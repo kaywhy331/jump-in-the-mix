@@ -1,8 +1,10 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { AI_MIX_REFINEMENT_PRESETS } from "@/lib/ai-mix";
 import { prisma } from "@/lib/prisma";
 import { MIX_TEMPLATE_CATEGORIES, MIX_TEMPLATE_INDUSTRIES } from "@/lib/shared-mix";
 
 const AI_TONE_VALUES = ["Warm", "Professional", "Conversational", "Direct"] as const;
+const AI_REFINEMENT_LABELS = AI_MIX_REFINEMENT_PRESETS.map(([, label]) => label);
 
 export const PLATFORM_SETTING_DEFINITIONS = {
   "mix.categories": {
@@ -70,18 +72,10 @@ export const PLATFORM_SETTING_DEFINITIONS = {
   "ai.refinementReasons": {
     category: "AI Mix Wizard",
     label: "AI refinement reasons",
-    description: "Human-readable guidance used beside the built-in refinement controls.",
+    description: "Reviewed labels shown beside the built-in refinement controls. They can be reordered or hidden.",
     kind: "string-list",
     isPublic: true,
-    defaultValue: [
-      "Make it friendlier",
-      "Make it more formal",
-      "Shorten every message",
-      "Use more question-led language",
-      "Make the next step more direct",
-      "Strengthen email subject lines",
-      "Use a custom instruction"
-    ]
+    defaultValue: [...AI_REFINEMENT_LABELS]
   },
   "feature.communityTemplates": {
     category: "Feature flags",
@@ -134,6 +128,7 @@ export function validatePlatformSettingValue(key: PlatformSettingKey, value: unk
   if (!list.length) throw new Error(`${definition.label} needs at least one option.`);
   if (list.length > 100) throw new Error(`${definition.label} may contain at most 100 options.`);
   if (key === "ai.tones") assertAllowedSubset(definition.label, list, AI_TONE_VALUES);
+  if (key === "ai.refinementReasons") assertAllowedSubset(definition.label, list, AI_REFINEMENT_LABELS);
   if (key === "mix.categories") assertAllowedSubset(definition.label, list, MIX_TEMPLATE_CATEGORIES);
   if (key === "mix.industries") assertAllowedSubset(definition.label, list, MIX_TEMPLATE_INDUSTRIES);
   return list;
