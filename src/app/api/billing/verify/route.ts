@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireWorkspace } from "@/lib/auth";
 import { BillingUserError, reconcileCheckoutSessionForWorkspace } from "@/lib/billing-service";
 import { enforceCurrentWorkspacePlanLimits } from "@/lib/plan-downgrade";
+import { reconcileWorkspaceReferralEntitlement } from "@/lib/referral-service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,10 +19,14 @@ export async function GET(request: Request) {
 
   try {
     const result = await reconcileCheckoutSessionForWorkspace(sessionId, workspace.id);
-    const safeguards = result.complete && result.planTier
-      ? await enforceCurrentWorkspacePlanLimits(workspace.id, result.planTier)
+    const referralWorkspace = result.complete
+      ? await reconcileWorkspaceReferralEntitlement(workspace.id)
       : null;
-    return NextResponse.json({ ...result, safeguards }, { headers: { "Cache-Control": "no-store" } });
+    const effectivePlanTier = referralWorkspace?.planTier ?? result.planTier;
+    const safeguards = result.complete && effectivePlanTier
+      ? await enforceCurrentWorkspacePlanLimits(workspace.id, effectivePlanTier)
+      : null;
+    return NextResponse.json({ ...result, planTier: effectivePlanTier, safeguards }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const status = error instanceof BillingUserError ? 403 : 502;
     const message = error instanceof Error ? error.message : "The Checkout Session could not be verified.";
