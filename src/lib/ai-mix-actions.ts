@@ -4,16 +4,16 @@ import type { Channel } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import {
   AI_MIX_CHANNELS,
-  AI_MIX_FRAMEWORKS,
-  AI_MIX_OBJECTIVES,
   AI_MIX_PRODUCT_PLACEHOLDERS,
   generateAiMix,
+  generateDeterministicAiMix,
   manualAiMixValidation,
   parseAiMixPreflight,
   parseAiMixValidation,
   refineAiMix,
   validateAiMixDraft,
   type AiMixGeneratedDraft,
+  type AiMixGenerationResult,
   type AiMixPreflight
 } from "@/lib/ai-mix";
 import {
@@ -24,6 +24,7 @@ import {
 } from "@/lib/ai-mix-service";
 import { requireWorkspace } from "@/lib/auth";
 import { parseBroadcastScheduleInput, parseTimeInput } from "@/lib/mix-broadcast";
+import { getPlatformBoolean, getPlatformStringList } from "@/lib/platform-settings";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
@@ -75,19 +76,28 @@ async function buildPreflight(formData: FormData): Promise<{
   if (impersonation) fail("/mixes/wizard", "Administrator support sessions are view-only.");
   if (!PLAN_LIMITS[workspace.planTier].aiWizard) fail("/mixes/wizard", "The AI Mix Wizard is available on Plus and Pro.");
 
+  const [objectiveOptions, frameworkOptions, toneOptions] = await Promise.all([
+    getPlatformStringList("ai.objectives"),
+    getPlatformStringList("ai.frameworks"),
+    getPlatformStringList("ai.tones")
+  ]);
+
   const objectiveChoice = value(formData, "objective");
   const objective = objectiveChoice === "Other" ? value(formData, "customObjective") : objectiveChoice;
   if (!objective) fail("/mixes/wizard", "Describe what this Mix should accomplish.");
-  if (objectiveChoice && !AI_MIX_OBJECTIVES.includes(objectiveChoice as typeof AI_MIX_OBJECTIVES[number])) {
-    fail("/mixes/wizard", "Choose a supported objective.");
+  if (objectiveChoice && !objectiveOptions.includes(objectiveChoice)) {
+    fail("/mixes/wizard", "Choose an available objective.");
   }
 
   const frameworkChoice = value(formData, "framework");
   const framework = frameworkChoice === "Other" ? value(formData, "customFramework") : frameworkChoice;
   if (!framework) fail("/mixes/wizard", "Choose or describe a strategic framework.");
-  if (frameworkChoice && !AI_MIX_FRAMEWORKS.includes(frameworkChoice as typeof AI_MIX_FRAMEWORKS[number])) {
-    fail("/mixes/wizard", "Choose a supported framework.");
+  if (frameworkChoice && !frameworkOptions.includes(frameworkChoice)) {
+    fail("/mixes/wizard", "Choose an available framework.");
   }
+
+  const tone = value(formData, "tone") || "Warm";
+  if (!toneOptions.includes(tone)) fail("/mixes/wizard", "Choose an available tone.");
 
   const triggerMode = value(formData, "triggerMode") as AiMixPreflight["triggerMode"];
   if (!["DATE_TRIGGERED", "MANUAL_START", "BROADCAST"].includes(triggerMode)) {
@@ -158,7 +168,7 @@ async function buildPreflight(formData: FormData): Promise<{
 
   const preflight = parseAiMixPreflight({
     objective,
-    tone: value(formData, "tone") || "Warm",
+    tone,
     framework,
     triggerMode,
     dateTypeId: dateType?.id ?? null,
@@ -243,6 +253,20 @@ function editorDraft(formData: FormData, preflight: AiMixPreflight, path: string
   }
 }
 
+function builtInGenerationResult(preflight: AiMixPreflight): AiMixGenerationResult {
+  return {
+    draft: generateDeterministicAiMix(preflight),
+    validation: {
+      valid: true,
+      provider: "BUILT_IN",
+      model: null,
+      warnings: ["Provider-backed generation is currently disabled by a platform administrator; the built-in strategist created this draft."],
+      generatedAt: new Date().toISOString(),
+      revision: 1
+    }
+  };
+}
+
 export async function generateAiMixDraftAction(formData: FormData): Promise<void> {
   const { workspaceId, actorUserId, preflight } = await buildPreflight(formData);
   const decision = await consumeRateLimit({
@@ -261,7 +285,8 @@ export async function generateAiMixDraftAction(formData: FormData): Promise<void
 
   let result: Awaited<ReturnType<typeof generateAiMix>>;
   try {
-    result = await generateAiMix(preflight);
+    const providerEnabled = await getPlatformBoolean("feature.aiProviderGeneration");
+    result = providerEnabled ? await generateAiMix(preflight) : builtInGenerationResult(preflight);
   } catch (error) {
     fail("/mixes/wizard", error instanceof Error ? error.message : "The Mix draft could not be generated.");
   }
