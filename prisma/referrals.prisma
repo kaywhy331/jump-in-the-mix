@@ -18,19 +18,28 @@ enum ReferralRewardStatus {
   REVOKED
 }
 
+model ReferralAccount {
+  workspaceId       String    @id
+  code              String    @unique
+  plusExpiresAt     DateTime?
+  bankedDays        Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([plusExpiresAt])
+}
+
 model Referral {
-  id                    String         @id @default(cuid())
-  codeUsed              String
-  referrerWorkspaceId   String
-  referredWorkspaceId   String         @unique
-  status                ReferralStatus @default(ATTRIBUTED)
-  qualifiedAt           DateTime?
-  revokedAt             DateTime?
-  referrerWorkspace     Workspace      @relation("ReferralReferrerWorkspace", fields: [referrerWorkspaceId], references: [id], onDelete: Restrict)
-  referredWorkspace     Workspace      @relation("ReferralReferredWorkspace", fields: [referredWorkspaceId], references: [id], onDelete: Restrict)
-  rewards               ReferralReward[]
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
+  id                  String         @id @default(cuid())
+  codeUsed            String
+  referrerWorkspaceId String
+  referredWorkspaceId String         @unique
+  status              ReferralStatus @default(ATTRIBUTED)
+  qualifiedAt         DateTime?
+  revokedAt           DateTime?
+  rewards             ReferralReward[]
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
 
   @@index([referrerWorkspaceId, status, createdAt])
   @@index([status, qualifiedAt])
@@ -48,7 +57,6 @@ model ReferralReward {
   appliedAt   DateTime?
   consumedAt  DateTime?
   referral    Referral                @relation(fields: [referralId], references: [id], onDelete: Cascade)
-  workspace   Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   createdAt   DateTime                @default(now())
   updatedAt   DateTime                @updatedAt
 
