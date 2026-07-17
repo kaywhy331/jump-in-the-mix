@@ -27,14 +27,15 @@ test("workspace user can complete the primary discovery and support journey", as
   await page.goto("/contacts");
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
   await page.locator("summary").filter({ hasText: "+ Add" }).click();
-  await expect(page.locator(".device-contact-picker")).toBeVisible();
-  await expect(page.getByText("Import CSV / VCF", { exact: true })).toBeVisible();
-  await expect(page.getByText("Google Contacts", { exact: true })).toBeVisible();
+  const addPanel = page.locator(".contact-add-panel");
+  await expect(addPanel.locator(".device-contact-picker")).toBeVisible();
+  await expect(addPanel.getByRole("link", { name: /Import CSV \/ VCF/ })).toBeVisible();
+  await expect(addPanel.getByRole("link", { name: /Google Contacts/ })).toBeVisible();
 
   await page.goto("/templates");
   await expect(page.getByRole("heading", { name: "Mix Templates" })).toBeVisible();
   await expect(page.getByText("New Lead Follow-Up", { exact: true })).toBeVisible();
-  await expect(page.getByText("Jump in the Mix", { exact: true }).first()).toBeVisible();
+  await expect(page.locator(".template-source-tabs").getByText("Jump in the Mix", { exact: true })).toBeVisible();
 
   await page.goto("/mixes/wizard");
   await expect(page.getByRole("heading", { name: "AI Mix Wizard" })).toBeVisible();
