@@ -24,12 +24,12 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
         {params.error && <Notice type="error">{params.error}</Notice>}
         {invite && (
           <Notice type="info">
-            {invite.ownerName} invited you to Jump in the Mix. Complete signup and email verification to start with 30 days of Plus.
+            {invite.ownerName} invited you to Jump in the Mix. Complete signup and email verification to start with 30 days of Plus. <Link href="/r/clear"><strong>Continue without the invitation</strong></Link>.
           </Notice>
         )}
         {referralCode && !invite && (
           <Notice type="error">
-            This referral invitation is unavailable. <Link href="/register"><strong>Continue without the invitation</strong></Link>.
+            This referral invitation is unavailable. <Link href="/r/clear"><strong>Continue without the invitation</strong></Link>.
           </Notice>
         )}
         <form action={registerWithReferralAction} className="form-stack">
