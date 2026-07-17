@@ -5,6 +5,7 @@ import "./prd-date-types.css";
 import "./prd-bulk.css";
 import "./prd-auth.css";
 import "./prd-admin.css";
+import "./prd-admin-layout.css";
 import "./prd-import.css";
 import "./prd-google.css";
 import "./prd-templates.css";
