@@ -23,6 +23,7 @@ import {
   saveAiMixDraftRecord
 } from "@/lib/ai-mix-service";
 import { requireWorkspace } from "@/lib/auth";
+import { activeGroupIdsForWorkspace } from "@/lib/group-activity";
 import { parseBroadcastScheduleInput, parseTimeInput } from "@/lib/mix-broadcast";
 import { getPlatformBoolean, getPlatformStringList } from "@/lib/platform-settings";
 import { PLAN_LIMITS } from "@/lib/plans";
@@ -125,8 +126,11 @@ async function buildPreflight(formData: FormData): Promise<{
     ? await prisma.group.findMany({ where: { workspaceId: workspace.id, id: { in: groupIds } }, select: { id: true, name: true } })
     : [];
   if (groups.length !== groupIds.length) fail("/mixes/wizard", "One or more selected Contact Groups are unavailable.");
+  if (groupIds.length && (await activeGroupIdsForWorkspace(workspace.id, groupIds)).length !== groupIds.length) {
+    fail("/mixes/wizard", "Choose only active Contact Groups. You can change the active selection from Contacts.");
+  }
   if (!assignAllContacts && !groupIds.length) {
-    fail("/mixes/wizard", "Choose All active Contacts or at least one Contact Group.");
+    fail("/mixes/wizard", "Choose All active Contacts or at least one active Contact Group.");
   }
 
   const channels = [...new Set(values(formData, "channels"))] as Channel[];
