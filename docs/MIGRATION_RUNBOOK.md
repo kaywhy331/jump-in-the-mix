@@ -11,6 +11,7 @@ The independent MVP historically created databases with `prisma db push`. Existi
 3. `20260716170000_mix_template_library` — Community and platform Mix Template metadata, profiles, votes, and import-version history.
 4. `20260716210000_support_center` — threaded Help and support tickets.
 5. `20260717010000_referral_rewards` — referral accounts, attribution, and reward lifecycle records.
+6. `20260717050000_admin_control_plane` — validated platform settings used by the administrator control plane.
 
 A populated MVP database must mark the complete baseline as applied **once** before the first migration-based deployment. Prisma otherwise correctly refuses to deploy into a non-empty database without migration history. After the baseline is resolved, `prisma migrate deploy` applies every remaining forward migration in order.
 
@@ -49,6 +50,12 @@ A clean database does not resolve anything manually: `prisma migrate deploy` exe
 - `ReferralReward`.
 - Referral attribution, recipient, and reward-state enums.
 
+### Administrator control plane
+
+- `PlatformSetting`.
+- Unique setting-key index.
+- Category/key and public/key lookup indexes.
+
 The forward migrations do not rename or drop existing business tables.
 
 ## Mandatory pre-deployment gates
@@ -57,7 +64,7 @@ The forward migrations do not rename or drop existing business tables.
 2. Run `npm run db:rehearse-migration` against an isolated PostgreSQL database.
 3. Take an encrypted logical backup with `pg_dump`.
 4. Restore that backup into a separate database and complete an application smoke test against the restored copy.
-5. Record row counts for `User`, `Workspace`, `Contact`, `Mix`, `MixStep`, `Jump`, `SupportTicket`, and `Referral`.
+5. Record row counts for `User`, `Workspace`, `Contact`, `Mix`, `MixStep`, `Jump`, `SupportTicket`, `Referral`, and `PlatformSetting`.
 6. Pause the background worker and prevent application writes during the deployment window.
 7. Confirm the deployment uses the same PostgreSQL major version rehearsed in CI.
 
@@ -69,14 +76,14 @@ npm run db:generate
 npm run db:rehearse-migration
 ```
 
-The rehearsal validates both supported paths:
+The command runs the main populated/clean migration rehearsal followed by an independent administrator-control-plane rehearsal.
 
 ### Populated MVP upgrade
 
 1. Creates an isolated schema from the legacy `main` Prisma model through `db push`.
 2. Inserts representative User, Workspace, Contact, reusable Jump, Mix, and MixStep data.
 3. Resolves the committed complete baseline as already applied.
-4. Applies every forward migration.
+4. Applies every forward migration, including the administrator control-plane migration.
 5. Verifies legacy data, new columns, new tables, indexes, and complete migration history.
 6. Writes representative security, support-thread, and qualified-referral records into new tables.
 7. Executes the reviewed pre-traffic reverse SQL for the PRD-core migration.
@@ -89,7 +96,16 @@ The rehearsal validates both supported paths:
 3. Verifies the complete MVP schema and all forward-migration objects exist.
 4. Verifies every required migration record completed successfully.
 
-Both isolated schemas are removed when the rehearsal finishes.
+### Administrator control-plane rehearsal
+
+1. Creates a third isolated empty schema.
+2. Runs every committed migration.
+3. Verifies `20260717050000_admin_control_plane` completed without rollback.
+4. Verifies `PlatformSetting` exists.
+5. Writes and reads a durable JSON feature flag.
+6. Removes the isolated schema.
+
+All isolated schemas are removed when the rehearsals finish.
 
 ## First production deployment for an existing MVP database
 
@@ -144,6 +160,7 @@ SELECT COUNT(*) FROM "MixStep";
 SELECT COUNT(*) FROM "Jump";
 SELECT COUNT(*) FROM "SupportTicket";
 SELECT COUNT(*) FROM "Referral";
+SELECT COUNT(*) FROM "PlatformSetting";
 
 SELECT table_name
 FROM information_schema.tables
@@ -154,7 +171,8 @@ WHERE table_schema = current_schema()
     'SupportTicketMessage',
     'ReferralAccount',
     'Referral',
-    'ReferralReward'
+    'ReferralReward',
+    'PlatformSetting'
   )
 ORDER BY table_name;
 ```
@@ -162,8 +180,11 @@ ORDER BY table_name;
 Application smoke tests:
 
 - Sign in with an existing user.
-- Open Contacts, one Contact, Jumps, Mixes, Settings, Templates, Help, and My Account.
+- Open Contacts, Quick Add fallback, one Contact, Jumps, Mixes, Settings, Templates, Help, and My Account.
 - Update a non-production test Contact and confirm reconciliation completes.
+- Open Admin · Overview, Operations, Audit, and System Settings.
+- Save and reset one non-production platform setting and confirm an audit record appears.
+- Retry one deliberately failed test job and confirm it is reclaimed by the worker.
 - Create and end an administrator view-only session.
 - Confirm an impersonated POST request is rejected with HTTP 403.
 - Confirm the worker can claim and complete one reconciliation job.
@@ -196,7 +217,7 @@ If a launch-blocking problem is discovered before or after traffic reaches the n
 4. Run the pre-migration application version.
 5. Verify row counts and critical workflows before reopening traffic.
 
-Do not run the reverse SQL on an active production database after users have created new-schema data. New tables may contain security events, action history, stops, schedules, support conversations, template contributions, or referral rewards that cannot be represented in the legacy schema.
+Do not run the reverse SQL on an active production database after users have created new-schema data. New tables may contain security events, action history, stops, schedules, support conversations, template contributions, referral rewards, or platform settings that cannot be represented in the legacy schema.
 
 Document:
 
@@ -212,13 +233,14 @@ The migration work package is complete only when:
 
 - The committed baseline exactly matches the schema represented by `main`.
 - Both clean and populated deployment rehearsals pass.
+- The independent administrator-control-plane rehearsal passes.
 - Every required migration record finishes without `rolled_back_at`.
 - Existing Contact, Mix, MixStep, and Jump rows remain readable.
 - Existing MixStep rows have `isActive = true` and a non-null `updatedAt`.
 - The legacy `MixStep_mixId_sortOrder_key` index is absent after forward migration.
 - `MixStep_mixId_isActive_sortOrder_idx` exists.
 - Every newly added table is writable through its application service or rehearsal write.
-- The support thread and referral reward migration writes pass automatically.
+- The support thread, referral reward, and platform-setting migration writes pass automatically.
 - The PRD-core rollback rehearsal and forward reapplication pass automatically.
 - A real backup has been restored successfully in staging.
 - Production smoke tests and row-count comparisons pass.
