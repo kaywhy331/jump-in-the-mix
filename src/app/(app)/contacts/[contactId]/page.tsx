@@ -11,6 +11,7 @@ import {
 import { requireWorkspace } from "@/lib/auth";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { formatDate } from "@/lib/format";
+import { listGroupStates } from "@/lib/group-activity";
 import { resumeMixForContactAction, stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
 
@@ -48,7 +49,7 @@ export default async function ContactDetailPage({
   searchParams: Promise<SearchParams>;
 }) {
   const [{ contactId }, query, { workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
-  const [contact, dateTypes, mixes, stops] = await Promise.all([
+  const [contact, dateTypes, mixes, stops, groupStates] = await Promise.all([
     prisma.contact.findFirst({
       where: { id: contactId, workspaceId: workspace.id, archivedAt: null },
       include: {
@@ -66,13 +67,15 @@ export default async function ContactDetailPage({
       orderBy: [{ isSystem: "asc" }, { name: "asc" }]
     }),
     prisma.mix.findMany({ where: { workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } }, orderBy: { name: "asc" } }),
-    prisma.mixStop.findMany({ where: { workspaceId: workspace.id, contactId }, orderBy: { stoppedAt: "desc" } })
+    prisma.mixStop.findMany({ where: { workspaceId: workspace.id, contactId }, orderBy: { stoppedAt: "desc" } }),
+    listGroupStates(workspace.id)
   ]);
   if (!contact) notFound();
   const followUpType = dateTypes.find((type) => type.slug === "follow-up");
   const stopByMixId = new Map(stops.map((stop) => [stop.mixId, stop]));
   const directMixIds = new Set(contact.mixAssignments.map((assignment) => assignment.mixId));
   const additionalStoppedMixes = mixes.filter((mix) => stopByMixId.has(mix.id) && !directMixIds.has(mix.id));
+  const activeByGroupId = new Map(groupStates.map((state) => [state.groupId, state.isActive]));
 
   return (
     <div className="page">
@@ -91,7 +94,10 @@ export default async function ContactDetailPage({
         <div className="page-actions"><Link href={`/contacts/${contact.id}/edit`} className="button primary">Edit contact</Link><Link href="/contacts" className="button">Back</Link></div>
       </header>
 
-      {contact.groupMemberships.length > 0 && <div className="contact-group-strip">{contact.groupMemberships.map(({ group }) => <span className="group-chip" key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}</span>)}</div>}
+      {contact.groupMemberships.length > 0 && <div className="contact-group-strip">{contact.groupMemberships.map(({ group }) => {
+        const isActive = activeByGroupId.get(group.id) !== false;
+        return <span className={`group-chip ${isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}{isActive ? "" : " · inactive"}</span>;
+      })}</div>}
 
       <div className="dashboard-grid">
         <section>
