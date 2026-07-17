@@ -147,12 +147,13 @@ This document distinguishes the runnable independent application from the comple
 
 - Central workspace-scoped repositories and PostgreSQL cross-workspace isolation tests for core records and mutations.
 - Tenant identity derives from authenticated context rather than browser-supplied workspace fields.
-- Database-backed throttling for authentication, recovery, password changes, Jump events, imports, Quick Add, Google integration, AI, billing, and support.
+- Database-backed throttling for authentication, recovery, password changes, administrator MFA, Jump events, imports, Quick Add, Google integration, AI, billing, and support.
 - Generic login errors, unknown-account bcrypt comparison, minimum 12-character passwords, optional verification, and password recovery.
 - Branded HTML/text transactional email through Resend with development previews.
 - Central Origin and Fetch Metadata mutation boundary, constrained Server Action origins, security headers, and request-size limits.
 - Hashed opaque sessions with device/IP/last-seen/expiration metadata, caps, remote revocation, and sign-out-everywhere.
 - My Account identity, plan state, billing, usage, Google Contacts, referrals, Help/tickets, password, and active-device controls.
+- Production-default platform-administrator MFA with encrypted TOTP secrets, current-password enrollment confirmation, ten one-time recovery codes, TOTP replay prevention, rate limits, bounded per-session step-up, audit events, and credential-event invalidation.
 
 ### Help, FAQ, and support tickets
 
@@ -166,7 +167,7 @@ This document distinguishes the runnable independent application from the comple
 - Administrator responses commit before email delivery; failures remain visible and retryable without losing the thread.
 - Branded HTML/text email includes the ticket title, formatted response, direct ticket route, and support footer.
 - User and administrator ticket actions are audited; view-only support sessions cannot mutate tickets.
-- Dedicated Prisma support migration plus unit, static-boundary, email, migration, and PostgreSQL lifecycle/isolation coverage.
+- Dedicated Prisma support migration plus unit, static-boundary, email, migration, PostgreSQL lifecycle/isolation, and browser-submission coverage.
 
 ### Production migration and restoration foundation
 
@@ -175,17 +176,19 @@ This document distinguishes the runnable independent application from the comple
 - Supported clean-database deployment and existing populated-MVP upgrade paths.
 - Automated populated migration, data-preservation, reverse-SQL, forward-reapplication, and clean-deployment rehearsals.
 - Production runbooks for backup, restore, row-count checks, worker pause/restart, smoke testing, and backup-based rollback.
-- Dedicated forward migrations for the PRD core, Mix Template library, Help/support center, referral rewards, and administrator control plane.
-- Independent clean-schema rehearsal verifies the control-plane migration record, `PlatformSetting` table, and durable JSON setting write.
+- Dedicated forward migrations for the PRD core, Mix Template library, Help/support center, referral rewards, administrator control plane, and administrator MFA.
+- Independent clean-schema rehearsals verify the control-plane and MFA migration records, tables, and durable writes.
 
 ### Audited view-only administrator support
 
 - Protected Admin Users search with workspace, plan, verification, and usage context.
+- Platform-administrator role plus a fresh MFA step-up before the view can begin.
 - Time-limited support views require a valid target membership and documented support reason.
 - Random support token stored only as a SHA-256 hash.
 - Real administrator remains the audit actor while the read context switches to the selected workspace.
 - Persistent view-only banner; every browser mutation is rejected except ending the session.
 - Target password/device/billing/ticket/referral-sharing controls remain hidden; start/end events are audited.
+- Browser-driven coverage starts a real support view, submits a Quick Add POST, confirms HTTP 403, and ends the session.
 
 ### Administration and observability control plane
 
@@ -200,14 +203,22 @@ This document distinguishes the runnable independent application from the comple
 - Platform-setting changes and recoverable job retries create administrator audit records when a workspace context exists.
 - Dedicated migration, clean-schema rehearsal, unit validation, static authorization tests, and PostgreSQL persistence coverage.
 
+### Browser-driven end-to-end coverage
+
+- Playwright runs desktop Chromium and a Pixel 7 mobile profile after all migration, static, TypeScript, unit, PostgreSQL integration, and production-build gates pass.
+- Normal-user coverage includes sign-in, Jump rendering, Contact acquisition lanes, platform Templates, AI Wizard availability, and real private support-ticket submission.
+- Progressive Quick Add coverage proves the unsupported-browser fallback and an injected supported Contact Picker that calls the real API.
+- Administrator coverage proves required TOTP enrollment, ten recovery codes, a fresh sign-in, recovery-code verification, Admin overview/support access, and central view-only mutation rejection.
+- CI retains trace, screenshot, and video diagnostics for failures.
+- Provider-specific Google, Stripe, email, and physical-device qualification remains deliberately separate from deterministic repository CI.
+
 ## Remaining P0 work
 
 - Restore a real encrypted backup in production-like staging and complete the documented application/worker smoke matrix.
-- Add full browser-driven end-to-end tests for authenticated routes, native Quick Add, imports, Google, Templates, AI Wizard, billing, referrals, Help/tickets, administration, and mutation rejection.
-- Require MFA for platform administrators before support views are enabled operationally.
 - Validate production transactional-email delivery and inbox placement before mandatory verification and support-email reliance.
+- Complete a real Google OAuth/People API staging matrix covering consent, labels, initial import, token refresh, revoked credentials, incremental cursors, disconnect, and recovery.
 - Complete a real Stripe test-mode Checkout, Customer Portal, plan-change, failed-payment, cancellation, duplicate-webhook, pause/resume, downgrade, and referral-bank handoff smoke matrix.
-- Complete the final security, accessibility, and operational launch review.
+- Complete physical Android Contact Picker qualification and the final security, accessibility, and operational launch review.
 
 ## Remaining P1 work
 
