@@ -50,6 +50,11 @@ This document distinguishes the runnable independent application from the comple
 - Explicit Create, non-destructive Merge, Prefer Imported, and Skip decisions.
 - Server-side workspace, plan, Group, custom-field, calendar, contact-method, and primary-value validation.
 - Authenticated, rate-limited, idempotent browser batches with per-row isolation, audit records, automatic Jump reconciliation, progress, error CSV, and retries.
+- Progressive Device Contact Picker on supported secure-context browsers with one-or-many selection and no photo access.
+- Stable Quick Add fallback to the compact manual Contact form on unsupported browsers.
+- Device-selected records reuse workspace-scoped exact/fuzzy matching, Contact-capacity preflight, row idempotency, audit, and reconciliation.
+- Ambiguous and fuzzy device matches remain unchanged for review rather than being silently merged.
+- Optional browser voice dictation appends a local transcript to Public Notes on the create form; Private Notes never expose the control.
 
 ### Google Contacts
 
@@ -78,6 +83,7 @@ This document distinguishes the runnable independent application from the comple
 - Free/Plus/Pro Community sharing limits of 0/3/10.
 - Versioned submissions, contributor unpublishing, one-vote-per-workspace toggling, self-vote rejection, and trending scoring.
 - Platform-admin moderation with search, source/status filters, previews, contributor context, approve/flag/reject/unpublish, notes, featured placement, and official-template authoring.
+- Administrator-controlled Community availability blocks discovery, voting, imports, and new submissions while preserving all existing content and independent imports.
 
 ### AI Mix Wizard
 
@@ -89,6 +95,8 @@ This document distinguishes the runnable independent application from the comple
 - Personal SMS copy rejects automated-marketing opt-out language.
 - Workspace-scoped, resumable review drafts expire after 48 hours and cannot publish more than once.
 - Atomic publication creates a normal editable Draft Mix, reusable Jumps, immutable versions, ordered rows, audience assignments, optional broadcast schedule, audit records, and reconciliation.
+- Objectives, reviewed tones, and strategic-framework labels load from validated platform settings.
+- An administrator may disable new external-provider generation; the built-in strategist remains available and existing review drafts remain intact.
 
 ### Stripe billing and plan lifecycle
 
@@ -133,12 +141,13 @@ This document distinguishes the runnable independent application from the comple
 - Transactional Mix creation/editing with Draft, Active, Paused, Target Jump Date Type, manual-start, fixed broadcast, Contact Group/all-active-Contact audiences, ordered Jumps, offsets, times, and metadata.
 - Removed sequence rows with history remain internally inactive; unused rows are deleted.
 - Contact-specific Mix Stop and Resume preserve assignments and completed history.
+- New and existing Mix editors consume validated administrator-managed Category and Industry lists.
 
 ### Tenancy, authentication, and request security
 
 - Central workspace-scoped repositories and PostgreSQL cross-workspace isolation tests for core records and mutations.
 - Tenant identity derives from authenticated context rather than browser-supplied workspace fields.
-- Database-backed throttling for authentication, recovery, password changes, Jump events, imports, Google integration, AI, billing, and support.
+- Database-backed throttling for authentication, recovery, password changes, Jump events, imports, Quick Add, Google integration, AI, billing, and support.
 - Generic login errors, unknown-account bcrypt comparison, minimum 12-character passwords, optional verification, and password recovery.
 - Branded HTML/text transactional email through Resend with development previews.
 - Central Origin and Fetch Metadata mutation boundary, constrained Server Action origins, security headers, and request-size limits.
@@ -166,7 +175,8 @@ This document distinguishes the runnable independent application from the comple
 - Supported clean-database deployment and existing populated-MVP upgrade paths.
 - Automated populated migration, data-preservation, reverse-SQL, forward-reapplication, and clean-deployment rehearsals.
 - Production runbooks for backup, restore, row-count checks, worker pause/restart, smoke testing, and backup-based rollback.
-- Dedicated forward migrations for the PRD core, Mix Template library, Help/support center, and referral rewards.
+- Dedicated forward migrations for the PRD core, Mix Template library, Help/support center, referral rewards, and administrator control plane.
+- Independent clean-schema rehearsal verifies the control-plane migration record, `PlatformSetting` table, and durable JSON setting write.
 
 ### Audited view-only administrator support
 
@@ -177,10 +187,23 @@ This document distinguishes the runnable independent application from the comple
 - Persistent view-only banner; every browser mutation is rejected except ending the session.
 - Target password/device/billing/ticket/referral-sharing controls remain hidden; start/end events are audited.
 
+### Administration and observability control plane
+
+- Operational overview for users, workspaces, plan distribution, active Contacts and Mixes, incomplete/completed Jumps, support queue, moderation queue, and provider/job issues.
+- Shared mobile-friendly administrator navigation across users, billing, support, Mix Templates, integrations, referrals, operations, audit, and system settings.
+- Background-job filtering with a server-validated retry action limited to failed jobs.
+- Recent synchronization results, sanitized integration failures, and webhook processing diagnostics without provider credentials.
+- Read-only audit explorer with actor, source, workspace, user, action, and entity filters plus collapsed structured event data.
+- Allowlisted `PlatformSetting` model and no-code UI for reviewed dropdown options and feature flags.
+- Unknown setting keys, empty lists, duplicate values, unsupported classification values, and invalid flags are rejected server-side.
+- Mix and AI authoring consume managed settings with reviewed defaults when no override exists.
+- Platform-setting changes and recoverable job retries create administrator audit records when a workspace context exists.
+- Dedicated migration, clean-schema rehearsal, unit validation, static authorization tests, and PostgreSQL persistence coverage.
+
 ## Remaining P0 work
 
 - Restore a real encrypted backup in production-like staging and complete the documented application/worker smoke matrix.
-- Add full browser-driven end-to-end tests for authenticated routes, imports, Google, Templates, AI Wizard, billing, referrals, Help/tickets, and mutation rejection.
+- Add full browser-driven end-to-end tests for authenticated routes, native Quick Add, imports, Google, Templates, AI Wizard, billing, referrals, Help/tickets, administration, and mutation rejection.
 - Require MFA for platform administrators before support views are enabled operationally.
 - Validate production transactional-email delivery and inbox placement before mandatory verification and support-email reliance.
 - Complete a real Stripe test-mode Checkout, Customer Portal, plan-change, failed-payment, cancellation, duplicate-webhook, pause/resume, downgrade, and referral-bank handoff smoke matrix.
@@ -188,7 +211,6 @@ This document distinguishes the runnable independent application from the comple
 
 ## Remaining P1 work
 
-- Device Contact Picker / Quick Add capability and browser fallback polish.
-- Broader administration and observability control plane.
 - User-guided selection for which over-limit Contact Groups remain active after a downgrade; Groups are currently preserved and new creation is blocked until within the plan limit.
-- Encrypted backup automation, load testing, and full production-like staging validation.
+- Encrypted backup automation, alert delivery, load testing, and full production-like staging validation.
+- Optional background/resumable import jobs for very large files; the current bounded browser workflow requires the page to remain open while batches finish.
