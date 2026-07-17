@@ -4,9 +4,9 @@ import { notFound } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { SharedMixPreview } from "@/components/SharedMixPreview";
 import { requireWorkspace } from "@/lib/auth";
+import { getPlatformBoolean, getPlatformStringList } from "@/lib/platform-settings";
 import { formatPlanLimit, PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
-import { MIX_TEMPLATE_CATEGORIES, MIX_TEMPLATE_INDUSTRIES } from "@/lib/shared-mix";
 import { shareMixAction, unpublishMixAction } from "@/lib/shared-mix-actions";
 import { snapshotWorkspaceMix } from "@/lib/shared-mix-service";
 
@@ -25,7 +25,14 @@ export default async function ShareMixPage({
   params: Promise<{ mixId: string }>;
   searchParams: Promise<SearchParams>;
 }) {
-  const [{ mixId }, query, { workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
+  const [{ mixId }, query, { workspace }, communityEnabled, categories, industries] = await Promise.all([
+    params,
+    searchParams,
+    requireWorkspace(),
+    getPlatformBoolean("feature.communityTemplates"),
+    getPlatformStringList("mix.categories"),
+    getPlatformStringList("mix.industries")
+  ]);
   const [mix, sharedMetadata, activeShareCount, contributorProfile] = await Promise.all([
     prisma.mix.findFirst({
       where: { id: mixId, workspaceId: workspace.id, status: { not: "ARCHIVED" } },
@@ -65,7 +72,7 @@ export default async function ShareMixPage({
   const shareLimit = PLAN_LIMITS[workspace.planTier].sharedMixes;
   const existingCounts = Boolean(sharedMetadata && ["PENDING", "APPROVED", "FLAGGED"].includes(sharedMetadata.reviewState));
   const atLimit = Number.isFinite(shareLimit) && activeShareCount >= shareLimit && !existingCounts;
-  const canSubmit = profileReady && !atLimit && Boolean(snapshot);
+  const canSubmit = communityEnabled && profileReady && !atLimit && Boolean(snapshot);
 
   return (
     <div className="page mix-share-page">
@@ -78,11 +85,12 @@ export default async function ShareMixPage({
           <p>Contribute a reusable snapshot without exposing Contacts, Groups, completed Jumps, or workspace data.</p>
         </div>
         <div className="page-actions">
-          <Link className="button" href="/templates?source=community">Community library</Link>
+          <Link className="button" href={communityEnabled ? "/templates?source=community" : "/templates?source=platform"}>{communityEnabled ? "Community library" : "Platform library"}</Link>
           <Link className="button" href={`/mixes/${mix.id}/edit`}>Back to Mix</Link>
         </div>
       </header>
 
+      {!communityEnabled && <Notice type="info">New Community Mix submissions are temporarily unavailable. Existing submissions, imports, votes, and moderation history remain preserved, and you can still unshare an existing submission.</Notice>}
       <div className="usage-line"><span>Community Mixes shared</span><strong>{activeShareCount}/{formatPlanLimit(shareLimit)}</strong></div>
       {shareLimit === 0 && <Notice type="info">Community sharing starts on Plus. You can still browse and import approved templates.</Notice>}
       {atLimit && <Notice type="error">Your sharing limit is full. Unpublish another Mix or upgrade your plan before submitting this one.</Notice>}
@@ -131,8 +139,8 @@ export default async function ShareMixPage({
           <input type="hidden" name="mixId" value={mix.id} />
           <div className="field full"><label htmlFor="title">Template title</label><input id="title" name="title" defaultValue={shared?.title ?? mix.name} maxLength={160} required /></div>
           <div className="field full"><label htmlFor="description">When should someone use this Mix?</label><textarea id="description" name="description" defaultValue={shared?.description ?? mix.description ?? ""} minLength={20} maxLength={1200} required /></div>
-          <div className="field"><label htmlFor="category">Category</label><select id="category" name="category" defaultValue={shared?.category ?? mix.category ?? ""} required><option value="">Choose category</option>{MIX_TEMPLATE_CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></div>
-          <div className="field"><label htmlFor="industry">Industry</label><select id="industry" name="industry" defaultValue={shared?.industry ?? mix.industry ?? ""} required><option value="">Choose industry</option>{MIX_TEMPLATE_INDUSTRIES.map((item) => <option key={item}>{item}</option>)}</select></div>
+          <div className="field"><label htmlFor="category">Category</label><select id="category" name="category" defaultValue={shared?.category ?? mix.category ?? ""} required><option value="">Choose category</option>{categories.map((item) => <option key={item}>{item}</option>)}</select></div>
+          <div className="field"><label htmlFor="industry">Industry</label><select id="industry" name="industry" defaultValue={shared?.industry ?? mix.industry ?? ""} required><option value="">Choose industry</option>{industries.map((item) => <option key={item}>{item}</option>)}</select></div>
           <div className="field full"><label htmlFor="framework">Framework or approach</label><input id="framework" name="framework" defaultValue={shared?.framework ?? mix.framework ?? ""} maxLength={160} placeholder="Example: Question-led consultative follow-up" /></div>
           <div className="form-actions field full">
             <Link className="button" href="/mixes">Cancel</Link>
