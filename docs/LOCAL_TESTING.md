@@ -118,4 +118,4 @@ All checks should pass before merging a change.
 
 ## 8. Integration testing status
 
-Stripe, Google, Microsoft, WhatsApp, CSV mapping, and website webhook routes are planned but not wired into this runnable starter. Their intended setup is documented in `docs/INTEGRATIONS.md`; do not expect provider connectivity until those implementation phases are completed.
+Stripe and Google Contacts are implemented and have deterministic boundary/integration coverage; live provider credentials are still required for their external sandbox matrices. Resend is implemented with live delivery pending. Microsoft Contacts and WhatsApp/Meta assistant behavior are boundary/scaffolding only, while Twilio and the website webhook are planned. See `docs/INTEGRATIONS.md` for the exact status of each provider.

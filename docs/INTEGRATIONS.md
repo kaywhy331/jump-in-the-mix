@@ -1,6 +1,14 @@
-# Integration Setup Roadmap
+# Integration setup and validation status
 
-> **Current status:** This document is the implementation contract for the next build phase. The present runnable core starter does not yet expose these OAuth, webhook, Checkout, or sync routes. Environment variables and database entities are reserved so the integrations can be added without redesigning the core product.
+| Provider | Status |
+| --- | --- |
+| Stripe | Implemented and tested with deterministic reconciliation, signature, authorization, and idempotency tests; live test-mode lifecycle pending. |
+| Google Contacts | Implemented and tested with OAuth-boundary, encryption, sync, disconnect, and mocked revocation tests; live OAuth/People API validation pending. |
+| Resend | Implemented, live delivery and inbox-placement testing pending. |
+| Microsoft Contacts | Boundary/scaffolding only; no OAuth callback or sync routes are present. |
+| WhatsApp / Meta | Boundary/scaffolding only; native compose links exist, but assistant linking and webhook handlers are planned. |
+| Twilio | Planned; no provider implementation or credentials are consumed. |
+| Website webhook | Planned; no inbound connection route is present. |
 
 Implement and security-test one provider at a time in staging before enabling it for customer data.
 
@@ -84,6 +92,8 @@ The application requests read-only Contacts access and stores an encrypted refre
 
 ## Microsoft / Outlook Contacts
 
+**Status: boundary/scaffolding only.** The steps below are the intended provider contract, not runnable behavior in this revision.
+
 1. Register an application in Microsoft Entra.
 2. Select account types appropriate for personal Microsoft and/or organizational accounts.
 3. Add delegated permissions:
@@ -109,9 +119,11 @@ MICROSOFT_CLIENT_SECRET
 MICROSOFT_REDIRECT_URI
 ```
 
-The MVP synchronizes the signed-in user’s default Outlook Contacts folder. Microsoft exposes contact delta per folder, so the integration discovers that folder from the first default-folder contact, then stores the complete Graph `@odata.deltaLink`. It requests immutable Outlook contact IDs to avoid identity changes when a contact is moved. When the default folder is empty, synchronization completes cleanly and retries folder discovery on a later run.
+The planned integration will synchronize the signed-in user’s default Outlook Contacts folder and persist Graph delta links. No live or mocked Microsoft synchronization is claimed in this revision.
 
 ## WhatsApp Cloud API Assistant
+
+**Status: boundary/scaffolding only.** Native WhatsApp compose actions are implemented; the assistant, linking flow, and webhook below are planned.
 
 Use a dedicated WhatsApp Business number for Jump in the Mix.
 
@@ -132,7 +144,7 @@ Webhook URL:
 https://YOUR_DOMAIN/api/webhooks/whatsapp
 ```
 
-The GET handler performs Meta verification. The POST handler validates `X-Hub-Signature-256` before processing. `META_GRAPH_API_VERSION` is configurable so the application can be upgraded without a code change when Meta retires an API version.
+The planned GET handler will perform Meta verification, and the planned POST handler will validate `X-Hub-Signature-256` before processing.
 
 ### Linking flow
 
@@ -145,6 +157,8 @@ The GET handler performs Meta verification. The POST handler validates `X-Hub-Si
 A personal Google Voice number cannot replace this integration because the application needs supported programmatic webhooks and identity verification.
 
 ## Website and automation webhook
+
+**Status: planned.** The endpoint described below is not present in this revision.
 
 Plus/Pro users can create a signed inbound endpoint under Settings → Integrations.
 
