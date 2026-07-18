@@ -58,6 +58,8 @@ async function main() {
     const pgRestoreVersion = await commandVersion("pg_restore");
     await decryptFile(archivePath, rawDumpPath);
     await runCommand("pg_restore", [
+      "-d",
+      target.database,
       "--exit-on-error",
       "--no-owner",
       "--no-privileges",

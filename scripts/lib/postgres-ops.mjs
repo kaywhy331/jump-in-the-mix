@@ -118,7 +118,7 @@ export async function runCommand(command, args, options = {}) {
       stdio: options.capture ? ["ignore", "pipe", "pipe"] : "inherit",
       env: { ...process.env, PGCONNECT_TIMEOUT: "15", ...(options.env ?? {}) },
       cwd: options.cwd ?? process.cwd(),
-      shell: process.platform === "win32"
+      shell: false
     });
     let stdout = "";
     let stderr = "";
