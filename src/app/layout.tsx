@@ -1,17 +1,33 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./prd-core.css";
+import "./prd-date-types.css";
+import "./prd-group-activation.css";
+import "./prd-bulk.css";
+import "./prd-auth.css";
+import "./prd-admin.css";
+import "./prd-admin-layout.css";
+import "./prd-import.css";
+import "./prd-google.css";
+import "./prd-templates.css";
+import "./prd-ai.css";
+import "./prd-billing.css";
+import "./prd-support.css";
+import "./prd-referrals.css";
+import "./prd-quick-add.css";
+import "./prd-mfa.css";
 
 export const metadata: Metadata = {
   title: {
     default: "Jump in the Mix",
     template: "%s | Jump in the Mix"
   },
-  description: "A simple relationship follow-up system for the people and opportunities that matter."
+  description: "A simple relationship follow-through system for the people and opportunities that matter."
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body>{children}</body>
     </html>
   );

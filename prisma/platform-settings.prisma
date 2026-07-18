@@ -1,0 +1,15 @@
+model PlatformSetting {
+  id              String   @id @default(cuid())
+  key             String   @unique
+  category        String
+  label           String
+  description     String?
+  value           Json
+  isPublic        Boolean  @default(true)
+  updatedByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category, key])
+  @@index([isPublic, key])
+}

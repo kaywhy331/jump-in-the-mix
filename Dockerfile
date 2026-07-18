@@ -15,6 +15,10 @@ RUN npm run db:generate
 FROM source AS tools
 CMD ["npm", "run", "db:setup"]
 
+FROM source AS operations
+RUN apk add --no-cache postgresql-client
+CMD ["npm", "run", "doctor"]
+
 FROM source AS development
 EXPOSE 3000
 CMD ["npm", "run", "dev"]

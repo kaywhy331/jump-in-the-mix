@@ -1,0 +1,66 @@
+enum ReferralStatus {
+  ATTRIBUTED
+  QUALIFIED
+  REVOKED
+}
+
+enum ReferralRewardRecipient {
+  REFERRER
+  REFERRED
+}
+
+enum ReferralRewardStatus {
+  PENDING
+  ACTIVE
+  BANKED
+  CONSUMED
+  CAPPED
+  REVOKED
+}
+
+model ReferralAccount {
+  workspaceId       String    @id
+  code              String    @unique
+  plusExpiresAt     DateTime?
+  bankedDays        Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([plusExpiresAt])
+}
+
+model Referral {
+  id                  String         @id @default(cuid())
+  codeUsed            String
+  referrerWorkspaceId String
+  referredWorkspaceId String         @unique
+  status              ReferralStatus @default(ATTRIBUTED)
+  qualifiedAt         DateTime?
+  revokedAt           DateTime?
+  rewards             ReferralReward[]
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  @@index([referrerWorkspaceId, status, createdAt])
+  @@index([status, qualifiedAt])
+}
+
+model ReferralReward {
+  id          String                  @id @default(cuid())
+  referralId  String
+  workspaceId String
+  recipient   ReferralRewardRecipient
+  days        Int                     @default(30)
+  status      ReferralRewardStatus    @default(PENDING)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  appliedAt   DateTime?
+  consumedAt  DateTime?
+  referral    Referral                @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  @@unique([referralId, recipient])
+  @@index([workspaceId, status, createdAt])
+  @@index([endsAt, status])
+}

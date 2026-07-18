@@ -4,7 +4,11 @@ x-app-environment: &app_environment
   NODE_ENV: development
   APP_URL: http://localhost:${APP_PORT:-3000}
   AUTH_COOKIE_NAME: jitm_session
+  AUTH_IMPERSONATION_COOKIE_NAME: jitm_impersonation
   AUTH_SESSION_DAYS: 30
+  AUTH_RATE_LIMIT_SECRET: ${AUTH_RATE_LIMIT_SECRET}
+  AUTH_REQUIRE_ADMIN_MFA: ${AUTH_REQUIRE_ADMIN_MFA:-false}
+  AUTH_ADMIN_MFA_MAX_AGE_MINUTES: ${AUTH_ADMIN_MFA_MAX_AGE_MINUTES:-720}
   DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY}
   PLATFORM_ADMIN_EMAILS: ${PLATFORM_ADMIN_EMAILS:-}
   DATABASE_URL: postgresql://jitm:${POSTGRES_PASSWORD:-jitm}@postgres:5432/jitm?schema=public
@@ -12,12 +16,15 @@ x-app-environment: &app_environment
   DEMO_USER_EMAIL: ${DEMO_USER_EMAIL:-demo@jumpinthemix.local}
   DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-JumpInTheMix123!}
   RESET_DEMO_DATA: ${RESET_DEMO_DATA:-false}
+  WORKER_HEARTBEAT_STALE_SECONDS: ${WORKER_HEARTBEAT_STALE_SECONDS:-90}
   AI_PROVIDER: ${AI_PROVIDER:-openai}
   AI_API_KEY: ${AI_API_KEY:-}
-  AI_MODEL: ${AI_MODEL:-gpt-5-mini}
+  AI_MODEL: ${AI_MODEL:-gpt-5.6-luna}
+  AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
   STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
   STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  STRIPE_API_VERSION: ${STRIPE_API_VERSION:-2026-02-25.clover}
+  STRIPE_WEBHOOK_TOLERANCE_SECONDS: ${STRIPE_WEBHOOK_TOLERANCE_SECONDS:-300}
   STRIPE_PLUS_MONTHLY_PRICE_ID: ${STRIPE_PLUS_MONTHLY_PRICE_ID:-}
   STRIPE_PLUS_ANNUAL_PRICE_ID: ${STRIPE_PLUS_ANNUAL_PRICE_ID:-}
   STRIPE_PRO_MONTHLY_PRICE_ID: ${STRIPE_PRO_MONTHLY_PRICE_ID:-}
@@ -25,6 +32,7 @@ x-app-environment: &app_environment
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
   GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-http://localhost:3000/api/integrations/google/callback}
+  GOOGLE_SYNC_HOURS: ${GOOGLE_SYNC_HOURS:-24}
   MICROSOFT_CLIENT_ID: ${MICROSOFT_CLIENT_ID:-}
   MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
   MICROSOFT_REDIRECT_URI: ${MICROSOFT_REDIRECT_URI:-http://localhost:3000/api/integrations/microsoft/callback}
@@ -36,6 +44,7 @@ x-app-environment: &app_environment
   WHATSAPP_PUBLIC_NUMBER: ${WHATSAPP_PUBLIC_NUMBER:-}
   RESEND_API_KEY: ${RESEND_API_KEY:-}
   EMAIL_FROM: ${EMAIL_FROM:-Jump in the Mix <hello@localhost>}
+  EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
 
 services:
   postgres:
@@ -93,8 +102,35 @@ services:
     depends_on:
       setup:
         condition: service_completed_successfully
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://web:3000/api/health/worker || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     restart: unless-stopped
     init: true
+
+  operations:
+    image: jump-in-the-mix-operations:local
+    profiles: ["ops"]
+    build:
+      context: .
+      target: operations
+    environment:
+      <<: *app_environment
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      OPS_ALERT_WEBHOOK_URL: ${OPS_ALERT_WEBHOOK_URL:-}
+    volumes:
+      - ./.backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
   mailpit:
     image: axllent/mailpit:latest

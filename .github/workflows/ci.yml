@@ -15,12 +15,22 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     env:
       APP_URL: http://localhost:3000
       DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_test?schema=public
-      DATA_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+      DATA_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      BACKUP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+      AUTH_RATE_LIMIT_SECRET: ci-auth-rate-limit-secret
+      AUTH_REQUIRE_EMAIL_VERIFICATION: "false"
+      AUTH_REQUIRE_ADMIN_MFA: "true"
+      AUTH_ADMIN_MFA_MAX_AGE_MINUTES: "720"
+      WORKER_HEARTBEAT_STALE_SECONDS: "90"
       DEMO_MODE: "false"
+      E2E_USER_EMAIL: demo@jumpinthemix.local
+      E2E_USER_PASSWORD: JumpInTheMix123!
+      E2E_ADMIN_EMAIL: admin-e2e@jumpinthemix.local
+      E2E_ADMIN_PASSWORD: AdminJumpInTheMix123!
     services:
       postgres:
         image: postgres:16-alpine
@@ -38,12 +48,126 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - run: npm install --no-audit --no-fund
+      - name: Install PostgreSQL client tools
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Verify committed main-schema baseline SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .artifacts
+          git show origin/main:prisma/schema.prisma > .artifacts/main-schema.prisma
+          if ! npx prisma migrate diff --from-empty --to-schema .artifacts/main-schema.prisma --script > .artifacts/main-baseline.sql; then
+            npx prisma migrate diff --from-empty --to-schema-datamodel .artifacts/main-schema.prisma --script > .artifacts/main-baseline.sql
+          fi
+          test -s .artifacts/main-baseline.sql
+          # Prisma emits a hard-coded public-schema preamble. All remaining SQL is
+          # unqualified and therefore portable to the schema in DATABASE_URL.
+          tail -n +4 .artifacts/main-baseline.sql > .artifacts/main-baseline-portable.sql
+          # Prisma currently emits an additional blank line at EOF. Normalize it
+          # so the committed migration can remain clean under git diff --check.
+          perl -0pi -e 's/\n+\z/\n/' .artifacts/main-baseline-portable.sql
+          cmp .artifacts/main-baseline-portable.sql prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql
+      - name: Upload generated baseline SQL
+        uses: actions/upload-artifact@v4
+        with:
+          name: prisma-main-baseline
+          path: .artifacts/main-baseline-portable.sql
+          retention-days: 7
       - run: npm run db:generate
       - run: npm run validate:static
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - name: Populated migration, rollback, and reapply rehearsal
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run db:rehearse-migration 2>&1 | tee migration-rehearsal.log
+      - name: Upload migration rehearsal diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: migration-rehearsal-diagnostics
+          path: migration-rehearsal.log
+          retention-days: 7
+      - name: Deploy committed migrations to the test database
+        run: npm run db:deploy
+      - name: TypeScript semantic validation
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee typecheck.log
+      - name: Upload TypeScript diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: typecheck-diagnostics
+          path: typecheck.log
+          retention-days: 7
+      - name: Unit and integration tests
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test.log
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-diagnostics
+          path: test.log
+          retention-days: 7
+      - name: Production build
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee build.log
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-diagnostics
+          path: build.log
+          retention-days: 7
+      - name: Seed browser-test workspaces
+        env:
+          DEMO_MODE: "true"
+          RESET_DEMO_DATA: "true"
+        run: npm run db:seed && npm run db:seed:e2e-admin
+      - name: Encrypted backup and restore rehearsal
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run db:rehearse-restore 2>&1 | tee backup-restore-rehearsal.log
+      - name: Upload backup and restore diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-restore-diagnostics
+          path: |
+            backup-restore-rehearsal.log
+            .artifacts/backup-restore
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser-driven end-to-end tests
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: npm run start
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:e2e 2>&1 | tee e2e.log
+      - name: Upload browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-e2e-diagnostics
+          path: |
+            e2e.log
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7

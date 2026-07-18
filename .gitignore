@@ -10,3 +10,9 @@ coverage/
 *.zip
 .DS_Store
 prisma/dev.db
+.backups/
+.artifacts/
+playwright-report-staging/
+test-results-staging/
+playwright-report/
+test-results/
