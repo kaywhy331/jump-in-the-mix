@@ -9,7 +9,7 @@
 | Migration | Passed: all 10 migrations on populated upgrade and greenfield paths, core rollback/reapply, admin, MFA, and worker heartbeat rehearsals |
 | Docker | Disposable `jitm-launch-readiness` project healthy on web port 3300 and PostgreSQL port 55434 |
 | Playwright | 5 applicable core/security tests passed across desktop/mobile with 5 deliberate project/config skips; staging desktop/mobile 2/2 passed |
-| GitHub Actions | PR #3 head workflow was green before merge. The connected API exposes no push-triggered run for squash commit `c9caccd`; follow-up PR workflow pending publication |
+| GitHub Actions | PR #4 run `29665522730` passed baseline, migrations, static/type/tests/build, encrypted restore, and browser E2E. PR #3 head CI was green before merge; the connected API exposes no push-triggered run for squash commit `c9caccd` |
 | Account deletion | Passed: reauthentication, wrong phrase/password rejection, session/data deletion, encrypted revocation retry, pseudonymous audit, restart recovery, signed-out completion, and browser residue checks |
 | Google | Implemented and tested; live validation pending because sandbox OAuth credentials are unavailable |
 | Stripe | Implemented and tested; live test-mode validation pending because test keys are unavailable |
