@@ -69,6 +69,9 @@ jobs:
           # Prisma emits a hard-coded public-schema preamble. All remaining SQL is
           # unqualified and therefore portable to the schema in DATABASE_URL.
           tail -n +4 .artifacts/main-baseline.sql > .artifacts/main-baseline-portable.sql
+          # Prisma currently emits an additional blank line at EOF. Normalize it
+          # so the committed migration can remain clean under git diff --check.
+          perl -0pi -e 's/\n+\z/\n/' .artifacts/main-baseline-portable.sql
           cmp .artifacts/main-baseline-portable.sql prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql
       - name: Upload generated baseline SQL
         uses: actions/upload-artifact@v4
