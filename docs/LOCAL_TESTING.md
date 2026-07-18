@@ -119,3 +119,5 @@ All checks should pass before merging a change.
 ## 8. Integration testing status
 
 Stripe and Google Contacts are implemented and have deterministic boundary/integration coverage; live provider credentials are still required for their external sandbox matrices. Resend is implemented with live delivery pending. Microsoft Contacts and WhatsApp/Meta assistant behavior are boundary/scaffolding only, while Twilio and the website webhook are planned. See `docs/INTEGRATIONS.md` for the exact status of each provider.
+
+Account deletion browser coverage creates a dedicated synthetic owner, verifies wrong-password and wrong-phrase rejection, deletes the account, and checks database residue. Provider revocation failures are deterministic mocks; never place live tokens in test fixtures or reports.

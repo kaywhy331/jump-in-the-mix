@@ -44,6 +44,8 @@ From the project folder:
 
 The launcher will:
 
+Launch qualification status and evidence are recorded in `docs/LAUNCH_READINESS_VALIDATION_2026-07-18.md`. Live provider checks require separate sandbox credentials; physical Android qualification uses `docs/ANDROID_CONTACT_PICKER_QUALIFICATION.md`.
+
 1. Check that Docker is installed and running.
 2. Create a local `.env` file.
 3. Generate secure local secrets.

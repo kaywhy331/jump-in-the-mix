@@ -808,3 +808,34 @@ model AuditLog {
   @@index([workspaceId, createdAt])
   @@index([entityType, entityId])
 }
+
+model AccountDeletionAudit {
+  id          String    @id @default(cuid())
+  requestId   String    @unique
+  subjectHash String
+  status      String
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([subjectHash, createdAt])
+  @@index([status, createdAt])
+}
+
+model AccountDeletionRevocation {
+  id                    String              @id @default(cuid())
+  requestId             String
+  connectionFingerprint String
+  provider              IntegrationProvider
+  credentialsCiphertext String
+  status                String              @default("PENDING")
+  attempts              Int                 @default(0)
+  lastError             String?
+  nextAttemptAt         DateTime             @default(now())
+  completedAt           DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@unique([requestId, connectionFingerprint])
+  @@index([status, nextAttemptAt])
+}

@@ -15,13 +15,15 @@ const mixTemplateMigration = "20260716170000_mix_template_library";
 const supportMigration = "20260716210000_support_center";
 const referralMigration = "20260717010000_referral_rewards";
 const contactGroupActivationMigration = "20260717120000_contact_group_activation";
+const accountDeletionWorkflowMigration = "20260718190000_account_deletion_workflow";
 const requiredMigrations = [
   baselineMigration,
   forwardMigration,
   mixTemplateMigration,
   supportMigration,
   referralMigration,
-  contactGroupActivationMigration
+  contactGroupActivationMigration,
+  accountDeletionWorkflowMigration
 ];
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const schemaName = `jitm_rehearsal_${suffix}`;
@@ -165,7 +167,9 @@ async function assertForwardState(client) {
     "ReferralAccount",
     "Referral",
     "ReferralReward",
-    "ContactGroupState"
+    "ContactGroupState",
+    "AccountDeletionAudit",
+    "AccountDeletionRevocation"
   ]) {
     if (!(await tableExists(client, table))) throw new Error(`Expected migrated table ${table}.`);
   }
@@ -297,7 +301,9 @@ async function assertGreenfieldState(client) {
     "ReferralAccount",
     "Referral",
     "ReferralReward",
-    "ContactGroupState"
+    "ContactGroupState",
+    "AccountDeletionAudit",
+    "AccountDeletionRevocation"
   ]) {
     if (!(await tableExists(client, table, greenfieldSchemaName))) {
       throw new Error(`Greenfield migration did not create ${table}.`);

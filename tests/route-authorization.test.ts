@@ -47,7 +47,7 @@ describe("server-enforced route authorization matrix", () => {
   it("does not expose target-account password, device, referral sharing, or ticket mutation controls during impersonation", () => {
     const account = read("src/app/(app)/account/page.tsx");
     const referralCard = read("src/components/ReferralAccountCard.tsx");
-    const impersonationBranch = account.match(/if \(impersonation\) \{[\s\S]*?\n  \}\n\n  return \(/)?.[0] ?? "";
+    const impersonationBranch = account.match(/if \(impersonation\) \{[\s\S]*?\r?\n  \}\r?\n\r?\n  return \(/)?.[0] ?? "";
     expect(impersonationBranch).toContain("support history are visible");
     expect(impersonationBranch).toContain("every other browser mutation are unavailable");
     expect(impersonationBranch).not.toContain("changePasswordAction");

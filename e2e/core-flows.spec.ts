@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { generateTotpCode } from "../src/lib/totp";
+import bcrypt from "bcryptjs";
+import { prisma } from "../src/lib/prisma";
 
 const userEmail = process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local";
 const userPassword = process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!";
@@ -91,6 +93,66 @@ test("supported mobile browsers can Quick Add a selected device Contact", async 
   await addPanel.evaluate((element) => { (element as HTMLDetailsElement).open = true; });
   await page.getByRole("button", { name: /Pick from device/ }).click();
   await expect(page.getByText(/\d+ added · \d+ merged/)).toBeVisible();
+});
+
+test("account owner must reauthenticate and explicitly confirm permanent deletion", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The destructive stateful journey runs once.");
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const userId = `e2e-delete-user-${suffix}`;
+  const workspaceId = `e2e-delete-workspace-${suffix}`;
+  const email = `e2e-delete-${suffix}@jumpinthemix.local`;
+  const password = "DeleteAccountTest123!";
+  await prisma.user.create({
+    data: {
+      id: userId,
+      email,
+      name: "Deletion Browser Test",
+      passwordHash: await bcrypt.hash(password, 4),
+      emailVerifiedAt: new Date(),
+      ownedWorkspaces: {
+        create: {
+          id: workspaceId,
+          name: "Deletion Browser Workspace",
+          slug: `e2e-delete-${suffix}`,
+          members: { create: { userId, role: "OWNER" } },
+          profile: { create: { onboardingDone: true } },
+          contacts: { create: { displayName: "Deletion Residue Contact" } },
+          jobs: { create: { task: "generate-jumps", payload: {}, runAt: new Date(Date.now() + 60_000) } }
+        }
+      },
+      sessions: {
+        create: { tokenHash: `e2e-delete-extra-${suffix}`, expiresAt: new Date(Date.now() + 60_000) }
+      }
+    }
+  });
+
+  await signIn(page, email, password);
+  await page.goto("/account");
+  const dangerZone = page.getByRole("region", { name: "Permanently delete account" });
+  await expect(dangerZone.getByText("Danger Zone")).toBeVisible();
+
+  await dangerZone.getByLabel("Current password").fill("wrong-password");
+  await dangerZone.getByLabel(/Type DELETE MY ACCOUNT/).fill("DELETE MY ACCOUNT");
+  await dangerZone.getByRole("button", { name: "Permanently delete account" }).click();
+  await expect(dangerZone.getByRole("alert")).toContainText("current password is incorrect");
+
+  await dangerZone.getByLabel("Current password").fill(password);
+  await dangerZone.getByLabel(/Type DELETE MY ACCOUNT/).fill("delete my account");
+  await dangerZone.getByRole("button", { name: "Permanently delete account" }).click();
+  await expect(dangerZone.getByRole("alert")).toContainText("Type DELETE MY ACCOUNT exactly");
+
+  await dangerZone.getByLabel("Current password").fill(password);
+  await dangerZone.getByLabel(/Type DELETE MY ACCOUNT/).fill("DELETE MY ACCOUNT");
+  await Promise.all([
+    page.waitForURL(/\/account\/deleted$/),
+    dangerZone.getByRole("button", { name: "Permanently delete account" }).click()
+  ]);
+  await expect(page.getByRole("heading", { name: "Your Jump in the Mix account has been deleted." })).toBeVisible();
+  await expect(prisma.user.findUnique({ where: { id: userId } })).resolves.toBeNull();
+  await expect(prisma.session.count({ where: { userId } })).resolves.toBe(0);
+  await expect(prisma.workspace.count({ where: { id: workspaceId } })).resolves.toBe(0);
+  await expect(prisma.contact.count({ where: { workspaceId } })).resolves.toBe(0);
+  await expect(prisma.job.count({ where: { workspaceId } })).resolves.toBe(0);
 });
 
 test.describe("stateful administrator security journey", () => {

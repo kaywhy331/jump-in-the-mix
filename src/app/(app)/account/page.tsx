@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { GoogleContactsPanel } from "@/components/GoogleContactsPanel";
+import { AccountDeletionForm } from "@/components/AccountDeletionForm";
 import { Notice } from "@/components/Notice";
 import { ReferralAccountCard } from "@/components/ReferralAccountCard";
 import {
@@ -264,6 +265,22 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <summary className="button danger">Sign out everywhere…</summary>
           <div className="destructive-confirm-panel"><p>This closes every active session, including this device.</p><form action={signOutEverywhereAction}><button className="button danger" type="submit">Confirm sign out everywhere</button></form></div>
         </details>
+      </section>
+
+      <section className="card danger-zone" aria-labelledby="danger-zone-heading">
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Danger Zone</p>
+            <h2 id="danger-zone-heading">Permanently delete account</h2>
+            <p id="account-deletion-warning">This cannot be undone. Reauthentication and an exact confirmation phrase are required.</p>
+          </div>
+        </div>
+        <div className="notice error">
+          <p><strong>Deletion removes:</strong> your profile and every session; each workspace you own; Contacts and their private notes; Important Dates; Groups; Mixes; pending jobs; future and completed Jumps; support history; billing records stored here; and encrypted integration credentials.</p>
+          <p>Provider access is revoked on a best-effort basis before local deletion. Google or another provider may be unavailable or may already have revoked the token. Failed revocations are retried from an encrypted queue, but you may also remove Jump in the Mix from the provider&apos;s security settings.</p>
+          <p>A pseudonymous operational record is retained with the deletion time, outcome, and pending-revocation count. It does not retain your name, email, Contacts, messages, or raw provider tokens.</p>
+        </div>
+        <AccountDeletionForm />
       </section>
     </div>
   );

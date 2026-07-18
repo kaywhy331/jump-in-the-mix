@@ -155,6 +155,7 @@ This document distinguishes the runnable independent application from the comple
 - Central Origin and Fetch Metadata mutation boundary, constrained Server Action origins, security headers, and request-size limits.
 - Hashed opaque sessions with device/IP/last-seen/expiration metadata, caps, remote revocation, and sign-out-everywhere.
 - My Account identity, plan state, billing, usage, Google Contacts, referrals, Help/tickets, password, and active-device controls.
+- My Account Danger Zone account deletion is implemented and tested: password reauthentication, exact phrase, double-submit protection, session and owned-workspace removal, encrypted provider-revocation retry after restart, pseudonymous audit, and a signed-out completion page.
 - Production-default platform-administrator MFA with encrypted TOTP secrets, current-password enrollment confirmation, ten one-time recovery codes, TOTP replay prevention, rate limits, bounded per-session step-up, audit events, and credential-event invalidation.
 
 ### Help, FAQ, and support tickets
@@ -230,6 +231,7 @@ This document distinguishes the runnable independent application from the comple
 - Complete a real Google OAuth/People API staging matrix covering consent, labels, initial import, token refresh, revoked credentials, incremental cursors, disconnect, and recovery.
 - Complete a real Stripe test-mode Checkout, Customer Portal, plan-change, failed-payment, cancellation, duplicate-webhook, pause/resume, downgrade, and referral-bank handoff smoke matrix.
 - Complete physical Android Contact Picker qualification and the final security, accessibility, and operational launch review.
+- Account deletion is implemented and tested. Live provider qualification and physical Android execution remain launch blockers; see the dated validation report for evidence.
 
 ## Remaining P1 work
 

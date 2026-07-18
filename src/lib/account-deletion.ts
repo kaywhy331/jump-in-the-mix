@@ -1,4 +1,5 @@
-import type { IntegrationConnection } from "@/generated/prisma/client";
+import { createHash, randomUUID } from "node:crypto";
+import type { AccountDeletionRevocation, IntegrationConnection } from "@/generated/prisma/client";
 import { revokeGoogleCredentials } from "@/lib/google-contacts";
 import { prisma } from "@/lib/prisma";
 
@@ -8,6 +9,7 @@ export type AccountDeletionRevoker = (connection: RevocableConnection) => Promis
 
 export type AccountDeletionResult = {
   deleted: boolean;
+  requestId?: string;
   revocationWarnings: string[];
 };
 
@@ -15,9 +17,62 @@ async function revokeImplementedProvider(connection: RevocableConnection): Promi
   if (connection.provider === "GOOGLE_CONTACTS") await revokeGoogleCredentials(connection);
 }
 
+function subjectHash(userId: string): string {
+  return createHash("sha256").update(`account-deletion:${userId}`).digest("hex");
+}
+
+function connectionFingerprint(connection: RevocableConnection): string {
+  return createHash("sha256").update(`${connection.provider}:${connection.id}`).digest("hex");
+}
+
+function safeError(error: unknown): string {
+  return (error instanceof Error ? error.message : "Provider revocation failed.").slice(0, 500);
+}
+
+async function attemptPersistedRevocation(
+  revocation: Pick<AccountDeletionRevocation, "id" | "provider" | "credentialsCiphertext" | "attempts">,
+  revokeProvider: AccountDeletionRevoker
+): Promise<string | null> {
+  try {
+    await revokeProvider({ id: revocation.id, provider: revocation.provider, credentialsCiphertext: revocation.credentialsCiphertext });
+    await prisma.accountDeletionRevocation.deleteMany({ where: { id: revocation.id } });
+    return null;
+  } catch (error) {
+    const message = safeError(error);
+    const attempts = revocation.attempts + 1;
+    await prisma.accountDeletionRevocation.update({
+      where: { id: revocation.id },
+      data: {
+        status: "RETRY_PENDING",
+        attempts,
+        lastError: message,
+        nextAttemptAt: new Date(Date.now() + Math.min(24 * 60 * 60_000, 2 ** attempts * 60_000))
+      }
+    });
+    return `${revocation.provider}: ${message}`;
+  }
+}
+
+export async function retryPendingAccountDeletionRevocations(
+  revokeProvider: AccountDeletionRevoker = revokeImplementedProvider,
+  now = new Date()
+): Promise<{ completed: number; pending: number }> {
+  const pending = await prisma.accountDeletionRevocation.findMany({
+    where: { status: "RETRY_PENDING", nextAttemptAt: { lte: now } },
+    orderBy: { createdAt: "asc" },
+    take: 20
+  });
+  let completed = 0;
+  for (const revocation of pending) {
+    if ((await attemptPersistedRevocation(revocation, revokeProvider)) === null) completed += 1;
+  }
+  return { completed, pending: pending.length - completed };
+}
+
 export async function deleteAccountData(
   userId: string,
-  revokeProvider: AccountDeletionRevoker = revokeImplementedProvider
+  revokeProvider: AccountDeletionRevoker = revokeImplementedProvider,
+  requestId: string = randomUUID()
 ): Promise<AccountDeletionResult> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -36,14 +91,32 @@ export async function deleteAccountData(
       })
     : [];
 
-  const revocationWarnings: string[] = [];
+  await prisma.accountDeletionAudit.upsert({
+    where: { requestId },
+    create: { requestId, subjectHash: subjectHash(userId), status: "STARTED" },
+    update: {}
+  });
+
+  const pendingRevocations = [];
   for (const connection of connections) {
-    try {
-      await revokeProvider(connection);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Provider revocation failed.";
-      revocationWarnings.push(`${connection.provider}: ${message}`);
-    }
+    pendingRevocations.push(await prisma.accountDeletionRevocation.upsert({
+      where: {
+        requestId_connectionFingerprint: { requestId, connectionFingerprint: connectionFingerprint(connection) }
+      },
+      create: {
+        requestId,
+        connectionFingerprint: connectionFingerprint(connection),
+        provider: connection.provider,
+        credentialsCiphertext: connection.credentialsCiphertext!
+      },
+      update: {}
+    }));
+  }
+
+  const revocationWarnings: string[] = [];
+  for (const revocation of pendingRevocations) {
+    const warning = await attemptPersistedRevocation(revocation, revokeProvider);
+    if (warning) revocationWarnings.push(warning);
   }
 
   await prisma.$transaction(async (tx) => {
@@ -84,7 +157,15 @@ export async function deleteAccountData(
     }
 
     await tx.user.delete({ where: { id: userId } });
+    await tx.accountDeletionAudit.update({
+      where: { requestId },
+      data: {
+        status: revocationWarnings.length ? "DELETED_REVOCATION_PENDING" : "COMPLETED",
+        completedAt: new Date(),
+        metadata: { ownedWorkspaceCount: workspaceIds.length, pendingRevocationCount: revocationWarnings.length }
+      }
+    });
   });
 
-  return { deleted: true, revocationWarnings };
+  return { deleted: true, requestId, revocationWarnings };
 }

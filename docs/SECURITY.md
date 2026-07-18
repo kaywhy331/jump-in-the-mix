@@ -98,6 +98,8 @@ Operational logs must not contain:
 
 Authentication rate-limit keys are derived with a keyed SHA-256 digest rather than storing raw email/IP combinations as the bucket key. Session and administrator-support tables contain only token hashes. Administrator TOTP secrets are AES-256-GCM encrypted, recovery codes are keyed hashes, and only the last accepted TOTP counter is retained for replay prevention. Google account status responses contain connection state, labels, counts, and errors but never encrypted or decrypted credentials.
 
+Account deletion requires the current password and the exact phrase `DELETE MY ACCOUNT`, is rate limited, and is unavailable during administrator impersonation. All sessions and owned workspace data are removed transactionally. Provider revocation is best effort and occurs outside that transaction; failures retain only the existing encrypted credential plus provider/status/error metadata in a retry queue. Successful revocation removes that ciphertext. The surviving deletion audit uses a one-way subject hash and counts only—never name, email, Contact content, messages, or raw tokens.
+
 ## Administrative access
 
 Platform administration is controlled by `isPlatformAdmin` plus a fresh administrator MFA step-up when `AUTH_REQUIRE_ADMIN_MFA` is enabled. Enforcement defaults to enabled in production.
