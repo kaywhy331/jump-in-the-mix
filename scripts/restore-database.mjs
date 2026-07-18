@@ -60,6 +60,8 @@ async function main() {
     await runCommand("pg_restore", [
       "-d",
       target.database,
+      "--clean",
+      "--if-exists",
       "--exit-on-error",
       "--no-owner",
       "--no-privileges",
