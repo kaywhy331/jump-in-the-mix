@@ -18,6 +18,13 @@
 .account-sidebar-footer { display: grid; gap: 8px; }
 .account-sidebar-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .account-sidebar-actions form { margin: 0; }
+.profile-menu { position: relative; width: 100%; }
+.profile-menu > summary { width: 100%; list-style: none; cursor: pointer; }
+.profile-menu > summary::-webkit-details-marker { display: none; }
+.profile-menu-panel { position: absolute; z-index: 40; left: 0; bottom: calc(100% + 8px); width: 220px; display: grid; gap: 3px; padding: 9px; border: 1px solid var(--line); border-radius: 13px; background: white; box-shadow: var(--shadow); }
+.profile-menu-panel > a, .profile-menu-panel > form > button { display: flex; width: 100%; min-height: 38px; align-items: center; padding: 8px 9px; border-radius: 8px; color: var(--muted); font-size: .85rem; font-weight: 700; }
+.profile-menu-panel > a:hover, .profile-menu-panel > form > button:hover { background: var(--surface-soft); color: var(--ink); }
+.mobile-profile-link { width: 44px; min-width: 44px; padding: 0; border-radius: 50%; }
 
 @media (max-width: 860px) {
   .account-grid { grid-template-columns: 1fr; }

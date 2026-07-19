@@ -83,7 +83,7 @@ test("mobile navigation and actions stay inside the viewport", async ({ page }, 
   await page.goto("/jumps");
 
   const links = page.locator(".mobile-nav .nav-link:visible");
-  await expect(links).toHaveCount(4);
+  await expect(links).toHaveCount(5);
   const viewport = page.viewportSize();
   expect(viewport).not.toBeNull();
   for (let index = 0; index < await links.count(); index += 1) {
@@ -93,6 +93,21 @@ test("mobile navigation and actions stay inside the viewport", async ({ page }, 
     expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width + 1);
   }
   await expectNoHorizontalOverflow(page);
+});
+
+test("global Quick Add previews natural-language capture before continuing", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/jumps");
+  await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Quick Add" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByLabel("What do you want to remember?").fill("Follow up with Jordan next Monday about the proposal");
+  await dialog.getByRole("button", { name: "Preview capture" }).click();
+  await expect(dialog.getByText("Confirm this interpretation")).toBeVisible();
+  await expect(dialog.getByText("Jordan", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Continue with Contact" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Close Quick Add" }).click();
+  await expect(dialog).toBeHidden();
 });
 
 test("responsive controls remain complete and align to card width", async ({ page }, testInfo) => {
@@ -111,16 +126,25 @@ test("responsive controls remain complete and align to card width", async ({ pag
     if (width <= 900) {
       await page.goto("/jumps");
       const card = page.locator(".jump-task-card").first();
-      const status = card.locator(".jump-status-button");
-      const primary = card.locator(".jump-primary-action .button");
+      const primary = card.locator(".jump-channel-action");
       await expect(card).toBeVisible();
-      const [cardBox, statusBox, primaryBox] = await Promise.all([card.boundingBox(), status.boundingBox(), primary.boundingBox()]);
+      const [cardBox, primaryBox] = await Promise.all([card.boundingBox(), primary.boundingBox()]);
       expect(cardBox).not.toBeNull();
-      expect(statusBox).not.toBeNull();
       expect(primaryBox).not.toBeNull();
-      expect(Math.abs(statusBox!.x - primaryBox!.x)).toBeLessThanOrEqual(1);
-      expect(Math.abs(statusBox!.width - primaryBox!.width)).toBeLessThanOrEqual(1);
-      expect(statusBox!.width).toBeGreaterThan(cardBox!.width * .85);
+      expect(primaryBox!.x).toBeGreaterThanOrEqual(cardBox!.x - 1);
+      expect(primaryBox!.x + primaryBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
+      expect(primaryBox!.width).toBeGreaterThan(cardBox!.width * .85);
     }
   }
+});
+
+test("Jump overflow provides first-class snooze presets", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The stateful snooze journey runs once.");
+  await signIn(page);
+  await page.goto("/jumps");
+  const pendingCard = page.locator(".jump-task-card").filter({ has: page.getByRole("button", { name: "Mark done" }) }).first();
+  await expect(pendingCard).toBeVisible();
+  await pendingCard.getByLabel(/More actions for/).click();
+  await pendingCard.getByRole("button", { name: "Tomorrow" }).click();
+  await expect(page.getByText("Jump snoozed. It will return to your queue at the new time.")).toBeVisible();
 });

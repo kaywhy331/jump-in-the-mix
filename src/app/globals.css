@@ -117,7 +117,11 @@ textarea { resize: vertical; min-height: 110px; }
 .workspace-chip span { font-weight: 750; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .workspace-chip small { color: var(--muted); text-transform: capitalize; }
 .app-nav { display: grid; gap: 6px; }
+.app-nav > span { display: contents; }
 .nav-link { display: flex; align-items: center; gap: 11px; min-height: 43px; padding: 9px 12px; border-radius: 10px; color: var(--muted); font-weight: 680; }
+.nav-link svg, .global-quick-add svg, .quick-add-dialog svg { width: 21px; height: 21px; flex: 0 0 auto; }
+.nav-quick-add { display: none; }
+.global-quick-add { width: 100%; margin-top: 14px; }
 .nav-link:hover, .nav-link.active { color: var(--brand-dark); background: var(--brand-soft); }
 .nav-mobile { display: none; }
 .sidebar-footer { margin-top: auto; display: grid; gap: 6px; padding: 12px; border-top: 1px solid var(--line); }
@@ -205,8 +209,10 @@ textarea { resize: vertical; min-height: 110px; }
   .sidebar { display: none; }
   .app-main { padding: var(--space-5) var(--space-4); }
   .mobile-nav { display: block; position: fixed; left: 10px; right: 10px; bottom: 10px; z-index: 50; background: rgba(255,255,255,.96); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); backdrop-filter: blur(12px); }
-  .mobile-nav .app-nav { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
+  .mobile-nav .app-nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; }
   .mobile-nav .nav-link { min-width: 0; display: grid; place-items: center; gap: 1px; padding: 7px 3px; font-size: .69rem; }
+  .mobile-nav .nav-quick-add { display: grid; place-items: center; align-self: end; min-width: 0; min-height: 58px; margin: -16px 2px 0; padding: 6px 2px; border: 0; border-radius: 16px; background: var(--brand); color: white; font: inherit; font-size: .62rem; font-weight: 750; box-shadow: 0 8px 20px rgba(71,54,210,.28); }
+  .mobile-nav .nav-quick-add svg { width: 29px; height: 29px; }
   .mobile-nav .nav-secondary { display: none; }
   .mobile-nav .nav-mobile { display: grid; }
   .page-header { display: grid; gap: var(--space-4); }
