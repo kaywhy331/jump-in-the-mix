@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { SharedMixReviewState, SharedMixStatus } from "@/generated/prisma/client";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SharedMixPreview } from "@/components/SharedMixPreview";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
@@ -185,7 +186,7 @@ export default async function AdminTemplatesPage({ searchParams }: { searchParam
                 <div className="admin-template-quick-actions">
                   {reviewState !== "APPROVED" && <form action={quickModerateSharedMixAction}><input type="hidden" name="sharedMixId" value={template.id} /><input type="hidden" name="status" value="APPROVED" /><button className="button small primary" type="submit">Approve</button></form>}
                   {reviewState !== "FLAGGED" && <form action={quickModerateSharedMixAction}><input type="hidden" name="sharedMixId" value={template.id} /><input type="hidden" name="status" value="FLAGGED" /><button className="button small" type="submit">Flag</button></form>}
-                  {reviewState !== "REJECTED" && <details className="destructive-confirm"><summary className="button small danger">Reject…</summary><div className="destructive-confirm-panel"><form action={quickModerateSharedMixAction} className="form-stack"><input type="hidden" name="sharedMixId" value={template.id} /><input type="hidden" name="status" value="REJECTED" /><label>Reason<textarea name="moderationNote" minLength={10} maxLength={1200} required /></label><button className="button small danger" type="submit">Confirm rejection</button></form></div></details>}
+                  {reviewState !== "REJECTED" && <ConfirmDialog trigger="Reject…" title={`Reject ${template.title}?`} description="Provide a reason so the contributor understands what must change." danger><form action={quickModerateSharedMixAction} className="form-stack"><input type="hidden" name="sharedMixId" value={template.id} /><input type="hidden" name="status" value="REJECTED" /><label>Reason<textarea name="moderationNote" minLength={10} maxLength={1200} required /></label><button className="button small danger" type="submit">Confirm rejection</button></form></ConfirmDialog>}
                 </div>
               )}
             </article>

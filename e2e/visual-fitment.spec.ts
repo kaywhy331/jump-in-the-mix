@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
 
 const userEmail = process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local";
 const userPassword = process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!";
@@ -41,6 +42,14 @@ async function expectNoClippedControls(page: Page) {
   }));
   expect(clipped).toEqual([]);
 }
+
+test("core design primitives match the visual baseline", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The canonical visual baseline runs once.");
+  const css = `${readFileSync("src/styles/base.css", "utf8")}\n${readFileSync("src/styles/components.css", "utf8")}`;
+  await page.setViewportSize({ width: 720, height: 420 });
+  await page.setContent(`<style>${css}</style><main id="design-fixture" style="width:680px;padding:28px;display:grid;gap:20px;background:var(--surface-soft)"><section class="card" style="margin:0;display:grid;grid-template-columns:1fr auto;gap:16px"><div style="height:18px;width:180px;border-radius:9px;background:var(--ink)"></div><span class="status-pill done" style="width:72px;height:28px"></span><div style="grid-column:1/-1;height:12px;width:72%;border-radius:6px;background:var(--line)"></div><div class="button primary" style="width:148px;height:46px"></div></section><section style="display:flex;gap:12px"><div class="button" style="width:112px;height:46px"></div><div class="button danger" style="width:112px;height:46px"></div><div class="icon-button" style="display:grid;place-items:center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></div></section></main>`);
+  await expect(page.locator("#design-fixture")).toHaveScreenshot("core-design-primitives.png", { animations: "disabled", caret: "hide", maxDiffPixelRatio: 0.01 });
+});
 
 test("core pages preserve clean fitment without horizontal overflow", async ({ page }) => {
   await signIn(page);
@@ -148,6 +157,48 @@ test("settings hub opens focused profile tools with global timezone and repeatab
     page.getByRole("button", { name: "Save workspace profile" }).click()
   ]);
   await expect(page.locator(`input[value="${recordName}"]`)).toHaveCount(0);
+});
+
+test("public pricing preserves plan intent and remains responsive", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The public viewport matrix runs once.");
+  for (const width of [320, 390, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/?billing=annual#pricing");
+    await expect(page.getByText("Full plan comparison", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Choose Plus" })).toHaveAttribute("href", "/register?plan=plus&period=annual");
+    await expectNoHorizontalOverflow(page);
+  }
+  await page.getByRole("link", { name: "Monthly" }).click();
+  await expect(page.getByRole("link", { name: "Choose Pro" })).toHaveAttribute("href", "/register?plan=pro&period=monthly");
+  await page.getByRole("link", { name: "Choose Pro" }).click();
+  await expect(page).toHaveURL(/\/register\?plan=pro&period=monthly/);
+  await expect(page.getByText("Your Pro · monthly selection is saved.")).toBeVisible();
+});
+
+test("confirmation dialogs restore focus and accessibility preferences remain usable", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Accessibility preference modes are covered once.");
+  await page.emulateMedia({ reducedMotion: "reduce", forcedColors: "active" });
+  await signIn(page);
+  await page.goto("/account?section=security");
+  const trigger = page.getByRole("button", { name: "Sign out everywhere…" });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "Sign out everywhere?" });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await expectNoHorizontalOverflow(page);
+
+  await page.goto("/contacts");
+  const firstContact = page.locator(".contact-row").first();
+  await firstContact.getByLabel(/More actions for/).click();
+  const archiveTrigger = firstContact.getByRole("button", { name: "Archive…" });
+  await archiveTrigger.click();
+  const archiveDialog = page.getByRole("dialog", { name: /Archive .+\?/ });
+  await expect(archiveDialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(archiveDialog).toBeHidden();
+  await expect(archiveTrigger).toBeFocused();
 });
 
 test("Quick Add Important Date and one-time Jump continue into actionable Contact journeys", async ({ page }, testInfo) => {

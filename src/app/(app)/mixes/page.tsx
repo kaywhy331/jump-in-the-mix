@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/EmptyState";
+import { AppIcon, type AppIconName } from "@/components/AppIcon";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Notice } from "@/components/Notice";
 import { createStarterMixAction } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
@@ -23,12 +25,10 @@ type SearchParams = {
   status?: string;
 };
 
-function channelIcon(channel: string): string {
-  if (channel === "EMAIL") return "✉";
-  if (channel === "PHONE_CALL") return "☎";
-  if (channel === "VOICEMAIL") return "◉";
-  if (channel === "WHATSAPP") return "◌";
-  return "●";
+function channelIcon(channel: string): AppIconName {
+  if (channel === "EMAIL") return "email";
+  if (channel === "PHONE_CALL" || channel === "VOICEMAIL") return "phone";
+  return "message";
 }
 
 export default async function MixesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -104,18 +104,18 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                   </div>
                   <div className="mix-card-actions">
                     <Link href={`/mixes/${mix.id}/edit`} className="button small primary">Edit</Link>
-                    <details className="mix-row-menu"><summary className="button small" aria-label={`More actions for ${mix.name}`}>More</summary><div className="mix-row-menu-panel"><Link href={`/mixes/${mix.id}/share`}>{sharing ? "Manage sharing" : "Share Mix"}</Link>{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Pause Mix</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Activate Mix</button></form>}<form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button danger-text" type="submit">Archive Mix</button></form></div></details>
+                    <details className="mix-row-menu"><summary className="button small" aria-label={`More actions for ${mix.name}`}>More</summary><div className="mix-row-menu-panel"><Link href={`/mixes/${mix.id}/share`}>{sharing ? "Manage sharing" : "Share Mix"}</Link>{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Pause Mix</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Activate Mix</button></form>}<ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The Mix leaves active workflows while completed Jump history remains available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small danger" type="submit">Confirm archive</button></form></ConfirmDialog></div></details>
                   </div>
                 </div>
                 {mix.description && <p className="muted-copy">{mix.description}</p>}
                 <div className="mix-sequence-preview" aria-label={`${mix.name} Jump sequence`}>
                   {mix.steps.length ? mix.steps.map((step, index) => (
-                    <div className="mix-sequence-item" key={step.id}><span className="mix-sequence-number">Jump #{index + 1}</span><span className="timeline-icon" aria-hidden="true">{channelIcon(step.stepVersion.stepTemplate.channel)}</span><span><strong>{step.stepVersion.stepTemplate.name}</strong><small>Day {step.dayOffset}</small></span></div>
+                    <div className="mix-sequence-item" key={step.id}><span className="mix-sequence-number">Jump #{index + 1}</span><span className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></span><span><strong>{step.stepVersion.stepTemplate.name}</strong><small>Day {step.dayOffset}</small></span></div>
                   )) : <span className="status-pill">No Jumps added yet</span>}
                 </div>
                 <details className="mix-details"><summary>View prepared content</summary><div className="timeline">{mix.steps.map((step, index) => {
                   const content = step.stepVersion.body ?? step.stepVersion.script ?? "No message content";
-                  return <div className="timeline-step" key={step.id}><div className="timeline-day">Jump #{index + 1}<small>Day {step.dayOffset}</small></div><div className="timeline-icon">{channelIcon(step.stepVersion.stepTemplate.channel)}</div><div className="timeline-content"><strong>{step.stepVersion.stepTemplate.name}</strong><span className="channel-pill">{step.stepVersion.stepTemplate.channel.replaceAll("_", " ")}</span><p>{step.stepVersion.subject && `${step.stepVersion.subject}\n`}{content}</p></div></div>;
+                  return <div className="timeline-step" key={step.id}><div className="timeline-day">Jump #{index + 1}<small>Day {step.dayOffset}</small></div><div className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></div><div className="timeline-content"><strong>{step.stepVersion.stepTemplate.name}</strong><span className="channel-pill">{step.stepVersion.stepTemplate.channel.replaceAll("_", " ")}</span><p>{step.stepVersion.subject && `${step.stepVersion.subject}\n`}{content}</p></div></div>;
                 })}</div></details>
               </article>
             );

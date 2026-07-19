@@ -1,7 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Logo } from "@/components/Logo";
 
-export default function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<{ billing?: string }> }) {
+  const annual = (await searchParams).billing !== "monthly";
   return (
     <div className="public-shell">
       <header className="public-header">
@@ -33,30 +35,7 @@ export default function HomePage() {
             <p className="hero-note">Start free. No external integrations are required to test the core workflow.</p>
           </div>
 
-          <div className="hero-demo" aria-label="Product preview">
-            <div className="demo-window">
-              <div className="demo-toolbar"><span /><span /><span /></div>
-              <div className="demo-content">
-                <h3>Today&apos;s Jumps</h3>
-                <p>Three relationships need your attention.</p>
-                <div className="demo-card">
-                  <strong>Sarah Chen · BrightPath</strong>
-                  <small>Referral follow-up · SMS</small>
-                  <div className="mini-action">Open message →</div>
-                </div>
-                <div className="demo-card">
-                  <strong>Marcus Reed · Northline</strong>
-                  <small>Renewal check-in · Phone call</small>
-                  <div className="mini-action">View call notes →</div>
-                </div>
-                <div className="demo-card">
-                  <strong>Elena Torres</strong>
-                  <small>Client anniversary · Email</small>
-                  <div className="mini-action">Open email →</div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <figure className="hero-product-proof"><Image src="/product-proof/today.png" width={1050} height={760} priority alt="Jump in the Mix Today queue showing prepared follow-up actions for synthetic demo contacts"/><figcaption>Actual Today queue · synthetic demo data</figcaption></figure>
         </section>
 
         <section id="problem" className="section">
@@ -84,17 +63,30 @@ export default function HomePage() {
           </div>
         </section>
 
+        <section className="section product-proof-section" aria-labelledby="product-proof-heading">
+          <div className="section-heading"><span className="eyebrow">See the real workflow</span><h2 id="product-proof-heading">A calm place to decide who needs you next.</h2><p>These are screenshots of the working product using a synthetic demo workspace—not concept art.</p></div>
+          <div className="product-proof-grid">
+            {[['contacts.png','Contact timeline and relationship state'],['mixes.png','Mix follow-up plan library'],['quick-add.png','Quick Add capture and review'],['mobile-jump.png','Mobile Jump action card']].map(([src, alt]) => <figure key={src}><Image src={`/product-proof/${src}`} width={900} height={650} alt={alt}/><figcaption>{alt}</figcaption></figure>)}
+          </div>
+        </section>
+
         <section id="pricing" className="section">
           <div className="section-heading">
             <span className="eyebrow">Start at your pace</span>
             <h2>Test the workflow free, then add more capacity and automation.</h2>
           </div>
+          <nav className="public-billing-toggle" aria-label="Pricing period"><Link className={annual ? "active" : ""} href="/?billing=annual#pricing">Annual <span>Save up to 20%</span></Link><Link className={!annual ? "active" : ""} href="/?billing=monthly#pricing">Monthly</Link></nav>
           <div className="pricing-grid">
             <article className="pricing-card"><h3>Free</h3><p>For organizing a focused personal network.</p><h2>$0</h2><small>100 Contacts · 3 active Mixes</small><Link href="/register" className="button">Start free</Link></article>
-            <article className="pricing-card"><span className="plan-pill">Popular</span><h3>Plus</h3><p>For entrepreneurs building a consistent relationship routine.</p><h2>$15 <small>/ month</small></h2><small>Or $144 annually · $12/month equivalent</small><Link href="/register" className="button primary">Start with Plus</Link></article>
-            <article className="pricing-card"><h3>Pro</h3><p>For growing businesses managing a broader network.</p><h2>$18 <small>/ month</small></h2><small>Or $180 annually · $15/month equivalent</small><Link href="/register" className="button">Start with Pro</Link></article>
+            <article className="pricing-card"><span className="plan-pill">Popular</span><h3>Plus</h3><p>For entrepreneurs building a consistent relationship routine.</p><h2>${annual ? 12 : 15} <small>/ month{annual ? ' equivalent' : ''}</small></h2><small>{annual ? '$144 billed annually · save $36' : 'Billed monthly'}</small><Link href={`/register?plan=plus&period=${annual ? 'annual' : 'monthly'}`} className="button primary">Choose Plus</Link></article>
+            <article className="pricing-card"><h3>Pro</h3><p>For growing businesses managing a broader network.</p><h2>${annual ? 15 : 18} <small>/ month{annual ? ' equivalent' : ''}</small></h2><small>{annual ? '$180 billed annually · save $36' : 'Billed monthly'}</small><Link href={`/register?plan=pro&period=${annual ? 'annual' : 'monthly'}`} className="button">Choose Pro</Link></article>
           </div>
+          <div className="pricing-comparison-wrap"><table className="pricing-comparison"><caption>Full plan comparison</caption><thead><tr><th scope="col">Capability</th><th scope="col">Free</th><th scope="col">Plus</th><th scope="col">Pro</th></tr></thead><tbody><tr><th scope="row">Contacts</th><td>100</td><td>2,500</td><td>10,000</td></tr><tr><th scope="row">Active Mixes</th><td>3</td><td>25</td><td>100</td></tr><tr><th scope="row">Google Contacts</th><td>—</td><td>Included</td><td>Included</td></tr><tr><th scope="row">AI Mix drafts</th><td>—</td><td>Included</td><td>Included</td></tr><tr><th scope="row">Community sharing</th><td>Browse</td><td>3 shared</td><td>10 shared</td></tr></tbody></table></div>
         </section>
+
+        <section className="section trust-section"><div className="section-heading"><span className="eyebrow">Clarity before automation</span><h2>A relationship tool, not another complicated CRM.</h2></div><div className="trust-grid"><article><h3>You stay in control</h3><p>Jumps prepare native email, SMS, phone, voicemail-script, and WhatsApp actions. You review and send them; the product does not silently message your Contacts.</p></article><article><h3>Your data has an exit</h3><p>Export Contacts, disconnect integrations, revoke sessions, or permanently delete the account. Provider revocation is best-effort and clearly reported.</p></article><article><h3>Honest integrations</h3><p>Google Contacts and Stripe are implemented with deterministic tests; live provider qualification remains pending. Resend live delivery is pending. Microsoft, Meta assistant, website webhooks, and Twilio are not production integrations today.</p></article></div></section>
+
+        <section className="section"><div className="section-heading"><span className="eyebrow">Common questions</span><h2>Know what you are choosing.</h2></div><div className="public-faq"><details><summary>Does Jump in the Mix replace my CRM?</summary><p>No. It is designed for people who need a lighter relationship rhythm: remember the person, the moment, and the next action.</p></details><details><summary>Does it send messages automatically?</summary><p>Core Jump actions open your native channel with prepared content for review. Provider-driven automated sending is not claimed.</p></details><details><summary>What works without integrations?</summary><p>Contacts, Important Dates, Mixes, Today, prepared actions, imports, and manual workflows work without connecting a provider.</p></details><details><summary>What are the current limitations?</summary><p>Live Google, Stripe, and Resend qualification is pending. Microsoft sync, the WhatsApp assistant, website webhook ingestion, and Twilio are not complete product integrations.</p></details></div></section>
 
         <section className="cta-band">
           <div><h2>Stop relying on memory for relationships that matter.</h2><p>Your first follow-up plan can be ready in minutes.</p></div>

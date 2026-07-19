@@ -1,3 +1,4 @@
+/* Group activation feature composition. */
 .group-manage-row { grid-template-columns: 100px 12px minmax(0, 1fr) auto; }
 .group-manage-row.inactive,
 .checkbox-card.inactive,
