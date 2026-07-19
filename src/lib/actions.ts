@@ -225,10 +225,12 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
     });
   });
   await generateJumps({ workspaceId: workspace.id, contactId, mixId: starterMix.id });
+  const planIntent = value(formData, "planIntent");
+  if (/^(plus|pro):(monthly|annual)$/.test(planIntent)) { const [plan, period] = planIntent.split(":"); redirect(`/plans?plan=${plan}&period=${period}`); }
   redirect(`/jumps?range=all&welcome=1&firstContact=${encodeURIComponent(contactName)}`);
 }
 
-export async function skipOnboardingAction(): Promise<void> {
+export async function skipOnboardingAction(formData: FormData): Promise<void> {
   const { workspace } = await requireWorkspace();
   await prisma.workspaceProfile.upsert({
     where: { workspaceId: workspace.id },
@@ -237,6 +239,8 @@ export async function skipOnboardingAction(): Promise<void> {
   });
   await ensureStarterMix(workspace.id);
   await queueJumpReconciliation(workspace.id);
+  const planIntent = value(formData, "planIntent");
+  if (/^(plus|pro):(monthly|annual)$/.test(planIntent)) { const [plan, period] = planIntent.split(":"); redirect(`/plans?plan=${plan}&period=${period}`); }
   redirect("/jumps?welcome=1");
 }
 
