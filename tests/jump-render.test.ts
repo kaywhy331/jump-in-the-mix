@@ -35,6 +35,8 @@ const profile = {
   myCustom1: null,
   myCustom2: null,
   myCustom3: null,
+  products: [{ name: "Product or service 1", value: "Strategy Session" }],
+  senderDetails: [],
   smsSignature: "— Alex",
   emailSignature: "Alex Morgan",
   quietHoursStart: 1200,

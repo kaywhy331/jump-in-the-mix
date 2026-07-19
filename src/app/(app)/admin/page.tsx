@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AppIcon } from "@/components/AppIcon";
 import { AdminNav } from "@/components/AdminNav";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -79,7 +80,7 @@ export default async function AdminPage() {
           <Link className="settings-hub-card" href="/admin/templates"><span className="settings-hub-icon">M</span><span><strong>Mix Templates</strong><small>Author platform content and moderate Community submissions.</small></span></Link>
           <Link className="settings-hub-card" href="/admin/operations"><span className="settings-hub-icon">O</span><span><strong>Operations</strong><small>Inspect jobs, syncs, integrations, and provider webhooks.</small></span></Link>
           <Link className="settings-hub-card" href="/admin/audit"><span className="settings-hub-icon">A</span><span><strong>Audit log</strong><small>Trace user, admin, AI, system, and webhook actions.</small></span></Link>
-          <Link className="settings-hub-card" href="/admin/settings"><span className="settings-hub-icon">⚙</span><span><strong>System Settings</strong><small>Manage dropdown options and reviewed feature flags without code.</small></span></Link>
+          <Link className="settings-hub-card" href="/admin/settings"><span className="settings-hub-icon"><AppIcon name="settings" /></span><span><strong>System Settings</strong><small>Manage dropdown options and reviewed feature flags without code.</small></span></Link>
         </div>
       </section>
 

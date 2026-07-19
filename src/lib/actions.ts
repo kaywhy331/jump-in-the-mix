@@ -225,10 +225,12 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
     });
   });
   await generateJumps({ workspaceId: workspace.id, contactId, mixId: starterMix.id });
+  const planIntent = value(formData, "planIntent");
+  if (/^(plus|pro):(monthly|annual)$/.test(planIntent)) { const [plan, period] = planIntent.split(":"); redirect(`/plans?plan=${plan}&period=${period}`); }
   redirect(`/jumps?range=all&welcome=1&firstContact=${encodeURIComponent(contactName)}`);
 }
 
-export async function skipOnboardingAction(): Promise<void> {
+export async function skipOnboardingAction(formData: FormData): Promise<void> {
   const { workspace } = await requireWorkspace();
   await prisma.workspaceProfile.upsert({
     where: { workspaceId: workspace.id },
@@ -237,6 +239,8 @@ export async function skipOnboardingAction(): Promise<void> {
   });
   await ensureStarterMix(workspace.id);
   await queueJumpReconciliation(workspace.id);
+  const planIntent = value(formData, "planIntent");
+  if (/^(plus|pro):(monthly|annual)$/.test(planIntent)) { const [plan, period] = planIntent.split(":"); redirect(`/plans?plan=${plan}&period=${period}`); }
   redirect("/jumps?welcome=1");
 }
 
@@ -366,6 +370,30 @@ export async function updateJumpStatusAction(formData: FormData): Promise<void> 
     }
   });
   redirect("/jumps");
+}
+
+export async function snoozeJumpAction(formData: FormData): Promise<void> {
+  const { workspace } = await requireWorkspace();
+  const jumpId = value(formData, "jumpId");
+  const preset = value(formData, "preset");
+  const now = new Date();
+  let scheduledAt: Date;
+  if (preset === "later-today") scheduledAt = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+  else if (preset === "tomorrow") scheduledAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  else if (preset === "next-week") scheduledAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  else if (preset === "next-monday") {
+    const days = ((8 - now.getDay()) % 7) || 7;
+    scheduledAt = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+  } else {
+    scheduledAt = new Date(value(formData, "customDate"));
+    if (Number.isNaN(scheduledAt.getTime()) || scheduledAt <= now) fail("/jumps", "Choose a future date and time.");
+  }
+  const result = await prisma.jump.updateMany({
+    where: { id: jumpId, workspaceId: workspace.id, status: { in: ["PENDING", "COPIED"] } },
+    data: { scheduledAt }
+  });
+  if (!result.count) fail("/jumps", "This Jump is no longer available to snooze.");
+  redirect("/jumps?snoozed=1");
 }
 
 export async function createWizardMixAction(formData: FormData): Promise<void> {

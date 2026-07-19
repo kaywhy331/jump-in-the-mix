@@ -1,3 +1,4 @@
+/* MFA feature composition. */
 .admin-mfa-page { max-width: 860px; }
 .admin-mfa-form, .admin-mfa-recovery-card, .admin-mfa-ready-card { margin-top: 0; display: grid; gap: 18px; }
 .admin-mfa-setup-grid { display: grid; grid-template-columns: minmax(180px, 230px) minmax(0, 1fr); gap: 20px; align-items: center; }

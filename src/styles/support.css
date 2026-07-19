@@ -1,3 +1,4 @@
+/* Support feature composition. */
 .support-ticket-reference {
   display: inline-flex;
   margin-bottom: 5px;
@@ -190,7 +191,7 @@
 }
 
 @media (max-width: 900px) {
-  .mobile-nav .app-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .mobile-nav .app-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .mobile-nav .nav-link { min-height: 52px; font-size: .62rem; }
   .support-message { max-width: 94%; }
   .support-ticket-row { grid-template-columns: 1fr; }

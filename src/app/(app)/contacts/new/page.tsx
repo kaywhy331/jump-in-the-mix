@@ -7,8 +7,8 @@ import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Add contact" };
 
-export default async function NewContactPage({ searchParams }: { searchParams: Promise<{ error?: string; quickAddFallback?: string }> }) {
-  const [{ error, quickAddFallback }, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
+export default async function NewContactPage({ searchParams }: { searchParams: Promise<{ error?: string; quickAddFallback?: string; capture?: string }> }) {
+  const [{ error, quickAddFallback, capture }, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
   const [rawGroups, groupStates, customFields] = await Promise.all([
     prisma.group.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
     prisma.contactGroupState.findMany({ where: { workspaceId: workspace.id }, select: { groupId: true, isActive: true } }),
@@ -20,8 +20,10 @@ export default async function NewContactPage({ searchParams }: { searchParams: P
       <header className="page-header"><div><h1>Add a contact</h1><p>Add the details that make future Jumps accurate and easy to complete.</p></div></header>
       {error && <Notice type="error">{error}</Notice>}
       {quickAddFallback && <Notice type="info">Your browser does not expose the native Contact Picker. Use this compact form instead; supported browsers also offer optional voice dictation for Public Notes.</Notice>}
+      {capture && <Notice type="info">Review the captured note, add the person&apos;s details, then save. Nothing has been created yet.</Notice>}
       <ContactForm
         mode="create"
+        contact={capture ? { publicNotes: capture.slice(0, 2000) } : undefined}
         groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, isActive: group.isActive }))}
         customFields={customFields.map((field) => ({ id: field.id, name: field.name, key: field.key }))}
       />

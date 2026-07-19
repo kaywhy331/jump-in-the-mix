@@ -3,6 +3,8 @@ import Link from "next/link";
 import { GoogleContactsPanel } from "@/components/GoogleContactsPanel";
 import { AccountDeletionForm } from "@/components/AccountDeletionForm";
 import { Notice } from "@/components/Notice";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { AppIcon } from "@/components/AppIcon";
 import { ReferralAccountCard } from "@/components/ReferralAccountCard";
 import {
   changePasswordAction,
@@ -31,6 +33,7 @@ type SearchParams = {
   googleError?: string;
   billing?: string;
   billingError?: string;
+  section?: string;
 };
 
 type UsageRow = {
@@ -44,6 +47,7 @@ type UsageRow = {
 export default async function AccountPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, context] = await Promise.all([searchParams, requireWorkspace()]);
   const { session, user, workspace, impersonation } = context;
+  const section = ["overview", "billing", "connections", "security", "referrals", "support", "privacy"].includes(params.section ?? "") ? params.section! : "overview";
   const [sessions, subscription, usage, supportTickets] = await Promise.all([
     impersonation
       ? Promise.resolve([])
@@ -136,7 +140,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <div><h2>Plan usage</h2><p>Your records are preserved when a plan changes. Active workflow limits are enforced without deleting completed work.</p></div>
         <span className={`status-pill ${overageRows.length ? "" : "done"}`}>{overageRows.length ? `${overageRows.length} over limit` : "Within limits"}</span>
       </div>
-      <Notice type="info">After a downgrade, excess active Mixes are paused, future incomplete Jumps from them are canceled, excess custom Important Date Types and Contact Groups become inactive, and excess Community shares are unpublished. Contacts, memberships, assignments, and history stay stored. Choose the active Groups and Important Date Types you want to keep from their management pages.</Notice>
+      <details className="account-downgrade-details"><summary>What happens if I downgrade?</summary><Notice type="info">After a downgrade, excess active Mixes are paused, future incomplete Jumps from them are canceled, excess custom Important Date Types and Contact Groups become inactive, and excess Community shares are unpublished. Contacts, memberships, assignments, and history stay stored. Choose the active Groups and Important Date Types you want to keep from their management pages.</Notice></details>
       <div className="plan-usage-list">
         {usageRows.map((row) => {
           const unlimited = !Number.isFinite(row.limit);
@@ -211,11 +215,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       </header>
 
       <nav className="account-section-nav" aria-label="Account sections">
-        <a href="#profile">Profile</a>
-        <a href="#billing">Plan &amp; billing</a>
-        <a href="#google-contacts">Connections</a>
-        <a href="#security">Security</a>
-        <a href="#data-privacy">Data &amp; privacy</a>
+        {[['overview','Overview'],['billing','Billing'],['connections','Connections'],['security','Security'],['referrals','Referrals'],['support','Support'],['privacy','Data & privacy']].map(([key, label]) => <Link className={section === key ? "active" : ""} href={`/account?section=${key}`} key={key}>{label}</Link>)}
       </nav>
 
       {params.error && <Notice type="error">{params.error}</Notice>}
@@ -230,12 +230,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
       {params.sessionsClosed !== undefined && <Notice type="success">Signed out {params.sessionsClosed} other session{params.sessionsClosed === "1" ? "" : "s"}.</Notice>}
 
       <div className="account-grid">
-        {accountSummary}
-        {billingSummary}
-        {usageSummary}
-        {referralSummary}
-        {supportSummary}
-        <section className="card account-password-card" id="security">
+        {section === "overview" && accountSummary}
+        {section === "billing" && billingSummary}
+        {section === "billing" && usageSummary}
+        {section === "referrals" && referralSummary}
+        {section === "support" && supportSummary}
+        {section === "security" && <section className="card account-password-card" id="security">
           <div className="card-header"><div><h2>Change password</h2><p>Changing it keeps this device signed in and closes every other session.</p></div></div>
           <form action={changePasswordAction} className="form-stack">
             <div className="field"><label htmlFor="currentPassword">Current password</label><input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required /></div>
@@ -243,12 +243,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             <div className="field"><label htmlFor="confirmPassword">Confirm new password</label><input id="confirmPassword" name="confirmPassword" type="password" autoComplete="new-password" minLength={12} maxLength={72} required /></div>
             <button className="button primary" type="submit">Update password</button>
           </form>
-        </section>
+        </section>}
       </div>
 
-      <GoogleContactsPanel />
+      {section === "connections" && <GoogleContactsPanel />}
 
-      <section className="card account-sessions-card">
+      {section === "security" && <section className="card account-sessions-card">
         <div className="card-header">
           <div><h2>Active sessions</h2><p>Session activity is recorded without storing the raw sign-in token.</p></div>
           {sessions.length > 1 && <form action={signOutOtherSessionsAction}><button className="button" type="submit">Sign out other devices</button></form>}
@@ -258,7 +258,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             const current = item.id === session.id;
             return (
               <article className="session-row" key={item.id}>
-                <div className="session-device-icon" aria-hidden="true">{current ? "●" : "○"}</div>
+                <div className="session-device-icon"><AppIcon name={current ? "check" : "circle"} /></div>
                 <div>
                   <h3>{describeUserAgent(item.userAgent)} {current && <span className="status-pill done">Current</span>}</h3>
                   <p>{item.ipAddress || "IP unavailable"} · Last active {formatDateTime(item.lastSeenAt)}</p>
@@ -269,13 +269,10 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             );
           })}
         </div>
-        <details className="destructive-confirm account-signout-all">
-          <summary className="button danger">Sign out everywhere…</summary>
-          <div className="destructive-confirm-panel"><p>This closes every active session, including this device.</p><form action={signOutEverywhereAction}><button className="button danger" type="submit">Confirm sign out everywhere</button></form></div>
-        </details>
-      </section>
+        <div className="account-signout-all"><ConfirmDialog trigger="Sign out everywhere…" title="Sign out everywhere?" description="This closes every active session, including this device." danger><form action={signOutEverywhereAction}><button className="button danger" type="submit">Confirm sign out everywhere</button></form></ConfirmDialog></div>
+      </section>}
 
-      <section className="card danger-zone" id="data-privacy" aria-labelledby="danger-zone-heading">
+      {section === "privacy" && <section className="card danger-zone" id="data-privacy" aria-labelledby="danger-zone-heading">
         <div className="card-header">
           <div>
             <p className="eyebrow">Danger Zone</p>
@@ -289,7 +286,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
           <p>A pseudonymous operational record is retained with the deletion time, outcome, and pending-revocation count. It does not retain your name, email, Contacts, messages, or raw provider tokens.</p>
         </div>
         <AccountDeletionForm />
-      </section>
+      </section>}
     </div>
   );
 }

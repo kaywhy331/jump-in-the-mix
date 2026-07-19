@@ -3,6 +3,7 @@ import { Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
 import { ReferralShareButton } from "@/components/ReferralShareButton";
 import { logoutAction } from "@/lib/auth-actions";
+import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
 
 export function AppShell({
   children,
@@ -45,16 +46,23 @@ export function AppShell({
           <small>{planTier} plan</small>
         </div>
         <Nav />
+        {!impersonation && <QuickAddButton />}
         <div className="sidebar-footer account-sidebar-footer">
           <span className="user-label">{impersonation ? `Viewing as ${userName}` : `Signed in as ${userName}`}</span>
           <div className="account-sidebar-actions">
             {impersonation ? endImpersonationForm : (
-              <>
+              <details className="profile-menu">
+                <summary className="button small">Profile &amp; workspace</summary>
+                <div className="profile-menu-panel">
+                <Link href="/account">My Account</Link>
+                <Link href="/settings">Settings</Link>
+                <Link href="/templates">Mix Templates</Link>
+                <Link href="/help">Help &amp; Support</Link>
                 {referralMessage && <ReferralShareButton message={referralMessage} compact className="referral-sidebar-share" />}
-                <Link className="text-button" href="/account">My Account</Link>
-                {isPlatformAdmin && <Link className="text-button" href="/admin">Admin</Link>}
-                <form action={logoutAction}><button className="text-button" type="submit">Sign out</button></form>
-              </>
+                {isPlatformAdmin && <Link href="/admin">Admin</Link>}
+                <form action={logoutAction}><button className="text-button danger-text" type="submit">Sign out</button></form>
+                </div>
+              </details>
             )}
           </div>
         </div>
@@ -62,11 +70,7 @@ export function AppShell({
       <header className="mobile-app-header">
         <Logo />
         {impersonation ? endImpersonationForm : (
-          <div className="mobile-account-actions">
-            {referralMessage && <ReferralShareButton message={referralMessage} compact />}
-            {isPlatformAdmin && <Link className="button small" href="/admin">Admin</Link>}
-            <Link className="button small" href="/account" aria-label={`Open My Account for ${userName}`}>My Account</Link>
-          </div>
+          <Link className="button small mobile-profile-link" href="/more" aria-label={`Open profile and workspace menu for ${userName}`}>{userName.slice(0, 1).toUpperCase()}</Link>
         )}
       </header>
       {impersonation && (
@@ -81,6 +85,7 @@ export function AppShell({
       )}
       <main className="app-main">{children}</main>
       <div className="mobile-nav"><Nav /></div>
+      {!impersonation && <QuickAddDialog />}
     </div>
   );
 }
