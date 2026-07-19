@@ -28,11 +28,12 @@ test("workspace user can complete the primary discovery and support journey", as
 
   await page.goto("/contacts");
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
-  const groupManager = page.locator("details.group-manager").filter({ hasText: "Manage groups" });
-  await groupManager.locator("summary").click();
-  await expect(groupManager.getByText("3/10 active · 3 stored", { exact: true })).toBeVisible();
-  await expect(groupManager.getByRole("button", { name: "Save active selection" })).toBeVisible();
-  await groupManager.evaluate((element) => { (element as HTMLDetailsElement).open = false; });
+  await page.getByLabel("More Contact tools").click();
+  await expect(page.getByRole("heading", { name: "Contact Groups" })).toBeVisible();
+  await expect(page.getByText("3/10 active · 3 stored", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Filter Contacts by group")).toBeVisible();
+  await page.getByLabel("Close Contact tools").click();
+  await expect(page.getByRole("heading", { name: "Contact Groups" })).toBeHidden();
   await page.locator("summary").filter({ hasText: "+ Add Contact" }).click();
   const addPanel = page.locator(".contact-add-panel");
   await expect(addPanel.locator(".device-contact-picker")).toBeVisible();

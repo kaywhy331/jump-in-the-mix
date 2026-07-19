@@ -133,6 +133,7 @@
 .group-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 999px; background: var(--surface-soft); color: var(--muted); font-size: .76rem; font-weight: 750; }
 .group-manager { position: relative; }
 .group-manager-panel { position: absolute; z-index: 30; top: calc(100% + 8px); right: 0; width: min(520px, 92vw); padding: 17px; border: 1px solid var(--line); border-radius: 16px; background: white; box-shadow: var(--shadow); }
+.group-manager-panel .panel-close { position: sticky; z-index: 2; top: 0; float: right; margin: -5px -5px 6px 10px; background: white; }
 .group-create-form { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 8px; align-items: end; }
 .color-input { display: grid; gap: 4px; color: var(--muted); font-size: .75rem; font-weight: 750; }
 .color-input input { width: 54px; height: 48px; padding: 4px; }

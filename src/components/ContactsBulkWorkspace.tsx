@@ -120,6 +120,7 @@ export function ContactsBulkWorkspace({
           <details className="group-manager contact-tools-menu">
             <summary className="button" aria-label="More Contact tools">More</summary>
             <div className="group-manager-panel contact-tools-panel">
+              <button className="icon-button panel-close" type="button" aria-label="Close Contact tools" onClick={(event) => event.currentTarget.closest("details")?.removeAttribute("open")}>×</button>
               <div className="contact-tools-links"><Link href="/contacts/import">Import Contacts</Link><Link href="/contacts/custom-fields">Custom fields</Link>{contacts.length > 0 && <button className="text-button" type="button" onClick={toggleAll}>{allSelected ? "Deselect all" : "Select all"}</button>}</div>
               <div className="section-label"><h2>Contact Groups</h2><span>{activeGroups.length}/{groupLimit} active · {groups.length} stored</span></div>
               <p className="muted-copy">Inactive groups keep their Contacts and Mix assignments, but cannot receive new assignments or generate group-based Jumps. Select which groups remain active under your current plan.</p>
@@ -154,6 +155,7 @@ export function ContactsBulkWorkspace({
           <details className="group-manager contact-add-menu">
             <summary className="button primary">+ Add Contact</summary>
             <div className="group-manager-panel contact-add-panel">
+              <button className="icon-button panel-close" type="button" aria-label="Close Add Contact" onClick={(event) => event.currentTarget.closest("details")?.removeAttribute("open")}>×</button>
               <div className="section-label"><h2>Add Contacts</h2><span>Choose a source</span></div>
               <div className="settings-hub-grid contact-acquisition-grid">
                 <Link className="settings-hub-card" href="/contacts/new"><span className="settings-hub-icon">＋</span><span><strong>New Contact</strong><small>Enter one person manually.</small></span></Link>
