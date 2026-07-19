@@ -170,6 +170,17 @@ test("confirmation dialogs restore focus and accessibility preferences remain us
   await expect(dialog).toBeHidden();
   await expect(trigger).toBeFocused();
   await expectNoHorizontalOverflow(page);
+
+  await page.goto("/contacts");
+  const firstContact = page.locator(".contact-row").first();
+  await firstContact.getByLabel(/More actions for/).click();
+  const archiveTrigger = firstContact.getByRole("button", { name: "Archive…" });
+  await archiveTrigger.click();
+  const archiveDialog = page.getByRole("dialog", { name: /Archive .+\?/ });
+  await expect(archiveDialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(archiveDialog).toBeHidden();
+  await expect(archiveTrigger).toBeFocused();
 });
 
 test("Quick Add Important Date and one-time Jump continue into actionable Contact journeys", async ({ page }, testInfo) => {

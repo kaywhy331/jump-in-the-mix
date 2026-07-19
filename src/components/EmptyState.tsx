@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AppIcon } from "@/components/AppIcon";
 
 export function EmptyState({
   title,
@@ -13,7 +14,7 @@ export function EmptyState({
 }) {
   return (
     <div className="empty-state">
-      <div className="empty-icon" aria-hidden="true">↗</div>
+      <div className="empty-icon"><AppIcon name="bolt" /></div>
       <h2>{title}</h2>
       <p>{description}</p>
       <Link className="button primary" href={actionHref}>{actionLabel}</Link>

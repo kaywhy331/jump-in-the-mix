@@ -76,6 +76,7 @@ img, svg { max-width: 100%; }
 
 .logo { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -0.03em; font-size: 1.06rem; }
 .logo-mark { display: grid; place-items: center; width: 34px; height: 34px; color: white; background: linear-gradient(145deg, var(--brand), #8e64ff); border-radius: 11px; box-shadow: 0 8px 20px rgba(93, 76, 242, 0.28); }
+.logo-mark svg { width: 19px; height: 19px; }
 .public-shell { min-height: 100vh; background: linear-gradient(180deg, #fbfbff, #f4f6fb); }
 .public-header { max-width: 1180px; margin: 0 auto; padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .public-nav { display: flex; align-items: center; gap: 22px; color: var(--muted); font-weight: 650; }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/EmptyState";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Notice } from "@/components/Notice";
 import { createStarterMixAction } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
@@ -103,7 +104,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                   </div>
                   <div className="mix-card-actions">
                     <Link href={`/mixes/${mix.id}/edit`} className="button small primary">Edit</Link>
-                    <details className="mix-row-menu"><summary className="button small" aria-label={`More actions for ${mix.name}`}>More</summary><div className="mix-row-menu-panel"><Link href={`/mixes/${mix.id}/share`}>{sharing ? "Manage sharing" : "Share Mix"}</Link>{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Pause Mix</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Activate Mix</button></form>}<form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button danger-text" type="submit">Archive Mix</button></form></div></details>
+                    <details className="mix-row-menu"><summary className="button small" aria-label={`More actions for ${mix.name}`}>More</summary><div className="mix-row-menu-panel"><Link href={`/mixes/${mix.id}/share`}>{sharing ? "Manage sharing" : "Share Mix"}</Link>{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Pause Mix</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Activate Mix</button></form>}<ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The Mix leaves active workflows while completed Jump history remains available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small danger" type="submit">Confirm archive</button></form></ConfirmDialog></div></details>
                   </div>
                 </div>
                 {mix.description && <p className="muted-copy">{mix.description}</p>}

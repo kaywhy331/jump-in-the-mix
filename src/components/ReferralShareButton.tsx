@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AppIcon } from "@/components/AppIcon";
 
 function copyFallback(value: string): boolean {
   const textarea = document.createElement("textarea");
@@ -63,7 +64,7 @@ export function ReferralShareButton({
       onClick={share}
       aria-label="Share your Jump in the Mix referral invitation"
     >
-      <span aria-hidden="true">↗</span>
+      <AppIcon name="external" />
       <span>{label}</span>
     </button>
   );

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
 import { SharedMixPreview } from "@/components/SharedMixPreview";
+import { AppIcon } from "@/components/AppIcon";
 import { requireWorkspace } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { getPlatformBoolean, getPlatformStringList } from "@/lib/platform-settings";
@@ -236,8 +237,8 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
                     <p>{template.description}</p>
                   </div>
                   <div className="template-score" aria-label={`${voteCount} votes and ${template.importCount} imports`}>
-                    <span>♥ {voteCount}</span>
-                    <span>⇩ {template.importCount}</span>
+                    <span><AppIcon name="heart" /> {voteCount}</span>
+                    <span><AppIcon name="import" /> {template.importCount}</span>
                   </div>
                 </div>
 
@@ -277,7 +278,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
                     <form action={toggleSharedMixVoteAction}>
                       <input type="hidden" name="sharedMixId" value={template.id} />
                       <input type="hidden" name="returnTo" value={currentReturnTo} />
-                      <button className={voted ? "button small primary" : "button small"} type="submit" aria-pressed={voted}>{voted ? "♥ Voted" : "♡ Vote"}</button>
+                      <button className={voted ? "button small primary" : "button small"} type="submit" aria-pressed={voted}><AppIcon name="heart" /> {voted ? "Voted" : "Vote"}</button>
                     </form>
                   )}
                   {ownsTemplate && metadata?.publisherMixId && <Link className="button small" href={`/mixes/${metadata.publisherMixId}/share`}>Manage sharing</Link>}
