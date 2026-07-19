@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AppIcon } from "@/components/AppIcon";
 
 const desiredProperties = ["name", "email", "tel", "address"] as const;
 type ContactProperty = (typeof desiredProperties)[number];
@@ -165,7 +166,7 @@ export function DeviceContactQuickAdd() {
     return (
       <div className="device-contact-quick-add">
         <button className="settings-hub-card device-contact-picker" type="button" disabled>
-          <span className="settings-hub-icon">◎</span>
+          <span className="settings-hub-icon"><AppIcon name="contacts" /></span>
           <span><strong>Quick Add</strong><small>Checking device support…</small></span>
         </button>
       </div>
@@ -176,7 +177,7 @@ export function DeviceContactQuickAdd() {
     return (
       <div className="device-contact-quick-add">
         <Link className="settings-hub-card device-contact-picker" href="/contacts/new?quickAddFallback=1">
-          <span className="settings-hub-icon">◎</span>
+          <span className="settings-hub-icon"><AppIcon name="contacts" /></span>
           <span><strong>Quick Add</strong><small>Use the fast manual form on this browser.</small></span>
         </Link>
       </div>
@@ -192,7 +193,7 @@ export function DeviceContactQuickAdd() {
         disabled={phase !== "idle"}
         aria-busy={phase !== "idle"}
       >
-        <span className="settings-hub-icon">◎</span>
+        <span className="settings-hub-icon"><AppIcon name="contacts" /></span>
         <span>
           <strong>{summary ? "Pick more from device" : "Pick from device"}</strong>
           <small>{phase === "picking" ? "Opening your address book…" : phase === "saving" ? "Adding selected Contacts…" : "Choose one or more without leaving the app."}</small>

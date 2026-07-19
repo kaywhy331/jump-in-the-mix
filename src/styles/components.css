@@ -1,5 +1,11 @@
-/* Core workflow patterns layered on the shared design system. */
+/* Canonical reusable product component patterns. */
 .icon-button { width: 48px; min-width: 48px; height: 48px; padding: 0; border-radius: 14px; font-size: 1.15rem; }
+.icon-button svg, .timeline-icon svg, .billing-verification-icon svg { width: 22px; height: 22px; }
+.button > svg, .text-button > svg, summary.button > svg { width: 18px; height: 18px; flex: 0 0 auto; }
+.empty-icon svg, .import-drop-icon svg { width: 28px; height: 28px; }
+.template-score span { display: inline-flex; align-items: center; gap: 4px; }
+.template-score svg, .support-faq-item summary svg { width: 17px; height: 17px; flex: 0 0 auto; }
+.jump-channel-action svg { width: 18px; height: 18px; flex: 0 0 auto; }
 
 .filter-stack { display: grid; gap: 10px; margin-bottom: 22px; }
 .filter-presets { margin-bottom: 0; overflow-x: auto; padding-bottom: 2px; }
@@ -58,6 +64,13 @@
 .today-insights strong { color: var(--ink); }
 .quick-add-dialog { width: min(680px, calc(100vw - 28px)); max-height: min(760px, calc(100dvh - 28px)); overflow-y: auto; padding: 22px; border: 1px solid var(--line); border-radius: 20px; color: var(--ink); box-shadow: 0 28px 80px rgba(23,27,45,.24); }
 .quick-add-dialog::backdrop { background: rgba(18,22,36,.55); backdrop-filter: blur(3px); }
+.confirm-dialog { width: min(520px, calc(100vw - 28px)); padding: 22px; border: 1px solid var(--line); border-radius: var(--radius-lg); color: var(--ink); box-shadow: var(--shadow); }
+.confirm-dialog::backdrop { background: rgba(18,22,36,.58); backdrop-filter: blur(3px); }
+.confirm-dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); }
+.confirm-dialog-header h2, .confirm-dialog-header p { margin: 0; }
+.confirm-dialog-header p { margin-top: var(--space-2); color: var(--muted); }
+.confirm-dialog-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-5); }
+.confirm-dialog-actions form { margin: 0; }
 .quick-add-dialog-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
 .quick-add-dialog h2 { margin: 2px 0 0; font-size: 1.55rem; }
 .eyebrow { color: var(--brand-dark); font-size: .72rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
@@ -99,6 +112,20 @@
 .contact-editor, .mix-editor-form { display: grid; gap: 16px; }
 .contact-editor-section + .contact-editor-section, .mix-editor-section + .mix-editor-section { margin-top: 0; }
 .repeatable-list { display: grid; gap: 10px; }
+.repeatable-profile-records { display: grid; gap: 12px; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }
+.repeatable-profile-records h3, .repeatable-profile-records p { margin: 0; }
+.repeatable-profile-records p { color: var(--muted); font-size: .85rem; }
+.repeatable-profile-list { display: grid; gap: 8px; }
+.repeatable-profile-row { display: grid; grid-template-columns: minmax(130px, .55fr) minmax(180px, 1fr) auto; gap: 8px; align-items: center; }
+.repeatable-profile-actions { display: flex; gap: 6px; }
+.repeatable-profile-actions .icon-button { width: 38px; min-width: 38px; height: 38px; }
+.timezone-picker { display: grid; gap: 8px; }
+.timezone-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.account-section-nav { overflow-x: auto; scrollbar-width: thin; }
+.account-section-nav a.active { color: var(--brand-dark); background: var(--brand-soft); }
+.account-downgrade-details { margin-bottom: 14px; }
+.account-downgrade-details summary { cursor: pointer; color: var(--brand-dark); font-weight: 750; }
+.account-downgrade-details .notice { margin: 10px 0 0; }
 .repeatable-row { display: grid; grid-template-columns: 110px minmax(110px, .45fr) minmax(220px, 1fr) auto; gap: 9px; align-items: center; }
 .primary-choice { min-height: 48px; display: inline-flex; align-items: center; gap: 7px; font-weight: 700; font-size: .83rem; }
 .primary-choice input { width: auto; }
@@ -160,6 +187,7 @@
 .settings-hub-card strong, .settings-hub-card small { display: block; }
 .settings-hub-card small { color: var(--muted); margin-top: 3px; }
 .settings-hub-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; background: var(--brand-soft); color: var(--brand-dark); font-size: 1.2rem; flex: 0 0 auto; }
+.settings-hub-icon svg { width: 21px; height: 21px; }
 
 .create-panel { padding: 0; overflow: hidden; margin-bottom: 18px; }
 .create-panel > summary { min-height: 66px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 17px 20px; }
@@ -234,6 +262,7 @@
   .mix-sequence-item { min-width: 0; }
   .destructive-confirm-panel { position: fixed; left: 16px; right: 16px; bottom: 88px; top: auto; width: auto; }
   .repeatable-row { grid-template-columns: 1fr; padding: 12px; border: 1px solid var(--line); border-radius: 13px; }
+  .repeatable-profile-row { grid-template-columns: 1fr; padding: 10px; border: 1px solid var(--line); border-radius: 11px; background: white; }
   .repeatable-row .button { width: 100%; }
   .address-row, .mix-editor-jump { padding: 13px; }
   .sticky-form-actions { bottom: 84px; justify-content: stretch; }
@@ -259,6 +288,7 @@
 }
 
 @media (max-width: 600px) {
+  .timezone-input-row { grid-template-columns: 1fr; }
   .do-next-card { grid-template-columns: 1fr; }
   .do-next-card .button { grid-column: 1; grid-row: auto; width: 100%; margin-top: 8px; }
   .today-insights, .quick-add-grid { grid-template-columns: 1fr; }

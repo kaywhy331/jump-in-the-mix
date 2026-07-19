@@ -1,3 +1,4 @@
+/* Authentication feature composition. */
 .auth-inline-actions { display: flex; justify-content: flex-end; margin-top: -4px; font-size: .85rem; }
 .auth-inline-actions a { color: var(--brand-dark); font-weight: 750; }
 .mobile-app-header { display: none; }

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/Notice";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SharedMixPreview } from "@/components/SharedMixPreview";
 import { requireWorkspace } from "@/lib/auth";
 import { getPlatformBoolean, getPlatformStringList } from "@/lib/platform-settings";
@@ -105,16 +106,7 @@ export default async function ShareMixPage({
           <p className="muted-copy">Version {sharedMetadata.version} · {shared.importCount} imports · {sharedMetadata.voteCount} votes</p>
           {sharedMetadata.moderationNote && <Notice type={sharedMetadata.reviewState === "REJECTED" || sharedMetadata.reviewState === "FLAGGED" ? "error" : "info"}>{sharedMetadata.moderationNote}</Notice>}
           {["PENDING", "APPROVED", "FLAGGED"].includes(sharedMetadata.reviewState) && (
-            <details className="destructive-confirm">
-              <summary className="button small danger">Unshare…</summary>
-              <div className="destructive-confirm-panel">
-                <p>Existing user imports remain independent. This only removes the template from future discovery.</p>
-                <form action={unpublishMixAction}>
-                  <input type="hidden" name="mixId" value={mix.id} />
-                  <button className="button small danger" type="submit">Confirm unshare</button>
-                </form>
-              </div>
-            </details>
+            <ConfirmDialog trigger="Unshare…" title={`Unshare ${mix.name}?`} description="Existing user imports remain independent. This only removes the template from future discovery." danger><form action={unpublishMixAction}><input type="hidden" name="mixId" value={mix.id} /><button className="button small danger" type="submit">Confirm unshare</button></form></ConfirmDialog>
           )}
         </section>
       )}

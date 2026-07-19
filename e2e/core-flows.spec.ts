@@ -131,6 +131,7 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   await expect(page.getByRole("heading", { name: "Who would you like to remember?" })).toBeVisible();
   await page.getByLabel("Name").fill("Jordan First Win");
   await page.getByLabel("Email optional").fill("jordan-first-win@example.com");
+  await page.getByRole("checkbox", { name: /Confirm timezone/ }).check();
   await Promise.all([
     page.waitForURL(/\/jumps\?.*welcome=1/),
     page.getByRole("button", { name: "Create my first Jump" }).click()
@@ -173,7 +174,7 @@ test("account owner must reauthenticate and explicitly confirm permanent deletio
   });
 
   await signIn(page, email, password);
-  await page.goto("/account");
+  await page.goto("/account?section=privacy");
   const dangerZone = page.getByRole("region", { name: "Permanently delete account" });
   await expect(dangerZone.getByText("Danger Zone")).toBeVisible();
 
