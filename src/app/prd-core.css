@@ -111,6 +111,25 @@
 
 .contact-filter-bar select { min-width: 170px; }
 .contact-group-list, .contact-group-strip, .association-list { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 8px; }
+.contact-relationship-state { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 18px; margin: 7px 0; }
+.contact-relationship-state span { min-width: 0; display: grid; gap: 2px; }
+.contact-relationship-state small { color: var(--muted); font-size: .68rem; font-weight: 750; text-transform: uppercase; letter-spacing: .04em; }
+.contact-relationship-state strong { font-size: .82rem; overflow-wrap: anywhere; }
+.overdue-text { color: #992f38; }
+.contact-row-menu, .mix-row-menu, .mix-create-menu { position: relative; }
+.contact-row-menu > summary, .mix-row-menu > summary, .mix-create-menu > summary { list-style: none; }
+.contact-row-menu > summary::-webkit-details-marker, .mix-row-menu > summary::-webkit-details-marker, .mix-create-menu > summary::-webkit-details-marker { display: none; }
+.contact-row-menu-panel, .mix-row-menu-panel, .mix-create-menu-panel { position: absolute; z-index: 35; top: calc(100% + 7px); right: 0; width: 220px; display: grid; gap: 3px; padding: 9px; border: 1px solid var(--line); border-radius: 13px; background: white; box-shadow: var(--shadow); }
+.contact-row-menu-panel a, .contact-row-menu-panel button, .mix-row-menu-panel a, .mix-row-menu-panel button { width: 100%; min-height: 38px; display: flex; align-items: center; padding: 8px 9px; border-radius: 8px; text-align: left; color: var(--muted); font-weight: 700; }
+.contact-row-menu-panel a:hover, .mix-row-menu-panel a:hover { background: var(--surface-soft); color: var(--ink); }
+.contact-row:has(.contact-row-menu[open]), .mix-card:has(.mix-row-menu[open]) { position: relative; z-index: 34; }
+.contact-tools-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+.contact-tools-links a, .contact-tools-links button { min-height: 42px; display: grid; place-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 10px; text-align: center; font-weight: 700; }
+.mix-create-menu-panel { width: 270px; }
+.mix-create-menu-panel > a, .mix-create-menu-panel > form > button { width: 100%; display: grid; gap: 2px; padding: 10px; border-radius: 9px; text-align: left; }
+.mix-create-menu-panel > a:hover, .mix-create-menu-panel > form > button:hover { background: var(--surface-soft); }
+.mix-create-menu-panel small { color: var(--muted); font-weight: 500; }
+.mix-filter-bar select { min-width: 170px; }
 .group-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 999px; background: var(--surface-soft); color: var(--muted); font-size: .76rem; font-weight: 750; }
 .group-manager { position: relative; }
 .group-manager-panel { position: absolute; z-index: 30; top: calc(100% + 8px); right: 0; width: min(520px, 92vw); padding: 17px; border: 1px solid var(--line); border-radius: 16px; background: white; box-shadow: var(--shadow); }

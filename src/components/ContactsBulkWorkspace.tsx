@@ -24,6 +24,12 @@ export type ContactBulkDto = ExportContact & {
   displayName: string;
   jumpDateCount: number;
   groupDetails: { id: string; name: string; color: string | null; isActive: boolean }[];
+  lastInteraction: string | null;
+  nextJump: string | null;
+  nextJumpOverdue: boolean;
+  relationshipType: string | null;
+  preferredChannel: string | null;
+  priority: string | null;
 };
 
 export type ContactBulkGroup = {
@@ -111,9 +117,10 @@ export function ContactsBulkWorkspace({
       <header className="page-header contacts-page-header">
         <div><h1>Contacts</h1><p>Keep relationship details, Important Dates, groups, and custom data together.</p></div>
         <div className="page-actions contacts-page-actions">
-          <details className="group-manager">
-            <summary className="button">Manage groups</summary>
-            <div className="group-manager-panel">
+          <details className="group-manager contact-tools-menu">
+            <summary className="button" aria-label="More Contact tools">More</summary>
+            <div className="group-manager-panel contact-tools-panel">
+              <div className="contact-tools-links"><Link href="/contacts/import">Import Contacts</Link><Link href="/contacts/custom-fields">Custom fields</Link>{contacts.length > 0 && <button className="text-button" type="button" onClick={toggleAll}>{allSelected ? "Deselect all" : "Select all"}</button>}</div>
               <div className="section-label"><h2>Contact Groups</h2><span>{activeGroups.length}/{groupLimit} active · {groups.length} stored</span></div>
               <p className="muted-copy">Inactive groups keep their Contacts and Mix assignments, but cannot receive new assignments or generate group-based Jumps. Select which groups remain active under your current plan.</p>
               <form action={createContactGroupAction} className="group-create-form">
@@ -144,8 +151,6 @@ export function ContactsBulkWorkspace({
               {inactiveGroupCount > 0 && <small className="muted-copy">{inactiveGroupCount} group{inactiveGroupCount === 1 ? " is" : "s are"} preserved as inactive. Upgrade or deactivate another group to make one active.</small>}
             </div>
           </details>
-          <Link className="button" href="/contacts/custom-fields">Custom fields</Link>
-          {contacts.length > 0 && <button className="button" type="button" onClick={toggleAll}>{allSelected ? "Deselect all" : "Select all"}</button>}
           <details className="group-manager contact-add-menu">
             <summary className="button primary">+ Add Contact</summary>
             <div className="group-manager-panel contact-add-panel">
@@ -171,8 +176,6 @@ export function ContactsBulkWorkspace({
       {contacts.length ? (
         <div className="contact-list selectable-contact-list">
           {contacts.map((contact) => {
-            const primaryEmail = contact.emails.find((item) => item.isPrimary) ?? contact.emails[0];
-            const primaryPhone = contact.phones.find((item) => item.isPrimary) ?? contact.phones[0];
             const isSelected = selected.has(contact.id);
             return (
               <article className={`contact-row contact-select-row ${isSelected ? "selected" : ""}`} key={contact.id}>
@@ -184,11 +187,12 @@ export function ContactsBulkWorkspace({
                   <div className="avatar">{initials(contact.displayName) || "?"}</div>
                   <div>
                     <h3>{contact.displayName}</h3>
-                    <div className="contact-meta">{contact.company && <span>{contact.company}</span>}{primaryEmail && <span>{primaryEmail.email}</span>}{primaryPhone && <span>{primaryPhone.phone}</span>}<span>{contact.jumpDateCount} Important Date{contact.jumpDateCount === 1 ? "" : "s"}</span></div>
+                    <div className="contact-relationship-state"><span><small>Last interaction</small><strong>{contact.lastInteraction ?? "No completed Jump yet"}</strong></span><span><small>Next Jump</small><strong className={contact.nextJumpOverdue ? "overdue-text" : ""}>{contact.nextJump ?? "Nothing scheduled"}</strong></span></div>
+                    <div className="contact-meta">{contact.relationshipType && <span>{contact.relationshipType}</span>}{contact.preferredChannel && <span>Prefers {contact.preferredChannel}</span>}{contact.priority && <span>{contact.priority} priority</span>}<span>{contact.jumpDateCount} Important Date{contact.jumpDateCount === 1 ? "" : "s"}</span></div>
                     {contact.groupDetails.length > 0 && <div className="contact-group-list">{contact.groupDetails.slice(0, 3).map((group) => <span className={`group-chip ${group.isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}{group.isActive ? "" : " · inactive"}</span>)}{contact.groupDetails.length > 3 && <span className="group-chip">+{contact.groupDetails.length - 3}</span>}</div>}
                   </div>
                 </Link>
-                <div className="table-actions"><Link className="button small" href={`/contacts/${contact.id}/edit`}>Edit</Link><details className="destructive-confirm"><summary className="button small danger">Archive…</summary><div className="destructive-confirm-panel"><p>Archive this Contact? Their future pending Jumps will be canceled.</p><form action={archiveContactAction}><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Confirm archive</button></form></div></details></div>
+                <div className="table-actions"><Link className="button small primary" href={`/contacts/${contact.id}`}>View</Link><details className="contact-row-menu"><summary className="button small" aria-label={`More actions for ${contact.displayName}`}>More</summary><div className="contact-row-menu-panel"><Link href={`/contacts/${contact.id}/edit`}>Edit Contact</Link><form action={archiveContactAction}><input type="hidden" name="contactId" value={contact.id}/><button className="text-button danger-text" type="submit">Archive Contact</button></form></div></details></div>
               </article>
             );
           })}
