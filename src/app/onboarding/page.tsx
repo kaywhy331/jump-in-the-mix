@@ -4,11 +4,13 @@ import { Notice } from "@/components/Notice";
 import { completeOnboardingAction, skipOnboardingAction } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
 import { TimezonePicker } from "@/components/TimezonePicker";
+import { cookies } from "next/headers";
 
 export const metadata: Metadata = { title: "Create your first follow-up" };
 
 export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const [params, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
+  const [params, { workspace }, store] = await Promise.all([searchParams, requireWorkspace(), cookies()]);
+  const planIntent = store.get("jitm_plan_intent")?.value ?? "";
   const today = new Date().toISOString().slice(0, 10);
   return (
     <main className="onboarding-shell">
@@ -19,6 +21,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
         <p className="onboarding-intro">Add one person and one Important Date. We will create a simple follow-up plan and show you the first prepared action before you explore anything else.</p>
         {params.error && <Notice type="error">{params.error}</Notice>}
         <form action={completeOnboardingAction} className="form-stack">
+          <input type="hidden" name="planIntent" value={planIntent} />
           <fieldset className="onboarding-step-card">
             <legend><span>1</span> Add one person</legend>
             <div className="form-grid">
@@ -38,7 +41,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
           <div className="onboarding-preview"><strong>What happens next</strong><span>We create a warm three-step Mix (follow-up plan), schedule the first Jump, and take you directly to Today.</span></div>
           <button className="button primary" type="submit">Create my first Jump</button>
         </form>
-        <form action={skipOnboardingAction} className="skip-setup-form"><button className="text-button" type="submit">Skip and explore with a starter Mix</button></form>
+        <form action={skipOnboardingAction} className="skip-setup-form"><input type="hidden" name="planIntent" value={planIntent} /><button className="text-button" type="submit">Skip and explore with a starter Mix</button></form>
       </section>
     </main>
   );

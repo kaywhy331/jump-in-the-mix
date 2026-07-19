@@ -132,6 +132,22 @@ test("settings hub opens focused profile tools with global timezone and repeatab
   await expect(products.locator('input[type="hidden"]')).toHaveValue(/Consultation link/);
 });
 
+test("public pricing preserves plan intent and remains responsive", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The public viewport matrix runs once.");
+  for (const width of [320, 390, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/?billing=annual#pricing");
+    await expect(page.getByText("Full plan comparison", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Choose Plus" })).toHaveAttribute("href", "/register?plan=plus&period=annual");
+    await expectNoHorizontalOverflow(page);
+  }
+  await page.getByRole("link", { name: "Monthly" }).click();
+  await expect(page.getByRole("link", { name: "Choose Pro" })).toHaveAttribute("href", "/register?plan=pro&period=monthly");
+  await page.getByRole("link", { name: "Choose Pro" }).click();
+  await expect(page).toHaveURL(/\/register\?plan=pro&period=monthly/);
+  await expect(page.getByText("Your Pro · monthly selection is saved.")).toBeVisible();
+});
+
 test("confirmation dialogs restore focus and accessibility preferences remain usable", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Accessibility preference modes are covered once.");
   await page.emulateMedia({ reducedMotion: "reduce", forcedColors: "active" });
