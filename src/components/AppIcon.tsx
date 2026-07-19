@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 
-export type AppIconName = "today" | "contacts" | "add" | "mixes" | "more" | "close" | "calendar" | "bolt" | "import" | "edit" | "external" | "community" | "integrations" | "billing" | "security" | "privacy" | "arrowUp" | "arrowDown" | "check" | "refresh" | "email" | "phone" | "message" | "alert" | "circle" | "settings";
+export type AppIconName = "today" | "contacts" | "add" | "mixes" | "more" | "close" | "calendar" | "bolt" | "import" | "edit" | "external" | "community" | "integrations" | "billing" | "security" | "privacy" | "archive" | "heart" | "arrowUp" | "arrowDown" | "check" | "refresh" | "email" | "phone" | "message" | "alert" | "circle" | "settings";
 
 const paths: Record<AppIconName, React.ReactNode> = {
   today: <><path d="M5 12.5 9.2 17 19 7"/><path d="M7 3.8h10a3 3 0 0 1 3 3v10.4a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6.8a3 3 0 0 1 3-3Z"/></>,
@@ -19,6 +19,8 @@ const paths: Record<AppIconName, React.ReactNode> = {
   billing: <><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></>,
   security: <><path d="M12 3 5 6v5c0 4.5 2.7 8 7 10 4.3-2 7-5.5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></>,
   privacy: <><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></>,
+  archive: <><rect x="4" y="7" width="16" height="13" rx="2"/><path d="M3 4h18v4H3zM9 12h6"/></>,
+  heart: <path d="M20.8 8.7c0 5-8.8 10.3-8.8 10.3S3.2 13.7 3.2 8.7A4.7 4.7 0 0 1 12 6.3a4.7 4.7 0 0 1 8.8 2.4Z"/>,
   arrowUp: <><path d="m6 10 6-6 6 6"/><path d="M12 4v16"/></>,
   arrowDown: <><path d="m6 14 6 6 6-6"/><path d="M12 20V4"/></>,
   check: <path d="m5 12 4 4L19 6"/>,

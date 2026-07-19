@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { SUPPORT_FAQS } from "@/lib/support-content";
+import { AppIcon } from "@/components/AppIcon";
 
 export function SupportFaq() {
   const [query, setQuery] = useState("");
@@ -57,7 +58,7 @@ export function SupportFaq() {
           <details className="support-faq-item" key={item.question}>
             <summary>
               <span>{item.question}</span>
-              <span aria-hidden="true">＋</span>
+              <AppIcon name="add" />
             </summary>
             <div>
               <span className="support-faq-topic">{item.category}</span>

@@ -1,6 +1,10 @@
 /* Canonical reusable product component patterns. */
 .icon-button { width: 48px; min-width: 48px; height: 48px; padding: 0; border-radius: 14px; font-size: 1.15rem; }
 .icon-button svg, .timeline-icon svg, .billing-verification-icon svg { width: 22px; height: 22px; }
+.button > svg, .text-button > svg, summary.button > svg { width: 18px; height: 18px; flex: 0 0 auto; }
+.empty-icon svg, .import-drop-icon svg { width: 28px; height: 28px; }
+.template-score span { display: inline-flex; align-items: center; gap: 4px; }
+.template-score svg, .support-faq-item summary svg { width: 17px; height: 17px; flex: 0 0 auto; }
 .jump-channel-action svg { width: 18px; height: 18px; flex: 0 0 auto; }
 
 .filter-stack { display: grid; gap: 10px; margin-bottom: 22px; }

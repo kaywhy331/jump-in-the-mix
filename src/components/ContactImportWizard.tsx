@@ -408,7 +408,7 @@ export function ContactImportWizard({
               onChange={(event) => void selectFile(event.target.files?.[0] ?? null)}
               disabled={busy}
             />
-            <span className="import-drop-icon" aria-hidden="true">⇧</span>
+            <span className="import-drop-icon"><AppIcon name="import" /></span>
             <strong>{busy ? "Reading file…" : "Choose a CSV or VCF file"}</strong>
             <small>Up to 5,000 rows and 10 MB. Invalid rows remain downloadable in the final error report.</small>
           </label>
