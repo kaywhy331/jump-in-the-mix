@@ -110,6 +110,27 @@ test("global Quick Add previews natural-language capture before continuing", asy
   await expect(dialog).toBeHidden();
 });
 
+test("Quick Add Important Date and one-time Jump continue into actionable Contact journeys", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The stateful shortcut journeys run once.");
+  await signIn(page);
+  await page.goto("/jumps");
+  await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
+  await page.getByRole("dialog", { name: "Quick Add" }).getByRole("link", { name: /Important Date/ }).click();
+  await expect(page).toHaveURL(/\/contacts\?intent=important-date/);
+  await expect(page.getByText("Choose who the date belongs to.")).toBeVisible();
+  await page.getByRole("link", { name: "Add Important Date" }).first().click();
+  await expect(page).toHaveURL(/\/contacts\/[^#]+#add-important-date/);
+  await expect(page.getByRole("heading", { name: "Add an Important Date" })).toBeVisible();
+
+  await page.goto("/jumps");
+  await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
+  await page.getByRole("dialog", { name: "Quick Add" }).getByRole("link", { name: /One-time Jump/ }).click();
+  await expect(page).toHaveURL(/\/contacts\?intent=one-time-jump/);
+  await expect(page.getByText("Choose one or more Contacts.")).toBeVisible();
+  await page.getByRole("checkbox", { name: /^Select / }).first().check();
+  await expect(page.getByRole("heading", { name: "Apply one-time Jump" })).toBeVisible();
+});
+
 test("responsive controls remain complete and align to card width", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The explicit viewport matrix runs once.");
   await signIn(page);
