@@ -1,3 +1,4 @@
+/* Contact import feature composition. */
 .import-contacts-page { padding-bottom: 110px; }
 .import-wizard { display: grid; gap: 18px; }
 .import-stepper { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }

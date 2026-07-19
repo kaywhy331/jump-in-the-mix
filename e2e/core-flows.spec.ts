@@ -28,11 +28,12 @@ test("workspace user can complete the primary discovery and support journey", as
 
   await page.goto("/contacts");
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
-  const groupManager = page.locator("details.group-manager").filter({ hasText: "Manage groups" });
-  await groupManager.locator("summary").click();
-  await expect(groupManager.getByText("3/10 active · 3 stored", { exact: true })).toBeVisible();
-  await expect(groupManager.getByRole("button", { name: "Save active selection" })).toBeVisible();
-  await groupManager.evaluate((element) => { (element as HTMLDetailsElement).open = false; });
+  await page.getByLabel("More Contact tools").click();
+  await expect(page.getByRole("heading", { name: "Contact Groups" })).toBeVisible();
+  await expect(page.getByText("3/10 active · 3 stored", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Filter Contacts by group")).toBeVisible();
+  await page.getByLabel("Close Contact tools").click();
+  await expect(page.getByRole("heading", { name: "Contact Groups" })).toBeHidden();
   await page.locator("summary").filter({ hasText: "+ Add Contact" }).click();
   const addPanel = page.locator(".contact-add-panel");
   await expect(addPanel.locator(".device-contact-picker")).toBeVisible();
@@ -130,6 +131,7 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   await expect(page.getByRole("heading", { name: "Who would you like to remember?" })).toBeVisible();
   await page.getByLabel("Name").fill("Jordan First Win");
   await page.getByLabel("Email optional").fill("jordan-first-win@example.com");
+  await page.getByRole("checkbox", { name: /Confirm timezone/ }).check();
   await Promise.all([
     page.waitForURL(/\/jumps\?.*welcome=1/),
     page.getByRole("button", { name: "Create my first Jump" }).click()
@@ -172,7 +174,7 @@ test("account owner must reauthenticate and explicitly confirm permanent deletio
   });
 
   await signIn(page, email, password);
-  await page.goto("/account");
+  await page.goto("/account?section=privacy");
   const dangerZone = page.getByRole("region", { name: "Permanently delete account" });
   await expect(dangerZone.getByText("Danger Zone")).toBeVisible();
 

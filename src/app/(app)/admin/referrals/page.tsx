@@ -5,6 +5,7 @@ import { requirePlatformAdmin } from "@/lib/auth";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { referralRewardStatusLabel } from "@/lib/referral";
 import { prisma } from "@/lib/prisma";
+import { AppIcon } from "@/components/AppIcon";
 
 export const metadata: Metadata = { title: "Admin · Referrals" };
 
@@ -176,7 +177,7 @@ export default async function AdminReferralsPage({ searchParams }: { searchParam
         })}
         {!referrals.length && (
           <div className="empty-state">
-            <div className="empty-icon">↗</div>
+            <div className="empty-icon"><AppIcon name="external" /></div>
             <h2>No referrals match these filters</h2>
             <p>Referral attribution will appear after a visitor follows a workspace invite and creates an account.</p>
           </div>

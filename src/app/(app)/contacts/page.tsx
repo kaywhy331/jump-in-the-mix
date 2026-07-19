@@ -6,6 +6,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { mergeGroupActivity } from "@/lib/group-activity";
 import { formatPlanLimit, PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
+import { formatDateTime } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Contacts" };
 
@@ -83,8 +84,16 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates);
   const activeByGroupId = new Map(groups.map((group) => [group.id, group.isActive]));
+  const contactJumps = contacts.length ? await prisma.jump.findMany({ where: { workspaceId: workspace.id, contactId: { in: contacts.map((contact) => contact.id) }, status: { not: "CANCELED" } }, select: { contactId: true, scheduledAt: true, completedAt: true, status: true }, orderBy: { scheduledAt: "asc" } }) : [];
+  const jumpsByContact = new Map<string, typeof contactJumps>();
+  for (const jump of contactJumps) jumpsByContact.set(jump.contactId, [...(jumpsByContact.get(jump.contactId) ?? []), jump]);
 
-  const contactDtos: ContactBulkDto[] = contacts.map((contact) => ({
+  const contactDtos: ContactBulkDto[] = contacts.map((contact) => {
+    const state = jumpsByContact.get(contact.id) ?? [];
+    const last = [...state].filter((jump) => jump.completedAt).sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime())[0];
+    const next = state.find((jump) => ["PENDING", "COPIED"].includes(jump.status));
+    const custom = new Map(contact.customFieldValues.map((item) => [item.definition.key, item.value]));
+    return ({
     id: contact.id,
     displayName: contact.displayName,
     firstName: contact.firstName,
@@ -116,8 +125,14 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       label: item.label,
       date: dateValue(item.dateValue),
       recurrence: item.recurrence.toLowerCase()
-    }))
-  }));
+    })),
+    lastInteraction: last?.completedAt ? formatDateTime(last.completedAt) : null,
+    nextJump: next ? formatDateTime(next.scheduledAt) : null,
+    nextJumpOverdue: Boolean(next && next.scheduledAt < new Date()),
+    relationshipType: custom.get("relationship-type") ?? custom.get("relationship") ?? null,
+    preferredChannel: custom.get("preferred-channel") ?? null,
+    priority: custom.get("priority") ?? null
+  }); });
 
   return (
     <div className="page">
@@ -131,10 +146,6 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.bulkRemoved && <Notice type="success">Removed the group from {params.bulkRemoved} selected Contact{params.bulkRemoved === "1" ? "" : "s"}.</Notice>}
       {params.bulkArchived && <Notice type="success">Archived {params.bulkArchived} Contact{params.bulkArchived === "1" ? "" : "s"}. Completed history remains preserved.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
-      <div className="contact-import-shortcut">
-        <span>Moving from a spreadsheet, CRM export, or phone address book?</span>
-        <Link className="button" href="/contacts/import">Import CSV / VCF</Link>
-      </div>
       <ContactsBulkWorkspace
         contacts={contactDtos}
         groups={groups.map((group) => ({ id: group.id, name: group.name, description: group.description, color: group.color, contactCount: group._count.memberships, isActive: group.isActive }))}

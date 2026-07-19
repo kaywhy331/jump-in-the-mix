@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Notice } from "@/components/Notice";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { AppIcon } from "@/components/AppIcon";
 
 type GoogleRun = {
   id: string;
@@ -311,11 +313,11 @@ export function GoogleContactsPanel() {
                 <span><strong>Auto-merge exact email or phone matches</strong><small>Existing primary values remain selected. Similar or ambiguous matches are always held for review.</small></span>
               </label>
               <div className="google-safety-list">
-                <span>✓ Email and phone normalization</span>
-                <span>✓ No silent fuzzy merges</span>
-                <span>✓ Public Notes keep source provenance</span>
-                <span>✓ Private Notes are never imported</span>
-                <span>✓ Google deletions do not delete local Contacts</span>
+                <span><AppIcon name="check" /> Email and phone normalization</span>
+                <span><AppIcon name="check" /> No silent fuzzy merges</span>
+                <span><AppIcon name="check" /> Public Notes keep source provenance</span>
+                <span><AppIcon name="check" /> Private Notes are never imported</span>
+                <span><AppIcon name="check" /> Google deletions do not delete local Contacts</span>
               </div>
               {!status.readOnly && <button className="button" type="button" onClick={() => void previewContacts()} disabled={Boolean(busy) || activeSync}>{busy === "preview" ? "Preparing preview…" : "Preview Contacts"}</button>}
             </section>
@@ -358,12 +360,7 @@ export function GoogleContactsPanel() {
             ))}</div> : <p className="muted-copy">No Google sync has run yet.</p>}
           </section>
 
-          {!status.readOnly && (
-            <details className="destructive-confirm google-disconnect">
-              <summary className="button danger">Disconnect Google…</summary>
-              <div className="destructive-confirm-panel"><p>Existing Contacts stay in Jump in the Mix. Daily Google refresh stops and stored credentials are removed.</p><button className="button danger" type="button" onClick={() => void disconnect()} disabled={Boolean(busy)}>{busy === "disconnect" ? "Disconnecting…" : "Confirm disconnect"}</button></div>
-            </details>
-          )}
+          {!status.readOnly && <div className="google-disconnect"><ConfirmDialog trigger="Disconnect Google…" title="Disconnect Google Contacts?" description="Existing Contacts stay in Jump in the Mix. Daily Google refresh stops and stored credentials are removed." danger><button className="button danger" type="button" onClick={() => void disconnect()} disabled={Boolean(busy)}>{busy === "disconnect" ? "Disconnecting…" : "Confirm disconnect"}</button></ConfirmDialog></div>}
         </>
       )}
     </section>
