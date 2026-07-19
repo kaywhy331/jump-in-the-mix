@@ -1,3 +1,4 @@
+/* Administration layout composition. */
 .admin-layout-shell { min-width: 0; }
 .admin-layout-shell > .admin-nav { margin: 18px 28px 0; }
 .admin-layout-shell > .admin-control-page > .admin-nav { display: none; }

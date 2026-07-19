@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { AppIcon } from "@/components/AppIcon";
 
 type SpeechResultEvent = {
   results?: ArrayLike<ArrayLike<{ transcript?: string }>>;
@@ -91,7 +92,7 @@ export function VoiceNoteButton({ targetId }: { targetId: string }) {
         aria-pressed={listening}
         title="Dictate Public Notes using your browser microphone"
       >
-        <span aria-hidden="true">●</span>
+        <AppIcon name="circle" />
         <span>{listening ? "Listening…" : "Dictate"}</span>
       </button>
       {error && <small className="voice-note-error" role="alert">{error}</small>}

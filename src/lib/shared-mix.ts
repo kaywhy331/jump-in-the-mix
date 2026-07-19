@@ -122,14 +122,6 @@ export function sharedMixChannelLabel(channel: Channel): string {
   return channel === "EMAIL" ? "Email" : "SMS";
 }
 
-export function sharedMixChannelIcon(channel: Channel): string {
-  if (channel === "EMAIL") return "✉";
-  if (channel === "PHONE_CALL") return "☎";
-  if (channel === "VOICEMAIL") return "◉";
-  if (channel === "WHATSAPP") return "◌";
-  return "●";
-}
-
 export function normalizeSharedMixSteps(value: unknown): SharedMixStep[] {
   const rows = normalizedRows(value);
   if (!rows.length) throw new SharedMixContentError("This Mix Template does not contain any Jumps.");

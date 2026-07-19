@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DeviceContactQuickAdd } from "@/components/DeviceContactQuickAdd";
 import { EmptyState } from "@/components/EmptyState";
+import { AppIcon } from "@/components/AppIcon";
 import {
   applyJumpToContactsAction,
   bulkArchiveContactsAction,
@@ -183,7 +184,7 @@ export function ContactsBulkWorkspace({
               <article className={`contact-row contact-select-row ${isSelected ? "selected" : ""}`} key={contact.id}>
                 <label className="contact-select-control" title={isSelected ? "Deselect Contact" : "Select Contact"}>
                   <input type="checkbox" checked={isSelected} onChange={() => toggleContact(contact.id)} aria-label={`${isSelected ? "Deselect" : "Select"} ${contact.displayName}`} />
-                  <span aria-hidden="true">{isSelected ? "✓" : ""}</span>
+                  <span>{isSelected ? <AppIcon name="check" /> : null}</span>
                 </label>
                 <Link href={`/contacts/${contact.id}`} className="contact-main">
                   <div className="avatar">{initials(contact.displayName) || "?"}</div>

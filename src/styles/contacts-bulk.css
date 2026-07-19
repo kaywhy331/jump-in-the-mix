@@ -1,3 +1,4 @@
+/* Bulk Contact feature composition. */
 .contacts-page-actions { align-items: flex-start; }
 .contact-select-row { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; }
 .contact-select-row.selected { border-color: #b9b0ff; background: #fbfaff; box-shadow: 0 0 0 2px rgba(93, 76, 242, .08); }

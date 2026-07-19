@@ -1,3 +1,4 @@
+/* Google Contacts feature composition. */
 .google-contacts-card { display: grid; gap: 18px; }
 .google-card-header { align-items: flex-start; }
 .google-gate, .google-connect-state { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-soft); }

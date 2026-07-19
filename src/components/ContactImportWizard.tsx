@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { Notice } from "@/components/Notice";
+import { AppIcon } from "@/components/AppIcon";
 import {
   buildImportRows,
   contactNameForImport,
@@ -378,7 +379,7 @@ export function ContactImportWizard({
             key={item.id}
             aria-current={index === activePhaseIndex ? "step" : undefined}
           >
-            <span>{index < activePhaseIndex ? "✓" : index + 1}</span>
+            <span>{index < activePhaseIndex ? <AppIcon name="check" /> : index + 1}</span>
             <strong>{item.label}</strong>
           </li>
         ))}
@@ -563,7 +564,7 @@ export function ContactImportWizard({
 
       {phase === "IMPORT" && (
         <section className="card import-stage import-progress-stage" aria-live="polite">
-          <div className="import-progress-icon" aria-hidden="true">↻</div>
+          <div className="import-progress-icon"><AppIcon name="refresh" /></div>
           <h2>Importing Contacts</h2>
           <p>Each row is saved independently, so one invalid Contact will not roll back successful rows.</p>
           <progress max={100} value={progress} />
