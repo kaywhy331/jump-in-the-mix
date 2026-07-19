@@ -58,7 +58,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="page">
-      {params.created === "starter" && <Notice type="success">Starter Mix created. Assign it to a Contact with a matching Jump Date.</Notice>}
+      {params.created === "starter" && <Notice type="success">Starter Mix created. Assign it to a Contact with a matching Important Date.</Notice>}
       {params.created === "wizard" && <Notice type="success">Your AI-assisted Mix draft is ready. Review the sequence, then activate it.</Notice>}
       {params.created === "manual" && <Notice type="success">Mix created. Future pending Jumps are being reconciled automatically.</Notice>}
       {params.updated === "manual" && <Notice type="success">Mix updated. Removed or rescheduled future work is being reconciled.</Notice>}
@@ -68,10 +68,10 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
       {params.starter === "exists" && <Notice type="info">Your simple starter Mix is already available below.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
       <header className="page-header">
-        <div><h1>Mixes</h1><p>Build ordered Jump sequences and control their trigger, audience, lifecycle, and Community sharing.</p></div>
+        <div><h1>Mixes</h1><p>Mixes are follow-up plans: a timed sequence of actions for the people and moments that matter.</p></div>
         <div className="page-actions">
           <Link href="/templates" className="button">Browse Templates</Link>
-          <Link href="/settings/jumps" className="button">Manage Jumps</Link>
+          <Link href="/settings/jumps" className="button">Action Templates</Link>
           {canUseWizard && <Link href="/mixes/wizard" className="button">Create with AI</Link>}
           <Link href="/mixes/new" className="button primary">+ New Mix</Link>
         </div>
@@ -93,7 +93,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                       <span className={`status-pill ${mix.status === "ACTIVE" ? "done" : ""}`}>{mix.status.toLowerCase()}</span>
                       {sharing && <span className={`status-pill ${sharing.reviewState === "APPROVED" ? "done" : ""}`}>Community: {sharing.reviewState.toLowerCase()}</span>}
                       <span>{mix.triggerMode.replaceAll("_", " ").toLowerCase()}</span>
-                      {mix.dateType && <span>Target Jump Date Type: {mix.dateType.name}</span>}
+                      {mix.dateType && <span>Starts from: {mix.dateType.name}</span>}
                       {broadcast && <span>Broadcast: {formatDateInput(broadcast.localDate)} · {formatTimeInput(broadcast.timeMinutes)} {broadcast.timezone}</span>}
                       <span>{mix._count.assignments} assignments</span>
                     </div>
@@ -127,7 +127,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
           })}
         </div>
       ) : (
-        <EmptyState title="Create your first Mix" description="Start from a reviewed template or build a reusable Jump sequence with your own trigger and audience." actionHref="/templates" actionLabel="Browse Mix Templates" />
+        <EmptyState title="Create your first follow-up plan" description="Start from a reviewed Mix template or build a sequence for an Important Date and audience." actionHref="/templates" actionLabel="Browse Mix Templates" />
       )}
 
       {!mixes.length && <form action={createStarterMixAction} className="starter-mix-inline"><button className="button" type="submit">Or create the simple starter Mix</button></form>}

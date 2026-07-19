@@ -73,6 +73,7 @@ export async function registerWithReferralAction(formData: FormData): Promise<vo
   const name = value(formData, "name");
   const email = normalizedEmail(value(formData, "email"));
   const password = value(formData, "password");
+  const confirmPassword = value(formData, "confirmPassword");
   const referralCode = normalizeReferralCode(value(formData, "referralCode") || store.get(REFERRAL_COOKIE)?.value);
   const path = referralCode ? `/register?ref=${encodeURIComponent(referralCode)}` : "/register";
 
@@ -80,6 +81,7 @@ export async function registerWithReferralAction(formData: FormData): Promise<vo
   await enforceRateLimit(path, { scope: "auth.register.email", identifiers: [email], limit: 3, windowMs: 24 * 60 * 60 * 1000, blockMs: 24 * 60 * 60 * 1000 });
 
   if (!name || name.length > 120 || !validEmail(email)) fail(path, "Enter your name and a valid email.");
+  if (password !== confirmPassword) fail(path, "The passwords do not match.");
   const passwordError = passwordValidationError(password);
   if (passwordError) fail(path, passwordError);
   if (env.requireEmailVerification && process.env.NODE_ENV === "production" && !transactionalEmailConfigured()) {

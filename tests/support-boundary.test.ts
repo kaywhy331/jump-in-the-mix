@@ -7,7 +7,7 @@ describe("Help and support boundaries", () => {
   it("places Help in primary navigation and FAQ above the contact form", () => {
     const nav = read("src/components/Nav.tsx");
     const help = read("src/app/(app)/help/page.tsx");
-    expect(nav).toContain('["/help", "Help"');
+    expect(nav).toContain('href: "/help", label: "Help"');
     expect(help).toContain("<SupportFaq />");
     expect(help).toContain('id="contact-support"');
     expect(help.indexOf("<SupportFaq />")).toBeLessThan(help.indexOf('id="contact-support"'));

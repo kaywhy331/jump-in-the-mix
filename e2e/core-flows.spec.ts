@@ -22,7 +22,7 @@ test("workspace user can complete the primary discovery and support journey", as
   await signIn(page, userEmail, userPassword);
 
   await page.goto("/jumps");
-  await expect(page.getByRole("heading", { name: "Jump", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Today", exact: true }).first()).toBeVisible();
   await expect(page.locator(".jump-task-card").first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Due" })).toBeVisible();
 
@@ -33,7 +33,7 @@ test("workspace user can complete the primary discovery and support journey", as
   await expect(groupManager.getByText("3/10 active · 3 stored", { exact: true })).toBeVisible();
   await expect(groupManager.getByRole("button", { name: "Save active selection" })).toBeVisible();
   await groupManager.evaluate((element) => { (element as HTMLDetailsElement).open = false; });
-  await page.locator("summary").filter({ hasText: "+ Add" }).click();
+  await page.locator("summary").filter({ hasText: "+ Add Contact" }).click();
   const addPanel = page.locator(".contact-add-panel");
   await expect(addPanel.locator(".device-contact-picker")).toBeVisible();
   await expect(addPanel.getByRole("link", { name: /Import CSV \/ VCF/ })).toBeVisible();
@@ -93,6 +93,47 @@ test("supported mobile browsers can Quick Add a selected device Contact", async 
   await addPanel.evaluate((element) => { (element as HTMLDetailsElement).open = true; });
   await page.getByRole("button", { name: /Pick from device/ }).click();
   await expect(page.getByText(/\d+ added · \d+ merged/)).toBeVisible();
+});
+
+test("new customer reaches a prepared first Jump through onboarding", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The stateful first-win journey runs once.");
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const userId = `e2e-onboarding-user-${suffix}`;
+  const workspaceId = `e2e-onboarding-workspace-${suffix}`;
+  const email = `e2e-onboarding-${suffix}@jumpinthemix.local`;
+  const password = "OnboardingTest123!";
+  await prisma.user.create({
+    data: {
+      id: userId,
+      email,
+      name: "Onboarding Browser Test",
+      passwordHash: await bcrypt.hash(password, 4),
+      emailVerifiedAt: new Date(),
+      ownedWorkspaces: {
+        create: {
+          id: workspaceId,
+          name: "Onboarding Browser Workspace",
+          slug: `e2e-onboarding-${suffix}`,
+          members: { create: { userId, role: "OWNER" } },
+          profile: { create: { onboardingDone: false, timezone: "America/Los_Angeles" } }
+        }
+      }
+    }
+  });
+
+  await signIn(page, email, password);
+  await expect(page).toHaveURL(/\/onboarding/);
+  await expect(page.getByRole("heading", { name: "Who would you like to remember?" })).toBeVisible();
+  await page.getByLabel("Name").fill("Jordan First Win");
+  await page.getByLabel("Email optional").fill("jordan-first-win@example.com");
+  await Promise.all([
+    page.waitForURL(/\/jumps\?.*welcome=1/),
+    page.getByRole("button", { name: "Create my first Jump" }).click()
+  ]);
+  await expect(page.getByText("Your first Jump for Jordan First Win is ready below.")).toBeVisible();
+  await expect(page.locator(".jump-task-card").filter({ hasText: "Jordan First Win" }).first()).toBeVisible();
+  await expect(prisma.contact.count({ where: { workspaceId, displayName: "Jordan First Win" } })).resolves.toBe(1);
+  await expect(prisma.jump.count({ where: { workspaceId, contact: { displayName: "Jordan First Win" } } })).resolves.toBeGreaterThan(0);
 });
 
 test("account owner must reauthenticate and explicitly confirm permanent deletion", async ({ page }, testInfo) => {

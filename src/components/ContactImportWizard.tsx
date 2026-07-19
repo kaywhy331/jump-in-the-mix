@@ -122,15 +122,15 @@ function mappingOptionsForHeader(
   for (const type of dateTypes) {
     options.push({
       value: encodeMappingTarget({ kind: "DATE", dateTypeId: type.id, dateTypeName: null, recurrence: "NONE" }),
-      label: `Jump Date · ${type.name} · one time${type.isActive ? "" : " · inactive"}`
+      label: `Important Date · ${type.name} · one time${type.isActive ? "" : " · inactive"}`
     });
     options.push({
       value: encodeMappingTarget({ kind: "DATE", dateTypeId: type.id, dateTypeName: null, recurrence: "MONTHLY" }),
-      label: `Jump Date · ${type.name} · monthly${type.isActive ? "" : " · inactive"}`
+      label: `Important Date · ${type.name} · monthly${type.isActive ? "" : " · inactive"}`
     });
     options.push({
       value: encodeMappingTarget({ kind: "DATE", dateTypeId: type.id, dateTypeName: null, recurrence: "YEARLY" }),
-      label: `Jump Date · ${type.name} · yearly${type.isActive ? "" : " · inactive"}`
+      label: `Important Date · ${type.name} · yearly${type.isActive ? "" : " · inactive"}`
     });
   }
 
@@ -145,7 +145,7 @@ function mappingOptionsForHeader(
     { target: { kind: "DATE", dateTypeId: null, dateTypeName: inferredName, recurrence: "YEARLY" }, label: "yearly" }
   ];
   for (const item of newTargets) {
-    options.push({ value: encodeMappingTarget(item.target), label: `New Jump Date Type · ${inferredName} · ${item.label}` });
+    options.push({ value: encodeMappingTarget(item.target), label: `New Important Date Type · ${inferredName} · ${item.label}` });
   }
   return options;
 }
@@ -546,7 +546,7 @@ export function ContactImportWizard({
             <progress max={usage.contactLimit} value={Math.min(usage.activeContacts + planned.create, usage.contactLimit)} />
             {exceedsContactLimit && <p>This import would create {planned.create - usage.remainingContacts} more Contact{planned.create - usage.remainingContacts === 1 ? "" : "s"} than the current plan allows. Merge or skip more duplicate rows, archive Contacts, or <Link href="/plans">upgrade the plan</Link>.</p>}
           </div>
-          {newDateTypeNames(mapping).length > 0 && <Notice type="info">New custom Jump Date Types: {newDateTypeNames(mapping).join(", ")}. Types beyond the active plan allowance are preserved as inactive rather than deleted.</Notice>}
+          {newDateTypeNames(mapping).length > 0 && <Notice type="info">New custom Important Date Types: {newDateTypeNames(mapping).join(", ")}. Types beyond the active plan allowance are preserved as inactive rather than deleted.</Notice>}
           <div className="import-review-preview">
             <h3>Sample of final decisions</h3>
             {preparedRows.slice(0, 12).map((row) => (
@@ -574,7 +574,7 @@ export function ContactImportWizard({
 
       {phase === "SUMMARY" && summary && (
         <section className="card import-stage">
-          <div className="import-stage-heading"><div><h2>Import summary</h2><p>The import is complete. Matching Mixes will reconcile against imported Jump Dates automatically.</p></div></div>
+          <div className="import-stage-heading"><div><h2>Import summary</h2><p>The import is complete. Matching Mixes will reconcile against imported Important Dates automatically.</p></div></div>
           <div className="import-summary-grid result">
             <div><strong>{summary.created}</strong><span>Created</span></div>
             <div><strong>{summary.merged + summary.replaced}</strong><span>Updated</span></div>

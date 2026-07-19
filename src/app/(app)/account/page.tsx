@@ -83,14 +83,14 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   const usageRows: UsageRow[] = [
     { label: "Active Contacts", value: usage.contacts, limit: limits.contacts, href: "/contacts", action: "Manage Contacts" },
     { label: "Active Contact Groups", value: usage.groups, limit: limits.groups, href: "/contacts", action: "Choose active Groups" },
-    { label: "Active custom Jump Date Types", value: usage.customDateTypes, limit: limits.customDateTypes, href: "/settings/jump-date-types", action: "Choose active types" },
+    { label: "Active custom Important Date Types", value: usage.customDateTypes, limit: limits.customDateTypes, href: "/settings/jump-date-types", action: "Choose active types" },
     { label: "Active Mixes", value: usage.mixes, limit: limits.mixes, href: "/mixes", action: "Choose active Mixes" },
     { label: "Shared Community Mixes", value: usage.sharedMixes, limit: limits.sharedMixes, href: "/templates?source=community", action: "Review sharing" }
   ];
   const overageRows = usageRows.filter((row) => Number.isFinite(row.limit) && row.value > row.limit);
 
   const accountSummary = (
-    <section className="card account-summary-card">
+    <section className="card account-summary-card" id="profile">
       <div className="card-header"><div><h2>Account</h2><p>These details identify the owner of this workspace.</p></div></div>
       <dl className="account-definition-list">
         <div><dt>Name</dt><dd>{user.name}</dd></div>
@@ -131,12 +131,12 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   );
 
   const usageSummary = (
-    <section className="card account-plan-usage-card">
+    <section className="card account-plan-usage-card" id="plan-usage">
       <div className="card-header">
         <div><h2>Plan usage</h2><p>Your records are preserved when a plan changes. Active workflow limits are enforced without deleting completed work.</p></div>
         <span className={`status-pill ${overageRows.length ? "" : "done"}`}>{overageRows.length ? `${overageRows.length} over limit` : "Within limits"}</span>
       </div>
-      <Notice type="info">After a downgrade, excess active Mixes are paused, future incomplete Jumps from them are canceled, excess custom Jump Date Types and Contact Groups become inactive, and excess Community shares are unpublished. Contacts, memberships, assignments, and history stay stored. Choose the active Groups and Jump Date Types you want to keep from their management pages.</Notice>
+      <Notice type="info">After a downgrade, excess active Mixes are paused, future incomplete Jumps from them are canceled, excess custom Important Date Types and Contact Groups become inactive, and excess Community shares are unpublished. Contacts, memberships, assignments, and history stay stored. Choose the active Groups and Important Date Types you want to keep from their management pages.</Notice>
       <div className="plan-usage-list">
         {usageRows.map((row) => {
           const unlimited = !Number.isFinite(row.limit);
@@ -210,6 +210,14 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         <div><h1>My Account</h1><p>Review identity, billing, integrations, referrals, support, password security, and active devices.</p></div>
       </header>
 
+      <nav className="account-section-nav" aria-label="Account sections">
+        <a href="#profile">Profile</a>
+        <a href="#billing">Plan &amp; billing</a>
+        <a href="#google-contacts">Connections</a>
+        <a href="#security">Security</a>
+        <a href="#data-privacy">Data &amp; privacy</a>
+      </nav>
+
       {params.error && <Notice type="error">{params.error}</Notice>}
       {params.billingError && <Notice type="error">{params.billingError}</Notice>}
       {params.billing === "portal-return" && <Notice type="success">Returned from Stripe. Subscription changes will appear here after Stripe confirms them.</Notice>}
@@ -227,7 +235,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         {usageSummary}
         {referralSummary}
         {supportSummary}
-        <section className="card account-password-card">
+        <section className="card account-password-card" id="security">
           <div className="card-header"><div><h2>Change password</h2><p>Changing it keeps this device signed in and closes every other session.</p></div></div>
           <form action={changePasswordAction} className="form-stack">
             <div className="field"><label htmlFor="currentPassword">Current password</label><input id="currentPassword" name="currentPassword" type="password" autoComplete="current-password" required /></div>
@@ -267,7 +275,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
         </details>
       </section>
 
-      <section className="card danger-zone" aria-labelledby="danger-zone-heading">
+      <section className="card danger-zone" id="data-privacy" aria-labelledby="danger-zone-heading">
         <div className="card-header">
           <div>
             <p className="eyebrow">Danger Zone</p>

@@ -66,7 +66,7 @@ export function SharedMixPreview({
     <div className="shared-mix-preview">
       <div className="shared-mix-trigger-summary">
         <span><strong>Trigger</strong>{triggerMode.replaceAll("_", " ").toLowerCase()}</span>
-        {dateTypeName && <span><strong>Target Jump Date Type</strong>{dateTypeName}</span>}
+        {dateTypeName && <span><strong>Starts from</strong>{dateTypeName}</span>}
         <span><strong>Length</strong>{durationDays} day{durationDays === 1 ? "" : "s"}</span>
         <span><strong>Jumps</strong>{steps.length}</span>
       </div>

@@ -22,6 +22,7 @@ type SearchParams = {
   applied?: string;
   mixStopped?: string;
   mixStopError?: string;
+  firstContact?: string;
 };
 
 type ActionType = "COMPOSED" | "CALLED" | "VOICEMAIL_STARTED";
@@ -59,7 +60,7 @@ function channelLabel(channel: Channel): string {
 }
 
 function taskStatusLabel(status: JumpStatus): string {
-  if (pendingStatuses.includes(status)) return "Pending";
+  if (pendingStatuses.includes(status)) return "Mark done";
   if (status === "SKIPPED") return "Skipped";
   return "Done";
 }
@@ -143,6 +144,9 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
     return leftPending - rightPending || left.scheduledAt.getTime() - right.scheduledAt.getTime();
   });
   const pending = ordered.filter((jump) => pendingStatuses.includes(jump.status));
+  const overdue = pending.filter((jump) => jump.scheduledAt < startToday);
+  const dueToday = pending.filter((jump) => jump.scheduledAt >= startToday && jump.scheduledAt < endToday);
+  const upcoming = pending.filter((jump) => jump.scheduledAt >= endToday);
   const completed = ordered.filter((jump) => completedStatuses.includes(jump.status));
   const currentFilters = { range, status, channel };
 
@@ -158,6 +162,11 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
     const isPending = pendingStatuses.includes(jump.status);
     const nextStatus: JumpStatus = isPending ? "DONE" : "PENDING";
     const recentEvents = eventsByJump.get(jump.id) ?? [];
+    const dueLabel = jump.scheduledAt < startToday
+      ? `Overdue · ${formatDateTime(jump.scheduledAt)}`
+      : jump.scheduledAt < endToday
+        ? `Today · ${formatDateTime(jump.scheduledAt)}`
+        : formatDateTime(jump.scheduledAt);
 
     return (
       <article className={`jump-card jump-task-card ${isPending ? "" : "jump-task-complete"}`} key={jump.id}>
@@ -166,7 +175,7 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
           <input type="hidden" name="status" value={nextStatus} />
           <button className={`jump-status-button ${isPending ? "" : "done"}`} type="submit" title={isPending ? "Mark this Jump done" : "Undo and return this Jump to pending"}>
             <strong>{taskStatusLabel(jump.status)}</strong>
-            <time>{formatDateTime(jump.scheduledAt)}</time>
+            <time>{dueLabel}</time>
           </button>
         </form>
 
@@ -196,11 +205,11 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
               action={actionType(jumpChannel)}
               href={url}
               target={jumpChannel === "WHATSAPP" ? "_blank" : undefined}
-              className="button primary icon-button"
+              className="button primary jump-channel-action"
               ariaLabel={`Open ${channelLabel(jumpChannel)} for ${jump.contact.displayName}`}
               title={`Open ${channelLabel(jumpChannel)}`}
             >
-              <span aria-hidden="true">{channelIcon(jumpChannel)}</span>
+              <span aria-hidden="true">{channelIcon(jumpChannel)}</span><span>{jumpChannel === "PHONE_CALL" ? "Call" : jumpChannel === "VOICEMAIL" ? "Open notes" : jumpChannel === "EMAIL" ? "Open email" : jumpChannel === "WHATSAPP" ? "Open WhatsApp" : "Open text"}</span>
             </JumpActionLink>
           ) : <span className="status-pill" title={`Add a primary ${jumpChannel === "EMAIL" ? "email" : "phone"} to this contact first`}>Missing</span>}
         </div>
@@ -210,12 +219,12 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="page">
-      {params.welcome && <Notice type="success">Your workspace is ready. Complete a prepared Jump or add a Contact and Jump Date to create more.</Notice>}
+      {params.welcome && <Notice type="success">{params.firstContact ? `Your first Jump for ${params.firstContact} is ready below.` : "Your workspace is ready. Complete a prepared Jump or add a Contact and Important Date to create more."}</Notice>}
       {params.demo && <Notice type="info">You are in the local demo workspace. Actions remain on this computer.</Notice>}
       {params.applied && <Notice type="success">Created {params.applied} one-time Jump{params.applied === "1" ? "" : "s"} for the selected Contacts.</Notice>}
       {params.mixStopped && <Notice type="success">The Mix was stopped for this Contact. Its pending Jumps were removed from the queue.</Notice>}
       {params.mixStopError && <Notice type="error">The Mix could not be stopped for this Contact.</Notice>}
-      <header className="page-header"><div><h1>Jump</h1><p>Complete overdue and due outreach without hunting through a CRM.</p></div></header>
+      <header className="page-header"><div><h1>Today</h1><p>One clear list of the people who need your attention and what to do next.</p></div><div className="today-summary" aria-label="Current Jump workload"><strong>{overdue.length + dueToday.length}</strong><span>due now</span>{overdue.length > 0 && <small>{overdue.length} overdue</small>}</div></header>
 
       <div className="filter-stack" aria-label="Jump filters">
         <div className="filter-bar filter-presets">
@@ -229,9 +238,11 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
         </form>
       </div>
 
-      {pending.length > 0 && <section aria-labelledby="pending-jumps"><div className="section-label"><h2 id="pending-jumps">Pending</h2><span>{pending.length}</span></div><div className="jump-list">{pending.map(renderCard)}</div></section>}
+      {overdue.length > 0 && <section aria-labelledby="overdue-jumps"><div className="section-label urgent"><h2 id="overdue-jumps">Overdue</h2><span>{overdue.length}</span></div><p className="section-guidance">Start with one. You can skip or stop a plan if it is no longer useful.</p><div className="jump-list">{overdue.map(renderCard)}</div></section>}
+      {dueToday.length > 0 && <section aria-labelledby="today-jumps"><div className="section-label"><h2 id="today-jumps">Today</h2><span>{dueToday.length}</span></div><div className="jump-list">{dueToday.map(renderCard)}</div></section>}
+      {upcoming.length > 0 && <section aria-labelledby="upcoming-jumps"><div className="section-label"><h2 id="upcoming-jumps">Upcoming</h2><span>{upcoming.length}</span></div><div className="jump-list">{upcoming.map(renderCard)}</div></section>}
       {completed.length > 0 && <section aria-labelledby="completed-jumps"><div className="completed-divider"><span id="completed-jumps">Completed</span></div><div className="jump-list">{completed.map(renderCard)}</div></section>}
-      {!ordered.length && <EmptyState title="No Jumps match these filters" description="Jumps appear automatically after an active Mix is assigned to a matching Contact and Jump Date." actionHref="/contacts" actionLabel="Review contacts" />}
+      {!ordered.length && <EmptyState title="Nothing needs your attention" description="Jumps appear automatically after an active follow-up Mix is assigned to a Contact with a matching Important Date." actionHref="/contacts" actionLabel="Add or review Contacts" />}
     </div>
   );
 }

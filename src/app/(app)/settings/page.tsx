@@ -21,19 +21,18 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     <div className="page">
       {params.saved && <Notice type="success">My Info and Community Public Profile saved.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
-      <header className="page-header"><div><h1>Settings</h1><p>Manage reusable Jumps, Mixes, templates, trigger classifications, and personalization.</p></div></header>
+      <header className="page-header"><div><h1>Settings</h1><p>Manage your workspace profile, action templates, Important Date types, and Community profile.</p></div></header>
 
       <div className="settings-hub-grid">
-        <Link className="settings-hub-card" href="/settings/jumps"><span className="settings-hub-icon">↗</span><span><strong>Jumps</strong><small>Reusable messages, call scripts, and voicemail content.</small></span></Link>
-        <Link className="settings-hub-card" href="/mixes"><span className="settings-hub-icon">⎇</span><span><strong>Mixes</strong><small>Ordered Jump sequences, triggers, audiences, and timing.</small></span></Link>
-        <Link className="settings-hub-card" href="/templates"><span className="settings-hub-icon">◇</span><span><strong>Mix Templates</strong><small>Preview official and Community sequences, then import an editable Draft.</small></span></Link>
-        <Link className="settings-hub-card" href="/settings/jump-date-types"><span className="settings-hub-icon">◫</span><span><strong>Jump Date Types</strong><small>Manage custom trigger classifications and active plan limits.</small></span></Link>
-        <a className="settings-hub-card" href="#my-info"><span className="settings-hub-icon">✎</span><span><strong>My Info</strong><small>Your business context, timezone, signatures, and public contributor profile.</small></span></a>
+        <a className="settings-hub-card" href="#my-info"><span className="settings-hub-icon">✎</span><span><strong>Workspace profile</strong><small>Business context, timezone, and signatures used in messages.</small></span></a>
+        <Link className="settings-hub-card" href="/settings/jumps"><span className="settings-hub-icon">↗</span><span><strong>Action Templates</strong><small>Reusable messages, call scripts, and voicemail content for your follow-up plans.</small></span></Link>
+        <Link className="settings-hub-card" href="/settings/jump-date-types"><span className="settings-hub-icon">◫</span><span><strong>Important Date Types</strong><small>Manage the moments that can start a follow-up plan.</small></span></Link>
+        <a className="settings-hub-card" href="#community-profile"><span className="settings-hub-icon">◇</span><span><strong>Community profile</strong><small>Control the public identity shown with Mixes you share.</small></span></a>
       </div>
 
       <form action={updateWorkspaceProfileAction} className="settings-profile-layout">
         <section className="card" id="my-info">
-          <div className="card-header"><div><h2>My Info</h2><p>Optional business details used by approved dynamic placeholders and the AI Mix Wizard.</p></div></div>
+          <div className="card-header"><div><h2>Workspace profile</h2><p>Optional business details used by approved dynamic placeholders and the AI Mix Wizard.</p></div></div>
           <div className="form-grid">
             <div className="field"><label htmlFor="company">Company</label><input id="company" name="company" defaultValue={profile?.company ?? workspace.name} /></div>
             <div className="field"><label htmlFor="industry">Industry</label><input id="industry" name="industry" defaultValue={profile?.industry ?? ""} /></div>
@@ -78,7 +77,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </div>
         </section>
 
-        <div className="form-actions sticky-form-actions"><button className="button primary" type="submit">Save My Info</button></div>
+        <div className="form-actions sticky-form-actions"><button className="button primary" type="submit">Save workspace profile</button></div>
       </form>
 
       <div className="dashboard-grid settings-account-summary">

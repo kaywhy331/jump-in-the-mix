@@ -121,7 +121,7 @@ export default async function ShareMixPage({
 
       {snapshot && (
         <section className="card">
-          <div className="card-header"><div><h2>What the community will receive</h2><p>A human-readable, versioned copy of this Mix and its reusable Jumps.</p></div></div>
+          <div className="card-header"><div><h2>What the community will receive</h2><p>A human-readable, versioned copy of this Mix and its Action Templates.</p></div></div>
           <SharedMixPreview
             title={snapshot.name}
             triggerMode={snapshot.triggerMode}

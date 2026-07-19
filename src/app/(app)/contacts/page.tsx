@@ -119,7 +119,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="page">
-      {params.created && <Notice type="success">Contact added. Add a Jump Date or assign a Mix when you are ready.</Notice>}
+      {params.created && <Notice type="success">Contact added. Add an Important Date or assign a Mix when you are ready.</Notice>}
       {params.archived && <Notice type="success">Contact archived. Completed history remains preserved.</Notice>}
       {params.groupCreated && <Notice type="success">Contact Group created.</Notice>}
       {params.groupInactive && <Notice type="info">The new group was preserved as inactive because your active-group allowance is already full. Choose the groups that should remain active from Manage groups.</Notice>}

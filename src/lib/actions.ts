@@ -13,6 +13,7 @@ import { env } from "@/lib/env";
 import { ensureStarterMix } from "@/lib/starter-mix";
 import { buildAddressInputs, buildEmailInputs, buildPhoneInputs } from "@/lib/contact-input";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
+import { generateJumps } from "@/lib/jump-engine";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -185,24 +186,46 @@ export async function logoutAction(): Promise<void> {
 
 export async function completeOnboardingAction(formData: FormData): Promise<void> {
   const { workspace } = await requireWorkspace();
-  const company = value(formData, "company");
-  const industry = value(formData, "industry");
-  const primaryGoal = value(formData, "primaryGoal");
-  const product1 = value(formData, "product1");
-  const smsSignature = value(formData, "smsSignature");
-  const emailSignature = value(formData, "emailSignature");
+  const contactName = value(formData, "contactName");
+  const contactEmail = value(formData, "contactEmail").toLowerCase();
+  const contactPhone = value(formData, "contactPhone");
+  const reason = value(formData, "reason") || "Follow up";
+  const followUpDate = value(formData, "followUpDate");
   const timezone = value(formData, "timezone") || "America/New_York";
-  await prisma.$transaction([
-    prisma.workspace.update({ where: { id: workspace.id }, data: company ? { name: company } : {} }),
-    prisma.workspaceProfile.upsert({
+  if (!contactName || !followUpDate) fail("/onboarding", "Add a person and choose when you want to follow up.");
+  if (contactEmail && !contactEmail.includes("@")) fail("/onboarding", "Enter a valid email or leave it blank.");
+  const dateValue = new Date(`${followUpDate}T12:00:00`);
+  if (Number.isNaN(dateValue.getTime())) fail("/onboarding", "Choose a valid follow-up date.");
+
+  const followUpType = await prisma.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true } });
+  if (!followUpType) fail("/onboarding", "The Follow-up Important Date type is unavailable. Run setup again.");
+  const starterMix = await ensureStarterMix(workspace.id);
+  const contactId = randomUUID();
+  await prisma.$transaction(async (tx) => {
+    await tx.contact.create({
+      data: {
+        id: contactId,
+        workspaceId: workspace.id,
+        displayName: contactName,
+        firstName: contactName,
+        emails: contactEmail ? { create: { email: contactEmail, normalized: contactEmail, isPrimary: true } } : undefined,
+        phones: contactPhone ? { create: { phone: contactPhone, normalized: contactPhone.replace(/\D/g, ""), isPrimary: true } } : undefined
+      }
+    });
+    await tx.jumpDate.create({
+      data: { workspaceId: workspace.id, contactId, dateTypeId: followUpType.id, dateValue, timezone, label: reason }
+    });
+    await tx.mixAssignment.create({
+      data: { assignmentKey: `onboarding:${workspace.id}:${starterMix.id}:${contactId}`, workspaceId: workspace.id, mixId: starterMix.id, contactId, mode: "SNAPSHOT", isActive: true }
+    });
+    await tx.workspaceProfile.upsert({
       where: { workspaceId: workspace.id },
-      create: { workspaceId: workspace.id, company: company || null, industry: industry || null, primaryGoal: primaryGoal || null, product1: product1 || null, smsSignature: smsSignature || null, emailSignature: emailSignature || null, timezone, onboardingStep: 5, onboardingDone: true },
-      update: { company: company || null, industry: industry || null, primaryGoal: primaryGoal || null, product1: product1 || null, smsSignature: smsSignature || null, emailSignature: emailSignature || null, timezone, onboardingStep: 5, onboardingDone: true }
-    })
-  ]);
-  if (formData.get("createStarterMix") === "on") await ensureStarterMix(workspace.id);
-  await queueJumpReconciliation(workspace.id);
-  redirect("/jumps?welcome=1");
+      create: { workspaceId: workspace.id, primaryGoal: reason, timezone, onboardingStep: 5, onboardingDone: true },
+      update: { primaryGoal: reason, timezone, onboardingStep: 5, onboardingDone: true }
+    });
+  });
+  await generateJumps({ workspaceId: workspace.id, contactId, mixId: starterMix.id });
+  redirect(`/jumps?range=all&welcome=1&firstContact=${encodeURIComponent(contactName)}`);
 }
 
 export async function skipOnboardingAction(): Promise<void> {

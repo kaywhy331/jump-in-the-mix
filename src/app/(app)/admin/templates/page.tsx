@@ -132,7 +132,7 @@ export default async function AdminTemplatesPage({ searchParams }: { searchParam
             <div className="form-actions field full"><button className="button primary" type="submit">Create official template</button></div>
           </form>
         ) : (
-          <Notice type="info">Create at least one Mix with reusable Jumps in your administrator workspace before publishing a platform template.</Notice>
+          <Notice type="info">Create at least one Mix with Action Templates in your administrator workspace before publishing a platform template.</Notice>
         )}
       </section>
 

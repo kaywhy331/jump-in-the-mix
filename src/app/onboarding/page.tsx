@@ -1,51 +1,43 @@
 import type { Metadata } from "next";
 import { Logo } from "@/components/Logo";
+import { Notice } from "@/components/Notice";
 import { completeOnboardingAction, skipOnboardingAction } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
 
-export const metadata: Metadata = { title: "Quick setup" };
+export const metadata: Metadata = { title: "Create your first follow-up" };
 
-export default async function OnboardingPage() {
-  const { workspace, user } = await requireWorkspace();
-  const profile = workspace.profile;
-
+export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const [params, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
+  const today = new Date().toISOString().slice(0, 10);
   return (
     <main className="onboarding-shell">
-      <div className="onboarding-top">
-        <Logo />
-        <span className="setup-step">Quick setup · one screen</span>
-      </div>
-      <section className="onboarding-card">
-        <span className="eyebrow">Three-minute setup</span>
-        <h1>Let&apos;s make the app useful before showing you everything.</h1>
-        <p className="onboarding-intro">
-          These details help Jump in the Mix recommend sensible language and follow-up plans. Only your business name and primary goal are needed.
-        </p>
-        <form action={completeOnboardingAction} className="form-grid">
-          <div className="field full">
-            <label htmlFor="primaryGoal">What would you most like help remembering?</label>
-            <select id="primaryGoal" name="primaryGoal" defaultValue={profile?.primaryGoal ?? "Follow up with leads"} required>
-              <option>Follow up with leads</option>
-              <option>Stay connected with clients</option>
-              <option>Manage referrals</option>
-              <option>Remember renewals and important dates</option>
-              <option>Onboard new clients</option>
-              <option>Reconnect with past customers</option>
-              <option>Personal relationships</option>
-            </select>
-          </div>
-          <div className="field"><label htmlFor="company">Business or workspace name</label><input id="company" name="company" defaultValue={profile?.company ?? workspace.name} required /></div>
-          <div className="field"><label htmlFor="industry">Industry</label><input id="industry" name="industry" placeholder="Consulting, real estate, photography…" defaultValue={profile?.industry ?? ""} /></div>
-          <div className="field"><label htmlFor="product1">Primary product or service</label><input id="product1" name="product1" placeholder="Business consulting" defaultValue={profile?.product1 ?? ""} /></div>
-          <div className="field"><label htmlFor="timezone">Timezone</label><select id="timezone" name="timezone" defaultValue={profile?.timezone ?? "America/New_York"}><option value="America/New_York">Eastern</option><option value="America/Chicago">Central</option><option value="America/Denver">Mountain</option><option value="America/Los_Angeles">Pacific</option><option value="America/Phoenix">Arizona</option><option value="Pacific/Honolulu">Hawaii</option><option value="UTC">UTC</option></select></div>
-          <div className="field"><label htmlFor="smsSignature">SMS signature</label><input id="smsSignature" name="smsSignature" placeholder={`— ${user.name}`} defaultValue={profile?.smsSignature ?? ""} /></div>
-          <div className="field"><label htmlFor="emailSignature">Email signature</label><textarea id="emailSignature" name="emailSignature" placeholder={`${user.name}\n${workspace.name}`} defaultValue={profile?.emailSignature ?? ""} /></div>
-          <label className="checkbox-card field full onboarding-default"><input type="checkbox" name="createStarterMix" defaultChecked /><span><strong>Set up a simple follow-up plan for me</strong><small>You can review or change it later. This removes one setup step.</small></span></label>
-          <div className="form-actions field full"><button className="button primary" type="submit">Finish setup and see my dashboard</button></div>
+      <div className="onboarding-top"><Logo /><span className="setup-step">Your first follow-up · about 2 minutes</span></div>
+      <section className="onboarding-card first-win-onboarding">
+        <span className="eyebrow">Start with one relationship</span>
+        <h1>Who would you like to remember?</h1>
+        <p className="onboarding-intro">Add one person and one Important Date. We will create a simple follow-up plan and show you the first prepared action before you explore anything else.</p>
+        {params.error && <Notice type="error">{params.error}</Notice>}
+        <form action={completeOnboardingAction} className="form-stack">
+          <fieldset className="onboarding-step-card">
+            <legend><span>1</span> Add one person</legend>
+            <div className="form-grid">
+              <div className="field full"><label htmlFor="contactName">Name</label><input id="contactName" name="contactName" autoComplete="name" placeholder="Jordan Lee" required autoFocus /></div>
+              <div className="field"><label htmlFor="contactEmail">Email <small>optional</small></label><input id="contactEmail" name="contactEmail" type="email" inputMode="email" autoComplete="email" /></div>
+              <div className="field"><label htmlFor="contactPhone">Phone <small>optional</small></label><input id="contactPhone" name="contactPhone" inputMode="tel" autoComplete="tel" /></div>
+            </div>
+          </fieldset>
+          <fieldset className="onboarding-step-card">
+            <legend><span>2</span> Say why and when</legend>
+            <div className="form-grid">
+              <div className="field"><label htmlFor="reason">What do you want to remember?</label><select id="reason" name="reason" defaultValue="Follow up"><option>Follow up</option><option>Check in after a meeting</option><option>Ask about a referral</option><option>Discuss a renewal</option><option>Reconnect</option></select></div>
+              <div className="field"><label htmlFor="followUpDate">Important Date</label><input id="followUpDate" name="followUpDate" type="date" min={today} defaultValue={today} required /></div>
+              <div className="field full"><label htmlFor="timezone">Timezone</label><select id="timezone" name="timezone" defaultValue={workspace.profile?.timezone ?? "America/New_York"}><option value="America/New_York">Eastern</option><option value="America/Chicago">Central</option><option value="America/Denver">Mountain</option><option value="America/Los_Angeles">Pacific</option><option value="America/Phoenix">Arizona</option><option value="Pacific/Honolulu">Hawaii</option><option value="UTC">UTC</option></select></div>
+            </div>
+          </fieldset>
+          <div className="onboarding-preview"><strong>What happens next</strong><span>We create a warm three-step Mix (follow-up plan), schedule the first Jump, and take you directly to Today.</span></div>
+          <button className="button primary" type="submit">Create my first Jump</button>
         </form>
-        <form action={skipOnboardingAction} className="skip-setup-form">
-          <button className="text-button" type="submit">Skip for now and explore with sensible defaults</button>
-        </form>
+        <form action={skipOnboardingAction} className="skip-setup-form"><button className="text-button" type="submit">Skip and explore with a starter Mix</button></form>
       </section>
     </main>
   );

@@ -80,8 +80,8 @@ export default async function ContactDetailPage({
   return (
     <div className="page">
       {query.updated && <Notice type="success">Contact details updated. Future pending Jumps are being refreshed.</Notice>}
-      {query.dateCreated && <Notice type="success">Jump Date added. Matching Mixes can now create future Jumps.</Notice>}
-      {query.dateDeleted && <Notice type="success">Jump Date removed. Obsolete future Jumps are being reconciled.</Notice>}
+      {query.dateCreated && <Notice type="success">Important Date added. Matching Mixes can now create future Jumps.</Notice>}
+      {query.dateDeleted && <Notice type="success">Important Date removed. Obsolete future Jumps are being reconciled.</Notice>}
       {query.mixAssigned && <Notice type="success">Mix assigned. The background worker is preparing matching Jumps.</Notice>}
       {query.mixRemoved && <Notice type="success">Mix removed from this Contact. Completed history remains available.</Notice>}
       {query.mixStopped && <Notice type="success">Mix stopped for this Contact. Its pending Jumps were removed.</Notice>}
@@ -102,25 +102,25 @@ export default async function ContactDetailPage({
       <div className="dashboard-grid">
         <section>
           <div className="card">
-            <div className="card-header"><div><h2>Jump Dates</h2><p>Dates are the moments that can trigger a Mix.</p></div></div>
+            <div className="card-header"><div><h2>Important Dates</h2><p>These moments can start a follow-up plan.</p></div></div>
             {contact.jumpDates.length ? <div className="jump-list">{contact.jumpDates.map((item) => (
               <article className="jump-card contact-date-card" key={item.id}>
                 <div><h3>{item.dateType.name}</h3><div className="jump-meta"><span>{item.dateValue ? formatDate(item.dateValue) : `${item.month}/${item.day}`}</span><span>{item.recurrence.toLowerCase()}</span>{item.label && <span>{item.label}</span>}</div></div>
-                <details className="destructive-confirm"><summary className="button small danger">Remove…</summary><div className="destructive-confirm-panel"><p>Remove this Jump Date? Future pending work tied to it will be canceled.</p><form action={deleteJumpDateAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} /><button className="button small danger" type="submit">Confirm removal</button></form></div></details>
+                <details className="destructive-confirm"><summary className="button small danger">Remove…</summary><div className="destructive-confirm-panel"><p>Remove this Important Date? Future pending work tied to it will be canceled.</p><form action={deleteJumpDateAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} /><button className="button small danger" type="submit">Confirm removal</button></form></div></details>
               </article>
-            ))}</div> : <p className="muted-copy">No Jump Dates yet. Add the next date you genuinely need to remember.</p>}
+            ))}</div> : <p className="muted-copy">No Important Dates yet. Add the next moment you genuinely need to remember.</p>}
           </div>
 
           <div className="card">
-            <div className="card-header"><div><h2>Add a Jump Date</h2><p>Custom types appear before global system types.</p></div></div>
+            <div className="card-header"><div><h2>Add an Important Date</h2><p>Choose the moment and when it occurs.</p></div></div>
             <form action={createImportantDateAction} className="form-grid">
               <input type="hidden" name="contactId" value={contact.id} />
-              <div className="field"><label htmlFor="dateTypeId">Jump Date Type</label><select id="dateTypeId" name="dateTypeId" required defaultValue={followUpType?.id}>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.isSystem ? `System · ${type.name}` : type.name}</option>)}</select></div>
+              <div className="field"><label htmlFor="dateTypeId">Important Date Type</label><select id="dateTypeId" name="dateTypeId" required defaultValue={followUpType?.id}>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.isSystem ? `System · ${type.name}` : type.name}</option>)}</select></div>
               <div className="field"><label htmlFor="dateValue">Date</label><input id="dateValue" name="dateValue" type="date" required /></div>
               <div className="field"><label htmlFor="recurrence">Repeat</label><select id="recurrence" name="recurrence"><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></div>
               <div className="field"><label htmlFor="label">Optional label</label><input id="label" name="label" placeholder="Proposal follow-up" /></div>
-              <label className="checkbox-card field full onboarding-default"><input type="checkbox" name="autoAssignRecommended" defaultChecked /><span><strong>Assign a matching active Mix</strong><small>The first active Mix using this Jump Date Type will be assigned automatically.</small></span></label>
-              <div className="form-actions field full"><button className="button primary" type="submit">Add Jump Date</button></div>
+              <label className="checkbox-card field full onboarding-default"><input type="checkbox" name="autoAssignRecommended" defaultChecked /><span><strong>Start a matching follow-up plan</strong><small>The first active Mix using this Important Date Type will be assigned automatically.</small></span></label>
+              <div className="form-actions field full"><button className="button primary" type="submit">Add Important Date</button></div>
             </form>
           </div>
         </section>

@@ -79,7 +79,7 @@ export default function HomePage() {
           </div>
           <div className="steps-grid">
             <article className="step-card"><div className="number-badge">1</div><h3>Start with one person</h3><p>Add a Contact in seconds, import a file, or connect Google Contacts on an eligible plan.</p></article>
-            <article className="step-card"><div className="number-badge">2</div><h3>Record what matters</h3><p>Add a Jump Date such as a follow-up, referral, renewal, birthday, event, or custom business moment.</p></article>
+            <article className="step-card"><div className="number-badge">2</div><h3>Record what matters</h3><p>Add an Important Date such as a follow-up, referral, renewal, birthday, event, or custom business moment.</p></article>
             <article className="step-card"><div className="number-badge">3</div><h3>Complete your Jumps</h3><p>See who needs attention, why they matter, and the next email, text, or call to make.</p></article>
           </div>
         </section>

@@ -88,6 +88,9 @@
 .assigned-mix-row a { font-weight: 750; color: var(--brand-dark); }
 
 .settings-hub-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 22px; }
+.account-section-nav { position: sticky; top: 8px; z-index: 8; display: flex; gap: 8px; overflow-x: auto; margin: -6px 0 20px; padding: 8px; border: 1px solid var(--border); border-radius: 14px; background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: 0 8px 24px rgba(23, 42, 58, .08); }
+.account-section-nav a { flex: 0 0 auto; padding: 8px 12px; border-radius: 999px; color: var(--muted); font-size: .9rem; font-weight: 700; text-decoration: none; }
+.account-section-nav a:hover, .account-section-nav a:focus-visible { background: var(--surface-strong); color: var(--text); }
 .settings-hub-card { min-height: 100px; display: flex; align-items: center; gap: 13px; padding: 17px; border: 1px solid var(--line); border-radius: 16px; background: white; box-shadow: 0 7px 26px rgba(23, 32, 54, .035); }
 .settings-hub-card:hover { border-color: #bbb2ff; background: #fbfaff; }
 .settings-hub-card strong, .settings-hub-card small { display: block; }
@@ -123,6 +126,17 @@
 .mix-editor-sequence { display: grid; gap: 12px; }
 .sequence-controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .starter-mix-inline { margin-top: 13px; text-align: center; }
+.today-summary { min-width: 120px; display: grid; justify-items: end; padding: 10px 14px; border-radius: 14px; background: var(--brand-soft); color: var(--brand-dark); }
+.today-summary strong { font-size: 1.45rem; line-height: 1; }
+.today-summary span, .today-summary small { font-size: .78rem; font-weight: 700; }
+.section-label.urgent { color: #9f2f35; }
+.section-guidance { margin: -5px 0 12px; color: var(--muted); font-size: .88rem; }
+.jump-channel-action { gap: 7px; white-space: nowrap; }
+.onboarding-step-card { border: 1px solid var(--line); border-radius: 15px; padding: 18px; }
+.onboarding-step-card legend { padding: 0 8px; font-weight: 800; }
+.onboarding-step-card legend span { display: inline-grid; place-items: center; width: 25px; height: 25px; margin-right: 6px; border-radius: 50%; background: var(--brand); color: white; }
+.onboarding-preview { display: grid; gap: 4px; padding: 14px; border-radius: 13px; background: var(--brand-soft); color: var(--brand-dark); }
+.onboarding-preview span { color: var(--muted); }
 
 @media (max-width: 980px) {
   .settings-hub-grid { grid-template-columns: 1fr; }
@@ -142,6 +156,8 @@
   .jump-meta { gap: 3px 9px; font-size: .78rem; }
   .jump-snippet { max-width: 100%; font-size: .83rem; }
   .jump-card-heading .channel-pill { display: none; }
+  .jump-channel-action span:last-child { display: none; }
+  .today-summary { justify-items: start; }
   .mix-card-actions { width: 100%; justify-content: flex-start; }
   .mix-sequence-preview { display: grid; grid-template-columns: 1fr; }
   .mix-sequence-item { min-width: 0; }

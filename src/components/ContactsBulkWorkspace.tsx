@@ -109,7 +109,7 @@ export function ContactsBulkWorkspace({
   return (
     <>
       <header className="page-header contacts-page-header">
-        <div><h1>Contacts</h1><p>Keep relationship details, Jump Dates, groups, and custom data together.</p></div>
+        <div><h1>Contacts</h1><p>Keep relationship details, Important Dates, groups, and custom data together.</p></div>
         <div className="page-actions contacts-page-actions">
           <details className="group-manager">
             <summary className="button">Manage groups</summary>
@@ -147,7 +147,7 @@ export function ContactsBulkWorkspace({
           <Link className="button" href="/contacts/custom-fields">Custom fields</Link>
           {contacts.length > 0 && <button className="button" type="button" onClick={toggleAll}>{allSelected ? "Deselect all" : "Select all"}</button>}
           <details className="group-manager contact-add-menu">
-            <summary className="button primary">+ Add</summary>
+            <summary className="button primary">+ Add Contact</summary>
             <div className="group-manager-panel contact-add-panel">
               <div className="section-label"><h2>Add Contacts</h2><span>Choose a source</span></div>
               <div className="settings-hub-grid contact-acquisition-grid">
@@ -184,7 +184,7 @@ export function ContactsBulkWorkspace({
                   <div className="avatar">{initials(contact.displayName) || "?"}</div>
                   <div>
                     <h3>{contact.displayName}</h3>
-                    <div className="contact-meta">{contact.company && <span>{contact.company}</span>}{primaryEmail && <span>{primaryEmail.email}</span>}{primaryPhone && <span>{primaryPhone.phone}</span>}<span>{contact.jumpDateCount} Jump Date{contact.jumpDateCount === 1 ? "" : "s"}</span></div>
+                    <div className="contact-meta">{contact.company && <span>{contact.company}</span>}{primaryEmail && <span>{primaryEmail.email}</span>}{primaryPhone && <span>{primaryPhone.phone}</span>}<span>{contact.jumpDateCount} Important Date{contact.jumpDateCount === 1 ? "" : "s"}</span></div>
                     {contact.groupDetails.length > 0 && <div className="contact-group-list">{contact.groupDetails.slice(0, 3).map((group) => <span className={`group-chip ${group.isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}{group.isActive ? "" : " · inactive"}</span>)}{contact.groupDetails.length > 3 && <span className="group-chip">+{contact.groupDetails.length - 3}</span>}</div>}
                   </div>
                 </Link>
@@ -225,7 +225,7 @@ export function ContactsBulkWorkspace({
                 <label className="checkbox-card"><input type="radio" name="applyMode" value="manual" checked={applyMode === "manual"} onChange={() => setApplyMode("manual")} />One-time content</label>
               </div>
               {applyMode === "existing" ? (
-                <div className="field"><label htmlFor="bulk-jump-template">Reusable Jump</label><select id="bulk-jump-template" name="stepTemplateId" required>{jumps.map((jump) => <option key={jump.id} value={jump.id}>{jump.channel.replaceAll("_", " ")} · {jump.name}</option>)}</select></div>
+                <div className="field"><label htmlFor="bulk-jump-template">Action Template</label><select id="bulk-jump-template" name="stepTemplateId" required>{jumps.map((jump) => <option key={jump.id} value={jump.id}>{jump.channel.replaceAll("_", " ")} · {jump.name}</option>)}</select></div>
               ) : (
                 <>
                   <div className="field"><label htmlFor="bulk-manual-name">Internal label</label><input id="bulk-manual-name" name="manualName" placeholder="One-time check-in" /></div>

@@ -29,7 +29,7 @@ type SearchParams = { generated?: string; saved?: string; refined?: string; erro
 type RefinementPreset = (typeof AI_MIX_REFINEMENT_PRESETS)[number][0];
 
 function triggerLabel(triggerMode: string): string {
-  if (triggerMode === "DATE_TRIGGERED") return "Target Jump Date Type";
+  if (triggerMode === "DATE_TRIGGERED") return "Important Date";
   if (triggerMode === "BROADCAST") return "Fixed-date broadcast";
   return "Manual start";
 }

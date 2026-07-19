@@ -105,6 +105,7 @@ textarea { resize: vertical; min-height: 110px; }
 .app-nav { display: grid; gap: 6px; }
 .nav-link { display: flex; align-items: center; gap: 11px; min-height: 43px; padding: 9px 12px; border-radius: 10px; color: var(--muted); font-weight: 680; }
 .nav-link:hover, .nav-link.active { color: var(--brand-dark); background: var(--brand-soft); }
+.nav-mobile { display: none; }
 .sidebar-footer { margin-top: auto; display: grid; gap: 6px; padding: 12px; border-top: 1px solid var(--line); }
 .user-label { color: var(--muted); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; }
 .app-main { min-width: 0; padding: 35px; }
@@ -187,8 +188,10 @@ textarea { resize: vertical; min-height: 110px; }
   .sidebar { display: none; }
   .app-main { padding: 22px 16px; }
   .mobile-nav { display: block; position: fixed; left: 10px; right: 10px; bottom: 10px; z-index: 50; background: rgba(255,255,255,.96); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); backdrop-filter: blur(12px); }
-  .mobile-nav .app-nav { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; }
+  .mobile-nav .app-nav { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
   .mobile-nav .nav-link { min-width: 0; display: grid; place-items: center; gap: 1px; padding: 7px 3px; font-size: .69rem; }
+  .mobile-nav .nav-secondary { display: none; }
+  .mobile-nav .nav-mobile { display: grid; }
   .page-header { display: grid; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .jump-card { grid-template-columns: 1fr; }
