@@ -111,7 +111,7 @@ export default async function ContactDetailPage({
             ))}</div> : <p className="muted-copy">No Important Dates yet. Add the next moment you genuinely need to remember.</p>}
           </div>
 
-          <div className="card">
+          <div className="card" id="add-important-date">
             <div className="card-header"><div><h2>Add an Important Date</h2><p>Choose the moment and when it occurs.</p></div></div>
             <form action={createImportantDateAction} className="form-grid">
               <input type="hidden" name="contactId" value={contact.id} />
