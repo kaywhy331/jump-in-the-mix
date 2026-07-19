@@ -21,6 +21,27 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(dimensions.page).toBeLessThanOrEqual(dimensions.viewport + 1);
 }
 
+async function expectNoClippedControls(page: Page) {
+  const clipped = await page.locator("button:visible, a.button:visible, summary.button:visible").evaluateAll((elements) => elements.flatMap((element) => {
+    if (element.getAttribute("aria-label") === "Open Next.js Dev Tools") return [];
+    const control = element as HTMLElement;
+    const rect = control.getBoundingClientRect();
+    const container = control.closest(".card, .jump-task-card, .contact-row, .mix-card") as HTMLElement | null;
+    const containerRect = container?.getBoundingClientRect();
+    const clippedByOwnBox = control.scrollWidth > control.clientWidth + 1 || control.scrollHeight > control.clientHeight + 1;
+    const outsideContainer = Boolean(containerRect && (rect.left < containerRect.left - 1 || rect.right > containerRect.right + 1));
+    return clippedByOwnBox || outsideContainer ? [{
+      tag: control.tagName,
+      className: control.className,
+      ariaLabel: control.getAttribute("aria-label"),
+      text: control.innerText.trim(),
+      clippedByOwnBox,
+      outsideContainer
+    }] : [];
+  }));
+  expect(clipped).toEqual([]);
+}
+
 test("core pages preserve clean fitment without horizontal overflow", async ({ page }) => {
   await signIn(page);
   for (const route of ["/jumps", "/contacts", "/mixes", "/settings", "/account"]) {
@@ -72,4 +93,34 @@ test("mobile navigation and actions stay inside the viewport", async ({ page }, 
     expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width + 1);
   }
   await expectNoHorizontalOverflow(page);
+});
+
+test("responsive controls remain complete and align to card width", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The explicit viewport matrix runs once.");
+  await signIn(page);
+
+  for (const width of [320, 375, 412, 768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const route of ["/jumps", "/contacts", "/mixes", "/settings", "/account"]) {
+      await page.goto(route);
+      await expect(page.locator("main")).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+      await expectNoClippedControls(page);
+    }
+
+    if (width <= 900) {
+      await page.goto("/jumps");
+      const card = page.locator(".jump-task-card").first();
+      const status = card.locator(".jump-status-button");
+      const primary = card.locator(".jump-primary-action .button");
+      await expect(card).toBeVisible();
+      const [cardBox, statusBox, primaryBox] = await Promise.all([card.boundingBox(), status.boundingBox(), primary.boundingBox()]);
+      expect(cardBox).not.toBeNull();
+      expect(statusBox).not.toBeNull();
+      expect(primaryBox).not.toBeNull();
+      expect(Math.abs(statusBox!.x - primaryBox!.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(statusBox!.width - primaryBox!.width)).toBeLessThanOrEqual(1);
+      expect(statusBox!.width).toBeGreaterThan(cardBox!.width * .85);
+    }
+  }
 });

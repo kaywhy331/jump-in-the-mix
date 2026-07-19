@@ -192,7 +192,7 @@ textarea { resize: vertical; min-height: 110px; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .dashboard-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .public-nav { display: none; }
   .public-header { padding: 17px; }
   .public-actions .button:not(.primary) { display: none; }
@@ -210,6 +210,14 @@ textarea { resize: vertical; min-height: 110px; }
   .mobile-nav .nav-secondary { display: none; }
   .mobile-nav .nav-mobile { display: grid; }
   .page-header { display: grid; gap: var(--space-4); }
+  .page-actions { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; justify-content: stretch; }
+  .page-actions > *, .page-actions .button, .page-actions form { min-width: 0; width: 100%; margin: 0; }
+  .page-actions form .button, .page-actions details > summary { width: 100%; }
+  .card-actions, .table-actions, .mix-card-actions, .jump-secondary-actions { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+  .card-actions > *, .table-actions > *, .mix-card-actions > *, .jump-secondary-actions > * { min-width: 0; width: 100%; margin: 0; }
+  .card-actions .button, .table-actions .button, .mix-card-actions .button, .jump-secondary-actions .button,
+  .card-actions form .button, .table-actions form .button, .mix-card-actions form .button, .jump-secondary-actions form .button,
+  .card-actions details > summary, .table-actions details > summary, .mix-card-actions details > summary, .jump-secondary-actions details > summary { width: 100%; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .jump-card { grid-template-columns: 1fr; }
   .jump-actions { justify-content: flex-start; }
@@ -227,6 +235,10 @@ textarea { resize: vertical; min-height: 110px; }
   .card-header > :last-child:not(:first-child) { justify-self: start; }
   .filter-bar { align-items: stretch; }
   .filter-bar > input, .filter-bar > select { min-width: 0; max-width: none; flex: 1 1 100%; }
+}
+
+@media (max-width: 360px) {
+  .page-actions, .card-actions, .table-actions, .mix-card-actions, .jump-secondary-actions { grid-template-columns: 1fr; }
 }
 @media (max-width: 430px) {
   .stats-grid { grid-template-columns: 1fr; }

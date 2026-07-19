@@ -23,7 +23,7 @@
   .account-grid { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .mobile-app-header { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: 10px 16px; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--line); backdrop-filter: blur(12px); }
   .mobile-app-header .button { min-height: 44px; }
   .session-row { grid-template-columns: 42px minmax(0, 1fr); align-items: start; }

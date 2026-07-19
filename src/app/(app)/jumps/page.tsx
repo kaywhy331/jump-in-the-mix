@@ -230,7 +230,7 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
         <div className="filter-bar filter-presets">
           {[["due", "Due"], ["week", "Week"], ["month", "Month"], ["all", "All dates"]].map(([key, label]) => <a key={key} className={range === key ? "button primary" : "button"} href={filterHref(currentFilters, "range", key)}>{label}</a>)}
         </div>
-        <form className="filter-bar" method="get" action="/jumps">
+        <form className="filter-bar today-filter-controls" method="get" action="/jumps">
           <input type="hidden" name="range" value={range} />
           <label className="filter-field"><span>Status</span><select name="status" defaultValue={status}><option value="all">All statuses</option><option value="pending">Pending</option><option value="done">Done</option><option value="skipped">Skipped</option></select></label>
           <label className="filter-field"><span>Channel</span><select name="channel" defaultValue={channel}><option value="all">All channels</option>{channels.map((item) => <option key={item} value={item}>{channelLabel(item)}</option>)}</select></label>
