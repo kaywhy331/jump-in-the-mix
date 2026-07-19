@@ -132,6 +132,21 @@ test("settings hub opens focused profile tools with global timezone and repeatab
   await expect(products.locator('input[type="hidden"]')).toHaveValue(/Consultation link/);
 });
 
+test("confirmation dialogs restore focus and accessibility preferences remain usable", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Accessibility preference modes are covered once.");
+  await page.emulateMedia({ reducedMotion: "reduce", forcedColors: "active" });
+  await signIn(page);
+  await page.goto("/account?section=security");
+  const trigger = page.getByRole("button", { name: "Sign out everywhere…" });
+  await trigger.click();
+  const dialog = page.getByRole("dialog", { name: "Sign out everywhere?" });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await expectNoHorizontalOverflow(page);
+});
+
 test("responsive controls remain complete and align to card width", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The explicit viewport matrix runs once.");
   await signIn(page);

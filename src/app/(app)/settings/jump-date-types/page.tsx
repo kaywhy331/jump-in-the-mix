@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   createCustomDateTypeAction,
   deleteCustomDateTypeAction,
@@ -68,7 +69,7 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
             <label className="date-type-active-choice"><input form="date-type-activation-form" type="checkbox" name="activeDateTypeIds" value={dateType.id} defaultChecked={dateType.isActive} /><span>{dateType.isActive ? "Active" : "Inactive"}</span></label>
             <div><strong>{dateType.name}</strong><div className="jump-meta"><span>{dateType._count.jumpDates} Important Date{dateType._count.jumpDates === 1 ? "" : "s"}</span><span>{dateType._count.mixes} Mix{dateType._count.mixes === 1 ? "" : "es"}</span></div></div>
             <details className="date-type-edit"><summary className="button small">Edit</summary><form action={renameCustomDateTypeAction} className="date-type-edit-panel"><input type="hidden" name="dateTypeId" value={dateType.id} /><input name="name" defaultValue={dateType.name} required /><button className="button small primary" type="submit">Save name</button></form></details>
-            <details className="destructive-confirm"><summary className="button small danger">Delete…</summary><div className="destructive-confirm-panel"><p>Deletion is allowed only when no Important Dates or active Mixes use this type. Otherwise, leave it inactive.</p><form action={deleteCustomDateTypeAction}><input type="hidden" name="dateTypeId" value={dateType.id} /><button className="button small danger" type="submit">Confirm delete</button></form></div></details>
+            <ConfirmDialog trigger="Delete…" title={`Delete ${dateType.name}?`} description="Deletion is allowed only when no Important Dates or active Mixes use this type. Otherwise, leave it inactive." danger><form action={deleteCustomDateTypeAction}><input type="hidden" name="dateTypeId" value={dateType.id} /><button className="button small danger" type="submit">Confirm delete</button></form></ConfirmDialog>
           </article>
         ))}</div> : <p className="muted-copy">No custom Important Date Types match this view.</p>}
         <div className="form-actions"><button className="button primary" form="date-type-activation-form" type="submit">Save active selection</button></div>

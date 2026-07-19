@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { updateWorkspaceProfileAction } from "@/lib/workspace-profile-actions";
 import { RepeatableProfileRecords } from "@/components/RepeatableProfileRecords";
 import { TimezonePicker } from "@/components/TimezonePicker";
+import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import type { Prisma } from "@/generated/prisma/client";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -22,6 +23,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const asRecords = (raw: Prisma.JsonValue | null | undefined, legacy: (string | null | undefined)[], label: string) => Array.isArray(raw) ? raw.flatMap((item) => item && typeof item === "object" && !Array.isArray(item) ? [{ name: String((item as Record<string, unknown>).name ?? ""), value: String((item as Record<string, unknown>).value ?? "") }] : []) : legacy.flatMap((item, index) => item ? [{ name: `${label} ${index + 1}`, value: item }] : []);
   const products = asRecords(profile?.products, [profile?.product1, profile?.product2, profile?.product3, profile?.product4, profile?.product5], "Product or service");
   const senderDetails = asRecords(profile?.senderDetails, [profile?.myCustom1, profile?.myCustom2, profile?.myCustom3], "Sender detail");
+  const hubIcon = (name: AppIconName) => <span className="settings-hub-icon"><AppIcon name={name} /></span>;
   return (
     <div className="page">
       {params.saved && <Notice type="success">My Info and Community Public Profile saved.</Notice>}
@@ -29,15 +31,15 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       <header className="page-header"><div><h1>Settings</h1><p>Manage your workspace profile, action templates, Important Date types, and Community profile.</p></div></header>
 
       <div className="settings-hub-grid">
-        <Link className="settings-hub-card" href="/settings?section=profile"><span className="settings-hub-icon">✎</span><span><strong>Profile</strong><small>Business context, products, sender details, and timezone.</small></span></Link>
-        <Link className="settings-hub-card" href="/settings?section=messaging"><span className="settings-hub-icon">↗</span><span><strong>Messaging</strong><small>Signatures and reusable action content.</small></span></Link>
-        <Link className="settings-hub-card" href="/settings/jumps"><span className="settings-hub-icon">↗</span><span><strong>Action Templates</strong><small>Reusable messages, call scripts, and voicemail content for your follow-up plans.</small></span></Link>
-        <Link className="settings-hub-card" href="/settings/jump-date-types"><span className="settings-hub-icon">◫</span><span><strong>Important Date Types</strong><small>Manage the moments that can start a follow-up plan.</small></span></Link>
-        <Link className="settings-hub-card" href="/settings?section=community"><span className="settings-hub-icon">◇</span><span><strong>Community</strong><small>Control the public identity shown with Mixes you share.</small></span></Link>
-        <Link className="settings-hub-card" href="/account?section=connections"><span className="settings-hub-icon">↔</span><span><strong>Integrations</strong><small>Manage connected providers and sync.</small></span></Link>
-        <Link className="settings-hub-card" href="/account?section=billing"><span className="settings-hub-icon">$</span><span><strong>Billing</strong><small>Plan, usage, payment methods, and invoices.</small></span></Link>
-        <Link className="settings-hub-card" href="/account?section=security"><span className="settings-hub-icon">◇</span><span><strong>Security</strong><small>Password and active sessions.</small></span></Link>
-        <Link className="settings-hub-card" href="/account?section=privacy"><span className="settings-hub-icon">□</span><span><strong>Data &amp; Privacy</strong><small>Data controls and account deletion.</small></span></Link>
+        <Link className="settings-hub-card" href="/settings?section=profile">{hubIcon("edit")}<span><strong>Profile</strong><small>Business context, products, sender details, and timezone.</small></span></Link>
+        <Link className="settings-hub-card" href="/settings?section=messaging">{hubIcon("external")}<span><strong>Messaging</strong><small>Signatures and reusable action content.</small></span></Link>
+        <Link className="settings-hub-card" href="/settings/jumps">{hubIcon("bolt")}<span><strong>Action Templates</strong><small>Reusable messages, call scripts, and voicemail content for your follow-up plans.</small></span></Link>
+        <Link className="settings-hub-card" href="/settings/jump-date-types">{hubIcon("calendar")}<span><strong>Important Date Types</strong><small>Manage the moments that can start a follow-up plan.</small></span></Link>
+        <Link className="settings-hub-card" href="/settings?section=community">{hubIcon("community")}<span><strong>Community</strong><small>Control the public identity shown with Mixes you share.</small></span></Link>
+        <Link className="settings-hub-card" href="/account?section=connections">{hubIcon("integrations")}<span><strong>Integrations</strong><small>Manage connected providers and sync.</small></span></Link>
+        <Link className="settings-hub-card" href="/account?section=billing">{hubIcon("billing")}<span><strong>Billing</strong><small>Plan, usage, payment methods, and invoices.</small></span></Link>
+        <Link className="settings-hub-card" href="/account?section=security">{hubIcon("security")}<span><strong>Security</strong><small>Password and active sessions.</small></span></Link>
+        <Link className="settings-hub-card" href="/account?section=privacy">{hubIcon("privacy")}<span><strong>Data &amp; Privacy</strong><small>Data controls and account deletion.</small></span></Link>
       </div>
 
       {section && <form action={updateWorkspaceProfileAction} className="settings-profile-layout"><input type="hidden" name="settingsSection" value={section}/>

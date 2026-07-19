@@ -3,6 +3,7 @@ import Link from "next/link";
 import { GoogleContactsPanel } from "@/components/GoogleContactsPanel";
 import { AccountDeletionForm } from "@/components/AccountDeletionForm";
 import { Notice } from "@/components/Notice";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ReferralAccountCard } from "@/components/ReferralAccountCard";
 import {
   changePasswordAction,
@@ -267,10 +268,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             );
           })}
         </div>
-        <details className="destructive-confirm account-signout-all">
-          <summary className="button danger">Sign out everywhere…</summary>
-          <div className="destructive-confirm-panel"><p>This closes every active session, including this device.</p><form action={signOutEverywhereAction}><button className="button danger" type="submit">Confirm sign out everywhere</button></form></div>
-        </details>
+        <div className="account-signout-all"><ConfirmDialog trigger="Sign out everywhere…" title="Sign out everywhere?" description="This closes every active session, including this device." danger><form action={signOutEverywhereAction}><button className="button danger" type="submit">Confirm sign out everywhere</button></form></ConfirmDialog></div>
       </section>}
 
       {section === "privacy" && <section className="card danger-zone" id="data-privacy" aria-labelledby="danger-zone-heading">
