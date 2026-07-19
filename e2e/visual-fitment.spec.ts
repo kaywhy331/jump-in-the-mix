@@ -55,7 +55,7 @@ test("desktop card rows share a common top edge", async ({ page }, testInfo) => 
   test.skip(testInfo.project.name !== "desktop-chromium", "Desktop alignment is checked once.");
   await signIn(page);
 
-  await page.goto("/account");
+  await page.goto("/account?section=billing");
   const accountCards = page.locator(".account-grid > .card");
   const firstAccount = await accountCards.nth(0).boundingBox();
   const billingCard = page.locator(".account-billing-card");
@@ -108,6 +108,28 @@ test("global Quick Add previews natural-language capture before continuing", asy
   await expect(dialog.getByRole("link", { name: "Continue with Contact" })).toBeVisible();
   await dialog.getByRole("button", { name: "Close Quick Add" }).click();
   await expect(dialog).toBeHidden();
+});
+
+test("settings hub opens focused profile tools with global timezone and repeatable records", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/settings");
+  await expect(page.getByRole("link", { name: /Profile/ })).toBeVisible();
+  await expect(page.locator(".settings-profile-layout")).toHaveCount(0);
+
+  await page.getByRole("link", { name: /Profile/ }).click();
+  await expect(page).toHaveURL(/\/settings\?section=profile/);
+  await expect(page.getByRole("heading", { name: "Workspace profile" })).toBeVisible();
+  await expect(page.getByLabel("Timezone")).toBeVisible();
+  await page.getByRole("button", { name: "Use detected" }).click();
+  await expect(page.getByLabel("Timezone")).not.toHaveValue("");
+
+  const products = page.locator(".repeatable-profile-records").filter({ hasText: "Products and services" });
+  const initialCount = await products.getByPlaceholder("Name").count();
+  await products.getByRole("button", { name: "Add record" }).click();
+  await expect(products.getByPlaceholder("Name")).toHaveCount(initialCount + 1);
+  await products.getByPlaceholder("Name").last().fill("Consultation link");
+  await products.getByPlaceholder("Value").last().fill("https://example.com/book");
+  await expect(products.locator('input[type="hidden"]')).toHaveValue(/Consultation link/);
 });
 
 test("responsive controls remain complete and align to card width", async ({ page }, testInfo) => {

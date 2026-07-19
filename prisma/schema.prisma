@@ -244,6 +244,8 @@ model WorkspaceProfile {
   myCustom1       String?
   myCustom2       String?
   myCustom3       String?
+  products        Json?
+  senderDetails   Json?
   smsSignature    String?
   emailSignature  String?
   quietHoursStart Int       @default(1200)

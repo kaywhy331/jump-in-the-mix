@@ -172,7 +172,7 @@ test("account owner must reauthenticate and explicitly confirm permanent deletio
   });
 
   await signIn(page, email, password);
-  await page.goto("/account");
+  await page.goto("/account?section=privacy");
   const dangerZone = page.getByRole("region", { name: "Permanently delete account" });
   await expect(dangerZone.getByText("Danger Zone")).toBeVisible();
 

@@ -3,6 +3,7 @@ import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
 import { completeOnboardingAction, skipOnboardingAction } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
+import { TimezonePicker } from "@/components/TimezonePicker";
 
 export const metadata: Metadata = { title: "Create your first follow-up" };
 
@@ -31,7 +32,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
             <div className="form-grid">
               <div className="field"><label htmlFor="reason">What do you want to remember?</label><select id="reason" name="reason" defaultValue="Follow up"><option>Follow up</option><option>Check in after a meeting</option><option>Ask about a referral</option><option>Discuss a renewal</option><option>Reconnect</option></select></div>
               <div className="field"><label htmlFor="followUpDate">Important Date</label><input id="followUpDate" name="followUpDate" type="date" min={today} defaultValue={today} required /></div>
-              <div className="field full"><label htmlFor="timezone">Timezone</label><select id="timezone" name="timezone" defaultValue={workspace.profile?.timezone ?? "America/New_York"}><option value="America/New_York">Eastern</option><option value="America/Chicago">Central</option><option value="America/Denver">Mountain</option><option value="America/Los_Angeles">Pacific</option><option value="America/Phoenix">Arizona</option><option value="Pacific/Honolulu">Hawaii</option><option value="UTC">UTC</option></select></div>
+              <div className="field full"><label htmlFor="timezone">Timezone</label><TimezonePicker defaultValue={workspace.profile?.timezone ?? "America/New_York"} confirmDetection/></div>
             </div>
           </fieldset>
           <div className="onboarding-preview"><strong>What happens next</strong><span>We create a warm three-step Mix (follow-up plan), schedule the first Jump, and take you directly to Today.</span></div>
