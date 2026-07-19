@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { AppIcon } from "@/components/AppIcon";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatDateTime } from "@/lib/format";
@@ -70,7 +71,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 ))}
               </div>
             ) : (
-              <div className="empty-state" style={{ minHeight: 240 }}><div className="empty-icon">✓</div><h2>Nothing is due right now</h2><p>Add a contact and an Important Date, or create a Mix to begin building your follow-up rhythm.</p><Link href="/contacts/new" className="button primary">Add someone</Link></div>
+              <div className="empty-state" style={{ minHeight: 240 }}><div className="empty-icon"><AppIcon name="check" /></div><h2>Nothing is due right now</h2><p>Add a contact and an Important Date, or create a Mix to begin building your follow-up rhythm.</p><Link href="/contacts/new" className="button primary">Add someone</Link></div>
             )}
           </div>
         </section>
@@ -88,7 +89,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <div className="card-header"><div><h2>Your first-win checklist</h2><p>{progress}% complete</p></div></div>
             <div className="progress-track"><div className="progress-value" style={{ width: `${progress}%` }} /></div>
             <div className="checklist">
-              {checklist.map(([done, label, href]) => <Link key={label} href={href} className={done ? "check-row done" : "check-row"}><span>{done ? "✓" : "○"}</span><span>{label}</span></Link>)}
+              {checklist.map(([done, label, href]) => <Link key={label} href={href} className={done ? "check-row done" : "check-row"}><span><AppIcon name={done ? "check" : "circle"} /></span><span>{label}</span></Link>)}
             </div>
           </div>
         </aside>

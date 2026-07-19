@@ -1,21 +1,5 @@
 import type { Metadata } from "next";
-import "./globals.css";
-import "./prd-core.css";
-import "./prd-date-types.css";
-import "./prd-group-activation.css";
-import "./prd-bulk.css";
-import "./prd-auth.css";
-import "./prd-admin.css";
-import "./prd-admin-layout.css";
-import "./prd-import.css";
-import "./prd-google.css";
-import "./prd-templates.css";
-import "./prd-ai.css";
-import "./prd-billing.css";
-import "./prd-support.css";
-import "./prd-referrals.css";
-import "./prd-quick-add.css";
-import "./prd-mfa.css";
+import "@/styles/index.css";
 
 export const metadata: Metadata = {
   title: {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   createContactCustomFieldAction,
   deleteContactCustomFieldAction,
@@ -53,7 +54,7 @@ export default async function ContactCustomFieldsPage({ searchParams }: { search
           <article className="custom-field-row" key={field.id}>
             <div><strong>{field.name}</strong><code>{customFieldPlaceholder(field.key)}</code><small>{field._count.values} Contact value{field._count.values === 1 ? "" : "s"}</small></div>
             <details className="date-type-edit"><summary className="button small">Rename</summary><form action={renameContactCustomFieldAction} className="date-type-edit-panel"><input type="hidden" name="definitionId" value={field.id} /><input name="name" defaultValue={field.name} required maxLength={80} /><button className="button small primary" type="submit">Save name</button></form></details>
-            <details className="destructive-confirm"><summary className="button small danger">Delete…</summary><div className="destructive-confirm-panel"><p>Delete “{field.name}” and {field._count.values} saved value{field._count.values === 1 ? "" : "s"}? This cannot be undone.</p><form action={deleteContactCustomFieldAction}><input type="hidden" name="definitionId" value={field.id} /><button className="button small danger" type="submit">Confirm delete</button></form></div></details>
+            <ConfirmDialog trigger="Delete…" title={`Delete ${field.name}?`} description={`This also deletes ${field._count.values} saved Contact value${field._count.values === 1 ? "" : "s"} and cannot be undone.`} danger><form action={deleteContactCustomFieldAction}><input type="hidden" name="definitionId" value={field.id} /><button className="button small danger" type="submit">Confirm delete</button></form></ConfirmDialog>
           </article>
         ))}</div> : <p className="muted-copy">No custom Contact fields yet.</p>}
       </section>

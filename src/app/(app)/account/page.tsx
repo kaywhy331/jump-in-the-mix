@@ -4,6 +4,7 @@ import { GoogleContactsPanel } from "@/components/GoogleContactsPanel";
 import { AccountDeletionForm } from "@/components/AccountDeletionForm";
 import { Notice } from "@/components/Notice";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { AppIcon } from "@/components/AppIcon";
 import { ReferralAccountCard } from "@/components/ReferralAccountCard";
 import {
   changePasswordAction,
@@ -257,7 +258,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
             const current = item.id === session.id;
             return (
               <article className="session-row" key={item.id}>
-                <div className="session-device-icon" aria-hidden="true">{current ? "●" : "○"}</div>
+                <div className="session-device-icon"><AppIcon name={current ? "check" : "circle"} /></div>
                 <div>
                   <h3>{describeUserAgent(item.userAgent)} {current && <span className="status-pill done">Current</span>}</h3>
                   <p>{item.ipAddress || "IP unavailable"} · Last active {formatDateTime(item.lastSeenAt)}</p>

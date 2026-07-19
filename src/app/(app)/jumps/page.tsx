@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/EmptyState";
+import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { JumpActionLink, JumpCopyButton } from "@/components/JumpActionControls";
 import { Notice } from "@/components/Notice";
 import { snoozeJumpAction, updateJumpStatusAction } from "@/lib/actions";
@@ -49,12 +50,10 @@ function actionType(channel: Channel): ActionType {
   return "COMPOSED";
 }
 
-function channelIcon(channel: Channel): string {
-  if (channel === "EMAIL") return "✉";
-  if (channel === "PHONE_CALL") return "☎";
-  if (channel === "VOICEMAIL") return "◉";
-  if (channel === "WHATSAPP") return "◌";
-  return "●";
+function channelIcon(channel: Channel): AppIconName {
+  if (channel === "EMAIL") return "email";
+  if (channel === "PHONE_CALL" || channel === "VOICEMAIL") return "phone";
+  return "message";
 }
 
 function channelLabel(channel: Channel): string {
@@ -204,7 +203,7 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
               ariaLabel={`Open ${channelLabel(jumpChannel)} for ${jump.contact.displayName}`}
               title={`Open ${channelLabel(jumpChannel)}`}
             >
-              <span aria-hidden="true">{channelIcon(jumpChannel)}</span><span>{jumpChannel === "PHONE_CALL" ? "Call" : jumpChannel === "VOICEMAIL" ? "Open notes" : jumpChannel === "EMAIL" ? "Open email" : jumpChannel === "WHATSAPP" ? "Open WhatsApp" : "Open text"}</span>
+              <AppIcon name={channelIcon(jumpChannel)} /><span>{jumpChannel === "PHONE_CALL" ? "Call" : jumpChannel === "VOICEMAIL" ? "Open notes" : jumpChannel === "EMAIL" ? "Open email" : jumpChannel === "WHATSAPP" ? "Open WhatsApp" : "Open text"}</span>
             </JumpActionLink>
           ) : <span className="status-pill" title={`Add a primary ${jumpChannel === "EMAIL" ? "email" : "phone"} to this contact first`}>Missing</span>}
           <div className="jump-completion-actions">

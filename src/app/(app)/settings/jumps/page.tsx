@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/EmptyState";
+import { AppIcon, type AppIconName } from "@/components/AppIcon";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Notice } from "@/components/Notice";
 import { ReusableJumpForm } from "@/components/ReusableJumpForm";
 import { archiveReusableJumpAction } from "@/lib/actions";
@@ -11,12 +13,10 @@ export const metadata: Metadata = { title: "Action Templates" };
 
 type SearchParams = { q?: string; created?: string; updated?: string; archived?: string; error?: string };
 
-function channelIcon(channel: string): string {
-  if (channel === "EMAIL") return "✉";
-  if (channel === "PHONE_CALL") return "☎";
-  if (channel === "VOICEMAIL") return "◉";
-  if (channel === "WHATSAPP") return "◌";
-  return "●";
+function channelIcon(channel: string): AppIconName {
+  if (channel === "EMAIL") return "email";
+  if (channel === "PHONE_CALL" || channel === "VOICEMAIL") return "phone";
+  return "message";
 }
 
 export default async function ReusableJumpsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -67,8 +67,8 @@ export default async function ReusableJumpsPage({ searchParams }: { searchParams
         return (
           <article className="card jump-library-card" key={template.id}>
             <div className="card-header">
-              <div className="jump-library-title"><span className="timeline-icon" aria-hidden="true">{channelIcon(template.channel)}</span><div><h2>{template.name}</h2><div className="jump-meta"><span>{template.channel.replaceAll("_", " ").toLowerCase()}</span><span>Version {template.currentVersion}</span><span>{mixes.length} Mix{mixes.length === 1 ? "" : "es"}</span></div></div></div>
-              <details className="destructive-confirm"><summary className="button small danger">Archive…</summary><div className="destructive-confirm-panel"><p>{mixes.length ? "This Action Template is still used by active Mixes and must be removed from them first." : "Archive this Action Template? Existing completed history is preserved."}</p><form action={archiveReusableJumpAction}><input type="hidden" name="stepTemplateId" value={template.id} /><button className="button small danger" type="submit" disabled={mixes.length > 0}>Confirm archive</button></form></div></details>
+              <div className="jump-library-title"><span className="timeline-icon"><AppIcon name={channelIcon(template.channel)} /></span><div><h2>{template.name}</h2><div className="jump-meta"><span>{template.channel.replaceAll("_", " ").toLowerCase()}</span><span>Version {template.currentVersion}</span><span>{mixes.length} Mix{mixes.length === 1 ? "" : "es"}</span></div></div></div>
+              <ConfirmDialog trigger="Archive…" title={`Archive ${template.name}?`} description={mixes.length ? "This Action Template is still used by active Mixes and must be removed from them first." : "Existing completed history is preserved."} danger><form action={archiveReusableJumpAction}><input type="hidden" name="stepTemplateId" value={template.id} /><button className="button small danger" type="submit" disabled={mixes.length > 0}>Confirm archive</button></form></ConfirmDialog>
             </div>
             {latest && <div className="jump-content-preview">{latest.subject && <strong>{latest.subject}</strong>}<p>{latest.body ?? latest.script ?? "No content"}</p></div>}
             {mixes.length > 0 && <div className="association-list"><span>Used in</span>{mixes.map((mix) => <Link href={`/mixes/${mix.id}/edit`} className="group-chip" key={mix.id}>{mix.name}</Link>)}</div>}
