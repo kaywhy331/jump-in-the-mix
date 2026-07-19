@@ -124,12 +124,30 @@ test("settings hub opens focused profile tools with global timezone and repeatab
   await expect(page.getByLabel("Timezone")).not.toHaveValue("");
 
   const products = page.locator(".repeatable-profile-records").filter({ hasText: "Products and services" });
+  const recordName = `Consultation link ${Date.now()}`;
   const initialCount = await products.getByPlaceholder("Name").count();
   await products.getByRole("button", { name: "Add record" }).click();
   await expect(products.getByPlaceholder("Name")).toHaveCount(initialCount + 1);
-  await products.getByPlaceholder("Name").last().fill("Consultation link");
+  await products.getByPlaceholder("Name").last().fill(recordName);
   await products.getByPlaceholder("Value").last().fill("https://example.com/book");
-  await expect(products.locator('input[type="hidden"]')).toHaveValue(/Consultation link/);
+  await expect(products.locator('input[type="hidden"]')).toHaveValue(new RegExp(recordName));
+  if (initialCount > 0) {
+    await products.locator(".repeatable-profile-row").last().getByRole("button", { name: new RegExp(`Move ${recordName} up`) }).click();
+    await expect(products.getByPlaceholder("Name").nth(initialCount - 1)).toHaveValue(recordName);
+  }
+  await Promise.all([
+    page.waitForURL(/\/settings\?section=profile&saved=1/),
+    page.getByRole("button", { name: "Save workspace profile" }).click()
+  ]);
+  const persistedName = page.locator(`input[value="${recordName}"]`);
+  await expect(persistedName).toBeVisible();
+  const persistedRow = page.locator(".repeatable-profile-row").filter({ has: persistedName });
+  await persistedRow.getByRole("button", { name: "Remove" }).click();
+  await Promise.all([
+    page.waitForURL(/\/settings\?section=profile&saved=1/),
+    page.getByRole("button", { name: "Save workspace profile" }).click()
+  ]);
+  await expect(page.locator(`input[value="${recordName}"]`)).toHaveCount(0);
 });
 
 test("Quick Add Important Date and one-time Jump continue into actionable Contact journeys", async ({ page }, testInfo) => {
