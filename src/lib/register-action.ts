@@ -73,13 +73,21 @@ export async function registerWithReferralAction(formData: FormData): Promise<vo
   const name = value(formData, "name");
   const email = normalizedEmail(value(formData, "email"));
   const password = value(formData, "password");
+  const confirmPassword = value(formData, "confirmPassword");
   const referralCode = normalizeReferralCode(value(formData, "referralCode") || store.get(REFERRAL_COOKIE)?.value);
-  const path = referralCode ? `/register?ref=${encodeURIComponent(referralCode)}` : "/register";
+  const plan = ["plus", "pro"].includes(value(formData, "plan")) ? value(formData, "plan") : "free";
+  const period = value(formData, "period") === "monthly" ? "monthly" : "annual";
+  const intent = plan === "free" ? "" : `${plan}:${period}`;
+  const pathParams = new URLSearchParams();
+  if (referralCode) pathParams.set("ref", referralCode);
+  if (plan !== "free") { pathParams.set("plan", plan); pathParams.set("period", period); }
+  const path = `/register${pathParams.size ? `?${pathParams}` : ""}`;
 
   await enforceRateLimit(path, { scope: "auth.register.ip", identifiers: [metadata.ipAddress], limit: 8, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 });
   await enforceRateLimit(path, { scope: "auth.register.email", identifiers: [email], limit: 3, windowMs: 24 * 60 * 60 * 1000, blockMs: 24 * 60 * 60 * 1000 });
 
   if (!name || name.length > 120 || !validEmail(email)) fail(path, "Enter your name and a valid email.");
+  if (password !== confirmPassword) fail(path, "The passwords do not match.");
   const passwordError = passwordValidationError(password);
   if (passwordError) fail(path, passwordError);
   if (env.requireEmailVerification && process.env.NODE_ENV === "production" && !transactionalEmailConfigured()) {
@@ -149,6 +157,7 @@ export async function registerWithReferralAction(formData: FormData): Promise<vo
   if (!user) throw new Error("The account could not be created.");
 
   store.delete(REFERRAL_COOKIE);
+  if (intent) store.set("jitm_plan_intent", intent, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", maxAge: 24 * 60 * 60, path: "/" });
   await clearRateLimit("auth.register.email", [email]);
 
   if (env.requireEmailVerification) {

@@ -38,7 +38,7 @@ export default async function ImportContactsPage() {
   return (
     <div className="page import-contacts-page">
       <header className="page-header">
-        <div><h1>Import Contacts</h1><p>Bring in CSV or VCF data with field mapping, duplicate review, Jump Dates, and a downloadable error report.</p></div>
+        <div><h1>Import Contacts</h1><p>Bring in CSV or VCF data with field mapping, duplicate review, Important Dates, and a downloadable error report.</p></div>
         <div className="page-actions"><Link className="button" href="/contacts">Back to Contacts</Link></div>
       </header>
       <ContactImportWizard

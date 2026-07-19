@@ -1,8 +1,9 @@
+/* Authentication feature composition. */
 .auth-inline-actions { display: flex; justify-content: flex-end; margin-top: -4px; font-size: .85rem; }
 .auth-inline-actions a { color: var(--brand-dark); font-weight: 750; }
 .mobile-app-header { display: none; }
-.account-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
-.account-summary-card, .account-password-card, .account-sessions-card { margin-top: 0; }
+.account-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; margin-bottom: var(--space-4); }
+.account-summary-card, .account-password-card, .account-sessions-card { margin-top: 0; min-width: 0; }
 .account-definition-list { display: grid; gap: 0; margin: 0; }
 .account-definition-list > div { display: grid; grid-template-columns: minmax(115px, .38fr) minmax(0, 1fr); gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line); }
 .account-definition-list > div:last-child { border-bottom: 0; }
@@ -18,12 +19,19 @@
 .account-sidebar-footer { display: grid; gap: 8px; }
 .account-sidebar-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .account-sidebar-actions form { margin: 0; }
+.profile-menu { position: relative; width: 100%; }
+.profile-menu > summary { width: 100%; list-style: none; cursor: pointer; }
+.profile-menu > summary::-webkit-details-marker { display: none; }
+.profile-menu-panel { position: absolute; z-index: 40; left: 0; bottom: calc(100% + 8px); width: 220px; display: grid; gap: 3px; padding: 9px; border: 1px solid var(--line); border-radius: 13px; background: white; box-shadow: var(--shadow); }
+.profile-menu-panel > a, .profile-menu-panel > form > button { display: flex; width: 100%; min-height: 38px; align-items: center; padding: 8px 9px; border-radius: 8px; color: var(--muted); font-size: .85rem; font-weight: 700; }
+.profile-menu-panel > a:hover, .profile-menu-panel > form > button:hover { background: var(--surface-soft); color: var(--ink); }
+.mobile-profile-link { width: 44px; min-width: 44px; padding: 0; border-radius: 50%; }
 
 @media (max-width: 860px) {
   .account-grid { grid-template-columns: 1fr; }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .mobile-app-header { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: 10px 16px; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--line); backdrop-filter: blur(12px); }
   .mobile-app-header .button { min-height: 44px; }
   .session-row { grid-template-columns: 42px minmax(0, 1fr); align-items: start; }

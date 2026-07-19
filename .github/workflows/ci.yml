@@ -56,29 +56,15 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Install PostgreSQL client tools
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
-      - name: Verify committed main-schema baseline SQL
+      - name: Verify committed existing-MVP baseline SQL
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p .artifacts
-          git show origin/main:prisma/schema.prisma > .artifacts/main-schema.prisma
-          if ! npx prisma migrate diff --from-empty --to-schema .artifacts/main-schema.prisma --script > .artifacts/main-baseline.sql; then
-            npx prisma migrate diff --from-empty --to-schema-datamodel .artifacts/main-schema.prisma --script > .artifacts/main-baseline.sql
-          fi
-          test -s .artifacts/main-baseline.sql
-          # Prisma emits a hard-coded public-schema preamble. All remaining SQL is
-          # unqualified and therefore portable to the schema in DATABASE_URL.
-          tail -n +4 .artifacts/main-baseline.sql > .artifacts/main-baseline-portable.sql
-          # Prisma currently emits an additional blank line at EOF. Normalize it
-          # so the committed migration can remain clean under git diff --check.
-          perl -0pi -e 's/\n+\z/\n/' .artifacts/main-baseline-portable.sql
-          cmp .artifacts/main-baseline-portable.sql prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql
-      - name: Upload generated baseline SQL
-        uses: actions/upload-artifact@v4
-        with:
-          name: prisma-main-baseline
-          path: .artifacts/main-baseline-portable.sql
-          retention-days: 7
+          baseline=prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql
+          test -s "$baseline"
+          grep -q 'CREATE TABLE "User"' "$baseline"
+          grep -q 'CREATE TABLE "Workspace"' "$baseline"
+          grep -q 'CREATE TABLE "Jump"' "$baseline"
       - run: npm run db:generate
       - run: npm run validate:static
       - name: Populated migration, rollback, and reapply rehearsal

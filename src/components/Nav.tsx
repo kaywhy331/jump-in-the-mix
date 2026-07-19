@@ -2,28 +2,23 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AppIcon, type AppIconName } from "@/components/AppIcon";
+import { QuickAddButton } from "@/components/QuickAdd";
 
 const links = [
-  ["/dashboard", "Home", "⌂"],
-  ["/jumps", "Jumps", "↗"],
-  ["/contacts", "Contacts", "◎"],
-  ["/mixes", "Mixes", "⎇"],
-  ["/settings", "Settings", "⚙"],
-  ["/help", "Help", "?"]
+  { href: "/jumps", label: "Today", icon: "today", kind: "primary" },
+  { href: "/contacts", label: "Contacts", icon: "contacts", kind: "primary" },
+  { href: "/mixes", label: "Mixes", icon: "mixes", kind: "primary" },
+  { href: "/more", label: "More", icon: "more", kind: "primary" }
 ] as const;
 
 export function Nav() {
   const pathname = usePathname();
   return (
     <nav className="app-nav" aria-label="Primary navigation">
-      {links.map(([href, label, icon]) => {
+      {links.map(({ href, label, icon, kind }, index) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
-        return (
-          <Link key={href} href={href} className={active ? "nav-link active" : "nav-link"}>
-            <span aria-hidden="true">{icon}</span>
-            <span>{label}</span>
-          </Link>
-        );
+        return <span className={index === 2 ? "nav-with-quick-add" : undefined} key={href}>{index === 2 && <QuickAddButton mobile />}<Link href={href} className={`nav-link nav-${kind}${active ? " active" : ""}`}><AppIcon name={icon as AppIconName}/><span>{label}</span></Link></span>;
       })}
     </nav>
   );

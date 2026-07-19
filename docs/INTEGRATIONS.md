@@ -8,6 +8,9 @@
 | Microsoft Contacts | Boundary/scaffolding only; no OAuth callback or sync routes are present. |
 | WhatsApp / Meta | Boundary/scaffolding only; native compose links exist, but assistant linking and webhook handlers are planned. |
 | Twilio | Planned; no provider implementation or credentials are consumed. |
+| Website webhook | Planned; no inbound customer-contact webhook is implemented. |
+
+Live validation on 2026-07-18 was not run because Google sandbox credentials, Stripe test keys, and a Resend API key were not locally available. Existing deterministic results remain valid; this is explicitly not live-provider evidence.
 | Website webhook | Planned; no inbound connection route is present. |
 
 Implement and security-test one provider at a time in staging before enabling it for customer data.

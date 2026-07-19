@@ -57,7 +57,7 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
           <div className="billing-plan-heading"><div><h2>Free</h2><p>Build a focused relationship routine before committing to a paid plan.</p></div>{workspace.planTier === "FREE" && <span className="status-pill done">Current</span>}</div>
           <div className="billing-price"><strong>$0</strong><span>forever</span></div>
           <p className="billing-plan-usage">100 Contacts · 3 active Mixes</p>
-          <ul><li>3 Contact Groups</li><li>3 custom Jump Date Types</li><li>Platform and Community Mix Templates</li><li>Native SMS, email, and phone actions</li></ul>
+          <ul><li>3 Contact Groups</li><li>3 custom Important Date Types</li><li>Platform and Community Mix Templates</li><li>Native SMS, email, and phone actions</li></ul>
           <Link className="button" href="/jumps">Continue with Free</Link>
         </article>
 

@@ -9,12 +9,14 @@ import { registerWithReferralAction } from "@/lib/register-action";
 
 export const metadata: Metadata = { title: "Create account" };
 
-type SearchParams = { error?: string; ref?: string };
+type SearchParams = { error?: string; ref?: string; plan?: string; period?: string };
 
 export default async function RegisterPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, store] = await Promise.all([searchParams, cookies()]);
   const referralCode = normalizeReferralCode(params.ref || store.get(REFERRAL_COOKIE)?.value);
   const invite = referralCode ? await findReferralInvite(referralCode) : null;
+  const plan = ["plus", "pro"].includes(params.plan ?? "") ? params.plan! : "free";
+  const period = params.period === "monthly" ? "monthly" : "annual";
   return (
     <main className="auth-shell">
       <section className="auth-card">
@@ -33,10 +35,13 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
           </Notice>
         )}
         <form action={registerWithReferralAction} className="form-stack">
+          <input type="hidden" name="plan" value={plan} /><input type="hidden" name="period" value={period} />
+          {plan !== "free" && <Notice type="info">Your {plan === "plus" ? "Plus" : "Pro"} · {period} selection is saved. You will review the secure Stripe checkout after setup.</Notice>}
           {invite && <input type="hidden" name="referralCode" value={invite.code} />}
           <div className="field"><label htmlFor="name">Your name</label><input id="name" name="name" autoComplete="name" maxLength={120} required /></div>
           <div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" inputMode="email" autoComplete="email" maxLength={254} required /></div>
           <div className="field"><label htmlFor="password">Password</label><input id="password" name="password" type="password" minLength={12} maxLength={72} autoComplete="new-password" required /><small>Use at least 12 characters. Longer passphrases are encouraged.</small></div>
+          <div className="field"><label htmlFor="confirmPassword">Confirm password</label><input id="confirmPassword" name="confirmPassword" type="password" minLength={12} maxLength={72} autoComplete="new-password" required /></div>
           <button className="button primary" type="submit">Create account</button>
         </form>
         <div className="auth-footer">Already have an account? <Link href="/login"><strong>Sign in</strong></Link></div>

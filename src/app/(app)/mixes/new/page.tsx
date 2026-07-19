@@ -22,7 +22,7 @@ export default async function NewMixPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="page">
-      <header className="page-header"><div><h1>Create a Mix</h1><p>Combine reusable Jumps into an audience-aware sequence.</p></div></header>
+      <header className="page-header"><div><h1>Create a Mix</h1><p>Build a follow-up plan from reusable Action Templates.</p></div></header>
       {query.error && <Notice type="error">{query.error}</Notice>}
       <MixEditor
         dateTypes={dateTypes.map((item) => ({ id: item.id, name: item.name, isSystem: item.isSystem }))}

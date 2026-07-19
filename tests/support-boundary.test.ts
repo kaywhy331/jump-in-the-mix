@@ -4,10 +4,13 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(path, "utf8");
 
 describe("Help and support boundaries", () => {
-  it("places Help in primary navigation and FAQ above the contact form", () => {
+  it("places Help under More and keeps FAQ above the contact form", () => {
     const nav = read("src/components/Nav.tsx");
+    const more = read("src/app/(app)/more/page.tsx");
     const help = read("src/app/(app)/help/page.tsx");
-    expect(nav).toContain('["/help", "Help"');
+    expect(nav).not.toContain('href: "/help", label: "Help"');
+    expect(nav).toContain('href: "/more", label: "More"');
+    expect(more).toContain('["/help", "Help & Support"');
     expect(help).toContain("<SupportFaq />");
     expect(help).toContain('id="contact-support"');
     expect(help.indexOf("<SupportFaq />")).toBeLessThan(help.indexOf('id="contact-support"'));

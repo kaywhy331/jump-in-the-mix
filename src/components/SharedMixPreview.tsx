@@ -1,9 +1,15 @@
 import {
   formatSharedMixTime,
-  sharedMixChannelIcon,
   sharedMixChannelLabel,
   type SharedMixStep
 } from "@/lib/shared-mix";
+import { AppIcon, type AppIconName } from "@/components/AppIcon";
+
+function sharedMixChannelIcon(channel: SharedMixStep["channel"]): AppIconName {
+  if (channel === "EMAIL") return "email";
+  if (channel === "PHONE_CALL" || channel === "VOICEMAIL") return "phone";
+  return "message";
+}
 
 function dayLabel(offset: number): string {
   if (offset === 0) return "Trigger day";
@@ -36,7 +42,7 @@ export function SharedMixPreview({
         return (
           <article className="shared-mix-step" key={`${index}-${step.name}`}>
             <span className="shared-mix-step-number">Jump #{index + 1}</span>
-            <span className="shared-mix-channel-icon" aria-hidden="true">{sharedMixChannelIcon(step.channel)}</span>
+            <span className="shared-mix-channel-icon"><AppIcon name={sharedMixChannelIcon(step.channel)} /></span>
             <span className="shared-mix-step-copy">
               <strong>{step.name}</strong>
               <small>{sharedMixChannelLabel(step.channel)} · {dayLabel(step.dayOffset)}{time ? ` · ${time}` : ""}</small>
@@ -66,7 +72,7 @@ export function SharedMixPreview({
     <div className="shared-mix-preview">
       <div className="shared-mix-trigger-summary">
         <span><strong>Trigger</strong>{triggerMode.replaceAll("_", " ").toLowerCase()}</span>
-        {dateTypeName && <span><strong>Target Jump Date Type</strong>{dateTypeName}</span>}
+        {dateTypeName && <span><strong>Starts from</strong>{dateTypeName}</span>}
         <span><strong>Length</strong>{durationDays} day{durationDays === 1 ? "" : "s"}</span>
         <span><strong>Jumps</strong>{steps.length}</span>
       </div>

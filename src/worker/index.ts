@@ -7,6 +7,7 @@ import {
   runGoogleContactsSync
 } from "@/lib/google-sync-service";
 import { reconcileDueReferralEntitlements } from "@/lib/referral-service";
+import { retryPendingAccountDeletionRevocations } from "@/lib/account-deletion";
 
 const workerId = `worker-${randomUUID().slice(0, 8)}`;
 const workerStartedAt = new Date();
@@ -123,6 +124,7 @@ async function main() {
   let lastReconciliation = 0;
   let lastGoogleSchedule = 0;
   let lastReferralReconciliation = 0;
+  let lastAccountDeletionRevocation = 0;
   while (!stopping) {
     const job = await claimJob();
     if (job) {
@@ -140,6 +142,10 @@ async function main() {
     if (Date.now() - lastReferralReconciliation > 5 * 60_000) {
       try { await reconcileDueReferralEntitlements(); } catch (error) { console.error("Referral entitlement reconciliation failed", error); }
       lastReferralReconciliation = Date.now();
+    }
+    if (Date.now() - lastAccountDeletionRevocation > 5 * 60_000) {
+      try { await retryPendingAccountDeletionRevocations(); } catch (error) { console.error("Account deletion revocation retry failed", error); }
+      lastAccountDeletionRevocation = Date.now();
     }
     await sleep(2000);
   }

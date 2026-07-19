@@ -81,6 +81,7 @@ The demo starts on Plus and includes sample Contacts, Jump Dates, a Mix, reusabl
 - Separate web/database and worker readiness endpoints, with healthy/stale workers visible in Admin · Operations.
 - Explicit production-like staging smoke and a bounded readiness load probe with configurable thresholds and optional operational alerts.
 - Background worker for Jump reconciliation, Google Contacts synchronization, and referral entitlement maintenance.
+- Customer-facing Danger Zone with password reauthentication, an exact confirmation phrase, complete local account/workspace removal, session invalidation, pseudonymous audit, and restart-safe encrypted provider-revocation retries.
 - Unit, static-boundary, PostgreSQL integration, migration, tenancy, authentication, import, Quick Add, Google, Templates, AI, billing, support, referral, administrator, backup/restore, and production-build validation.
 - Playwright desktop Chromium and Pixel 7 coverage for sign-in, Jump rendering, Contact acquisition, Quick Add, platform Templates, AI Wizard, support submission, administrator MFA, Admin access, and view-only mutation rejection.
 
@@ -95,6 +96,7 @@ Checked-in implementation and deterministic CI do not replace production qualifi
 - Validate the complete Stripe test-mode lifecycle, including Checkout, Customer Portal, plan changes, failed payments, duplicate events, cancellation, downgrade, and referral-bank handoff.
 - Validate production transactional-email delivery and inbox placement.
 - Qualify the Contact Picker on physical Android devices.
+- Follow the manual packet in [`docs/ANDROID_CONTACT_PICKER_QUALIFICATION.md`](docs/ANDROID_CONTACT_PICKER_QUALIFICATION.md); automated picker injection is not physical-device evidence.
 - Complete final accessibility, security, alert ownership, load/capacity, privacy, backup-retention, and incident-response reviews.
 
 ## Architecture

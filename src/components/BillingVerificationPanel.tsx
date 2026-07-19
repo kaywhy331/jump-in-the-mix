@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AppIcon } from "@/components/AppIcon";
 
 type VerificationState = {
   phase: "VERIFYING" | "SUCCESS" | "PENDING" | "ERROR";
@@ -84,7 +85,7 @@ export function BillingVerificationPanel({ sessionId }: { sessionId: string }) {
   return (
     <section className={`card billing-verification-card ${state.phase.toLowerCase()}`} aria-live="polite">
       <div className="billing-verification-icon" aria-hidden="true">
-        {state.phase === "SUCCESS" ? "✓" : state.phase === "ERROR" ? "!" : "↻"}
+        <AppIcon name={state.phase === "SUCCESS" ? "check" : state.phase === "ERROR" ? "alert" : "refresh"} />
       </div>
       <div>
         <h1>{state.phase === "SUCCESS" ? "Subscription confirmed" : state.phase === "ERROR" ? "Verification needs attention" : "Verifying payment"}</h1>

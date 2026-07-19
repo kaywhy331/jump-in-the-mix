@@ -1,8 +1,9 @@
+/* Bulk Contact feature composition. */
 .contacts-page-actions { align-items: flex-start; }
 .contact-select-row { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; }
 .contact-select-row.selected { border-color: #b9b0ff; background: #fbfaff; box-shadow: 0 0 0 2px rgba(93, 76, 242, .08); }
-.contact-select-control { width: 48px; height: 48px; display: grid; place-items: center; cursor: pointer; }
-.contact-select-control input { position: absolute; opacity: 0; pointer-events: none; }
+.contact-select-control { position: relative; z-index: 2; width: 48px; height: 48px; display: grid; place-items: center; cursor: pointer; }
+.contact-select-control input { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .contact-select-control span { width: 28px; height: 28px; display: grid; place-items: center; border: 2px solid #cbd2df; border-radius: 9px; background: white; color: white; font-weight: 900; }
 .contact-select-control input:checked + span { background: var(--brand); border-color: var(--brand); }
 
@@ -47,7 +48,7 @@
   .bulk-contact-bar { left: 16px; }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .contacts-page-header { display: grid; }
   .contacts-page-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
   .contacts-page-actions .button, .contacts-page-actions .group-manager { width: 100%; }
@@ -62,8 +63,9 @@
   .bulk-action-button { width: 48px; min-width: 48px; padding: 0; }
   .bulk-action-panel { position: fixed; left: 12px; right: 12px; bottom: 150px; width: auto; max-height: calc(100vh - 230px); }
   .bulk-mode-choice { display: grid; grid-template-columns: 1fr 1fr; }
-  .assigned-mix-row { align-items: flex-start; }
-  .assigned-mix-actions { width: 100%; justify-content: flex-start; }
+  .assigned-mix-row { display: grid; align-items: start; }
+  .assigned-mix-actions { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); justify-content: stretch; }
+  .assigned-mix-actions > *, .assigned-mix-actions .button, .assigned-mix-actions form .button { width: 100%; min-width: 0; margin: 0; }
   .custom-field-row { grid-template-columns: 1fr 1fr; }
   .custom-field-row > div:first-child { grid-column: 1 / -1; }
   .broadcast-field-grid { grid-template-columns: 1fr; }

@@ -127,6 +127,8 @@ The suite verifies:
 
 Provider-specific Google, Stripe, email, and physical-device checks remain separate because they require real external accounts and infrastructure.
 
+The worker also retries pending account-deletion provider revocations. Monitor `AccountDeletionRevocation` rows in `RETRY_PENDING` state without logging or decrypting credential payloads. A provider outage must never roll back or recreate locally deleted customer data.
+
 ## Bounded load smoke
 
 The built-in probe exercises only `/api/health/ready`. It is intended to identify obvious latency or availability regressions, not to establish full capacity.

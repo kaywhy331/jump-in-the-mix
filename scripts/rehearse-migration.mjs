@@ -1,13 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { Client } from "pg";
 
 const rootUrl = process.env.DATABASE_URL;
 if (!rootUrl) throw new Error("DATABASE_URL is required for the migration rehearsal.");
 
-const artifactsDir = ".artifacts";
-const legacySchemaPath = `${artifactsDir}/main-schema.prisma`;
+const baselineSqlPath = "prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql";
 const rollbackPath = "prisma/migrations/20260716020000_prd_core_foundation/rollback.sql";
 const baselineMigration = "20260715000000_existing_mvp_baseline";
 const forwardMigration = "20260716020000_prd_core_foundation";
@@ -15,13 +14,15 @@ const mixTemplateMigration = "20260716170000_mix_template_library";
 const supportMigration = "20260716210000_support_center";
 const referralMigration = "20260717010000_referral_rewards";
 const contactGroupActivationMigration = "20260717120000_contact_group_activation";
+const accountDeletionWorkflowMigration = "20260718190000_account_deletion_workflow";
 const requiredMigrations = [
   baselineMigration,
   forwardMigration,
   mixTemplateMigration,
   supportMigration,
   referralMigration,
-  contactGroupActivationMigration
+  contactGroupActivationMigration,
+  accountDeletionWorkflowMigration
 ];
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const schemaName = `jitm_rehearsal_${suffix}`;
@@ -45,17 +46,6 @@ function runPrisma(args, databaseUrl) {
     env: { ...process.env, DATABASE_URL: databaseUrl },
     stdio: "inherit"
   });
-}
-
-function ensureLegacySchemaSnapshot() {
-  if (existsSync(legacySchemaPath)) return;
-  mkdirSync(artifactsDir, { recursive: true });
-  const executable = process.platform === "win32" ? "git.exe" : "git";
-  const content = execFileSync(executable, ["show", "origin/main:prisma/schema.prisma"], {
-    cwd: process.cwd(),
-    encoding: "utf8"
-  });
-  writeFileSync(legacySchemaPath, content, "utf8");
 }
 
 async function tableExists(client, tableName, schema = schemaName) {
@@ -165,7 +155,9 @@ async function assertForwardState(client) {
     "ReferralAccount",
     "Referral",
     "ReferralReward",
-    "ContactGroupState"
+    "ContactGroupState",
+    "AccountDeletionAudit",
+    "AccountDeletionRevocation"
   ]) {
     if (!(await tableExists(client, table))) throw new Error(`Expected migrated table ${table}.`);
   }
@@ -297,7 +289,9 @@ async function assertGreenfieldState(client) {
     "ReferralAccount",
     "Referral",
     "ReferralReward",
-    "ContactGroupState"
+    "ContactGroupState",
+    "AccountDeletionAudit",
+    "AccountDeletionRevocation"
   ]) {
     if (!(await tableExists(client, table, greenfieldSchemaName))) {
       throw new Error(`Greenfield migration did not create ${table}.`);
@@ -315,7 +309,6 @@ async function assertGreenfieldState(client) {
   assertRequiredMigrations(names, "Greenfield deployment");
 }
 
-ensureLegacySchemaSnapshot();
 const databaseUrl = databaseUrlForSchema(schemaName);
 const admin = new Client({ connectionString: pgConnectionUrl() });
 
@@ -324,7 +317,8 @@ try {
 
   // Existing populated MVP database path.
   await admin.query(`CREATE SCHEMA "${schemaName}"`);
-  runPrisma(["db", "push", "--schema", legacySchemaPath, "--accept-data-loss"], databaseUrl);
+  await admin.query(`SET search_path TO "${schemaName}"`);
+  await admin.query(readFileSync(baselineSqlPath, "utf8"));
   await seedLegacyDatabase(admin);
   runPrisma(["migrate", "resolve", "--applied", baselineMigration], databaseUrl);
   runPrisma(["migrate", "deploy"], databaseUrl);
