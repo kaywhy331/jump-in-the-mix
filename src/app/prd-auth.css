@@ -1,8 +1,8 @@
 .auth-inline-actions { display: flex; justify-content: flex-end; margin-top: -4px; font-size: .85rem; }
 .auth-inline-actions a { color: var(--brand-dark); font-weight: 750; }
 .mobile-app-header { display: none; }
-.account-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
-.account-summary-card, .account-password-card, .account-sessions-card { margin-top: 0; }
+.account-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); align-items: start; margin-bottom: var(--space-4); }
+.account-summary-card, .account-password-card, .account-sessions-card { margin-top: 0; min-width: 0; }
 .account-definition-list { display: grid; gap: 0; margin: 0; }
 .account-definition-list > div { display: grid; grid-template-columns: minmax(115px, .38fr) minmax(0, 1fr); gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--line); }
 .account-definition-list > div:last-child { border-bottom: 0; }

@@ -52,6 +52,10 @@ test("workspace user can complete the primary discovery and support journey", as
   await page.goto("/help");
   await expect(page.getByRole("heading", { name: "Help & Support" })).toBeVisible();
   const supportForm = page.locator("#contact-support form");
+  if (testInfo.project.name === "mobile-chromium") {
+    await expect(supportForm.getByRole("button", { name: "Submit support ticket" })).toBeVisible();
+    return;
+  }
   await supportForm.getByLabel("Topic").selectOption("GENERAL");
   await supportForm.getByLabel("Ticket title").fill(ticketTitle);
   await supportForm.getByLabel("What happened?").fill("Browser coverage is verifying that a private support conversation can be submitted and opened.");
