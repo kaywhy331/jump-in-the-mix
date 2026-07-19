@@ -41,8 +41,8 @@ export function QuickAddDialog() {
     <div className="quick-add-divider"><span>Or choose a type</span></div>
     <nav className="quick-add-grid" aria-label="Quick Add options">
       <Link href="/contacts/new" onClick={() => dialogRef.current?.close()}><AppIcon name="contacts"/><span><strong>New Contact</strong><small>Add one person</small></span></Link>
-      <Link href="/contacts?addDate=1" onClick={() => dialogRef.current?.close()}><AppIcon name="calendar"/><span><strong>Important Date</strong><small>Trigger a future follow-up</small></span></Link>
-      <Link href="/contacts?oneTimeJump=1" onClick={() => dialogRef.current?.close()}><AppIcon name="bolt"/><span><strong>One-time Jump</strong><small>Prepare one action</small></span></Link>
+      <Link href="/contacts?intent=important-date" onClick={() => dialogRef.current?.close()}><AppIcon name="calendar"/><span><strong>Important Date</strong><small>Choose a Contact, then add the date</small></span></Link>
+      <Link href="/contacts?intent=one-time-jump" onClick={() => dialogRef.current?.close()}><AppIcon name="bolt"/><span><strong>One-time Jump</strong><small>Choose Contacts, then prepare one action</small></span></Link>
       <Link href="/mixes/new" onClick={() => dialogRef.current?.close()}><AppIcon name="mixes"/><span><strong>New Mix</strong><small>Build a follow-up plan</small></span></Link>
       <Link href="/contacts/import" onClick={() => dialogRef.current?.close()}><AppIcon name="import"/><span><strong>Import Contacts</strong><small>Device, CSV, or VCF</small></span></Link>
     </nav>

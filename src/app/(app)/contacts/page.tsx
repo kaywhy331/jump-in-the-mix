@@ -23,6 +23,7 @@ type SearchParams = {
   bulkRemoved?: string;
   bulkArchived?: string;
   error?: string;
+  intent?: string;
 };
 
 function dateValue(value: Date | null): string | null {
@@ -34,6 +35,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const { workspace } = await requireWorkspace();
   const q = params.q?.trim() ?? "";
   const groupId = params.group?.trim() ?? "";
+  const intent = params.intent === "important-date" || params.intent === "one-time-jump" ? params.intent : undefined;
   const [contacts, rawGroups, groupStates, jumps, customFields] = await Promise.all([
     prisma.contact.findMany({
       where: {
@@ -152,6 +154,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         groupLimit={formatPlanLimit(PLAN_LIMITS[workspace.planTier].groups)}
         query={q}
         groupFilter={groupId}
+        intent={intent}
       />
     </div>
   );
