@@ -68,7 +68,8 @@ export function ContactsBulkWorkspace({
   customFields,
   groupLimit,
   query,
-  groupFilter
+  groupFilter,
+  intent
 }: {
   contacts: ContactBulkDto[];
   groups: ContactBulkGroup[];
@@ -77,6 +78,7 @@ export function ContactsBulkWorkspace({
   groupLimit: string;
   query: string;
   groupFilter: string;
+  intent?: "important-date" | "one-time-jump";
 }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [applyMode, setApplyMode] = useState<"existing" | "manual">(jumps.length ? "existing" : "manual");
@@ -168,6 +170,9 @@ export function ContactsBulkWorkspace({
         </div>
       </header>
 
+      {intent === "important-date" && <div className="notice info" role="status"><strong>Choose who the date belongs to.</strong> Use Add Important Date on the right of a Contact to continue.</div>}
+      {intent === "one-time-jump" && <div className="notice info" role="status"><strong>Choose one or more Contacts.</strong> Select the people below; the one-time Jump composer will open automatically.</div>}
+
       <form className="filter-bar contact-filter-bar" action="/contacts" method="get">
         <input name="q" defaultValue={query} placeholder="Search name, company, contact method, or custom value" aria-label="Search contacts" />
         <select name="group" defaultValue={groupFilter} aria-label="Filter Contacts by group"><option value="">All groups</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.isActive ? group.name : `Inactive · ${group.name}`}</option>)}</select>
@@ -194,7 +199,7 @@ export function ContactsBulkWorkspace({
                     {contact.groupDetails.length > 0 && <div className="contact-group-list">{contact.groupDetails.slice(0, 3).map((group) => <span className={`group-chip ${group.isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}{group.isActive ? "" : " · inactive"}</span>)}{contact.groupDetails.length > 3 && <span className="group-chip">+{contact.groupDetails.length - 3}</span>}</div>}
                   </div>
                 </Link>
-                <div className="table-actions"><Link className="button small primary" href={`/contacts/${contact.id}`}>View</Link><details className="contact-row-menu"><summary className="button small" aria-label={`More actions for ${contact.displayName}`}>More</summary><div className="contact-row-menu-panel"><Link href={`/contacts/${contact.id}/edit`}>Edit Contact</Link><form action={archiveContactAction}><input type="hidden" name="contactId" value={contact.id}/><button className="text-button danger-text" type="submit">Archive Contact</button></form></div></details></div>
+                <div className="table-actions">{intent === "important-date" && <Link className="button small primary" href={`/contacts/${contact.id}#add-important-date`}>Add Important Date</Link>}<Link className="button small primary" href={`/contacts/${contact.id}`}>View</Link><details className="contact-row-menu"><summary className="button small" aria-label={`More actions for ${contact.displayName}`}>More</summary><div className="contact-row-menu-panel"><Link href={`/contacts/${contact.id}/edit`}>Edit Contact</Link><form action={archiveContactAction}><input type="hidden" name="contactId" value={contact.id}/><button className="text-button danger-text" type="submit">Archive Contact</button></form></div></details></div>
               </article>
             );
           })}
@@ -219,7 +224,7 @@ export function ContactsBulkWorkspace({
           </div>
         </details>
 
-        <details className="bulk-action-menu bulk-apply-menu">
+        <details className="bulk-action-menu bulk-apply-menu" open={intent === "one-time-jump" ? true : undefined}>
           <summary className="button primary bulk-action-button"><span aria-hidden="true">↗</span><span className="bulk-action-label">Apply Jump</span></summary>
           <div className="bulk-action-panel bulk-apply-panel">
             <h3>Apply one-time Jump</h3>
