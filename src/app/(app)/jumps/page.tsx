@@ -154,6 +154,7 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
   const upcoming = pending.filter((jump) => jump.scheduledAt >= endToday);
   const completed = ordered.filter((jump) => completedStatuses.includes(jump.status));
   const currentFilters = { range, status, channel };
+  const activeFilterCount = Number(status !== "all") + Number(channel !== "all");
   const nextUp = overdue[0] ?? dueToday[0];
   const visibleOverdue = nextUp ? overdue.filter((jump) => jump.id !== nextUp.id) : overdue;
   const visibleToday = nextUp ? dueToday.filter((jump) => jump.id !== nextUp.id) : dueToday;
@@ -237,12 +238,21 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
         <div className="filter-bar filter-presets">
           {[["due", "Due", "Today"], ["week", "Week", "7 days"], ["month", "Month", "30 days"], ["all", "All dates", "All"]].map(([key, desktopLabel, mobileLabel]) => <a key={key} className={range === key ? "button primary" : "button"} href={filterHref(currentFilters, "range", key)}><span className="desktop-label">{desktopLabel}</span><span className="mobile-label">{mobileLabel}</span></a>)}
         </div>
-        <form className="filter-bar today-filter-controls" method="get" action="/jumps">
+        <form className="filter-bar today-filter-controls desktop-only" method="get" action="/jumps">
           <input type="hidden" name="range" value={range} />
           <label className="filter-field"><span>Status</span><select name="status" defaultValue={status}><option value="all">All statuses</option><option value="pending">Pending</option><option value="done">Done</option><option value="skipped">Skipped</option></select></label>
           <label className="filter-field"><span>Channel</span><select name="channel" defaultValue={channel}><option value="all">All channels</option>{channels.map((item) => <option key={item} value={item}>{channelLabel(item)}</option>)}</select></label>
           <button className="button" type="submit">Apply</button>
         </form>
+        <details className="mobile-filter-disclosure mobile-only">
+          <summary className={activeFilterCount ? "button filter-trigger active" : "button filter-trigger"}><AppIcon name="settings"/><span>Filter{activeFilterCount ? ` ${activeFilterCount}` : ""}</span></summary>
+          <form className="mobile-filter-panel" method="get" action="/jumps">
+            <input type="hidden" name="range" value={range} />
+            <label className="filter-field"><span>Status</span><select name="status" defaultValue={status}><option value="all">All statuses</option><option value="pending">Pending</option><option value="done">Done</option><option value="skipped">Skipped</option></select></label>
+            <label className="filter-field"><span>Channel</span><select name="channel" defaultValue={channel}><option value="all">All channels</option>{channels.map((item) => <option key={item} value={item}>{channelLabel(item)}</option>)}</select></label>
+            <div className="mobile-filter-actions"><Link className="button" href={filterHref(currentFilters, "status", "all")}>Reset</Link><button className="button primary" type="submit">Apply</button></div>
+          </form>
+        </details>
       </div>
 
       {overdue.length > 0 && <section className="desktop-only" aria-labelledby="overdue-jumps-desktop"><div className="section-label urgent"><h2 id="overdue-jumps-desktop">Overdue</h2><span>{overdue.length}</span></div><p className="section-guidance">Start with one. You can skip or stop a plan if it is no longer useful.</p><div className="jump-list">{overdue.map(renderCard)}</div></section>}

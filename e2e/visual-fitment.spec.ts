@@ -111,10 +111,11 @@ test("global Quick Add previews natural-language capture before continuing", asy
   const dialog = page.getByRole("dialog", { name: "Quick Add" });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("What do you want to remember?").fill("Follow up with Jordan next Monday about the proposal");
-  await dialog.getByRole("button", { name: "Preview capture" }).click();
+  await dialog.getByRole("button", { name: /Preview capture|Review/ }).click();
   await expect(dialog.getByText("Confirm this interpretation")).toBeVisible();
   await expect(dialog.getByText("Jordan", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("link", { name: "Continue with Contact" })).toBeVisible();
+  page.once("dialog", (confirmation) => confirmation.accept());
   await dialog.getByRole("button", { name: "Close Quick Add" }).click();
   await expect(dialog).toBeHidden();
 });
