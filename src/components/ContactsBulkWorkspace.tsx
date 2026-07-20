@@ -190,10 +190,10 @@ export function ContactsBulkWorkspace({
             const isSelected = selected.has(contact.id);
             return (
               <article className={`contact-row contact-select-row ${selectionMode ? "selection-mode" : ""} ${isSelected ? "selected" : ""}`} key={contact.id}>
-                {selectionMode && <label className="contact-select-control" title={isSelected ? "Deselect Contact" : "Select Contact"}>
+                <label className="contact-select-control" title={isSelected ? "Deselect Contact" : "Select Contact"}>
                   <input type="checkbox" checked={isSelected} onChange={() => toggleContact(contact.id)} aria-label={`${isSelected ? "Deselect" : "Select"} ${contact.displayName}`} />
                   <span>{isSelected ? <AppIcon name="check" /> : null}</span>
-                </label>}
+                </label>
                 <Link href={`/contacts/${contact.id}`} className="contact-main">
                   <div className="avatar">{initials(contact.displayName) || "?"}</div>
                   <div>

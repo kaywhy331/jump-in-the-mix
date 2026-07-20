@@ -310,7 +310,11 @@
 }
 
 /* Mobile task-first experience */
+.mobile-label, .mobile-only, .more-section-label { display: none; }
+.more-destination { display: contents; }
 @media (max-width: 767px) {
+  .desktop-only { display: none !important; }
+  .mobile-only { display: block; }
   .page { gap: 12px; padding: 0 16px; }
   .page-header { min-height: 56px; margin: 0 -16px; padding: 8px 16px; align-items: center; border-bottom: 1px solid var(--line); }
   .page-header h1 { font-size: 1.75rem; }
@@ -364,6 +368,7 @@
   .contact-row-menu > summary { width: 44px !important; height: 44px; padding: 0; font-size: 0; }
   .contact-row-menu > summary::after { content: "⋯"; font-size: 1.25rem; }
   .contact-select-control { min-width: 44px; min-height: 44px; }
+  .contact-select-row:not(.selection-mode) .contact-select-control { display: none; }
 
   .usage-line, .mix-card .muted-copy, .mix-sequence-preview, .mix-details { display: none; }
   .mix-card .card-header { min-height: 56px; align-items: center; }
@@ -376,6 +381,7 @@
   .mix-row-menu > summary::after { content: "⋯"; font-size: 1.25rem; }
 
   .more-page .settings-hub-grid { gap: 0; }
+  .more-destination { display: block; }
   .more-section-label { display: block; margin: 16px 0 6px; color: var(--muted); font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
   .more-page .settings-hub-card { min-height: 58px; padding: 8px 0; border-width: 0 0 1px; border-radius: 0; box-shadow: none; justify-content: space-between; }
   .more-page .settings-hub-card small { display: none; }
@@ -384,6 +390,8 @@
   .quick-add-dialog { width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); border: 0; border-radius: 0; overflow-y: auto; }
   .quick-add-dialog-header { position: sticky; top: 0; z-index: 2; min-height: 52px; margin: 0; padding-bottom: 8px; background: white; align-items: center; }
   .quick-add-dialog h2 { font-size: 1.6rem; }
+  .quick-add-instruction, .quick-add-secondary-type, .desktop-label { display: none !important; }
+  .mobile-label { display: inline; }
   .quick-add-composer textarea { min-height: 72px; max-height: 144px; resize: none; }
   .quick-add-review { position: sticky; bottom: env(safe-area-inset-bottom); z-index: 3; width: 100%; min-height: 48px; }
   .quick-add-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

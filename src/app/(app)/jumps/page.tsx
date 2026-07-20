@@ -227,13 +227,15 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
       {params.mixStopped && <Notice type="success">The Mix was stopped for this Contact. Its pending Jumps were removed from the queue.</Notice>}
       {params.mixStopError && <Notice type="error">The Mix could not be stopped for this Contact.</Notice>}
       {params.snoozed && <Notice type="success">Jump snoozed. It will return to your queue at the new time.</Notice>}
-      <header className="page-header"><div><h1>Today</h1><p>One clear list of the people who need your attention and what to do next.</p></div></header>
-      {nextUp && <section className="next-up-section" aria-labelledby="next-up-title"><span className="eyebrow" id="next-up-title">Next up</span>{renderCard(nextUp)}</section>}
-      <p className="today-compact-summary" aria-label="Current Jump workload"><strong>{overdue.length + dueToday.length} need attention</strong>{overdue.length > 0 && <> · {overdue.length} overdue</>}{dueToday.length > 0 && <> · {dueToday.length} today</>}</p>
+      <header className="page-header"><div><h1>Today</h1><p>One clear list of the people who need your attention and what to do next.</p></div><div className="today-summary desktop-only" aria-label="Current Jump workload"><strong>{overdue.length + dueToday.length}</strong><span>due now</span>{overdue.length > 0 && <small>{overdue.length} overdue</small>}</div></header>
+      <section className="today-operating-view desktop-only" aria-label="Today at a glance"><article><small>Overdue</small><strong>{overdue.length}</strong></article><article><small>Due today</small><strong>{dueToday.length}</strong></article><article><small>Due this week</small><strong>{dueThisWeekCount}</strong></article><article><small>Completed today</small><strong>{completedTodayCount}</strong></article></section>
+      {nextUp && <aside className="do-next-card desktop-only"><span className="eyebrow">Do next</span><strong>{nextUp.contact.displayName}</strong><span>{nextUp.reason}</span><a className="button primary" href={`#jump-${nextUp.id}`}>Open next action</a></aside>}
+      {nextUp && <section className="next-up-section mobile-only" aria-labelledby="next-up-title"><span className="eyebrow" id="next-up-title">Next up</span>{renderCard(nextUp)}</section>}
+      <p className="today-compact-summary mobile-only" aria-label="Current Jump workload"><strong>{overdue.length + dueToday.length} need attention</strong>{overdue.length > 0 && <> · {overdue.length} overdue</>}{dueToday.length > 0 && <> · {dueToday.length} today</>}</p>
 
       <div className="filter-stack" aria-label="Jump filters">
         <div className="filter-bar filter-presets">
-          {[["due", "Today"], ["week", "7 days"], ["month", "30 days"], ["all", "All"]].map(([key, label]) => <a key={key} className={range === key ? "button primary" : "button"} href={filterHref(currentFilters, "range", key)}>{label}</a>)}
+          {[["due", "Due", "Today"], ["week", "Week", "7 days"], ["month", "Month", "30 days"], ["all", "All dates", "All"]].map(([key, desktopLabel, mobileLabel]) => <a key={key} className={range === key ? "button primary" : "button"} href={filterHref(currentFilters, "range", key)}><span className="desktop-label">{desktopLabel}</span><span className="mobile-label">{mobileLabel}</span></a>)}
         </div>
         <form className="filter-bar today-filter-controls" method="get" action="/jumps">
           <input type="hidden" name="range" value={range} />
@@ -243,8 +245,10 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
         </form>
       </div>
 
-      {visibleOverdue.length > 0 && <section aria-labelledby="overdue-jumps"><div className="section-label urgent"><h2 id="overdue-jumps">Overdue</h2><span>{visibleOverdue.length}</span></div><div className="jump-list">{visibleOverdue.map(renderCard)}</div></section>}
-      {visibleToday.length > 0 && <section aria-labelledby="today-jumps"><div className="section-label"><h2 id="today-jumps">Today</h2><span>{visibleToday.length}</span></div><div className="jump-list">{visibleToday.map(renderCard)}</div></section>}
+      {overdue.length > 0 && <section className="desktop-only" aria-labelledby="overdue-jumps-desktop"><div className="section-label urgent"><h2 id="overdue-jumps-desktop">Overdue</h2><span>{overdue.length}</span></div><p className="section-guidance">Start with one. You can skip or stop a plan if it is no longer useful.</p><div className="jump-list">{overdue.map(renderCard)}</div></section>}
+      {dueToday.length > 0 && <section className="desktop-only" aria-labelledby="today-jumps-desktop"><div className="section-label"><h2 id="today-jumps-desktop">Today</h2><span>{dueToday.length}</span></div><div className="jump-list">{dueToday.map(renderCard)}</div></section>}
+      {visibleOverdue.length > 0 && <section className="mobile-only" aria-labelledby="overdue-jumps"><div className="section-label urgent"><h2 id="overdue-jumps">Overdue</h2><span>{visibleOverdue.length}</span></div><div className="jump-list">{visibleOverdue.map(renderCard)}</div></section>}
+      {visibleToday.length > 0 && <section className="mobile-only" aria-labelledby="today-jumps"><div className="section-label"><h2 id="today-jumps">Today</h2><span>{visibleToday.length}</span></div><div className="jump-list">{visibleToday.map(renderCard)}</div></section>}
       {upcoming.length > 0 && <section aria-labelledby="upcoming-jumps"><div className="section-label"><h2 id="upcoming-jumps">Upcoming</h2><span>{upcoming.length}</span></div><div className="jump-list">{upcoming.map(renderCard)}</div></section>}
       {completed.length > 0 && <section aria-labelledby="completed-jumps"><div className="completed-divider"><span id="completed-jumps">Completed</span></div><div className="jump-list">{completed.map(renderCard)}</div></section>}
       {!ordered.length && <EmptyState title="You’re all caught up" description="Nothing needs your attention right now. Upcoming work will appear here." actionHref="/contacts" actionLabel="Review Contacts" />}
