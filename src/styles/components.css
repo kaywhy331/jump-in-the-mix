@@ -308,3 +308,85 @@
 @media (max-width: 600px) {
   .settings-hub-grid { grid-template-columns: 1fr; }
 }
+
+/* Mobile task-first experience */
+@media (max-width: 767px) {
+  .page { gap: 12px; padding: 0 16px; }
+  .page-header { min-height: 56px; margin: 0 -16px; padding: 8px 16px; align-items: center; border-bottom: 1px solid var(--line); }
+  .page-header h1 { font-size: 1.75rem; }
+  .page-header p, .mixes-page-header p, .contacts-page-header p { display: none; }
+  .page-header .page-actions { width: auto; margin-left: auto; display: flex; }
+  .page-header .page-actions .button, .contacts-page-actions summary { width: 44px; min-width: 44px; height: 44px; padding: 0; overflow: hidden; white-space: nowrap; font-size: 0; }
+  .contacts-page-actions summary::first-letter, .mix-create-menu > summary::first-letter { font-size: 1.5rem; }
+
+  .next-up-section { display: grid; gap: 6px; }
+  .next-up-section .jump-task-card { border-color: #cfc7ff; background: var(--brand-soft); }
+  .today-compact-summary { margin: 0; color: var(--muted); font-size: .875rem; }
+  .today-compact-summary strong { color: var(--ink); }
+  .filter-stack { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .filter-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; padding: 3px; border-radius: 12px; background: var(--surface-muted); }
+  .filter-presets .button { min-width: 0; height: 40px; padding: 0 5px; border: 0; background: transparent; font-size: .75rem; }
+  .filter-presets .button.primary { color: var(--brand-dark); background: white; box-shadow: 0 1px 4px rgba(23,27,45,.12); }
+  .today-filter-controls { grid-column: 1 / -1; display: flex; padding: 10px; }
+  .today-filter-controls .filter-field { flex: 1; min-width: 0; }
+  .jump-list { gap: 0; border-top: 1px solid var(--line); }
+  .jump-task-card { min-height: 72px; padding: 10px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; }
+  .jump-details summary { min-width: 0; }
+  .jump-card-heading { gap: 4px 8px; }
+  .jump-card-heading h3 { flex: 1 1 100%; font-size: .95rem; }
+  .jump-snippet, .jump-task-card .channel-pill { display: none; }
+  .jump-meta { font-size: .76rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .jump-primary-action { align-items: center; }
+  .jump-channel-action { width: 44px; min-width: 44px; height: 44px; padding: 0; }
+  .jump-channel-action span { display: none; }
+  .jump-completion-actions .jump-done-action { display: none; }
+  .jump-overflow > summary { width: 44px; height: 44px; padding: 0; font-size: 0; }
+  .jump-overflow > summary::after { content: "⋯"; font-size: 1.25rem; }
+  .section-label { margin-top: 8px; }
+  .section-label h2 { font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; }
+  .today-insights { grid-template-columns: 1fr; gap: 0; margin-top: 12px; border-top: 1px solid var(--line); }
+  .today-insights a { min-height: 56px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; }
+
+  .contact-filter-bar, .mix-filter-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; }
+  .contact-filter-bar input, .mix-filter-bar input { grid-column: 1 / -1; }
+  .contact-filter-bar select, .mix-filter-bar select { min-width: 0; }
+  .contact-list, .mix-list { gap: 0; border-top: 1px solid var(--line); }
+  .contact-row, .mix-card { min-height: 72px; padding: 8px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; }
+  .contact-main { min-width: 0; gap: 10px; }
+  .contact-main > div:last-child { min-width: 0; }
+  .contact-main h3 { margin: 0; font-size: .95rem; }
+  .contact-relationship-state span:first-child, .contact-meta, .contact-group-list { display: none; }
+  .contact-relationship-state { display: block; }
+  .contact-relationship-state small { display: none; }
+  .contact-relationship-state strong { color: var(--muted); font-size: .78rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .contact-row .table-actions { width: 44px; display: block; }
+  .contact-row .table-actions > .button { display: none; }
+  .contact-row-menu > summary { width: 44px !important; height: 44px; padding: 0; font-size: 0; }
+  .contact-row-menu > summary::after { content: "⋯"; font-size: 1.25rem; }
+  .contact-select-control { min-width: 44px; min-height: 44px; }
+
+  .usage-line, .mix-card .muted-copy, .mix-sequence-preview, .mix-details { display: none; }
+  .mix-card .card-header { min-height: 56px; align-items: center; }
+  .mix-card .card-header h3 { margin: 0; font-size: .95rem; }
+  .mix-meta { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: .76rem; }
+  .mix-meta span:nth-child(2), .mix-meta span:nth-child(3), .mix-meta span:nth-child(6) { display: none; }
+  .mix-card-actions { width: 44px; display: block; }
+  .mix-card-actions > .button { position: absolute; inset: 0 44px 0 0; width: auto; opacity: 0; }
+  .mix-row-menu > summary { width: 44px !important; height: 44px; padding: 0; font-size: 0; }
+  .mix-row-menu > summary::after { content: "⋯"; font-size: 1.25rem; }
+
+  .more-page .settings-hub-grid { gap: 0; }
+  .more-section-label { display: block; margin: 16px 0 6px; color: var(--muted); font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+  .more-page .settings-hub-card { min-height: 58px; padding: 8px 0; border-width: 0 0 1px; border-radius: 0; box-shadow: none; justify-content: space-between; }
+  .more-page .settings-hub-card small { display: none; }
+  .settings-row-chevron { color: var(--muted); font-size: 1.5rem; }
+
+  .quick-add-dialog { width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); border: 0; border-radius: 0; overflow-y: auto; }
+  .quick-add-dialog-header { position: sticky; top: 0; z-index: 2; min-height: 52px; margin: 0; padding-bottom: 8px; background: white; align-items: center; }
+  .quick-add-dialog h2 { font-size: 1.6rem; }
+  .quick-add-composer textarea { min-height: 72px; max-height: 144px; resize: none; }
+  .quick-add-review { position: sticky; bottom: env(safe-area-inset-bottom); z-index: 3; width: 100%; min-height: 48px; }
+  .quick-add-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .quick-add-grid a { min-height: 72px; display: grid; justify-items: center; padding: 8px 4px; text-align: center; }
+  .quick-add-grid small { display: none; }
+}

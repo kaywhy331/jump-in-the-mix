@@ -83,6 +83,7 @@ export function ContactsBulkWorkspace({
   intent?: "important-date" | "one-time-jump";
 }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [selectionMode, setSelectionMode] = useState(intent === "one-time-jump");
   const [applyMode, setApplyMode] = useState<"existing" | "manual">(jumps.length ? "existing" : "manual");
   const [manualChannel, setManualChannel] = useState("SMS");
   const selectedIds = useMemo(() => [...selected], [selected]);
@@ -125,7 +126,7 @@ export function ContactsBulkWorkspace({
             <summary className="button" aria-label="More Contact tools">More</summary>
             <div className="group-manager-panel contact-tools-panel">
               <button className="icon-button panel-close" type="button" aria-label="Close Contact tools" onClick={(event) => event.currentTarget.closest("details")?.removeAttribute("open")}><AppIcon name="close" /></button>
-              <div className="contact-tools-links"><Link href="/contacts/import">Import Contacts</Link><Link href="/contacts/custom-fields">Custom fields</Link>{contacts.length > 0 && <button className="text-button" type="button" onClick={toggleAll}>{allSelected ? "Deselect all" : "Select all"}</button>}</div>
+              <div className="contact-tools-links"><Link href="/contacts/import">Import Contacts</Link><Link href="/contacts/custom-fields">Custom fields</Link>{contacts.length > 0 && <button className="text-button" type="button" onClick={() => { setSelectionMode(true); toggleAll(); }}>{allSelected ? "Deselect all" : "Select all"}</button>}</div>
               <div className="section-label"><h2>Contact Groups</h2><span>{activeGroups.length}/{groupLimit} active · {groups.length} stored</span></div>
               <p className="muted-copy">Inactive groups keep their Contacts and Mix assignments, but cannot receive new assignments or generate group-based Jumps. Select which groups remain active under your current plan.</p>
               <form action={createContactGroupAction} className="group-create-form">
@@ -180,6 +181,7 @@ export function ContactsBulkWorkspace({
         <select name="group" defaultValue={groupFilter} aria-label="Filter Contacts by group"><option value="">All groups</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.isActive ? group.name : `Inactive · ${group.name}`}</option>)}</select>
         <button className="button" type="submit">Filter</button>
         {(query || groupFilter) && <Link className="button" href="/contacts">Clear</Link>}
+        {contacts.length > 0 && <button className="button contact-select-toggle" type="button" onClick={() => { setSelectionMode((current) => !current); setSelected(new Set()); }}>{selectionMode ? "Done" : "Select"}</button>}
       </form>
 
       {contacts.length ? (
@@ -187,11 +189,11 @@ export function ContactsBulkWorkspace({
           {contacts.map((contact) => {
             const isSelected = selected.has(contact.id);
             return (
-              <article className={`contact-row contact-select-row ${isSelected ? "selected" : ""}`} key={contact.id}>
-                <label className="contact-select-control" title={isSelected ? "Deselect Contact" : "Select Contact"}>
+              <article className={`contact-row contact-select-row ${selectionMode ? "selection-mode" : ""} ${isSelected ? "selected" : ""}`} key={contact.id}>
+                {selectionMode && <label className="contact-select-control" title={isSelected ? "Deselect Contact" : "Select Contact"}>
                   <input type="checkbox" checked={isSelected} onChange={() => toggleContact(contact.id)} aria-label={`${isSelected ? "Deselect" : "Select"} ${contact.displayName}`} />
                   <span>{isSelected ? <AppIcon name="check" /> : null}</span>
-                </label>
+                </label>}
                 <Link href={`/contacts/${contact.id}`} className="contact-main">
                   <div className="avatar">{initials(contact.displayName) || "?"}</div>
                   <div>

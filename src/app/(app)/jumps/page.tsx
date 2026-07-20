@@ -154,6 +154,9 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
   const upcoming = pending.filter((jump) => jump.scheduledAt >= endToday);
   const completed = ordered.filter((jump) => completedStatuses.includes(jump.status));
   const currentFilters = { range, status, channel };
+  const nextUp = overdue[0] ?? dueToday[0];
+  const visibleOverdue = nextUp ? overdue.filter((jump) => jump.id !== nextUp.id) : overdue;
+  const visibleToday = nextUp ? dueToday.filter((jump) => jump.id !== nextUp.id) : dueToday;
 
   const renderCard = (jump: (typeof ordered)[number]) => {
     const snapshot = (jump.renderedSnapshot ?? {}) as Snapshot;
@@ -224,15 +227,13 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
       {params.mixStopped && <Notice type="success">The Mix was stopped for this Contact. Its pending Jumps were removed from the queue.</Notice>}
       {params.mixStopError && <Notice type="error">The Mix could not be stopped for this Contact.</Notice>}
       {params.snoozed && <Notice type="success">Jump snoozed. It will return to your queue at the new time.</Notice>}
-      <header className="page-header"><div><h1>Today</h1><p>One clear list of the people who need your attention and what to do next.</p></div><div className="today-summary" aria-label="Current Jump workload"><strong>{overdue.length + dueToday.length}</strong><span>due now</span>{overdue.length > 0 && <small>{overdue.length} overdue</small>}</div></header>
-
-      <section className="today-operating-view" aria-label="Today at a glance"><article><small>Overdue</small><strong>{overdue.length}</strong></article><article><small>Due today</small><strong>{dueToday.length}</strong></article><article><small>Due this week</small><strong>{dueThisWeekCount}</strong></article><article><small>Completed today</small><strong>{completedTodayCount}</strong></article></section>
-      {(overdue[0] ?? dueToday[0]) && <aside className="do-next-card"><span className="eyebrow">Do next</span><strong>{(overdue[0] ?? dueToday[0]).contact.displayName}</strong><span>{(overdue[0] ?? dueToday[0]).reason}</span><a className="button primary" href={`#jump-${(overdue[0] ?? dueToday[0]).id}`}>Open next action</a></aside>}
-      <div className="today-insights"><Link href="/jumps?range=week&status=pending">Upcoming moments <strong>{dueThisWeekCount}</strong></Link><Link href="/contacts">Relationships going quiet <strong>{quietRelationshipCount}</strong></Link><Link href="/jumps?range=due&status=done">Recently completed <strong>{completedTodayCount}</strong></Link></div>
+      <header className="page-header"><div><h1>Today</h1><p>One clear list of the people who need your attention and what to do next.</p></div></header>
+      {nextUp && <section className="next-up-section" aria-labelledby="next-up-title"><span className="eyebrow" id="next-up-title">Next up</span>{renderCard(nextUp)}</section>}
+      <p className="today-compact-summary" aria-label="Current Jump workload"><strong>{overdue.length + dueToday.length} need attention</strong>{overdue.length > 0 && <> · {overdue.length} overdue</>}{dueToday.length > 0 && <> · {dueToday.length} today</>}</p>
 
       <div className="filter-stack" aria-label="Jump filters">
         <div className="filter-bar filter-presets">
-          {[["due", "Due"], ["week", "Week"], ["month", "Month"], ["all", "All dates"]].map(([key, label]) => <a key={key} className={range === key ? "button primary" : "button"} href={filterHref(currentFilters, "range", key)}>{label}</a>)}
+          {[["due", "Today"], ["week", "7 days"], ["month", "30 days"], ["all", "All"]].map(([key, label]) => <a key={key} className={range === key ? "button primary" : "button"} href={filterHref(currentFilters, "range", key)}>{label}</a>)}
         </div>
         <form className="filter-bar today-filter-controls" method="get" action="/jumps">
           <input type="hidden" name="range" value={range} />
@@ -242,11 +243,12 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
         </form>
       </div>
 
-      {overdue.length > 0 && <section aria-labelledby="overdue-jumps"><div className="section-label urgent"><h2 id="overdue-jumps">Overdue</h2><span>{overdue.length}</span></div><p className="section-guidance">Start with one. You can skip or stop a plan if it is no longer useful.</p><div className="jump-list">{overdue.map(renderCard)}</div></section>}
-      {dueToday.length > 0 && <section aria-labelledby="today-jumps"><div className="section-label"><h2 id="today-jumps">Today</h2><span>{dueToday.length}</span></div><div className="jump-list">{dueToday.map(renderCard)}</div></section>}
+      {visibleOverdue.length > 0 && <section aria-labelledby="overdue-jumps"><div className="section-label urgent"><h2 id="overdue-jumps">Overdue</h2><span>{visibleOverdue.length}</span></div><div className="jump-list">{visibleOverdue.map(renderCard)}</div></section>}
+      {visibleToday.length > 0 && <section aria-labelledby="today-jumps"><div className="section-label"><h2 id="today-jumps">Today</h2><span>{visibleToday.length}</span></div><div className="jump-list">{visibleToday.map(renderCard)}</div></section>}
       {upcoming.length > 0 && <section aria-labelledby="upcoming-jumps"><div className="section-label"><h2 id="upcoming-jumps">Upcoming</h2><span>{upcoming.length}</span></div><div className="jump-list">{upcoming.map(renderCard)}</div></section>}
       {completed.length > 0 && <section aria-labelledby="completed-jumps"><div className="completed-divider"><span id="completed-jumps">Completed</span></div><div className="jump-list">{completed.map(renderCard)}</div></section>}
-      {!ordered.length && <EmptyState title="Nothing needs your attention" description="Jumps appear automatically after an active follow-up Mix is assigned to a Contact with a matching Important Date." actionHref="/contacts" actionLabel="Add or review Contacts" />}
+      {!ordered.length && <EmptyState title="You’re all caught up" description="Nothing needs your attention right now. Upcoming work will appear here." actionHref="/contacts" actionLabel="Review Contacts" />}
+      <div className="today-insights"><Link href="/jumps?range=week&status=pending">Upcoming moments <strong>{dueThisWeekCount}</strong></Link><Link href="/contacts">Relationships going quiet <strong>{quietRelationshipCount}</strong></Link><Link href="/jumps?range=due&status=done">Recently completed <strong>{completedTodayCount}</strong></Link></div>
     </div>
   );
 }

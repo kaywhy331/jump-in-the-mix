@@ -323,3 +323,16 @@ textarea { resize: vertical; min-height: 110px; }
 .onboarding-default { align-items: flex-start; }
 .onboarding-default span { display: grid; gap: 3px; }
 .onboarding-default small { color: var(--muted); font-weight: 500; }
+
+@media (max-width: 767px) {
+  .mobile-app-header { display: none; }
+  .app-shell { padding-bottom: calc(68px + env(safe-area-inset-bottom)); }
+  .app-main { padding: 0 0 calc(16px + env(safe-area-inset-bottom)); }
+  .mobile-nav { left: 0; right: 0; bottom: 0; border-width: 1px 0 0; border-radius: 0; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -4px 18px rgba(23,27,45,.08); }
+  .mobile-nav .nav-link { position: relative; min-height: 56px; border-radius: 0; background: transparent; color: var(--muted); }
+  .mobile-nav .nav-link.active { color: var(--brand); background: transparent; }
+  .mobile-nav .nav-link.active::after { content: ""; position: absolute; top: 3px; width: 20px; height: 2px; border-radius: 2px; background: var(--brand); }
+  .mobile-nav .nav-quick-add { min-height: 52px; margin: -10px 4px 0; border-radius: 50%; }
+  .mobile-nav .nav-quick-add span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .sr-only { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
+}

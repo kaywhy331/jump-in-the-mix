@@ -40,7 +40,7 @@ export function AppShell({
   return (
     <div className={impersonation ? "app-shell impersonating" : "app-shell"}>
       <aside className="sidebar">
-        <Logo />
+        <span className="mobile-product-mark" aria-hidden="true">J</span>
         <div className="workspace-chip">
           <span>{workspaceName}</span>
           <small>{planTier} plan</small>
