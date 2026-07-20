@@ -1,0 +1,85 @@
+/* Spacious-but-compact desktop application layout. */
+@media (min-width: 901px) {
+  .app-main { padding: 28px 32px 40px; }
+  .page { max-width: 1240px; }
+  .page-header { margin-bottom: 18px; }
+  .page-header h1 { font-size: 1.9rem; }
+  .page-header p { max-width: 780px; font-size: .95rem; }
+
+  /* Today keeps desktop context without stretching repeated actions. */
+  .today-operating-view { gap: 8px; margin-bottom: 12px; }
+  .today-operating-view article { min-height: 72px; padding: 11px 14px; }
+  .today-operating-view strong { font-size: 1.3rem; }
+  .do-next-card { min-height: 84px; padding: 14px 16px; }
+  .filter-stack { margin-bottom: 18px; }
+
+  .jump-list { gap: 8px; }
+  .jump-task-card {
+    min-height: 94px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 18px;
+    align-items: center;
+    padding: 12px 14px 12px 16px;
+  }
+  .jump-details > summary { min-height: 68px; align-content: center; }
+  .jump-card-heading h3 { font-size: 1rem; }
+  .jump-meta { gap: 6px 12px; font-size: .82rem; }
+  .jump-snippet {
+    display: -webkit-box;
+    max-width: 820px;
+    margin-top: 3px;
+    overflow: hidden;
+    white-space: normal;
+    line-height: 1.38;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .jump-primary-action { width: auto; display: flex; align-items: center; gap: 8px; }
+  .jump-primary-action .jump-channel-action { width: auto; min-width: 126px; min-height: 44px; padding: 0 14px; }
+  .jump-list .jump-primary-action .jump-channel-action { color: var(--brand-dark); border-color: #c9c2ff; background: white; box-shadow: none; }
+  .jump-list .jump-primary-action .jump-channel-action:hover { color: white; background: var(--brand); }
+  .jump-completion-actions { display: flex; align-items: center; gap: 6px; margin: 0; }
+  .jump-completion-actions form .button { width: auto; min-width: 94px; min-height: 42px; }
+  .jump-overflow > summary { min-width: 44px; min-height: 42px; padding-inline: 11px; }
+  .jump-expanded-content { grid-column: 1 / -1; }
+  .today-insights { margin: 14px 0 18px; }
+
+  /* Contacts use the width for relationship context instead of taller cards. */
+  .contact-list { gap: 8px; }
+  .contact-row { min-height: 92px; padding: 12px 14px; }
+  .contact-main { gap: 13px; }
+  .contact-main .avatar { width: 42px; height: 42px; }
+  .contact-relationship-state { gap: 18px; }
+  .contact-meta { margin-top: 5px; font-size: .8rem; }
+  .contact-group-list { margin-top: 6px; }
+  .contact-row .table-actions .button { min-height: 42px; }
+
+  /* Mix list shows summary and notes, with the full sequence on demand. */
+  .mix-list { gap: 8px; }
+  .mix-card { min-height: 108px; gap: 7px; padding: 14px 16px; }
+  .mix-card .card-header { align-items: center; margin-bottom: 0; }
+  .mix-card h3 { font-size: 1.02rem; }
+  .mix-meta { gap: 6px 12px; margin-top: 4px; font-size: .82rem; }
+  .mix-card > .muted-copy {
+    display: -webkit-box;
+    max-width: 900px;
+    margin: 0;
+    overflow: hidden;
+    line-height: 1.4;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .mix-sequence-preview { display: none; }
+  .mix-details { margin-top: 2px; padding-top: 8px; }
+  .mix-details > summary { font-size: .82rem; }
+  .mix-card-actions .button,
+  .mix-card-actions summary.button { min-height: 42px; }
+
+  /* More remains descriptive but uses compact destination rows. */
+  .more-page .settings-hub-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .more-page .settings-hub-card { min-height: 82px; padding: 13px 15px; }
+  .more-page .settings-hub-card small { line-height: 1.35; }
+
+  .quick-add-dialog { width: min(720px, calc(100vw - 40px)); }
+  .quick-add-grid a { min-height: 68px; }
+}
