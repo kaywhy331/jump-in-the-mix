@@ -7,15 +7,23 @@ import {
   createJumpUniquenessKey,
   getJumpDateOccurrences,
   logicalDateFromDate,
+  logicalDateInTimezone,
   logicalDateKey,
   scheduledLocalDateTimeKey,
   zonedDateTimeToUtc,
   type LogicalDate
 } from "@/lib/jump-schedule";
 
-const PENDING_STATUSES: JumpStatus[] = ["PENDING", "COPIED"];
-const MUTABLE_STATUSES: JumpStatus[] = ["PENDING", "COPIED", "CANCELED"];
+const MUTABLE_STATUSES: JumpStatus[] = ["PENDING", "CANCELED"];
+const RECONCILABLE_CANCELLATION_METHODS = new Set([
+  "reconciled",
+  "mix_paused",
+  "plan_downgrade",
+  "contact_archived"
+]);
 const BATCH_SIZE = 500;
+const DEFAULT_PAST_DAYS = 45;
+const DEFAULT_FUTURE_DAYS = 365;
 
 type ReconciliationFilters = {
   workspaceId?: string;
@@ -44,6 +52,23 @@ type DesiredJump = {
   renderedSnapshot: Prisma.InputJsonValue;
 };
 
+type ExistingJump = {
+  id: string;
+  uniquenessKey: string;
+  status: JumpStatus;
+  completionMethod: string | null;
+  workspaceId: string;
+  contactId: string;
+  jumpDateId: string | null;
+  mixId: string;
+  mixStepId: string;
+  stepVersionId: string;
+  scheduledAt: Date;
+  reason: string;
+  templateSnapshot: Prisma.JsonValue;
+  renderedSnapshot: Prisma.JsonValue;
+};
+
 function chunks<T>(items: T[], size = BATCH_SIZE): T[][] {
   const result: T[][] = [];
   for (let index = 0; index < items.length; index += size) result.push(items.slice(index, index + size));
@@ -58,23 +83,45 @@ function endOfUtcDay(value: Date): Date {
   return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate(), 23, 59, 59, 999));
 }
 
-function triggerForManualAssignment(date: Date): { logicalDate: LogicalDate; occurrenceKey: string } {
-  const logicalDate = logicalDateFromDate(date);
-  return { logicalDate, occurrenceKey: `manual:${logicalDateKey(logicalDate)}` };
-}
-
 function stopKey(mixId: string, contactId: string): string {
   return `${mixId}:${contactId}`;
 }
 
+function jsonEqual(left: Prisma.JsonValue | Prisma.InputJsonValue, right: Prisma.JsonValue | Prisma.InputJsonValue): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function sameDesired(existing: ExistingJump, desired: DesiredJump): boolean {
+  return existing.workspaceId === desired.workspaceId
+    && existing.contactId === desired.contactId
+    && existing.jumpDateId === desired.jumpDateId
+    && existing.mixId === desired.mixId
+    && existing.mixStepId === desired.mixStepId
+    && existing.stepVersionId === desired.stepVersionId
+    && existing.scheduledAt.getTime() === desired.scheduledAt.getTime()
+    && existing.reason === desired.reason
+    && jsonEqual(existing.templateSnapshot, desired.templateSnapshot)
+    && jsonEqual(existing.renderedSnapshot, desired.renderedSnapshot);
+}
+
+function canReconcile(existing: ExistingJump): boolean {
+  if (existing.status === "PENDING") return true;
+  return existing.status === "CANCELED"
+    && Boolean(existing.completionMethod && RECONCILABLE_CANCELLATION_METHODS.has(existing.completionMethod));
+}
+
+function baseJumpWhere(filters: ReconciliationFilters): Prisma.JumpWhereInput {
+  return {
+    ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}),
+    ...(filters.contactId ? { contactId: filters.contactId } : {}),
+    ...(filters.mixId ? { mixId: filters.mixId } : {}),
+    mix: { source: { not: "ONE_TIME" } }
+  };
+}
+
 export async function reconcileJumps(filters: ReconciliationFilters = {}): Promise<JumpReconciliationResult> {
   const now = new Date();
-  const horizonStart = startOfUtcDay(addUtcDays(now, -45));
-  const horizonEnd = endOfUtcDay(addUtcDays(now, 60));
-  const occurrenceStart = addUtcDays(horizonStart, -60);
-  const occurrenceEnd = addUtcDays(horizonEnd, 60);
-
-  const [assignments, stops] = await Promise.all([
+  const [assignments, stops, pendingBounds] = await Promise.all([
     prisma.mixAssignment.findMany({
       where: {
         isActive: true,
@@ -130,17 +177,33 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         ...(filters.mixId ? { mixId: filters.mixId } : {})
       },
       select: { mixId: true, contactId: true }
+    }),
+    prisma.jump.aggregate({
+      where: { ...baseJumpWhere(filters), status: "PENDING" },
+      _min: { scheduledAt: true },
+      _max: { scheduledAt: true }
     })
   ]);
+
+  const offsets = assignments.flatMap((assignment) => assignment.mix.steps.map((step) => step.dayOffset));
+  const minimumOffset = offsets.length ? Math.min(...offsets) : 0;
+  const maximumOffset = offsets.length ? Math.max(...offsets) : 0;
+  const defaultStart = startOfUtcDay(addUtcDays(now, -DEFAULT_PAST_DAYS));
+  const defaultEnd = endOfUtcDay(addUtcDays(now, DEFAULT_FUTURE_DAYS));
+  const horizonStart = pendingBounds._min.scheduledAt && pendingBounds._min.scheduledAt < defaultStart
+    ? startOfUtcDay(pendingBounds._min.scheduledAt)
+    : defaultStart;
+  const horizonEnd = pendingBounds._max.scheduledAt && pendingBounds._max.scheduledAt > defaultEnd
+    ? endOfUtcDay(pendingBounds._max.scheduledAt)
+    : defaultEnd;
+  const occurrenceStart = addUtcDays(horizonStart, -Math.max(maximumOffset, 0));
+  const occurrenceEnd = addUtcDays(horizonEnd, -Math.min(minimumOffset, 0));
 
   const workspaceIds = [...new Set(assignments.map((assignment) => assignment.workspaceId))];
   const inactiveGroupIds = new Set(
     workspaceIds.length
       ? (await prisma.contactGroupState.findMany({
-          where: {
-            workspaceId: { in: workspaceIds },
-            isActive: false
-          },
+          where: { workspaceId: { in: workspaceIds }, isActive: false },
           select: { groupId: true }
         })).map((state) => state.groupId)
       : []
@@ -207,12 +270,15 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
           });
         }
       } else {
-        const manual = triggerForManualAssignment(assignment.startDate ?? assignment.createdAt);
+        const timezone = assignment.workspace.profile?.timezone || "UTC";
+        const startDate = assignment.startDate ?? assignment.createdAt;
+        const logicalDate = logicalDateInTimezone(startDate, timezone);
         triggers.push({
-          ...manual,
+          logicalDate,
           jumpDateId: null,
+          occurrenceKey: `manual:${logicalDateKey(logicalDate)}`,
           reason: assignment.mix.name,
-          timezone: assignment.workspace.profile?.timezone || "UTC",
+          timezone,
           timeMinutes: null
         });
       }
@@ -273,66 +339,92 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   }
 
   const desiredKeys = [...desired.keys()];
-  const existingDesired: { id: string; uniquenessKey: string; status: JumpStatus }[] = [];
+  const existingDesired: ExistingJump[] = [];
   for (const batch of chunks(desiredKeys)) {
-    existingDesired.push(...await prisma.jump.findMany({ where: { uniquenessKey: { in: batch } }, select: { id: true, uniquenessKey: true, status: true } }));
+    existingDesired.push(...await prisma.jump.findMany({
+      where: { uniquenessKey: { in: batch } },
+      select: {
+        id: true,
+        uniquenessKey: true,
+        status: true,
+        completionMethod: true,
+        workspaceId: true,
+        contactId: true,
+        jumpDateId: true,
+        mixId: true,
+        mixStepId: true,
+        stepVersionId: true,
+        scheduledAt: true,
+        reason: true,
+        templateSnapshot: true,
+        renderedSnapshot: true
+      }
+    }));
   }
   const existingByKey = new Map(existingDesired.map((item) => [item.uniquenessKey, item]));
 
   let created = 0;
   let updated = 0;
-  const writes: Prisma.PrismaPromise<unknown>[] = [];
+  const creates: Prisma.JumpCreateManyInput[] = [];
+  const updates: Array<{ existing: ExistingJump; desired: DesiredJump }> = [];
   for (const desiredJump of desired.values()) {
     const existing = existingByKey.get(desiredJump.uniquenessKey);
-    const sharedData = {
-      workspaceId: desiredJump.workspaceId,
-      contactId: desiredJump.contactId,
-      jumpDateId: desiredJump.jumpDateId,
-      mixId: desiredJump.mixId,
-      mixStepId: desiredJump.mixStepId,
-      stepVersionId: desiredJump.stepVersionId,
-      scheduledAt: desiredJump.scheduledAt,
-      reason: desiredJump.reason,
-      templateSnapshot: desiredJump.templateSnapshot,
-      renderedSnapshot: desiredJump.renderedSnapshot
-    };
     if (!existing) {
-      created += 1;
-      writes.push(prisma.jump.upsert({
-        where: { uniquenessKey: desiredJump.uniquenessKey },
-        create: { ...sharedData, uniquenessKey: desiredJump.uniquenessKey, status: "PENDING" },
-        update: sharedData
-      }));
-    } else if (MUTABLE_STATUSES.includes(existing.status)) {
-      updated += 1;
-      writes.push(prisma.jump.update({
-        where: { id: existing.id },
-        data: { ...sharedData, status: existing.status === "CANCELED" ? "PENDING" : existing.status, completedAt: null, completionMethod: null }
-      }));
+      creates.push({ ...desiredJump, status: "PENDING" });
+      continue;
     }
+    if (!canReconcile(existing)) continue;
+    const targetStatus: JumpStatus = existing.status === "CANCELED" ? "PENDING" : existing.status;
+    if (targetStatus === existing.status && sameDesired(existing, desiredJump)) continue;
+    updates.push({ existing, desired: desiredJump });
   }
-  for (const batch of chunks(writes, 100)) await prisma.$transaction(batch);
+
+  for (const batch of chunks(creates)) {
+    const result = await prisma.jump.createMany({ data: batch, skipDuplicates: true });
+    created += result.count;
+  }
+  for (const batch of chunks(updates, 100)) {
+    await prisma.$transaction(batch.map(({ existing, desired: desiredJump }) => prisma.jump.updateMany({
+      where: { id: existing.id, status: { in: MUTABLE_STATUSES } },
+      data: {
+        workspaceId: desiredJump.workspaceId,
+        contactId: desiredJump.contactId,
+        jumpDateId: desiredJump.jumpDateId,
+        mixId: desiredJump.mixId,
+        mixStepId: desiredJump.mixStepId,
+        stepVersionId: desiredJump.stepVersionId,
+        scheduledAt: desiredJump.scheduledAt,
+        reason: desiredJump.reason,
+        templateSnapshot: desiredJump.templateSnapshot,
+        renderedSnapshot: desiredJump.renderedSnapshot,
+        status: existing.status === "CANCELED" ? "PENDING" : existing.status,
+        completedAt: null,
+        completionMethod: null
+      }
+    }))).then((results) => {
+      updated += results.reduce((sum, result) => sum + result.count, 0);
+    });
+  }
 
   const staleCandidates = await prisma.jump.findMany({
     where: {
-      ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}),
-      ...(filters.contactId ? { contactId: filters.contactId } : {}),
-      ...(filters.mixId ? { mixId: filters.mixId } : {}),
-      mix: { source: { not: "ONE_TIME" } },
-      status: { in: PENDING_STATUSES },
+      ...baseJumpWhere(filters),
+      status: "PENDING",
       scheduledAt: { gte: horizonStart, lte: horizonEnd }
     },
     select: { id: true, uniquenessKey: true }
   });
   const staleIds = staleCandidates.filter((item) => !desired.has(item.uniquenessKey)).map((item) => item.id);
+  let canceled = 0;
   for (const batch of chunks(staleIds)) {
-    await prisma.jump.updateMany({
-      where: { id: { in: batch }, status: { in: PENDING_STATUSES } },
+    const result = await prisma.jump.updateMany({
+      where: { id: { in: batch }, status: "PENDING" },
       data: { status: "CANCELED", completedAt: null, completionMethod: "reconciled" }
     });
+    canceled += result.count;
   }
 
-  return { desired: desired.size, created, updated, canceled: staleIds.length };
+  return { desired: desired.size, created, updated, canceled };
 }
 
 export async function generateJumps(filters: ReconciliationFilters = {}): Promise<number> {
