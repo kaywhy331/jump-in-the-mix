@@ -25,8 +25,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
           <fieldset className="onboarding-step-card">
             <legend><span>1</span> Add one person</legend>
             <div className="form-grid">
-              <div className="field"><label htmlFor="contactFirstName">First name</label><input id="contactFirstName" name="contactFirstName" autoComplete="given-name" placeholder="Jordan" required autoFocus /></div>
-              <div className="field"><label htmlFor="contactLastName">Last name <small>optional</small></label><input id="contactLastName" name="contactLastName" autoComplete="family-name" placeholder="Lee" /></div>
+              <div className="field full"><label htmlFor="contactName">Name</label><input id="contactName" name="contactName" autoComplete="name" placeholder="Jordan Lee" required autoFocus /></div>
               <div className="field"><label htmlFor="contactEmail">Email <small>optional</small></label><input id="contactEmail" name="contactEmail" type="email" inputMode="email" autoComplete="email" /></div>
               <div className="field"><label htmlFor="contactPhone">Phone <small>optional</small></label><input id="contactPhone" name="contactPhone" inputMode="tel" autoComplete="tel" /></div>
             </div>
