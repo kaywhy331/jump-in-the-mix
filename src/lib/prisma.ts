@@ -2,7 +2,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-const connectionString = process.env.DATABASE_URL ?? "postgresql://jitm:jitm@localhost:5432/jitm?schema=public";
+const configuredConnectionString = process.env.DATABASE_URL?.trim();
+if (!configuredConnectionString && process.env.NODE_ENV === "production") {
+  throw new Error("DATABASE_URL is required in production.");
+}
+const connectionString = configuredConnectionString ?? "postgresql://jitm:jitm@localhost:5432/jitm?schema=public";
 
 const adapter = new PrismaPg({ connectionString });
 
