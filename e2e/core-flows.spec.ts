@@ -42,7 +42,7 @@ test("workspace user can complete the primary discovery and support journey", as
   } else {
     await expect(page.locator('select[aria-label="Filter Contacts by group"]:visible')).toBeVisible();
   }
-  await page.getByLabel("Add Contact").click();
+  await page.getByLabel("Add Contact", { exact: true }).click();
   const addPanel = page.locator(".contact-add-panel");
   await expect(addPanel.locator(".device-contact-picker")).toBeVisible();
   await expect(addPanel.getByRole("link", { name: /Import CSV \/ VCF/ })).toBeVisible();
