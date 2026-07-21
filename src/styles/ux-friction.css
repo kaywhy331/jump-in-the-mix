@@ -1,0 +1,71 @@
+.contact-first-follow-up {
+  border-color: #d7d1ff;
+  background: linear-gradient(180deg, #fbfaff 0%, #ffffff 100%);
+}
+
+.contact-first-follow-up-fields { margin-top: 14px; }
+
+.contact-profile-quick-actions {
+  justify-content: flex-start;
+  margin-top: -4px;
+}
+
+@media (max-width: 767px) {
+  .jump-primary-action .jump-completion-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .jump-completion-actions > form { display: block; }
+  .jump-task-complete .jump-completion-actions > form { display: none; }
+
+  .jump-completion-actions .jump-done-action {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: 12px;
+    font-size: 0;
+  }
+
+  .jump-completion-actions .jump-done-action::after {
+    content: "✓";
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+
+  .contact-selection-controls {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .contact-selection-controls > .contact-select-toggle {
+    min-width: 58px;
+    height: 48px;
+    padding-inline: 10px;
+  }
+
+  .contact-profile-quick-actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0;
+  }
+
+  .contact-profile-quick-actions .button {
+    width: 100%;
+    min-width: 0;
+    padding-inline: 10px;
+  }
+
+  .contact-first-follow-up .checkbox-card { margin-bottom: 0; }
+}
+
+@media (max-width: 340px) {
+  .contact-selection-controls > .contact-select-toggle {
+    min-width: 48px;
+    padding-inline: 8px;
+  }
+}
