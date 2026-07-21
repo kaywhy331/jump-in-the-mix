@@ -1,5 +1,6 @@
 import type { PlanTier, SubscriptionStatus } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
+import { annualMonthlyEquivalentCents, PLAN_CATALOG } from "@/lib/plan-catalog";
 
 export type BillingPeriod = "MONTHLY" | "ANNUAL";
 export type PaidPlanTier = Exclude<PlanTier, "FREE">;
@@ -13,40 +14,21 @@ export type BillingPlanDetails = {
   features: string[];
 };
 
+function paidPlanDetails(planTier: PaidPlanTier): BillingPlanDetails {
+  const entry = PLAN_CATALOG[planTier];
+  return {
+    name: entry.name,
+    description: entry.description,
+    monthlyAmountCents: entry.monthlyAmountCents,
+    annualAmountCents: entry.annualAmountCents,
+    annualMonthlyEquivalentCents: annualMonthlyEquivalentCents(entry),
+    features: [...entry.features]
+  };
+}
+
 export const BILLING_PLANS: Record<PaidPlanTier, BillingPlanDetails> = {
-  PLUS: {
-    name: "Plus",
-    description: "For entrepreneurs building a consistent relationship routine.",
-    monthlyAmountCents: 1500,
-    annualAmountCents: 14400,
-    annualMonthlyEquivalentCents: 1200,
-    features: [
-      "1,000 active Contacts",
-      "10 Contact Groups",
-      "10 custom Jump Date Types",
-      "10 active Mixes",
-      "AI Mix Wizard",
-      "Google Contacts sync",
-      "Share up to 3 Community Mixes"
-    ]
-  },
-  PRO: {
-    name: "Pro",
-    description: "For growing businesses managing a broader relationship network.",
-    monthlyAmountCents: 1800,
-    annualAmountCents: 18000,
-    annualMonthlyEquivalentCents: 1500,
-    features: [
-      "5,000 active Contacts",
-      "Unlimited Contact Groups",
-      "Unlimited custom Jump Date Types",
-      "Unlimited active Mixes",
-      "AI Mix Wizard",
-      "Google Contacts sync",
-      "Share up to 10 Community Mixes",
-      "50 Ringless Voicemail scripts per month"
-    ]
-  }
+  PLUS: paidPlanDetails("PLUS"),
+  PRO: paidPlanDetails("PRO")
 };
 
 export function isPaidPlanTier(value: unknown): value is PaidPlanTier {
