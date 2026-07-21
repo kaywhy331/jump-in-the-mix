@@ -19,7 +19,7 @@ test("Contact search updates while typing and shows phone, email, and customer n
   await signIn(page);
   await page.goto("/contacts");
 
-  const search = page.getByLabel("Search contacts").filter({ visible: true });
+  const search = page.locator('input[aria-label="Search contacts"]:visible');
   await search.fill("sarah@example.com");
   await expect(page).toHaveURL(/\/contacts\?q=sarah%40example\.com$/);
   await expect(search).toHaveValue("sarah@example.com");
@@ -38,10 +38,10 @@ test("search and select filters update automatically on other app surfaces", asy
   await signIn(page);
 
   await page.goto("/mixes");
-  await page.getByLabel("Search Mixes").fill("Warm Relationship");
+  await page.locator('input[aria-label="Search Mixes"]:visible').fill("Warm Relationship");
   await expect(page).toHaveURL(/\/mixes\?q=Warm\+Relationship$/);
   await expect(page.getByText("Warm Relationship Follow-Up", { exact: true })).toBeVisible();
-  await page.getByLabel("Filter Mixes by status").selectOption("ACTIVE");
+  await page.locator('select[aria-label="Filter Mixes by status"]:visible').selectOption("ACTIVE");
   await expect(page).toHaveURL(/\/mixes\?q=Warm\+Relationship&status=ACTIVE$/);
 
   await page.goto("/templates");
