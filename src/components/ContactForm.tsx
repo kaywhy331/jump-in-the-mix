@@ -198,8 +198,8 @@ export function ContactForm({
         </div>
       </section>
 
-      <section className="card contact-editor-section">
-        <div className="card-header"><div><h2>Groups and notes</h2><p>Inactive memberships remain attached to this Contact but cannot be newly assigned. Private Notes are intended only for phone-call context.</p></div></div>
+      <section className="card contact-editor-section" id="contact-notes">
+        <div className="card-header"><div><h2>Groups and notes</h2><p>Customer notes store reusable relationship context. Private relationship updates stay reserved for calls, deal movement, and sensitive follow-up context.</p></div></div>
         {groups.length ? <div className="group-choice-grid">{groups.map((group) => {
           const selected = selectedGroupIds.has(group.id);
           return (
@@ -214,8 +214,8 @@ export function ContactForm({
           );
         })}</div> : <p className="muted-copy">No groups have been created yet. You can add them from the Contacts page.</p>}
         <div className="form-grid notes-grid">
-          <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Public Notes</label>{mode === "create" && <VoiceNoteButton targetId="publicNotes" />}</div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Context that may be used in approved Jump placeholders." /></div>
-          <div className="field full"><label htmlFor="privateNotes">Private Notes</label><textarea id="privateNotes" name="privateNotes" defaultValue={contact?.privateNotes ?? ""} placeholder="Sensitive call context. Never inserted into SMS or email Jumps." /></div>
+          <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Customer notes</label>{mode === "create" && <VoiceNoteButton targetId="publicNotes" />}</div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="How you met, preferences, background, family context, interests, or other details that help you maintain the relationship." /><small>These notes may be used only through approved customer-note placeholders in prepared follow-up content.</small></div>
+          <div className="field full"><label htmlFor="privateNotes">Private relationship updates</label><textarea id="privateNotes" name="privateNotes" defaultValue={contact?.privateNotes ?? ""} placeholder="Phone-call context, deal movement, objections, commitments, or sensitive relationship updates." /><small>Private updates are available only to Phone Call Jump scripts and are never inserted into SMS, email, or WhatsApp content.</small></div>
         </div>
       </section>
 
