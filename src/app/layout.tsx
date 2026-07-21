@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { GlobalLiveSearch } from "@/components/GlobalLiveSearch";
 import "@/styles/index.css";
 
 export const metadata: Metadata = {
@@ -12,7 +14,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
-      <body>{children}</body>
+      <body>
+        <Suspense fallback={null}><GlobalLiveSearch /></Suspense>
+        {children}
+      </body>
     </html>
   );
 }
