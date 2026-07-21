@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { generateJumps } from "@/lib/jump-engine";
 import { prisma } from "@/lib/prisma";
+import { splitContactName } from "@/lib/quick-add-capture";
 import { ensureStarterMix } from "@/lib/starter-mix";
 
 function value(formData: FormData, key: string): string {
@@ -28,8 +29,8 @@ function planIntentRedirect(formData: FormData): string | null {
 
 export async function completeOnboardingAction(formData: FormData): Promise<void> {
   const { workspace } = await requireWorkspace();
-  const firstName = value(formData, "contactFirstName");
-  const lastName = value(formData, "contactLastName");
+  const contactName = value(formData, "contactName");
+  const { firstName, lastName } = splitContactName(contactName);
   const contactEmail = value(formData, "contactEmail").toLowerCase();
   const contactPhone = value(formData, "contactPhone");
   const reason = value(formData, "reason") || "Follow up";
