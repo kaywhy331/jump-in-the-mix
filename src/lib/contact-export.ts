@@ -25,8 +25,14 @@ function addressText(address: ExportContact["addresses"][number] | undefined): s
     : "";
 }
 
+export function neutralizeSpreadsheetFormula(value: string): string {
+  const withoutNulls = value.replaceAll("\u0000", "");
+  const firstVisible = withoutNulls.replace(/^[\t\r\n ]+/, "");
+  return /^[=+\-@]/.test(firstVisible) ? `'${withoutNulls}` : withoutNulls;
+}
+
 function csvCell(value: string): string {
-  return `"${value.replaceAll('"', '""')}"`;
+  return `"${neutralizeSpreadsheetFormula(value).replaceAll('"', '""')}"`;
 }
 
 export function createContactsCsv(contacts: ExportContact[]): string {
