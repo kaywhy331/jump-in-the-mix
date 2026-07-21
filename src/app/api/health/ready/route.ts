@@ -1,10 +1,27 @@
+import { productionConfigurationIssues } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
+  const headers = { "Cache-Control": "no-store" };
   try {
     await prisma.$queryRaw`SELECT 1`;
-    return Response.json({ status: "ready", database: "connected", timestamp: new Date().toISOString() });
+    const configurationIssues = productionConfigurationIssues();
+    if (configurationIssues.length) {
+      console.error("Production configuration is not ready", configurationIssues);
+      return Response.json({
+        status: "not-ready",
+        checks: { database: "connected", configuration: "invalid" }
+      }, { status: 503, headers });
+    }
+    return Response.json({
+      status: "ready",
+      checks: { database: "connected", configuration: "valid" }
+    }, { headers });
   } catch (error) {
-    return Response.json({ status: "not-ready", database: "unavailable", error: error instanceof Error ? error.message : "unknown" }, { status: 503 });
+    console.error("Readiness database check failed", error);
+    return Response.json({
+      status: "not-ready",
+      checks: { database: "unavailable", configuration: "unknown" }
+    }, { status: 503, headers });
   }
 }
