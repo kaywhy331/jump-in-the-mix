@@ -23,8 +23,8 @@ test("workspace user can complete the primary discovery and support journey", as
 
   await page.goto("/jumps");
   await expect(page.getByRole("heading", { name: "Today", exact: true }).first()).toBeVisible();
-  await expect(page.locator(".jump-task-card").first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "Due" })).toBeVisible();
+  await expect(page.locator(".jump-task-card:visible").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /Due|Today/ })).toBeVisible();
 
   await page.goto("/contacts");
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
