@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AppIcon } from "@/components/AppIcon";
 import { ContactForm } from "@/components/ContactForm";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
@@ -30,7 +32,12 @@ export default async function EditContactPage({
 
   return (
     <div className="page">
-      <header className="page-header"><div><h1>Edit {contact.displayName}</h1><p>Primary and custom values are used to render accurate Jumps.</p></div></header>
+      <header className="page-header">
+        <div><h1>Edit {contact.displayName}</h1><p>Primary and custom values are used to render accurate Jumps.</p></div>
+        <div className="page-actions contact-detail-header-actions">
+          <Link className="button mobile-header-action" href={`/contacts/${contact.id}`} aria-label="Back to Contact"><AppIcon name="arrowLeft" /><span>Back to Contact</span></Link>
+        </div>
+      </header>
       {query.error && <Notice type="error">{query.error}</Notice>}
       <ContactForm
         mode="edit"

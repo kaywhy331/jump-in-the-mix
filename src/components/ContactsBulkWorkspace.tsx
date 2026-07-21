@@ -181,14 +181,14 @@ export function ContactsBulkWorkspace({
       {intent === "one-time-jump" && <div className="notice info" role="status"><strong>Choose one or more Contacts.</strong> Select the people below; the one-time Jump composer will open automatically.</div>}
 
       <form className="filter-bar contact-filter-bar desktop-only" action="/contacts" method="get">
-        <input name="q" defaultValue={query} placeholder="Search contacts" aria-label="Search contacts" />
+        <input name="q" type="search" defaultValue={query} placeholder="Search name, phone, email, company, or notes" aria-label="Search contacts" autoComplete="off" />
         <select name="group" defaultValue={groupFilter} aria-label="Filter Contacts by group"><option value="">All groups</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.isActive ? group.name : `Inactive · ${group.name}`}</option>)}</select>
         <button className="button" type="submit">Filter</button>
         {(query || groupFilter) && <Link className="button" href="/contacts">Clear</Link>}
         {contacts.length > 0 && <button className="button contact-select-toggle" type="button" onClick={toggleSelectionMode}>{selectionMode ? "Done selecting" : "Select"}</button>}
       </form>
       <div className="mobile-contact-controls contact-selection-controls mobile-only">
-        <form className="mobile-search-form" action="/contacts" method="get"><input name="q" defaultValue={query} placeholder="Search contacts" aria-label="Search contacts" />{groupFilter && <input type="hidden" name="group" value={groupFilter}/>}<button className="sr-only" type="submit">Search contacts</button></form>
+        <form className="mobile-search-form" action="/contacts" method="get"><input name="q" type="search" defaultValue={query} placeholder="Search contacts" aria-label="Search contacts" autoComplete="off" />{groupFilter && <input type="hidden" name="group" value={groupFilter}/>}<button className="sr-only" type="submit">Search contacts</button></form>
         <details className="mobile-filter-disclosure"><summary className={groupFilter ? "button filter-trigger active" : "button filter-trigger"}><AppIcon name="settings"/><span>Filter{groupFilter ? " 1" : ""}</span></summary><form className="mobile-filter-panel" action="/contacts" method="get"><input type="hidden" name="q" value={query}/><label className="filter-field"><span>Group</span><select name="group" defaultValue={groupFilter} aria-label="Filter Contacts by group"><option value="">All groups</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.isActive ? group.name : `Inactive · ${group.name}`}</option>)}</select></label><div className="mobile-filter-actions"><Link className="button" href={query ? `/contacts?q=${encodeURIComponent(query)}` : "/contacts"}>Reset</Link><button className="button primary" type="submit">Apply</button></div></form></details>
         {contacts.length > 0 && <button className="button contact-select-toggle" type="button" onClick={toggleSelectionMode}>{selectionMode ? "Done" : "Select"}</button>}
       </div>
@@ -197,6 +197,8 @@ export function ContactsBulkWorkspace({
         <div className="contact-list selectable-contact-list">
           {contacts.map((contact) => {
             const isSelected = selected.has(contact.id);
+            const primaryEmail = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email;
+            const primaryPhone = contact.phones.find((item) => item.isPrimary)?.phone ?? contact.phones[0]?.phone;
             return (
               <article className={`contact-row contact-select-row ${selectionMode ? "selection-mode" : ""} ${isSelected ? "selected" : ""}`} key={contact.id}>
                 <label className="contact-select-control" title={isSelected ? "Deselect Contact" : "Select Contact"}>
@@ -209,6 +211,14 @@ export function ContactsBulkWorkspace({
                     <h3>{contact.displayName}</h3>
                     <div className="contact-relationship-state"><span><small>Last interaction</small><strong>{contact.lastInteraction ?? "No completed Jump yet"}</strong></span><span><small>Next Jump</small><strong className={contact.nextJumpOverdue ? "overdue-text" : ""}>{contact.nextJump ?? "Nothing scheduled"}</strong></span></div>
                     <p className="contact-mobile-meta mobile-only">{contact.groupDetails[0]?.name ?? contact.relationshipType ?? "Contact"} · {contact.nextJump ?? "No jump scheduled"}</p>
+                    <div className="contact-visible-details">
+                      <div className="contact-method-preview">
+                        {primaryPhone && <span><AppIcon name="phone" />{primaryPhone}</span>}
+                        {primaryEmail && <span><AppIcon name="email" />{primaryEmail}</span>}
+                        {!primaryPhone && !primaryEmail && <span>No phone or email saved</span>}
+                      </div>
+                      {contact.publicNotes && <p className="contact-customer-note"><strong>Customer notes:</strong> {contact.publicNotes}</p>}
+                    </div>
                     <div className="contact-meta">{contact.relationshipType && <span>{contact.relationshipType}</span>}{contact.preferredChannel && <span>Prefers {contact.preferredChannel}</span>}{contact.priority && <span>{contact.priority} priority</span>}<span>{contact.jumpDateCount} Important Date{contact.jumpDateCount === 1 ? "" : "s"}</span></div>
                     {contact.groupDetails.length > 0 && <div className="contact-group-list">{contact.groupDetails.slice(0, 3).map((group) => <span className={`group-chip ${group.isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}{group.isActive ? "" : " · inactive"}</span>)}{contact.groupDetails.length > 3 && <span className="group-chip">+{contact.groupDetails.length - 3}</span>}</div>}
                   </div>
