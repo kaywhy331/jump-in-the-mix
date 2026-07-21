@@ -68,7 +68,12 @@ jobs:
           grep -q 'CREATE TABLE "Workspace"' "$baseline"
           grep -q 'CREATE TABLE "Jump"' "$baseline"
       - run: npm run db:generate
-      - run: npm run validate:static
+      - name: Validate Prisma schema
+        run: npm run validate:schema
+      - name: Validate source syntax
+        run: npm run validate:syntax
+      - name: Validate local imports and Server Action boundaries
+        run: npm run validate:imports
       - name: Populated migration, rollback, and reapply rehearsal
         shell: bash
         run: |
