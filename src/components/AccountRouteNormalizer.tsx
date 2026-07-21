@@ -33,7 +33,9 @@ export function AccountRouteNormalizer() {
       if (targetSection && params.get("section") !== targetSection) {
         params.set("section", targetSection);
         const query = params.toString();
-        router.replace(`/account${query ? `?${query}` : ""}${hash}`, { scroll: false });
+        const target = `/account${query ? `?${query}` : ""}`;
+        window.history.replaceState(window.history.state, "", target);
+        router.replace(target, { scroll: false });
         return;
       }
 
