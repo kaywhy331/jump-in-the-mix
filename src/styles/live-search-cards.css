@@ -1,6 +1,9 @@
 /* Live search, Contact visibility, and user-arranged card workspaces. */
-[data-live-filter] { position: relative; }
-[data-live-filter][aria-busy="true"]::after {
+form[data-live-filter="true"] { position: relative; }
+form[data-live-filter="true"] > button[type="submit"],
+form[data-live-filter="true"] .mobile-filter-actions > button[type="submit"] { display: none; }
+form[data-live-filter="true"] .mobile-filter-actions { grid-template-columns: 1fr; }
+form[data-live-pending="true"]::after {
   content: "";
   width: 15px;
   height: 15px;
@@ -134,7 +137,7 @@
 }
 
 @media (max-width: 767px) {
-  [data-live-filter][aria-busy="true"]::after { position: absolute; right: 12px; top: 16px; }
+  form[data-live-pending="true"]::after { position: absolute; right: 12px; top: 16px; }
   .contact-visible-details { margin-top: 4px; }
   .contact-method-preview { gap: 2px 9px; font-size: .73rem; white-space: nowrap; overflow: hidden; }
   .contact-method-preview span { max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
