@@ -46,6 +46,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
           OR: [
             { displayName: { contains: q, mode: "insensitive" } },
             { company: { contains: q, mode: "insensitive" } },
+            { publicNotes: { contains: q, mode: "insensitive" } },
+            { privateNotes: { contains: q, mode: "insensitive" } },
             { emails: { some: { email: { contains: q, mode: "insensitive" } } } },
             { phones: { some: { phone: { contains: q } } } },
             { customFieldValues: { some: { value: { contains: q, mode: "insensitive" } } } }
