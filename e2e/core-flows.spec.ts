@@ -32,9 +32,16 @@ test("workspace user can complete the primary discovery and support journey", as
   await page.getByLabel("More Contact tools").click();
   await expect(page.getByRole("heading", { name: "Contact Groups" })).toBeVisible();
   await expect(page.getByText("3/10 active · 3 stored", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Filter Contacts by group")).toBeVisible();
   await page.getByLabel("Close Contact tools").click();
   await expect(page.getByRole("heading", { name: "Contact Groups" })).toBeHidden();
+  if (testInfo.project.name === "mobile-chromium") {
+    const mobileFilter = page.locator(".mobile-filter-disclosure").first();
+    await mobileFilter.locator("summary").click();
+    await expect(mobileFilter.getByLabel("Filter Contacts by group")).toBeVisible();
+    await mobileFilter.locator("summary").click();
+  } else {
+    await expect(page.locator('select[aria-label="Filter Contacts by group"]:visible')).toBeVisible();
+  }
   await page.locator("summary").filter({ hasText: "+ Add Contact" }).click();
   const addPanel = page.locator(".contact-add-panel");
   await expect(addPanel.locator(".device-contact-picker")).toBeVisible();
