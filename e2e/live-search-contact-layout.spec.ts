@@ -60,7 +60,7 @@ test("Contact mobile header actions include icons", async ({ page }, testInfo) =
   await signIn(page);
   await page.goto("/contacts/demo_contact_sarah");
 
-  const edit = page.getByRole("link", { name: "Edit contact" });
+  const edit = page.getByRole("link", { name: "Edit contact", exact: true });
   const back = page.getByRole("link", { name: "Back to Contacts" });
   await expect(edit).toBeVisible();
   await expect(back).toBeVisible();
@@ -120,7 +120,7 @@ test("Important Dates are compact, editable, collapsible, and keep user card ord
     const datesCard = page.locator('[data-user-card="important-dates"]');
     await expect(datesCard).toBeVisible();
     await expect(datesCard.getByLabel("Edit Follow-up")).toBeVisible();
-    const remove = datesCard.getByLabel("Remove Follow-up");
+    const remove = datesCard.getByRole("button", { name: "Remove Follow-up", exact: true });
     await expect(remove).toBeVisible();
     const removeBox = await remove.boundingBox();
     expect(removeBox).not.toBeNull();
