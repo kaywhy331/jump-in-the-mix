@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { GlobalLiveSearch } from "@/components/GlobalLiveSearch";
 import { Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
 import { ReferralShareButton } from "@/components/ReferralShareButton";
@@ -39,6 +41,7 @@ export function AppShell({
 
   return (
     <div className={impersonation ? "app-shell impersonating" : "app-shell"}>
+      <Suspense fallback={null}><GlobalLiveSearch /></Suspense>
       <aside className="sidebar">
         <Logo />
         <div className="workspace-chip">
