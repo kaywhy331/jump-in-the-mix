@@ -3,27 +3,21 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
+import { inferQuickAddCapture } from "@/lib/quick-add-capture";
 
 const OPEN_QUICK_ADD = "jitm:quick-add";
 
 export function QuickAddButton({ mobile = false }: { mobile?: boolean }) {
   return <button type="button" className={mobile ? "nav-link nav-quick-add" : "button primary global-quick-add"} onClick={() => window.dispatchEvent(new Event(OPEN_QUICK_ADD))} aria-label="Quick Add">
-    <AppIcon name="add" /> <span>{mobile ? "Quick Add" : "Quick Add"}</span>
+    <AppIcon name="add" /> <span>Quick Add</span>
   </button>;
-}
-
-function inferredCapture(input: string) {
-  const trimmed = input.trim();
-  const date = trimmed.match(/\b(today|tomorrow|next (?:monday|week)|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b/i)?.[0];
-  const name = trimmed.match(/(?:follow up with|call|text|email|add)\s+(.+?)(?=\s+(?:today|tomorrow|next|on|about)\b|$)/i)?.[1];
-  return { original: trimmed, name: name ?? "a contact", timing: date ?? "a date you choose", confidence: name || date ? "Review the interpretation below." : "Choose a capture type and finish the details." };
 }
 
 export function QuickAddDialog() {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [capture, setCapture] = useState("");
-  const [preview, setPreview] = useState<ReturnType<typeof inferredCapture> | null>(null);
+  const [preview, setPreview] = useState<ReturnType<typeof inferQuickAddCapture> | null>(null);
 
   const closeDialog = () => {
     if (capture.trim() && !window.confirm("Discard this Quick Add draft?")) return;
@@ -33,18 +27,30 @@ export function QuickAddDialog() {
   };
 
   useEffect(() => {
-    const open = () => { dialogRef.current?.showModal(); window.setTimeout(() => inputRef.current?.focus(), 0); };
+    const open = () => {
+      dialogRef.current?.showModal();
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+    };
     window.addEventListener(OPEN_QUICK_ADD, open);
     return () => window.removeEventListener(OPEN_QUICK_ADD, open);
   }, []);
 
+  const contactHref = (() => {
+    if (!preview) return "/contacts/new";
+    const params = new URLSearchParams({ capture: preview.original });
+    if (preview.name) params.set("name", preview.name);
+    if (preview.dateValue) params.set("followUpDate", preview.dateValue);
+    if (preview.reason) params.set("reason", preview.reason);
+    return `/contacts/new?${params.toString()}`;
+  })();
+
   return <dialog ref={dialogRef} className="quick-add-dialog" aria-labelledby="quick-add-title" onCancel={(event) => { if (capture.trim()) { event.preventDefault(); closeDialog(); } }}>
     <div className="quick-add-dialog-header"><div><span className="eyebrow quick-add-instruction">Capture without losing your place</span><h2 id="quick-add-title">Quick Add</h2></div><button className="icon-button" type="button" onClick={closeDialog} aria-label="Close Quick Add"><AppIcon name="close" /></button></div>
-    <form className="quick-add-composer" onSubmit={(event) => { event.preventDefault(); if (capture.trim()) setPreview(inferredCapture(capture)); }}>
+    <form className="quick-add-composer" onSubmit={(event) => { event.preventDefault(); if (capture.trim()) setPreview(inferQuickAddCapture(capture)); }}>
       <label className="field"><span className="sr-only">What do you want to remember?</span><textarea ref={inputRef} value={capture} onChange={(event) => { setCapture(event.target.value); setPreview(null); event.currentTarget.style.height = "auto"; event.currentTarget.style.height = `${Math.min(event.currentTarget.scrollHeight, 144)}px`; }} placeholder="Follow up with Jordan next Monday about the proposal" rows={2}/></label>
       <button className="button primary quick-add-review" type="submit" disabled={!capture.trim()}><span className="desktop-label">Preview capture</span><span className="mobile-label">Review</span></button>
     </form>
-    {preview && <section className="quick-add-proposal" aria-live="polite"><strong>Confirm this interpretation</strong><dl><div><dt>Person</dt><dd>{preview.name}</dd></div><div><dt>When</dt><dd>{preview.timing}</dd></div><div><dt>Note</dt><dd>{preview.original}</dd></div></dl><p>{preview.confidence}</p><div className="card-actions"><Link className="button primary" href={`/contacts/new?capture=${encodeURIComponent(preview.original)}`} onClick={() => dialogRef.current?.close()}>Continue with Contact</Link><button className="button" type="button" onClick={() => setPreview(null)}>Edit capture</button></div></section>}
+    {preview && <section className="quick-add-proposal" aria-live="polite"><strong>Confirm this interpretation</strong><dl><div><dt>Person</dt><dd>{preview.name ?? "Choose a contact"}</dd></div><div><dt>When</dt><dd>{preview.timing}</dd></div><div><dt>Reason</dt><dd>{preview.reason}</dd></div><div><dt>Note</dt><dd>{preview.original}</dd></div></dl><p>{preview.confidence}</p><div className="card-actions"><Link className="button primary" href={contactHref} onClick={() => dialogRef.current?.close()}>Continue with Contact</Link><button className="button" type="button" onClick={() => setPreview(null)}>Edit capture</button></div></section>}
     {!preview && <><div className="quick-add-divider"><span>Or choose a type</span></div>
     <nav className="quick-add-grid" aria-label="Quick Add options">
       <Link href="/contacts/new" onClick={() => dialogRef.current?.close()}><AppIcon name="contacts"/><span><strong>New Contact</strong><small>Add one person</small></span></Link>
