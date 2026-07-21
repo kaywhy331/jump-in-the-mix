@@ -1,9 +1,44 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Logo } from "@/components/Logo";
+import { annualMonthlyEquivalentCents, annualSavingsCents, PLAN_CATALOG, type PlanCatalogEntry } from "@/lib/plan-catalog";
+import { formatPlanLimit } from "@/lib/plans";
+
+function dollars(amountCents: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(amountCents / 100);
+}
+
+function signupHref(entry: PlanCatalogEntry, annual: boolean): string {
+  if (entry.tier === "FREE") return "/register";
+  return `/register?plan=${entry.tier.toLowerCase()}&period=${annual ? "annual" : "monthly"}`;
+}
+
+function PricingCard({ entry, annual }: { entry: PlanCatalogEntry; annual: boolean }) {
+  const monthlyCents = annual ? annualMonthlyEquivalentCents(entry) : entry.monthlyAmountCents;
+  const savings = annualSavingsCents(entry);
+  return (
+    <article className="pricing-card">
+      {entry.popular && <span className="plan-pill">Popular</span>}
+      <h3>{entry.name}</h3>
+      <p>{entry.description}</p>
+      <h2>{dollars(monthlyCents)}{entry.tier !== "FREE" && <small> / month{annual ? " equivalent" : ""}</small>}</h2>
+      <small>
+        {entry.tier === "FREE"
+          ? `${formatPlanLimit(entry.limits.contacts)} Contacts · ${formatPlanLimit(entry.limits.mixes)} active Mixes`
+          : annual
+            ? `${dollars(entry.annualAmountCents)} billed annually · save ${dollars(savings)}`
+            : "Billed monthly"}
+      </small>
+      <Link href={signupHref(entry, annual)} className={entry.popular ? "button primary" : "button"}>
+        {entry.tier === "FREE" ? "Start free" : `Choose ${entry.name}`}
+      </Link>
+    </article>
+  );
+}
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ billing?: string }> }) {
   const annual = (await searchParams).billing !== "monthly";
+  const plans = [PLAN_CATALOG.FREE, PLAN_CATALOG.PLUS, PLAN_CATALOG.PRO];
   return (
     <div className="public-shell">
       <header className="public-header">
@@ -76,12 +111,20 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <h2>Test the workflow free, then add more capacity and automation.</h2>
           </div>
           <nav className="public-billing-toggle" aria-label="Pricing period"><Link className={annual ? "active" : ""} href="/?billing=annual#pricing">Annual <span>Save up to 20%</span></Link><Link className={!annual ? "active" : ""} href="/?billing=monthly#pricing">Monthly</Link></nav>
-          <div className="pricing-grid">
-            <article className="pricing-card"><h3>Free</h3><p>For organizing a focused personal network.</p><h2>$0</h2><small>100 Contacts · 3 active Mixes</small><Link href="/register" className="button">Start free</Link></article>
-            <article className="pricing-card"><span className="plan-pill">Popular</span><h3>Plus</h3><p>For entrepreneurs building a consistent relationship routine.</p><h2>${annual ? 12 : 15} <small>/ month{annual ? ' equivalent' : ''}</small></h2><small>{annual ? '$144 billed annually · save $36' : 'Billed monthly'}</small><Link href={`/register?plan=plus&period=${annual ? 'annual' : 'monthly'}`} className="button primary">Choose Plus</Link></article>
-            <article className="pricing-card"><h3>Pro</h3><p>For growing businesses managing a broader network.</p><h2>${annual ? 15 : 18} <small>/ month{annual ? ' equivalent' : ''}</small></h2><small>{annual ? '$180 billed annually · save $36' : 'Billed monthly'}</small><Link href={`/register?plan=pro&period=${annual ? 'annual' : 'monthly'}`} className="button">Choose Pro</Link></article>
+          <div className="pricing-grid">{plans.map((entry) => <PricingCard key={entry.tier} entry={entry} annual={annual} />)}</div>
+          <div className="pricing-comparison-wrap">
+            <table className="pricing-comparison">
+              <caption>Full plan comparison</caption>
+              <thead><tr><th scope="col">Capability</th>{plans.map((entry) => <th scope="col" key={entry.tier}>{entry.name}</th>)}</tr></thead>
+              <tbody>
+                <tr><th scope="row">Contacts</th>{plans.map((entry) => <td key={entry.tier}>{formatPlanLimit(entry.limits.contacts)}</td>)}</tr>
+                <tr><th scope="row">Active Mixes</th>{plans.map((entry) => <td key={entry.tier}>{formatPlanLimit(entry.limits.mixes)}</td>)}</tr>
+                <tr><th scope="row">Google Contacts</th>{plans.map((entry) => <td key={entry.tier}>{entry.limits.googleContacts ? "Included" : "—"}</td>)}</tr>
+                <tr><th scope="row">AI Mix drafts</th>{plans.map((entry) => <td key={entry.tier}>{entry.limits.aiWizard ? "Included" : "—"}</td>)}</tr>
+                <tr><th scope="row">Community sharing</th>{plans.map((entry) => <td key={entry.tier}>{entry.limits.sharedMixes ? `${formatPlanLimit(entry.limits.sharedMixes)} shared` : "Browse"}</td>)}</tr>
+              </tbody>
+            </table>
           </div>
-          <div className="pricing-comparison-wrap"><table className="pricing-comparison"><caption>Full plan comparison</caption><thead><tr><th scope="col">Capability</th><th scope="col">Free</th><th scope="col">Plus</th><th scope="col">Pro</th></tr></thead><tbody><tr><th scope="row">Contacts</th><td>100</td><td>2,500</td><td>10,000</td></tr><tr><th scope="row">Active Mixes</th><td>3</td><td>25</td><td>100</td></tr><tr><th scope="row">Google Contacts</th><td>—</td><td>Included</td><td>Included</td></tr><tr><th scope="row">AI Mix drafts</th><td>—</td><td>Included</td><td>Included</td></tr><tr><th scope="row">Community sharing</th><td>Browse</td><td>3 shared</td><td>10 shared</td></tr></tbody></table></div>
         </section>
 
         <section className="section trust-section"><div className="section-heading"><span className="eyebrow">Clarity before automation</span><h2>A relationship tool, not another complicated CRM.</h2></div><div className="trust-grid"><article><h3>You stay in control</h3><p>Jumps prepare native email, SMS, phone, voicemail-script, and WhatsApp actions. You review and send them; the product does not silently message your Contacts.</p></article><article><h3>Your data has an exit</h3><p>Export Contacts, disconnect integrations, revoke sessions, or permanently delete the account. Provider revocation is best-effort and clearly reported.</p></article><article><h3>Honest integrations</h3><p>Google Contacts and Stripe are implemented with deterministic tests; live provider qualification remains pending. Resend live delivery is pending. Microsoft, Meta assistant, website webhooks, and Twilio are not production integrations today.</p></article></div></section>
