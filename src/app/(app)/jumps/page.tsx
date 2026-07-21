@@ -5,12 +5,13 @@ import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { JumpActionLink, JumpCopyButton } from "@/components/JumpActionControls";
 import { Notice } from "@/components/Notice";
-import { snoozeJumpAction, updateJumpStatusAction } from "@/lib/actions";
+import { updateJumpStatusAction } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { addLogicalDays, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
+import { snoozeJumpAction } from "@/lib/snooze-actions";
 import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 
 export const metadata: Metadata = { title: "Jump" };
@@ -27,6 +28,9 @@ type SearchParams = {
   mixStopError?: string;
   snoozed?: string;
   firstContact?: string;
+  plan?: string;
+  period?: string;
+  error?: string;
 };
 
 type ActionType = "COMPOSED" | "CALLED" | "VOICEMAIL_STARTED";
@@ -85,6 +89,8 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
   const range = ["due", "week", "month", "all"].includes(params.range ?? "") ? params.range! : "due";
   const status = ["all", "pending", "done", "skipped"].includes(params.status ?? "") ? params.status! : "all";
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
+  const selectedPlan = params.plan === "plus" || params.plan === "pro" ? params.plan : null;
+  const selectedPeriod = params.period === "monthly" ? "monthly" : "annual";
   const { workspace } = await requireWorkspace();
   const timezone = workspace.profile?.timezone ?? "UTC";
   const today = logicalDateInTimezone(new Date(), timezone);
@@ -154,6 +160,7 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
   const upcoming = pending.filter((jump) => jump.scheduledAt >= endToday);
   const completed = ordered.filter((jump) => completedStatuses.includes(jump.status));
   const currentFilters = { range, status, channel };
+  const jumpsReturnTo = `/jumps?${new URLSearchParams(currentFilters).toString()}`;
   const activeFilterCount = Number(status !== "all") + Number(channel !== "all");
   const nextUp = overdue[0] ?? dueToday[0];
   const visibleOverdue = nextUp ? overdue.filter((jump) => jump.id !== nextUp.id) : overdue;
@@ -213,21 +220,26 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
           ) : <span className="status-pill" title={`Add a primary ${jumpChannel === "EMAIL" ? "email" : "phone"} to this contact first`}>Missing</span>}
           <div className="jump-completion-actions">
             <form action={updateJumpStatusAction}><input type="hidden" name="jumpId" value={jump.id} /><input type="hidden" name="status" value={nextStatus} /><button className={`button small jump-done-action ${isPending ? "" : "done"}`} type="submit">{taskStatusLabel(jump.status)}</button></form>
-            {isPending && <details className="jump-overflow"><summary className="button small" aria-label={`More actions for ${jump.contact.displayName}`}>More</summary><div className="jump-overflow-panel"><strong>Snooze</strong>{[["later-today", "Later today"], ["tomorrow", "Tomorrow"], ["next-monday", "Next Monday"], ["next-week", "Next week"]].map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={jump.id}/><input type="hidden" name="preset" value={preset}/><button className="text-button" type="submit">{label}</button></form>)}<form action={snoozeJumpAction} className="custom-snooze"><input type="hidden" name="jumpId" value={jump.id}/><input type="datetime-local" name="customDate" aria-label="Custom snooze date and time" required/><button className="button small" type="submit">Custom</button></form><form action={updateJumpStatusAction}><input type="hidden" name="jumpId" value={jump.id}/><input type="hidden" name="status" value="SKIPPED"/><button className="text-button danger-text" type="submit">Skip</button></form>{jump.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop Mix…" title={`Stop ${jump.mix.name} for ${jump.contact.displayName}?`} description="Pending Jumps from this Mix will leave the queue. Completed history remains available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={jump.mixId}/><input type="hidden" name="contactId" value={jump.contactId}/><input type="hidden" name="returnTo" value="/jumps"/><button className="button small danger" type="submit">Confirm stop</button></form></ConfirmDialog>}</div></details>}
+            {isPending && <details className="jump-overflow"><summary className="button small" aria-label={`More actions for ${jump.contact.displayName}`}>More</summary><div className="jump-overflow-panel"><strong>Snooze</strong>{[["later-today", "Later today"], ["tomorrow", "Tomorrow"], ["next-monday", "Next Monday"], ["next-week", "Next week"]].map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={jump.id}/><input type="hidden" name="preset" value={preset}/><input type="hidden" name="returnTo" value={jumpsReturnTo}/><button className="text-button" type="submit">{label}</button></form>)}<form action={snoozeJumpAction} className="custom-snooze"><input type="hidden" name="jumpId" value={jump.id}/><input type="hidden" name="preset" value="custom"/><input type="hidden" name="returnTo" value={jumpsReturnTo}/><input type="datetime-local" name="customDate" aria-label={`Custom snooze date and time in ${timezone}`} required/><small className="muted-copy">{timezone}</small><button className="button small" type="submit">Custom</button></form><form action={updateJumpStatusAction}><input type="hidden" name="jumpId" value={jump.id}/><input type="hidden" name="status" value="SKIPPED"/><button className="text-button danger-text" type="submit">Skip</button></form>{jump.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop Mix…" title={`Stop ${jump.mix.name} for ${jump.contact.displayName}?`} description="Pending Jumps from this Mix will leave the queue. Completed history remains available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={jump.mixId}/><input type="hidden" name="contactId" value={jump.contactId}/><input type="hidden" name="returnTo" value="/jumps"/><button className="button small danger" type="submit">Confirm stop</button></form></ConfirmDialog>}</div></details>}
           </div>
         </div>
       </article>
     );
   };
 
+  const welcomeMessage = params.firstContact
+    ? `Your first Jump for ${params.firstContact} is ready below.`
+    : "Your workspace is ready. Complete a prepared Jump or add a Contact and Important Date to create more.";
+
   return (
     <div className="page">
-      {params.welcome && <Notice type="success">{params.firstContact ? `Your first Jump for ${params.firstContact} is ready below.` : "Your workspace is ready. Complete a prepared Jump or add a Contact and Important Date to create more."}</Notice>}
+      {params.welcome && <Notice type="success">{welcomeMessage}{selectedPlan && <> <Link href={`/plans?plan=${selectedPlan}&period=${selectedPeriod}#plan-${selectedPlan}`}><strong>Review the selected {selectedPlan === "plus" ? "Plus" : "Pro"} plan after your first win.</strong></Link></>}</Notice>}
       {params.demo && <Notice type="info">You are in the local demo workspace. Actions remain on this computer.</Notice>}
       {params.applied && <Notice type="success">Created {params.applied} one-time Jump{params.applied === "1" ? "" : "s"} for the selected Contacts.</Notice>}
       {params.mixStopped && <Notice type="success">The Mix was stopped for this Contact. Its pending Jumps were removed from the queue.</Notice>}
       {params.mixStopError && <Notice type="error">The Mix could not be stopped for this Contact.</Notice>}
-      {params.snoozed && <Notice type="success">Jump snoozed. It will return to your queue at the new time.</Notice>}
+      {params.snoozed && <Notice type="success">Jump snoozed in {timezone}. It will return to your queue at the new local time.</Notice>}
+      {params.error && <Notice type="error">{params.error}</Notice>}
       <header className="page-header"><div><h1>Today</h1><p>One clear list of the people who need your attention and what to do next.</p></div><div className="today-summary desktop-only" aria-label="Current Jump workload"><strong>{overdue.length + dueToday.length}</strong><span>due now</span>{overdue.length > 0 && <small>{overdue.length} overdue</small>}</div></header>
       <section className="today-operating-view desktop-only" aria-label="Today at a glance"><article><small>Overdue</small><strong>{overdue.length}</strong></article><article><small>Due today</small><strong>{dueToday.length}</strong></article><article><small>Due this week</small><strong>{dueThisWeekCount}</strong></article><article><small>Completed today</small><strong>{completedTodayCount}</strong></article></section>
       {nextUp && <aside className="do-next-card desktop-only"><span className="eyebrow">Do next</span><strong>{nextUp.contact.displayName}</strong><span>{nextUp.reason}</span><a className="button primary" href={`#jump-${nextUp.id}`}>Open next action</a></aside>}
