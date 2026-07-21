@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Notice } from "@/components/Notice";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Notice } from "@/components/Notice";
 import {
   assignMixToContactAction,
   createImportantDateAction,
@@ -19,6 +19,7 @@ import { prisma } from "@/lib/prisma";
 export const metadata: Metadata = { title: "Contact details" };
 
 type SearchParams = {
+  created?: string;
   dateCreated?: string;
   dateDeleted?: string;
   mixAssigned?: string;
@@ -77,13 +78,16 @@ export default async function ContactDetailPage({
   const directMixIds = new Set(contact.mixAssignments.map((assignment) => assignment.mixId));
   const additionalStoppedMixes = mixes.filter((mix) => stopByMixId.has(mix.id) && !directMixIds.has(mix.id));
   const activeByGroupId = new Map(groupStates.map((state) => [state.groupId, state.isActive]));
+  const primaryEmail = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email;
+  const primaryPhone = contact.phones.find((item) => item.isPrimary)?.phone ?? contact.phones[0]?.phone;
 
   return (
     <div className="page">
+      {query.created && <Notice type="success">{query.dateCreated ? `Contact added with the first Important Date${query.mixAssigned ? " and follow-up plan" : ""}. Future Jumps are being prepared.` : "Contact added. Add an Important Date when you are ready to schedule follow-up."}</Notice>}
       {query.updated && <Notice type="success">Contact details updated. Future pending Jumps are being refreshed.</Notice>}
-      {query.dateCreated && <Notice type="success">Important Date added. Matching Mixes can now create future Jumps.</Notice>}
+      {!query.created && query.dateCreated && <Notice type="success">Important Date added. Matching Mixes can now create future Jumps.</Notice>}
       {query.dateDeleted && <Notice type="success">Important Date removed. Obsolete future Jumps are being reconciled.</Notice>}
-      {query.mixAssigned && <Notice type="success">Mix assigned. The background worker is preparing matching Jumps.</Notice>}
+      {!query.created && query.mixAssigned && <Notice type="success">Mix assigned. The background worker is preparing matching Jumps.</Notice>}
       {query.mixRemoved && <Notice type="success">Mix removed from this Contact. Completed history remains available.</Notice>}
       {query.mixStopped && <Notice type="success">Mix stopped for this Contact. Its pending Jumps were removed.</Notice>}
       {query.mixResumed && <Notice type="success">Mix resumed for this Contact. Valid future Jumps are being restored.</Notice>}
@@ -94,6 +98,13 @@ export default async function ContactDetailPage({
         <div><h1>{contact.displayName}</h1><p>{contact.company || "Relationship details and follow-up timing"}</p></div>
         <div className="page-actions"><Link href={`/contacts/${contact.id}/edit`} className="button primary">Edit contact</Link><Link href="/contacts" className="button">Back</Link></div>
       </header>
+
+      {(primaryEmail || primaryPhone) && <nav className="page-actions contact-profile-quick-actions" aria-label={`Contact ${contact.displayName}`}>
+        {primaryPhone && <a className="button primary" href={`sms:${primaryPhone}`}>Text</a>}
+        {primaryEmail && <a className="button" href={`mailto:${primaryEmail}`}>Email</a>}
+        {primaryPhone && <a className="button" href={`tel:${primaryPhone}`}>Call</a>}
+        <a className="button" href="#add-important-date">Add Important Date</a>
+      </nav>}
 
       {contact.groupMemberships.length > 0 && <div className="contact-group-strip">{contact.groupMemberships.map(({ group }) => {
         const isActive = activeByGroupId.get(group.id) !== false;
