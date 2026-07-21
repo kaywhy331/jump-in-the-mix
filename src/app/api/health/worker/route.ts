@@ -6,35 +6,20 @@ function staleAfterSeconds(): number {
 }
 
 export async function GET() {
+  const headers = { "Cache-Control": "no-store" };
   try {
     const heartbeat = await prisma.workerHeartbeat.findFirst({
       where: { status: "RUNNING" },
       orderBy: { lastSeenAt: "desc" },
-      select: { startedAt: true, lastSeenAt: true, lastJobAt: true }
+      select: { lastSeenAt: true }
     });
-    const staleSeconds = staleAfterSeconds();
-    const ageSeconds = heartbeat ? Math.max(0, Math.floor((Date.now() - heartbeat.lastSeenAt.getTime()) / 1000)) : null;
-    const ready = Boolean(heartbeat && ageSeconds !== null && ageSeconds <= staleSeconds);
-
-    return Response.json({
-      status: ready ? "ready" : "not-ready",
-      worker: heartbeat
-        ? {
-            startedAt: heartbeat.startedAt.toISOString(),
-            lastSeenAt: heartbeat.lastSeenAt.toISOString(),
-            lastJobAt: heartbeat.lastJobAt?.toISOString() ?? null,
-            ageSeconds
-          }
-        : null,
-      staleAfterSeconds: staleSeconds,
-      timestamp: new Date().toISOString()
-    }, { status: ready ? 200 : 503 });
+    const ready = Boolean(
+      heartbeat
+      && Date.now() - heartbeat.lastSeenAt.getTime() <= staleAfterSeconds() * 1000
+    );
+    return Response.json({ status: ready ? "ready" : "not-ready" }, { status: ready ? 200 : 503, headers });
   } catch (error) {
-    return Response.json({
-      status: "not-ready",
-      worker: null,
-      error: error instanceof Error ? error.message : "unknown",
-      timestamp: new Date().toISOString()
-    }, { status: 503 });
+    console.error("Worker health check failed", error);
+    return Response.json({ status: "not-ready" }, { status: 503, headers });
   }
 }
