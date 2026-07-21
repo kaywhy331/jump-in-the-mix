@@ -21,6 +21,9 @@
   .jump-task-complete .jump-completion-actions > form { display: none; }
 
   .jump-completion-actions .jump-done-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     width: 44px;
     min-width: 44px;
     height: 44px;
