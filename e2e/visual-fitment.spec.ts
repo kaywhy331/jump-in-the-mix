@@ -24,7 +24,7 @@ async function expectNoHorizontalOverflow(page: Page) {
 
 async function expectNoClippedControls(page: Page) {
   const clipped = await page.locator("button:visible, a.button:visible, summary.button:visible").evaluateAll((elements) => elements.flatMap((element) => {
-    if (element.getAttribute("aria-label") === "Open Next.js Dev Tools") return [];
+    if (element.getAttribute("aria-label") === "Open Next.js Dev Tools" || element.classList.contains("sr-only")) return [];
     const control = element as HTMLElement;
     const rect = control.getBoundingClientRect();
     const container = control.closest(".card, .jump-task-card, .contact-row, .mix-card") as HTMLElement | null;
