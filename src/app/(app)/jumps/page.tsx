@@ -238,7 +238,7 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
       {params.applied && <Notice type="success">Created {params.applied} one-time Jump{params.applied === "1" ? "" : "s"} for the selected Contacts.</Notice>}
       {params.mixStopped && <Notice type="success">The Mix was stopped for this Contact. Its pending Jumps were removed from the queue.</Notice>}
       {params.mixStopError && <Notice type="error">The Mix could not be stopped for this Contact.</Notice>}
-      {params.snoozed && <Notice type="success">Jump snoozed in {timezone}. It will return to your queue at the new local time.</Notice>}
+      {params.snoozed && <Notice type="success">Jump snoozed. It will return to your queue at the new time.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
       <header className="page-header"><div><h1>Today</h1><p>One clear list of the people who need your attention and what to do next.</p></div><div className="today-summary desktop-only" aria-label="Current Jump workload"><strong>{overdue.length + dueToday.length}</strong><span>due now</span>{overdue.length > 0 && <small>{overdue.length} overdue</small>}</div></header>
       <section className="today-operating-view desktop-only" aria-label="Today at a glance"><article><small>Overdue</small><strong>{overdue.length}</strong></article><article><small>Due today</small><strong>{dueToday.length}</strong></article><article><small>Due this week</small><strong>{dueThisWeekCount}</strong></article><article><small>Completed today</small><strong>{completedTodayCount}</strong></article></section>
