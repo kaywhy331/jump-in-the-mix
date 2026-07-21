@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { AppIcon } from "@/components/AppIcon";
 
 export type PersonalizableCardItem = {
@@ -33,6 +33,7 @@ export function PersonalizableCardBoard({
   items: PersonalizableCardItem[];
   className?: string;
 }) {
+  const boardId = useId().replaceAll(":", "");
   const itemIds = useMemo(() => items.map((item) => item.id), [items]);
   const defaultCollapsed = useMemo(
     () => items.filter((item) => item.defaultCollapsed).map((item) => item.id),
@@ -97,29 +98,34 @@ export function PersonalizableCardBoard({
     <div className={className} data-personalizable-card-board>
       {orderedItems.map((item, index) => {
         const isCollapsed = collapsed.includes(item.id);
+        const titleId = `${boardId}-${item.id}-title`;
+        const contentId = `${boardId}-${item.id}-content`;
         return (
           <section
             className={`card personalizable-card${item.className ? ` ${item.className}` : ""}`}
             id={item.id}
             key={item.id}
             data-user-card={item.id}
+            aria-labelledby={titleId}
           >
             <div className="personalizable-card-header">
-              <button
-                className="personalizable-card-toggle"
-                type="button"
-                aria-expanded={!isCollapsed}
-                aria-controls={`${item.id}-content`}
-                onClick={() => toggle(item.id)}
-              >
-                <span>
-                  <strong>{item.title}</strong>
-                  {item.description && <small>{item.description}</small>}
-                </span>
-                <AppIcon name={isCollapsed ? "chevronDown" : "chevronUp"} />
-              </button>
+              <div className="personalizable-card-heading">
+                <h2 id={titleId}>{item.title}</h2>
+                {item.description && <p>{item.description}</p>}
+              </div>
               <div className="personalizable-card-controls">
                 {item.actions}
+                <button
+                  className="icon-button compact personalizable-card-toggle"
+                  type="button"
+                  aria-expanded={!isCollapsed}
+                  aria-controls={contentId}
+                  aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${item.title}`}
+                  title={`${isCollapsed ? "Expand" : "Collapse"} card`}
+                  onClick={() => toggle(item.id)}
+                >
+                  <AppIcon name={isCollapsed ? "chevronDown" : "chevronUp"} />
+                </button>
                 <button
                   className="icon-button compact"
                   type="button"
@@ -142,7 +148,7 @@ export function PersonalizableCardBoard({
                 </button>
               </div>
             </div>
-            <div id={`${item.id}-content`} className="personalizable-card-content" hidden={isCollapsed}>
+            <div id={contentId} className="personalizable-card-content" hidden={isCollapsed}>
               {item.content}
             </div>
           </section>
