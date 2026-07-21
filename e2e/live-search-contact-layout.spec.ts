@@ -73,7 +73,7 @@ test("Contact mobile header actions include icons", async ({ page }, testInfo) =
   await expect(backToContact.locator("svg")).toHaveCount(1);
 });
 
-test("Important Dates are compact, editable, collapsible, and keep user card order", async ({ page }, testInfo) => {
+test("Contact cards use one column, text toggles, and persistent drag ordering", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The stateful card workspace is exercised once.");
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const contactId = `e2e-card-contact-${suffix}`;
@@ -117,6 +117,15 @@ test("Important Dates are compact, editable, collapsible, and keep user card ord
     }, `jitm:contact:${contactId}:cards`);
     await page.reload();
 
+    const cards = page.locator("[data-personalizable-card-board] > [data-user-card]");
+    const firstBox = await cards.nth(0).boundingBox();
+    const secondBox = await cards.nth(1).boundingBox();
+    expect(firstBox).not.toBeNull();
+    expect(secondBox).not.toBeNull();
+    expect(Math.abs(firstBox!.x - secondBox!.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(firstBox!.width - secondBox!.width)).toBeLessThanOrEqual(1);
+    expect(secondBox!.y).toBeGreaterThan(firstBox!.y + firstBox!.height);
+
     const datesCard = page.locator('[data-user-card="important-dates"]');
     await expect(datesCard).toBeVisible();
     await expect(datesCard.getByLabel("Edit Follow-up")).toBeVisible();
@@ -135,16 +144,21 @@ test("Important Dates are compact, editable, collapsible, and keep user card ord
     ]);
     await expect(page.getByText("Updated relationship check-in", { exact: true })).toBeVisible();
 
-    const toggle = page.locator('[data-user-card="important-dates"] .personalizable-card-toggle');
-    await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const minimize = page.getByRole("button", { name: "Minimize Important Dates" });
+    await expect(minimize).toHaveText("Minimize");
+    await minimize.click();
+    const expand = page.getByRole("button", { name: "Expand Important Dates" });
+    await expect(expand).toHaveText("Expand");
+    await expect(expand).toHaveAttribute("aria-expanded", "false");
     await page.reload();
-    await expect(page.locator('[data-user-card="important-dates"] .personalizable-card-toggle')).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByRole("button", { name: "Expand Important Dates" })).toHaveAttribute("aria-expanded", "false");
 
+    await expect(page.getByRole("button", { name: /Move .+ (up|down)/ })).toHaveCount(0);
     const methodsCard = page.locator('[data-user-card="contact-methods"]');
-    await methodsCard.getByRole("button", { name: "Move Contact methods up" }).click();
-    await methodsCard.getByRole("button", { name: "Move Contact methods up" }).click();
-    await expect(page.locator("[data-personalizable-card-board] > [data-user-card]").first()).toHaveAttribute("data-user-card", "contact-methods");
+    const dragHandle = methodsCard.getByRole("button", { name: "Drag Contact methods to reorder" });
+    await expect(dragHandle).toContainText("Drag to reorder");
+    await dragHandle.dragTo(datesCard, { targetPosition: { x: 24, y: 4 } });
+    await expect(cards.first()).toHaveAttribute("data-user-card", "contact-methods");
     await page.reload();
     await expect(page.locator("[data-personalizable-card-board] > [data-user-card]").first()).toHaveAttribute("data-user-card", "contact-methods");
   } finally {
