@@ -1,0 +1,24 @@
+name: Docker build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  production-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image
+        run: docker build --target production --tag jump-in-the-mix:ci .
+      - name: Inspect production image
+        run: docker image inspect jump-in-the-mix:ci --format '{{.Id}} {{.Size}}'
