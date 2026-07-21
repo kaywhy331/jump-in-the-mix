@@ -64,22 +64,9 @@ form[data-live-pending="true"]::after {
   min-height: 66px;
   padding: 12px 14px;
 }
-.personalizable-card-toggle {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-}
-.personalizable-card-toggle > span { min-width: 0; display: grid; gap: 2px; }
-.personalizable-card-toggle strong { font-size: 1.02rem; }
-.personalizable-card-toggle small { color: var(--muted); font-size: .78rem; font-weight: 500; }
-.personalizable-card-toggle > svg { width: 19px; height: 19px; color: var(--muted); flex: 0 0 auto; }
+.personalizable-card-heading { min-width: 0; display: grid; gap: 2px; }
+.personalizable-card-heading h2 { margin: 0; font-size: 1.02rem; line-height: 1.2; }
+.personalizable-card-heading p { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.35; }
 .personalizable-card-controls { display: flex; align-items: center; gap: 5px; }
 .personalizable-card-controls .button { min-height: 36px; }
 .personalizable-card-content { padding: 0 16px 16px; border-top: 1px solid var(--line); }
@@ -143,7 +130,7 @@ form[data-live-pending="true"]::after {
   .contact-method-preview span { max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .contact-customer-note { font-size: .73rem; -webkit-line-clamp: 1; }
   .personalizable-card-header { min-height: 60px; padding: 10px 12px; }
-  .personalizable-card-toggle small { display: none; }
+  .personalizable-card-heading p { display: none; }
   .personalizable-card-content { padding: 0 12px 12px; }
   .personalizable-card-controls { gap: 3px; }
   .icon-button.compact { width: 40px; min-width: 40px; height: 40px; }
