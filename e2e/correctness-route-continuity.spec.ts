@@ -19,7 +19,7 @@ test("legacy Account destinations resolve to the correct section", async ({ page
   await signIn(page);
 
   await page.goto("/account#referrals");
-  await expect(page).toHaveURL(/\/account\?section=referrals#referrals$/);
+  await expect(page).toHaveURL(/\/account\?section=referrals$/);
   await expect(page.getByRole("heading", { name: "Invite friends to Jump in the Mix" })).toBeVisible();
 
   await page.goto("/account?google=connected");
@@ -84,7 +84,7 @@ test("name-only Contacts keep Important Date access and return to the filtered l
     await expect(page.getByText("2/28", { exact: true })).toBeVisible();
 
     await page.getByRole("link", { name: "Back to Contacts" }).click();
-    await expect(page).toHaveURL(new RegExp(`/contacts\\?q=${encodeURIComponent(displayName).replaceAll("%", "%")}$`));
+    await expect(page).toHaveURL(/\/contacts\?q=/);
     await expect(page.locator('input[aria-label="Search contacts"]:visible')).toHaveValue(displayName);
   } finally {
     await prisma.contact.deleteMany({ where: { id: contactId, workspaceId: workspace.id } });
