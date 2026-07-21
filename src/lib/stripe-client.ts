@@ -43,9 +43,23 @@ function encodeStripeParams(params: StripeParams): URLSearchParams {
   const encoded = new URLSearchParams();
   for (const [key, rawValue] of Object.entries(params)) {
     if (rawValue === null || rawValue === undefined) continue;
-    encoded.set(key, typeof rawValue === "boolean" ? String(rawValue) : String(rawValue));
+    encoded.set(key, String(rawValue));
   }
   return encoded;
+}
+
+function retryableStatus(status: number): boolean {
+  return status === 408 || status === 409 || status === 429 || status >= 500;
+}
+
+function retryDelay(response: Response | null, attempt: number): number {
+  const retryAfter = Number(response?.headers.get("retry-after"));
+  if (Number.isFinite(retryAfter) && retryAfter > 0) return Math.min(retryAfter * 1000, 5_000);
+  return 250 * (attempt + 1);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export async function stripeRequest<T>(
@@ -54,6 +68,7 @@ export async function stripeRequest<T>(
     method?: "GET" | "POST";
     params?: StripeParams;
     idempotencyKey?: string;
+    timeoutMs?: number;
   } = {}
 ): Promise<T> {
   const secretKey = requireStripeSecretKey();
@@ -70,18 +85,41 @@ export async function stripeRequest<T>(
   });
   if (method === "POST") headers.set("Content-Type", "application/x-www-form-urlencoded");
   if (options.idempotencyKey) headers.set("Idempotency-Key", options.idempotencyKey.slice(0, 255));
+  const canRetry = method === "GET" || Boolean(options.idempotencyKey);
 
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: method === "POST" ? params.toString() : undefined,
-    cache: "no-store"
-  });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let response: Response | null = null;
+    try {
+      response = await fetch(url, {
+        method,
+        headers,
+        body: method === "POST" ? params.toString() : undefined,
+        cache: "no-store",
+        signal: AbortSignal.timeout(options.timeoutMs ?? 15_000)
+      });
+    } catch (error) {
+      if (canRetry && attempt === 0) {
+        await sleep(retryDelay(null, attempt));
+        continue;
+      }
+      throw new StripeApiError(
+        error instanceof Error && error.name === "TimeoutError"
+          ? "Stripe did not respond before the request timeout."
+          : "Stripe could not be reached.",
+        503,
+        null,
+        "network_error"
+      );
+    }
 
-  const payload = await response.json().catch(() => null) as {
-    error?: { message?: string; code?: string; type?: string };
-  } | T | null;
-  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as {
+      error?: { message?: string; code?: string; type?: string };
+    } | T | null;
+    if (response.ok) return payload as T;
+    if (canRetry && attempt === 0 && retryableStatus(response.status)) {
+      await sleep(retryDelay(response, attempt));
+      continue;
+    }
     const error = payload && typeof payload === "object" && "error" in payload ? payload.error : undefined;
     throw new StripeApiError(
       error?.message || `Stripe returned HTTP ${response.status}.`,
@@ -90,7 +128,8 @@ export async function stripeRequest<T>(
       error?.type ?? null
     );
   }
-  return payload as T;
+
+  throw new StripeApiError("Stripe request retry budget was exhausted.", 503, null, "retry_exhausted");
 }
 
 function signatureParts(header: string): { timestamp: number; signatures: string[] } {
