@@ -53,6 +53,18 @@ export function PersonalizableCardBoard({
   }, [defaultCollapsed, itemIds, storageKey]);
 
   useEffect(() => {
+    const openLinkedCard = () => {
+      const linkedId = decodeURIComponent(window.location.hash.replace(/^#/, ""));
+      if (!linkedId || !itemIds.includes(linkedId)) return;
+      setCollapsed((current) => current.filter((id) => id !== linkedId));
+      window.setTimeout(() => document.getElementById(linkedId)?.scrollIntoView({ block: "start" }), 0);
+    };
+    openLinkedCard();
+    window.addEventListener("hashchange", openLinkedCard);
+    return () => window.removeEventListener("hashchange", openLinkedCard);
+  }, [itemIds]);
+
+  useEffect(() => {
     if (!hydrated) return;
     window.localStorage.setItem(`${storageKey}:order`, JSON.stringify(order));
     window.localStorage.setItem(`${storageKey}:collapsed`, JSON.stringify(collapsed));
