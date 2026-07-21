@@ -54,7 +54,7 @@ export default async function SupportTicketPage({
         </div>
         <div className="page-actions">
           <Link className="button" href="/help">Help & FAQ</Link>
-          <Link className="button" href="/account#support">All tickets</Link>
+          <Link className="button" href="/account?section=support">All tickets</Link>
         </div>
       </header>
 
