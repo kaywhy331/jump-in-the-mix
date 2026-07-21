@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DeviceContactQuickAdd } from "@/components/DeviceContactQuickAdd";
@@ -12,6 +12,7 @@ import {
   bulkArchiveContactsAction,
   bulkRemoveGroupAction
 } from "@/lib/bulk-contact-actions";
+import { restoreContactListScroll, saveContactListState } from "@/lib/contact-list-state";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { createContactsCsv, type ExportContact } from "@/lib/contact-export";
 import {
@@ -92,6 +93,10 @@ export function ContactsBulkWorkspace({
   const inactiveGroupCount = groups.length - activeGroups.length;
   const allSelected = contacts.length > 0 && selected.size === contacts.length;
 
+  useEffect(() => {
+    restoreContactListScroll();
+  }, [groupFilter, intent, query]);
+
   const toggleContact = (contactId: string) => {
     setSelected((current) => {
       const next = new Set(current);
@@ -130,7 +135,7 @@ export function ContactsBulkWorkspace({
             <summary className="button mobile-header-action" aria-label="More Contact tools"><AppIcon name="more"/><span className="mobile-action-label">More</span></summary>
             <div className="group-manager-panel contact-tools-panel">
               <button className="icon-button panel-close" type="button" aria-label="Close Contact tools" onClick={(event) => event.currentTarget.closest("details")?.removeAttribute("open")}><AppIcon name="close" /></button>
-              <div className="contact-tools-links"><Link href="/contacts/import">Import Contacts</Link><Link href="/contacts/custom-fields">Custom fields</Link></div>
+              <div className="contact-tools-links"><Link href="/contacts/import" onClick={saveContactListState}>Import Contacts</Link><Link href="/contacts/custom-fields" onClick={saveContactListState}>Custom fields</Link></div>
               <div className="section-label"><h2>Contact Groups</h2><span>{activeGroups.length}/{groupLimit} active · {groups.length} stored</span></div>
               <p className="muted-copy">Inactive groups keep their Contacts and Mix assignments, but cannot receive new assignments or generate group-based Jumps. Select which groups remain active under your current plan.</p>
               <form action={createContactGroupAction} className="group-create-form">
@@ -167,10 +172,10 @@ export function ContactsBulkWorkspace({
               <button className="icon-button panel-close" type="button" aria-label="Close Add Contact" onClick={(event) => event.currentTarget.closest("details")?.removeAttribute("open")}><AppIcon name="close" /></button>
               <div className="section-label"><h2>Add Contacts</h2><span>Choose a source</span></div>
               <div className="settings-hub-grid contact-acquisition-grid">
-                <Link className="settings-hub-card" href="/contacts/new"><span className="settings-hub-icon"><AppIcon name="add" /></span><span><strong>New Contact</strong><small>Enter one person manually.</small></span></Link>
+                <Link className="settings-hub-card" href="/contacts/new" onClick={saveContactListState}><span className="settings-hub-icon"><AppIcon name="add" /></span><span><strong>New Contact</strong><small>Enter one person manually.</small></span></Link>
                 <DeviceContactQuickAdd />
-                <Link className="settings-hub-card" href="/contacts/import"><span className="settings-hub-icon"><AppIcon name="import" /></span><span><strong>Import CSV / VCF</strong><small>Map, deduplicate, review, and import a file.</small></span></Link>
-                <Link className="settings-hub-card" href="/account#google-contacts"><span className="settings-hub-icon">G</span><span><strong>Google Contacts</strong><small>Connect labels or all Contacts on Plus and Pro.</small></span></Link>
+                <Link className="settings-hub-card" href="/contacts/import" onClick={saveContactListState}><span className="settings-hub-icon"><AppIcon name="import" /></span><span><strong>Import CSV / VCF</strong><small>Map, deduplicate, review, and import a file.</small></span></Link>
+                <Link className="settings-hub-card" href="/account?section=connections#google-contacts"><span className="settings-hub-icon">G</span><span><strong>Google Contacts</strong><small>Connect labels or all Contacts on Plus and Pro.</small></span></Link>
               </div>
             </div>
           </details>
@@ -205,7 +210,7 @@ export function ContactsBulkWorkspace({
                   <input type="checkbox" checked={isSelected} onChange={() => toggleContact(contact.id)} aria-label={`${isSelected ? "Deselect" : "Select"} ${contact.displayName}`} />
                   <span>{isSelected ? <AppIcon name="check" /> : null}</span>
                 </label>
-                <Link href={`/contacts/${contact.id}`} className="contact-main">
+                <Link href={`/contacts/${contact.id}`} className="contact-main" onClick={saveContactListState}>
                   <div className="avatar">{initials(contact.displayName) || "?"}</div>
                   <div>
                     <h3>{contact.displayName}</h3>
@@ -223,7 +228,7 @@ export function ContactsBulkWorkspace({
                     {contact.groupDetails.length > 0 && <div className="contact-group-list">{contact.groupDetails.slice(0, 3).map((group) => <span className={`group-chip ${group.isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}{group.isActive ? "" : " · inactive"}</span>)}{contact.groupDetails.length > 3 && <span className="group-chip">+{contact.groupDetails.length - 3}</span>}</div>}
                   </div>
                 </Link>
-                <div className="table-actions">{intent === "important-date" && <Link className="button small primary" href={`/contacts/${contact.id}#add-important-date`}>Add Important Date</Link>}<details className="contact-row-menu"><summary className="button small" aria-label={`More actions for ${contact.displayName}`}>More</summary><div className="contact-row-menu-panel"><Link href={`/contacts/${contact.id}/edit`}>Edit Contact</Link><ConfirmDialog trigger="Archive…" title={`Archive ${contact.displayName}?`} description="Future pending Jumps will be canceled. Completed history remains preserved." danger><form action={archiveContactAction}><input type="hidden" name="contactId" value={contact.id}/><button className="button small danger" type="submit">Confirm archive</button></form></ConfirmDialog></div></details></div>
+                <div className="table-actions">{intent === "important-date" && <Link className="button small primary" href={`/contacts/${contact.id}#add-important-date`} onClick={saveContactListState}>Add Important Date</Link>}<details className="contact-row-menu"><summary className="button small" aria-label={`More actions for ${contact.displayName}`}>More</summary><div className="contact-row-menu-panel"><Link href={`/contacts/${contact.id}/edit`} onClick={saveContactListState}>Edit Contact</Link><ConfirmDialog trigger="Archive…" title={`Archive ${contact.displayName}?`} description="Future pending Jumps will be canceled. Completed history remains preserved." danger><form action={archiveContactAction}><input type="hidden" name="contactId" value={contact.id}/><button className="button small danger" type="submit">Confirm archive</button></form></ConfirmDialog></div></details></div>
               </article>
             );
           })}

@@ -15,7 +15,7 @@ import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Plans" };
 
-type SearchParams = { period?: string; error?: string };
+type SearchParams = { period?: string; plan?: string; error?: string };
 
 function planUsageLine(planTier: PaidPlanTier): string {
   const limits = PLAN_LIMITS[planTier];
@@ -25,6 +25,7 @@ function planUsageLine(planTier: PaidPlanTier): string {
 export default async function PlansPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, { workspace, membership, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
   const billingPeriod: BillingPeriod = params.period?.toLowerCase() === "monthly" ? "MONTHLY" : "ANNUAL";
+  const selectedPlan: PaidPlanTier | null = params.plan?.toLowerCase() === "plus" ? "PLUS" : params.plan?.toLowerCase() === "pro" ? "PRO" : null;
   const subscription = workspace.stripeSubscriptionId
     ? await prisma.subscription.findUnique({ where: { stripeSubscriptionId: workspace.stripeSubscriptionId } })
     : null;
@@ -38,18 +39,19 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
     <div className="page billing-plans-page">
       <header className="page-header">
         <div><h1>Choose your plan</h1><p>Keep every record you create. Paid plans expand the number of active workflows and unlock AI and Google Contacts.</p></div>
-        <div className="page-actions"><Link className="button" href="/account">My Account</Link></div>
+        <div className="page-actions"><Link className="button" href="/account?section=billing">My Account</Link></div>
       </header>
 
       {params.error && <Notice type="error">{params.error}</Notice>}
+      {selectedPlan && <Notice type="info">Your {BILLING_PLANS[selectedPlan].name} · {billingPeriodLabel(billingPeriod).toLowerCase()} choice is still selected. Review it below after seeing your first prepared Jump.</Notice>}
       {impersonation && <Notice type="info">Billing changes are unavailable during a view-only administrator support session.</Notice>}
       {!canManageBilling && !impersonation && <Notice type="info">Only a workspace owner or administrator can change the subscription.</Notice>}
       {!configured && <Notice type="info">Checkout is not enabled in this environment. Add the Stripe secret key and all four approved Price IDs on the server.</Notice>}
       {workspace.subscriptionStatus === "PAST_DUE" && <Notice type="error">A payment needs attention. Open the Stripe billing portal to update the payment method.</Notice>}
 
       <nav className="billing-period-toggle" aria-label="Billing period">
-        <Link className={billingPeriod === "ANNUAL" ? "active" : ""} href="/plans?period=annual">Annual <span>Best value</span></Link>
-        <Link className={billingPeriod === "MONTHLY" ? "active" : ""} href="/plans?period=monthly">Monthly</Link>
+        <Link className={billingPeriod === "ANNUAL" ? "active" : ""} href={`/plans?period=annual${selectedPlan ? `&plan=${selectedPlan.toLowerCase()}` : ""}`}>Annual <span>Best value</span></Link>
+        <Link className={billingPeriod === "MONTHLY" ? "active" : ""} href={`/plans?period=monthly${selectedPlan ? `&plan=${selectedPlan.toLowerCase()}` : ""}`}>Monthly</Link>
       </nav>
 
       <div className="billing-plan-grid">
@@ -67,11 +69,12 @@ export default async function PlansPage({ searchParams }: { searchParams: Promis
           const amount = annual ? plan.annualAmountCents : plan.monthlyAmountCents;
           const equivalent = annual ? plan.annualMonthlyEquivalentCents : plan.monthlyAmountCents;
           const current = workspace.planTier === planTier && activeStripeSubscription;
+          const selected = selectedPlan === planTier;
           return (
-            <article className={`billing-plan-card ${planTier === "PLUS" ? "featured" : ""} ${current ? "current" : ""}`} key={planTier}>
+            <article id={`plan-${planTier.toLowerCase()}`} className={`billing-plan-card ${planTier === "PLUS" ? "featured" : ""} ${current ? "current" : ""}`} key={planTier}>
               <div className="billing-plan-heading">
                 <div><h2>{plan.name}</h2><p>{plan.description}</p></div>
-                {current ? <span className="status-pill done">Current</span> : planTier === "PLUS" ? <span className="plan-pill">Popular</span> : null}
+                {current ? <span className="status-pill done">Current</span> : selected ? <span className="plan-pill">Selected</span> : planTier === "PLUS" ? <span className="plan-pill">Popular</span> : null}
               </div>
               <div className="billing-price"><strong>{money(equivalent)}</strong><span>/ month{annual ? " equivalent" : ""}</span></div>
               {annual && <p className="billing-annual-total">{money(amount)} billed once per year</p>}

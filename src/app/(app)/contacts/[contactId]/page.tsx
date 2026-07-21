@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ContactsBackLink } from "@/components/ContactsBackLink";
 import { Notice } from "@/components/Notice";
 import { PersonalizableCardBoard, type PersonalizableCardItem } from "@/components/PersonalizableCards";
 import {
@@ -21,6 +22,11 @@ import { resumeMixForContactAction, stopMixForContactAction } from "@/lib/mix-st
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Contact details" };
+
+const MONTHS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+] as const;
 
 type SearchParams = {
   created?: string;
@@ -46,12 +52,6 @@ function addressText(address: {
   country: string | null;
 }): string {
   return [address.street1, address.street2, address.city, address.state, address.postalCode, address.country].filter(Boolean).join(", ");
-}
-
-function importantDateInput(value: Date | null, month: number | null, day: number | null): string {
-  if (value) return formatDateInput(value);
-  if (!month || !day) return "";
-  return `2000-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 export default async function ContactDetailPage({
@@ -112,7 +112,14 @@ export default async function ContactDetailPage({
                 <input type="hidden" name="jumpDateId" value={item.id} />
                 {!item.dateValue && <input type="hidden" name="monthDayOnly" value="1" />}
                 <label className="field"><span>Type</span><select name="dateTypeId" defaultValue={item.dateTypeId} required>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.isSystem ? `System · ${type.name}` : type.name}</option>)}</select></label>
-                <label className="field"><span>Date</span><input name="dateValue" type="date" defaultValue={importantDateInput(item.dateValue, item.month, item.day)} required /></label>
+                {item.dateValue ? (
+                  <label className="field"><span>Date</span><input name="dateValue" type="date" defaultValue={formatDateInput(item.dateValue)} required /></label>
+                ) : (
+                  <>
+                    <label className="field"><span>Month</span><select name="month" defaultValue={item.month ?? ""} required><option value="">Choose month</option>{MONTHS.map((month, index) => <option value={index + 1} key={month}>{month}</option>)}</select></label>
+                    <label className="field"><span>Day</span><input name="day" type="number" min={1} max={31} defaultValue={item.day ?? ""} inputMode="numeric" required /></label>
+                  </>
+                )}
                 <label className="field"><span>Repeat</span><select name="recurrence" defaultValue={item.recurrence}><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label>
                 <label className="field"><span>Label</span><input name="label" defaultValue={item.label ?? ""} placeholder="Proposal follow-up" /></label>
                 <div className="form-actions"><button className="button primary" type="submit">Save changes</button></div>
@@ -210,16 +217,16 @@ export default async function ContactDetailPage({
         <div><h1>{contact.displayName}</h1><p>{contact.company || "Relationship details and follow-up timing"}</p></div>
         <div className="page-actions contact-detail-header-actions">
           <Link href={`/contacts/${contact.id}/edit`} className="button primary mobile-header-action" aria-label="Edit contact"><AppIcon name="edit" /><span>Edit contact</span></Link>
-          <Link href="/contacts" className="button mobile-header-action" aria-label="Back to Contacts"><AppIcon name="arrowLeft" /><span>Back</span></Link>
+          <ContactsBackLink className="button mobile-header-action" ariaLabel="Back to Contacts"><AppIcon name="arrowLeft" /><span>Back</span></ContactsBackLink>
         </div>
       </header>
 
-      {(primaryEmail || primaryPhone) && <nav className="page-actions contact-profile-quick-actions" aria-label={`Contact ${contact.displayName}`}>
+      <nav className="page-actions contact-profile-quick-actions" aria-label={`Contact ${contact.displayName}`}>
         {primaryPhone && <a className="button primary" href={`sms:${primaryPhone}`}><AppIcon name="message" />Text</a>}
         {primaryEmail && <a className="button" href={`mailto:${primaryEmail}`}><AppIcon name="email" />Email</a>}
         {primaryPhone && <a className="button" href={`tel:${primaryPhone}`}><AppIcon name="phone" />Call</a>}
         <a className="button" href="#add-important-date"><AppIcon name="calendar" />Add Important Date</a>
-      </nav>}
+      </nav>
 
       {contact.groupMemberships.length > 0 && <div className="contact-group-strip">{contact.groupMemberships.map(({ group }) => {
         const isActive = activeByGroupId.get(group.id) !== false;

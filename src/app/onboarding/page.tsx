@@ -35,13 +35,13 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
             <div className="form-grid">
               <div className="field"><label htmlFor="reason">What do you want to remember?</label><select id="reason" name="reason" defaultValue="Follow up"><option>Follow up</option><option>Check in after a meeting</option><option>Ask about a referral</option><option>Discuss a renewal</option><option>Reconnect</option></select></div>
               <div className="field"><label htmlFor="followUpDate">Important Date</label><input id="followUpDate" name="followUpDate" type="date" min={today} defaultValue={today} required /></div>
-              <div className="field full"><label htmlFor="timezone">Timezone</label><TimezonePicker defaultValue={workspace.profile?.timezone ?? "America/New_York"} confirmDetection/></div>
+              <div className="field full"><label htmlFor="timezone">Timezone</label><TimezonePicker defaultValue={workspace.profile?.timezone ?? "UTC"} confirmDetection/></div>
             </div>
           </fieldset>
           <div className="onboarding-preview"><strong>What happens next</strong><span>We create a warm three-step Mix (follow-up plan), schedule the first Jump, and take you directly to Today.</span></div>
           <button className="button primary" type="submit">Create my first Jump</button>
+          <div className="skip-setup-form"><button className="text-button" type="submit" formAction={skipOnboardingAction} formNoValidate>Skip and explore with a starter Mix</button></div>
         </form>
-        <form action={skipOnboardingAction} className="skip-setup-form"><input type="hidden" name="planIntent" value={planIntent} /><button className="text-button" type="submit">Skip and explore with a starter Mix</button></form>
       </section>
     </main>
   );
