@@ -44,7 +44,8 @@ function validateContent(channel: Channel, formData: FormData) {
 }
 
 export async function createReusableJumpAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireWorkspace();
+  const { workspace, user, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Administrator support sessions are view-only.");
   const channel = normalizedChannel(value(formData, "channel"));
   if (!channel) fail("Choose a valid Jump channel.");
   if (channel === "VOICEMAIL" && workspace.planTier !== "PRO") {
@@ -56,31 +57,46 @@ export async function createReusableJumpAction(formData: FormData): Promise<void
   } catch (error) {
     fail(error instanceof Error ? error.message : "The Jump could not be created.");
   }
-  await prisma.stepTemplate.create({
-    data: {
-      workspaceId: workspace.id,
-      name: payload.name,
-      channel,
-      versions: {
-        create: {
-          version: 1,
-          subject: payload.subject,
-          body: payload.body,
-          script: payload.script,
-          longSms: payload.longSms
+  await prisma.$transaction(async (tx) => {
+    const template = await tx.stepTemplate.create({
+      data: {
+        workspaceId: workspace.id,
+        name: payload.name,
+        channel,
+        versions: {
+          create: {
+            version: 1,
+            subject: payload.subject,
+            body: payload.body,
+            script: payload.script,
+            longSms: payload.longSms
+          }
         }
       }
-    }
+    });
+    await tx.auditLog.create({
+      data: {
+        workspaceId: workspace.id,
+        actorType: "USER",
+        actorUserId: user.id,
+        action: "action-template.create",
+        entityType: "StepTemplate",
+        entityId: template.id,
+        source: "settings.jumps",
+        metadata: { channel }
+      }
+    });
   });
   redirect("/settings/jumps?created=1");
 }
 
 export async function updateReusableJumpAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireWorkspace();
+  const { workspace, user, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Administrator support sessions are view-only.");
   const stepTemplateId = value(formData, "stepTemplateId");
   const template = await prisma.stepTemplate.findFirst({
     where: { id: stepTemplateId, workspaceId: workspace.id },
-    select: { id: true, channel: true, currentVersion: true }
+    select: { id: true, channel: true, currentVersion: true, updatedAt: true }
   });
   if (!template) fail("Jump not found.");
   if (value(formData, "channel") !== template.channel) {
@@ -112,17 +128,60 @@ export async function updateReusableJumpAction(formData: FormData): Promise<void
         longSms: payload.longSms
       }
     });
-    await tx.stepTemplate.update({
-      where: { id: template.id },
+    const changed = await tx.stepTemplate.updateMany({
+      where: { id: template.id, workspaceId: workspace.id, currentVersion: template.currentVersion, updatedAt: template.updatedAt },
       data: { name: payload.name, currentVersion: template.currentVersion + 1, isActive: true }
     });
+    if (changed.count !== 1) throw new Error("This Action Template changed in another session. Reload and try again.");
     if (activeMixSteps.length) {
       await tx.mixStep.updateMany({
         where: { id: { in: activeMixSteps.map((item) => item.id) } },
         data: { stepVersionId: nextVersion.id }
       });
     }
+    await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: {} } });
+    await tx.auditLog.create({
+      data: {
+        workspaceId: workspace.id,
+        actorType: "USER",
+        actorUserId: user.id,
+        action: "action-template.update",
+        entityType: "StepTemplate",
+        entityId: template.id,
+        source: "settings.jumps",
+        metadata: { previousVersion: template.currentVersion, nextVersion: template.currentVersion + 1, affectedMixSteps: activeMixSteps.length }
+      }
+    });
   });
-  await prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: {} } });
   redirect("/settings/jumps?updated=1");
+}
+
+export async function archiveReusableJumpAction(formData: FormData): Promise<void> {
+  const { workspace, user, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Administrator support sessions are view-only.");
+  const stepTemplateId = value(formData, "stepTemplateId");
+  const template = await prisma.stepTemplate.findFirst({
+    where: { id: stepTemplateId, workspaceId: workspace.id, isActive: true },
+    select: { id: true }
+  });
+  if (!template) fail("Jump not found.");
+  const activeUses = await prisma.mixStep.count({
+    where: { isActive: true, stepVersion: { stepTemplateId: template.id } }
+  });
+  if (activeUses) fail(`Remove this Jump from ${activeUses} active Mix sequence${activeUses === 1 ? "" : "s"} before archiving it.`);
+  await prisma.$transaction([
+    prisma.stepTemplate.update({ where: { id: template.id }, data: { isActive: false } }),
+    prisma.auditLog.create({
+      data: {
+        workspaceId: workspace.id,
+        actorType: "USER",
+        actorUserId: user.id,
+        action: "action-template.archive",
+        entityType: "StepTemplate",
+        entityId: template.id,
+        source: "settings.jumps"
+      }
+    })
+  ]);
+  redirect("/settings/jumps?archived=1");
 }
