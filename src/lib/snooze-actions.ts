@@ -14,8 +14,8 @@ function safeReturnTo(raw: string): string {
   return "/jumps";
 }
 
-function withFlag(path: string, flag: string): string {
-  return `${path}${path.includes("?") ? "&" : "?"}${flag}=1`;
+function withParam(path: string, key: string, parameterValue: string): string {
+  return `${path}${path.includes("?") ? "&" : "?"}${encodeURIComponent(key)}=${encodeURIComponent(parameterValue)}`;
 }
 
 export async function snoozeJumpAction(formData: FormData): Promise<void> {
@@ -37,13 +37,13 @@ export async function snoozeJumpAction(formData: FormData): Promise<void> {
       quietHoursEnd: workspace.profile?.quietHoursEnd
     });
   } catch (error) {
-    redirect(withFlag(returnTo, `error=${encodeURIComponent(error instanceof Error ? error.message : "Choose a future date and time.")}`));
+    redirect(withParam(returnTo, "error", error instanceof Error ? error.message : "Choose a future date and time."));
   }
 
   const result = await prisma.jump.updateMany({
     where: { id: jumpId, workspaceId: workspace.id, status: { in: ["PENDING", "COPIED"] } },
     data: { scheduledAt }
   });
-  if (!result.count) redirect(withFlag(returnTo, `error=${encodeURIComponent("This Jump is no longer available to snooze.")}`));
-  redirect(withFlag(returnTo, "snoozed"));
+  if (!result.count) redirect(withParam(returnTo, "error", "This Jump is no longer available to snooze."));
+  redirect(withParam(returnTo, "snoozed", "1"));
 }
