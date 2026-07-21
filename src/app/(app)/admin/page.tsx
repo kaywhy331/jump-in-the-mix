@@ -37,7 +37,7 @@ export default async function AdminPage() {
     prisma.contact.count({ where: { archivedAt: null } }),
     prisma.mix.count({ where: { status: "ACTIVE" } }),
     prisma.jump.count({ where: { status: { in: ["PENDING", "COPIED"] } } }),
-    prisma.jump.count({ where: { status: "DONE", completedAt: { gte: weekAgo } } }),
+    prisma.jump.count({ where: { status: { in: ["DONE", "SENT"] }, completedAt: { gte: weekAgo } } }),
     prisma.supportTicket.count({ where: { status: { in: ["OPEN", "WAITING_ON_SUPPORT"] } } }),
     prisma.sharedMixMetadata.count({ where: { reviewState: "PENDING" } }),
     prisma.job.count({ where: { failedAt: { not: null } } }),
@@ -65,7 +65,7 @@ export default async function AdminPage() {
         <div className="card admin-metric-card"><span>Active Contacts</span><strong>{activeContacts}</strong><small>Across all non-archived customer records.</small></div>
         <div className="card admin-metric-card"><span>Active Mixes</span><strong>{activeMixes}</strong><small>Currently eligible for reconciliation.</small></div>
         <div className="card admin-metric-card"><span>Incomplete Jumps</span><strong>{incompleteJumps}</strong><small>Pending or copied customer work.</small></div>
-        <div className="card admin-metric-card healthy"><span>Jumps completed</span><strong>{completedJumps}</strong><small>Completed in the last 7 days.</small></div>
+        <div className="card admin-metric-card healthy"><span>Jumps completed</span><strong>{completedJumps}</strong><small>Done or sent in the last 7 days.</small></div>
         <Link className={`card admin-metric-card ${ticketsWaiting ? "attention" : "healthy"}`} href="/admin/support"><span>Support queue</span><strong>{ticketsWaiting}</strong><small>Open or waiting on Jump in the Mix.</small></Link>
         <Link className={`card admin-metric-card ${pendingTemplates ? "attention" : "healthy"}`} href="/admin/templates?status=PENDING"><span>Template review</span><strong>{pendingTemplates}</strong><small>Community contributions awaiting moderation.</small></Link>
         <Link className={`card admin-metric-card ${operationalIssues ? "critical" : "healthy"}`} href="/admin/operations"><span>Operational issues</span><strong>{operationalIssues}</strong><small>{failedJobs} jobs · {failedWebhooks} webhooks · {integrationErrors} connections</small></Link>
