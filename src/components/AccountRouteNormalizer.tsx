@@ -28,7 +28,10 @@ export function AccountRouteNormalizer() {
       const hash = window.location.hash;
       const hashSection = HASH_SECTIONS[hash];
       const providerReturn = params.has("google") || params.has("googleError");
-      const targetSection = hashSection || (!params.has("section") && providerReturn ? "connections" : null);
+      const billingReturn = params.has("billing") || params.has("billingError");
+      const targetSection = hashSection
+        || (!params.has("section") && providerReturn ? "connections" : null)
+        || (!params.has("section") && billingReturn ? "billing" : null);
 
       if (targetSection && params.get("section") !== targetSection) {
         params.set("section", targetSection);
