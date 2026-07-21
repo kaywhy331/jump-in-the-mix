@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 
 function accountRedirect(request: Request, key: "billing" | "billingError", value: string): NextResponse {
   const url = new URL("/account", request.url);
+  url.searchParams.set("section", "billing");
   url.searchParams.set(key, value);
   return NextResponse.redirect(url, 303);
 }
