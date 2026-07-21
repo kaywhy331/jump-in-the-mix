@@ -24,7 +24,7 @@ async function expectNoHorizontalOverflow(page: Page) {
 
 async function expectNoClippedControls(page: Page) {
   const clipped = await page.locator("button:visible, a.button:visible, summary.button:visible").evaluateAll((elements) => elements.flatMap((element) => {
-    if (element.getAttribute("aria-label") === "Open Next.js Dev Tools") return [];
+    if (element.getAttribute("aria-label") === "Open Next.js Dev Tools" || element.classList.contains("sr-only")) return [];
     const control = element as HTMLElement;
     const rect = control.getBoundingClientRect();
     const container = control.closest(".card, .jump-task-card, .contact-row, .mix-card") as HTMLElement | null;
@@ -238,15 +238,18 @@ test("responsive controls remain complete and align to card width", async ({ pag
 
     if (width <= 900) {
       await page.goto("/jumps");
-      const card = page.locator(".jump-task-card").first();
+      const card = page.locator(".jump-task-card:visible").first();
       const primary = card.locator(".jump-channel-action");
+      const actions = card.locator(".jump-primary-action");
       await expect(card).toBeVisible();
-      const [cardBox, primaryBox] = await Promise.all([card.boundingBox(), primary.boundingBox()]);
+      const [cardBox, primaryBox, actionsBox] = await Promise.all([card.boundingBox(), primary.boundingBox(), actions.boundingBox()]);
       expect(cardBox).not.toBeNull();
       expect(primaryBox).not.toBeNull();
-      expect(primaryBox!.x).toBeGreaterThanOrEqual(cardBox!.x - 1);
-      expect(primaryBox!.x + primaryBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
-      expect(primaryBox!.width).toBeGreaterThan(cardBox!.width * .85);
+      expect(actionsBox).not.toBeNull();
+      expect(actionsBox!.x).toBeGreaterThanOrEqual(cardBox!.x - 1);
+      expect(actionsBox!.x + actionsBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
+      expect(primaryBox!.width).toBeGreaterThanOrEqual(40);
+      expect(primaryBox!.height).toBeGreaterThanOrEqual(40);
     }
   }
 });

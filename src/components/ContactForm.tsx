@@ -18,6 +18,13 @@ type ContactAddress = {
   postalCode: string;
   country: string;
 };
+type FollowUpOption = {
+  dateTypeId: string;
+  dateTypeName: string;
+  mixes: { id: string; name: string }[];
+  defaultDate?: string;
+  defaultReason?: string;
+};
 
 type ContactFormValue = {
   id?: string;
@@ -55,12 +62,14 @@ export function ContactForm({
   mode,
   contact,
   groups,
-  customFields
+  customFields,
+  followUp
 }: {
   mode: "create" | "edit";
   contact?: ContactFormValue;
   groups: GroupOption[];
   customFields: CustomFieldOption[];
+  followUp?: FollowUpOption | null;
 }) {
   const startingEmails = useMemo<ContactMethod[]>(() => {
     const values = contact?.emails?.map((item) => ({ value: item.email, label: item.label ?? "" })) ?? [];
@@ -94,6 +103,7 @@ export function ContactForm({
   const [primaryEmail, setPrimaryEmail] = useState(primaryIndex(contact?.emails));
   const [primaryPhone, setPrimaryPhone] = useState(primaryIndex(contact?.phones));
   const [primaryAddress, setPrimaryAddress] = useState(primaryIndex(contact?.addresses));
+  const [scheduleFollowUp, setScheduleFollowUp] = useState(Boolean(followUp?.defaultDate));
 
   const removeEmail = (index: number) => {
     const next = removeAt(emails, index);
@@ -123,6 +133,20 @@ export function ContactForm({
           <div className="field full"><label htmlFor="company">Company</label><input id="company" name="company" defaultValue={contact?.company ?? ""} /></div>
         </div>
       </section>
+
+      {mode === "create" && followUp && <section className="card contact-editor-section contact-first-follow-up">
+        <div className="card-header"><div><h2>First follow-up</h2><p>Save the Contact and the first Important Date in one step.</p></div></div>
+        <label className="checkbox-card onboarding-default">
+          <input type="checkbox" name="scheduleFollowUp" checked={scheduleFollowUp} onChange={(event) => setScheduleFollowUp(event.target.checked)} />
+          <span><strong>Schedule a follow-up now</strong><small>Create a {followUp.dateTypeName} Important Date and optionally start a matching active Mix.</small></span>
+        </label>
+        {scheduleFollowUp && <div className="form-grid contact-first-follow-up-fields">
+          <input type="hidden" name="followUpDateTypeId" value={followUp.dateTypeId} />
+          <div className="field"><label htmlFor="followUpDate">Follow-up date</label><input id="followUpDate" name="followUpDate" type="date" defaultValue={followUp.defaultDate ?? ""} required /></div>
+          <div className="field"><label htmlFor="followUpReason">Reason</label><input id="followUpReason" name="followUpReason" defaultValue={followUp.defaultReason ?? "Follow up"} placeholder="Proposal follow-up" /></div>
+          <div className="field full"><label htmlFor="followUpMixId">Follow-up plan</label>{followUp.mixes.length ? <><select id="followUpMixId" name="followUpMixId" defaultValue={followUp.mixes[0]?.id ?? ""}><option value="">Save the Important Date without starting a Mix</option>{followUp.mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select><small>The selected active Mix is assigned immediately; its future Jumps are then reconciled.</small></> : <><input id="followUpMixId" name="followUpMixId" type="hidden" value="" /><small>No active Mix currently targets {followUp.dateTypeName}. The Important Date will still be saved.</small></>}</div>
+        </div>}
+      </section>}
 
       <section className="card contact-editor-section">
         <div className="card-header"><div><h2>Email addresses</h2><p>Choose the address used for email Jumps.</p></div><button type="button" className="button small" onClick={() => setEmails((current) => [...current, { value: "", label: "" }])}>+ Add email</button></div>
@@ -182,13 +206,7 @@ export function ContactForm({
             <div key={group.id}>
               {!group.isActive && selected && <input type="hidden" name="groupIds" value={group.id} />}
               <label className={`checkbox-card ${group.isActive ? "" : "inactive"}`}>
-                <input
-                  type="checkbox"
-                  name={group.isActive ? "groupIds" : undefined}
-                  value={group.id}
-                  defaultChecked={selected}
-                  disabled={!group.isActive}
-                />
+                <input type="checkbox" name={group.isActive ? "groupIds" : undefined} value={group.id} defaultChecked={selected} disabled={!group.isActive} />
                 <span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />
                 <span><strong>{group.name}</strong>{!group.isActive && <small>{selected ? "Inactive · membership preserved" : "Inactive under current plan"}</small>}</span>
               </label>
@@ -214,7 +232,7 @@ export function ContactForm({
 
       <div className="sticky-form-actions">
         <Link className="button" href={contact?.id ? `/contacts/${contact.id}` : "/contacts"}>Cancel</Link>
-        <button className="button primary" type="submit">{mode === "create" ? "Save contact" : "Update contact"}</button>
+        <button className="button primary" type="submit">{mode === "create" ? scheduleFollowUp ? "Save & schedule follow-up" : "Save contact" : "Update contact"}</button>
       </div>
     </form>
   );

@@ -62,6 +62,42 @@ function contactPayload(formData: FormData) {
   };
 }
 
+type InitialFollowUp = {
+  dateTypeId: string;
+  dateValue: Date;
+  reason: string;
+  mixId: string | null;
+};
+
+async function initialFollowUpPayload(workspaceId: string, formData: FormData): Promise<InitialFollowUp | null> {
+  if (formData.get("scheduleFollowUp") !== "on") return null;
+  const dateTypeId = value(formData, "followUpDateTypeId");
+  const dateValueRaw = value(formData, "followUpDate");
+  const reason = value(formData, "followUpReason") || "Follow up";
+  const requestedMixId = value(formData, "followUpMixId");
+  const dateValue = new Date(`${dateValueRaw}T12:00:00Z`);
+  if (!dateValueRaw || Number.isNaN(dateValue.getTime())) throw new Error("Choose a valid first follow-up date.");
+  const dateType = await prisma.dateType.findFirst({
+    where: { id: dateTypeId, isActive: true, OR: [{ workspaceId }, { workspaceId: null }] },
+    select: { id: true }
+  });
+  if (!dateType) throw new Error("The selected Important Date Type is unavailable.");
+  if (!requestedMixId) return { dateTypeId: dateType.id, dateValue, reason, mixId: null };
+  const mix = await prisma.mix.findFirst({
+    where: {
+      id: requestedMixId,
+      workspaceId,
+      status: "ACTIVE",
+      triggerMode: "DATE_TRIGGERED",
+      dateTypeId: dateType.id,
+      source: { not: "ONE_TIME" }
+    },
+    select: { id: true }
+  });
+  if (!mix) throw new Error("The selected follow-up plan is no longer active or does not match this Important Date.");
+  return { dateTypeId: dateType.id, dateValue, reason, mixId: mix.id };
+}
+
 async function validateContactPayload(workspaceId: string, payload: ReturnType<typeof contactPayload>, excludeContactId?: string) {
   const [groups, groupStates, existingMemberships] = await Promise.all([
     payload.groupIds.length
@@ -113,9 +149,11 @@ async function queueContactReconciliation(workspaceId: string, contactId: string
 export async function createContactAction(formData: FormData): Promise<void> {
   const { workspace, user } = await requireWorkspace();
   let payload: ReturnType<typeof contactPayload>;
+  let followUp: InitialFollowUp | null;
   try {
     payload = contactPayload(formData);
     await validateContactPayload(workspace.id, payload);
+    followUp = await initialFollowUpPayload(workspace.id, formData);
   } catch (error) {
     fail("/contacts/new", error instanceof Error ? error.message : "The Contact could not be saved.");
   }
@@ -141,6 +179,32 @@ export async function createContactAction(formData: FormData): Promise<void> {
         customFieldValues: payload.customFields.length ? { create: payload.customFields.map((item) => ({ definitionId: item.definitionId, value: item.value })) } : undefined
       }
     });
+    if (followUp) {
+      await tx.jumpDate.create({
+        data: {
+          workspaceId: workspace.id,
+          contactId: created.id,
+          dateTypeId: followUp.dateTypeId,
+          dateValue: followUp.dateValue,
+          month: followUp.dateValue.getUTCMonth() + 1,
+          day: followUp.dateValue.getUTCDate(),
+          recurrence: "NONE",
+          timezone: workspace.profile?.timezone ?? "UTC",
+          label: followUp.reason
+        }
+      });
+      if (followUp.mixId) {
+        await tx.mixAssignment.create({
+          data: {
+            assignmentKey: `${workspace.id}:${followUp.mixId}:${created.id}`,
+            workspaceId: workspace.id,
+            mixId: followUp.mixId,
+            contactId: created.id,
+            isActive: true
+          }
+        });
+      }
+    }
     await tx.auditLog.create({
       data: {
         workspaceId: workspace.id,
@@ -150,13 +214,21 @@ export async function createContactAction(formData: FormData): Promise<void> {
         entityType: "Contact",
         entityId: created.id,
         source: "contacts.form",
-        metadata: { groupCount: payload.groupIds.length, customFieldCount: payload.customFields.length }
+        metadata: {
+          groupCount: payload.groupIds.length,
+          customFieldCount: payload.customFields.length,
+          scheduledFollowUp: Boolean(followUp),
+          assignedMix: Boolean(followUp?.mixId)
+        }
       }
     });
     return created;
   });
   await queueContactReconciliation(workspace.id, contact.id);
-  redirect("/contacts?created=1");
+  const result = new URLSearchParams({ created: "1" });
+  if (followUp) result.set("dateCreated", "1");
+  if (followUp?.mixId) result.set("mixAssigned", "1");
+  redirect(`/contacts/${contact.id}?${result.toString()}`);
 }
 
 export async function updateContactAction(formData: FormData): Promise<void> {

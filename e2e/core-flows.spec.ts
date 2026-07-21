@@ -23,18 +23,26 @@ test("workspace user can complete the primary discovery and support journey", as
 
   await page.goto("/jumps");
   await expect(page.getByRole("heading", { name: "Today", exact: true }).first()).toBeVisible();
-  await expect(page.locator(".jump-task-card").first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "Due" })).toBeVisible();
+  await expect(page.locator(".jump-task-card:visible").first()).toBeVisible();
+  const activeRangeLabel = testInfo.project.name === "mobile-chromium" ? "Today" : "Due";
+  await expect(page.locator(".filter-presets a:visible").filter({ hasText: activeRangeLabel }).first()).toBeVisible();
 
   await page.goto("/contacts");
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
   await page.getByLabel("More Contact tools").click();
   await expect(page.getByRole("heading", { name: "Contact Groups" })).toBeVisible();
   await expect(page.getByText("3/10 active · 3 stored", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("Filter Contacts by group")).toBeVisible();
   await page.getByLabel("Close Contact tools").click();
   await expect(page.getByRole("heading", { name: "Contact Groups" })).toBeHidden();
-  await page.locator("summary").filter({ hasText: "+ Add Contact" }).click();
+  if (testInfo.project.name === "mobile-chromium") {
+    const mobileFilter = page.locator(".mobile-filter-disclosure").first();
+    await mobileFilter.locator("summary").click();
+    await expect(mobileFilter.getByLabel("Filter Contacts by group")).toBeVisible();
+    await mobileFilter.locator("summary").click();
+  } else {
+    await expect(page.locator('select[aria-label="Filter Contacts by group"]:visible')).toBeVisible();
+  }
+  await page.getByLabel("Add Contact", { exact: true }).click();
   const addPanel = page.locator(".contact-add-panel");
   await expect(addPanel.locator(".device-contact-picker")).toBeVisible();
   await expect(addPanel.getByRole("link", { name: /Import CSV \/ VCF/ })).toBeVisible();
@@ -137,7 +145,7 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
     page.getByRole("button", { name: "Create my first Jump" }).click()
   ]);
   await expect(page.getByText("Your first Jump for Jordan First Win is ready below.")).toBeVisible();
-  await expect(page.locator(".jump-task-card").filter({ hasText: "Jordan First Win" }).first()).toBeVisible();
+  await expect(page.locator(".jump-task-card:visible").filter({ hasText: "Jordan First Win" }).first()).toBeVisible();
   await expect(prisma.contact.count({ where: { workspaceId, displayName: "Jordan First Win" } })).resolves.toBe(1);
   await expect(prisma.jump.count({ where: { workspaceId, contact: { displayName: "Jordan First Win" } } })).resolves.toBeGreaterThan(0);
 });

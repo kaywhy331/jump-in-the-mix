@@ -2,18 +2,18 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { DeviceContactQuickAdd } from "@/components/DeviceContactQuickAdd";
-import { EmptyState } from "@/components/EmptyState";
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { DeviceContactQuickAdd } from "@/components/DeviceContactQuickAdd";
+import { EmptyState } from "@/components/EmptyState";
+import { archiveContactAction } from "@/lib/actions";
 import {
   applyJumpToContactsAction,
   bulkArchiveContactsAction,
   bulkRemoveGroupAction
 } from "@/lib/bulk-contact-actions";
-import { createContactsCsv, type ExportContact } from "@/lib/contact-export";
-import { archiveContactAction } from "@/lib/actions";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
+import { createContactsCsv, type ExportContact } from "@/lib/contact-export";
 import {
   assignSelectedContactsToActiveGroupAction,
   createContactGroupAction,
@@ -102,6 +102,10 @@ export function ContactsBulkWorkspace({
   };
 
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(contacts.map((contact) => contact.id)));
+  const toggleSelectionMode = () => {
+    setSelectionMode((current) => !current);
+    setSelected(new Set());
+  };
 
   const exportSelected = () => {
     if (!selectedContacts.length) return;
@@ -126,7 +130,7 @@ export function ContactsBulkWorkspace({
             <summary className="button mobile-header-action" aria-label="More Contact tools"><AppIcon name="more"/><span className="mobile-action-label">More</span></summary>
             <div className="group-manager-panel contact-tools-panel">
               <button className="icon-button panel-close" type="button" aria-label="Close Contact tools" onClick={(event) => event.currentTarget.closest("details")?.removeAttribute("open")}><AppIcon name="close" /></button>
-              <div className="contact-tools-links"><Link href="/contacts/import">Import Contacts</Link><Link href="/contacts/custom-fields">Custom fields</Link>{contacts.length > 0 && <button className="text-button" type="button" onClick={(event) => { setSelectionMode(true); setSelected(new Set()); event.currentTarget.closest("details")?.removeAttribute("open"); }}>Select contacts</button>}</div>
+              <div className="contact-tools-links"><Link href="/contacts/import">Import Contacts</Link><Link href="/contacts/custom-fields">Custom fields</Link></div>
               <div className="section-label"><h2>Contact Groups</h2><span>{activeGroups.length}/{groupLimit} active · {groups.length} stored</span></div>
               <p className="muted-copy">Inactive groups keep their Contacts and Mix assignments, but cannot receive new assignments or generate group-based Jumps. Select which groups remain active under your current plan.</p>
               <form action={createContactGroupAction} className="group-create-form">
@@ -181,11 +185,12 @@ export function ContactsBulkWorkspace({
         <select name="group" defaultValue={groupFilter} aria-label="Filter Contacts by group"><option value="">All groups</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.isActive ? group.name : `Inactive · ${group.name}`}</option>)}</select>
         <button className="button" type="submit">Filter</button>
         {(query || groupFilter) && <Link className="button" href="/contacts">Clear</Link>}
+        {contacts.length > 0 && <button className="button contact-select-toggle" type="button" onClick={toggleSelectionMode}>{selectionMode ? "Done selecting" : "Select"}</button>}
       </form>
-      <div className="mobile-contact-controls mobile-only">
+      <div className="mobile-contact-controls contact-selection-controls mobile-only">
         <form className="mobile-search-form" action="/contacts" method="get"><input name="q" defaultValue={query} placeholder="Search contacts" aria-label="Search contacts" />{groupFilter && <input type="hidden" name="group" value={groupFilter}/>}<button className="sr-only" type="submit">Search contacts</button></form>
         <details className="mobile-filter-disclosure"><summary className={groupFilter ? "button filter-trigger active" : "button filter-trigger"}><AppIcon name="settings"/><span>Filter{groupFilter ? " 1" : ""}</span></summary><form className="mobile-filter-panel" action="/contacts" method="get"><input type="hidden" name="q" value={query}/><label className="filter-field"><span>Group</span><select name="group" defaultValue={groupFilter} aria-label="Filter Contacts by group"><option value="">All groups</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.isActive ? group.name : `Inactive · ${group.name}`}</option>)}</select></label><div className="mobile-filter-actions"><Link className="button" href={query ? `/contacts?q=${encodeURIComponent(query)}` : "/contacts"}>Reset</Link><button className="button primary" type="submit">Apply</button></div></form></details>
-        {selectionMode && <button className="button" type="button" onClick={() => { setSelectionMode(false); setSelected(new Set()); }}>Done</button>}
+        {contacts.length > 0 && <button className="button contact-select-toggle" type="button" onClick={toggleSelectionMode}>{selectionMode ? "Done" : "Select"}</button>}
       </div>
 
       {contacts.length ? (
@@ -208,7 +213,7 @@ export function ContactsBulkWorkspace({
                     {contact.groupDetails.length > 0 && <div className="contact-group-list">{contact.groupDetails.slice(0, 3).map((group) => <span className={`group-chip ${group.isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}{group.isActive ? "" : " · inactive"}</span>)}{contact.groupDetails.length > 3 && <span className="group-chip">+{contact.groupDetails.length - 3}</span>}</div>}
                   </div>
                 </Link>
-                <div className="table-actions">{intent === "important-date" && <Link className="button small primary" href={`/contacts/${contact.id}#add-important-date`}>Add Important Date</Link>}<Link className="button small primary" href={`/contacts/${contact.id}`}>View</Link><details className="contact-row-menu"><summary className="button small" aria-label={`More actions for ${contact.displayName}`}>More</summary><div className="contact-row-menu-panel"><Link href={`/contacts/${contact.id}/edit`}>Edit Contact</Link><ConfirmDialog trigger="Archive…" title={`Archive ${contact.displayName}?`} description="Future pending Jumps will be canceled. Completed history remains preserved." danger><form action={archiveContactAction}><input type="hidden" name="contactId" value={contact.id}/><button className="button small danger" type="submit">Confirm archive</button></form></ConfirmDialog></div></details></div>
+                <div className="table-actions">{intent === "important-date" && <Link className="button small primary" href={`/contacts/${contact.id}#add-important-date`}>Add Important Date</Link>}<details className="contact-row-menu"><summary className="button small" aria-label={`More actions for ${contact.displayName}`}>More</summary><div className="contact-row-menu-panel"><Link href={`/contacts/${contact.id}/edit`}>Edit Contact</Link><ConfirmDialog trigger="Archive…" title={`Archive ${contact.displayName}?`} description="Future pending Jumps will be canceled. Completed history remains preserved." danger><form action={archiveContactAction}><input type="hidden" name="contactId" value={contact.id}/><button className="button small danger" type="submit">Confirm archive</button></form></ConfirmDialog></div></details></div>
               </article>
             );
           })}
@@ -220,7 +225,7 @@ export function ContactsBulkWorkspace({
       )}
 
       {selectedIds.length > 0 && <aside className="bulk-contact-bar" aria-label="Bulk Contact actions">
-        <div className="bulk-selection-count"><strong>{selectedIds.length}</strong><span>selected</span><button type="button" className="text-button" onClick={() => setSelected(new Set())}>Clear</button></div>
+        <div className="bulk-selection-count"><strong>{selectedIds.length}</strong><span>selected</span><button type="button" className="text-button" onClick={() => setSelected(new Set())}>Clear</button>{contacts.length > 1 && <button type="button" className="text-button" onClick={toggleAll}>{allSelected ? "Deselect all" : "Select all"}</button>}</div>
 
         <details className="bulk-action-menu">
           <summary className="button bulk-action-button"><AppIcon name="community" /><span className="bulk-action-label">Groups</span></summary>
@@ -245,7 +250,7 @@ export function ContactsBulkWorkspace({
                 <label className="checkbox-card"><input type="radio" name="applyMode" value="manual" checked={applyMode === "manual"} onChange={() => setApplyMode("manual")} />One-time content</label>
               </div>
               {applyMode === "existing" ? (
-                <div className="field"><label htmlFor="bulk-jump-template">Action Template</label><select id="bulk-jump-template" name="stepTemplateId" required>{jumps.map((jump) => <option key={jump.id} value={jump.id}>{jump.channel.replaceAll("_", " ")} · {jump.name}</option>)}</select></div>
+                <div className="field"><label htmlFor="bulk-jump-template">Action Template</label><select id="bulk-jump-template" name="stepTemplateId" required>{jumps.map((jump) => <option value={jump.id} key={jump.id}>{jump.channel.replaceAll("_", " ")} · {jump.name}</option>)}</select></div>
               ) : (
                 <>
                   <div className="field"><label htmlFor="bulk-manual-name">Internal label</label><input id="bulk-manual-name" name="manualName" placeholder="One-time check-in" /></div>

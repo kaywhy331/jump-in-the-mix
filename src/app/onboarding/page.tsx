@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
-import { completeOnboardingAction, skipOnboardingAction } from "@/lib/actions";
-import { requireWorkspace } from "@/lib/auth";
 import { TimezonePicker } from "@/components/TimezonePicker";
-import { cookies } from "next/headers";
+import { requireWorkspace } from "@/lib/auth";
+import { completeOnboardingAction, skipOnboardingAction } from "@/lib/onboarding-actions";
 
 export const metadata: Metadata = { title: "Create your first follow-up" };
 
