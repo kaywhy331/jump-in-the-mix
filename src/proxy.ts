@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const IMPERSONATION_COOKIE = process.env.AUTH_IMPERSONATION_COOKIE_NAME ?? "jitm_impersonation";
 const IMPERSONATION_END_PATH = "/api/admin/impersonation/end";
+const isProduction = process.env.NODE_ENV === "production";
 
 function configuredOrigins(): Set<string> {
   const values = [process.env.APP_URL, ...(process.env.AUTH_ALLOWED_ORIGINS ?? "").split(",")]
@@ -32,10 +33,13 @@ function mutationAllowed(request: NextRequest): boolean {
 
   const origin = request.headers.get("origin");
   const fetchSite = request.headers.get("sec-fetch-site");
-  if (!origin) return !fetchSite || fetchSite === "same-origin" || fetchSite === "same-site" || fetchSite === "none";
+  if (!origin) {
+    if (fetchSite === "same-origin" || fetchSite === "same-site" || fetchSite === "none") return true;
+    return !isProduction && !fetchSite;
+  }
 
   const allowed = configuredOrigins();
-  allowed.add(requestOrigin(request));
+  if (!isProduction) allowed.add(requestOrigin(request));
   return allowed.has(origin);
 }
 
@@ -49,10 +53,11 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  response.headers.set("Permissions-Policy", "camera=(), microphone=(self), geolocation=()");
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
-  if (process.env.NODE_ENV === "production") {
+  response.headers.set("X-Permitted-Cross-Domain-Policies", "none");
+  if (isProduction) {
     response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
   return response;
