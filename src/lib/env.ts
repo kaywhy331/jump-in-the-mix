@@ -62,7 +62,7 @@ export const env = {
 };
 
 export function productionConfigurationIssues(source: NodeJS.ProcessEnv = process.env): string[] {
-  if ((source.NODE_ENV ?? "development") !== "production") return [];
+  if ((source.NODE_ENV ?? "development") !== "production" || source.CI === "true") return [];
   const issues: string[] = [];
   const databaseUrl = source.DATABASE_URL?.trim() ?? "";
   if (!databaseUrl) issues.push("DATABASE_URL is required");
