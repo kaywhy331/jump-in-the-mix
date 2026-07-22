@@ -1,0 +1,36 @@
+enum ContactImportBatchStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+  CANCELED
+}
+
+model ContactImportBatch {
+  id             String                   @id @default(cuid())
+  workspaceId    String
+  actorUserId    String?
+  importId       String
+  sourceFileName String?
+  status         ContactImportBatchStatus @default(QUEUED)
+  totalRows      Int
+  processedRows  Int                      @default(0)
+  createdCount   Int                      @default(0)
+  mergedCount    Int                      @default(0)
+  replacedCount  Int                      @default(0)
+  skippedCount   Int                      @default(0)
+  failedCount    Int                      @default(0)
+  payload        Json
+  results        Json?
+  errorSummary   String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  canceledAt     DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  @@unique([workspaceId, importId])
+  @@index([workspaceId, createdAt])
+  @@index([status, createdAt])
+}
