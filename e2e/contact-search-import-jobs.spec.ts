@@ -28,7 +28,7 @@ test("Contact search is bounded, announced, and paginated", async ({ page }, tes
     await page.goto(`/contacts?q=${encodeURIComponent(prefix)}`);
     await expect(page.getByRole("status")).toContainText("55 Contacts found");
     await expect(page.locator(".contact-row")).toHaveCount(50);
-    await page.getByRole("link", { name: "Next" }).click();
+    await page.getByRole("link", { name: "Next", exact: true }).click();
     await expect(page).toHaveURL(/page=2/);
     await expect(page.locator(".contact-row")).toHaveCount(5);
     await expect(page.getByText("Page 2 of 2")).toBeVisible();
@@ -41,6 +41,7 @@ test("queued imports remain visible after navigation and can be canceled", async
   test.skip(testInfo.project.name !== "desktop-chromium", "Import resume is exercised once.");
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const importId = `import-e2e-${suffix}`;
+  const sourceFileName = `resume-test-${suffix}.csv`;
 
   await signIn(page);
   await page.goto("/contacts/import");
@@ -48,14 +49,14 @@ test("queued imports remain visible after navigation and can be canceled", async
   await expect(page.getByText("Review issues", { exact: true })).toBeVisible();
   await expect(page.getByText("Results", { exact: true })).toBeVisible();
 
-  const queued = await page.evaluate(async ({ importId: id, suffix: value }) => {
+  const queued = await page.evaluate(async ({ importId: id, suffix: value, sourceFileName: fileName }) => {
     const response = await fetch("/api/contacts/import", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         mode: "queue",
         importId: id,
-        sourceFileName: "resume-test.csv",
+        sourceFileName: fileName,
         items: [{
           record: {
             rowId: `row-${value}`,
@@ -79,15 +80,16 @@ test("queued imports remain visible after navigation and can be canceled", async
       })
     });
     return response.json();
-  }, { importId, suffix });
+  }, { importId, suffix, sourceFileName });
   expect(queued.batch?.status).toBe("QUEUED");
 
   await page.goto("/contacts");
   await page.goto("/contacts/import");
   await expect(page.getByText("Import is running")).toBeVisible();
-  await expect(page.getByText("resume-test.csv", { exact: false })).toBeVisible();
+  await expect(page.locator(".import-stage-heading").getByText(sourceFileName, { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "Cancel import" }).click();
-  await expect(page.getByText("canceled", { exact: true })).toBeVisible();
+  const currentImport = page.locator("section.import-stage").filter({ has: page.getByRole("heading", { name: "Import results" }) });
+  await expect(currentImport.getByText("canceled", { exact: true })).toBeVisible();
 
   const batch = await prisma.contactImportBatch.findUnique({ where: { workspaceId_importId: { workspaceId: "demo_workspace", importId } } });
   if (batch) {
