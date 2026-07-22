@@ -112,6 +112,30 @@ export function quoteIdentifier(value) {
   return `"${String(value).replaceAll('"', '""')}"`;
 }
 
+const SUPPORTED_RESTORE_EXTENSIONS = new Set(["pg_trgm"]);
+
+export function normalizePgRestoreSql(sql, { schema = "public", requiredExtensions = [] } = {}) {
+  // Newer pg_dump releases emit this harmless session setting even when the
+  // target is PostgreSQL 16, where the setting does not exist. Only remove the
+  // disabled default; a non-zero value must remain visible and fail closed.
+  let normalized = String(sql).replace(/^SET transaction_timeout = 0;\r?\n/gmu, "");
+  if (!requiredExtensions.length) return normalized;
+  for (const extension of requiredExtensions) {
+    if (!SUPPORTED_RESTORE_EXTENSIONS.has(extension)) {
+      throw new Error(`Backup requires unsupported PostgreSQL extension ${extension}.`);
+    }
+  }
+  const statements = requiredExtensions
+    .map((extension) => `CREATE EXTENSION IF NOT EXISTS ${quoteIdentifier(extension)} WITH SCHEMA "public";`)
+    .join("\n");
+  if (schema !== "public") return `${statements}\n${normalized}`;
+
+  const publicSchema = /^CREATE SCHEMA (?:public|"public");\r?\n/mu;
+  if (!publicSchema.test(normalized)) throw new Error("Restore SQL does not recreate the expected public schema.");
+  normalized = normalized.replace(publicSchema, (statement) => `${statement}${statements}\n`);
+  return normalized;
+}
+
 export async function runCommand(command, args, options = {}) {
   return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -164,6 +188,9 @@ export async function collectDatabaseSnapshot(databaseUrl, tables = CRITICAL_TAB
   await client.connect();
   try {
     const versionResult = await client.query("SHOW server_version");
+    const extensionResult = await client.query(
+      "SELECT extname FROM pg_extension WHERE extname <> 'plpgsql' ORDER BY extname"
+    );
     const tableCounts = {};
     for (const table of tables) {
       if (await tableExists(client, identity.schema, table)) {
@@ -199,7 +226,8 @@ export async function collectDatabaseSnapshot(databaseUrl, tables = CRITICAL_TAB
       tableCount: Number(tableTotal.rows[0]?.count ?? 0),
       tableCounts,
       appliedMigrationNames,
-      failedMigrationCount
+      failedMigrationCount,
+      requiredExtensions: extensionResult.rows.map((row) => String(row.extname))
     };
   } finally {
     await client.end();
@@ -241,6 +269,11 @@ export function compareSnapshots(expected, actual) {
   const actualMigrations = actual.appliedMigrationNames ?? [];
   if (JSON.stringify(expectedMigrations) !== JSON.stringify(actualMigrations)) {
     differences.push("applied Prisma migration history differs");
+  }
+  const expectedExtensions = expected.requiredExtensions ?? [];
+  const actualExtensions = actual.requiredExtensions ?? [];
+  if (JSON.stringify(expectedExtensions) !== JSON.stringify(actualExtensions)) {
+    differences.push("required PostgreSQL extensions differ");
   }
 
   for (const [table, expectedCount] of Object.entries(expected.tableCounts ?? {})) {

@@ -103,7 +103,8 @@ async function main() {
         tableCount: before.tableCount,
         tableCounts: before.tableCounts,
         appliedMigrationNames: before.appliedMigrationNames,
-        failedMigrationCount: before.failedMigrationCount
+        failedMigrationCount: before.failedMigrationCount,
+        requiredExtensions: before.requiredExtensions
       },
       tooling: { pgDumpVersion }
     };
