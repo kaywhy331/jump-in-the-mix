@@ -9,6 +9,8 @@ import { parseBroadcastScheduleInput } from "@/lib/mix-broadcast";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
+const MAX_STEP_OFFSET_DAYS = 365;
+
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
 }
@@ -21,12 +23,30 @@ function fail(path: string, message: string): never {
   redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
 }
 
-async function queueMixReconciliation(workspaceId: string, mixId: string): Promise<void> {
-  await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { mixId } } });
+function integerOffsets(rawOffsets: string[], path: string): number[] {
+  return rawOffsets.map((raw, index) => {
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed < -MAX_STEP_OFFSET_DAYS || parsed > MAX_STEP_OFFSET_DAYS) {
+      fail(path, `Jump #${index + 1} must be between ${MAX_STEP_OFFSET_DAYS} days before and ${MAX_STEP_OFFSET_DAYS} days after the trigger.`);
+    }
+    return parsed;
+  });
+}
+
+function optionalSendTimes(rawTimes: string[], count: number, path: string): Array<number | null> {
+  return Array.from({ length: count }, (_, index) => {
+    const raw = (rawTimes[index] ?? "").trim();
+    if (!raw) return null;
+    const parsed = Number(raw);
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 1439) {
+      fail(path, `Jump #${index + 1} has an invalid send time.`);
+    }
+    return parsed;
+  });
 }
 
 export async function saveMixAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, impersonation } = await requireWorkspace();
   const mixIdRaw = value(formData, "mixId");
   const name = value(formData, "name");
   const description = value(formData, "description");
@@ -40,7 +60,10 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   const allowedTriggers: MixTriggerMode[] = ["DATE_TRIGGERED", "MANUAL_START", "BROADCAST"];
   const allowedStatuses: MixStatus[] = ["DRAFT", "ACTIVE", "PAUSED"];
 
-  if (!name) fail(path, "Give the Mix a name.");
+  if (impersonation) fail(path, "Administrator support sessions are view-only.");
+  if (!name || name.length > 160) fail(path, "Give the Mix a name of 160 characters or fewer.");
+  if (description.length > 1200) fail(path, "Keep the Mix description to 1,200 characters or fewer.");
+  if (framework.length > 160 || category.length > 120 || industry.length > 120) fail(path, "One or more Mix details are too long.");
   if (!allowedTriggers.includes(triggerMode)) fail(path, "Choose a valid trigger mode.");
   if (!allowedStatuses.includes(status)) fail(path, "Choose Draft, Active, or Paused.");
 
@@ -49,7 +72,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
       where: { id: dateTypeId, isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null, isSystem: true }] },
       select: { id: true }
     });
-    if (!dateType) fail(path, "Choose a valid Target Jump Date Type.");
+    if (!dateType) fail(path, "Choose a valid Target Important Date Type.");
   }
 
   let broadcastSchedule: ReturnType<typeof parseBroadcastScheduleInput> | null = null;
@@ -67,9 +90,12 @@ export async function saveMixAction(formData: FormData): Promise<void> {
 
   const mixStepIds = values(formData, "mixStepId");
   const stepTemplateIds = values(formData, "stepTemplateId");
-  const offsets = values(formData, "dayOffset");
-  const sendTimes = values(formData, "sendTimeMinutes");
+  const rawOffsets = values(formData, "dayOffset");
+  const rawSendTimes = values(formData, "sendTimeMinutes");
   if (!stepTemplateIds.length || stepTemplateIds.some((id) => !id)) fail(path, "Add at least one reusable Jump to the Mix.");
+  if (rawOffsets.length !== stepTemplateIds.length) fail(path, "Every Jump needs a timeline offset.");
+  const offsets = integerOffsets(rawOffsets, path);
+  const sendTimes = optionalSendTimes(rawSendTimes, stepTemplateIds.length, path);
 
   const [templates, existingMix] = await Promise.all([
     prisma.stepTemplate.findMany({
@@ -79,7 +105,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
     mixIdRaw
       ? prisma.mix.findFirst({
           where: { id: mixIdRaw, workspaceId: workspace.id, status: { not: "ARCHIVED" } },
-          include: { steps: { where: { isActive: true } }, assignments: { where: { mode: "DYNAMIC" } } }
+          include: { steps: { where: { isActive: true }, orderBy: { sortOrder: "asc" } }, assignments: { where: { mode: "DYNAMIC" } } }
         })
       : Promise.resolve(null)
   ]);
@@ -99,13 +125,13 @@ export async function saveMixAction(formData: FormData): Promise<void> {
     const unavailableNewGroup = mergeGroupActivity(availableGroups, groupStates)
       .some((group) => !group.isActive && !existingGroupIds.has(group.id));
     if (unavailableNewGroup) {
-      fail(path, "Inactive Contact Groups cannot be added to a Mix. Reactivate the group from Contacts or choose an active group.");
+      fail(path, "Inactive Contact Groups cannot be added to a Mix. Reactivate the Group or choose an active Group.");
     }
   }
 
   const assignAllContacts = formData.get("assignAllContacts") === "on";
-  if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) {
-    fail(path, "Choose All active Contacts or at least one Contact Group for the broadcast.");
+  if (status === "ACTIVE" && !assignAllContacts && !groupIds.length) {
+    fail(path, "Choose All active Contacts or at least one active Contact Group before activating this Mix.");
   }
   const allContactIds = assignAllContacts
     ? (await prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true } })).map((contact) => contact.id)
@@ -122,10 +148,12 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   const mixId = existingMix?.id ?? randomUUID();
   const existingAssignmentByKey = new Map((existingMix?.assignments ?? []).map((assignment) => [assignment.assignmentKey, assignment]));
   const now = new Date();
+  const minimumOffset = Math.min(...offsets);
+  const maximumOffset = Math.max(...offsets);
+  const durationDays = maximumOffset - minimumOffset;
 
   try {
     await prisma.$transaction(async (tx) => {
-      const durationDays = Math.max(...offsets.map((offset) => Math.abs(Number(offset) || 0)), 0);
       const mixData = {
         name,
         description: description || null,
@@ -161,15 +189,18 @@ export async function saveMixAction(formData: FormData): Promise<void> {
         await tx.mixBroadcastSchedule.deleteMany({ where: { workspaceId: workspace.id, mixId } });
       }
 
+      for (const [index, existingStep] of (existingMix?.steps ?? []).entries()) {
+        await tx.mixStep.update({ where: { id: existingStep.id }, data: { sortOrder: 100_000 + index } });
+      }
+
       const retainedIds = new Set<string>();
       for (let index = 0; index < stepTemplateIds.length; index += 1) {
         const template = templateById.get(stepTemplateIds[index])!;
         const version = template.versions[0]!;
         const requestedId = mixStepIds[index] || "";
         const existingStep = existingMix?.steps.find((step) => step.id === requestedId);
-        const dayOffset = Number.isFinite(Number(offsets[index])) ? Number(offsets[index]) : 0;
-        const parsedTime = Number(sendTimes[index]);
-        const sendTimeMinutes = Number.isFinite(parsedTime) && parsedTime >= 0 && parsedTime <= 1439 ? parsedTime : null;
+        const dayOffset = offsets[index];
+        const sendTimeMinutes = sendTimes[index];
         if (existingStep) {
           await tx.mixStep.update({
             where: { id: existingStep.id },
@@ -186,7 +217,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
 
       for (const [index, oldStep] of (existingMix?.steps ?? []).filter((step) => !retainedIds.has(step.id)).entries()) {
         const historyCount = await tx.jump.count({ where: { mixStepId: oldStep.id } });
-        if (historyCount) await tx.mixStep.update({ where: { id: oldStep.id }, data: { isActive: false, sortOrder: 10000 + index } });
+        if (historyCount) await tx.mixStep.update({ where: { id: oldStep.id }, data: { isActive: false, sortOrder: 200_000 + index } });
         else await tx.mixStep.delete({ where: { id: oldStep.id } });
       }
 
@@ -212,6 +243,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
         });
       }
 
+      await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });
       await tx.auditLog.create({
         data: {
           workspaceId: workspace.id,
@@ -227,6 +259,9 @@ export async function saveMixAction(formData: FormData): Promise<void> {
             jumpCount: stepTemplateIds.length,
             groupCount: groupIds.length,
             allContactCount: allContactIds.length,
+            minimumOffset,
+            maximumOffset,
+            durationDays,
             broadcastDate: broadcastSchedule?.dateInput ?? null,
             broadcastTime: broadcastSchedule?.timeInput ?? null,
             broadcastTimezone: broadcastSchedule?.timezone ?? null
@@ -235,9 +270,9 @@ export async function saveMixAction(formData: FormData): Promise<void> {
       });
     });
   } catch (error) {
-    fail(path, error instanceof Error ? error.message : "The Mix could not be saved.");
+    console.error("Mix save failed", error);
+    fail(path, "The Mix could not be saved. Reload and try again.");
   }
 
-  await queueMixReconciliation(workspace.id, mixId);
-  redirect(`/mixes?${existingMix ? "updated" : "created"}=manual`);
+  redirect(`/mixes/${mixId}/edit?saved=1`);
 }
