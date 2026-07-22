@@ -92,7 +92,7 @@ describe.sequential("Stripe subscription reconciliation", () => {
       }),
       eventType: "customer.subscription.created"
     });
-    expect(result).toEqual({ workspaceId: ids.workspace, planTier: "PLUS", status: "ACTIVE" });
+    expect(result).toEqual({ workspaceId: ids.workspace, planTier: "PLUS", status: "ACTIVE", ignored: false });
 
     const [workspace, saved] = await Promise.all([
       prisma.workspace.findUniqueOrThrow({ where: { id: ids.workspace } }),
@@ -130,7 +130,7 @@ describe.sequential("Stripe subscription reconciliation", () => {
       eventType: "invoice.payment_failed",
       statusOverride: "PAST_DUE"
     });
-    expect(result.planTier).toBe("PLUS");
+    expect(result).toMatchObject({ planTier: "PLUS", ignored: false });
     const workspace = await prisma.workspace.findUniqueOrThrow({ where: { id: ids.workspace } });
     expect(workspace).toMatchObject({ planTier: "PLUS", subscriptionStatus: "PAST_DUE", cancelAtPeriodEnd: true });
   });
@@ -148,7 +148,7 @@ describe.sequential("Stripe subscription reconciliation", () => {
       }),
       eventType: "customer.subscription.deleted"
     });
-    expect(result).toEqual({ workspaceId: ids.workspace, planTier: "FREE", status: "CANCELED" });
+    expect(result).toEqual({ workspaceId: ids.workspace, planTier: "FREE", status: "CANCELED", ignored: false });
     expect(await prisma.workspace.findUniqueOrThrow({ where: { id: ids.workspace } })).toMatchObject({
       planTier: "FREE",
       subscriptionStatus: "CANCELED"
