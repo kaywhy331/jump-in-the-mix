@@ -9,6 +9,7 @@ const MFA_ISSUER = "Jump in the Mix";
 const PENDING_SETUP_MAX_AGE_MS = 30 * 60 * 1000;
 const RECOVERY_CODE_COUNT = 10;
 const VERIFIED_SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+const USER_MFA_PENDING_COOKIE = "jitm_mfa_pending";
 
 type MfaSecretEnvelope = { secret: string };
 
@@ -138,6 +139,7 @@ export async function markUserMfaSessionVerified(sessionId: string, userId: stri
       expires: session.expiresAt
     });
   }
+  store.delete(USER_MFA_PENDING_COOKIE);
 }
 
 export async function markCurrentSessionVerifiedAfterEnrollment(sessionId: string, userId: string): Promise<void> {
@@ -146,6 +148,7 @@ export async function markCurrentSessionVerifiedAfterEnrollment(sessionId: strin
     create: { sessionId, userId, verifiedAt: new Date(), expiresAt: new Date(Date.now() + VERIFIED_SESSION_MAX_AGE_MS) },
     update: { userId, verifiedAt: new Date(), expiresAt: new Date(Date.now() + VERIFIED_SESSION_MAX_AGE_MS) }
   });
+  (await cookies()).delete(USER_MFA_PENDING_COOKIE);
 }
 
 export async function disableUserMfa(userId: string): Promise<void> {
@@ -153,6 +156,7 @@ export async function disableUserMfa(userId: string): Promise<void> {
     prisma.userMfaSession.deleteMany({ where: { userId } }),
     prisma.userMfaCredential.deleteMany({ where: { userId } })
   ]);
+  (await cookies()).delete(USER_MFA_PENDING_COOKIE);
 }
 
 export async function userMfaCredentialStatus(userId: string) {
