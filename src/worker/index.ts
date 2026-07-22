@@ -8,6 +8,7 @@ import {
 } from "@/lib/google-sync-service";
 import { generateJumps } from "@/lib/jump-engine";
 import { deliverNotificationEvent, enqueueDueDailyDigests } from "@/lib/notification-service";
+import { enqueueOperationalNotifications } from "@/lib/operational-notification-scan";
 import { cleanupOperationalData } from "@/lib/operational-retention";
 import { prisma } from "@/lib/prisma";
 import { reconcileDueReferralEntitlements } from "@/lib/referral-service";
@@ -152,6 +153,7 @@ type MaintenanceState = {
   referralReconciliation: number;
   accountDeletionRevocation: number;
   notificationDigests: number;
+  operationalNotifications: number;
   retentionCleanup: number;
 };
 
@@ -177,6 +179,10 @@ async function runMaintenanceIfDue(state: MaintenanceState): Promise<void> {
     try { await enqueueDueDailyDigests(); } catch (error) { console.error("Notification digest scheduling failed", error); }
     state.notificationDigests = Date.now();
   }
+  if (now - state.operationalNotifications >= maintenanceIntervalMs) {
+    try { await enqueueOperationalNotifications(); } catch (error) { console.error("Operational notification scan failed", error); }
+    state.operationalNotifications = Date.now();
+  }
   if (now - state.retentionCleanup >= retentionIntervalMs) {
     try { await cleanupOperationalData(); } catch (error) { console.error("Operational retention cleanup failed", error); }
     state.retentionCleanup = Date.now();
@@ -189,8 +195,7 @@ async function main() {
   await queueHeartbeat();
   heartbeatTimer = setInterval(() => { void queueHeartbeat().catch((error) => console.error("Worker heartbeat failed", error)); }, heartbeatIntervalMs);
   heartbeatTimer.unref();
-
-  const maintenance: MaintenanceState = { jumpReconciliation: 0, googleSchedule: 0, referralReconciliation: 0, accountDeletionRevocation: 0, notificationDigests: 0, retentionCleanup: Date.now() };
+  const maintenance: MaintenanceState = { jumpReconciliation: 0, googleSchedule: 0, referralReconciliation: 0, accountDeletionRevocation: 0, notificationDigests: 0, operationalNotifications: 0, retentionCleanup: Date.now() };
   while (!stopping) {
     await runMaintenanceIfDue(maintenance);
     const job = await claimJob();
