@@ -14,6 +14,12 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
     <AppShell
       userName={user.name}
       workspaceName={workspace.name}
+      workspaceId={workspace.id}
+      workspaces={impersonation ? [] : user.memberships.map((membership) => ({
+        id: membership.workspaceId,
+        name: membership.workspace.name,
+        role: membership.role
+      }))}
       planTier={workspace.planTier.toLowerCase()}
       isPlatformAdmin={session.authUser.isPlatformAdmin}
       referralMessage={referralMessage}
