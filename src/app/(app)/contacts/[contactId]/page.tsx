@@ -6,17 +6,16 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ContactsBackLink } from "@/components/ContactsBackLink";
 import { Notice } from "@/components/Notice";
 import { PersonalizableCardBoard, type PersonalizableCardItem } from "@/components/PersonalizableCards";
-import {
-  assignMixToContactAction,
-  createImportantDateAction,
-  deleteJumpDateAction,
-  removeMixAssignmentAction
-} from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
+import { assignMixToContactAction, removeMixAssignmentAction } from "@/lib/contact-mix-actions";
 import { formatDate } from "@/lib/format";
 import { listGroupStates } from "@/lib/group-activity";
-import { updateImportantDateAction } from "@/lib/important-date-actions";
+import {
+  createImportantDateAction,
+  deactivateImportantDateAction,
+  updateImportantDateAction
+} from "@/lib/important-date-actions";
 import { formatDateInput } from "@/lib/mix-broadcast";
 import { resumeMixForContactAction, stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
@@ -71,7 +70,11 @@ export default async function ContactDetailPage({
         addresses: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
         groupMemberships: { include: { group: true } },
         customFieldValues: { include: { definition: true }, orderBy: { definition: { name: "asc" } } },
-        jumpDates: { include: { dateType: true }, orderBy: [{ dateValue: "asc" }, { month: "asc" }, { day: "asc" }] },
+        jumpDates: {
+          where: { isActive: true },
+          include: { dateType: true },
+          orderBy: [{ dateValue: "asc" }, { month: "asc" }, { day: "asc" }]
+        },
         mixAssignments: { include: { mix: true }, where: { isActive: true, contactId }, orderBy: { createdAt: "asc" } }
       }
     }),
@@ -99,7 +102,7 @@ export default async function ContactDetailPage({
       title: "Important Dates",
       description: "Moments that can start a follow-up plan.",
       content: contact.jumpDates.length ? <div className="important-date-list">{contact.jumpDates.map((item) => (
-        <article className="important-date-row" key={item.id}>
+        <article className="important-date-row" key={item.id} id={`important-date-${item.id}`}>
           <div className="important-date-summary">
             <h3>{item.dateType.name}</h3>
             <div className="jump-meta"><span>{item.dateValue ? formatDate(item.dateValue) : `${item.month}/${item.day}`}</span><span>{item.recurrence.toLowerCase()}</span>{item.label && <span>{item.label}</span>}</div>
@@ -130,10 +133,10 @@ export default async function ContactDetailPage({
               triggerAriaLabel={`Remove ${item.dateType.name}`}
               triggerClassName="icon-button compact danger"
               title={`Remove ${item.dateType.name}?`}
-              description="Future pending work tied to this Important Date will be canceled."
+              description="Future pending work tied to this Important Date will be canceled. The date remains recoverable in history."
               danger
             >
-              <form action={deleteJumpDateAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} /><button className="button small danger" type="submit">Confirm removal</button></form>
+              <form action={deactivateImportantDateAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} /><button className="button small danger" type="submit">Confirm removal</button></form>
             </ConfirmDialog>
           </div>
         </article>
