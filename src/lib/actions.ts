@@ -32,4 +32,4 @@ export {
   archiveReusableJumpAction
 } from "@/lib/reusable-jump-update";
 export { saveMixAction } from "@/lib/mix-editor-actions";
-export { updateWorkspaceProfileAction as updateWorkspaceSettingsAction } from "@/lib/workspace-settings-actions";
+export { updateWorkspaceProfileAction as updateWorkspaceSettingsAction } from "@/lib/workspace-profile-actions";
