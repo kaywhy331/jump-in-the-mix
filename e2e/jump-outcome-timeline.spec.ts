@@ -65,7 +65,7 @@ test("Jump outcomes complete in place and appear on the Contact timeline", async
   try {
     await signIn(page);
     await page.goto("/jumps?range=all&status=pending");
-    const workflow = page.locator(`[data-jump-workflow="${jumpId}"]`);
+    const workflow = page.locator(`[data-jump-workflow="${jumpId}"]:visible`);
     await expect(workflow).toBeVisible();
     await workflow.getByRole("button", { name: "Mark done" }).click();
     await expect(workflow.getByText("Jump completed")).toBeVisible();
@@ -84,8 +84,8 @@ test("Jump outcomes complete in place and appear on the Contact timeline", async
     await expect(page.getByText(`How did the follow-up with ${displayName} go?`)).toBeVisible();
     await page.getByText("Add a note, detailed outcome, or next follow-up").click();
     const tray = page.getByLabel(`Finish follow-up with ${displayName}`);
-    await tray.getByLabel("Outcome").selectOption("NO_ANSWER");
-    await tray.getByLabel("Outcome note").fill("No answer; try again tomorrow morning.");
+    await tray.getByLabel("Outcome", { exact: true }).selectOption("NO_ANSWER");
+    await tray.getByLabel("Outcome note", { exact: true }).fill("No answer; try again tomorrow morning.");
     const nextDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     await tray.getByLabel("Next follow-up date").fill(nextDate);
     await tray.getByRole("button", { name: "Save outcome" }).click();
@@ -94,8 +94,10 @@ test("Jump outcomes complete in place and appear on the Contact timeline", async
     await expect.poll(async () => prisma.jumpDate.count({ where: { contactId, isActive: true, label: { contains: "Next commitment" } } })).toBe(1);
 
     await page.goto(`/contacts/${contactId}`);
-    await expect(page.getByText("No answer; try again tomorrow morning.")).toBeVisible();
     const timeline = page.locator('[data-user-card="relationship-timeline"]');
+    const expandTimeline = timeline.getByRole("button", { name: "Expand Relationship timeline" });
+    if (await expandTimeline.isVisible()) await expandTimeline.click();
+    await expect(timeline.getByText("No answer; try again tomorrow morning.", { exact: true })).toBeVisible();
     await timeline.getByLabel("Add customer note").fill("Met through the regional business association.");
     await timeline.getByRole("button", { name: "Add update" }).click();
     await expect(timeline.getByText("Met through the regional business association.")).toBeVisible();
