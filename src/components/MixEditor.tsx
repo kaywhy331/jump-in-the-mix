@@ -38,6 +38,7 @@ const TIMEZONES = [
   ["Pacific/Honolulu", "Hawaii"],
   ["UTC", "UTC"]
 ] as const;
+const MAX_STEP_OFFSET_DAYS = 365;
 
 function timeValue(minutes: number | null): string {
   if (minutes === null) return "";
@@ -77,7 +78,7 @@ export function MixEditor({
   const jumpById = useMemo(() => new Map(jumps.map((jump) => [jump.id, jump])), [jumps]);
   const selectedGroupIds = useMemo(() => new Set(mix?.groupIds ?? []), [mix?.groupIds]);
 
-  const addSequenceItem = () => setSequence((current) => [...current, { key: `new-${Date.now()}-${current.length}`, stepTemplateId: jumps[0]?.id ?? "", dayOffset: current.length ? current[current.length - 1].dayOffset + 1 : 0, sendTimeMinutes: null }]);
+  const addSequenceItem = () => setSequence((current) => [...current, { key: `new-${Date.now()}-${current.length}`, stepTemplateId: jumps[0]?.id ?? "", dayOffset: Math.min(current.length ? current[current.length - 1].dayOffset + 1 : 0, MAX_STEP_OFFSET_DAYS), sendTimeMinutes: null }]);
   const removeSequenceItem = (index: number) => setSequence((current) => current.filter((_, itemIndex) => itemIndex !== index));
   const moveSequenceItem = (index: number, direction: -1 | 1) => setSequence((current) => {
     const nextIndex = index + direction;
@@ -93,17 +94,17 @@ export function MixEditor({
       <section className="card mix-editor-section">
         <div className="card-header"><div><h2>Mix details</h2><p>Name the strategy and choose its lifecycle state.</p></div></div>
         <div className="form-grid">
-          <div className="field full"><label htmlFor="mix-name">Mix name</label><input id="mix-name" name="name" defaultValue={mix?.name ?? ""} placeholder="Client renewal follow-up" required autoFocus /></div>
-          <div className="field full"><label htmlFor="mix-description">Description</label><textarea id="mix-description" name="description" defaultValue={mix?.description ?? ""} placeholder="What this Mix is designed to accomplish." /></div>
+          <div className="field full"><label htmlFor="mix-name">Mix name</label><input id="mix-name" name="name" maxLength={160} defaultValue={mix?.name ?? ""} placeholder="Client renewal follow-up" required autoFocus /></div>
+          <div className="field full"><label htmlFor="mix-description">Description</label><textarea id="mix-description" name="description" maxLength={1200} defaultValue={mix?.description ?? ""} placeholder="What this Mix is designed to accomplish." /></div>
           <div className="field"><label htmlFor="mix-status">Status</label><select id="mix-status" name="status" defaultValue={mix?.status ?? "DRAFT"}><option value="DRAFT">Draft</option><option value="ACTIVE">Active</option><option value="PAUSED">Paused</option></select></div>
-          <div className="field"><label htmlFor="mix-framework">Strategy / framework</label><input id="mix-framework" name="framework" defaultValue={mix?.framework ?? ""} placeholder="Question-led consultative" /></div>
+          <div className="field"><label htmlFor="mix-framework">Strategy / framework</label><input id="mix-framework" name="framework" maxLength={160} defaultValue={mix?.framework ?? ""} placeholder="Question-led consultative" /></div>
           <div className="field"><label htmlFor="mix-category">Category</label><select id="mix-category" name="category" defaultValue={mix?.category ?? ""}><option value="">Not classified</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></div>
           <div className="field"><label htmlFor="mix-industry">Industry</label><select id="mix-industry" name="industry" defaultValue={mix?.industry ?? ""}><option value="">Not classified</option>{industries.map((industry) => <option key={industry}>{industry}</option>)}</select></div>
         </div>
       </section>
 
       <section className="card mix-editor-section">
-        <div className="card-header"><div><h2>Trigger and audience</h2><p>Choose what starts the Mix and which Contacts should be eligible. Inactive groups are preserved but do not generate Jumps.</p></div></div>
+        <div className="card-header"><div><h2>Trigger and audience</h2><p>Choose what starts the Mix and deliberately select which Contacts should be eligible.</p></div></div>
         <div className="form-grid">
           <div className="field"><label htmlFor="mix-trigger">How should this plan start?</label><select id="mix-trigger" name="triggerMode" value={triggerMode} onChange={(event) => setTriggerMode(event.target.value as TriggerMode)}><option value="DATE_TRIGGERED">From an Important Date</option><option value="MANUAL_START">Start manually</option><option value="BROADCAST">On one fixed date</option></select></div>
           {triggerMode === "DATE_TRIGGERED" && <div className="field"><label htmlFor="mix-date-type">Important Date Type</label><select id="mix-date-type" name="dateTypeId" defaultValue={defaultDateType} required>{dateTypes.map((dateType) => <option key={dateType.id} value={dateType.id}>{dateType.isSystem ? `System · ${dateType.name}` : dateType.name}</option>)}</select><div className="mix-date-type-tools"><Link href="/settings/jump-date-types">Add or manage types</Link></div></div>}
@@ -118,7 +119,7 @@ export function MixEditor({
           </div>}
         </div>
         <div className="audience-options">
-          <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" defaultChecked={mix?.assignAllContacts ?? true} /><span><strong>All active Contacts</strong><small>{triggerMode === "BROADCAST" ? "Use a snapshot of everyone active when the Mix is saved." : "Include everyone currently active."}</small></span></label>
+          <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" defaultChecked={mix?.assignAllContacts ?? false} /><span><strong>All active Contacts</strong><small>{triggerMode === "BROADCAST" ? "Use a snapshot of everyone active when the Mix is saved." : "Include everyone currently active."}</small></span></label>
           {groups.length > 0 && <div><h3>Contact Groups</h3><div className="group-choice-grid">{groups.map((group) => {
             const selected = selectedGroupIds.has(group.id);
             return (
@@ -138,7 +139,7 @@ export function MixEditor({
               </div>
             );
           })}</div></div>}
-          <small className="muted-copy">Direct Contact assignments made from a Contact profile are preserved separately. Reactivating a group restores its eligible future Jumps through reconciliation.</small>
+          <small className="muted-copy">An active Mix must explicitly choose All active Contacts or at least one active Contact Group. Direct Contact assignments are preserved separately.</small>
         </div>
       </section>
 
@@ -152,7 +153,7 @@ export function MixEditor({
               <input type="hidden" name="mixStepId" value={item.id ?? ""} />
               <div className="form-grid">
                 <div className="field full"><label>Action Template</label><select name="stepTemplateId" value={item.stepTemplateId} onChange={(event) => setSequence((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, stepTemplateId: event.target.value } : row))} required>{jumps.map((jump) => <option value={jump.id} key={jump.id}>{jump.channel.replaceAll("_", " ")} · {jump.name}</option>)}</select>{selected && <small>{selected.channel.replaceAll("_", " ").toLowerCase()}</small>}</div>
-                <div className="field"><label>Day offset</label><input name="dayOffset" type="number" value={item.dayOffset} onChange={(event) => setSequence((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, dayOffset: Number(event.target.value) } : row))} /><small>Negative is before; positive is after.</small></div>
+                <div className="field"><label>Day offset</label><input name="dayOffset" type="number" min={-MAX_STEP_OFFSET_DAYS} max={MAX_STEP_OFFSET_DAYS} value={item.dayOffset} onChange={(event) => setSequence((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, dayOffset: Number(event.target.value) } : row))} required /><small>Negative is before; positive is after. Maximum ±{MAX_STEP_OFFSET_DAYS} days.</small></div>
                 <div className="field"><label>Optional local time override</label><input type="time" value={timeValue(item.sendTimeMinutes)} onChange={(event) => setSequence((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, sendTimeMinutes: minutesValue(event.target.value) } : row))} /><input type="hidden" name="sendTimeMinutes" value={item.sendTimeMinutes ?? ""} /><small>Leave blank to use the Important Date or broadcast time.</small></div>
               </div>
               <div className="sequence-controls"><button className="button small" type="button" onClick={() => moveSequenceItem(index, -1)} disabled={index === 0}>Move up</button><button className="button small" type="button" onClick={() => moveSequenceItem(index, 1)} disabled={index === sequence.length - 1}>Move down</button><button className="button small danger" type="button" onClick={() => removeSequenceItem(index)} disabled={sequence.length === 1}>Remove</button></div>
