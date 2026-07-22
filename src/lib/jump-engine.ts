@@ -23,7 +23,7 @@ import {
 
 const RECONCILIATION_UPDATE_STATUSES: JumpStatus[] = ["PENDING", "CANCELED"];
 const STALE_CANCELLATION_STATUSES: JumpStatus[] = ["PENDING", "COPIED"];
-const RECONCILABLE_CANCELLATION_METHODS = new Set(["reconciled", "mix_paused", "plan_downgrade", "contact_archived"]);
+const RECONCILABLE_CANCELLATION_METHODS = new Set(["reconciled", "mix_paused", "plan_downgrade", "contact_archived", "do_not_contact"]);
 const BATCH_SIZE = 500;
 const DEFAULT_PAST_DAYS = 45;
 const DEFAULT_FUTURE_DAYS = 365;
@@ -157,12 +157,14 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const occurrenceEnd = addUtcDays(horizonEnd, -Math.min(minimumOffset, 0) + 7);
 
   const workspaceIds = [...new Set(assignments.map((assignment) => assignment.workspaceId))];
-  const [inactiveStates, broadcastSchedules, schedulingByWorkspace] = await Promise.all([
+  const [inactiveStates, broadcastSchedules, schedulingByWorkspace, doNotContactStates] = await Promise.all([
     workspaceIds.length ? prisma.contactGroupState.findMany({ where: { workspaceId: { in: workspaceIds }, isActive: false }, select: { groupId: true } }) : [],
     assignments.length ? prisma.mixBroadcastSchedule.findMany({ where: { mixId: { in: [...new Set(assignments.map((assignment) => assignment.mixId))] }, ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}) } }) : [],
-    workspaceSchedulingRules(workspaceIds)
+    workspaceSchedulingRules(workspaceIds),
+    workspaceIds.length ? prisma.contactRelationshipState.findMany({ where: { workspaceId: { in: workspaceIds }, doNotContact: true }, select: { contactId: true } }) : []
   ]);
   const inactiveGroupIds = new Set(inactiveStates.map((state) => state.groupId));
+  const doNotContactIds = new Set(doNotContactStates.map((state) => state.contactId));
   const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
   const stopped = new Set(stops.map((item) => stopKey(item.mixId, item.contactId)));
   const desired = new Map<string, DesiredJump>();
@@ -176,6 +178,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
 
     for (const contact of contacts.values()) {
       if (filters.contactId && contact.id !== filters.contactId) continue;
+      if (doNotContactIds.has(contact.id)) continue;
       if (stopped.has(stopKey(assignment.mixId, contact.id))) continue;
       const triggers: Array<{ logicalDate: LogicalDate; jumpDateId: string | null; occurrenceKey: string; reason: string; timezone: string; timeMinutes: number | null }> = [];
 
