@@ -1,0 +1,110 @@
+.sequenceList {
+  display: grid;
+  gap: 1rem;
+}
+
+.sequenceCard {
+  position: relative;
+}
+
+.dragging {
+  opacity: 0.55;
+}
+
+.dropTarget {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.sequenceHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.dragHandle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: grab;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.58;
+}
+
+.dragHandle:active {
+  cursor: grabbing;
+}
+
+.modeChoice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+}
+
+.inlineFields {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.activationReview {
+  position: sticky;
+  z-index: 20;
+  bottom: 0.75rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-radius: 1rem;
+  background: Canvas;
+  color: CanvasText;
+  box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 18%);
+}
+
+.reviewGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0.85rem 0;
+}
+
+.reviewGrid div {
+  padding: 0.65rem;
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+}
+
+.reviewGrid strong,
+.reviewGrid span {
+  display: block;
+}
+
+.reviewGrid span {
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  opacity: 0.68;
+}
+
+.reviewWarnings {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.75rem 0;
+}
+
+.reviewWarnings p {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .modeChoice,
+  .reviewGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .activationReview {
+    bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+}
