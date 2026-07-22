@@ -280,7 +280,12 @@ async function seedDemoWorkspace() {
     return;
   }
   if (existingUser) {
-    for (const workspace of existingUser.ownedWorkspaces) await prisma.workspace.delete({ where: { id: workspace.id } });
+    for (const workspace of existingUser.ownedWorkspaces) {
+      // SharedMixContributorProfile intentionally has no Workspace relation,
+      // so it cannot participate in the Workspace cascade.
+      await prisma.sharedMixContributorProfile.deleteMany({ where: { workspaceId: workspace.id } });
+      await prisma.workspace.delete({ where: { id: workspace.id } });
+    }
     await prisma.user.delete({ where: { id: existingUser.id } });
   }
 

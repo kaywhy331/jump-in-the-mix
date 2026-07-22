@@ -71,6 +71,8 @@ test("name-only Contacts keep Important Date access and return to the filtered l
 
     await expect(page.getByRole("link", { name: "Add Important Date" })).toBeVisible();
     const datesCard = page.locator('[data-user-card="important-dates"]');
+    const expandDates = datesCard.getByRole("button", { name: "Expand Important Dates" });
+    if (await expandDates.isVisible()) await expandDates.click();
     await datesCard.getByLabel("Edit Birthday").click();
     const editPanel = datesCard.locator(".important-date-edit-panel");
     await expect(editPanel.locator('input[name="dateValue"]')).toHaveCount(0);
@@ -81,14 +83,18 @@ test("name-only Contacts keep Important Date access and return to the filtered l
       page.waitForURL(/dateUpdated=1/),
       editPanel.getByRole("button", { name: "Save changes" }).click()
     ]);
+    const expandUpdatedDates = datesCard.getByRole("button", { name: "Expand Important Dates" });
+    if (await expandUpdatedDates.isVisible()) await expandUpdatedDates.click();
     await expect(page.getByText("2/28", { exact: true })).toBeVisible();
 
-    await datesCard.getByLabel("Remove Birthday").click();
+    await datesCard.getByRole("button", { name: "Remove Birthday", exact: true }).click();
     await Promise.all([
       page.waitForURL(/dateDeleted=1/),
       page.getByRole("button", { name: "Confirm removal" }).click()
     ]);
     await expect(page.getByText("2/28", { exact: true })).toHaveCount(0);
+    const expandEmptyDates = datesCard.getByRole("button", { name: "Expand Important Dates" });
+    if (await expandEmptyDates.isVisible()) await expandEmptyDates.click();
     await expect(page.getByText("No Important Dates yet.", { exact: false })).toBeVisible();
     const storedDate = await prisma.jumpDate.findUniqueOrThrow({ where: { id: jumpDateId } });
     expect(storedDate.isActive).toBe(false);

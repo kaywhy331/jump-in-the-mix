@@ -111,6 +111,8 @@ test("Contact cards use one column, text toggles, and persistent drag ordering",
   try {
     await signIn(page);
     await page.goto(`/contacts/${contactId}`);
+    const resetLayout = await page.evaluate(async () => (await fetch("/api/preferences/contact-layout", { method: "DELETE" })).ok);
+    expect(resetLayout).toBe(true);
     await page.evaluate((key) => {
       localStorage.removeItem(`${key}:order`);
       localStorage.removeItem(`${key}:collapsed`);
@@ -155,9 +157,18 @@ test("Contact cards use one column, text toggles, and persistent drag ordering",
 
     await expect(page.getByRole("button", { name: /Move .+ (up|down)/ })).toHaveCount(0);
     const methodsCard = page.locator('[data-user-card="contact-methods"]');
-    const dragHandle = methodsCard.getByRole("button", { name: "Drag Contact methods to reorder" });
+    const dragHandle = methodsCard.getByRole("button", { name: "Drag All contact methods to reorder" });
     await expect(dragHandle).toContainText("Drag to reorder");
-    await dragHandle.dragTo(datesCard, { targetPosition: { x: 24, y: 4 } });
+    await page.evaluate(() => {
+      const source = document.querySelector<HTMLElement>('[data-user-card="contact-methods"] .personalizable-card-drag-handle');
+      const target = document.querySelector<HTMLElement>('[data-personalizable-card-board] > [data-user-card]');
+      if (!source || !target) throw new Error("The card drag source or target is unavailable.");
+      const dataTransfer = new DataTransfer();
+      source.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer }));
+      target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, clientY: target.getBoundingClientRect().top + 1, dataTransfer }));
+      target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, clientY: target.getBoundingClientRect().top + 1, dataTransfer }));
+      source.dispatchEvent(new DragEvent("dragend", { bubbles: true, dataTransfer }));
+    });
     await expect(cards.first()).toHaveAttribute("data-user-card", "contact-methods");
     await page.reload();
     await expect(page.locator("[data-personalizable-card-board] > [data-user-card]").first()).toHaveAttribute("data-user-card", "contact-methods");

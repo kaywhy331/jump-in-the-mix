@@ -133,7 +133,21 @@
 
   /* Mixes */
   .mix-list { background: white; }
-  .mix-card { position: relative; min-height: 76px; display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; padding: 9px 0; }
+  .mix-card { position: relative; min-height: 76px; display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: start; gap: 8px; padding: 12px 0; }
+  .mix-card-main { grid-column: 1; gap: 6px; overflow: hidden; }
+  .mix-card-heading { display: grid; gap: 5px; }
+  .mix-card-heading h2 { font-size: .98rem; }
+  .mix-card-heading p { margin-top: 2px; display: -webkit-box; overflow: hidden; font-size: .82rem; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .mix-card-heading .status-pill { width: max-content; }
+  .mix-card .jump-meta { flex-wrap: nowrap; overflow: hidden; white-space: nowrap; font-size: .72rem; }
+  .mix-card .jump-meta span:nth-child(n + 3) { display: none; }
+  .mix-channel-row { flex-wrap: nowrap; overflow: hidden; }
+  .mix-channel-row span { font-size: .75rem; white-space: nowrap; }
+  .mix-channel-row svg { width: 16px; min-width: 16px; height: 16px; }
+  .mix-card-main > small { display: none; }
+  .mix-card-menu { grid-column: 2; align-self: center; }
+  .mix-card-menu > summary { width: 44px; min-width: 44px; height: 44px; display: grid; place-items: center; padding: 0; overflow: hidden; font-size: 0 !important; }
+  .mix-card-menu > summary::after { content: "⋯"; font-size: 1.25rem; }
   .mix-card .card-header { min-width: 0; min-height: 54px; display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 6px; align-items: center; }
   .mix-card .card-header > div:first-child { min-width: 0; }
   .mix-card .card-header h3 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

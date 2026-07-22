@@ -25,6 +25,7 @@ describe("Mix authoring convergence", () => {
     expect(editor).toContain("Write this action");
     expect(editor).toContain("Drag to reorder");
     for (const field of ["inlineName-${index}", "inlineChannel-${index}", "inlineSubject-${index}", "inlineBody-${index}", "inlineScript-${index}", "saveAsTemplate-${index}"]) expect(editor).toContain(field);
+    expect(editor).toContain('patch.actionMode === "INLINE" ? { saveAsTemplate: false }');
     expect(action).toContain("isActive: action.saveAsTemplate");
     expect(action).toContain("value(formData, `inlineName-${index}`");
   });

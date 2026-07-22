@@ -68,6 +68,8 @@ describe.sequential("Contact activity timeline", () => {
     expect(outcomeRoute).toContain('kind: "JUMP_OUTCOME"');
     expect(workflow).toContain('"jitm:jump-state"');
     expect(workflow).toContain("How did the follow-up with");
+    expect(workflow).toContain('aria-label="Outcome"');
+    expect(workflow).toContain('aria-label="Next follow-up date"');
     expect(today).toContain("<JumpReturnTray />");
     expect(today).toContain("<JumpWorkflowCard");
   });

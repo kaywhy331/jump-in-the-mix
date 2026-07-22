@@ -53,7 +53,9 @@ export function MixEditor({ mix, jumps, dateTypes, groups, categories, industrie
   const addSequenceItem = () => setSequence((current) => [...current, inlineStep(current.length, current.at(-1)?.dayOffset ?? -1)]);
   const removeSequenceItem = (index: number) => setSequence((current) => current.filter((_, itemIndex) => itemIndex !== index));
   const reorder = (from: number, to: number) => setSequence((current) => { if (from === to || from < 0 || to < 0 || from >= current.length || to >= current.length) return current; const next = [...current]; const [item] = next.splice(from, 1); next.splice(to, 0, item); return next; });
-  const updateStep = (index: number, patch: Partial<SequenceItem>) => setSequence((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  const updateStep = (index: number, patch: Partial<SequenceItem>) => setSequence((current) => current.map((item, itemIndex) => itemIndex === index
+    ? { ...item, ...patch, ...(patch.actionMode === "INLINE" ? { saveAsTemplate: false } : {}) }
+    : item));
   const chooseTemplate = (index: number, templateId: string) => { const template = jumpById.get(templateId); if (!template) return updateStep(index, { stepTemplateId: templateId }); updateStep(index, { stepTemplateId: template.id, name: template.name, channel: template.channel, subject: template.subject ?? "", body: template.body ?? "", script: template.script ?? "" }); };
   const toggleGroup = (groupId: string) => setSelectedGroupIds((current) => { const next = new Set(current); if (next.has(groupId)) next.delete(groupId); else next.add(groupId); return next; });
   const submit = (event: FormEvent<HTMLFormElement>) => { if (status !== "ACTIVE" || activationInputRef.current?.value === "1") return; event.preventDefault(); setReviewOpen(true); };

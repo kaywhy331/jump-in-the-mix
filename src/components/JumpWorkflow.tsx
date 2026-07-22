@@ -292,7 +292,7 @@ export function JumpReturnTray() {
         <form className={styles.detailForm} onSubmit={(event) => { event.preventDefault(); void save(outcome, true); }}>
           <label>
             <span>Outcome</span>
-            <select value={outcome} onChange={(event) => setOutcome(event.target.value as Outcome)}>
+            <select aria-label="Outcome" value={outcome} onChange={(event) => setOutcome(event.target.value as Outcome)}>
               <option value="COMPLETED">Completed</option>
               <option value="CONNECTED">Connected</option>
               <option value="LEFT_VOICEMAIL">Left voicemail</option>
@@ -305,22 +305,22 @@ export function JumpReturnTray() {
           </label>
           <label>
             <span>Note visibility</span>
-            <select value={visibility} onChange={(event) => setVisibility(event.target.value as "WORKSPACE" | "PRIVATE")}>
+            <select aria-label="Note visibility" value={visibility} onChange={(event) => setVisibility(event.target.value as "WORKSPACE" | "PRIVATE")}>
               <option value="WORKSPACE">Customer timeline</option>
               <option value="PRIVATE">Private relationship update</option>
             </select>
           </label>
           <label className={styles.fullField}>
             <span>Outcome note</span>
-            <textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={4000} placeholder="What happened, what they committed to, or what matters next" />
+            <textarea aria-label="Outcome note" value={note} onChange={(event) => setNote(event.target.value)} maxLength={4000} placeholder="What happened, what they committed to, or what matters next" />
           </label>
           <label>
             <span>Next follow-up date</span>
-            <input type="date" value={nextDate} onChange={(event) => setNextDate(event.target.value)} required={outcome === "RESCHEDULED"} />
+            <input aria-label="Next follow-up date" type="date" value={nextDate} onChange={(event) => setNextDate(event.target.value)} required={outcome === "RESCHEDULED"} />
           </label>
           <label>
             <span>Time</span>
-            <input type="time" value={nextTime} onChange={(event) => setNextTime(event.target.value)} disabled={!nextDate} />
+            <input aria-label="Next follow-up time" type="time" value={nextTime} onChange={(event) => setNextTime(event.target.value)} disabled={!nextDate} />
           </label>
           <div className={styles.formActions}>
             <button className="button primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save outcome"}</button>
