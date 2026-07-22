@@ -29,11 +29,15 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
   const [mixes, activeCount] = await Promise.all([
     prisma.mix.findMany({
       where: { workspaceId: workspace.id, ...(status ? { status: status as "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED" } : { status: { not: "ARCHIVED" } }), ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { description: { contains: q, mode: "insensitive" } }, { category: { contains: q, mode: "insensitive" } }] } : {}) },
-      include: { steps: { where: { isActive: true }, include: { stepVersion: { include: { stepTemplate: true } } }, orderBy: { sortOrder: "asc" } }, assignments: { where: { isActive: true } }, broadcastSchedule: true, _count: { select: { jumps: true } } },
+      include: { steps: { where: { isActive: true }, include: { stepVersion: { include: { stepTemplate: true } } }, orderBy: { sortOrder: "asc" } }, assignments: { where: { isActive: true } }, _count: { select: { jumps: true } } },
       orderBy: [{ status: "asc" }, { updatedAt: "desc" }]
     }),
     prisma.mix.count({ where: { workspaceId: workspace.id, status: "ACTIVE" } })
   ]);
+  const broadcastSchedules = mixes.length
+    ? await prisma.mixBroadcastSchedule.findMany({ where: { workspaceId: workspace.id, mixId: { in: mixes.map((mix) => mix.id) } } })
+    : [];
+  const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
   const limit = PLAN_LIMITS[workspace.planTier].mixes;
 
   return (
@@ -52,7 +56,12 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
       {mixes.length ? <div className="mix-list">{mixes.map((mix) => {
         const groupAssignments = mix.assignments.filter((item) => item.groupId).length;
         const contactAssignments = mix.assignments.filter((item) => item.contactId).length;
-        const triggerDescription = mix.triggerMode === "DATE_TRIGGERED" ? "Important Date" : mix.triggerMode === "BROADCAST" ? `${formatDateInput(mix.broadcastSchedule?.localDate)} ${formatTimeInput(mix.broadcastSchedule?.timeMinutes)} ${mix.broadcastSchedule?.timezone ?? ""}` : "Manual start";
+        const broadcastSchedule = broadcastByMixId.get(mix.id);
+        const triggerDescription = mix.triggerMode === "DATE_TRIGGERED"
+          ? "Important Date"
+          : mix.triggerMode === "BROADCAST" && broadcastSchedule
+            ? `${formatDateInput(broadcastSchedule.localDate)} ${formatTimeInput(broadcastSchedule.timeMinutes)} ${broadcastSchedule.timezone}`
+            : mix.triggerMode === "BROADCAST" ? "Broadcast schedule pending" : "Manual start";
         return <article className="card mix-card" key={mix.id}><Link className="mix-card-main" href={`/mixes/${mix.id}/edit`}><div className="mix-card-heading"><div><h2>{mix.name}</h2><p>{mix.description || "No description"}</p></div><span className={`status-pill ${mix.status === "ACTIVE" ? "done" : ""}`}>{mix.status.toLowerCase()}</span></div><div className="jump-meta"><span>{triggerDescription}</span><span>{mix.steps.length} action{mix.steps.length === 1 ? "" : "s"}</span><span>{mix.durationDays ?? 0} day span</span><span>{mix._count.jumps} stored Jumps</span></div><div className="mix-channel-row">{[...new Set(mix.steps.map((step) => step.stepVersion.stepTemplate.channel))].map((channel) => <span key={channel}><AppIcon name={channelIcon(channel)} />{channel.replaceAll("_", " ").toLowerCase()}</span>)}</div><small>{groupAssignments} Group assignment{groupAssignments === 1 ? "" : "s"} · {contactAssignments} direct Contact assignment{contactAssignments === 1 ? "" : "s"}</small></Link><details className="mix-card-menu"><summary className="button small">More</summary><div className="mix-card-menu-panel"><Link href={`/mixes/${mix.id}/edit`}>Edit</Link><Link href={`/mixes/${mix.id}/share`}>Share</Link>{mix.status === "DRAFT" || mix.status === "PAUSED" ? <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Review & activate</button></form> : mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Pause</button></form> : null}<ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="Future pending Jumps will be canceled. Completed history remains preserved." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small danger" type="submit">Confirm archive</button></form></ConfirmDialog></div></details></article>;
       })}</div> : <EmptyState title="Create your first follow-up plan" description="Write actions directly, use a reviewed template, or generate one final AI review." actionHref="/mixes/new" actionLabel="Create a follow-up plan" />}
       {!mixes.length && <form action={createStarterMixAction} className="starter-mix-inline"><button className="button" type="submit">Or create the simple starter Mix</button></form>}

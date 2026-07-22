@@ -50,20 +50,24 @@ test("an approved template uses one setup screen and explicit audience", async (
   const title = `Focused Template ${suffix}`;
   const mixName = `Used Template ${suffix}`;
   let mixId: string | null = null;
-  await prisma.sharedMix.create({
-    data: {
-      id: sharedId,
-      title,
-      description: "A focused test template that is configured in one setup screen.",
-      category: "Client Follow-Up",
-      industry: "Other",
-      framework: "Question-Led Consultative",
-      durationDays: 7,
-      status: "APPROVED",
-      steps: [{ name: "Check in", channel: "EMAIL", dayOffset: 0, sendTimeMinutes: 600, subject: "A quick check-in", body: "Hi {{First Name}}, how are things going?", script: null, longSms: false, includeOptOut: false }],
-      metadata: { create: { isPlatform: true, reviewState: "APPROVED", version: 1, triggerMode: "MANUAL_START", voteCount: 0, publishedAt: new Date() } }
-    }
-  });
+  await prisma.$transaction([
+    prisma.sharedMix.create({
+      data: {
+        id: sharedId,
+        title,
+        description: "A focused test template that is configured in one setup screen.",
+        category: "Client Follow-Up",
+        industry: "Other",
+        framework: "Question-Led Consultative",
+        durationDays: 7,
+        status: "APPROVED",
+        steps: [{ name: "Check in", channel: "EMAIL", dayOffset: 0, sendTimeMinutes: 600, subject: "A quick check-in", body: "Hi {{First Name}}, how are things going?", script: null, longSms: false, includeOptOut: false }]
+      }
+    }),
+    prisma.sharedMixMetadata.create({
+      data: { sharedMixId: sharedId, isPlatform: true, reviewState: "APPROVED", version: 1, triggerMode: "MANUAL_START", voteCount: 0, publishedAt: new Date() }
+    })
+  ]);
   try {
     await signIn(page);
     await page.goto(`/templates/${sharedId}/use`);
@@ -78,6 +82,7 @@ test("an approved template uses one setup screen and explicit audience", async (
     expect(await prisma.sharedMixImport.count({ where: { workspaceId: "demo_workspace", sharedMixId: sharedId, mixId } })).toBe(1);
   } finally {
     if (mixId) await removeMix(mixId);
+    await prisma.sharedMixMetadata.deleteMany({ where: { sharedMixId: sharedId } });
     await prisma.sharedMix.deleteMany({ where: { id: sharedId } });
   }
 });
