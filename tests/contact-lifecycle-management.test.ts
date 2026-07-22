@@ -44,6 +44,12 @@ describe.sequential("Contact lifecycle management", () => {
     });
     expect(updated.count).toBe(1);
     expect(await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: ids.contact } })).toMatchObject({ version: 2, priority: "URGENT", doNotContact: false });
+    const filtered = await prisma.contact.findMany({
+      where: { workspaceId: ids.workspace, relationshipState: { is: { priority: "URGENT", doNotContact: false } } },
+      include: { relationshipState: true }
+    });
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.relationshipState).toMatchObject({ ownerUserId: ids.user, priority: "URGENT" });
   });
 
   it("stores one cross-device layout and reusable saved views per user and workspace", async () => {
@@ -63,6 +69,7 @@ describe.sequential("Contact lifecycle management", () => {
     const bulk = read("src/lib/bulk-contact-actions.ts");
     const engine = read("src/lib/jump-engine.ts");
     const layoutApi = read("src/app/api/preferences/contact-layout/route.ts");
+    const contactsPage = read("src/app/(app)/contacts/page.tsx");
     expect(lifecycle).toContain("restoreContactAction");
     expect(lifecycle).toContain("PLAN_LIMITS[workspace.planTier].contacts");
     expect(merge).toContain("contactMergeRecord.create");
@@ -71,5 +78,8 @@ describe.sequential("Contact lifecycle management", () => {
     expect(engine).toContain("doNotContactIds.has(contact.id)");
     expect(layoutApi).toContain("getCurrentSession()");
     expect(layoutApi).toContain("workspaceId: membership.workspaceId");
+    expect(contactsPage).toContain("ContactSavedViewsBar");
+    expect(contactsPage).toContain("relationshipState: { is:");
+    expect(contactsPage).toContain("doNotContact: contact.relationshipState?.doNotContact ?? false");
   });
 });
