@@ -37,7 +37,7 @@ test("workspace user can complete the primary discovery and support journey", as
   if (testInfo.project.name === "mobile-chromium") {
     const mobileFilter = page.locator(".mobile-filter-disclosure").first();
     await mobileFilter.locator("summary").click();
-    await expect(mobileFilter.getByLabel("Filter Contacts by group")).toBeVisible();
+    await expect(mobileFilter.getByRole("combobox", { name: "Group", exact: true })).toBeVisible();
     await mobileFilter.locator("summary").click();
   } else {
     await expect(page.locator('select[aria-label="Filter Contacts by group"]:visible')).toBeVisible();
