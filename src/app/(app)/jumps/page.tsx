@@ -4,8 +4,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { JumpActionLink, JumpCopyButton } from "@/components/JumpActionControls";
+import { JumpOutcomeButton, JumpReturnTray, JumpWorkflowCard } from "@/components/JumpWorkflow";
 import { Notice } from "@/components/Notice";
-import { updateJumpStatusAction } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { addLogicalDays, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
@@ -67,8 +67,8 @@ function channelLabel(channel: Channel): string {
 
 function taskStatusLabel(status: JumpStatus): string {
   if (pendingStatuses.includes(status)) return "Mark done";
-  if (status === "SKIPPED") return "Skipped";
-  return "Done";
+  if (status === "SKIPPED") return "Reopen";
+  return "Undo";
 }
 
 function eventLabel(action: string): string {
@@ -123,18 +123,30 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
   } else if (range === "week") dateWhere = { scheduledAt: { gte: startToday, lt: endWeek } };
   else if (range === "month") dateWhere = { scheduledAt: { gte: startToday, lt: endMonth } };
 
-  const [jumps, dueThisWeekCount, quietRelationshipCount, completedTodayCount] = await Promise.all([prisma.jump.findMany({
-    where: { workspaceId: workspace.id, ...statusWhere, ...dateWhere, ...channelWhere },
-    include: {
-      contact: { include: { emails: true, phones: true } },
-      mix: true,
-      stepVersion: { include: { stepTemplate: true } }
-    },
-    orderBy: { scheduledAt: "asc" },
-    take: 300
-  }), prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: pendingStatuses }, scheduledAt: { gte: startToday, lt: endWeek } } }),
-    prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null, jumps: { none: { status: { in: doneStatuses }, completedAt: { gte: quietSince } } } } }),
-    prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: completedStatuses }, completedAt: { gte: startToday, lt: endToday } } })]);
+  const [jumps, dueThisWeekCount, quietRelationshipCount, completedTodayCount] = await Promise.all([
+    prisma.jump.findMany({
+      where: { workspaceId: workspace.id, ...statusWhere, ...dateWhere, ...channelWhere },
+      include: {
+        contact: { include: { emails: true, phones: true } },
+        mix: true,
+        stepVersion: { include: { stepTemplate: true } }
+      },
+      orderBy: { scheduledAt: "asc" },
+      take: 300
+    }),
+    prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: pendingStatuses }, scheduledAt: { gte: startToday, lt: endWeek } } }),
+    prisma.contact.count({
+      where: {
+        workspaceId: workspace.id,
+        archivedAt: null,
+        jumps: {
+          some: { status: { in: doneStatuses }, completedAt: { not: null } },
+          none: { status: { in: doneStatuses }, completedAt: { gte: quietSince } }
+        }
+      }
+    }),
+    prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: completedStatuses }, completedAt: { gte: startToday, lt: endToday } } })
+  ]);
   const actionEvents = jumps.length
     ? await prisma.jumpActionEvent.findMany({
         where: { workspaceId: workspace.id, jumpId: { in: jumps.map((jump) => jump.id) } },
@@ -176,7 +188,6 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
     const copyContent = [snapshot.subject, snapshot.body ?? snapshot.script].filter(Boolean).join("\n\n");
     const snippet = content.length > 120 ? `${content.slice(0, 117)}…` : content;
     const isPending = pendingStatuses.includes(jump.status);
-    const nextStatus: JumpStatus = isPending ? "DONE" : "PENDING";
     const recentEvents = eventsByJump.get(jump.id) ?? [];
     const daysOverdue = Math.max(1, Math.floor((startToday.getTime() - jump.scheduledAt.getTime()) / 86_400_000) + 1);
     const dueLabel = jump.scheduledAt < startToday
@@ -186,44 +197,47 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
         : formatDateTime(jump.scheduledAt);
 
     return (
-      <article id={`jump-${jump.id}`} className={`jump-card jump-task-card ${isPending ? "" : "jump-task-complete"}`} key={jump.id}>
-        <details className="jump-details">
-          <summary>
-            <div className="jump-card-heading"><h3>{jump.contact.displayName}</h3><span className={jump.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{dueLabel}</span><span className="channel-pill">{channelLabel(jumpChannel)}</span></div>
-            <div className="jump-meta"><span>{jump.mix.name}</span><span>{jump.reason}</span></div>
-            <p className="jump-snippet">{snippet}</p>
-          </summary>
-          <div className="jump-expanded-content">
-            {snapshot.subject && <div><small className="field-label">Subject</small><p>{snapshot.subject}</p></div>}
-            <div><small className="field-label">Prepared content</small><p>{snapshot.body ?? snapshot.script ?? "No content available."}</p></div>
-            {recentEvents.length > 0 && <div className="jump-action-history"><small className="field-label">Recent actions</small>{recentEvents.map((event) => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt)}</span>)}</div>}
-            <div className="jump-secondary-actions">
-              {copyContent && <JumpCopyButton jumpId={jump.id} text={copyContent} />}
-              {!isPending && <form action={updateJumpStatusAction}><input type="hidden" name="jumpId" value={jump.id} /><input type="hidden" name="status" value="PENDING" /><button className="button small" type="submit">Undo</button></form>}
+      <JumpWorkflowCard jumpId={jump.id} contactName={jump.contact.displayName} key={jump.id}>
+        <article id={`jump-${jump.id}`} className={`jump-card jump-task-card ${isPending ? "" : "jump-task-complete"}`}>
+          <details className="jump-details">
+            <summary>
+              <div className="jump-card-heading"><h3>{jump.contact.displayName}</h3><span className={jump.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{dueLabel}</span><span className="channel-pill">{channelLabel(jumpChannel)}</span></div>
+              <div className="jump-meta"><span>{jump.mix.name}</span><span>{jump.reason}</span></div>
+              <p className="jump-snippet">{snippet}</p>
+            </summary>
+            <div className="jump-expanded-content">
+              {snapshot.subject && <div><small className="field-label">Subject</small><p>{snapshot.subject}</p></div>}
+              <div><small className="field-label">Prepared content</small><p>{snapshot.body ?? snapshot.script ?? "No content available."}</p></div>
+              {recentEvents.length > 0 && <div className="jump-action-history"><small className="field-label">Recent actions</small>{recentEvents.map((event) => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt)}</span>)}</div>}
+              <div className="jump-secondary-actions">
+                {copyContent && <JumpCopyButton jumpId={jump.id} text={copyContent} />}
+              </div>
+            </div>
+          </details>
+
+          <div className="jump-primary-action">
+            {url ? (
+              <JumpActionLink
+                jumpId={jump.id}
+                action={actionType(jumpChannel)}
+                href={url}
+                target={jumpChannel === "WHATSAPP" ? "_blank" : undefined}
+                className="button primary jump-channel-action"
+                ariaLabel={`Open ${channelLabel(jumpChannel)} for ${jump.contact.displayName}`}
+                title={`Open ${channelLabel(jumpChannel)}`}
+                contactName={jump.contact.displayName}
+                channel={jumpChannel}
+              >
+                <AppIcon name={channelIcon(jumpChannel)} /><span>{jumpChannel === "PHONE_CALL" ? "Call" : jumpChannel === "VOICEMAIL" ? "Open notes" : jumpChannel === "EMAIL" ? "Open email" : jumpChannel === "WHATSAPP" ? "Open WhatsApp" : "Open text"}</span>
+              </JumpActionLink>
+            ) : <span className="status-pill" title={`Add a primary ${jumpChannel === "EMAIL" ? "email" : "phone"} to this contact first`}>Missing</span>}
+            <div className="jump-completion-actions">
+              <JumpOutcomeButton jumpId={jump.id} outcome={isPending ? "COMPLETED" : "REOPENED"} className={`button small jump-done-action ${isPending ? "" : "done"}`}>{taskStatusLabel(jump.status)}</JumpOutcomeButton>
+              {isPending && <details className="jump-overflow"><summary className="button small" aria-label={`More actions for ${jump.contact.displayName}`}>More</summary><div className="jump-overflow-panel"><strong>Snooze</strong>{[["later-today", "Later today"], ["tomorrow", "Tomorrow"], ["next-monday", "Next Monday"], ["next-week", "Next week"]].map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={jump.id}/><input type="hidden" name="preset" value={preset}/><input type="hidden" name="returnTo" value={jumpsReturnTo}/><button className="text-button" type="submit">{label}</button></form>)}<form action={snoozeJumpAction} className="custom-snooze"><input type="hidden" name="jumpId" value={jump.id}/><input type="hidden" name="preset" value="custom"/><input type="hidden" name="returnTo" value={jumpsReturnTo}/><input type="datetime-local" name="customDate" aria-label={`Custom snooze date and time in ${timezone}`} required/><small className="muted-copy">{timezone}</small><button className="button small" type="submit">Custom</button></form><JumpOutcomeButton jumpId={jump.id} outcome="SKIPPED" className="text-button danger-text">Skip</JumpOutcomeButton>{jump.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop Mix…" title={`Stop ${jump.mix.name} for ${jump.contact.displayName}?`} description="Pending Jumps from this Mix will leave the queue. Completed history remains available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={jump.mixId}/><input type="hidden" name="contactId" value={jump.contactId}/><input type="hidden" name="returnTo" value={jumpsReturnTo}/><button className="button small danger" type="submit">Confirm stop</button></form></ConfirmDialog>}</div></details>}
             </div>
           </div>
-        </details>
-
-        <div className="jump-primary-action">
-          {url ? (
-            <JumpActionLink
-              jumpId={jump.id}
-              action={actionType(jumpChannel)}
-              href={url}
-              target={jumpChannel === "WHATSAPP" ? "_blank" : undefined}
-              className="button primary jump-channel-action"
-              ariaLabel={`Open ${channelLabel(jumpChannel)} for ${jump.contact.displayName}`}
-              title={`Open ${channelLabel(jumpChannel)}`}
-            >
-              <AppIcon name={channelIcon(jumpChannel)} /><span>{jumpChannel === "PHONE_CALL" ? "Call" : jumpChannel === "VOICEMAIL" ? "Open notes" : jumpChannel === "EMAIL" ? "Open email" : jumpChannel === "WHATSAPP" ? "Open WhatsApp" : "Open text"}</span>
-            </JumpActionLink>
-          ) : <span className="status-pill" title={`Add a primary ${jumpChannel === "EMAIL" ? "email" : "phone"} to this contact first`}>Missing</span>}
-          <div className="jump-completion-actions">
-            <form action={updateJumpStatusAction}><input type="hidden" name="jumpId" value={jump.id} /><input type="hidden" name="status" value={nextStatus} /><button className={`button small jump-done-action ${isPending ? "" : "done"}`} type="submit">{taskStatusLabel(jump.status)}</button></form>
-            {isPending && <details className="jump-overflow"><summary className="button small" aria-label={`More actions for ${jump.contact.displayName}`}>More</summary><div className="jump-overflow-panel"><strong>Snooze</strong>{[["later-today", "Later today"], ["tomorrow", "Tomorrow"], ["next-monday", "Next Monday"], ["next-week", "Next week"]].map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={jump.id}/><input type="hidden" name="preset" value={preset}/><input type="hidden" name="returnTo" value={jumpsReturnTo}/><button className="text-button" type="submit">{label}</button></form>)}<form action={snoozeJumpAction} className="custom-snooze"><input type="hidden" name="jumpId" value={jump.id}/><input type="hidden" name="preset" value="custom"/><input type="hidden" name="returnTo" value={jumpsReturnTo}/><input type="datetime-local" name="customDate" aria-label={`Custom snooze date and time in ${timezone}`} required/><small className="muted-copy">{timezone}</small><button className="button small" type="submit">Custom</button></form><form action={updateJumpStatusAction}><input type="hidden" name="jumpId" value={jump.id}/><input type="hidden" name="status" value="SKIPPED"/><button className="text-button danger-text" type="submit">Skip</button></form>{jump.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop Mix…" title={`Stop ${jump.mix.name} for ${jump.contact.displayName}?`} description="Pending Jumps from this Mix will leave the queue. Completed history remains available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={jump.mixId}/><input type="hidden" name="contactId" value={jump.contactId}/><input type="hidden" name="returnTo" value="/jumps"/><button className="button small danger" type="submit">Confirm stop</button></form></ConfirmDialog>}</div></details>}
-          </div>
-        </div>
-      </article>
+        </article>
+      </JumpWorkflowCard>
     );
   };
 
@@ -233,6 +247,7 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="page">
+      <JumpReturnTray />
       {params.welcome && <Notice type="success">{welcomeMessage}{selectedPlan && <> <Link href={`/plans?plan=${selectedPlan}&period=${selectedPeriod}#plan-${selectedPlan}`}><strong>Review the selected {selectedPlan === "plus" ? "Plus" : "Pro"} plan after your first win.</strong></Link></>}</Notice>}
       {params.demo && <Notice type="info">You are in the local demo workspace. Actions remain on this computer.</Notice>}
       {params.applied && <Notice type="success">Created {params.applied} one-time Jump{params.applied === "1" ? "" : "s"} for the selected Contacts.</Notice>}
