@@ -92,7 +92,23 @@
 
 .usage-line { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: -8px 0 18px; color: var(--muted); font-size: .85rem; }
 .usage-line strong { color: var(--ink); }
-.mix-card { display: grid; align-items: stretch; }
+.mix-card { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 14px; }
+.mix-card-main { min-width: 0; display: grid; align-content: start; gap: 9px; color: inherit; }
+.mix-card-heading { min-width: 0; display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.mix-card-heading > div { min-width: 0; }
+.mix-card-heading h2 { margin: 0; font-size: 1.05rem; line-height: 1.25; overflow-wrap: anywhere; }
+.mix-card-heading p { margin: 5px 0 0; color: var(--muted); line-height: 1.45; }
+.mix-channel-row { display: flex; align-items: center; gap: 7px 12px; flex-wrap: wrap; }
+.mix-channel-row span { min-width: 0; display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: .8rem; }
+.mix-channel-row svg { width: 17px; min-width: 17px; height: 17px; }
+.mix-card-main > small { color: var(--muted); }
+.mix-card-menu { position: relative; align-self: flex-start; z-index: 3; }
+.mix-card-menu > summary { min-width: 64px; list-style: none; }
+.mix-card-menu > summary::-webkit-details-marker { display: none; }
+.mix-card-menu-panel { position: absolute; z-index: 35; top: calc(100% + 7px); right: 0; width: 220px; display: grid; gap: 3px; padding: 9px; border: 1px solid var(--line); border-radius: 13px; background: white; box-shadow: var(--shadow); }
+.mix-card-menu-panel a, .mix-card-menu-panel button { width: 100%; min-height: 38px; display: flex; align-items: center; padding: 8px 9px; border-radius: 8px; text-align: left; color: var(--muted); font-weight: 700; }
+.mix-card-menu-panel a:hover { background: var(--surface-soft); color: var(--ink); }
+.mix-card:has(.mix-card-menu[open]) { z-index: 34; }
 .mix-card-actions { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .muted-copy { color: var(--muted); margin-top: 0; }
 .mix-sequence-preview { display: flex; gap: 9px; flex-wrap: wrap; margin: 8px 0 12px; }

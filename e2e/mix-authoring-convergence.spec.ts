@@ -27,9 +27,10 @@ test("a Mix can be written inline without creating a prerequisite Action Templat
     await page.goto("/mixes/new");
     await page.getByLabel("Mix name").fill(name);
     await page.getByLabel("Write this action").click();
-    await page.getByLabel("Internal action name").fill("Personal renewal question");
-    await page.getByLabel("Email subject").fill("A renewal question for {{First Name}}");
-    await page.getByLabel("Prepared message").fill("Hi {{First Name}}, what would make the next renewal especially useful?");
+    await page.locator('input[name="inlineName-0"]').fill("Personal renewal question");
+    await page.locator('select[name="inlineChannel-0"]').selectOption("EMAIL");
+    await page.locator('input[name="inlineSubject-0"]').fill("A renewal question for {{First Name}}");
+    await page.locator('textarea[name="inlineBody-0"]').fill("Hi {{First Name}}, what would make the next renewal especially useful?");
     await page.getByRole("button", { name: "Create Mix" }).click();
     await page.waitForURL(/\/mixes\/[^/]+\/edit\?created=manual/);
     const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId: "demo_workspace", name }, include: { steps: { include: { stepVersion: { include: { stepTemplate: true } } } } } });
