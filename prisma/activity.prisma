@@ -1,0 +1,44 @@
+enum ContactActivityKind {
+  JUMP_OUTCOME
+  CUSTOMER_NOTE
+  PRIVATE_UPDATE
+  SYSTEM
+}
+
+enum ContactActivityVisibility {
+  WORKSPACE
+  PRIVATE
+}
+
+enum JumpOutcome {
+  COMPLETED
+  CONNECTED
+  LEFT_VOICEMAIL
+  NO_ANSWER
+  NOT_SENT
+  WRONG_NUMBER
+  RESCHEDULED
+  SKIPPED
+  REOPENED
+}
+
+model ContactActivity {
+  id               String                    @id @default(cuid())
+  workspaceId      String
+  contactId        String
+  jumpId           String?
+  actorUserId      String?
+  kind             ContactActivityKind
+  outcome          JumpOutcome?
+  channel          Channel?
+  visibility       ContactActivityVisibility @default(WORKSPACE)
+  summary          String?
+  nextCommitmentAt DateTime?
+  metadata         Json?
+  occurredAt       DateTime                  @default(now())
+  createdAt        DateTime                  @default(now())
+
+  @@index([workspaceId, occurredAt])
+  @@index([contactId, occurredAt])
+  @@index([jumpId, occurredAt])
+}
