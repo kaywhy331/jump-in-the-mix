@@ -13,6 +13,8 @@ type SearchParams = {
   reset?: string;
   verified?: string;
   signedOutEverywhere?: string;
+  invite?: string;
+  emailChanged?: string;
 };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -27,18 +29,14 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         {params.reset && <Notice type="success">Your password was reset. Sign in with the new password.</Notice>}
         {params.verified && <Notice type="success">Your email is verified. You can sign in securely.</Notice>}
         {params.signedOutEverywhere && <Notice type="success">All sessions were signed out.</Notice>}
+        {params.invite && <Notice type="info">Sign in with the invited email address. The workspace invitation will resume automatically.</Notice>}
+        {params.emailChanged && <Notice type="success">Your new email is confirmed. Sign in again with the updated address.</Notice>}
         {params.error && <Notice type="error">{params.error}</Notice>}
         {env.demoMode && (
           <>
-            <form action={demoLoginAction}>
-              <button className="button primary full-width" type="submit">Open the guided demo</button>
-            </form>
+            <form action={demoLoginAction}><button className="button primary full-width" type="submit">Open the guided demo</button></form>
             <div className="auth-divider"><span>or sign in manually</span></div>
-            <div className="demo-credentials">
-              <strong>Local demo credentials</strong>
-              <code>{env.demoEmail}</code>
-              <code>{env.demoPassword}</code>
-            </div>
+            <div className="demo-credentials"><strong>Local demo credentials</strong><code>{env.demoEmail}</code><code>{env.demoPassword}</code></div>
           </>
         )}
         <form action={loginAction} className="form-stack">
