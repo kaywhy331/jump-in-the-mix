@@ -144,6 +144,7 @@ export async function loginAction(formData: FormData): Promise<void> {
 
   await Promise.all([
     clearRateLimit("auth.login.email", [email]),
+    clearRateLimit("auth.login.ip", [metadata.ipAddress]),
     createSession(user.id)
   ]);
   const membership = await prisma.workspaceMember.findFirst({
