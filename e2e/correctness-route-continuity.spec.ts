@@ -83,6 +83,16 @@ test("name-only Contacts keep Important Date access and return to the filtered l
     ]);
     await expect(page.getByText("2/28", { exact: true })).toBeVisible();
 
+    await datesCard.getByLabel("Remove Birthday").click();
+    await Promise.all([
+      page.waitForURL(/dateDeleted=1/),
+      page.getByRole("button", { name: "Confirm removal" }).click()
+    ]);
+    await expect(page.getByText("2/28", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("No Important Dates yet.", { exact: false })).toBeVisible();
+    const storedDate = await prisma.jumpDate.findUniqueOrThrow({ where: { id: jumpDateId } });
+    expect(storedDate.isActive).toBe(false);
+
     await page.getByRole("link", { name: "Back to Contacts" }).click();
     await expect(page).toHaveURL(/\/contacts\?q=/);
     await expect(page.locator('input[aria-label="Search contacts"]:visible')).toHaveValue(displayName);
