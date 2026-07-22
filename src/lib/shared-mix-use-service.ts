@@ -66,8 +66,11 @@ export async function useSharedMixTemplate(input: {
   const groupIds = [...new Set(input.groupIds.filter(Boolean))];
   if (!input.assignAllContacts && !groupIds.length) throw new Error("Choose All active Contacts or at least one active Contact Group.");
   if (groupIds.length) {
-    const activeGroups = await prisma.group.count({ where: { workspaceId: input.workspaceId, id: { in: groupIds }, states: { none: { workspaceId: input.workspaceId, isActive: false } } } });
-    if (activeGroups !== groupIds.length) throw new Error("Choose only active Contact Groups.");
+    const [groupCount, inactiveCount] = await Promise.all([
+      prisma.group.count({ where: { workspaceId: input.workspaceId, id: { in: groupIds } } }),
+      prisma.contactGroupState.count({ where: { workspaceId: input.workspaceId, groupId: { in: groupIds }, isActive: false } })
+    ]);
+    if (groupCount !== groupIds.length || inactiveCount > 0) throw new Error("Choose only active Contact Groups.");
   }
   if (input.status === "ACTIVE") {
     const activeCount = await prisma.mix.count({ where: { workspaceId: input.workspaceId, status: "ACTIVE" } });
