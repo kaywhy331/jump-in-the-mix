@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ContactTimeline } from "@/components/ContactTimeline";
 import { ContactsBackLink } from "@/components/ContactsBackLink";
 import { Notice } from "@/components/Notice";
 import { PersonalizableCardBoard, type PersonalizableCardItem } from "@/components/PersonalizableCards";
@@ -98,6 +99,12 @@ export default async function ContactDetailPage({
 
   const cardItems: PersonalizableCardItem[] = [
     {
+      id: "relationship-timeline",
+      title: "Relationship timeline",
+      description: "Calls, messages, outcomes, notes, and next commitments in chronological order.",
+      content: <ContactTimeline contactId={contact.id} />
+    },
+    {
       id: "important-dates",
       title: "Important Dates",
       description: "Moments that can start a follow-up plan.",
@@ -170,11 +177,11 @@ export default async function ContactDetailPage({
     {
       id: "contact-notes",
       title: "Customer and private notes",
-      description: "Relationship context stays distinct from phone and deal updates.",
+      description: "Pinned summaries stay distinct from the timestamped updates in the timeline.",
       actions: <Link className="icon-button compact" href={`/contacts/${contact.id}/edit#contact-notes`} aria-label="Edit Contact notes" title="Edit notes"><AppIcon name="edit" /></Link>,
       content: <div className="contact-notes-grid">
-        <section className="contact-note-block"><h3>Customer notes</h3><p className="note-copy">{contact.publicNotes || "No customer notes yet."}</p><small>Use this for how you met, preferences, background, and other reusable relationship context.</small></section>
-        <section className="contact-note-block"><h3>Private relationship updates</h3><p className="note-copy">{contact.privateNotes || "No private relationship updates yet."}</p><small>Use this for phone-call context, deal movement, and relationship updates. It is never inserted into SMS or email content.</small></section>
+        <section className="contact-note-block"><h3>Customer notes summary</h3><p className="note-copy">{contact.publicNotes || "No customer notes summary yet."}</p><small>Keep durable background here; add dated updates in the Relationship timeline.</small></section>
+        <section className="contact-note-block"><h3>Private relationship summary</h3><p className="note-copy">{contact.privateNotes || "No private relationship summary yet."}</p><small>This summary is never inserted into SMS or email content. Add dated deal and call updates in the timeline.</small></section>
       </div>
     },
     {
@@ -207,7 +214,7 @@ export default async function ContactDetailPage({
       {query.updated && <Notice type="success">Contact details updated. Future pending Jumps are being refreshed.</Notice>}
       {!query.created && query.dateCreated && <Notice type="success">Important Date added. Matching Mixes can now create future Jumps.</Notice>}
       {query.dateUpdated && <Notice type="success">Important Date updated. Future pending Jumps are being reconciled.</Notice>}
-      {query.dateDeleted && <Notice type="success">Important Date removed. Obsolete future Jumps are being reconciled.</Notice>}
+      {query.dateDeleted && <Notice type="success">Important Date removed from active planning. Its historical record remains recoverable.</Notice>}
       {!query.created && query.mixAssigned && <Notice type="success">Mix assigned. The background worker is preparing matching Jumps.</Notice>}
       {query.mixRemoved && <Notice type="success">Mix removed from this Contact. Completed history remains available.</Notice>}
       {query.mixStopped && <Notice type="success">Mix stopped for this Contact. Its pending Jumps were removed.</Notice>}
