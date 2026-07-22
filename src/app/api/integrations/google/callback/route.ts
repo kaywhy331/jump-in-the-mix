@@ -5,10 +5,9 @@ import {
   consumeGoogleOAuthState,
   decryptedGoogleCredentials,
   encryptedGoogleCredentials,
-  exchangeGoogleAuthorizationCode,
-  fetchGoogleUserInfo,
   readGoogleConnectionMetadata
 } from "@/lib/google-contacts";
+import { exchangeGoogleAuthorizationCodeForVerifiedAccount } from "@/lib/google-oauth-exchange";
 import { prisma } from "@/lib/prisma";
 
 function resultUrl(request: Request, returnTo: string, key: string, value: string): URL {
@@ -21,13 +20,13 @@ export async function GET(request: Request) {
   const session = await getCurrentSession();
   const membership = session?.user.memberships[0];
   if (!session || !membership) return NextResponse.redirect(new URL("/login", request.url));
-  if (session.impersonation) return NextResponse.redirect(new URL("/account?google=readonly", request.url));
+  if (session.impersonation) return NextResponse.redirect(new URL("/account?section=connections&google=readonly", request.url));
 
   const requestUrl = new URL(request.url);
   const state = requestUrl.searchParams.get("state") ?? "";
-  if (!state) return NextResponse.redirect(new URL("/account?googleError=Missing+OAuth+state", request.url));
+  if (!state) return NextResponse.redirect(new URL("/account?section=connections&googleError=Missing+OAuth+state", request.url));
 
-  let returnTo = "/account";
+  let returnTo = "/account?section=connections";
   let codeVerifier: string | null = null;
   try {
     ({ returnTo, codeVerifier } = await consumeGoogleOAuthState(membership.workspaceId, state));
@@ -47,6 +46,7 @@ export async function GET(request: Request) {
         }
       }
     });
+    const previousMetadata = readGoogleConnectionMetadata(existing?.metadata);
     let existingRefreshToken: string | null = null;
     if (existing?.credentialsCiphertext) {
       try {
@@ -56,22 +56,27 @@ export async function GET(request: Request) {
       }
     }
 
-    const credentials = await exchangeGoogleAuthorizationCode(code, existingRefreshToken, codeVerifier);
-    const account = await fetchGoogleUserInfo(credentials.accessToken);
+    const exchange = await exchangeGoogleAuthorizationCodeForVerifiedAccount({
+      code,
+      codeVerifier,
+      existingExternalAccountId: existing?.externalAccountId,
+      existingAccountEmail: previousMetadata.accountEmail,
+      existingRefreshToken
+    });
+    const { credentials, account, accountChanged } = exchange;
     const externalAccountId = account.sub || account.email || null;
-    const accountChanged = Boolean(existing?.externalAccountId && externalAccountId && existing.externalAccountId !== externalAccountId);
-    const previousMetadata = accountChanged ? {} : readGoogleConnectionMetadata(existing?.metadata);
+    const retainedMetadata = accountChanged ? {} : previousMetadata;
     const metadata = {
-      ...previousMetadata,
+      ...retainedMetadata,
       ...(account.email ? { accountEmail: account.email } : {}),
       ...(account.name ? { accountName: account.name } : {}),
       connectedAt: new Date().toISOString(),
-      selectedGroupResourceNames: accountChanged ? [] : previousMetadata.selectedGroupResourceNames ?? [],
-      selectedGroupLabels: accountChanged ? {} : previousMetadata.selectedGroupLabels ?? {},
-      autoMergeExact: accountChanged ? true : previousMetadata.autoMergeExact !== false
+      selectedGroupResourceNames: accountChanged ? [] : retainedMetadata.selectedGroupResourceNames ?? [],
+      selectedGroupLabels: accountChanged ? {} : retainedMetadata.selectedGroupLabels ?? {},
+      autoMergeExact: accountChanged ? true : retainedMetadata.autoMergeExact !== false
     } as Prisma.InputJsonValue;
 
-    const connection = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       if (accountChanged && existing) {
         await tx.externalContactLink.updateMany({
           where: { workspaceId: membership.workspaceId, provider: "GOOGLE_CONTACTS", deletedAt: null },
@@ -129,7 +134,6 @@ export async function GET(request: Request) {
           metadata: { accountEmail: account.email ?? null, accountChanged }
         }
       });
-      return saved;
     });
 
     return NextResponse.redirect(resultUrl(request, returnTo, "google", "connected"));
