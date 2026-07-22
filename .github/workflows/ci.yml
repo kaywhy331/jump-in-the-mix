@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      APP_URL: http://localhost:3000
+      APP_URL: http://127.0.0.1:3000
       DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_test?schema=public
       DATA_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
       BACKUP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
