@@ -12,6 +12,8 @@ import { endAdminImpersonationGrant, resolveAdminImpersonationGrant } from "@/li
 import { reconcileWorkspaceReferralEntitlement } from "@/lib/referral-service";
 import { getRequestMetadata } from "@/lib/request-context";
 
+export const USER_MFA_PENDING_COOKIE = "jitm_mfa_pending";
+
 export function hashSessionToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
@@ -80,6 +82,17 @@ export async function createSession(userId: string): Promise<string> {
     path: "/",
     expires: userMfa ? new Date(Date.now() + 10 * 60 * 1000) : expiresAt
   });
+  if (userMfa) {
+    store.set(USER_MFA_PENDING_COOKIE, "1", {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 10 * 60
+    });
+  } else {
+    store.delete(USER_MFA_PENDING_COOKIE);
+  }
 
   return session.id;
 }
@@ -118,6 +131,7 @@ export async function destroySession(): Promise<void> {
     if (session) await clearAdminMfaSession(session.id);
     await prisma.session.deleteMany({ where: { tokenHash: hashSessionToken(token) } });
   }
+  store.delete(USER_MFA_PENDING_COOKIE);
   store.delete(env.impersonationCookieName);
   store.delete(env.cookieName);
 }
@@ -173,6 +187,7 @@ export async function getCurrentSession() {
         prisma.session.delete({ where: { id: session.id } })
       ]);
     }
+    store.delete(USER_MFA_PENDING_COOKIE);
     store.delete(env.impersonationCookieName);
     store.delete(env.cookieName);
     return null;
