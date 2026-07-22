@@ -1,13 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { prisma } from "@/lib/prisma";
-import { generateJumps } from "@/lib/jump-engine";
+import { retryPendingAccountDeletionRevocations } from "@/lib/account-deletion";
+import { CONTACT_IMPORT_JOB_TASK, runContactImportBatch } from "@/lib/contact-import-jobs";
 import {
   enqueueDueGoogleContactsSyncs,
   googleSyncJobTask,
   runGoogleContactsSync
 } from "@/lib/google-sync-service";
+import { generateJumps } from "@/lib/jump-engine";
+import { prisma } from "@/lib/prisma";
 import { reconcileDueReferralEntitlements } from "@/lib/referral-service";
-import { retryPendingAccountDeletionRevocations } from "@/lib/account-deletion";
 
 const workerId = `worker-${randomUUID().slice(0, 8)}`;
 const workerStartedAt = new Date();
@@ -127,6 +128,12 @@ async function executeJob(job: ClaimedJob): Promise<void> {
     });
     return;
   }
+  if (job.task === CONTACT_IMPORT_JOB_TASK) {
+    const payload = job.payload as { batchId?: string };
+    if (!payload.batchId) throw new PermanentJobError("Contact import job is missing its batch identifier.");
+    await runContactImportBatch(payload.batchId);
+    return;
+  }
   throw new PermanentJobError(`Unsupported worker task: ${job.task}`);
 }
 
@@ -169,6 +176,15 @@ async function processJob(job: ClaimedJob) {
         runAt: shouldFail ? job.runAt : new Date(Date.now() + retryDelayMs(job.attempts))
       }
     });
+    if (shouldFail && job.task === CONTACT_IMPORT_JOB_TASK) {
+      const payload = job.payload as { batchId?: string };
+      if (payload.batchId) {
+        await prisma.contactImportBatch.updateMany({
+          where: { id: payload.batchId, status: { in: ["QUEUED", "RUNNING"] } },
+          data: { status: "FAILED", failedCount: { increment: 1 }, completedAt: new Date(), errorSummary: message }
+        }).catch(() => undefined);
+      }
+    }
     if (updated.count !== 1) {
       console.error(`[${workerId}] Job ${job.id} failed after its lease was lost: ${message}`);
     }
