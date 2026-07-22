@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const IMPERSONATION_COOKIE = process.env.AUTH_IMPERSONATION_COOKIE_NAME ?? "jitm_impersonation";
+const USER_MFA_PENDING_COOKIE = "jitm_mfa_pending";
 const IMPERSONATION_END_PATH = "/api/admin/impersonation/end";
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -49,6 +50,18 @@ function impersonationMutationAllowed(request: NextRequest): boolean {
   return request.nextUrl.pathname === IMPERSONATION_END_PATH;
 }
 
+function pendingMfaResponse(request: NextRequest): NextResponse | null {
+  if (!request.cookies.get(USER_MFA_PENDING_COOKIE)?.value) return null;
+  if (request.nextUrl.pathname === "/mfa") return null;
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json({ error: "Complete MFA verification before using the application." }, { status: 401 });
+  }
+  const url = request.nextUrl.clone();
+  url.pathname = "/mfa";
+  url.search = "";
+  return NextResponse.redirect(url);
+}
+
 function applySecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
@@ -57,9 +70,7 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
   response.headers.set("X-Permitted-Cross-Domain-Policies", "none");
-  if (isProduction) {
-    response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-  }
+  if (isProduction) response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   return response;
 }
 
@@ -70,6 +81,9 @@ export function proxy(request: NextRequest) {
       : new NextResponse("The request origin is not allowed.", { status: 403 });
     return applySecurityHeaders(response);
   }
+
+  const mfaResponse = pendingMfaResponse(request);
+  if (mfaResponse) return applySecurityHeaders(mfaResponse);
 
   if (!impersonationMutationAllowed(request)) {
     const response = request.nextUrl.pathname.startsWith("/api/")
