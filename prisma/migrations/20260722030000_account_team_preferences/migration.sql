@@ -119,7 +119,7 @@ CREATE TABLE "UserMfaSession" (
   "id" TEXT NOT NULL,
   "sessionId" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
-  "verifiedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "verifiedAt" TIMESTAMP(3),
   "expiresAt" TIMESTAMP(3) NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "UserMfaSession_pkey" PRIMARY KEY ("id")
