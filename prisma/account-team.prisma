@@ -35,37 +35,41 @@ model WorkspacePreference {
 }
 
 model NotificationPreference {
-  id                  String   @id @default(cuid())
+  id                  String    @id @default(cuid())
   userId              String
   workspaceId         String
-  emailEnabled        Boolean  @default(true)
-  inAppEnabled        Boolean  @default(true)
-  dailyDigest         Boolean  @default(true)
-  overdueReminders    Boolean  @default(true)
-  upcomingDates       Boolean  @default(true)
-  integrationFailures Boolean  @default(true)
-  importComplete      Boolean  @default(true)
-  supportReplies      Boolean  @default(true)
-  billingAlerts       Boolean  @default(true)
-  securityAlerts      Boolean  @default(true)
-  digestMinutes       Int      @default(480)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  emailEnabled        Boolean   @default(true)
+  inAppEnabled        Boolean   @default(true)
+  dailyDigest         Boolean   @default(true)
+  overdueReminders    Boolean   @default(true)
+  upcomingDates       Boolean   @default(true)
+  integrationFailures Boolean   @default(true)
+  importComplete      Boolean   @default(true)
+  supportReplies      Boolean   @default(true)
+  billingAlerts       Boolean   @default(true)
+  securityAlerts      Boolean   @default(true)
+  digestMinutes       Int       @default(480)
+  lastDigestAt        DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   @@unique([userId, workspaceId])
   @@index([workspaceId])
 }
 
 model NotificationEvent {
-  id          String   @id @default(cuid())
-  workspaceId String
-  userId      String
-  type        String
-  title       String
-  body        String
-  href        String?
-  readAt      DateTime?
-  createdAt   DateTime @default(now())
+  id               String    @id @default(cuid())
+  workspaceId      String
+  userId           String
+  idempotencyKey   String    @unique
+  type             String
+  title            String
+  body             String
+  href             String?
+  readAt           DateTime?
+  emailDeliveredAt DateTime?
+  deliveryError    String?
+  createdAt        DateTime  @default(now())
 
   @@index([userId, readAt, createdAt])
   @@index([workspaceId, createdAt])
