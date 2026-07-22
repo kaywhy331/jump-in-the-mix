@@ -82,8 +82,8 @@ test("Jump outcomes complete in place and appear on the Contact timeline", async
       window.dispatchEvent(new CustomEvent("jitm:jump-opened", { detail }));
     }, { jumpId, contactName: displayName });
     await expect(page.getByText(`How did the follow-up with ${displayName} go?`)).toBeVisible();
-    await page.getByText("Add a note, detailed outcome, or next follow-up").click();
-    const tray = page.getByLabel(`Finish follow-up with ${displayName}`);
+    const tray = page.getByLabel(`Finish follow-up with ${displayName}`).filter({ visible: true });
+    await tray.getByText("Add a note, detailed outcome, or next follow-up", { exact: true }).click();
     await tray.getByLabel("Outcome", { exact: true }).selectOption("NO_ANSWER");
     await tray.getByLabel("Outcome note", { exact: true }).fill("No answer; try again tomorrow morning.");
     const nextDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
