@@ -156,9 +156,16 @@ jobs:
           retention-days: 7
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+      - name: Prepare standalone browser server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .next/standalone/.next
+          cp -R public .next/standalone/public
+          cp -R .next/static .next/standalone/.next/static
       - name: Browser-driven end-to-end tests
         env:
-          PLAYWRIGHT_WEB_SERVER_COMMAND: npm run start
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
         shell: bash
         run: |
           set -o pipefail
