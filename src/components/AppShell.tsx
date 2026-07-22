@@ -3,6 +3,7 @@ import { AccountRouteNormalizer } from "@/components/AccountRouteNormalizer";
 import { Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
 import { ReferralShareButton } from "@/components/ReferralShareButton";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { logoutAction } from "@/lib/auth-actions";
 import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
 
@@ -10,6 +11,8 @@ export function AppShell({
   children,
   userName,
   workspaceName,
+  workspaceId,
+  workspaces,
   planTier,
   isPlatformAdmin,
   referralMessage,
@@ -18,6 +21,8 @@ export function AppShell({
   children: React.ReactNode;
   userName: string;
   workspaceName: string;
+  workspaceId: string;
+  workspaces: Array<{ id: string; name: string; role: string }>;
   planTier: string;
   isPlatformAdmin: boolean;
   referralMessage: string | null;
@@ -46,6 +51,7 @@ export function AppShell({
         <div className="workspace-chip">
           <span>{workspaceName}</span>
           <small>{planTier} plan</small>
+          {!impersonation && <WorkspaceSwitcher activeWorkspaceId={workspaceId} workspaces={workspaces} />}
         </div>
         <Nav />
         {!impersonation && <QuickAddButton />}
@@ -56,13 +62,15 @@ export function AppShell({
               <details className="profile-menu">
                 <summary className="button small">Profile &amp; workspace</summary>
                 <div className="profile-menu-panel">
-                <Link href="/account">My Account</Link>
-                <Link href="/settings">Settings</Link>
-                <Link href="/templates">Mix Templates</Link>
-                <Link href="/help">Help &amp; Support</Link>
-                {referralMessage && <ReferralShareButton message={referralMessage} compact className="referral-sidebar-share" />}
-                {isPlatformAdmin && <Link href="/admin">Admin</Link>}
-                <form action={logoutAction}><button className="text-button danger-text" type="submit">Sign out</button></form>
+                  <Link href="/account">My Account</Link>
+                  <Link href="/account/preferences">Preferences</Link>
+                  <Link href="/account/team">Team</Link>
+                  <Link href="/settings">Settings</Link>
+                  <Link href="/templates">Mix Templates</Link>
+                  <Link href="/help">Help &amp; Support</Link>
+                  {referralMessage && <ReferralShareButton message={referralMessage} compact className="referral-sidebar-share" />}
+                  {isPlatformAdmin && <Link href="/admin">Admin</Link>}
+                  <form action={logoutAction}><button className="text-button danger-text" type="submit">Sign out</button></form>
                 </div>
               </details>
             )}
