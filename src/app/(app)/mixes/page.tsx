@@ -8,7 +8,6 @@ import { createStarterMixAction } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
 import { formatDateInput, formatTimeInput } from "@/lib/mix-broadcast";
 import { activateMixAction, archiveMixAction, pauseMixAction } from "@/lib/mix-lifecycle-actions";
-import { formatPlanLimit, PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Mixes" };
@@ -48,22 +47,11 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
     }),
     prisma.mixBroadcastSchedule.findMany({ where: { workspaceId: workspace.id } })
   ]);
-  const mixIds = mixes.map((mix) => mix.id);
-  const sharingRows = mixIds.length
-    ? await prisma.sharedMixMetadata.findMany({
-        where: { publisherWorkspaceId: workspace.id, publisherMixId: { in: mixIds } }
-      })
-    : [];
-  const sharingByMixId = new Map(sharingRows.map((item) => [item.publisherMixId, item]));
   const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
-  const limits = PLAN_LIMITS[workspace.planTier];
-  const canUseWizard = limits.aiWizard;
-  const activeCount = mixes.filter((mix) => mix.status === "ACTIVE").length;
 
   return (
     <div className="page">
       {params.created === "starter" && <Notice type="success">Starter Mix created. Assign it to a Contact with a matching Important Date.</Notice>}
-      {params.created === "wizard" && <Notice type="success">Your AI-assisted Mix draft is ready. Review the sequence, then activate it.</Notice>}
       {params.created === "manual" && <Notice type="success">Mix created. Future pending Jumps are being reconciled automatically.</Notice>}
       {params.updated === "manual" && <Notice type="success">Mix updated. Removed or rescheduled future work is being reconciled.</Notice>}
       {params.activated && <Notice type="success">Mix activated. Matching future Jumps are being reconciled automatically.</Notice>}
@@ -74,19 +62,16 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
       <header className="page-header">
         <div><h1>Mixes</h1><p>Mixes are follow-up plans: a timed sequence of actions for the people and moments that matter.</p></div>
         <div className="page-actions">
-          <details className="mix-create-menu"><summary className="button primary mobile-header-action" aria-label="Create Mix"><AppIcon name="add"/><span className="mobile-action-label">New Mix</span></summary><div className="mix-create-menu-panel"><Link href="/templates"><strong>Start from template</strong><small>Use a reviewed plan</small></Link><Link href="/mixes/new"><strong>Build manually</strong><small>Control every action</small></Link>{canUseWizard && <Link href="/mixes/wizard"><strong>Create with AI</strong><small>Generate a reviewable draft</small></Link>}<form action={createStarterMixAction}><button className="text-button" type="submit"><strong>Simple starter</strong><small>Create a warm three-step plan</small></button></form></div></details>
+          <details className="mix-create-menu"><summary className="button primary mobile-header-action" aria-label="Create Mix"><AppIcon name="add"/><span className="mobile-action-label">New Mix</span></summary><div className="mix-create-menu-panel"><Link href="/templates"><strong>Start from template</strong><small>Use a reviewed plan</small></Link><Link href="/mixes/new"><strong>Build manually</strong><small>Control every action</small></Link><form action={createStarterMixAction}><button className="text-button" type="submit"><strong>Simple starter</strong><small>Create a warm three-step plan</small></button></form></div></details>
         </div>
       </header>
       <form className="filter-bar mix-filter-bar desktop-only" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search Mixes" aria-label="Search Mixes"/><select name="status" defaultValue={status} aria-label="Filter Mixes by status"><option value="">All statuses</option><option value="ACTIVE">Active</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select><button className="button" type="submit">Filter</button>{(q || status) && <Link className="button" href="/mixes">Clear</Link>}</form>
       <div className="mobile-contact-controls mobile-only"><form className="mobile-search-form" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search mixes" aria-label="Search mixes"/>{status && <input type="hidden" name="status" value={status}/>}<button className="sr-only" type="submit">Search mixes</button></form><details className="mobile-filter-disclosure"><summary className={status ? "button filter-trigger active" : "button filter-trigger"}><AppIcon name="settings"/><span>Filter{status ? " 1" : ""}</span></summary><form className="mobile-filter-panel" action="/mixes" method="get"><input type="hidden" name="q" value={q}/><label className="filter-field"><span>Status</span><select name="status" defaultValue={status} aria-label="Filter Mixes by status"><option value="">All statuses</option><option value="ACTIVE">Active</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select></label><div className="mobile-filter-actions"><Link className="button" href={q ? `/mixes?q=${encodeURIComponent(q)}` : "/mixes"}>Reset</Link><button className="button primary" type="submit">Apply</button></div></form></details></div>
-      <div className="usage-line"><span>Active Mixes</span><strong>{activeCount}/{formatPlanLimit(limits.mixes)}</strong></div>
-      {!canUseWizard && <Notice type="info">Free includes up to three active Mixes. AI generation is available on Plus and Pro.</Notice>}
 
       {mixes.length ? (
         <div className="mix-list">
           {mixes.map((mix) => {
             const broadcast = broadcastByMixId.get(mix.id);
-            const sharing = sharingByMixId.get(mix.id);
             const lastDay = Math.max(0, ...mix.steps.map((step) => step.dayOffset));
             const channelSequence = [...new Set(mix.steps.map((step) => step.stepVersion.stepTemplate.channel.replaceAll("_", " ").toLowerCase()))];
             return (
@@ -105,7 +90,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                   </div>
                   <div className="mix-card-actions">
                     <Link href={`/mixes/${mix.id}/edit`} className="button small primary">Edit</Link>
-                    <details className="mix-row-menu"><summary className="button small" aria-label={`More actions for ${mix.name}`}>More</summary><div className="mix-row-menu-panel"><Link href={`/mixes/${mix.id}/share`}>{sharing ? "Manage sharing" : "Share Mix"}</Link>{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Pause Mix</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Activate Mix</button></form>}<ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The Mix leaves active workflows while completed Jump history remains available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small danger" type="submit">Confirm archive</button></form></ConfirmDialog></div></details>
+                    <details className="mix-row-menu"><summary className="button small" aria-label={`More actions for ${mix.name}`}>More</summary><div className="mix-row-menu-panel">{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Pause Mix</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Activate Mix</button></form>}<ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The Mix leaves active workflows while completed Jump history remains available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small danger" type="submit">Confirm archive</button></form></ConfirmDialog></div></details>
                   </div>
                 </div>
                 {mix.description && <p className="muted-copy">{mix.description}</p>}

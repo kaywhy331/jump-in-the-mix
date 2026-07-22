@@ -28,8 +28,6 @@ type SearchParams = {
   mixStopError?: string;
   snoozed?: string;
   firstContact?: string;
-  plan?: string;
-  period?: string;
   error?: string;
 };
 
@@ -89,8 +87,6 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
   const range = ["due", "week", "month", "all"].includes(params.range ?? "") ? params.range! : "due";
   const status = ["all", "pending", "done", "skipped"].includes(params.status ?? "") ? params.status! : "all";
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
-  const selectedPlan = params.plan === "plus" || params.plan === "pro" ? params.plan : null;
-  const selectedPeriod = params.period === "monthly" ? "monthly" : "annual";
   const { workspace } = await requireWorkspace();
   const timezone = workspace.profile?.timezone ?? "UTC";
   const today = logicalDateInTimezone(new Date(), timezone);
@@ -243,12 +239,12 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
 
   const welcomeMessage = params.firstContact
     ? `Your first Jump for ${params.firstContact} is ready below.`
-    : "Your workspace is ready. Complete a prepared Jump or add a Contact and Important Date to create more.";
+    : "Your follow-up space is ready. Complete a prepared Jump or add a Contact and Important Date to create more.";
 
   return (
     <div className="page">
       <JumpReturnTray />
-      {params.welcome && <Notice type="success">{welcomeMessage}{selectedPlan && <> <Link href={`/plans?plan=${selectedPlan}&period=${selectedPeriod}#plan-${selectedPlan}`}><strong>Review the selected {selectedPlan === "plus" ? "Plus" : "Pro"} plan after your first win.</strong></Link></>}</Notice>}
+      {params.welcome && <Notice type="success">{welcomeMessage}</Notice>}
       {params.demo && <Notice type="info">You are in the local demo workspace. Actions remain on this computer.</Notice>}
       {params.applied && <Notice type="success">Created {params.applied} one-time Jump{params.applied === "1" ? "" : "s"} for the selected Contacts.</Notice>}
       {params.mixStopped && <Notice type="success">The Mix was stopped for this Contact. Its pending Jumps were removed from the queue.</Notice>}

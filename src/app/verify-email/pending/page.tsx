@@ -24,7 +24,7 @@ export default async function VerifyEmailPendingPage({ searchParams }: { searchP
       <section className="auth-card">
         <Logo />
         <h1>Verify your email</h1>
-        <p>Open the one-time verification link sent to {email || "your email address"}. Verification protects account recovery and future billing changes.</p>
+        <p>Open the one-time verification link sent to {email || "your email address"}. Verification protects account recovery and personal data controls.</p>
         {params.sent && <Notice type="success">A new verification link was prepared. Check your inbox and spam folder.</Notice>}
         {params.delivery === "failed" && <Notice type="error">The email provider could not deliver the message. You can try again below.</Notice>}
         {params.error && <Notice type="error">{params.error}</Notice>}

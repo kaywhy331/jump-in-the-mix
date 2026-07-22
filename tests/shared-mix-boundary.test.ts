@@ -4,36 +4,26 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(path, "utf8");
 
 describe("Mix Template boundary", () => {
-  it("derives workspace identity from authenticated context and blocks support-view writes", () => {
-    const actions = read("src/lib/shared-mix-actions.ts");
-    expect(actions).toContain("requireWorkspace()");
-    expect(actions).toContain("impersonation");
-    expect(actions).not.toContain('formData.get("workspaceId")');
+  it("shows only approved built-in templates", () => {
+    const page = read("src/app/(app)/templates/page.tsx");
+    expect(page).toContain('status: "APPROVED"');
+    expect(page).toContain("isPlatform: true");
+    expect(page).toContain("item.publisherWorkspaceId === null || metadataById.has(item.id)");
+    expect(page).not.toMatch(/community|contributor|vote/i);
   });
 
-  it("requires platform-administrator authorization for moderation", () => {
-    const actions = read("src/lib/shared-mix-admin-actions.ts");
-    const page = read("src/app/(app)/admin/templates/page.tsx");
-    expect(actions).toContain("requirePlatformAdmin()");
-    expect(page).toContain("requirePlatformAdmin()");
+  it("requires authentication and rejects non-platform shared records on use", () => {
+    const page = read("src/app/(app)/templates/[sharedMixId]/use/page.tsx");
+    expect(page).toContain("requireWorkspace()");
+    expect(page).toContain("!metadata?.isPlatform");
+    expect(page).toContain("notFound()");
   });
 
-  it("uses human-readable previews instead of exposing raw JSON", () => {
-    for (const path of [
-      "src/app/(app)/templates/page.tsx",
-      "src/app/(app)/admin/templates/page.tsx"
-    ]) {
-      const source = read(path);
-      expect(source).toContain("SharedMixPreview");
-      expect(source).not.toContain("JSON.stringify(template.steps");
-      expect(source).not.toContain("<pre>");
-    }
-    const editor = read("src/app/(app)/admin/templates/[sharedMixId]/edit/page.tsx");
-    expect(editor).toContain("Prepared Jumps");
-    expect(editor).toContain('name="stepBody"');
-    expect(editor).toContain('name="stepScript"');
-    expect(editor).not.toContain("JSON.stringify(template.steps");
-    expect(editor).not.toContain("<pre>");
+  it("uses readable previews instead of exposing raw JSON", () => {
+    const source = read("src/app/(app)/templates/page.tsx");
+    expect(source).toContain("SharedMixPreview");
+    expect(source).not.toContain("JSON.stringify(template.steps");
+    expect(source).not.toContain("<pre>");
   });
 
   it("imports through one server transaction and creates an editable Draft", () => {
@@ -43,22 +33,5 @@ describe("Mix Template boundary", () => {
     expect(service).toContain("tx.stepTemplate.create");
     expect(service).toContain("tx.mixStep.create");
     expect(service).toContain("tx.sharedMixImport.create");
-  });
-
-  it("does not copy Contacts, Groups, or completed Jumps into shared payloads", () => {
-    const service = read("src/lib/shared-mix-service.ts");
-    const snapshotStart = service.indexOf("export async function snapshotWorkspaceMix");
-    const snapshotEnd = service.indexOf("export async function publishWorkspaceMix");
-    const snapshot = service.slice(snapshotStart, snapshotEnd);
-    expect(snapshot).not.toContain("contact.find");
-    expect(snapshot).not.toContain("group.find");
-    expect(snapshot).not.toContain("jump.find");
-  });
-
-  it("removes approved contributions from discovery when a public URL changes", () => {
-    const actions = read("src/lib/workspace-profile-actions.ts");
-    expect(actions).toContain('reviewState: "FLAGGED"');
-    expect(actions).toContain('data: { status: "PENDING" }');
-    expect(actions).toContain("profile-review-required");
   });
 });

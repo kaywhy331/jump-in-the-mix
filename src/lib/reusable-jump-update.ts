@@ -48,9 +48,6 @@ export async function createReusableJumpAction(formData: FormData): Promise<void
   if (impersonation) fail("Administrator support sessions are view-only.");
   const channel = normalizedChannel(value(formData, "channel"));
   if (!channel) fail("Choose a valid Jump channel.");
-  if (channel === "VOICEMAIL" && workspace.planTier !== "PRO") {
-    fail("Ringless Voicemail Jumps are available on Pro.");
-  }
   let payload: ReturnType<typeof validateContent>;
   try {
     payload = validateContent(channel, formData);
@@ -101,9 +98,6 @@ export async function updateReusableJumpAction(formData: FormData): Promise<void
   if (!template) fail("Jump not found.");
   if (value(formData, "channel") !== template.channel) {
     fail("A reusable Jump's channel cannot change after creation. Create a new Jump for the other channel.");
-  }
-  if (template.channel === "VOICEMAIL" && workspace.planTier !== "PRO") {
-    fail("Ringless Voicemail Jumps require an active Pro plan.");
   }
 
   let payload: ReturnType<typeof validateContent>;

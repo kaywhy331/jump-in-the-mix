@@ -60,10 +60,10 @@ test("an approved template uses one setup screen and explicit audience", async (
       framework: "Question-Led Consultative",
       durationDays: 7,
       status: "APPROVED",
-      steps: [{ name: "Check in", channel: "EMAIL", dayOffset: 0, sendTimeMinutes: 600, subject: "A quick check-in", body: "Hi {{First Name}}, how are things going?", script: null, longSms: false, includeOptOut: false }],
-      metadata: { create: { isPlatform: true, reviewState: "APPROVED", version: 1, triggerMode: "MANUAL_START", voteCount: 0, publishedAt: new Date() } }
+      steps: [{ name: "Check in", channel: "EMAIL", dayOffset: 0, sendTimeMinutes: 600, subject: "A quick check-in", body: "Hi {{First Name}}, how are things going?", script: null, longSms: false, includeOptOut: false }]
     }
   });
+  await prisma.sharedMixMetadata.create({ data: { sharedMixId: sharedId, isPlatform: true, reviewState: "APPROVED", version: 1, triggerMode: "MANUAL_START", voteCount: 0, publishedAt: new Date() } });
   try {
     await signIn(page);
     await page.goto(`/templates/${sharedId}/use`);

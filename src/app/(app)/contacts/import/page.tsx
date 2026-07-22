@@ -3,7 +3,6 @@ import Link from "next/link";
 import { ContactImportWizardV2 } from "@/components/ContactImportWizardV2";
 import { requireWorkspace } from "@/lib/auth";
 import { mergeGroupActivity } from "@/lib/group-activity";
-import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Import Contacts" };
@@ -33,7 +32,6 @@ export default async function ImportContactsPage() {
     prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null } })
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates).filter((group) => group.isActive);
-  const contactLimit = PLAN_LIMITS[workspace.planTier].contacts;
 
   return (
     <div className="page import-contacts-page">
@@ -45,7 +43,7 @@ export default async function ImportContactsPage() {
         groups={groups.map((group) => ({ id: group.id, name: group.name, contactCount: group._count.memberships }))}
         customFields={customFields}
         dateTypes={dateTypes}
-        initialUsage={{ activeContacts, contactLimit, remainingContacts: Math.max(contactLimit - activeContacts, 0) }}
+        initialUsage={{ activeContacts, contactLimit: Number.MAX_SAFE_INTEGER, remainingContacts: Number.MAX_SAFE_INTEGER }}
       />
     </div>
   );

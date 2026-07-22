@@ -55,7 +55,6 @@ export default async function EditMixPage({
   return (
     <div className="page">
       <header className="page-header"><div><h1>Edit {mix.name}</h1><p>Saving reconciles future pending Jumps without rewriting completed history.</p></div></header>
-      {query.created === "wizard" && <Notice type="success">The AI review created this Mix. Continue editing or review activation below.</Notice>}
       {query.created === "manual" && <Notice type="success">Mix created. Future work is being reconciled.</Notice>}
       {query.updated && <Notice type="success">Mix updated. Future pending work is being reconciled.</Notice>}
       {query.imported && <Notice type="success">Template setup completed. Review the result or activate it when ready.</Notice>}

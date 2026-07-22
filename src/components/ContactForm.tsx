@@ -208,7 +208,7 @@ export function ContactForm({
               <label className={`checkbox-card ${group.isActive ? "" : "inactive"}`}>
                 <input type="checkbox" name={group.isActive ? "groupIds" : undefined} value={group.id} defaultChecked={selected} disabled={!group.isActive} />
                 <span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />
-                <span><strong>{group.name}</strong>{!group.isActive && <small>{selected ? "Inactive · membership preserved" : "Inactive under current plan"}</small>}</span>
+                <span><strong>{group.name}</strong>{!group.isActive && <small>{selected ? "Inactive · assignment preserved" : "Inactive"}</small>}</span>
               </label>
             </div>
           );

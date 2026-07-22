@@ -15,23 +15,23 @@ const UNLIMITED = Number.MAX_SAFE_INTEGER;
 
 export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
   FREE: {
-    contacts: 100,
-    groups: 3,
-    customDateTypes: 3,
-    mixes: 3,
+    contacts: UNLIMITED,
+    groups: UNLIMITED,
+    customDateTypes: UNLIMITED,
+    mixes: UNLIMITED,
     sharedMixes: 0,
     aiWizard: false,
     googleContacts: false,
     ringlessVoicemailsPerMonth: 0
   },
   PLUS: {
-    contacts: 1000,
-    groups: 10,
-    customDateTypes: 10,
-    mixes: 10,
-    sharedMixes: 3,
-    aiWizard: true,
-    googleContacts: true,
+    contacts: UNLIMITED,
+    groups: UNLIMITED,
+    customDateTypes: UNLIMITED,
+    mixes: UNLIMITED,
+    sharedMixes: 0,
+    aiWizard: false,
+    googleContacts: false,
     ringlessVoicemailsPerMonth: 0
   },
   PRO: {
@@ -39,10 +39,10 @@ export const PLAN_LIMITS: Record<PlanTier, PlanLimits> = {
     groups: UNLIMITED,
     customDateTypes: UNLIMITED,
     mixes: UNLIMITED,
-    sharedMixes: 10,
-    aiWizard: true,
-    googleContacts: true,
-    ringlessVoicemailsPerMonth: 50
+    sharedMixes: 0,
+    aiWizard: false,
+    googleContacts: false,
+    ringlessVoicemailsPerMonth: 0
   }
 };
 

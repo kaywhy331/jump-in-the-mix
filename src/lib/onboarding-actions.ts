@@ -21,24 +21,11 @@ async function queueJumpReconciliation(workspaceId: string): Promise<void> {
   await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: {} } });
 }
 
-type PlanIntent = { plan: "plus" | "pro"; period: "monthly" | "annual" };
-
-function planIntent(formData: FormData): PlanIntent | null {
-  const raw = value(formData, "planIntent");
-  if (!/^(plus|pro):(monthly|annual)$/.test(raw)) return null;
-  const [plan, period] = raw.split(":") as [PlanIntent["plan"], PlanIntent["period"]];
-  return { plan, period };
-}
-
-function welcomePath(firstContact: string | null, intent: PlanIntent | null): string {
+function welcomePath(firstContact: string | null): string {
   const params = new URLSearchParams({ welcome: "1" });
   if (firstContact) {
     params.set("range", "all");
     params.set("firstContact", firstContact);
-  }
-  if (intent) {
-    params.set("plan", intent.plan);
-    params.set("period", intent.period);
   }
   return `/jumps?${params.toString()}`;
 }
@@ -105,7 +92,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
     });
   });
   await generateJumps({ workspaceId: workspace.id, contactId, mixId: starterMix.id });
-  redirect(welcomePath(displayName, planIntent(formData)));
+  redirect(welcomePath(displayName));
 }
 
 export async function skipOnboardingAction(formData: FormData): Promise<void> {
@@ -124,5 +111,5 @@ export async function skipOnboardingAction(formData: FormData): Promise<void> {
   });
   await ensureStarterMix(workspace.id);
   await queueJumpReconciliation(workspace.id);
-  redirect(welcomePath(null, planIntent(formData)));
+  redirect(welcomePath(null));
 }

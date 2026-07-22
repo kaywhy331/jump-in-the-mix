@@ -7,7 +7,6 @@ import { requireWorkspace } from "@/lib/auth";
 import { listGroupStates, mergeGroupActivity } from "@/lib/group-activity";
 import { parseBroadcastScheduleInput } from "@/lib/mix-broadcast";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
-import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
 const MAX_STEP_OFFSET_DAYS = 365;
@@ -172,12 +171,6 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   const allContactIds = assignAllContacts
     ? (await prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true } })).map((contact) => contact.id)
     : [];
-  if (status === "ACTIVE" && existingMix?.status !== "ACTIVE") {
-    const activeCount = await prisma.mix.count({ where: { workspaceId: workspace.id, status: "ACTIVE", ...(mixIdRaw ? { id: { not: mixIdRaw } } : {}) } });
-    const limit = PLAN_LIMITS[workspace.planTier].mixes;
-    if (Number.isFinite(limit) && activeCount >= limit) fail(path, `Your plan allows ${limit} active Mixes.`);
-  }
-
   const mixId = existingMix?.id ?? randomUUID();
   const existingAssignmentByKey = new Map((existingMix?.assignments ?? []).map((assignment) => [assignment.assignmentKey, assignment]));
   const now = new Date();

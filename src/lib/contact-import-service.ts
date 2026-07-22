@@ -10,7 +10,6 @@ import type {
   ImportMatchCandidate,
   ImportResolution
 } from "@/lib/contact-import-types";
-import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
 export type ContactImportUsage = {
@@ -86,10 +85,9 @@ async function loadWorkspaceContacts(workspaceId: string): Promise<MatchContact[
   });
 }
 
-export async function contactImportUsage(workspaceId: string, planTier: PlanTier): Promise<ContactImportUsage> {
+export async function contactImportUsage(workspaceId: string, _planTier: PlanTier): Promise<ContactImportUsage> {
   const activeContacts = await prisma.contact.count({ where: { workspaceId, archivedAt: null } });
-  const contactLimit = PLAN_LIMITS[planTier].contacts;
-  return { activeContacts, contactLimit, remainingContacts: Math.max(contactLimit - activeContacts, 0) };
+  return { activeContacts, contactLimit: Number.MAX_SAFE_INTEGER, remainingContacts: Number.MAX_SAFE_INTEGER };
 }
 
 function exactReasons(record: ImportContactRecord, contact: MatchContact): string[] {
@@ -280,8 +278,6 @@ async function resolveJumpDates(
 ): Promise<ResolvedJumpDate[]> {
   const resolved: ResolvedJumpDate[] = [];
   const cache = new Map<string, { id: string; inactiveName: string | null }>();
-  let activeCustomCount = await prisma.dateType.count({ where: { workspaceId, isSystem: false, isActive: true } });
-  const limit = PLAN_LIMITS[planTier].customDateTypes;
 
   for (const jumpDate of jumpDates) {
     if (jumpDate.dateTypeId) {
@@ -308,7 +304,7 @@ async function resolveJumpDates(
     });
     let inactiveName: string | null = null;
     if (!dateType) {
-      const isActive = activeCustomCount < limit;
+      const isActive = true;
       try {
         dateType = await prisma.dateType.create({
           data: { workspaceId, scopeKey: workspaceId, name, slug, isSystem: false, isActive },
@@ -322,8 +318,6 @@ async function resolveJumpDates(
           select: { id: true, isActive: true }
         });
       }
-      if (dateType.isActive) activeCustomCount += 1;
-      else inactiveName = name;
     }
     cache.set(slug, { id: dateType.id, inactiveName });
     resolved.push({ ...jumpDate, resolvedDateTypeId: dateType.id, createdInactiveType: inactiveName });
@@ -392,10 +386,6 @@ async function createImportedContact(input: {
   record: ImportContactRecord;
 }): Promise<{ contactId: string; message: string }> {
   const { workspaceId, actorUserId, planTier, timezone, record } = input;
-  const usage = await contactImportUsage(workspaceId, planTier);
-  if (usage.remainingContacts < 1) {
-    throw new Error(`Your ${planTier.toLowerCase()} plan allows ${usage.contactLimit.toLocaleString()} active Contacts.`);
-  }
   await assertNoMethodConflict(workspaceId, record);
   const resolvedDates = await resolveJumpDates(workspaceId, planTier, record.jumpDates);
   const inactiveTypes = [...new Set(
@@ -459,7 +449,7 @@ async function createImportedContact(input: {
   return {
     contactId: contact.id,
     message: inactiveTypes.length
-      ? `Created. ${inactiveTypes.join(", ")} was preserved as an inactive custom Jump Date Type because the plan limit was reached.`
+      ? `Created. ${inactiveTypes.join(", ")} was preserved as an inactive custom Important Date Type.`
       : "Contact created."
   };
 }
@@ -637,7 +627,7 @@ async function mergeImportedContact(input: {
   return {
     contactId,
     message: inactiveTypes.length
-      ? `${preferImported ? "Updated" : "Merged"}. ${inactiveTypes.join(", ")} was preserved as an inactive custom Jump Date Type because the plan limit was reached.`
+      ? `${preferImported ? "Updated" : "Merged"}. ${inactiveTypes.join(", ")} was preserved as an inactive custom Important Date Type.`
       : preferImported ? "Contact updated while preserving additional existing values." : "Contact merged."
   };
 }

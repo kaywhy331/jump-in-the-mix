@@ -190,7 +190,6 @@ export function ContactImportWizardV2({
       skip: values.filter((item) => item.action === "SKIP").length + invalidRows.length
     };
   }, [resolutions, invalidRows.length]);
-  const exceedsContactLimit = planned.create > usage.remainingContacts;
 
   const loadRecent = async () => {
     const response = await fetch("/api/contacts/import", { cache: "no-store" });
@@ -388,11 +387,6 @@ export function ContactImportWizardV2({
             <div><strong>{planned.replace}</strong><span>Prefer imported</span></div>
             <div><strong>{planned.skip}</strong><span>Skip / invalid</span></div>
           </div>
-          <div className={`import-capacity ${exceedsContactLimit ? "over" : ""}`}>
-            <div><strong>Contact capacity</strong><span>{usage.activeContacts.toLocaleString()} active + {planned.create.toLocaleString()} new of {usage.contactLimit.toLocaleString()}</span></div>
-            <progress max={usage.contactLimit} value={Math.min(usage.activeContacts + planned.create, usage.contactLimit)} />
-            {exceedsContactLimit && <p>Merge or skip {planned.create - usage.remainingContacts} more row{planned.create - usage.remainingContacts === 1 ? "" : "s"}, archive Contacts, or <Link href="/plans">upgrade the plan</Link>.</p>}
-          </div>
 
           {issueRows.length ? <div className="import-dedupe-list">{issueRows.map((row) => {
             if (row.errors.length) return <article className="import-dedupe-card invalid" key={row.record.rowId}><div><span className="status-pill">Row {row.record.sourceRow}</span><h3>{contactNameForImport(row.record)}</h3><p>{row.errors.join(" · ")}</p></div><strong>Will be reported as failed</strong></article>;
@@ -403,7 +397,7 @@ export function ContactImportWizardV2({
             return <article className="import-dedupe-card" key={row.record.rowId}><div className="import-dedupe-source"><span className="status-pill">Row {row.record.sourceRow}</span><h3>{contactNameForImport(row.record)}</h3><p>{row.record.company || row.record.emails[0]?.value || row.record.phones[0]?.value || "No Contact method"}</p></div><div className="import-match-detail"><strong>{match.kind === "EXACT" ? "Exact duplicate" : match.kind === "AMBIGUOUS" ? "Multiple exact matches" : "Possible duplicate"}</strong>{match.candidates.length > 0 && <><select aria-label={`Existing Contact for row ${row.record.sourceRow}`} value={resolution.targetContactId ?? match.candidates[0]?.contactId ?? ""} onChange={(event) => updateResolution(row.record.rowId, { targetContactId: event.target.value })}>{match.candidates.map((candidate) => <option key={candidate.contactId} value={candidate.contactId}>{candidate.displayName}{candidate.company ? ` · ${candidate.company}` : ""}</option>)}</select><small>{match.candidates.find((candidate) => candidate.contactId === (resolution.targetContactId ?? match.candidates[0]?.contactId))?.matchReasons.join(" · ")}</small></>}</div><label className="field"><span>Decision</span><select value={resolution.action} onChange={(event) => updateResolution(row.record.rowId, { action: event.target.value as ImportResolutionAction })}>{actions.map((action) => <option key={action} value={action}>{actionLabel(action)}</option>)}</select></label></article>;
           })}</div> : <div className="empty-state compact"><h3>No issues need review</h3><p>Every row is ready to create.</p></div>}
 
-          <div className="import-stage-actions"><button className="button" type="button" onClick={reset}>Back</button><button className="button primary" type="button" disabled={exceedsContactLimit || busy || !validRows.length} onClick={() => void queueImport()}>{exceedsContactLimit ? "Resolve plan limit first" : busy ? "Queueing…" : `Queue ${validRows.length} valid row${validRows.length === 1 ? "" : "s"}`}</button></div>
+          <div className="import-stage-actions"><button className="button" type="button" onClick={reset}>Back</button><button className="button primary" type="button" disabled={busy || !validRows.length} onClick={() => void queueImport()}>{busy ? "Queueing…" : `Queue ${validRows.length} valid row${validRows.length === 1 ? "" : "s"}`}</button></div>
         </section>
       )}
 

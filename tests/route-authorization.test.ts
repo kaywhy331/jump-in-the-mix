@@ -7,8 +7,8 @@ describe("server-enforced route authorization matrix", () => {
   it("protects the complete authenticated application subtree through its layout", () => {
     const layout = read("src/app/(app)/layout.tsx");
     expect(layout).toContain("requireWorkspace(");
-    expect(layout).toContain("session.authUser.isPlatformAdmin");
     expect(layout).toContain("impersonation=");
+    expect(layout).not.toContain("isPlatformAdmin");
   });
 
   it("requires platform-admin authorization for every covered admin page", () => {
@@ -41,22 +41,17 @@ describe("server-enforced route authorization matrix", () => {
     expect(proxy).toContain("impersonationMutationAllowed");
     expect(proxy).toContain("request.cookies.get(IMPERSONATION_COOKIE)");
     expect(proxy).toContain('const IMPERSONATION_END_PATH = "/api/admin/impersonation/end"');
-    expect(proxy).toContain("Administrator impersonation is view-only");
+    expect(proxy).toContain("This support session is view-only");
   });
 
-  it("does not expose target-account password, device, referral sharing, or ticket mutation controls during impersonation", () => {
+  it("does not expose target-account security or mutation controls during support viewing", () => {
     const account = read("src/app/(app)/account/page.tsx");
-    const referralCard = read("src/components/ReferralAccountCard.tsx");
-    const impersonationBranch = account.match(/if \(impersonation\) \{[\s\S]*?\r?\n  \}\r?\n\r?\n  return \(/)?.[0] ?? "";
-    expect(impersonationBranch).toContain("support history are visible");
-    expect(impersonationBranch).toContain("every other browser mutation are unavailable");
+    const impersonationBranch = account.match(/if \(impersonation\) return [\s\S]*?;<\/div>;/)?.[0] ?? "";
+    expect(impersonationBranch).toContain("personal controls remain private");
+    expect(impersonationBranch).toContain("cannot change personal account settings");
     expect(impersonationBranch).not.toContain("changePasswordAction");
     expect(impersonationBranch).not.toContain("revokeSessionAction");
-    expect(impersonationBranch).not.toContain("Open a support ticket");
-    expect(account).toContain("impersonation={Boolean(impersonation)}");
-    expect(referralCard).toContain("if (impersonation)");
-    expect(referralCard).toContain("View-only support access does not create referral codes");
-    expect(referralCard).toContain("!impersonation && <ReferralShareButton");
+    expect(account).not.toMatch(/Referral|Billing|Connection/);
   });
 
   it("keeps the administrator identity separate from the viewed user identity", () => {

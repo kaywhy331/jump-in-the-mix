@@ -5,6 +5,28 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const IMPERSONATION_COOKIE = process.env.AUTH_IMPERSONATION_COOKIE_NAME ?? "jitm_impersonation";
 const IMPERSONATION_END_PATH = "/api/admin/impersonation/end";
 const isProduction = process.env.NODE_ENV === "production";
+const BLOCKED_PREFIXES = [
+  "/plans",
+  "/billing",
+  "/account/team",
+  "/join",
+  "/api/billing",
+  "/api/integrations/google",
+  "/api/webhooks/stripe",
+  "/mixes/wizard",
+  "/r/"
+];
+
+function isBlockedProductRoute(request: NextRequest): boolean {
+  const pathname = request.nextUrl.pathname;
+  if (BLOCKED_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`) || (prefix.endsWith("/") && pathname.startsWith(prefix)))) return true;
+  return /^\/mixes\/[^/]+\/share(?:\/|$)/.test(pathname);
+}
+
+function isRetiredAccountSection(request: NextRequest): boolean {
+  if (request.nextUrl.pathname !== "/account") return false;
+  return ["billing", "connections", "referrals", "team"].includes(request.nextUrl.searchParams.get("section") ?? "");
+}
 
 function configuredOrigins(): Set<string> {
   const values = [process.env.APP_URL, ...(process.env.AUTH_ALLOWED_ORIGINS ?? "").split(",")]
@@ -64,6 +86,12 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
 }
 
 export function proxy(request: NextRequest) {
+  if (isRetiredAccountSection(request)) {
+    return applySecurityHeaders(NextResponse.redirect(new URL("/account", request.url)));
+  }
+  if (isBlockedProductRoute(request)) {
+    return applySecurityHeaders(new NextResponse("Not found", { status: 404 }));
+  }
   if (!mutationAllowed(request)) {
     const response = request.nextUrl.pathname.startsWith("/api/")
       ? NextResponse.json({ error: "The request origin is not allowed." }, { status: 403 })
@@ -73,8 +101,8 @@ export function proxy(request: NextRequest) {
 
   if (!impersonationMutationAllowed(request)) {
     const response = request.nextUrl.pathname.startsWith("/api/")
-      ? NextResponse.json({ error: "Administrator impersonation is view-only. End the session before making changes." }, { status: 403 })
-      : new NextResponse("Administrator impersonation is view-only. End the session before making changes.", { status: 403 });
+      ? NextResponse.json({ error: "This support session is view-only. End it before making changes." }, { status: 403 })
+      : new NextResponse("This support session is view-only. End it before making changes.", { status: 403 });
     return applySecurityHeaders(response);
   }
 

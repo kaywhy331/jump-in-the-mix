@@ -1,26 +1,16 @@
 import Link from "next/link";
-import { AccountRouteNormalizer } from "@/components/AccountRouteNormalizer";
 import { Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
-import { ReferralShareButton } from "@/components/ReferralShareButton";
 import { logoutAction } from "@/lib/auth-actions";
 import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
 
 export function AppShell({
   children,
   userName,
-  workspaceName,
-  planTier,
-  isPlatformAdmin,
-  referralMessage,
   impersonation
 }: {
   children: React.ReactNode;
   userName: string;
-  workspaceName: string;
-  planTier: string;
-  isPlatformAdmin: boolean;
-  referralMessage: string | null;
   impersonation: {
     targetName: string;
     targetEmail: string;
@@ -40,13 +30,8 @@ export function AppShell({
 
   return (
     <div className={impersonation ? "app-shell impersonating" : "app-shell"}>
-      <AccountRouteNormalizer />
       <aside className="sidebar">
         <Logo />
-        <div className="workspace-chip">
-          <span>{workspaceName}</span>
-          <small>{planTier} plan</small>
-        </div>
         <Nav />
         {!impersonation && <QuickAddButton />}
         <div className="sidebar-footer account-sidebar-footer">
@@ -54,14 +39,12 @@ export function AppShell({
           <div className="account-sidebar-actions">
             {impersonation ? endImpersonationForm : (
               <details className="profile-menu">
-                <summary className="button small">Profile &amp; workspace</summary>
+                <summary className="button small">Profile</summary>
                 <div className="profile-menu-panel">
                 <Link href="/account">My Account</Link>
                 <Link href="/settings">Settings</Link>
                 <Link href="/templates">Mix Templates</Link>
                 <Link href="/help">Help &amp; Support</Link>
-                {referralMessage && <ReferralShareButton message={referralMessage} compact className="referral-sidebar-share" />}
-                {isPlatformAdmin && <Link href="/admin">Admin</Link>}
                 <form action={logoutAction}><button className="text-button danger-text" type="submit">Sign out</button></form>
                 </div>
               </details>
@@ -72,7 +55,7 @@ export function AppShell({
       <header className="mobile-app-header">
         <Logo />
         {impersonation ? endImpersonationForm : (
-          <Link className="button small mobile-profile-link" href="/more" aria-label={`Open profile and workspace menu for ${userName}`}>{userName.slice(0, 1).toUpperCase()}</Link>
+          <Link className="button small mobile-profile-link" href="/more" aria-label={`Open profile menu for ${userName}`}>{userName.slice(0, 1).toUpperCase()}</Link>
         )}
       </header>
       {impersonation && (

@@ -70,7 +70,7 @@ describe.sequential("Contact lifecycle management", () => {
     const layoutApi = read("src/app/api/preferences/contact-layout/route.ts");
     const contactsPage = read("src/app/(app)/contacts/page.tsx");
     expect(lifecycle).toContain("restoreContactAction");
-    expect(lifecycle).toContain("PLAN_LIMITS[workspace.planTier].contacts");
+    expect(lifecycle).not.toMatch(/PLAN_LIMITS|upgrade|plan allows/i);
     expect(merge).toContain("contactMergeRecord.create");
     expect(merge).toContain("sourceSnapshot");
     expect(bulk).toContain("assertContactable");

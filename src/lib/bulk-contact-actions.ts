@@ -105,13 +105,12 @@ function channelFromForm(raw: string): Channel | null {
   return channels.includes(raw as Channel) ? raw as Channel : null;
 }
 
-function validateManualContent(formData: FormData, planTier: "FREE" | "PLUS" | "PRO") {
+function validateManualContent(formData: FormData) {
   const channel = channelFromForm(value(formData, "manualChannel"));
   const subject = value(formData, "manualSubject");
   const body = value(formData, "manualBody");
   const script = value(formData, "manualScript");
   if (!channel) throw new Error("Choose a valid one-time Jump channel.");
-  if (channel === "VOICEMAIL" && planTier !== "PRO") throw new Error("Voicemail content is available on Pro.");
   if (channel === "EMAIL" && (!subject || !body)) throw new Error("Email Jumps require a subject and body.");
   if (["SMS", "WHATSAPP"].includes(channel) && !body) throw new Error("This one-time Jump requires message content.");
   if (["PHONE_CALL", "VOICEMAIL"].includes(channel) && !script) throw new Error("This one-time Jump requires a script or notes.");
@@ -142,11 +141,10 @@ export async function applyJumpToContactsAction(formData: FormData): Promise<voi
     const template = await prisma.stepTemplate.findFirst({ where: { id: stepTemplateId, workspaceId: workspace.id, isActive: true }, include: { versions: { orderBy: { version: "desc" }, take: 1 } } });
     const version = template?.versions[0];
     if (!template || !version) fail("Choose an available reusable Jump.");
-    if (template.channel === "VOICEMAIL" && workspace.planTier !== "PRO") fail("Voicemail content is available on Pro.");
     prepared = { name: template.name, channel: template.channel, subject: version.subject, body: version.body, script: version.script, templateId: template.id, versionId: version.id };
   } else {
     let manual: ReturnType<typeof validateManualContent>;
-    try { manual = validateManualContent(formData, workspace.planTier); }
+    try { manual = validateManualContent(formData); }
     catch (error) { fail(error instanceof Error ? error.message : "The one-time Jump could not be prepared."); }
     prepared = {
       name: value(formData, "manualName") || `One-time ${manual.channel.replaceAll("_", " ").toLowerCase()}`,

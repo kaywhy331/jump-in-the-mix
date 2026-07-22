@@ -1,14 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { retryPendingAccountDeletionRevocations } from "@/lib/account-deletion";
 import { CONTACT_IMPORT_JOB_TASK, runContactImportBatch } from "@/lib/contact-import-jobs";
-import {
-  enqueueDueGoogleContactsSyncs,
-  googleSyncJobTask,
-  runGoogleContactsSync
-} from "@/lib/google-sync-service";
 import { generateJumps } from "@/lib/jump-engine";
+import { cleanupOperationalData } from "@/lib/operational-retention";
 import { prisma } from "@/lib/prisma";
-import { reconcileDueReferralEntitlements } from "@/lib/referral-service";
 
 const workerId = `worker-${randomUUID().slice(0, 8)}`;
 const workerStartedAt = new Date();
@@ -116,18 +110,6 @@ async function executeJob(job: ClaimedJob): Promise<void> {
     await generateJumps({ workspaceId: job.workspaceId ?? undefined, contactId: payload.contactId, mixId: payload.mixId });
     return;
   }
-  if (job.task === googleSyncJobTask()) {
-    const payload = job.payload as { connectionId?: string; syncRunId?: string; actorUserId?: string | null };
-    if (!payload.connectionId || !payload.syncRunId) {
-      throw new PermanentJobError("Google Contacts sync job is missing its connection or run identifier.");
-    }
-    await runGoogleContactsSync({
-      connectionId: payload.connectionId,
-      syncRunId: payload.syncRunId,
-      actorUserId: payload.actorUserId ?? null
-    });
-    return;
-  }
   if (job.task === CONTACT_IMPORT_JOB_TASK) {
     const payload = job.payload as { batchId?: string };
     if (!payload.batchId) throw new PermanentJobError("Contact import job is missing its batch identifier.");
@@ -196,9 +178,7 @@ async function processJob(job: ClaimedJob) {
 
 type MaintenanceState = {
   jumpReconciliation: number;
-  googleSchedule: number;
-  referralReconciliation: number;
-  accountDeletionRevocation: number;
+  retentionCleanup: number;
 };
 
 async function runMaintenanceIfDue(state: MaintenanceState): Promise<void> {
@@ -207,17 +187,9 @@ async function runMaintenanceIfDue(state: MaintenanceState): Promise<void> {
     try { await generateJumps(); } catch (error) { console.error("Periodic Jump reconciliation failed", error); }
     state.jumpReconciliation = Date.now();
   }
-  if (now - state.googleSchedule >= maintenanceIntervalMs) {
-    try { await enqueueDueGoogleContactsSyncs(); } catch (error) { console.error("Google Contacts scheduling failed", error); }
-    state.googleSchedule = Date.now();
-  }
-  if (now - state.referralReconciliation >= maintenanceIntervalMs) {
-    try { await reconcileDueReferralEntitlements(); } catch (error) { console.error("Referral entitlement reconciliation failed", error); }
-    state.referralReconciliation = Date.now();
-  }
-  if (now - state.accountDeletionRevocation >= maintenanceIntervalMs) {
-    try { await retryPendingAccountDeletionRevocations(); } catch (error) { console.error("Account deletion revocation retry failed", error); }
-    state.accountDeletionRevocation = Date.now();
+  if (now - state.retentionCleanup >= maintenanceIntervalMs) {
+    try { await cleanupOperationalData(); } catch (error) { console.error("Operational retention cleanup failed", error); }
+    state.retentionCleanup = Date.now();
   }
 }
 
@@ -234,9 +206,7 @@ async function main() {
 
   const maintenance: MaintenanceState = {
     jumpReconciliation: 0,
-    googleSchedule: 0,
-    referralReconciliation: 0,
-    accountDeletionRevocation: 0
+    retentionCleanup: 0
   };
   while (!stopping) {
     await runMaintenanceIfDue(maintenance);

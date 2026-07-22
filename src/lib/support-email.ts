@@ -51,7 +51,7 @@ export function buildSupportReplyEmail(input: {
     "",
     "If you still need help, reply inside the ticket so the complete conversation stays together.",
     "",
-    "Jump in the Mix Support Team"
+    "Jump in the Mix Support"
   ].join("\n");
   const html = `<!doctype html>
 <html lang="en">
@@ -77,7 +77,7 @@ export function buildSupportReplyEmail(input: {
             <p style="margin:22px 0 0;line-height:1.6;color:#647089;font-size:14px;">Reply inside the ticket so your full support conversation and timestamps remain together.</p>
           </td></tr>
           <tr><td style="padding:18px 26px;border-top:1px solid #dfe4ee;background:#fbfcfe;color:#647089;font-size:12px;line-height:1.55;">
-            Jump in the Mix Support Team<br />This message concerns support ticket ${safeReference}.
+            Jump in the Mix Support<br />This message concerns support ticket ${safeReference}.
           </td></tr>
         </table>
       </td></tr>

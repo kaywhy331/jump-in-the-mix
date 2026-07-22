@@ -50,7 +50,7 @@ export default async function SupportTicketPage({
         <div>
           <span className="support-ticket-reference">{ticket.reference}</span>
           <h1>{ticket.title}</h1>
-          <p>Every message below uses a server timestamp and remains attached to this workspace-scoped ticket.</p>
+          <p>Every message below uses a server timestamp and remains attached to this private support ticket.</p>
         </div>
         <div className="page-actions">
           <Link className="button" href="/help">Help & FAQ</Link>

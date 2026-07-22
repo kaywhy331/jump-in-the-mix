@@ -15,12 +15,9 @@ describe("settings and profile design boundaries", () => {
     expect(migration).not.toMatch(/DROP\s+(COLUMN|TABLE)/i);
   });
 
-  it("keeps profile, messaging, and community submissions section-scoped", () => {
-    const action = read("src/lib/workspace-profile-actions.ts");
-    expect(action).toContain('value(formData, "settingsSection", 40)');
-    expect(action).toContain('section === "profile"');
-    expect(action).toContain('section === "messaging"');
-    expect(action).toContain('section === "community"');
-    expect(action).toContain("Choose a valid IANA timezone.");
+  it("exposes only personal and core workflow settings", () => {
+    const page = read("src/app/(app)/settings/page.tsx");
+    for (const title of ["Personal preferences", "Action Templates", "Important Date Types", "Password & sessions", "Data & privacy"]) expect(page).toContain(title);
+    expect(page).not.toMatch(/community|billing|integration|workspace/i);
   });
 });
