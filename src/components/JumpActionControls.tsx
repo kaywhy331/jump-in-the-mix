@@ -2,16 +2,23 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
+import type { OpenedJumpDetail } from "@/components/JumpWorkflow";
 
 type JumpActionType = "OPENED" | "COPIED" | "COMPOSED" | "CALLED" | "VOICEMAIL_STARTED";
 
 async function recordAction(jumpId: string, action: JumpActionType): Promise<void> {
-  await fetch(`/api/jumps/${encodeURIComponent(jumpId)}/actions`, {
+  const response = await fetch(`/api/jumps/${encodeURIComponent(jumpId)}/actions`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ action }),
     keepalive: true
   });
+  if (!response.ok) throw new Error("The Jump action could not be recorded.");
+}
+
+function rememberOpenedJump(detail: OpenedJumpDetail): void {
+  try { window.sessionStorage.setItem("jitm:opened-jump", JSON.stringify(detail)); } catch { /* Storage can be disabled. */ }
+  window.dispatchEvent(new CustomEvent<OpenedJumpDetail>("jitm:jump-opened", { detail }));
 }
 
 export function JumpActionLink({
@@ -22,6 +29,8 @@ export function JumpActionLink({
   ariaLabel,
   title,
   target,
+  contactName,
+  channel,
   children
 }: {
   jumpId: string;
@@ -31,6 +40,8 @@ export function JumpActionLink({
   ariaLabel: string;
   title?: string;
   target?: string;
+  contactName: string;
+  channel: string;
   children: ReactNode;
 }) {
   return (
@@ -41,41 +52,50 @@ export function JumpActionLink({
       className={className}
       aria-label={ariaLabel}
       title={title}
-      onClick={() => { void recordAction(jumpId, action); }}
+      onClick={() => {
+        const detail: OpenedJumpDetail = { jumpId, contactName, channel, openedAt: Date.now() };
+        rememberOpenedJump(detail);
+        void recordAction(jumpId, action).catch(() => undefined);
+      }}
     >
       {children}
     </a>
   );
 }
 
-function copyWithFallback(text: string): void {
+function copyWithFallback(text: string): boolean {
   const textarea = document.createElement("textarea");
   textarea.value = text;
   textarea.style.position = "fixed";
   textarea.style.opacity = "0";
   document.body.appendChild(textarea);
   textarea.select();
-  document.execCommand("copy");
+  const copied = document.execCommand("copy");
   textarea.remove();
+  return copied;
 }
 
 export function JumpCopyButton({ jumpId, text }: { jumpId: string; text: string }) {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState<"IDLE" | "COPIED" | "FAILED">("IDLE");
 
   const copy = async () => {
     try {
       if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
-      else copyWithFallback(text);
+      else if (!copyWithFallback(text)) throw new Error("Copy was not accepted by the browser.");
       await recordAction(jumpId, "COPIED");
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
+      setStatus("COPIED");
+      window.setTimeout(() => setStatus("IDLE"), 1600);
     } catch {
-      copyWithFallback(text);
-      void recordAction(jumpId, "COPIED");
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1600);
+      const copied = copyWithFallback(text);
+      if (copied) {
+        void recordAction(jumpId, "COPIED").catch(() => undefined);
+        setStatus("COPIED");
+      } else {
+        setStatus("FAILED");
+      }
+      window.setTimeout(() => setStatus("IDLE"), 2000);
     }
   };
 
-  return <button className="button small" type="button" onClick={copy}>{copied ? "Copied" : "Copy prepared content"}</button>;
+  return <button className="button small" type="button" onClick={copy}>{status === "COPIED" ? "Copied" : status === "FAILED" ? "Copy failed" : "Copy prepared content"}</button>;
 }
