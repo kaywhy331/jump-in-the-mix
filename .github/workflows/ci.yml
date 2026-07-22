@@ -98,6 +98,8 @@ jobs:
           retention-days: 7
       - name: Deploy committed migrations to the test database
         run: npm run db:deploy
+      - name: Verify migration and Prisma schema agreement
+        run: npm run db:validate-drift
       - name: TypeScript semantic validation
         shell: bash
         run: |

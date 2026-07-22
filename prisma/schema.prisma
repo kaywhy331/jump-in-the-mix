@@ -127,87 +127,112 @@ enum WebhookProvider {
 }
 
 model User {
-  id              String            @id @default(cuid())
-  email           String            @unique
-  passwordHash    String
-  name            String
-  emailVerifiedAt DateTime?
-  isPlatformAdmin Boolean           @default(false)
-  sessions        Session[]
-  memberships     WorkspaceMember[]
-  ownedWorkspaces Workspace[]       @relation("WorkspaceOwner")
-  auditLogs       AuditLog[]        @relation("AuditActor")
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id                           String                     @id @default(cuid())
+  email                        String                     @unique
+  passwordHash                 String
+  name                         String
+  emailVerifiedAt              DateTime?
+  isPlatformAdmin              Boolean                    @default(false)
+  sessions                     Session[]
+  memberships                  WorkspaceMember[]
+  ownedWorkspaces              Workspace[]                @relation("WorkspaceOwner")
+  auditLogs                    AuditLog[]                 @relation("AuditActor")
+  contactActivities            ContactActivity[]
+  contactImportBatches         ContactImportBatch[]
+  preference                   UserPreference?
+  notificationPreferences      NotificationPreference[]
+  notificationEvents           NotificationEvent[]
+  sentWorkspaceInvitations     WorkspaceInvitation[]      @relation("WorkspaceInvitationInviter")
+  acceptedWorkspaceInvitations WorkspaceInvitation[]      @relation("WorkspaceInvitationAcceptor")
+  mfaCredential                UserMfaCredential?
+  mfaSessions                  UserMfaSession[]
+  ownedContactRelationships    ContactRelationshipState[]
+  contactLayouts               UserContactLayout[]
+  contactSavedViews            ContactSavedView[]
+  contactMergeRecords          ContactMergeRecord[]
+  createdAt                    DateTime                   @default(now())
+  updatedAt                    DateTime                   @updatedAt
 }
 
 model Session {
-  id         String   @id @default(cuid())
+  id         String          @id @default(cuid())
   userId     String
-  tokenHash  String   @unique
+  tokenHash  String          @unique
   expiresAt  DateTime
   ipAddress  String?
   userAgent  String?
-  createdAt  DateTime @default(now())
-  lastSeenAt DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime        @default(now())
+  lastSeenAt DateTime        @default(now())
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mfaSession UserMfaSession?
 
   @@index([userId])
   @@index([expiresAt])
 }
 
 model VerificationToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   email     String
-  tokenHash String   @unique
+  tokenHash String    @unique
   purpose   String
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([email, purpose])
 }
 
 model Workspace {
-  id                     String                         @id @default(cuid())
-  name                   String
-  slug                   String                         @unique
-  ownerId                String
-  planTier               PlanTier                       @default(FREE)
-  subscriptionStatus     SubscriptionStatus             @default(ACTIVE)
-  stripeCustomerId       String?                        @unique
-  stripeSubscriptionId   String?                        @unique
-  currentPeriodEnd       DateTime?
-  cancelAtPeriodEnd      Boolean                        @default(false)
-  owner                  User                           @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  members                WorkspaceMember[]
-  profile                WorkspaceProfile?
-  contacts               Contact[]
-  groups                 Group[]
-  dateTypes              DateType[]
-  jumpDates              JumpDate[]
-  stepTemplates          StepTemplate[]
-  mixes                  Mix[]
-  mixAssignments         MixAssignment[]
-  jumps                  Jump[]
-  integrations           IntegrationConnection[]
-  externalContactLinks   ExternalContactLink[]
-  syncRuns               SyncRun[]
-  oauthStates            OAuthState[]
-  messagingIdentities    MessagingIdentity[]
-  channelLinkCodes       ChannelLinkCode[]
-  captureDrafts          CaptureDraft[]
-  aiMixDrafts            AiMixDraft[]
-  sharedMixes            SharedMix[]                    @relation("SharedMixPublisher")
-  importedSharedMixes    SharedMixImport[]
-  subscriptions          Subscription[]
-  webhookEvents          WebhookEvent[]
-  idempotencyKeys        IdempotencyKey[]
-  jobs                   Job[]
-  auditLogs              AuditLog[]
-  customFieldDefinitions ContactCustomFieldDefinition[]
-  createdAt              DateTime                       @default(now())
-  updatedAt              DateTime                       @updatedAt
+  id                      String                         @id @default(cuid())
+  name                    String
+  slug                    String                         @unique
+  ownerId                 String
+  planTier                PlanTier                       @default(FREE)
+  subscriptionStatus      SubscriptionStatus             @default(ACTIVE)
+  stripeCustomerId        String?                        @unique
+  stripeSubscriptionId    String?                        @unique
+  currentPeriodEnd        DateTime?
+  cancelAtPeriodEnd       Boolean                        @default(false)
+  owner                   User                           @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  members                 WorkspaceMember[]
+  profile                 WorkspaceProfile?
+  contacts                Contact[]
+  groups                  Group[]
+  dateTypes               DateType[]
+  jumpDates               JumpDate[]
+  stepTemplates           StepTemplate[]
+  mixes                   Mix[]
+  mixAssignments          MixAssignment[]
+  jumps                   Jump[]
+  integrations            IntegrationConnection[]
+  externalContactLinks    ExternalContactLink[]
+  syncRuns                SyncRun[]
+  oauthStates             OAuthState[]
+  messagingIdentities     MessagingIdentity[]
+  channelLinkCodes        ChannelLinkCode[]
+  captureDrafts           CaptureDraft[]
+  aiMixDrafts             AiMixDraft[]
+  sharedMixes             SharedMix[]                    @relation("SharedMixPublisher")
+  importedSharedMixes     SharedMixImport[]
+  subscriptions           Subscription[]
+  webhookEvents           WebhookEvent[]
+  idempotencyKeys         IdempotencyKey[]
+  jobs                    Job[]
+  auditLogs               AuditLog[]
+  customFieldDefinitions  ContactCustomFieldDefinition[]
+  contactActivities       ContactActivity[]
+  contactImportBatches    ContactImportBatch[]
+  activeUserPreferences   UserPreference[]
+  preference              WorkspacePreference?
+  notificationPreferences NotificationPreference[]
+  notificationEvents      NotificationEvent[]
+  invitations             WorkspaceInvitation[]
+  contactRelationships    ContactRelationshipState[]
+  contactLayouts          UserContactLayout[]
+  contactSavedViews       ContactSavedView[]
+  contactMergeRecords     ContactMergeRecord[]
+  createdAt               DateTime                       @default(now())
+  updatedAt               DateTime                       @updatedAt
 }
 
 model WorkspaceMember {
@@ -282,12 +307,19 @@ model Contact {
   externalLinks         ExternalContactLink[]
   customFieldValues     ContactCustomFieldValue[]
   relationshipState     ContactRelationshipState?
+  activities            ContactActivity[]
+  survivingMergeRecords ContactMergeRecord[]      @relation("ContactMergeSurvivor")
+  mergedMergeRecords    ContactMergeRecord[]      @relation("ContactMergeMerged")
   createdAt             DateTime                  @default(now())
   updatedAt             DateTime                  @updatedAt
 
   @@index([workspaceId, displayName])
   @@index([workspaceId, company])
   @@index([workspaceId, archivedAt])
+  @@index([displayName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_displayName_trgm_idx")
+  @@index([company(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_company_trgm_idx")
+  @@index([publicNotes(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_publicNotes_trgm_idx")
+  @@index([privateNotes(ops: raw("gin_trgm_ops"))], type: Gin, map: "Contact_privateNotes_trgm_idx")
 }
 
 model ContactEmail {
@@ -300,8 +332,9 @@ model ContactEmail {
   contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
 
-  @@index([normalized])
   @@unique([contactId, normalized])
+  @@index([normalized])
+  @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "ContactEmail_email_trgm_idx")
 }
 
 model ContactPhone {
@@ -314,8 +347,9 @@ model ContactPhone {
   contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
 
-  @@index([normalized])
   @@unique([contactId, normalized])
+  @@index([normalized])
+  @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "ContactPhone_phone_trgm_idx")
 }
 
 model ContactAddress {
@@ -357,6 +391,7 @@ model ContactCustomFieldValue {
   updatedAt    DateTime                     @updatedAt
 
   @@unique([contactId, definitionId])
+  @@index([value(ops: raw("gin_trgm_ops"))], type: Gin, map: "ContactCustomFieldValue_value_trgm_idx")
 }
 
 model Group {
@@ -400,8 +435,8 @@ model DateType {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  @@index([workspaceId, isActive])
   @@unique([scopeKey, slug])
+  @@index([workspaceId, isActive])
 }
 
 model JumpDate {
@@ -428,6 +463,7 @@ model JumpDate {
 
   @@index([workspaceId, dateTypeId, isActive])
   @@index([contactId])
+  @@index([contactId, isActive], map: "JumpDate_contact_active_idx")
 }
 
 model StepTemplate {
@@ -446,24 +482,24 @@ model StepTemplate {
 }
 
 model StepVersion {
-  id            String       @id @default(cuid())
+  id             String       @id @default(cuid())
   stepTemplateId String
-  version       Int
-  subject       String?
-  body          String?
-  script        String?
-  longSms       Boolean      @default(false)
-  includeOptOut Boolean      @default(false)
-  stepTemplate  StepTemplate @relation(fields: [stepTemplateId], references: [id], onDelete: Cascade)
-  mixSteps      MixStep[]
-  jumps         Jump[]
-  createdAt     DateTime     @default(now())
+  version        Int
+  subject        String?
+  body           String?
+  script         String?
+  longSms        Boolean      @default(false)
+  includeOptOut  Boolean      @default(false)
+  stepTemplate   StepTemplate @relation(fields: [stepTemplateId], references: [id], onDelete: Cascade)
+  mixSteps       MixStep[]
+  jumps          Jump[]
+  createdAt      DateTime     @default(now())
 
   @@unique([stepTemplateId, version])
 }
 
 model Mix {
-  id                        String         @id @default(cuid())
+  id                        String          @id @default(cuid())
   workspaceId               String
   name                      String
   description               String?
@@ -472,17 +508,17 @@ model Mix {
   industry                  String?
   triggerMode               MixTriggerMode
   dateTypeId                String?
-  status                    MixStatus      @default(DRAFT)
+  status                    MixStatus       @default(DRAFT)
   durationDays              Int?
-  includeFutureGroupMembers Boolean        @default(false)
-  source                    String         @default("USER")
-  workspace                 Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  dateType                  DateType?      @relation(fields: [dateTypeId], references: [id], onDelete: SetNull)
+  includeFutureGroupMembers Boolean         @default(false)
+  source                    String          @default("USER")
+  workspace                 Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  dateType                  DateType?       @relation(fields: [dateTypeId], references: [id], onDelete: SetNull)
   steps                     MixStep[]
   assignments               MixAssignment[]
   jumps                     Jump[]
-  createdAt                 DateTime       @default(now())
-  updatedAt                 DateTime       @updatedAt
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
 
   @@index([workspaceId, status])
   @@index([workspaceId, dateTypeId])
@@ -529,7 +565,7 @@ model MixAssignment {
 }
 
 model Jump {
-  id               String     @id @default(cuid())
+  id               String            @id @default(cuid())
   workspaceId      String
   contactId        String
   jumpDateId       String?
@@ -537,21 +573,22 @@ model Jump {
   mixStepId        String
   stepVersionId    String
   scheduledAt      DateTime
-  status           JumpStatus @default(PENDING)
+  status           JumpStatus        @default(PENDING)
   reason           String
   templateSnapshot Json
   renderedSnapshot Json
   completedAt      DateTime?
   completionMethod String?
-  uniquenessKey    String     @unique
-  workspace        Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact          Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  jumpDate         JumpDate?  @relation(fields: [jumpDateId], references: [id], onDelete: SetNull)
-  mix              Mix        @relation(fields: [mixId], references: [id], onDelete: Cascade)
-  mixStep          MixStep    @relation(fields: [mixStepId], references: [id], onDelete: Cascade)
-  stepVersion      StepVersion @relation(fields: [stepVersionId], references: [id], onDelete: Restrict)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  uniquenessKey    String            @unique
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact          Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  jumpDate         JumpDate?         @relation(fields: [jumpDateId], references: [id], onDelete: SetNull)
+  mix              Mix               @relation(fields: [mixId], references: [id], onDelete: Cascade)
+  mixStep          MixStep           @relation(fields: [mixStepId], references: [id], onDelete: Cascade)
+  stepVersion      StepVersion       @relation(fields: [stepVersionId], references: [id], onDelete: Restrict)
+  activities       ContactActivity[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   @@index([workspaceId, scheduledAt, status])
   @@index([contactId, scheduledAt])
@@ -597,22 +634,23 @@ model ExternalContactLink {
 }
 
 model SyncRun {
-  id            String                @id @default(cuid())
-  workspaceId   String
-  connectionId  String
-  mode          String
-  status        String
-  startedAt     DateTime              @default(now())
-  completedAt   DateTime?
-  createdCount  Int                   @default(0)
-  updatedCount  Int                   @default(0)
-  skippedCount  Int                   @default(0)
-  errorCount    Int                   @default(0)
-  errorSummary  String?
-  workspace     Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  connection    IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  id           String                @id @default(cuid())
+  workspaceId  String
+  connectionId String
+  mode         String
+  status       String
+  startedAt    DateTime              @default(now())
+  completedAt  DateTime?
+  createdCount Int                   @default(0)
+  updatedCount Int                   @default(0)
+  skippedCount Int                   @default(0)
+  errorCount   Int                   @default(0)
+  errorSummary String?
+  workspace    Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  connection   IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, startedAt])
+  @@index([connectionId, status, startedAt], map: "SyncRun_connection_status_idx")
 }
 
 model OAuthState {
@@ -690,7 +728,7 @@ model AiMixDraft {
 }
 
 model SharedMix {
-  id                   String          @id @default(cuid())
+  id                   String            @id @default(cuid())
   publisherWorkspaceId String?
   title                String
   description          String
@@ -699,13 +737,13 @@ model SharedMix {
   framework            String?
   durationDays         Int
   steps                Json
-  status               SharedMixStatus @default(PENDING)
-  importCount          Int             @default(0)
+  status               SharedMixStatus   @default(PENDING)
+  importCount          Int               @default(0)
   rating               Float?
-  publisherWorkspace   Workspace?      @relation("SharedMixPublisher", fields: [publisherWorkspaceId], references: [id], onDelete: SetNull)
+  publisherWorkspace   Workspace?        @relation("SharedMixPublisher", fields: [publisherWorkspaceId], references: [id], onDelete: SetNull)
   imports              SharedMixImport[]
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 
   @@index([status, category])
   @@index([industry])
@@ -834,10 +872,10 @@ model AccountDeletionRevocation {
   status                String              @default("PENDING")
   attempts              Int                 @default(0)
   lastError             String?
-  nextAttemptAt         DateTime             @default(now())
+  nextAttemptAt         DateTime            @default(now())
   completedAt           DateTime?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
 
   @@unique([requestId, connectionFingerprint])
   @@index([status, nextAttemptAt])

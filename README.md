@@ -141,6 +141,7 @@ npm run setup                  # Generate Prisma client, create schema, and seed
 npm run dev                    # Web application
 npm run dev:worker             # Background worker
 npm run db:deploy              # Apply committed Prisma migrations
+npm run db:validate-drift      # Require the migrated database and Prisma schema to agree
 npm run db:rehearse-migration  # All isolated migration rehearsals
 npm run db:backup              # Encrypted pg_dump archive plus manifest
 npm run db:restore             # Restore into a separate empty database

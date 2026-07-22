@@ -29,7 +29,10 @@ test.describe("production-like staging smoke", () => {
   test("web, database, worker, and authenticated application routes are ready", async ({ page, request }) => {
     const ready = await request.get("/api/health/ready");
     expect(ready.ok()).toBeTruthy();
-    expect(await ready.json()).toMatchObject({ status: "ready", database: "connected" });
+    expect(await ready.json()).toMatchObject({
+      status: "ready",
+      checks: { database: "connected", configuration: "valid" }
+    });
 
     const worker = await request.get("/api/health/worker");
     expect(worker.ok()).toBeTruthy();

@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { fileURLToPath } from "node:url";
 import { runCommand } from "./lib/postgres-ops.mjs";
 import { sendOpsAlert } from "./lib/ops-alert.mjs";
 
@@ -7,8 +8,8 @@ async function main() {
   if (!process.env.STAGING_SMOKE_USER_EMAIL?.trim() || !process.env.STAGING_SMOKE_USER_PASSWORD?.trim()) {
     throw new Error("STAGING_SMOKE_USER_EMAIL and STAGING_SMOKE_USER_PASSWORD are required.");
   }
-  const executable = process.platform === "win32" ? "npx.cmd" : "npx";
-  await runCommand(executable, ["playwright", "test", "--config=playwright.staging.config.ts"]);
+  const playwrightCli = fileURLToPath(new URL("../node_modules/@playwright/test/cli.js", import.meta.url));
+  await runCommand(process.execPath, [playwrightCli, "test", "--config=playwright.staging.config.ts"]);
 }
 
 main().catch(async (error) => {

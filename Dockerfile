@@ -24,6 +24,7 @@ EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
 FROM source AS worker
+USER node
 CMD ["npm", "run", "worker"]
 
 FROM source AS builder

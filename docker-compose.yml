@@ -67,6 +67,7 @@ services:
     build:
       context: .
       target: tools
+    command: ["sh", "-c", "npm run db:deploy && npm run db:seed"]
     environment: *app_environment
     depends_on:
       postgres:

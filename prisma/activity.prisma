@@ -37,6 +37,10 @@ model ContactActivity {
   metadata         Json?
   occurredAt       DateTime                  @default(now())
   createdAt        DateTime                  @default(now())
+  workspace        Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact          Contact                   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  jump             Jump?                     @relation(fields: [jumpId], references: [id], onDelete: SetNull)
+  actor            User?                     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, occurredAt])
   @@index([contactId, occurredAt])

@@ -12,13 +12,15 @@ enum WorkspaceInvitationStatus {
 }
 
 model UserPreference {
-  id                String   @id @default(cuid())
-  userId            String   @unique
+  id                String     @id @default(cuid())
+  userId            String     @unique
   activeWorkspaceId String?
-  locale            String   @default("en-US")
-  timezone          String   @default("UTC")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  locale            String     @default("en-US")
+  timezone          String     @default("UTC")
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeWorkspace   Workspace? @relation(fields: [activeWorkspaceId], references: [id], onDelete: SetNull)
 
   @@index([activeWorkspaceId])
 }
@@ -32,6 +34,7 @@ model WorkspacePreference {
   weekendScheduling      WeekendScheduling @default(KEEP)
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
+  workspace              Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model NotificationPreference {
@@ -52,6 +55,8 @@ model NotificationPreference {
   lastDigestAt        DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace           Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId])
   @@index([workspaceId])
@@ -70,6 +75,8 @@ model NotificationEvent {
   emailDeliveredAt DateTime?
   deliveryError    String?
   createdAt        DateTime  @default(now())
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt, createdAt])
   @@index([workspaceId, createdAt])
@@ -89,20 +96,24 @@ model WorkspaceInvitation {
   revokedAt        DateTime?
   createdAt        DateTime                  @default(now())
   updatedAt        DateTime                  @updatedAt
+  workspace        Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy        User                      @relation("WorkspaceInvitationInviter", fields: [invitedByUserId], references: [id], onDelete: Cascade)
+  acceptedBy       User?                     @relation("WorkspaceInvitationAcceptor", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, status, createdAt])
   @@index([email, status])
 }
 
 model UserMfaCredential {
-  id                 String   @id @default(cuid())
-  userId             String   @unique
+  id                 String    @id @default(cuid())
+  userId             String    @unique
   secretCiphertext   String
   recoveryCodeHashes Json
   enabledAt          DateTime?
   lastUsedStep       BigInt?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  user               User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UserMfaSession {
@@ -112,6 +123,8 @@ model UserMfaSession {
   verifiedAt DateTime?
   expiresAt  DateTime
   createdAt  DateTime  @default(now())
+  session    Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
 }

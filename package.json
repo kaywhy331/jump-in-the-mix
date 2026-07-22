@@ -20,6 +20,7 @@
     "db:setup": "npm run db:push && npm run db:seed",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
+    "db:validate-drift": "prisma migrate diff --from-config-datasource --to-schema prisma --exit-code",
     "db:rehearse-migration": "node scripts/rehearse-migration.mjs && node scripts/rehearse-admin-control-plane.mjs && node scripts/rehearse-admin-mfa.mjs && node scripts/rehearse-worker-heartbeat.mjs",
     "db:backup": "node scripts/backup-database.mjs",
     "db:restore": "node scripts/restore-database.mjs",

@@ -18,7 +18,9 @@ model ContactRelationshipState {
   version            Int             @default(1)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+  workspace          Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact            Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  owner              User?           @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, ownerUserId, priority])
   @@index([workspaceId, doNotContact])
@@ -26,41 +28,49 @@ model ContactRelationshipState {
 }
 
 model UserContactLayout {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   userId         String
   workspaceId    String
   cardOrder      String[]
   collapsedCards String[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId])
   @@index([workspaceId])
 }
 
 model ContactSavedView {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   userId      String
   workspaceId String
   name        String
   query       Json
-  isDefault   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([userId, workspaceId, name])
   @@index([workspaceId, userId, createdAt])
 }
 
 model ContactMergeRecord {
-  id                String   @id @default(cuid())
+  id                String    @id @default(cuid())
   workspaceId       String
   survivorContactId String
   mergedContactId   String
   actorUserId       String
   sourceSnapshot    Json
   mergeSummary      Json
-  createdAt         DateTime @default(now())
+  createdAt         DateTime  @default(now())
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  survivor          Contact   @relation("ContactMergeSurvivor", fields: [survivorContactId], references: [id], onDelete: Cascade)
+  merged            Contact   @relation("ContactMergeMerged", fields: [mergedContactId], references: [id], onDelete: Cascade)
+  actor             User      @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
 
   @@index([workspaceId, createdAt])
   @@index([survivorContactId])

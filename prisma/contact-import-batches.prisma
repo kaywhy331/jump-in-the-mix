@@ -29,6 +29,8 @@ model ContactImportBatch {
   canceledAt     DateTime?
   createdAt      DateTime                 @default(now())
   updatedAt      DateTime                 @updatedAt
+  workspace      Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor          User?                    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@unique([workspaceId, importId])
   @@index([workspaceId, createdAt])
