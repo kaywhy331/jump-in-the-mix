@@ -155,7 +155,7 @@ test("Contact cards use one column, text toggles, and persistent drag ordering",
 
     await expect(page.getByRole("button", { name: /Move .+ (up|down)/ })).toHaveCount(0);
     const methodsCard = page.locator('[data-user-card="contact-methods"]');
-    const dragHandle = methodsCard.getByRole("button", { name: "Drag Contact methods to reorder" });
+    const dragHandle = methodsCard.getByRole("button", { name: "Drag All contact methods to reorder" });
     await expect(dragHandle).toContainText("Drag to reorder");
     await dragHandle.dragTo(datesCard, { targetPosition: { x: 24, y: 4 } });
     await expect(cards.first()).toHaveAttribute("data-user-card", "contact-methods");
