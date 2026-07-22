@@ -50,6 +50,7 @@ CREATE TABLE "NotificationPreference" (
   "billingAlerts" BOOLEAN NOT NULL DEFAULT TRUE,
   "securityAlerts" BOOLEAN NOT NULL DEFAULT TRUE,
   "digestMinutes" INTEGER NOT NULL DEFAULT 480,
+  "lastDigestAt" TIMESTAMP(3),
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL,
   CONSTRAINT "NotificationPreference_pkey" PRIMARY KEY ("id"),
@@ -64,14 +65,18 @@ CREATE TABLE "NotificationEvent" (
   "id" TEXT NOT NULL,
   "workspaceId" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
+  "idempotencyKey" TEXT NOT NULL,
   "type" TEXT NOT NULL,
   "title" TEXT NOT NULL,
   "body" TEXT NOT NULL,
   "href" TEXT,
   "readAt" TIMESTAMP(3),
+  "emailDeliveredAt" TIMESTAMP(3),
+  "deliveryError" TEXT,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "NotificationEvent_pkey" PRIMARY KEY ("id")
 );
+CREATE UNIQUE INDEX "NotificationEvent_idempotencyKey_key" ON "NotificationEvent"("idempotencyKey");
 CREATE INDEX "NotificationEvent_userId_readAt_createdAt_idx" ON "NotificationEvent"("userId", "readAt", "createdAt");
 CREATE INDEX "NotificationEvent_workspaceId_createdAt_idx" ON "NotificationEvent"("workspaceId", "createdAt");
 ALTER TABLE "NotificationEvent" ADD CONSTRAINT "NotificationEvent_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
