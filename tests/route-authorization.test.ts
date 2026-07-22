@@ -61,8 +61,12 @@ describe("server-enforced route authorization matrix", () => {
 
   it("keeps the administrator identity separate from the viewed user identity", () => {
     const auth = read("src/lib/auth.ts");
-    expect(auth).toContain("const authUser = session.user");
-    expect(auth).toContain("user: impersonation.targetUser");
+    expect(auth).toContain("const authUser = {");
+    expect(auth).toContain("...session.user");
+    expect(auth).toContain("memberships: prioritizeMemberships(session.user.memberships");
+    expect(auth).toContain("const targetUser = {");
+    expect(auth).toContain("...impersonation.targetUser");
+    expect(auth).toContain("user: targetUser");
     expect(auth).toContain("actorUser: session.authUser");
     expect(auth).toContain("session.impersonation || !session.authUser.isPlatformAdmin");
   });
