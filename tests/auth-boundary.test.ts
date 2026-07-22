@@ -16,6 +16,7 @@ describe("authentication request boundary", () => {
     expect(proxy).toContain("export function proxy");
     expect(proxy).toContain('request.headers.get("origin")');
     expect(proxy).toContain('request.headers.get("sec-fetch-site")');
+    expect(proxy).toContain("allowed.add(requestOrigin(request))");
     expect(proxy).toContain('/api/webhooks/');
     expect(proxy).toContain("status: 403");
   });
@@ -23,6 +24,7 @@ describe("authentication request boundary", () => {
   it("keeps Server Actions same-origin by default and constrains request size", () => {
     const config = readFileSync("next.config.ts", "utf8");
     expect(config).toContain("allowedOrigins");
+    expect(config).toContain("additionalServerActionOrigins.length > 0");
     expect(config).toContain('bodySizeLimit: "1mb"');
   });
 
@@ -41,5 +43,7 @@ describe("authentication request boundary", () => {
     expect(actions).toContain("AUTH_TOKEN_PURPOSES.resetPassword");
     expect(actions).toContain("destroyOtherSessions(");
     expect(actions).toContain("destroyAllSessionsForUser(");
+    expect(actions).toContain('clearRateLimit("auth.login.email", [email])');
+    expect(actions).toContain('clearRateLimit("auth.login.ip", [metadata.ipAddress])');
   });
 });
