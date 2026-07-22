@@ -138,8 +138,33 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       include: {
         workspace: { include: { profile: true, owner: true } },
         contact: { include: { emails: true, phones: true, addresses: true, customFieldValues: { include: { definition: true } }, jumpDates: { include: { dateType: true }, where: { isActive: true } } } },
-        group: { include: { memberships: { include: { contact: { include: { emails: true, phones: true, addresses: true, customFieldValues: { include: { definition: true } }, jumpDates: { include: { dateType: true }, where: { isActive: true } } } } } } } },
-        mix: { include: { steps: { where: { isActive: true }, include: { stepVersion: { include: { stepTemplate: true } }, orderBy: { sortOrder: "asc" } }, dateType: true } }
+        group: {
+          include: {
+            memberships: {
+              include: {
+                contact: {
+                  include: {
+                    emails: true,
+                    phones: true,
+                    addresses: true,
+                    customFieldValues: { include: { definition: true } },
+                    jumpDates: { include: { dateType: true }, where: { isActive: true } }
+                  }
+                }
+              }
+            }
+          }
+        },
+        mix: {
+          include: {
+            steps: {
+              where: { isActive: true },
+              include: { stepVersion: { include: { stepTemplate: true } } },
+              orderBy: { sortOrder: "asc" }
+            },
+            dateType: true
+          }
+        }
       }
     }),
     prisma.mixStop.findMany({ where: { ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}), ...(filters.contactId ? { contactId: filters.contactId } : {}), ...(filters.mixId ? { mixId: filters.mixId } : {}) }, select: { mixId: true, contactId: true } }),
