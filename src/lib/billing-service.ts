@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { PlanTier, SubscriptionStatus } from "@/generated/prisma/client";
+import type { PlanTier, Prisma, SubscriptionStatus } from "@/generated/prisma/client";
 import {
   billingPriceId,
   billingSelectionForPriceId,
@@ -15,6 +15,15 @@ import { prisma } from "@/lib/prisma";
 import { StripeApiError, stripeObjectId, stripeRequest, stripeUnixDate } from "@/lib/stripe-client";
 
 type StripeMetadata = Record<string, string | undefined>;
+
+type StripeOrderingState = {
+  eventId: string;
+  eventCreated: number;
+  subscriptionId: string;
+};
+
+const STRIPE_ORDERING_KEY = "stripe:subscription-order";
+const STRIPE_ORDERING_RETENTION_MS = 10 * 365 * 24 * 60 * 60 * 1000;
 
 export type StripeCustomer = {
   id: string;
@@ -63,7 +72,7 @@ type StripeInvoice = {
   lines?: {
     data?: Array<{
       subscription?: string | null;
-      parent?: { subscription_item_details?: { subscription?: string | null } | null } | null;
+      parent?: { subscription_item_details?: { subscription?: string | null } | null };
     }>;
   };
 };
@@ -71,6 +80,8 @@ type StripeInvoice = {
 export type StripeEvent = {
   id: string;
   type: string;
+  created: number;
+  livemode: boolean;
   data: { object: unknown };
 };
 
@@ -126,6 +137,34 @@ function invoiceSubscriptionId(invoice: StripeInvoice): string | null {
     ?? null;
 }
 
+function parseOrdering(value: Prisma.JsonValue | null | undefined): StripeOrderingState | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.eventId !== "string" || typeof candidate.eventCreated !== "number" || typeof candidate.subscriptionId !== "string") {
+    return null;
+  }
+  return {
+    eventId: candidate.eventId,
+    eventCreated: candidate.eventCreated,
+    subscriptionId: candidate.subscriptionId
+  };
+}
+
+function retryableTransactionError(error: unknown): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === "P2034");
+}
+
+async function serializable<T>(operation: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await prisma.$transaction(operation, { isolationLevel: "Serializable" });
+    } catch (error) {
+      if (!retryableTransactionError(error) || attempt === 2) throw error;
+    }
+  }
+  throw new Error("Stripe state could not be serialized.");
+}
+
 async function retrieveStripeCustomer(customerId: string): Promise<StripeCustomer> {
   return stripeRequest<StripeCustomer>(`/v1/customers/${encodeURIComponent(customerId)}`, { method: "GET" });
 }
@@ -179,7 +218,8 @@ async function ensureStripeCustomer(input: {
           name: input.name,
           "metadata[workspace_id]": input.workspaceId,
           "metadata[user_id]": input.userId
-        }
+        },
+        idempotencyKey: `customer-update:${input.workspaceId}`
       });
       if (!customer.deleted) return customer.id;
     } catch (error) {
@@ -252,7 +292,7 @@ export async function createStripeCheckoutSession(input: {
       "subscription_data[metadata][plan_tier]": metadata.plan_tier,
       "subscription_data[metadata][billing_period]": metadata.billing_period
     },
-    idempotencyKey: `checkout:${input.workspace.id}:${input.planTier}:${input.billingPeriod}:${Math.floor(Date.now() / 60_000)}`
+    idempotencyKey: `checkout:${input.workspace.id}:${input.planTier}:${input.billingPeriod}:${Math.floor(Date.now() / (30 * 60_000))}`
   });
 }
 
@@ -267,7 +307,7 @@ export async function createStripePortalSession(input: {
   return stripeRequest<{ id: string; url: string }>("/v1/billing_portal/sessions", {
     params: {
       customer: input.stripeCustomerId,
-      return_url: `${appUrl}/account?billing=portal-return`
+      return_url: `${appUrl}/account?section=billing&billing=portal-return`
     },
     idempotencyKey: `portal:${input.workspaceId}:${randomUUID()}`
   });
@@ -281,18 +321,13 @@ async function workspaceForStripeSubscription(
   const workspaceId = metadataWorkspaceId(subscription.metadata) ?? hintedWorkspaceId;
   if (workspaceId) {
     const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
-    if (workspace) return workspace;
+    if (workspace && (!workspace.stripeCustomerId || !customerId || workspace.stripeCustomerId === customerId)) return workspace;
   }
-  const bySubscription = await prisma.workspace.findFirst({
-    where: {
-      OR: [
-        { stripeSubscriptionId: subscription.id },
-        ...(customerId ? [{ stripeCustomerId: customerId }] : [])
-      ]
-    }
-  });
+  const bySubscription = await prisma.workspace.findFirst({ where: { stripeSubscriptionId: subscription.id } });
   if (bySubscription) return bySubscription;
   if (customerId) {
+    const byCustomer = await prisma.workspace.findFirst({ where: { stripeCustomerId: customerId } });
+    if (byCustomer) return byCustomer;
     const customer = await retrieveStripeCustomer(customerId);
     const customerWorkspaceId = metadataWorkspaceId(customer.metadata);
     if (customerWorkspaceId) return prisma.workspace.findUnique({ where: { id: customerWorkspaceId } });
@@ -300,12 +335,22 @@ async function workspaceForStripeSubscription(
   return null;
 }
 
+function replacementAllowed(eventType: string, explicit: boolean): boolean {
+  return explicit
+    || eventType === "checkout.session.completed"
+    || eventType === "checkout.session.async_payment_succeeded"
+    || eventType === "checkout.session.verify";
+}
+
 export async function syncStripeSubscription(input: {
   subscription: StripeSubscription;
   eventType: string;
   hintedWorkspaceId?: string | null;
   statusOverride?: SubscriptionStatus | null;
-}): Promise<{ workspaceId: string; planTier: PlanTier; status: SubscriptionStatus }> {
+  eventId?: string | null;
+  eventCreated?: number | null;
+  allowSubscriptionReplacement?: boolean;
+}): Promise<{ workspaceId: string; planTier: PlanTier; status: SubscriptionStatus; ignored: boolean }> {
   const workspace = await workspaceForStripeSubscription(input.subscription, input.hintedWorkspaceId ?? null);
   if (!workspace) throw new Error(`No workspace could be resolved for Stripe subscription ${input.subscription.id}.`);
 
@@ -322,8 +367,58 @@ export async function syncStripeSubscription(input: {
   const period = subscriptionPeriod(input.subscription);
   const customerId = stripeObjectId(input.subscription.customer) ?? workspace.stripeCustomerId;
   const cancelAtPeriodEnd = Boolean(input.subscription.cancel_at_period_end);
+  const eventCreated = Number.isFinite(input.eventCreated) && Number(input.eventCreated) > 0
+    ? Number(input.eventCreated)
+    : Math.floor(Date.now() / 1000);
+  const eventId = input.eventId?.trim() || `${input.eventType}:${input.subscription.id}:${eventCreated}`;
 
-  await prisma.$transaction(async (tx) => {
+  return serializable(async (tx) => {
+    const currentWorkspace = await tx.workspace.findUnique({ where: { id: workspace.id } });
+    if (!currentWorkspace) throw new Error("The Stripe workspace no longer exists.");
+    const orderingRecord = await tx.idempotencyKey.findUnique({
+      where: { workspaceId_key: { workspaceId: workspace.id, key: STRIPE_ORDERING_KEY } },
+      select: { response: true }
+    });
+    const previousOrder = parseOrdering(orderingRecord?.response ?? null);
+    if (previousOrder?.eventId === eventId || (previousOrder && eventCreated < previousOrder.eventCreated)) {
+      return {
+        workspaceId: currentWorkspace.id,
+        planTier: currentWorkspace.planTier,
+        status: currentWorkspace.subscriptionStatus,
+        ignored: true
+      };
+    }
+
+    const replacingSubscription = Boolean(
+      currentWorkspace.stripeSubscriptionId
+      && currentWorkspace.stripeSubscriptionId !== input.subscription.id
+    );
+    if (replacingSubscription && !replacementAllowed(input.eventType, input.allowSubscriptionReplacement === true)) {
+      await tx.auditLog.create({
+        data: {
+          workspaceId: workspace.id,
+          actorType: "WEBHOOK",
+          action: "billing.subscription.ignored",
+          entityType: "Subscription",
+          entityId: input.subscription.id,
+          source: "stripe",
+          metadata: {
+            eventType: input.eventType,
+            eventId,
+            eventCreated,
+            reason: "non-canonical-subscription",
+            canonicalSubscriptionId: currentWorkspace.stripeSubscriptionId
+          }
+        }
+      });
+      return {
+        workspaceId: currentWorkspace.id,
+        planTier: currentWorkspace.planTier,
+        status: currentWorkspace.subscriptionStatus,
+        ignored: true
+      };
+    }
+
     await tx.subscription.upsert({
       where: { stripeSubscriptionId: input.subscription.id },
       create: {
@@ -359,6 +454,19 @@ export async function syncStripeSubscription(input: {
         cancelAtPeriodEnd
       }
     });
+    await tx.idempotencyKey.upsert({
+      where: { workspaceId_key: { workspaceId: workspace.id, key: STRIPE_ORDERING_KEY } },
+      create: {
+        workspaceId: workspace.id,
+        key: STRIPE_ORDERING_KEY,
+        response: { eventId, eventCreated, subscriptionId: input.subscription.id },
+        expiresAt: new Date(Date.now() + STRIPE_ORDERING_RETENTION_MS)
+      },
+      update: {
+        response: { eventId, eventCreated, subscriptionId: input.subscription.id },
+        expiresAt: new Date(Date.now() + STRIPE_ORDERING_RETENTION_MS)
+      }
+    });
     await tx.auditLog.create({
       data: {
         workspaceId: workspace.id,
@@ -369,19 +477,21 @@ export async function syncStripeSubscription(input: {
         source: "stripe",
         metadata: {
           eventType: input.eventType,
+          eventId,
+          eventCreated,
           priceId,
           planTier,
           effectiveTier,
           billingPeriod,
           status,
           cancelAtPeriodEnd,
-          currentPeriodEnd: period.end?.toISOString() ?? null
+          currentPeriodEnd: period.end?.toISOString() ?? null,
+          replacedSubscriptionId: replacingSubscription ? currentWorkspace.stripeSubscriptionId : null
         }
       }
     });
+    return { workspaceId: workspace.id, planTier: effectiveTier, status, ignored: false };
   });
-
-  return { workspaceId: workspace.id, planTier: effectiveTier, status };
 }
 
 export async function reconcileCheckoutSessionForWorkspace(sessionId: string, workspaceId: string): Promise<{
@@ -418,7 +528,10 @@ export async function reconcileCheckoutSessionForWorkspace(sessionId: string, wo
   const synced = await syncStripeSubscription({
     subscription,
     eventType: "checkout.session.verify",
-    hintedWorkspaceId: workspaceId
+    hintedWorkspaceId: workspaceId,
+    eventId: `checkout-verify:${session.id}`,
+    eventCreated: Math.floor(Date.now() / 1000),
+    allowSubscriptionReplacement: true
   });
   return {
     complete: true,
@@ -428,7 +541,8 @@ export async function reconcileCheckoutSessionForWorkspace(sessionId: string, wo
   };
 }
 
-export async function processStripeEvent(event: StripeEvent): Promise<{ workspaceId: string | null }> {
+export async function processStripeEvent(event: StripeEvent): Promise<{ workspaceId: string | null; ignored?: boolean }> {
+  const ordering = { eventId: event.id, eventCreated: event.created };
   switch (event.type) {
     case "checkout.session.completed":
     case "checkout.session.async_payment_succeeded": {
@@ -439,15 +553,23 @@ export async function processStripeEvent(event: StripeEvent): Promise<{ workspac
       const subscription = typeof session.subscription === "object" && session.subscription
         ? session.subscription
         : await retrieveStripeSubscription(subscriptionId);
-      const synced = await syncStripeSubscription({ subscription, eventType: event.type, hintedWorkspaceId: workspaceId });
-      return { workspaceId: synced.workspaceId };
+      const synced = await syncStripeSubscription({
+        subscription,
+        eventType: event.type,
+        hintedWorkspaceId: workspaceId,
+        ...ordering,
+        allowSubscriptionReplacement: true
+      });
+      return { workspaceId: synced.workspaceId, ignored: synced.ignored };
     }
     case "customer.subscription.created":
     case "customer.subscription.updated":
-    case "customer.subscription.deleted": {
+    case "customer.subscription.deleted":
+    case "customer.subscription.paused":
+    case "customer.subscription.resumed": {
       const subscription = event.data.object as StripeSubscription;
-      const synced = await syncStripeSubscription({ subscription, eventType: event.type });
-      return { workspaceId: synced.workspaceId };
+      const synced = await syncStripeSubscription({ subscription, eventType: event.type, ...ordering });
+      return { workspaceId: synced.workspaceId, ignored: synced.ignored };
     }
     case "invoice.paid":
     case "invoice.payment_failed": {
@@ -458,9 +580,10 @@ export async function processStripeEvent(event: StripeEvent): Promise<{ workspac
       const synced = await syncStripeSubscription({
         subscription,
         eventType: event.type,
-        statusOverride: event.type === "invoice.payment_failed" ? "PAST_DUE" : null
+        statusOverride: event.type === "invoice.payment_failed" ? "PAST_DUE" : null,
+        ...ordering
       });
-      return { workspaceId: synced.workspaceId };
+      return { workspaceId: synced.workspaceId, ignored: synced.ignored };
     }
     default:
       return { workspaceId: null };
