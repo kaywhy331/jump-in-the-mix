@@ -14,20 +14,20 @@ describe("Device Contact Picker and Quick Add boundaries", () => {
     expect(component).not.toContain('"photo"');
   });
 
-  it("keeps tenant identity and plan enforcement on the server", () => {
+  it("keeps personal data-space identity on the server without tier enforcement", () => {
     const route = read("src/app/api/contacts/quick-add/route.ts");
     const service = read("src/lib/contact-quick-add.ts");
     expect(route).toContain("getCurrentSession(");
     expect(route).toContain("session.impersonation");
     expect(route).toContain('scope: "api.contact-quick-add"');
     expect(route).toContain("consumeRateLimit(");
-    expect(route).toContain("status: 409");
     const schemaBlock = route.slice(route.indexOf("const requestSchema"), route.indexOf("export async function POST"));
     expect(schemaBlock).not.toContain("workspaceId");
     expect(schemaBlock).not.toContain("actorUserId");
+    expect(route).not.toContain("planTier:");
     expect(service).toContain("findImportMatches(");
     expect(service).toContain("commitContactImportBatch(");
-    expect(service).toContain("QuickAddPlanLimitError");
+    expect(service).not.toMatch(/PlanLimit|upgrade|plan allows/i);
     expect(service).toContain('action: "contact.quick-add"');
   });
 

@@ -6,9 +6,16 @@ import { AppIcon } from "@/components/AppIcon";
 import { inferQuickAddCapture } from "@/lib/quick-add-capture";
 
 const OPEN_QUICK_ADD = "jitm:quick-add";
+type QuickAddWindow = Window & { __jitmQuickAddPending?: boolean };
+
+function requestQuickAdd() {
+  const target = window as QuickAddWindow;
+  target.__jitmQuickAddPending = true;
+  target.dispatchEvent(new Event(OPEN_QUICK_ADD));
+}
 
 export function QuickAddButton({ mobile = false }: { mobile?: boolean }) {
-  return <button type="button" className={mobile ? "nav-link nav-quick-add" : "button primary global-quick-add"} onClick={() => window.dispatchEvent(new Event(OPEN_QUICK_ADD))} aria-label="Quick Add">
+  return <button type="button" className={mobile ? "nav-link nav-quick-add" : "button primary global-quick-add"} onClick={requestQuickAdd} aria-label="Quick Add">
     <AppIcon name="add" /> <span>Quick Add</span>
   </button>;
 }
@@ -28,10 +35,12 @@ export function QuickAddDialog() {
 
   useEffect(() => {
     const open = () => {
+      (window as QuickAddWindow).__jitmQuickAddPending = false;
       dialogRef.current?.showModal();
       window.setTimeout(() => inputRef.current?.focus(), 0);
     };
     window.addEventListener(OPEN_QUICK_ADD, open);
+    if ((window as QuickAddWindow).__jitmQuickAddPending) open();
     return () => window.removeEventListener(OPEN_QUICK_ADD, open);
   }, []);
 

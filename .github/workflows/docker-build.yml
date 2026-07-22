@@ -23,14 +23,26 @@ jobs:
         run: |
           set -o pipefail
           docker build --progress=plain --target production --tag jump-in-the-mix:ci . 2>&1 | tee docker-build.log
+      - name: Inspect production image
+        run: |
+          docker image inspect jump-in-the-mix:ci --format '{{.Id}} {{.Size}} {{.Config.User}}'
+          test "$(docker image inspect jump-in-the-mix:ci --format '{{.Config.User}}')" = "node"
+      - name: Build worker image
+        shell: bash
+        run: |
+          set -o pipefail
+          docker build --progress=plain --target worker --tag jump-in-the-mix-worker:ci . 2>&1 | tee docker-worker-build.log
+      - name: Inspect worker image
+        run: |
+          docker image inspect jump-in-the-mix-worker:ci --format '{{.Id}} {{.Size}} {{.Config.User}}'
+          test "$(docker image inspect jump-in-the-mix-worker:ci --format '{{.Config.User}}')" = "node"
       - name: Upload Docker build diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: docker-build-diagnostics
-          path: docker-build.log
+          path: |
+            docker-build.log
+            docker-worker-build.log
+          if-no-files-found: ignore
           retention-days: 7
-      - name: Inspect production image
-        run: |
-          docker image inspect jump-in-the-mix:ci --format '{{.Id}} {{.Size}} {{.Config.User}}'
-          test "$(docker image inspect jump-in-the-mix:ci --format '{{.Config.User}}')" = "node"

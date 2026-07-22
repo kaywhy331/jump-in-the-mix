@@ -18,7 +18,7 @@ async function signIn(page: Page, email: string, password: string) {
   ]);
 }
 
-test("workspace user can complete the primary discovery and support journey", async ({ page }, testInfo) => {
+test("single user can complete the primary discovery and support journey", async ({ page }, testInfo) => {
   await signIn(page, userEmail, userPassword);
 
   await page.goto("/jumps");
@@ -31,7 +31,7 @@ test("workspace user can complete the primary discovery and support journey", as
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
   await page.getByLabel("More Contact tools").click();
   await expect(page.getByRole("heading", { name: "Contact Groups" })).toBeVisible();
-  await expect(page.getByText("3/10 active · 3 stored", { exact: true })).toBeVisible();
+  await expect(page.getByText("3 active · 3 stored", { exact: true })).toBeVisible();
   await page.getByLabel("Close Contact tools").click();
   await expect(page.getByRole("heading", { name: "Contact Groups" })).toBeHidden();
   if (testInfo.project.name === "mobile-chromium") {
@@ -46,16 +46,16 @@ test("workspace user can complete the primary discovery and support journey", as
   const addPanel = page.locator(".contact-add-panel");
   await expect(addPanel.locator(".device-contact-picker")).toBeVisible();
   await expect(addPanel.getByRole("link", { name: /Import CSV \/ VCF/ })).toBeVisible();
-  await expect(addPanel.getByRole("link", { name: /Google Contacts/ })).toBeVisible();
+  await expect(addPanel.getByRole("link", { name: /Google Contacts/ })).toHaveCount(0);
 
   await page.goto("/templates");
   await expect(page.getByRole("heading", { name: "Mix Templates" })).toBeVisible();
   await expect(page.getByText("New Lead Follow-Up", { exact: true })).toBeVisible();
-  await expect(page.locator(".template-source-tabs").getByText("Jump in the Mix", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create my own" })).toHaveAttribute("href", "/mixes/new");
 
-  await page.goto("/mixes/wizard");
-  await expect(page.getByRole("heading", { name: "AI Mix Wizard" })).toBeVisible();
-  await expect(page.getByText(/Built-in strategist ready|AI provider connected/)).toBeVisible();
+  await page.goto("/mixes/new");
+  await expect(page.getByRole("heading", { name: "Create a follow-up plan" })).toBeVisible();
+  await expect(page.getByLabel("Write this action")).toBeVisible();
 
   const ticketTitle = `E2E browser support ticket ${testInfo.project.name}`;
   await page.goto("/help");
@@ -150,7 +150,7 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   await expect(prisma.jump.count({ where: { workspaceId, contact: { displayName: "Jordan First Win" } } })).resolves.toBeGreaterThan(0);
 });
 
-test("account owner must reauthenticate and explicitly confirm permanent deletion", async ({ page }, testInfo) => {
+test("personal account holder must reauthenticate and explicitly confirm permanent deletion", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The destructive stateful journey runs once.");
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const userId = `e2e-delete-user-${suffix}`;
@@ -215,6 +215,14 @@ test.describe("stateful administrator security journey", () => {
 
   test("platform administrator must enroll and re-verify MFA before using Admin", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "desktop-chromium", "Administrator enrollment runs once against the shared seeded account.");
+
+    const adminUser = await prisma.user.findUniqueOrThrow({ where: { email: adminEmail }, select: { id: true } });
+    await prisma.$transaction([
+      prisma.adminMfaSession.deleteMany({ where: { userId: adminUser.id } }),
+      prisma.adminMfaCredential.deleteMany({ where: { userId: adminUser.id } }),
+      prisma.session.deleteMany({ where: { userId: adminUser.id } })
+    ]);
+    await page.context().clearCookies();
 
     await signIn(page, adminEmail, adminPassword);
     await page.goto("/admin");

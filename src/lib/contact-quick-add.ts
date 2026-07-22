@@ -1,4 +1,3 @@
-import type { PlanTier } from "@/generated/prisma/client";
 import { commitContactImportBatch, findImportMatches } from "@/lib/contact-import-service";
 import type { ImportCommitResult, ImportMatch, ImportResolution } from "@/lib/contact-import-types";
 import { deviceContactToImportRecord, type DeviceContactInput } from "@/lib/device-contact";
@@ -38,7 +37,6 @@ function resolutionForMatch(match: ImportMatch): ImportResolution {
 export async function quickAddDeviceContacts(input: {
   workspaceId: string;
   actorUserId: string;
-  planTier: PlanTier;
   timezone: string;
   requestId: string;
   contacts: DeviceContactInput[];
@@ -47,12 +45,12 @@ export async function quickAddDeviceContacts(input: {
   if (!input.contacts.length || input.contacts.length > 50) throw new Error("Choose between 1 and 50 device Contacts at a time.");
 
   const records = input.contacts.map((contact, index) => deviceContactToImportRecord(contact, index, input.requestId));
-  const analysis = await findImportMatches(input.workspaceId, input.planTier, records);
+  const analysis = await findImportMatches(input.workspaceId, "FREE", records);
   const matchByRowId = new Map(analysis.matches.map((match) => [match.rowId, match]));
   const results = await commitContactImportBatch({
     workspaceId: input.workspaceId,
     actorUserId: input.actorUserId,
-    planTier: input.planTier,
+    planTier: "FREE",
     timezone: input.timezone,
     importId: `quick-add-${input.requestId}`,
     items: records.map((record) => {

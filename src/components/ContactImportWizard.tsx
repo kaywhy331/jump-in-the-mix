@@ -412,7 +412,7 @@ export function ContactImportWizard({
             <strong>{busy ? "Reading file…" : "Choose a CSV or VCF file"}</strong>
             <small>Up to 5,000 rows and 10 MB. Invalid rows remain downloadable in the final error report.</small>
           </label>
-          <div className="import-privacy-note"><strong>Your data stays under your workspace.</strong><span>Exact duplicates are matched by normalized email first, then phone. Fuzzy matches always require your review.</span></div>
+          <div className="import-privacy-note"><strong>Your data stays in your personal data space.</strong><span>Exact duplicates are matched by normalized email first, then phone. Fuzzy matches always require your review.</span></div>
         </section>
       )}
 

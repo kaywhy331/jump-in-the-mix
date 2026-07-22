@@ -59,7 +59,6 @@ export async function POST(request: Request) {
     const result = await quickAddDeviceContacts({
       workspaceId: membership.workspaceId,
       actorUserId: session.authUser.id,
-      planTier: membership.workspace.planTier,
       timezone: membership.workspace.profile?.timezone ?? "America/New_York",
       requestId: parsed.data.requestId,
       contacts: parsed.data.contacts

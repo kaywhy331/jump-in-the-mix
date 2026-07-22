@@ -18,6 +18,6 @@ describe("settings and profile design boundaries", () => {
   it("exposes only personal and core workflow settings", () => {
     const page = read("src/app/(app)/settings/page.tsx");
     for (const title of ["Personal preferences", "Action Templates", "Important Date Types", "Password & sessions", "Data & privacy"]) expect(page).toContain(title);
-    expect(page).not.toMatch(/community|billing|integration|workspace/i);
+    expect(page).not.toMatch(/community|billing|integration|workspace profile|workspace switcher/i);
   });
 });

@@ -127,11 +127,11 @@ export async function getCurrentSession() {
     if (session) {
       await prisma.$transaction([
         prisma.adminMfaSession.deleteMany({ where: { sessionId: session.id } }),
-        prisma.session.delete({ where: { id: session.id } })
+        prisma.session.deleteMany({ where: { id: session.id } })
       ]);
     }
-    store.delete(env.impersonationCookieName);
-    store.delete(env.cookieName);
+    // Server Components can read cookies but cannot mutate the response. Treat stale
+    // credentials as signed out; the next auth Server Action overwrites or clears them.
     return null;
   }
 
@@ -159,9 +159,6 @@ export async function getCurrentSession() {
         }
       };
     }
-    store.delete(env.impersonationCookieName);
-  } else if (impersonationToken) {
-    store.delete(env.impersonationCookieName);
   }
 
   return { ...session, authUser, impersonation: null };

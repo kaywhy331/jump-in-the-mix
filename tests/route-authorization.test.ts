@@ -46,7 +46,9 @@ describe("server-enforced route authorization matrix", () => {
 
   it("does not expose target-account security or mutation controls during support viewing", () => {
     const account = read("src/app/(app)/account/page.tsx");
-    const impersonationBranch = account.match(/if \(impersonation\) return [\s\S]*?;<\/div>;/)?.[0] ?? "";
+    const start = account.indexOf("if (impersonation) return");
+    const end = account.indexOf("\n\n  return <div className=\"page account-page\">", start);
+    const impersonationBranch = account.slice(start, end);
     expect(impersonationBranch).toContain("personal controls remain private");
     expect(impersonationBranch).toContain("cannot change personal account settings");
     expect(impersonationBranch).not.toContain("changePasswordAction");

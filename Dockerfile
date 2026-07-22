@@ -13,7 +13,7 @@ COPY . .
 RUN npm run db:generate
 
 FROM source AS tools
-CMD ["npm", "run", "db:setup"]
+CMD ["npm", "run", "db:setup:docker"]
 
 FROM source AS operations
 RUN apk add --no-cache postgresql-client
@@ -24,6 +24,7 @@ EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
 FROM source AS worker
+USER node
 CMD ["npm", "run", "worker"]
 
 FROM source AS builder

@@ -85,7 +85,6 @@ describe.sequential("Device Contact Quick Add", () => {
     const input = {
       workspaceId: workspaceA,
       actorUserId,
-      planTier: "FREE" as const,
       timezone: "America/Los_Angeles",
       requestId: `request-${suffix.slice(0, 20)}`,
       contacts: [
@@ -138,7 +137,6 @@ describe.sequential("Device Contact Quick Add", () => {
     const result = await quickAddDeviceContacts({
       workspaceId: workspace.id,
       actorUserId: user.id,
-      planTier: "FREE",
       timezone: "America/Los_Angeles",
       requestId: `limit-${suffix.slice(0, 20)}`,
       contacts: [

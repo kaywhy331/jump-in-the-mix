@@ -117,7 +117,7 @@ export default async function ContactDetailPage({ params, searchParams }: { para
     {
       id: "custom-fields",
       title: "Custom fields",
-      description: "Workspace-specific values available to approved placeholders.",
+      description: "Personal values available to approved placeholders.",
       defaultCollapsed: true,
       actions: <Link className="icon-button compact" href="/contacts/custom-fields" aria-label="Manage custom fields" title="Manage custom fields"><AppIcon name="settings" /></Link>,
       content: contact.customFieldValues.length ? <div className="contact-method-sections personalizable-section-content">{contact.customFieldValues.map((item) => <div className="contact-method-row" key={item.id}><span>{item.value}</span><small>{item.definition.name} · {customFieldPlaceholder(item.definition.key)}</small></div>)}</div> : <p className="muted-copy">No custom values saved for this Contact.</p>

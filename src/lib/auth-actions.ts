@@ -8,7 +8,7 @@ import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail
 import { env } from "@/lib/env";
 import { passwordValidationError } from "@/lib/password-policy";
 import { prisma } from "@/lib/prisma";
-import { clearRateLimit, consumeRateLimit } from "@/lib/rate-limit";
+import { clearRateLimit, consumeRateLimit, releaseRateLimitAttempt } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 import { slugify } from "@/lib/slug";
 import { transactionalEmailConfigured } from "@/lib/transactional-email";
@@ -144,6 +144,7 @@ export async function loginAction(formData: FormData): Promise<void> {
 
   await Promise.all([
     clearRateLimit("auth.login.email", [email]),
+    releaseRateLimitAttempt("auth.login.ip", [metadata.ipAddress]),
     createSession(user.id)
   ]);
   const membership = await prisma.workspaceMember.findFirst({

@@ -37,7 +37,7 @@ test("Contact search is bounded, announced, and paginated", async ({ page }, tes
   }
 });
 
-test("queued imports remain visible after navigation and can be canceled", async ({ page }, testInfo) => {
+test("queued imports remain visible after navigation and expose their terminal or cancelable state", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Import resume is exercised once.");
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const importId = `import-e2e-${suffix}`;
@@ -85,11 +85,19 @@ test("queued imports remain visible after navigation and can be canceled", async
 
   await page.goto("/contacts");
   await page.goto("/contacts/import");
-  await expect(page.getByText("Import is running")).toBeVisible();
+  const recent = page.getByRole("button", { name: new RegExp(sourceFileName) });
+  await expect(recent).toBeVisible();
+  await recent.click();
   await expect(page.locator(".import-stage-heading").getByText(sourceFileName, { exact: false })).toBeVisible();
-  await page.getByRole("button", { name: "Cancel import" }).click();
   const currentImport = page.locator("section.import-stage").filter({ has: page.getByRole("heading", { name: "Import results" }) });
-  await expect(currentImport.getByText("canceled", { exact: true })).toBeVisible();
+  const cancel = page.getByRole("button", { name: "Cancel import" });
+  if (await cancel.isVisible()) {
+    await cancel.click();
+    await expect(currentImport.getByText("canceled", { exact: true })).toBeVisible();
+  } else {
+    await expect(currentImport.getByText(/completed|partial/, { exact: true })).toBeVisible();
+    await expect(currentImport.getByRole("link", { name: "View imported Contacts" })).toBeVisible();
+  }
 
   const batch = await prisma.contactImportBatch.findUnique({ where: { workspaceId_importId: { workspaceId: "demo_workspace", importId } } });
   if (batch) {

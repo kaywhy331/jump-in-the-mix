@@ -65,6 +65,8 @@ export function PersonalizableCardBoard({
   const [dropTarget, setDropTarget] = useState<DropTarget>(null);
   const [announcement, setAnnouncement] = useState("");
   const pointerDrag = useRef<PointerDrag>(null);
+  const nativeDragId = useRef<string | null>(null);
+  const dropTargetRef = useRef<DropTarget>(null);
 
   useEffect(() => {
     const savedOrder = storedStringArray(`${storageKey}:order`);
@@ -110,7 +112,9 @@ export function PersonalizableCardBoard({
   const clearDragState = () => {
     setDraggingId(null);
     setDropTarget(null);
+    dropTargetRef.current = null;
     pointerDrag.current = null;
+    nativeDragId.current = null;
   };
 
   const placeCard = (sourceId: string, targetId: string, position: "before" | "after") => {
@@ -136,6 +140,7 @@ export function PersonalizableCardBoard({
   };
 
   const handleDragStart = (event: DragEvent<HTMLElement>, id: string) => {
+    nativeDragId.current = id;
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", id);
     setDraggingId(id);
@@ -145,15 +150,21 @@ export function PersonalizableCardBoard({
   const handleDragOver = (event: DragEvent<HTMLElement>, targetId: string) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-    if (!draggingId || draggingId === targetId) return setDropTarget(null);
+    if (!draggingId || draggingId === targetId) {
+      dropTargetRef.current = null;
+      return setDropTarget(null);
+    }
     const bounds = event.currentTarget.getBoundingClientRect();
-    setDropTarget({ id: targetId, position: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after" });
+    const target = { id: targetId, position: event.clientY < bounds.top + bounds.height / 2 ? "before" as const : "after" as const };
+    dropTargetRef.current = target;
+    setDropTarget(target);
   };
 
   const handleDrop = (event: DragEvent<HTMLElement>, targetId: string) => {
     event.preventDefault();
-    const sourceId = event.dataTransfer.getData("text/plain") || draggingId;
-    if (sourceId && sourceId !== targetId) placeCard(sourceId, targetId, dropTarget?.id === targetId ? dropTarget.position : "before");
+    const sourceId = event.dataTransfer.getData("text/plain") || nativeDragId.current || draggingId;
+    const currentTarget = dropTargetRef.current ?? dropTarget;
+    if (sourceId && sourceId !== targetId) placeCard(sourceId, targetId, currentTarget?.id === targetId ? currentTarget.position : "before");
     clearDragState();
   };
 
@@ -164,9 +175,8 @@ export function PersonalizableCardBoard({
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLElement>, id: string) => {
-    if (event.pointerType === "mouse") return;
-    event.currentTarget.setPointerCapture(event.pointerId);
     pointerDrag.current = { id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false };
+    try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* Synthetic and older pointer implementations may not expose capture. */ }
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLElement>) => {
@@ -178,9 +188,14 @@ export function PersonalizableCardBoard({
     setDraggingId(drag.id);
     const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-user-card]");
     const targetId = target?.dataset.userCard;
-    if (!target || !targetId || targetId === drag.id) return setDropTarget(null);
+    if (!target || !targetId || targetId === drag.id) {
+      dropTargetRef.current = null;
+      return setDropTarget(null);
+    }
     const bounds = target.getBoundingClientRect();
-    setDropTarget({ id: targetId, position: event.clientY < bounds.top + bounds.height / 2 ? "before" : "after" });
+    const nextTarget = { id: targetId, position: event.clientY < bounds.top + bounds.height / 2 ? "before" as const : "after" as const };
+    dropTargetRef.current = nextTarget;
+    setDropTarget(nextTarget);
     if (event.clientY < 72) window.scrollBy({ top: -18, behavior: "auto" });
     else if (event.clientY > window.innerHeight - 72) window.scrollBy({ top: 18, behavior: "auto" });
   };
@@ -188,7 +203,8 @@ export function PersonalizableCardBoard({
   const handlePointerUp = (event: PointerEvent<HTMLElement>) => {
     const drag = pointerDrag.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    if (drag.active && dropTarget) placeCard(drag.id, dropTarget.id, dropTarget.position);
+    const currentTarget = dropTargetRef.current ?? dropTarget;
+    if (drag.active && currentTarget) placeCard(drag.id, currentTarget.id, currentTarget.position);
     clearDragState();
   };
 
@@ -205,7 +221,7 @@ export function PersonalizableCardBoard({
         const dropClass = dropTarget?.id === item.id ? ` drop-${dropTarget.position}` : "";
         return (
           <section className={`card personalizable-card${item.className ? ` ${item.className}` : ""}${draggingId === item.id ? " dragging" : ""}${dropClass}`} id={item.id} key={item.id} data-user-card={item.id} aria-labelledby={titleId} onDragOver={(event) => handleDragOver(event, item.id)} onDrop={(event) => handleDrop(event, item.id)}>
-            <div className="personalizable-card-header"><div className="personalizable-card-heading"><h2 id={titleId}>{item.title}</h2>{item.description && <p>{item.description}</p>}</div><div className="personalizable-card-controls">{item.actions}<button className="personalizable-card-toggle" type="button" aria-expanded={!isCollapsed} aria-controls={contentId} aria-label={`${isCollapsed ? "Expand" : "Minimize"} ${item.title}`} onClick={() => toggle(item.id)}>{isCollapsed ? "Expand" : "Minimize"}</button><span className="personalizable-card-drag-handle" draggable role="button" tabIndex={0} aria-label={`Drag ${item.title} to reorder`} aria-describedby={`${boardId}-drag-help`} title="Drag to reorder" onDragStart={(event) => handleDragStart(event, item.id)} onDragEnd={clearDragState} onKeyDown={(event) => handleDragKey(event, item.id)} onPointerDown={(event) => handlePointerDown(event, item.id)} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={clearDragState}><span className="desktop-label">Drag to reorder</span><span className="mobile-label">Drag</span></span></div></div>
+            <div className="personalizable-card-header"><div className="personalizable-card-heading"><h2 id={titleId}>{item.title}</h2>{item.description && <p>{item.description}</p>}</div><div className="personalizable-card-controls">{item.actions}<button className="personalizable-card-toggle" type="button" aria-expanded={!isCollapsed} aria-controls={contentId} aria-label={`${isCollapsed ? "Expand" : "Minimize"} ${item.title}`} onClick={() => toggle(item.id)}>{isCollapsed ? "Expand" : "Minimize"}</button><span className="personalizable-card-drag-handle" draggable={false} role="button" tabIndex={0} aria-label={`Drag ${item.title} to reorder`} aria-describedby={`${boardId}-drag-help`} title="Drag to reorder" onDragStart={(event) => handleDragStart(event, item.id)} onDragEnd={clearDragState} onKeyDown={(event) => handleDragKey(event, item.id)} onPointerDown={(event) => handlePointerDown(event, item.id)} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={clearDragState}><span className="desktop-label">Drag to reorder</span><span className="mobile-label">Drag</span></span></div></div>
             <div id={contentId} className="personalizable-card-content" hidden={isCollapsed}>{item.content}</div>
           </section>
         );

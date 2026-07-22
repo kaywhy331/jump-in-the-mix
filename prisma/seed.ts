@@ -280,7 +280,10 @@ async function seedDemoWorkspace() {
     return;
   }
   if (existingUser) {
-    for (const workspace of existingUser.ownedWorkspaces) await prisma.workspace.delete({ where: { id: workspace.id } });
+    for (const workspace of existingUser.ownedWorkspaces) {
+      await prisma.sharedMixContributorProfile.deleteMany({ where: { workspaceId: workspace.id } });
+      await prisma.workspace.delete({ where: { id: workspace.id } });
+    }
     await prisma.user.delete({ where: { id: existingUser.id } });
   }
 
@@ -292,7 +295,7 @@ async function seedDemoWorkspace() {
       name: "BrightPath Studio",
       slug: "brightpath-demo",
       ownerId: user.id,
-      planTier: "PLUS",
+      planTier: "FREE",
       subscriptionStatus: "ACTIVE",
       members: { create: { id: "demo_member", userId: user.id, role: "OWNER" } },
       profile: {
@@ -315,16 +318,6 @@ async function seedDemoWorkspace() {
           { id: "demo_group_referrals", name: "Referrals", description: "Introductions from our network." }
         ]
       }
-    }
-  });
-
-  await prisma.sharedMixContributorProfile.create({
-    data: {
-      workspaceId: workspace.id,
-      enabled: true,
-      displayName: "BrightPath Studio",
-      title: "Business Growth Consulting",
-      bio: "A demonstration contributor profile showing how approved Community Mixes credit their creator."
     }
   });
 

@@ -47,6 +47,9 @@ test("Contact state, archive restoration, duplicate review, and layout preferenc
     await expect(page.getByText("Do not contact is enabled")).toBeVisible();
     expect(await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: activeId } })).toMatchObject({ priority: "URGENT", doNotContact: true });
 
+    // Leave the Contact detail view before exercising the API directly so its
+    // layout-persistence effect cannot race this explicit preference update.
+    await page.goto("/settings");
     const layoutResponse = await page.evaluate(async () => {
       const response = await fetch("/api/preferences/contact-layout", {
         method: "PUT",

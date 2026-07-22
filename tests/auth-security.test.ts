@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { AUTH_TOKEN_PURPOSES, findUsableAuthToken, hashAuthToken, issueAuthToken } from "../src/lib/auth-tokens";
 import { passwordValidationError } from "../src/lib/password-policy";
 import { prisma } from "../src/lib/prisma";
-import { consumeRateLimit, rateLimitKey } from "../src/lib/rate-limit";
+import { consumeRateLimit, rateLimitKey, releaseRateLimitAttempt } from "../src/lib/rate-limit";
 
 describe.sequential("authentication security primitives", () => {
   const suffix = randomUUID();
@@ -56,5 +56,18 @@ describe.sequential("authentication security primitives", () => {
       windowMs: 60_000
     });
     expect(decision.allowed).toBe(true);
+  });
+
+  it("releases a successful attempt without clearing earlier failures", async () => {
+    const identifiers = [`successful-${email}`, "127.0.0.1"];
+    const input = { scope, identifiers, limit: 3, windowMs: 60_000 };
+
+    await consumeRateLimit(input);
+    await consumeRateLimit(input);
+    await releaseRateLimitAttempt(scope, identifiers);
+
+    const stored = await prisma.authRateLimit.findUniqueOrThrow({ where: { key: rateLimitKey(scope, identifiers) } });
+    expect(stored.attempts).toBe(1);
+    expect(stored.blockedUntil).toBeNull();
   });
 });

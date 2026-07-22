@@ -44,7 +44,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   return (
     <div className="page">
       {welcome && <Notice type="success">You&apos;re set up, {user.name.split(" ")[0]}. Start with one person or one follow-up—the rest can grow from there.</Notice>}
-      {demo && <Notice type="info">You are in a safe local demo workspace. Try completing a Jump, opening a contact, or generating a Mix. Your changes stay on this computer.</Notice>}
+      {demo && <Notice type="info">You are using safe local demo data. Try completing a Jump, opening a Contact, or creating a Mix. Your changes stay on this computer.</Notice>}
       <header className="page-header">
         <div><h1>Good to see you, {user.name.split(" ")[0]}.</h1><p>Here is what deserves your attention today.</p></div>
         <div className="page-actions"><Link href="/contacts/new" className="button">Add a contact</Link><Link href={mixBuilderHref} className="button primary">Create a Mix</Link></div>

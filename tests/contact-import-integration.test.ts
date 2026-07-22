@@ -102,7 +102,7 @@ describe.sequential("Contact import service", () => {
     expect(result.matches[0].candidates.map((candidate) => candidate.contactId)).toEqual([ids.contactA]);
   });
 
-  it("creates structured data, preserves an over-limit type as inactive, and retries idempotently", async () => {
+  it("creates structured data and an active custom date type, then retries idempotently", async () => {
     const row = record({
       rowId: "row-create",
       firstName: "Avery",
@@ -138,8 +138,8 @@ describe.sequential("Contact import service", () => {
     expect(saved?.phones[0]).toMatchObject({ normalized: "+16265550100", isPrimary: true });
     expect(saved?.groupMemberships.map((item) => item.groupId)).toContain(ids.groupA);
     expect(saved?.customFieldValues).toEqual(expect.arrayContaining([expect.objectContaining({ definitionId: ids.fieldA, value: "P-193" })]));
-    expect(saved?.jumpDates[0]?.dateType.isActive).toBe(false);
-    expect(first[0].message).toContain("inactive custom Jump Date Type");
+    expect(saved?.jumpDates[0]?.dateType.isActive).toBe(true);
+    expect(first[0].message).toBe("Contact created.");
 
     const second = await commitContactImportBatch({
       workspaceId: ids.workspaceA,

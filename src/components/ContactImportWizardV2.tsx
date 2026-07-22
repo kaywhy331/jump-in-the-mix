@@ -358,7 +358,7 @@ export function ContactImportWizardV2({
             <strong>{busy ? "Analyzing file…" : "Choose a CSV or VCF file"}</strong>
             <small>Up to 5,000 rows and 10 MB. You may leave after the import is queued.</small>
           </label>
-          <div className="import-privacy-note"><strong>Your data stays under your workspace.</strong><span>Exact duplicates are matched by normalized email or phone. Fuzzy suggestions always require review.</span></div>
+          <div className="import-privacy-note"><strong>Your data stays in your personal data space.</strong><span>Exact duplicates are matched by normalized email or phone. Fuzzy suggestions always require review.</span></div>
         </section>
       )}
 

@@ -245,7 +245,7 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
     <div className="page">
       <JumpReturnTray />
       {params.welcome && <Notice type="success">{welcomeMessage}</Notice>}
-      {params.demo && <Notice type="info">You are in the local demo workspace. Actions remain on this computer.</Notice>}
+      {params.demo && <Notice type="info">You are using local demo data. Actions remain on this computer.</Notice>}
       {params.applied && <Notice type="success">Created {params.applied} one-time Jump{params.applied === "1" ? "" : "s"} for the selected Contacts.</Notice>}
       {params.mixStopped && <Notice type="success">The Mix was stopped for this Contact. Its pending Jumps were removed from the queue.</Notice>}
       {params.mixStopError && <Notice type="error">The Mix could not be stopped for this Contact.</Notice>}
