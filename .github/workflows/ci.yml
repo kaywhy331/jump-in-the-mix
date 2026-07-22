@@ -73,7 +73,17 @@ jobs:
       - name: Validate source syntax
         run: npm run validate:syntax
       - name: Validate local imports and Server Action boundaries
-        run: npm run validate:imports
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run validate:imports 2>&1 | tee import-validation.log
+      - name: Upload import-boundary diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-validation-diagnostics
+          path: import-validation.log
+          retention-days: 7
       - name: Populated migration, rollback, and reapply rehearsal
         shell: bash
         run: |
