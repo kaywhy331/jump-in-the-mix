@@ -4,19 +4,25 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(path, "utf8");
 
 describe("Google Contacts boundary", () => {
-  it("uses one-time hashed OAuth state, PKCE, and encrypted credentials", () => {
+  it("uses one-time hashed OAuth state, PKCE, encrypted credentials, and account-bound refresh tokens", () => {
     const google = read("src/lib/google-contacts.ts");
+    const exchange = read("src/lib/google-oauth-exchange.ts");
     const callback = read("src/app/api/integrations/google/callback/route.ts");
     expect(google).toContain("tokenHash: hashToken(state)");
     expect(google).toContain("usedAt: null");
     expect(google).toContain("expiresAt: { gt: new Date() }");
     expect(google).toContain('url.searchParams.set("code_challenge", codeChallenge)');
     expect(google).toContain('url.searchParams.set("code_challenge_method", "S256")');
-    expect(google).toContain("parameters.code_verifier = codeVerifier");
     expect(google).toContain("encryptIntegrationCredentials({ returnTo: normalizedReturnTo(input.returnTo), codeVerifier })");
     expect(google).toContain("encryptIntegrationCredentials(credentials)");
     expect(callback).toContain("{ returnTo, codeVerifier }");
-    expect(callback).toContain("exchangeGoogleAuthorizationCode(code, existingRefreshToken, codeVerifier)");
+    expect(callback).toContain("exchangeGoogleAuthorizationCodeForVerifiedAccount");
+    expect(callback).toContain("existingExternalAccountId: existing?.externalAccountId");
+    expect(callback).toContain("existingAccountEmail: previousMetadata.accountEmail");
+    expect(exchange).toContain("sameKnownAccount");
+    expect(exchange).toContain("accountChanged");
+    expect(exchange).toContain("newly selected account");
+    expect(exchange).toContain("AbortSignal.timeout(15_000)");
   });
 
   it("requires authentication, plan entitlement, and blocks support-view writes", () => {
