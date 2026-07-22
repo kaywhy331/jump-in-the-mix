@@ -1,0 +1,113 @@
+enum WeekendScheduling {
+  KEEP
+  NEXT_MONDAY
+  PREVIOUS_FRIDAY
+}
+
+enum WorkspaceInvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+model UserPreference {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  activeWorkspaceId String?
+  locale            String   @default("en-US")
+  timezone          String   @default("UTC")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([activeWorkspaceId])
+}
+
+model WorkspacePreference {
+  id                     String            @id @default(cuid())
+  workspaceId            String            @unique
+  defaultFollowUpMinutes Int               @default(600)
+  quietHoursStart        Int               @default(1200)
+  quietHoursEnd          Int               @default(480)
+  weekendScheduling      WeekendScheduling @default(KEEP)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+}
+
+model NotificationPreference {
+  id                  String   @id @default(cuid())
+  userId              String
+  workspaceId         String
+  emailEnabled        Boolean  @default(true)
+  inAppEnabled        Boolean  @default(true)
+  dailyDigest         Boolean  @default(true)
+  overdueReminders    Boolean  @default(true)
+  upcomingDates       Boolean  @default(true)
+  integrationFailures Boolean  @default(true)
+  importComplete      Boolean  @default(true)
+  supportReplies      Boolean  @default(true)
+  billingAlerts       Boolean  @default(true)
+  securityAlerts      Boolean  @default(true)
+  digestMinutes       Int      @default(480)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+model NotificationEvent {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  type        String
+  title       String
+  body        String
+  href        String?
+  readAt      DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([workspaceId, createdAt])
+}
+
+model WorkspaceInvitation {
+  id               String                    @id @default(cuid())
+  workspaceId      String
+  invitedByUserId  String
+  email            String
+  role             WorkspaceRole             @default(MEMBER)
+  tokenHash        String                    @unique
+  status           WorkspaceInvitationStatus @default(PENDING)
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedByUserId String?
+  revokedAt        DateTime?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+
+  @@index([workspaceId, status, createdAt])
+  @@index([email, status])
+}
+
+model UserMfaCredential {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  secretCiphertext   String
+  recoveryCodeHashes Json
+  enabledAt          DateTime?
+  lastUsedStep       BigInt?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model UserMfaSession {
+  id         String   @id @default(cuid())
+  sessionId  String   @unique
+  userId     String
+  verifiedAt DateTime @default(now())
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
