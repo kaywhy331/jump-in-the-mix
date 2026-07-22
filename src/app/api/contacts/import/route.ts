@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/lib/auth";
+import {
+  cancelContactImportBatch,
+  getContactImportBatch,
+  listRecentContactImportBatches,
+  queueContactImportBatch
+} from "@/lib/contact-import-jobs";
 import { stableKey } from "@/lib/contact-import-shared";
 import { commitContactImportBatch, findImportMatches } from "@/lib/contact-import-service";
 import { activeGroupIdsForWorkspace } from "@/lib/group-activity";
@@ -8,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 
+const MAX_BODY_BYTES = 12 * 1024 * 1024;
 const nullableText = (length: number) => z.string().max(length).nullable();
 const recurrenceSchema = z.enum(["NONE", "MONTHLY", "YEARLY"]);
 const importRecordSchema = z.object({
@@ -50,16 +57,32 @@ const resolutionSchema = z.object({
   targetContactId: nullableText(100)
 }).strict();
 
+const commitItemSchema = z.object({ record: importRecordSchema, resolution: resolutionSchema }).strict();
+const resultSchema = z.object({
+  rowId: z.string().min(1).max(160),
+  sourceRow: z.number().int().positive(),
+  status: z.enum(["CREATED", "MERGED", "REPLACED", "SKIPPED", "FAILED"]),
+  contactId: nullableText(100),
+  message: z.string().max(2000)
+}).strict();
+
 const requestSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("match"), records: z.array(importRecordSchema).min(1).max(100) }).strict(),
   z.object({
     mode: z.literal("commit"),
     importId: z.string().regex(/^[a-zA-Z0-9_-]{8,120}$/),
-    items: z.array(z.object({ record: importRecordSchema, resolution: resolutionSchema }).strict()).min(1).max(50)
+    items: z.array(commitItemSchema).min(1).max(50)
+  }).strict(),
+  z.object({
+    mode: z.literal("queue"),
+    importId: z.string().regex(/^[a-zA-Z0-9_-]{8,120}$/),
+    sourceFileName: z.string().max(240).nullable().optional(),
+    items: z.array(commitItemSchema).max(5000),
+    initialResults: z.array(resultSchema).max(5000).default([])
   }).strict()
 ]);
 
-type CommitItems = Extract<z.infer<typeof requestSchema>, { mode: "commit" }>["items"];
+type CommitItems = Extract<z.infer<typeof requestSchema>, { mode: "commit" | "queue" }>["items"];
 
 async function reuseAvailableDateTypes(workspaceId: string, items: CommitItems): Promise<CommitItems> {
   const available = await prisma.dateType.findMany({
@@ -89,12 +112,11 @@ async function assertActiveGroupReferences(workspaceId: string, items: CommitIte
   }
 }
 
-export async function POST(request: Request) {
+async function context(request: Request) {
   const session = await getCurrentSession();
   const membership = session?.user.memberships[0];
-  if (!session || !membership) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-  if (session.impersonation) return NextResponse.json({ error: "Administrator support sessions are view-only." }, { status: 403 });
-
+  if (!session || !membership) return { error: NextResponse.json({ error: "Authentication required." }, { status: 401 }) } as const;
+  if (session.impersonation) return { error: NextResponse.json({ error: "Administrator support sessions are view-only." }, { status: 403 }) } as const;
   const metadata = await getRequestMetadata();
   const rateLimit = await consumeRateLimit({
     scope: "api.contact-import",
@@ -104,10 +126,40 @@ export async function POST(request: Request) {
     blockMs: 15 * 60 * 1000
   });
   if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: "Too many import requests. Try again shortly." },
-      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }
-    );
+    return { error: NextResponse.json({ error: "Too many import requests. Try again shortly." }, { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } }) } as const;
+  }
+  return { session, membership } as const;
+}
+
+export async function GET(request: Request) {
+  const scoped = await context(request);
+  if ("error" in scoped) return scoped.error;
+  const url = new URL(request.url);
+  const batchId = url.searchParams.get("batchId")?.trim();
+  if (batchId) {
+    const batch = await getContactImportBatch(scoped.membership.workspaceId, batchId);
+    return batch ? NextResponse.json({ batch }) : NextResponse.json({ error: "Import batch not found." }, { status: 404 });
+  }
+  return NextResponse.json({ batches: await listRecentContactImportBatches(scoped.membership.workspaceId) });
+}
+
+export async function DELETE(request: Request) {
+  const scoped = await context(request);
+  if ("error" in scoped) return scoped.error;
+  const batchId = new URL(request.url).searchParams.get("batchId")?.trim();
+  if (!batchId) return NextResponse.json({ error: "Choose the import to cancel." }, { status: 400 });
+  const canceled = await cancelContactImportBatch(scoped.membership.workspaceId, batchId);
+  return canceled
+    ? NextResponse.json({ canceled: true })
+    : NextResponse.json({ error: "This import can no longer be canceled." }, { status: 409 });
+}
+
+export async function POST(request: Request) {
+  const scoped = await context(request);
+  if ("error" in scoped) return scoped.error;
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+    return NextResponse.json({ error: "The import request is too large. Split the file into smaller batches." }, { status: 413 });
   }
 
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
@@ -117,16 +169,27 @@ export async function POST(request: Request) {
 
   try {
     if (parsed.data.mode === "match") {
-      const result = await findImportMatches(membership.workspaceId, membership.workspace.planTier, parsed.data.records);
+      const result = await findImportMatches(scoped.membership.workspaceId, scoped.membership.workspace.planTier, parsed.data.records);
       return NextResponse.json(result);
     }
-    await assertActiveGroupReferences(membership.workspaceId, parsed.data.items);
-    const items = await reuseAvailableDateTypes(membership.workspaceId, parsed.data.items);
+    await assertActiveGroupReferences(scoped.membership.workspaceId, parsed.data.items);
+    const items = await reuseAvailableDateTypes(scoped.membership.workspaceId, parsed.data.items);
+    if (parsed.data.mode === "queue") {
+      const batch = await queueContactImportBatch({
+        workspaceId: scoped.membership.workspaceId,
+        actorUserId: scoped.session.authUser.id,
+        importId: parsed.data.importId,
+        sourceFileName: parsed.data.sourceFileName,
+        items,
+        initialResults: parsed.data.initialResults
+      });
+      return NextResponse.json({ batch }, { status: batch.status === "QUEUED" ? 202 : 200 });
+    }
     const results = await commitContactImportBatch({
-      workspaceId: membership.workspaceId,
-      actorUserId: session.authUser.id,
-      planTier: membership.workspace.planTier,
-      timezone: membership.workspace.profile?.timezone ?? "America/New_York",
+      workspaceId: scoped.membership.workspaceId,
+      actorUserId: scoped.session.authUser.id,
+      planTier: scoped.membership.workspace.planTier,
+      timezone: scoped.membership.workspace.profile?.timezone ?? "UTC",
       importId: parsed.data.importId,
       items
     });
