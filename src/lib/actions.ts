@@ -1,12 +1,10 @@
-"use server";
-
 /**
  * Compatibility exports for older route modules.
  *
- * This file intentionally contains no mutation implementation. Every export is
- * delegated to a narrowly scoped, independently tested Server Action module so
- * stale authentication, scheduling, and entitlement logic cannot remain live
- * in a catch-all action surface.
+ * This file intentionally contains no mutation implementation or `use server`
+ * directive. Every export is delegated to a narrowly scoped Server Action
+ * module so stale authentication, scheduling, and entitlement logic cannot
+ * remain live in a catch-all action surface.
  */
 
 export { registerAction, loginAction, demoLoginAction, logoutAction } from "@/lib/auth-actions";
@@ -32,4 +30,4 @@ export {
   archiveReusableJumpAction
 } from "@/lib/reusable-jump-update";
 export { saveMixAction } from "@/lib/mix-editor-actions";
-export { updateWorkspaceProfileAction as updateWorkspaceSettingsAction } from "@/lib/workspace-settings-actions";
+export { updateWorkspaceProfileAction as updateWorkspaceSettingsAction } from "@/lib/workspace-profile-actions";
