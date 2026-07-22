@@ -39,7 +39,10 @@ function mutationAllowed(request: NextRequest): boolean {
   }
 
   const allowed = configuredOrigins();
-  if (!isProduction) allowed.add(requestOrigin(request));
+  // A browser mutation back to the host that served the page is always
+  // same-origin. APP_URL and AUTH_ALLOWED_ORIGINS only add trusted origins;
+  // they must not be required for ordinary local or preview deployments.
+  allowed.add(requestOrigin(request));
   return allowed.has(origin);
 }
 

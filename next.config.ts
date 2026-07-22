@@ -17,6 +17,8 @@ function serverActionOrigins(): string[] {
     .filter(Boolean);
 }
 
+const additionalServerActionOrigins = serverActionOrigins();
+
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
@@ -26,7 +28,9 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      allowedOrigins: serverActionOrigins(),
+      ...(additionalServerActionOrigins.length > 0
+        ? { allowedOrigins: additionalServerActionOrigins }
+        : {}),
       bodySizeLimit: "1mb"
     }
   }
