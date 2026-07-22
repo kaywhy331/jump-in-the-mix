@@ -20,20 +20,40 @@ function verificationPath(email: string): string {
   return `/verify-email/pending?email=${encodeURIComponent(email)}`;
 }
 
+function prioritizeMemberships<T extends { workspaceId: string }>(memberships: T[], activeWorkspaceId: string | null | undefined): T[] {
+  if (!activeWorkspaceId) return memberships;
+  const active = memberships.find((membership) => membership.workspaceId === activeWorkspaceId);
+  return active ? [active, ...memberships.filter((membership) => membership.workspaceId !== activeWorkspaceId)] : memberships;
+}
+
 export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + env.sessionDays * 24 * 60 * 60 * 1000);
   const metadata = await getRequestMetadata();
 
-  const session = await prisma.session.create({
-    data: {
-      userId,
-      tokenHash: hashSessionToken(token),
-      expiresAt,
-      ipAddress: metadata.ipAddress,
-      userAgent: metadata.userAgent,
-      lastSeenAt: new Date()
+  const [session, userMfa] = await prisma.$transaction(async (tx) => {
+    const created = await tx.session.create({
+      data: {
+        userId,
+        tokenHash: hashSessionToken(token),
+        expiresAt,
+        ipAddress: metadata.ipAddress,
+        userAgent: metadata.userAgent,
+        lastSeenAt: new Date()
+      }
+    });
+    const credential = await tx.userMfaCredential.findUnique({ where: { userId }, select: { enabledAt: true } });
+    if (credential?.enabledAt) {
+      await tx.userMfaSession.create({
+        data: {
+          sessionId: created.id,
+          userId,
+          verifiedAt: null,
+          expiresAt: new Date(Date.now() + 10 * 60 * 1000)
+        }
+      });
     }
+    return [created, Boolean(credential?.enabledAt)] as const;
   });
 
   const excessSessions = await prisma.session.findMany({
@@ -46,6 +66,7 @@ export async function createSession(userId: string): Promise<string> {
     const sessionIds = excessSessions.map((item) => item.id);
     await prisma.$transaction([
       prisma.adminMfaSession.deleteMany({ where: { sessionId: { in: sessionIds } } }),
+      prisma.userMfaSession.deleteMany({ where: { sessionId: { in: sessionIds } } }),
       prisma.session.deleteMany({ where: { id: { in: sessionIds } } })
     ]);
   }
@@ -57,10 +78,29 @@ export async function createSession(userId: string): Promise<string> {
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    expires: expiresAt
+    expires: userMfa ? new Date(Date.now() + 10 * 60 * 1000) : expiresAt
   });
 
   return session.id;
+}
+
+export async function sessionRequiresUserMfa(sessionId: string): Promise<boolean> {
+  const challenge = await prisma.userMfaSession.findUnique({ where: { sessionId }, select: { verifiedAt: true, expiresAt: true } });
+  return Boolean(challenge && !challenge.verifiedAt && challenge.expiresAt > new Date());
+}
+
+export async function getPendingUserMfaSession() {
+  const store = await cookies();
+  const token = store.get(env.cookieName)?.value;
+  if (!token) return null;
+  const session = await prisma.session.findUnique({
+    where: { tokenHash: hashSessionToken(token) },
+    include: { user: true }
+  });
+  if (!session || session.expiresAt <= new Date()) return null;
+  const challenge = await prisma.userMfaSession.findUnique({ where: { sessionId: session.id } });
+  if (!challenge || challenge.verifiedAt || challenge.expiresAt <= new Date()) return null;
+  return { session, user: session.user, challenge };
 }
 
 export async function destroySession(): Promise<void> {
@@ -89,16 +129,18 @@ export async function destroyOtherSessions(userId: string, currentSessionId: str
   });
   if (!sessions.length) return 0;
   const sessionIds = sessions.map((item) => item.id);
-  const [, result] = await prisma.$transaction([
+  const [, , result] = await prisma.$transaction([
     prisma.adminMfaSession.deleteMany({ where: { sessionId: { in: sessionIds } } }),
+    prisma.userMfaSession.deleteMany({ where: { sessionId: { in: sessionIds } } }),
     prisma.session.deleteMany({ where: { userId, id: { in: sessionIds } } })
   ]);
   return result.count;
 }
 
 export async function destroyAllSessionsForUser(userId: string): Promise<number> {
-  const [, result] = await prisma.$transaction([
+  const [, , result] = await prisma.$transaction([
     prisma.adminMfaSession.deleteMany({ where: { userId } }),
+    prisma.userMfaSession.deleteMany({ where: { userId } }),
     prisma.session.deleteMany({ where: { userId } })
   ]);
   return result.count;
@@ -116,8 +158,7 @@ export async function getCurrentSession() {
         include: {
           memberships: {
             include: { workspace: { include: { profile: true } } },
-            orderBy: { createdAt: "asc" },
-            take: 1
+            orderBy: { createdAt: "asc" }
           }
         }
       }
@@ -128,6 +169,7 @@ export async function getCurrentSession() {
     if (session) {
       await prisma.$transaction([
         prisma.adminMfaSession.deleteMany({ where: { sessionId: session.id } }),
+        prisma.userMfaSession.deleteMany({ where: { sessionId: session.id } }),
         prisma.session.delete({ where: { id: session.id } })
       ]);
     }
@@ -136,20 +178,33 @@ export async function getCurrentSession() {
     return null;
   }
 
+  const [preference, userMfaSession] = await Promise.all([
+    prisma.userPreference.findUnique({ where: { userId: session.userId }, select: { activeWorkspaceId: true } }),
+    prisma.userMfaSession.findUnique({ where: { sessionId: session.id }, select: { verifiedAt: true, expiresAt: true } })
+  ]);
+  if (userMfaSession && (!userMfaSession.verifiedAt || userMfaSession.expiresAt <= new Date())) return null;
+
   const touchAfterMs = env.sessionTouchMinutes * 60 * 1000;
   if (Date.now() - session.lastSeenAt.getTime() >= touchAfterMs) {
     await prisma.session.updateMany({ where: { id: session.id }, data: { lastSeenAt: new Date() } });
   }
 
-  const authUser = session.user;
+  const authUser = {
+    ...session.user,
+    memberships: prioritizeMemberships(session.user.memberships, preference?.activeWorkspaceId)
+  };
   const impersonationToken = store.get(env.impersonationCookieName)?.value;
   if (impersonationToken && authUser.isPlatformAdmin) {
     const impersonation = await resolveAdminImpersonationGrant(impersonationToken, authUser.id);
     if (impersonation) {
+      const targetUser = {
+        ...impersonation.targetUser,
+        memberships: prioritizeMemberships(impersonation.targetUser.memberships, impersonation.workspaceId)
+      };
       return {
         ...session,
         authUser,
-        user: impersonation.targetUser,
+        user: targetUser,
         impersonation: {
           id: impersonation.id,
           actorUserId: impersonation.actorUserId,
@@ -165,7 +220,7 @@ export async function getCurrentSession() {
     store.delete(env.impersonationCookieName);
   }
 
-  return { ...session, authUser, impersonation: null };
+  return { ...session, user: authUser, authUser, impersonation: null };
 }
 
 export async function requireSession() {
