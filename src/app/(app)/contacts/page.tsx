@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@/generated/prisma/client";
+import { ContactSavedViewsBar } from "@/components/ContactSavedViewsBar";
 import { ContactsBulkWorkspace, type ContactBulkDto } from "@/components/ContactsBulkWorkspace";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
@@ -16,6 +17,10 @@ const PAGE_SIZE = 50;
 type SearchParams = {
   q?: string;
   group?: string;
+  priority?: string;
+  owner?: string;
+  permission?: string;
+  view?: string;
   page?: string;
   importBatch?: string;
   created?: string;
@@ -27,6 +32,9 @@ type SearchParams = {
   bulkAssigned?: string;
   bulkRemoved?: string;
   bulkArchived?: string;
+  viewSaved?: string;
+  defaultViewSaved?: string;
+  viewDeleted?: string;
   error?: string;
   intent?: string;
 };
@@ -44,10 +52,30 @@ function importContactIds(value: Prisma.JsonValue | null | undefined): string[] 
   }))];
 }
 
-function pageHref(input: { page: number; q: string; groupId: string; intent?: string; importBatchId: string }): string {
+function savedViewValue(query: Prisma.JsonValue, key: string): string {
+  if (!query || typeof query !== "object" || Array.isArray(query)) return "";
+  const value = (query as Prisma.JsonObject)[key];
+  return typeof value === "string" ? value : "";
+}
+
+function pageHref(input: {
+  page: number;
+  q: string;
+  groupId: string;
+  priority: string;
+  owner: string;
+  permission: string;
+  viewId: string;
+  intent?: string;
+  importBatchId: string;
+}): string {
   const params = new URLSearchParams();
   if (input.q) params.set("q", input.q);
   if (input.groupId) params.set("group", input.groupId);
+  if (input.priority) params.set("priority", input.priority);
+  if (input.owner) params.set("owner", input.owner);
+  if (input.permission) params.set("permission", input.permission);
+  if (input.viewId) params.set("view", input.viewId);
   if (input.intent) params.set("intent", input.intent);
   if (input.importBatchId) params.set("importBatch", input.importBatchId);
   if (input.page > 1) params.set("page", String(input.page));
@@ -57,9 +85,22 @@ function pageHref(input: { page: number; q: string; groupId: string; intent?: st
 
 export default async function ContactsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
-  const { workspace } = await requireWorkspace();
-  const q = params.q?.trim().slice(0, 160) ?? "";
-  const groupId = params.group?.trim() ?? "";
+  const { user, workspace } = await requireWorkspace();
+  const savedViews = await prisma.contactSavedView.findMany({
+    where: { userId: user.id, workspaceId: workspace.id },
+    select: { id: true, name: true, isDefault: true, query: true },
+    orderBy: [{ isDefault: "desc" }, { name: "asc" }]
+  });
+  const selectedView = params.view
+    ? savedViews.find((view) => view.id === params.view) ?? null
+    : null;
+  const q = (params.q ?? (selectedView ? savedViewValue(selectedView.query, "q") : "")).trim().slice(0, 160);
+  const groupId = (params.group ?? (selectedView ? savedViewValue(selectedView.query, "group") : "")).trim();
+  const requestedPriority = (params.priority ?? (selectedView ? savedViewValue(selectedView.query, "priority") : "")).trim().toUpperCase();
+  const priority = ["LOW", "NORMAL", "HIGH", "URGENT"].includes(requestedPriority) ? requestedPriority : "";
+  const owner = (params.owner ?? (selectedView ? savedViewValue(selectedView.query, "owner") : "")).trim();
+  const requestedPermission = (params.permission ?? (selectedView ? savedViewValue(selectedView.query, "permission") : "")).trim().toLowerCase();
+  const permission = ["contactable", "do-not-contact"].includes(requestedPermission) ? requestedPermission : "";
   const importBatchId = params.importBatch?.trim() ?? "";
   const requestedPage = Number(params.page ?? "1");
   const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10_000) : 1;
@@ -69,9 +110,26 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     ? await prisma.contactImportBatch.findFirst({ where: { id: importBatchId, workspaceId: workspace.id }, select: { id: true, results: true, status: true } })
     : null;
   const importedContactIds = importContactIds(importBatch?.results);
+  const relationshipFilters: Prisma.ContactWhereInput[] = [];
+  if (priority) {
+    relationshipFilters.push(priority === "NORMAL"
+      ? { OR: [{ relationshipState: { is: null } }, { relationshipState: { is: { priority: "NORMAL" } } }] }
+      : { relationshipState: { is: { priority: priority as "LOW" | "NORMAL" | "HIGH" | "URGENT" } } });
+  }
+  if (owner) {
+    relationshipFilters.push(owner === "unassigned"
+      ? { OR: [{ relationshipState: { is: null } }, { relationshipState: { is: { ownerUserId: null } } }] }
+      : { relationshipState: { is: { ownerUserId: owner } } });
+  }
+  if (permission) {
+    relationshipFilters.push(permission === "do-not-contact"
+      ? { relationshipState: { is: { doNotContact: true } } }
+      : { OR: [{ relationshipState: { is: null } }, { relationshipState: { is: { doNotContact: false } } }] });
+  }
   const contactWhere: Prisma.ContactWhereInput = {
     workspaceId: workspace.id,
     archivedAt: null,
+    ...(relationshipFilters.length ? { AND: relationshipFilters } : {}),
     ...(importBatchId ? { id: { in: importedContactIds.length ? importedContactIds : ["__no-imported-contacts__"] } } : {}),
     ...(groupId ? { groupMemberships: { some: { groupId } } } : {}),
     ...(q ? {
@@ -87,7 +145,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     } : {})
   };
 
-  const [totalCount, contacts, rawGroups, groupStates, jumps, customFields] = await Promise.all([
+  const [totalCount, contacts, rawGroups, groupStates, jumps, customFields, members] = await Promise.all([
     prisma.contact.count({ where: contactWhere }),
     prisma.contact.findMany({
       where: contactWhere,
@@ -97,7 +155,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         addresses: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
         groupMemberships: { include: { group: true } },
         customFieldValues: { include: { definition: true } },
-        jumpDates: { where: { isActive: true }, include: { dateType: true }, orderBy: { dateValue: "asc" } }
+        jumpDates: { where: { isActive: true }, include: { dateType: true }, orderBy: { dateValue: "asc" } },
+        relationshipState: { select: { ownerUserId: true, preferredChannel: true, priority: true, doNotContact: true } }
       },
       orderBy: [{ displayName: "asc" }, { id: "asc" }],
       skip: (page - 1) * PAGE_SIZE,
@@ -121,6 +180,11 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       where: { workspaceId: workspace.id },
       select: { id: true, name: true, key: true },
       orderBy: [{ createdAt: "asc" }, { name: "asc" }]
+    }),
+    prisma.workspaceMember.findMany({
+      where: { workspaceId: workspace.id },
+      select: { user: { select: { id: true, name: true } } },
+      orderBy: { createdAt: "asc" }
     })
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates);
@@ -132,6 +196,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   }) : [];
   const jumpsByContact = new Map<string, typeof contactJumps>();
   for (const jump of contactJumps) jumpsByContact.set(jump.contactId, [...(jumpsByContact.get(jump.contactId) ?? []), jump]);
+  const memberNameByUserId = new Map(members.map(({ user: member }) => [member.id, member.name]));
 
   const contactDtos: ContactBulkDto[] = contacts.map((contact) => {
     const state = jumpsByContact.get(contact.id) ?? [];
@@ -175,8 +240,10 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       nextJump: next ? formatDateTime(next.scheduledAt) : null,
       nextJumpOverdue: Boolean(next && next.scheduledAt < new Date()),
       relationshipType: custom.get("relationship-type") ?? custom.get("relationship") ?? null,
-      preferredChannel: custom.get("preferred-channel") ?? null,
-      priority: custom.get("priority") ?? null
+      preferredChannel: contact.relationshipState?.preferredChannel ?? custom.get("preferred-channel") ?? null,
+      priority: contact.relationshipState?.priority ?? custom.get("priority") ?? "NORMAL",
+      ownerName: contact.relationshipState?.ownerUserId ? memberNameByUserId.get(contact.relationshipState.ownerUserId) ?? "Former teammate" : null,
+      doNotContact: contact.relationshipState?.doNotContact ?? false
     };
   });
 
@@ -198,25 +265,37 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.bulkAssigned && <Notice type="success">Assigned {params.bulkAssigned} selected Contact{params.bulkAssigned === "1" ? "" : "s"} to the group.</Notice>}
       {params.bulkRemoved && <Notice type="success">Removed the group from {params.bulkRemoved} selected Contact{params.bulkRemoved === "1" ? "" : "s"}.</Notice>}
       {params.bulkArchived && <Notice type="success">Archived {params.bulkArchived} Contact{params.bulkArchived === "1" ? "" : "s"}. Completed history remains preserved.</Notice>}
+      {params.viewSaved && <Notice type="success">Contact view saved.</Notice>}
+      {params.defaultViewSaved && <Notice type="success">Default Contact view updated.</Notice>}
+      {params.viewDeleted && <Notice type="success">Contact view deleted.</Notice>}
       {importBatchId && <Notice type={importBatch ? "info" : "error"}>{importBatch ? `Showing Contacts touched by the selected ${importBatch.status.toLowerCase()} import.` : "That import batch is unavailable in this workspace."}</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
       <p className="sr-only" role="status" aria-live="polite">{resultMessage}</p>
+      <ContactSavedViewsBar
+        views={savedViews.map(({ id, name, isDefault }) => ({ id, name, isDefault }))}
+        selectedViewId={selectedView?.id ?? ""}
+        filters={{ q, group: groupId, priority, owner, permission }}
+      />
       <ContactsBulkWorkspace
         contacts={contactDtos}
         groups={groups.map((group) => ({ id: group.id, name: group.name, description: group.description, color: group.color, contactCount: group._count.memberships, isActive: group.isActive }))}
         jumps={jumps.map((jump) => ({ id: jump.id, name: jump.name, channel: jump.channel }))}
         customFields={customFields}
+        members={members.map(({ user: member }) => ({ id: member.id, name: member.name }))}
         groupLimit={formatPlanLimit(PLAN_LIMITS[workspace.planTier].groups)}
         query={q}
         groupFilter={groupId}
+        priorityFilter={priority}
+        ownerFilter={owner}
+        permissionFilter={permission}
         intent={intent}
       />
       <nav className="pagination-bar" aria-label="Contact result pages">
         <span>{resultMessage}</span>
         <div className="page-actions">
-          {page > 1 && <Link className="button" href={pageHref({ page: page - 1, q, groupId, intent, importBatchId })}>Previous</Link>}
+          {page > 1 && <Link className="button" href={pageHref({ page: page - 1, q, groupId, priority, owner, permission, viewId: selectedView?.id ?? "", intent, importBatchId })}>Previous</Link>}
           <span>Page {Math.min(page, totalPages)} of {totalPages}</span>
-          {page < totalPages && <Link className="button" href={pageHref({ page: page + 1, q, groupId, intent, importBatchId })}>Next</Link>}
+          {page < totalPages && <Link className="button" href={pageHref({ page: page + 1, q, groupId, priority, owner, permission, viewId: selectedView?.id ?? "", intent, importBatchId })}>Next</Link>}
         </div>
       </nav>
     </div>

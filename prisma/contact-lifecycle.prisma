@@ -18,6 +18,7 @@ model ContactRelationshipState {
   version            Int             @default(1)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+  contact            Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, ownerUserId, priority])
   @@index([workspaceId, doNotContact])
