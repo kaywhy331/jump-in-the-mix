@@ -4,6 +4,14 @@ const DEFAULT_RATE_LIMIT_SECRET = "local-development-rate-limit-secret";
 const isProduction = process.env.NODE_ENV === "production";
 const appUrl = process.env.APP_URL ?? "http://localhost:3000";
 
+type AuthRateLimitEnvironment = Partial<Pick<NodeJS.ProcessEnv, "AUTH_RATE_LIMIT_SECRET" | "DATA_ENCRYPTION_KEY">>;
+
+export function resolveAuthRateLimitSecret(source: AuthRateLimitEnvironment = process.env as AuthRateLimitEnvironment): string {
+  return source.AUTH_RATE_LIMIT_SECRET?.trim()
+    || source.DATA_ENCRYPTION_KEY?.trim()
+    || DEFAULT_RATE_LIMIT_SECRET;
+}
+
 function positiveNumber(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
@@ -30,10 +38,7 @@ export const env = {
   adminMfaMaxAgeMinutes: positiveNumber(process.env.AUTH_ADMIN_MFA_MAX_AGE_MINUTES, 12 * 60),
   emailVerificationHours: positiveNumber(process.env.AUTH_EMAIL_VERIFICATION_HOURS, 24),
   passwordResetMinutes: positiveNumber(process.env.AUTH_PASSWORD_RESET_MINUTES, 60),
-  authRateLimitSecret:
-    process.env.AUTH_RATE_LIMIT_SECRET ??
-    process.env.DATA_ENCRYPTION_KEY ??
-    DEFAULT_RATE_LIMIT_SECRET,
+  authRateLimitSecret: resolveAuthRateLimitSecret(),
   dataEncryptionKey: process.env.DATA_ENCRYPTION_KEY ?? "",
   allowedOrigins: commaSeparated(process.env.AUTH_ALLOWED_ORIGINS),
   resendApiKey: process.env.RESEND_API_KEY ?? "",
