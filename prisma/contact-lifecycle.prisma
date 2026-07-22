@@ -1,0 +1,67 @@
+enum ContactPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model ContactRelationshipState {
+  id                 String          @id @default(cuid())
+  workspaceId        String
+  contactId          String          @unique
+  ownerUserId        String?
+  preferredChannel   Channel?
+  priority           ContactPriority @default(NORMAL)
+  doNotContact       Boolean         @default(false)
+  relationshipStatus String?
+  nextCommitmentAt   DateTime?
+  version            Int             @default(1)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([workspaceId, ownerUserId, priority])
+  @@index([workspaceId, doNotContact])
+  @@index([workspaceId, nextCommitmentAt])
+}
+
+model UserContactLayout {
+  id             String   @id @default(cuid())
+  userId         String
+  workspaceId    String
+  cardOrder      String[]
+  collapsedCards String[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+model ContactSavedView {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  name        String
+  query       Json
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, workspaceId, name])
+  @@index([workspaceId, userId, createdAt])
+}
+
+model ContactMergeRecord {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  survivorContactId String
+  mergedContactId   String
+  actorUserId       String
+  sourceSnapshot    Json
+  mergeSummary      Json
+  createdAt         DateTime @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([survivorContactId])
+  @@index([mergedContactId])
+}
