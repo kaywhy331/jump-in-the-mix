@@ -1,0 +1,207 @@
+.cardWrapper {
+  min-width: 0;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.completedPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 3.5rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 0.8rem;
+  background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+}
+
+.completedPlaceholder strong {
+  display: block;
+}
+
+.completedPlaceholder small {
+  display: block;
+  opacity: 0.66;
+}
+
+.returnTray {
+  position: fixed;
+  z-index: 120;
+  left: 50%;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  width: min(42rem, calc(100vw - 1.25rem));
+  transform: translateX(-50%);
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 1rem;
+  background: Canvas;
+  color: CanvasText;
+  box-shadow: 0 1rem 3rem rgb(0 0 0 / 22%);
+}
+
+.trayHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.trayHeading p {
+  margin: 0.2rem 0 0;
+  opacity: 0.72;
+}
+
+.outcomeGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.detailDisclosure {
+  margin-top: 0.75rem;
+}
+
+.detailDisclosure summary {
+  cursor: pointer;
+  opacity: 0.72;
+}
+
+.detailForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.fullField {
+  grid-column: 1 / -1;
+}
+
+.detailForm label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.detailForm textarea {
+  min-height: 5.5rem;
+}
+
+.formActions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.error {
+  margin-top: 0.65rem;
+  color: #a52222;
+}
+
+.timeline {
+  display: grid;
+  gap: 1rem;
+}
+
+.noteComposer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.noteComposer label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.noteComposer textarea {
+  min-height: 4.5rem;
+}
+
+.timelineList {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.timelineItem {
+  position: relative;
+  display: grid;
+  grid-template-columns: 0.8rem minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0 0 1rem;
+}
+
+.timelineItem::before {
+  content: "";
+  position: absolute;
+  left: 0.35rem;
+  top: 0.8rem;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.timelineItem:last-child::before {
+  display: none;
+}
+
+.timelineDot {
+  position: relative;
+  z-index: 1;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-top: 0.15rem;
+  border: 2px solid Canvas;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.timelineBody {
+  min-width: 0;
+}
+
+.timelineMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.82rem;
+  opacity: 0.67;
+}
+
+.timelineBody p {
+  margin: 0.2rem 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.privateBadge {
+  font-weight: 600;
+}
+
+.loading {
+  opacity: 0.66;
+}
+
+@media (max-width: 680px) {
+  .returnTray {
+    bottom: max(0.5rem, env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 1rem);
+    overflow: auto;
+    border-radius: 0.9rem;
+  }
+
+  .detailForm,
+  .noteComposer {
+    grid-template-columns: 1fr;
+  }
+
+  .noteComposer button {
+    width: 100%;
+  }
+}
