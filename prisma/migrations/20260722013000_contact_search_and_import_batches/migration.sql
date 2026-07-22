@@ -1,12 +1,25 @@
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS pg_trgm WITH SCHEMA public;
 
-CREATE INDEX IF NOT EXISTS "Contact_displayName_trgm_idx" ON "Contact" USING GIN ("displayName" gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS "Contact_company_trgm_idx" ON "Contact" USING GIN ("company" gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS "Contact_publicNotes_trgm_idx" ON "Contact" USING GIN ("publicNotes" gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS "Contact_privateNotes_trgm_idx" ON "Contact" USING GIN ("privateNotes" gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS "ContactEmail_email_trgm_idx" ON "ContactEmail" USING GIN ("email" gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS "ContactPhone_phone_trgm_idx" ON "ContactPhone" USING GIN ("phone" gin_trgm_ops);
-CREATE INDEX IF NOT EXISTS "ContactCustomFieldValue_value_trgm_idx" ON "ContactCustomFieldValue" USING GIN ("value" gin_trgm_ops);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_extension extension
+    JOIN pg_namespace namespace ON namespace.oid = extension.extnamespace
+    WHERE extension.extname = 'pg_trgm' AND namespace.nspname <> 'public'
+  ) THEN
+    ALTER EXTENSION pg_trgm SET SCHEMA public;
+  END IF;
+END
+$$;
+
+CREATE INDEX IF NOT EXISTS "Contact_displayName_trgm_idx" ON "Contact" USING GIN ("displayName" public.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "Contact_company_trgm_idx" ON "Contact" USING GIN ("company" public.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "Contact_publicNotes_trgm_idx" ON "Contact" USING GIN ("publicNotes" public.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "Contact_privateNotes_trgm_idx" ON "Contact" USING GIN ("privateNotes" public.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "ContactEmail_email_trgm_idx" ON "ContactEmail" USING GIN ("email" public.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "ContactPhone_phone_trgm_idx" ON "ContactPhone" USING GIN ("phone" public.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS "ContactCustomFieldValue_value_trgm_idx" ON "ContactCustomFieldValue" USING GIN ("value" public.gin_trgm_ops);
 
 CREATE TYPE "ContactImportBatchStatus" AS ENUM ('QUEUED', 'RUNNING', 'COMPLETED', 'PARTIAL', 'FAILED', 'CANCELED');
 
