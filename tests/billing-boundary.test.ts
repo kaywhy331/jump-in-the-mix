@@ -26,6 +26,8 @@ describe("Stripe billing boundaries", () => {
     expect(webhook).toContain("stripe-signature");
     expect(webhook).toContain("externalId: event.id");
     expect(webhook).toContain('status === "PROCESSED"');
+    expect(webhook).toContain("MAX_WEBHOOK_BYTES");
+    expect(webhook).toContain("event.livemode !== expectedLivemode()");
     expect(webhook).not.toContain("requireWorkspace()");
     expect(proxy).toContain('request.nextUrl.pathname.startsWith("/api/webhooks/")');
   });
@@ -49,15 +51,18 @@ describe("Stripe billing boundaries", () => {
     expect(service).toContain('"metadata[user_id]"');
   });
 
-  it("uses Stripe period dates and reconciles lifecycle events idempotently", () => {
+  it("uses Stripe period dates and orders lifecycle events idempotently", () => {
     const service = read("src/lib/billing-service.ts");
     const webhook = read("src/app/api/webhooks/stripe/route.ts");
     expect(service).toContain("current_period_end");
     expect(service).toContain('case "invoice.paid"');
     expect(service).toContain('case "invoice.payment_failed"');
     expect(service).toContain('case "customer.subscription.deleted"');
-    expect(webhook).toContain('event.type === "customer.subscription.paused"');
-    expect(webhook).toContain('event.type === "customer.subscription.resumed"');
+    expect(service).toContain('case "customer.subscription.paused"');
+    expect(service).toContain('case "customer.subscription.resumed"');
+    expect(service).toContain("STRIPE_ORDERING_KEY");
+    expect(service).toContain("eventCreated < previousOrder.eventCreated");
+    expect(service).toContain('reason: "non-canonical-subscription"');
     expect(webhook).toContain("payloadHash");
     expect(webhook).toContain('status: "PROCESSED"');
   });
