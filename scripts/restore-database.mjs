@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { access, mkdtemp, readFile, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { decryptFile, sha256File } from "./lib/backup-archive.mjs";
@@ -9,6 +9,7 @@ import {
   commandVersion,
   compareSnapshots,
   databaseIdentity,
+  normalizePgRestoreSql,
   postgresCliEnv,
   runCommand,
   sameDatabase
@@ -54,18 +55,37 @@ async function main() {
   await assertDatabaseEmpty(targetUrl);
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "jitm-restore-"));
   const rawDumpPath = join(temporaryDirectory, "database.dump");
+  const sqlDumpPath = join(temporaryDirectory, "database.sql");
   try {
-    const pgRestoreVersion = await commandVersion("pg_restore");
+    const [pgRestoreVersion, psqlVersion] = await Promise.all([
+      commandVersion("pg_restore"),
+      commandVersion("psql")
+    ]);
     await decryptFile(archivePath, rawDumpPath);
     await runCommand("pg_restore", [
-      "-d",
-      target.database,
       "--clean",
       "--if-exists",
       "--exit-on-error",
       "--no-owner",
       "--no-privileges",
+      "--file",
+      sqlDumpPath,
       rawDumpPath
+    ]);
+    const generatedSql = await readFile(sqlDumpPath, "utf8");
+    const transactionTimeoutRemoved = /^SET transaction_timeout = 0;\r?\n/mu.test(generatedSql);
+    const compatibleSql = normalizePgRestoreSql(generatedSql, {
+      schema: target.schema,
+      requiredExtensions: manifest.source.requiredExtensions ?? ["pg_trgm"]
+    });
+    if (compatibleSql !== generatedSql) await writeFile(sqlDumpPath, compatibleSql, "utf8");
+    await runCommand("psql", [
+      "-d",
+      target.database,
+      "--set",
+      "ON_ERROR_STOP=1",
+      "--file",
+      sqlDumpPath
     ], { env: postgresCliEnv(targetUrl) });
 
     const restored = await collectDatabaseSnapshot(targetUrl);
@@ -81,6 +101,9 @@ async function main() {
       tableCount: restored.tableCount,
       appliedMigrations: restored.appliedMigrationNames.length,
       pgRestoreVersion,
+      psqlVersion,
+      compatibilitySettingsRemoved: transactionTimeoutRemoved ? ["transaction_timeout=0"] : [],
+      restoredExtensions: manifest.source.requiredExtensions ?? ["pg_trgm"],
       manifestVerified: true
     }, null, 2));
   } finally {
