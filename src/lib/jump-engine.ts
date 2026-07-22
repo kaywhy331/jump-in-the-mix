@@ -13,13 +13,19 @@ import {
   zonedDateTimeToUtc,
   type LogicalDate
 } from "@/lib/jump-schedule";
+import {
+  DEFAULT_PERSONAL_SCHEDULING,
+  outsideQuietHours,
+  personalSchedulingRules,
+  shiftWeekend,
+  type PersonalSchedulingRule
+} from "@/lib/personal-scheduling";
 
 const RECONCILIATION_UPDATE_STATUSES: JumpStatus[] = ["PENDING", "CANCELED"];
 const STALE_CANCELLATION_STATUSES: JumpStatus[] = ["PENDING", "COPIED"];
 const RECONCILABLE_CANCELLATION_METHODS = new Set([
   "reconciled",
   "mix_paused",
-  "plan_downgrade",
   "contact_archived"
 ]);
 const BATCH_SIZE = 500;
@@ -120,6 +126,18 @@ function baseJumpWhere(filters: ReconciliationFilters): Prisma.JumpWhereInput {
   };
 }
 
+function schedulingRule(
+  stored: PersonalSchedulingRule | undefined,
+  profile: { quietHoursStart?: number | null; quietHoursEnd?: number | null } | null
+): PersonalSchedulingRule {
+  if (stored) return stored;
+  return {
+    ...DEFAULT_PERSONAL_SCHEDULING,
+    quietHoursStart: profile?.quietHoursStart ?? DEFAULT_PERSONAL_SCHEDULING.quietHoursStart,
+    quietHoursEnd: profile?.quietHoursEnd ?? DEFAULT_PERSONAL_SCHEDULING.quietHoursEnd
+  };
+}
+
 export async function reconcileJumps(filters: ReconciliationFilters = {}): Promise<JumpReconciliationResult> {
   const now = new Date();
   const [assignments, stops, pendingBounds] = await Promise.all([
@@ -197,33 +215,35 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const horizonEnd = pendingBounds._max.scheduledAt && pendingBounds._max.scheduledAt > defaultEnd
     ? endOfUtcDay(pendingBounds._max.scheduledAt)
     : defaultEnd;
-  const occurrenceStart = addUtcDays(horizonStart, -Math.max(maximumOffset, 0));
-  const occurrenceEnd = addUtcDays(horizonEnd, -Math.min(minimumOffset, 0));
+  const occurrenceStart = addUtcDays(horizonStart, -Math.max(maximumOffset, 0) - 7);
+  const occurrenceEnd = addUtcDays(horizonEnd, -Math.min(minimumOffset, 0) + 7);
 
   const workspaceIds = [...new Set(assignments.map((assignment) => assignment.workspaceId))];
-  const inactiveGroupIds = new Set(
+  const [inactiveGroupStates, broadcastSchedules, schedulingByDataSpace] = await Promise.all([
     workspaceIds.length
-      ? (await prisma.contactGroupState.findMany({
+      ? prisma.contactGroupState.findMany({
           where: { workspaceId: { in: workspaceIds }, isActive: false },
           select: { groupId: true }
-        })).map((state) => state.groupId)
-      : []
-  );
-
-  const broadcastSchedules = assignments.length
-    ? await prisma.mixBroadcastSchedule.findMany({
+        })
+      : [],
+    assignments.length
+      ? prisma.mixBroadcastSchedule.findMany({
         where: {
           mixId: { in: [...new Set(assignments.map((assignment) => assignment.mixId))] },
           ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {})
         }
       })
-    : [];
+      : [],
+    personalSchedulingRules(workspaceIds)
+  ]);
+  const inactiveGroupIds = new Set(inactiveGroupStates.map((state) => state.groupId));
   const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
   const stopped = new Set(stops.map((item) => stopKey(item.mixId, item.contactId)));
   const desired = new Map<string, DesiredJump>();
 
   for (const assignment of assignments) {
     if (assignment.groupId && inactiveGroupIds.has(assignment.groupId)) continue;
+    const personalRule = schedulingRule(schedulingByDataSpace.get(assignment.workspaceId), assignment.workspace.profile);
 
     const contacts = new Map<string, NonNullable<typeof assignment.contact>>();
     if (assignment.contact && !assignment.contact.archivedAt) contacts.set(assignment.contact.id, assignment.contact);
@@ -286,8 +306,10 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
 
       for (const trigger of triggers) {
         for (const mixStep of assignment.mix.steps) {
-          const scheduledLogicalDate = addLogicalDays(trigger.logicalDate, mixStep.dayOffset);
-          const sendTimeMinutes = mixStep.sendTimeMinutes ?? trigger.timeMinutes ?? 600;
+          const originalLogicalDate = addLogicalDays(trigger.logicalDate, mixStep.dayOffset);
+          const scheduledLogicalDate = shiftWeekend(originalLogicalDate, personalRule.weekendScheduling);
+          const requestedMinutes = mixStep.sendTimeMinutes ?? trigger.timeMinutes ?? personalRule.defaultFollowUpMinutes;
+          const sendTimeMinutes = outsideQuietHours(requestedMinutes, personalRule.quietHoursStart, personalRule.quietHoursEnd);
           const scheduledAt = zonedDateTimeToUtc(scheduledLogicalDate, sendTimeMinutes, trigger.timezone);
           if (scheduledAt < horizonStart || scheduledAt > horizonEnd) continue;
 
@@ -330,7 +352,9 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
               script: mixStep.stepVersion.script,
               channel,
               localDateTime,
-              timezone: trigger.timezone
+              timezone: trigger.timezone,
+              originalLocalDate: logicalDateKey(originalLogicalDate),
+              weekendRule: personalRule.weekendScheduling
             },
             renderedSnapshot
           });

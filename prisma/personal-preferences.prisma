@@ -1,0 +1,25 @@
+enum WeekendScheduling {
+  KEEP
+  NEXT_MONDAY
+  PREVIOUS_FRIDAY
+}
+
+model UserPreference {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  locale    String   @default("en-US")
+  timezone  String   @default("UTC")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkspacePreference {
+  id                     String            @id @default(cuid())
+  workspaceId            String            @unique
+  defaultFollowUpMinutes Int               @default(600)
+  quietHoursStart        Int               @default(1200)
+  quietHoursEnd          Int               @default(480)
+  weekendScheduling      WeekendScheduling @default(KEEP)
+  createdAt              DateTime          @default(now())
+  updatedAt              DateTime          @updatedAt
+}
