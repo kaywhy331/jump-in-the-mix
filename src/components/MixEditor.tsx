@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useRef, useState } from "react";
+import { type FormEvent, useMemo, useRef, useState } from "react";
 import styles from "@/components/MixEditor.module.css";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { saveMixAction } from "@/lib/mix-editor-actions";
@@ -11,136 +11,21 @@ type MixStatus = "DRAFT" | "ACTIVE" | "PAUSED";
 type Channel = "SMS" | "EMAIL" | "PHONE_CALL" | "VOICEMAIL" | "WHATSAPP";
 type ActionMode = "INLINE" | "TEMPLATE";
 
-type JumpOption = {
-  id: string;
-  name: string;
-  channel: Channel;
-  subject: string | null;
-  body: string | null;
-  script: string | null;
-};
+type JumpOption = { id: string; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null };
 type DateTypeOption = { id: string; name: string; isSystem: boolean };
 type GroupOption = { id: string; name: string; color: string | null; isActive: boolean; contactCount: number };
-type SequenceItem = {
-  key: string;
-  id?: string;
-  actionMode: ActionMode;
-  stepTemplateId: string;
-  name: string;
-  channel: Channel;
-  subject: string;
-  body: string;
-  script: string;
-  saveAsTemplate: boolean;
-  dayOffset: number;
-  sendTimeMinutes: number | null;
-};
-
-type MixValue = {
-  id?: string;
-  name?: string;
-  description?: string | null;
-  framework?: string | null;
-  category?: string | null;
-  industry?: string | null;
-  triggerMode?: TriggerMode;
-  dateTypeId?: string | null;
-  status?: MixStatus;
-  groupIds?: string[];
-  assignAllContacts?: boolean;
-  broadcastDate?: string | null;
-  broadcastTime?: string | null;
-  broadcastTimezone?: string | null;
-  steps?: Array<{
-    id: string;
-    stepTemplateId: string;
-    templateActive: boolean;
-    name: string;
-    channel: Channel;
-    subject: string | null;
-    body: string | null;
-    script: string | null;
-    dayOffset: number;
-    sendTimeMinutes: number | null;
-  }>;
-};
+type SequenceItem = { key: string; id?: string; actionMode: ActionMode; stepTemplateId: string; name: string; channel: Channel; subject: string; body: string; script: string; saveAsTemplate: boolean; dayOffset: number; sendTimeMinutes: number | null };
+type MixValue = { id?: string; name?: string; description?: string | null; framework?: string | null; category?: string | null; industry?: string | null; triggerMode?: TriggerMode; dateTypeId?: string | null; status?: MixStatus; groupIds?: string[]; assignAllContacts?: boolean; broadcastDate?: string | null; broadcastTime?: string | null; broadcastTimezone?: string | null; steps?: Array<{ id: string; stepTemplateId: string; templateActive: boolean; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null; dayOffset: number; sendTimeMinutes: number | null }> };
 
 const MAX_STEP_OFFSET_DAYS = 365;
-const CHANNELS: Array<{ value: Channel; label: string }> = [
-  { value: "EMAIL", label: "Email" },
-  { value: "SMS", label: "SMS" },
-  { value: "PHONE_CALL", label: "Phone call" },
-  { value: "VOICEMAIL", label: "Voicemail script" },
-  { value: "WHATSAPP", label: "WhatsApp" }
-];
+const CHANNELS: Array<{ value: Channel; label: string }> = [{ value: "EMAIL", label: "Email" }, { value: "SMS", label: "SMS" }, { value: "PHONE_CALL", label: "Phone call" }, { value: "VOICEMAIL", label: "Voicemail script" }, { value: "WHATSAPP", label: "WhatsApp" }];
 
-function timeValue(minutes: number | null): string {
-  if (minutes === null) return "";
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-}
+function timeValue(minutes: number | null): string { return minutes === null ? "" : `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`; }
+function minutesValue(value: string): number | null { if (!value) return null; const [hour, minute] = value.split(":").map(Number); return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : null; }
+function inlineStep(index: number, previousOffset = -1): SequenceItem { return { key: `new-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`, actionMode: "INLINE", stepTemplateId: "", name: `Follow-up action ${index + 1}`, channel: "EMAIL", subject: "", body: "", script: "", saveAsTemplate: false, dayOffset: Math.min(previousOffset + 1, MAX_STEP_OFFSET_DAYS), sendTimeMinutes: null }; }
+function templateStep(option: JumpOption, index: number, previousOffset = -1): SequenceItem { return { key: `template-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`, actionMode: "TEMPLATE", stepTemplateId: option.id, name: option.name, channel: option.channel, subject: option.subject ?? "", body: option.body ?? "", script: option.script ?? "", saveAsTemplate: true, dayOffset: Math.min(previousOffset + 1, MAX_STEP_OFFSET_DAYS), sendTimeMinutes: null }; }
 
-function minutesValue(value: string): number | null {
-  if (!value) return null;
-  const [hour, minute] = value.split(":").map(Number);
-  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
-  return hour * 60 + minute;
-}
-
-function inlineStep(index: number, previousOffset = -1): SequenceItem {
-  return {
-    key: `new-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
-    actionMode: "INLINE",
-    stepTemplateId: "",
-    name: `Follow-up action ${index + 1}`,
-    channel: "EMAIL",
-    subject: "",
-    body: "",
-    script: "",
-    saveAsTemplate: false,
-    dayOffset: Math.min(previousOffset + 1, MAX_STEP_OFFSET_DAYS),
-    sendTimeMinutes: null
-  };
-}
-
-function templateStep(option: JumpOption, index: number, previousOffset = -1): SequenceItem {
-  return {
-    key: `template-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`,
-    actionMode: "TEMPLATE",
-    stepTemplateId: option.id,
-    name: option.name,
-    channel: option.channel,
-    subject: option.subject ?? "",
-    body: option.body ?? "",
-    script: option.script ?? "",
-    saveAsTemplate: true,
-    dayOffset: Math.min(previousOffset + 1, MAX_STEP_OFFSET_DAYS),
-    sendTimeMinutes: null
-  };
-}
-
-export function MixEditor({
-  mix,
-  jumps,
-  dateTypes,
-  groups,
-  categories,
-  industries,
-  workspaceTimezone,
-  activeContactCount,
-  missingEmailCount,
-  missingPhoneCount
-}: {
-  mix?: MixValue;
-  jumps: JumpOption[];
-  dateTypes: DateTypeOption[];
-  groups: GroupOption[];
-  categories: string[];
-  industries: string[];
-  workspaceTimezone: string;
-  activeContactCount: number;
-  missingEmailCount: number;
-  missingPhoneCount: number;
-}) {
+export function MixEditor({ mix, jumps, dateTypes, groups, categories, industries, workspaceTimezone, activeContactCount, missingEmailCount, missingPhoneCount }: { mix?: MixValue; jumps: JumpOption[]; dateTypes: DateTypeOption[]; groups: GroupOption[]; categories: string[]; industries: string[]; workspaceTimezone: string; activeContactCount: number; missingEmailCount: number; missingPhoneCount: number }) {
   const formRef = useRef<HTMLFormElement>(null);
   const activationInputRef = useRef<HTMLInputElement>(null);
   const defaultDateType = mix?.dateTypeId ?? dateTypes[0]?.id ?? "";
@@ -150,27 +35,12 @@ export function MixEditor({
   const [assignAllContacts, setAssignAllContacts] = useState(mix?.assignAllContacts ?? false);
   const [selectedGroupIds, setSelectedGroupIds] = useState(() => new Set(mix?.groupIds ?? []));
   const [sequence, setSequence] = useState<SequenceItem[]>(() => {
-    const existing = mix?.steps?.map((step) => ({
-      key: step.id,
-      id: step.id,
-      actionMode: step.templateActive ? "TEMPLATE" as const : "INLINE" as const,
-      stepTemplateId: step.stepTemplateId,
-      name: step.name,
-      channel: step.channel,
-      subject: step.subject ?? "",
-      body: step.body ?? "",
-      script: step.script ?? "",
-      saveAsTemplate: step.templateActive,
-      dayOffset: step.dayOffset,
-      sendTimeMinutes: step.sendTimeMinutes
-    })) ?? [];
-    if (existing.length) return existing;
-    return jumps[0] ? [templateStep(jumps[0], 0)] : [inlineStep(0)];
+    const existing = mix?.steps?.map((step) => ({ key: step.id, id: step.id, actionMode: step.templateActive ? "TEMPLATE" as const : "INLINE" as const, stepTemplateId: step.stepTemplateId, name: step.name, channel: step.channel, subject: step.subject ?? "", body: step.body ?? "", script: step.script ?? "", saveAsTemplate: step.templateActive, dayOffset: step.dayOffset, sendTimeMinutes: step.sendTimeMinutes })) ?? [];
+    return existing.length ? existing : jumps[0] ? [templateStep(jumps[0], 0)] : [inlineStep(0)];
   });
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
-
   const jumpById = useMemo(() => new Map(jumps.map((jump) => [jump.id, jump])), [jumps]);
   const selectedGroups = useMemo(() => groups.filter((group) => selectedGroupIds.has(group.id)), [groups, selectedGroupIds]);
   const audienceEstimate = assignAllContacts ? activeContactCount : selectedGroups.reduce((total, group) => total + group.contactCount, 0);
@@ -182,104 +52,24 @@ export function MixEditor({
 
   const addSequenceItem = () => setSequence((current) => [...current, inlineStep(current.length, current.at(-1)?.dayOffset ?? -1)]);
   const removeSequenceItem = (index: number) => setSequence((current) => current.filter((_, itemIndex) => itemIndex !== index));
-  const reorder = (from: number, to: number) => setSequence((current) => {
-    if (from === to || from < 0 || to < 0 || from >= current.length || to >= current.length) return current;
-    const next = [...current];
-    const [item] = next.splice(from, 1);
-    next.splice(to, 0, item);
-    return next;
-  });
-  const moveWithKeyboard = (index: number, direction: -1 | 1) => reorder(index, index + direction);
+  const reorder = (from: number, to: number) => setSequence((current) => { if (from === to || from < 0 || to < 0 || from >= current.length || to >= current.length) return current; const next = [...current]; const [item] = next.splice(from, 1); next.splice(to, 0, item); return next; });
   const updateStep = (index: number, patch: Partial<SequenceItem>) => setSequence((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
-  const chooseTemplate = (index: number, templateId: string) => {
-    const template = jumpById.get(templateId);
-    if (!template) return updateStep(index, { stepTemplateId: templateId });
-    updateStep(index, {
-      stepTemplateId: template.id,
-      name: template.name,
-      channel: template.channel,
-      subject: template.subject ?? "",
-      body: template.body ?? "",
-      script: template.script ?? ""
-    });
-  };
-  const toggleGroup = (groupId: string) => setSelectedGroupIds((current) => {
-    const next = new Set(current);
-    if (next.has(groupId)) next.delete(groupId);
-    else next.add(groupId);
-    return next;
-  });
-
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
-    if (status !== "ACTIVE" || activationInputRef.current?.value === "1") return;
-    event.preventDefault();
-    setReviewOpen(true);
-  };
-  const confirmActivation = () => {
-    if (activationInputRef.current) activationInputRef.current.value = "1";
-    setReviewOpen(false);
-    formRef.current?.requestSubmit();
-  };
+  const chooseTemplate = (index: number, templateId: string) => { const template = jumpById.get(templateId); if (!template) return updateStep(index, { stepTemplateId: templateId }); updateStep(index, { stepTemplateId: template.id, name: template.name, channel: template.channel, subject: template.subject ?? "", body: template.body ?? "", script: template.script ?? "" }); };
+  const toggleGroup = (groupId: string) => setSelectedGroupIds((current) => { const next = new Set(current); if (next.has(groupId)) next.delete(groupId); else next.add(groupId); return next; });
+  const submit = (event: FormEvent<HTMLFormElement>) => { if (status !== "ACTIVE" || activationInputRef.current?.value === "1") return; event.preventDefault(); setReviewOpen(true); };
+  const confirmActivation = () => { if (activationInputRef.current) activationInputRef.current.value = "1"; setReviewOpen(false); formRef.current?.requestSubmit(); };
 
   return (
     <form ref={formRef} action={saveMixAction} className="mix-editor-form" onSubmit={submit}>
       {mix?.id && <input type="hidden" name="mixId" value={mix.id} />}
       <input ref={activationInputRef} type="hidden" name="activationConfirmed" defaultValue="0" />
-      <section className="card mix-editor-section">
-        <div className="card-header"><div><h2>Mix details</h2><p>Name the follow-up plan and choose whether to keep it as a draft or review it for activation.</p></div></div>
-        <div className="form-grid">
-          <div className="field full"><label htmlFor="mix-name">Mix name</label><input id="mix-name" name="name" maxLength={160} value={name} onChange={(event) => setName(event.target.value)} placeholder="Client renewal follow-up" required autoFocus /></div>
-          <div className="field full"><label htmlFor="mix-description">Description</label><textarea id="mix-description" name="description" maxLength={1200} defaultValue={mix?.description ?? ""} placeholder="What this Mix is designed to accomplish." /></div>
-          <div className="field"><label htmlFor="mix-status">Lifecycle</label><select id="mix-status" name="status" value={status} onChange={(event) => setStatus(event.target.value as MixStatus)}><option value="DRAFT">Save as draft</option><option value="ACTIVE">Review and activate</option><option value="PAUSED">Paused</option></select></div>
-          <details className="field full"><summary>Plan classification</summary><div className="form-grid"><div className="field"><label htmlFor="mix-framework">Strategy / framework</label><input id="mix-framework" name="framework" maxLength={160} defaultValue={mix?.framework ?? ""} placeholder="Question-led consultative" /></div><div className="field"><label htmlFor="mix-category">Category</label><select id="mix-category" name="category" defaultValue={mix?.category ?? ""}><option value="">Not classified</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></div><div className="field"><label htmlFor="mix-industry">Industry</label><select id="mix-industry" name="industry" defaultValue={mix?.industry ?? ""}><option value="">Not classified</option>{industries.map((industry) => <option key={industry}>{industry}</option>)}</select></div></div></details>
-        </div>
-      </section>
+      <section className="card mix-editor-section"><div className="card-header"><div><h2>Mix details</h2><p>Name the follow-up plan and choose whether to keep it as a draft or review it for activation.</p></div></div><div className="form-grid"><div className="field full"><label htmlFor="mix-name">Mix name</label><input id="mix-name" name="name" maxLength={160} value={name} onChange={(event) => setName(event.target.value)} placeholder="Client renewal follow-up" required autoFocus /></div><div className="field full"><label htmlFor="mix-description">Description</label><textarea id="mix-description" name="description" maxLength={1200} defaultValue={mix?.description ?? ""} placeholder="What this Mix is designed to accomplish." /></div><div className="field"><label htmlFor="mix-status">Lifecycle</label><select id="mix-status" name="status" value={status} onChange={(event) => setStatus(event.target.value as MixStatus)}><option value="DRAFT">Save as draft</option><option value="ACTIVE">Review and activate</option><option value="PAUSED">Paused</option></select></div><details className="field full"><summary>Plan classification</summary><div className="form-grid"><div className="field"><label htmlFor="mix-framework">Strategy / framework</label><input id="mix-framework" name="framework" maxLength={160} defaultValue={mix?.framework ?? ""} placeholder="Question-led consultative" /></div><div className="field"><label htmlFor="mix-category">Category</label><select id="mix-category" name="category" defaultValue={mix?.category ?? ""}><option value="">Not classified</option>{categories.map((category) => <option key={category}>{category}</option>)}</select></div><div className="field"><label htmlFor="mix-industry">Industry</label><select id="mix-industry" name="industry" defaultValue={mix?.industry ?? ""}><option value="">Not classified</option>{industries.map((industry) => <option key={industry}>{industry}</option>)}</select></div></div></details></div></section>
 
-      <section className="card mix-editor-section">
-        <div className="card-header"><div><h2>Trigger and audience</h2><p>Choose what starts the Mix and deliberately select the people who should be eligible.</p></div></div>
-        <div className="form-grid">
-          <div className="field"><label htmlFor="mix-trigger">How should this plan start?</label><select id="mix-trigger" name="triggerMode" value={triggerMode} onChange={(event) => setTriggerMode(event.target.value as TriggerMode)}><option value="DATE_TRIGGERED">From an Important Date</option><option value="MANUAL_START">Start manually</option><option value="BROADCAST">On one fixed date</option></select></div>
-          {triggerMode === "DATE_TRIGGERED" && <div className="field"><label htmlFor="mix-date-type">Important Date Type</label><select id="mix-date-type" name="dateTypeId" defaultValue={defaultDateType} required>{dateTypes.map((dateType) => <option key={dateType.id} value={dateType.id}>{dateType.isSystem ? `System · ${dateType.name}` : dateType.name}</option>)}</select><div className="mix-date-type-tools"><Link href="/settings/jump-date-types">Add or manage types</Link></div></div>}
-          {triggerMode === "MANUAL_START" && <div className="field full"><p className="inline-help">Each Contact or Group starts when it is first assigned. Editing the Mix does not restart existing assignments.</p></div>}
-          {triggerMode === "BROADCAST" && <div className="field full broadcast-fields"><div className="broadcast-field-grid"><label className="field"><span>Broadcast date</span><input name="broadcastDate" type="date" defaultValue={mix?.broadcastDate ?? ""} required /></label><label className="field"><span>Broadcast time</span><input name="broadcastTime" type="time" defaultValue={mix?.broadcastTime ?? "10:00"} required /></label><label className="field"><span>Timezone</span><TimezonePicker name="broadcastTimezone" id="broadcastTimezone" label="Broadcast timezone" defaultValue={mix?.broadcastTimezone ?? workspaceTimezone} /></label></div><p className="inline-help">The date and time are the fixed trigger. Day offsets may schedule actions before or after it.</p></div>}
-        </div>
-        <div className="audience-options">
-          <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" checked={assignAllContacts} onChange={(event) => setAssignAllContacts(event.target.checked)} /><span><strong>All active Contacts</strong><small>{activeContactCount.toLocaleString()} currently active. The activation review shows projected work before saving.</small></span></label>
-          {groups.length > 0 && <div><h3>Contact Groups</h3><div className="group-choice-grid">{groups.map((group) => {
-            const selected = selectedGroupIds.has(group.id);
-            return <div key={group.id}>{!group.isActive && selected && <input type="hidden" name="groupIds" value={group.id} />}<label className={`checkbox-card ${group.isActive ? "" : "inactive"}`}><input type="checkbox" name={group.isActive ? "groupIds" : undefined} value={group.id} checked={selected} onChange={() => toggleGroup(group.id)} disabled={!group.isActive} /><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} /><span><strong>{group.name}</strong><small>{group.contactCount} Contact{group.contactCount === 1 ? "" : "s"}{!group.isActive ? " · inactive" : ""}</small></span></label></div>;
-          })}</div></div>}
-          <small className="muted-copy">An active Mix must choose All active Contacts or at least one active Contact Group. Direct Contact assignments remain separate.</small>
-        </div>
-      </section>
+      <section className="card mix-editor-section"><div className="card-header"><div><h2>Trigger and audience</h2><p>Choose what starts the Mix and deliberately select the people who should be eligible.</p></div></div><div className="form-grid"><div className="field"><label htmlFor="mix-trigger">How should this plan start?</label><select id="mix-trigger" name="triggerMode" value={triggerMode} onChange={(event) => setTriggerMode(event.target.value as TriggerMode)}><option value="DATE_TRIGGERED">From an Important Date</option><option value="MANUAL_START">Start manually</option><option value="BROADCAST">On one fixed date</option></select></div>{triggerMode === "DATE_TRIGGERED" && <div className="field"><label htmlFor="mix-date-type">Important Date Type</label><select id="mix-date-type" name="dateTypeId" defaultValue={defaultDateType} required>{dateTypes.map((dateType) => <option key={dateType.id} value={dateType.id}>{dateType.isSystem ? `System · ${dateType.name}` : dateType.name}</option>)}</select><div className="mix-date-type-tools"><Link href="/settings/jump-date-types">Add or manage types</Link></div></div>}{triggerMode === "MANUAL_START" && <div className="field full"><p className="inline-help">Each Contact or Group starts when it is first assigned. Editing the Mix does not restart existing assignments.</p></div>}{triggerMode === "BROADCAST" && <div className="field full broadcast-fields"><div className="broadcast-field-grid"><label className="field"><span>Broadcast date</span><input name="broadcastDate" type="date" defaultValue={mix?.broadcastDate ?? ""} required /></label><label className="field"><span>Broadcast time</span><input name="broadcastTime" type="time" defaultValue={mix?.broadcastTime ?? "10:00"} required /></label><label className="field"><span>Timezone</span><TimezonePicker name="broadcastTimezone" id="broadcastTimezone" label="Broadcast timezone" defaultValue={mix?.broadcastTimezone ?? workspaceTimezone} /></label></div><p className="inline-help">The date and time are the fixed trigger. Day offsets may schedule actions before or after it.</p></div>}</div><div className="audience-options"><label className="checkbox-card"><input type="checkbox" name="assignAllContacts" checked={assignAllContacts} onChange={(event) => setAssignAllContacts(event.target.checked)} /><span><strong>All active Contacts</strong><small>{activeContactCount.toLocaleString()} currently active. The activation review shows projected work before saving.</small></span></label>{groups.length > 0 && <div><h3>Contact Groups</h3><div className="group-choice-grid">{groups.map((group) => { const selected = selectedGroupIds.has(group.id); return <div key={group.id}>{!group.isActive && selected && <input type="hidden" name="groupIds" value={group.id} />}<label className={`checkbox-card ${group.isActive ? "" : "inactive"}`}><input type="checkbox" name={group.isActive ? "groupIds" : undefined} value={group.id} checked={selected} onChange={() => toggleGroup(group.id)} disabled={!group.isActive} /><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} /><span><strong>{group.name}</strong><small>{group.contactCount} Contact{group.contactCount === 1 ? "" : "s"}{!group.isActive ? " · inactive" : ""}</small></span></label></div>; })}</div></div>}<small className="muted-copy">An active Mix must choose All active Contacts or at least one active Contact Group. Direct Contact assignments remain separate.</small></div></section>
 
-      <section className="card mix-editor-section">
-        <div className="card-header"><div><p className="eyebrow">Action sequence</p><h2>Write actions here or insert a template</h2><p>Reusable templates are optional accelerators—not a prerequisite for building a Mix.</p></div><div className="page-actions"><Link className="button" href="/settings/jumps">Template library</Link><button className="button primary" type="button" onClick={addSequenceItem}>+ Add action</button></div></div>
-        <div className={styles.sequenceList}>{sequence.map((item, index) => {
-          const template = jumpById.get(item.stepTemplateId);
-          const needsWrittenContent = item.channel === "EMAIL" || item.channel === "SMS" || item.channel === "WHATSAPP";
-          const needsScript = item.channel === "PHONE_CALL" || item.channel === "VOICEMAIL";
-          return (
-            <fieldset
-              className={`mix-editor-jump ${styles.sequenceCard} ${draggingIndex === index ? styles.dragging : ""} ${dropIndex === index ? styles.dropTarget : ""}`}
-              key={item.key}
-              onDragOver={(event) => { event.preventDefault(); setDropIndex(index); }}
-              onDrop={(event) => { event.preventDefault(); if (draggingIndex !== null) reorder(draggingIndex, index); setDraggingIndex(null); setDropIndex(null); }}
-            >
-              <legend>Action #{index + 1}</legend>
-              <div className={styles.sequenceHeading}><button className={styles.dragHandle} type="button" draggable onDragStart={() => setDraggingIndex(index)} onDragEnd={() => { setDraggingIndex(null); setDropIndex(null); }} onKeyDown={(event) => { if (event.key === "ArrowUp") { event.preventDefault(); moveWithKeyboard(index, -1); } if (event.key === "ArrowDown") { event.preventDefault(); moveWithKeyboard(index, 1); } }} aria-label={`Reorder action ${index + 1}`}>⋮⋮ Drag to reorder</button><button className="button small danger" type="button" onClick={() => removeSequenceItem(index)} disabled={sequence.length === 1}>Remove</button></div>
-              <input type="hidden" name="mixStepId" value={item.id ?? ""} />
-              <input type="hidden" name="actionMode" value={item.actionMode} />
-              <div className={styles.modeChoice}><label className="checkbox-card"><input type="radio" checked={item.actionMode === "INLINE"} onChange={() => updateStep(index, { actionMode: "INLINE" })} /><span><strong>Write this action</strong><small>Keep the content inside this Mix.</small></span></label><label className="checkbox-card"><input type="radio" checked={item.actionMode === "TEMPLATE"} onChange={() => updateStep(index, { actionMode: "TEMPLATE", stepTemplateId: item.stepTemplateId || jumps[0]?.id || "" })} disabled={!jumps.length} /><span><strong>Insert template</strong><small>Use an existing reusable Action Template.</small></span></label></div>
-              {item.actionMode === "TEMPLATE" ? <div className="field full"><label>Action Template</label><select name="stepTemplateId" value={item.stepTemplateId} onChange={(event) => chooseTemplate(index, event.target.value)} required><option value="">Choose a template</option>{jumps.map((jump) => <option value={jump.id} key={jump.id}>{jump.channel.replaceAll("_", " ")} · {jump.name}</option>)}</select>{template && <small>{template.channel.replaceAll("_", " ").toLowerCase()}</small>}</div> : <div className={styles.inlineFields}><input type="hidden" name="stepTemplateId" value="" /><div className="form-grid"><div className="field"><label>Internal action name</label><input name="inlineName" value={item.name} onChange={(event) => updateStep(index, { name: event.target.value })} maxLength={160} required /></div><div className="field"><label>Channel</label><select name="inlineChannel" value={item.channel} onChange={(event) => updateStep(index, { channel: event.target.value as Channel })}>{CHANNELS.map((channel) => <option value={channel.value} key={channel.value}>{channel.label}</option>)}</select></div>{item.channel === "EMAIL" && <div className="field full"><label>Email subject</label><input name="inlineSubject" value={item.subject} onChange={(event) => updateStep(index, { subject: event.target.value })} maxLength={300} required /></div>}<div className="field full">{needsWrittenContent && <><label>Prepared message</label><textarea name="inlineBody" value={item.body} onChange={(event) => updateStep(index, { body: event.target.value })} rows={6} required /></>}{needsScript && <><label>Call or voicemail notes</label><textarea name="inlineScript" value={item.script} onChange={(event) => updateStep(index, { script: event.target.value })} rows={6} required /></>}</div><label className="checkbox-card field full"><input type="checkbox" name="saveAsTemplate" checked={item.saveAsTemplate} onChange={(event) => updateStep(index, { saveAsTemplate: event.target.checked })} /><span><strong>Also save as a reusable Action Template</strong><small>Leave clear to keep the action available only inside this Mix.</small></span></label></div></div>}
-              <div className="form-grid"><div className="field"><label>Day offset</label><input name="dayOffset" type="number" min={-MAX_STEP_OFFSET_DAYS} max={MAX_STEP_OFFSET_DAYS} value={item.dayOffset} onChange={(event) => updateStep(index, { dayOffset: Number(event.target.value) })} required /><small>Negative is before; positive is after.</small></div><div className="field"><label>Optional local time override</label><input type="time" value={timeValue(item.sendTimeMinutes)} onChange={(event) => updateStep(index, { sendTimeMinutes: minutesValue(event.target.value) })} /><input type="hidden" name="sendTimeMinutes" value={item.sendTimeMinutes ?? ""} /></div></div>
-            </fieldset>
-          );
-        })}</div>
-      </section>
+      <section className="card mix-editor-section"><div className="card-header"><div><p className="eyebrow">Action sequence</p><h2>Write actions here or insert a template</h2><p>Reusable templates are optional accelerators—not a prerequisite for building a Mix.</p></div><div className="page-actions"><Link className="button" href="/settings/jumps">Template library</Link><button className="button primary" type="button" onClick={addSequenceItem}>+ Add action</button></div></div><div className={styles.sequenceList}>{sequence.map((item, index) => { const template = jumpById.get(item.stepTemplateId); const needsWrittenContent = item.channel === "EMAIL" || item.channel === "SMS" || item.channel === "WHATSAPP"; const needsScript = item.channel === "PHONE_CALL" || item.channel === "VOICEMAIL"; return <fieldset className={`mix-editor-jump ${styles.sequenceCard} ${draggingIndex === index ? styles.dragging : ""} ${dropIndex === index ? styles.dropTarget : ""}`} key={item.key} onDragOver={(event) => { event.preventDefault(); setDropIndex(index); }} onDrop={(event) => { event.preventDefault(); if (draggingIndex !== null) reorder(draggingIndex, index); setDraggingIndex(null); setDropIndex(null); }}><legend>Action #{index + 1}</legend><div className={styles.sequenceHeading}><button className={styles.dragHandle} type="button" draggable onDragStart={() => setDraggingIndex(index)} onDragEnd={() => { setDraggingIndex(null); setDropIndex(null); }} onKeyDown={(event) => { if (event.key === "ArrowUp") { event.preventDefault(); reorder(index, index - 1); } if (event.key === "ArrowDown") { event.preventDefault(); reorder(index, index + 1); } }} aria-label={`Reorder action ${index + 1}`}>⋮⋮ Drag to reorder</button><button className="button small danger" type="button" onClick={() => removeSequenceItem(index)} disabled={sequence.length === 1}>Remove</button></div><input type="hidden" name="mixStepId" value={item.id ?? ""} /><input type="hidden" name="actionMode" value={item.actionMode} /><div className={styles.modeChoice}><label className="checkbox-card"><input type="radio" checked={item.actionMode === "INLINE"} onChange={() => updateStep(index, { actionMode: "INLINE" })} /><span><strong>Write this action</strong><small>Keep the content inside this Mix.</small></span></label><label className="checkbox-card"><input type="radio" checked={item.actionMode === "TEMPLATE"} onChange={() => updateStep(index, { actionMode: "TEMPLATE", stepTemplateId: item.stepTemplateId || jumps[0]?.id || "" })} disabled={!jumps.length} /><span><strong>Insert template</strong><small>Use an existing reusable Action Template.</small></span></label></div>{item.actionMode === "TEMPLATE" ? <div className="field full"><label>Action Template</label><select name="stepTemplateId" value={item.stepTemplateId} onChange={(event) => chooseTemplate(index, event.target.value)} required><option value="">Choose a template</option>{jumps.map((jump) => <option value={jump.id} key={jump.id}>{jump.channel.replaceAll("_", " ")} · {jump.name}</option>)}</select>{template && <small>{template.channel.replaceAll("_", " ").toLowerCase()}</small>}</div> : <div className={styles.inlineFields}><input type="hidden" name="stepTemplateId" value="" /><div className="form-grid"><div className="field"><label>Internal action name</label><input name={`inlineName-${index}`} value={item.name} onChange={(event) => updateStep(index, { name: event.target.value })} maxLength={160} required /></div><div className="field"><label>Channel</label><select name={`inlineChannel-${index}`} value={item.channel} onChange={(event) => updateStep(index, { channel: event.target.value as Channel })}>{CHANNELS.map((channel) => <option value={channel.value} key={channel.value}>{channel.label}</option>)}</select></div>{item.channel === "EMAIL" && <div className="field full"><label>Email subject</label><input name={`inlineSubject-${index}`} value={item.subject} onChange={(event) => updateStep(index, { subject: event.target.value })} maxLength={300} required /></div>}<div className="field full">{needsWrittenContent && <><label>Prepared message</label><textarea name={`inlineBody-${index}`} value={item.body} onChange={(event) => updateStep(index, { body: event.target.value })} rows={6} required /></>}{needsScript && <><label>Call or voicemail notes</label><textarea name={`inlineScript-${index}`} value={item.script} onChange={(event) => updateStep(index, { script: event.target.value })} rows={6} required /></>}</div><label className="checkbox-card field full"><input type="checkbox" name={`saveAsTemplate-${index}`} checked={item.saveAsTemplate} onChange={(event) => updateStep(index, { saveAsTemplate: event.target.checked })} /><span><strong>Also save as a reusable Action Template</strong><small>Leave clear to keep the action available only inside this Mix.</small></span></label></div></div>}<div className="form-grid"><div className="field"><label>Day offset</label><input name="dayOffset" type="number" min={-MAX_STEP_OFFSET_DAYS} max={MAX_STEP_OFFSET_DAYS} value={item.dayOffset} onChange={(event) => updateStep(index, { dayOffset: Number(event.target.value) })} required /><small>Negative is before; positive is after.</small></div><div className="field"><label>Optional local time override</label><input type="time" value={timeValue(item.sendTimeMinutes)} onChange={(event) => updateStep(index, { sendTimeMinutes: minutesValue(event.target.value) })} /><input type="hidden" name="sendTimeMinutes" value={item.sendTimeMinutes ?? ""} /></div></div></fieldset>; })}</div></section>
 
       {reviewOpen && <aside className={styles.activationReview} role="dialog" aria-modal="false" aria-labelledby="activation-review-heading"><h2 id="activation-review-heading">Review activation impact</h2><p>Confirm the trigger, audience, and projected workload before this Mix begins creating future Jumps.</p><div className={styles.reviewGrid}><div><strong>{audienceEstimate.toLocaleString()}</strong><span>estimated Contacts</span></div><div><strong>{sequence.length}</strong><span>actions per Contact</span></div><div><strong>{projectedJumps.toLocaleString()}</strong><span>projected future Jumps</span></div><div><strong>{earliestOffset} to {latestOffset}</strong><span>day offsets</span></div></div><div className={styles.reviewWarnings}>{!assignAllContacts && !selectedGroupIds.size && <p className="notice error">Choose an audience before activation.</p>}{channels.includes("EMAIL") && missingEmailCount > 0 && <p>{missingEmailCount.toLocaleString()} active Contact{missingEmailCount === 1 ? " has" : "s have"} no saved email.</p>}{channels.some((channel) => ["SMS", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"].includes(channel)) && missingPhoneCount > 0 && <p>{missingPhoneCount.toLocaleString()} active Contact{missingPhoneCount === 1 ? " has" : "s have"} no saved phone.</p>}<p>Channels: {channels.map((channel) => channel.replaceAll("_", " ").toLowerCase()).join(", ")}</p></div><div className="form-actions"><button className="button" type="button" onClick={() => setReviewOpen(false)}>Keep editing</button><button className="button primary" type="button" disabled={!assignAllContacts && !selectedGroupIds.size} onClick={confirmActivation}>Activate {name || "Mix"}</button></div></aside>}
-
       <div className="sticky-form-actions"><Link className="button" href="/mixes">Cancel</Link><button className="button primary" type="submit">{status === "ACTIVE" ? "Review activation" : mix?.id ? "Update Mix" : "Create Mix"}</button></div>
     </form>
   );
