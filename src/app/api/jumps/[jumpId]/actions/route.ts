@@ -5,7 +5,7 @@ import { getCurrentSession } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import { getRequestMetadata } from "@/lib/request-context";
+import { getRequestMetadata, type RequestMetadata } from "@/lib/request-context";
 
 const ACTIONS: JumpActionType[] = ["OPENED", "COPIED", "COMPOSED", "CALLED", "VOICEMAIL_STARTED"];
 
@@ -16,10 +16,12 @@ function actionMatchesChannel(action: JumpActionType, channel: Channel): boolean
   return true;
 }
 
-function privacySafeMetadata(input: { ipAddress: string; userAgent: string }): { ipHash: string; userAgent: string } {
+function privacySafeMetadata(input: RequestMetadata): { ipHash: string | null; userAgent: string | null } {
   return {
-    ipHash: createHmac("sha256", env.authRateLimitSecret).update(input.ipAddress).digest("hex").slice(0, 24),
-    userAgent: input.userAgent.slice(0, 300)
+    ipHash: input.ipAddress
+      ? createHmac("sha256", env.authRateLimitSecret).update(input.ipAddress).digest("hex").slice(0, 24)
+      : null,
+    userAgent: input.userAgent?.slice(0, 300) ?? null
   };
 }
 
