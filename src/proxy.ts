@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const AUTH_COOKIE = process.env.AUTH_COOKIE_NAME ?? "jitm_session";
 const IMPERSONATION_COOKIE = process.env.AUTH_IMPERSONATION_COOKIE_NAME ?? "jitm_impersonation";
 const USER_MFA_PENDING_COOKIE = "jitm_mfa_pending";
+const WORKSPACE_INVITE_COOKIE = "jitm_workspace_invite";
 const IMPERSONATION_END_PATH = "/api/admin/impersonation/end";
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -62,6 +64,18 @@ function pendingMfaResponse(request: NextRequest): NextResponse | null {
   return NextResponse.redirect(url);
 }
 
+function invitationResponse(request: NextRequest): NextResponse | null {
+  if (!request.cookies.get(WORKSPACE_INVITE_COOKIE)?.value) return null;
+  const path = request.nextUrl.pathname;
+  if (path === "/join" || path === "/mfa" || path.startsWith("/api/workspace-invitations/start")) return null;
+  const authenticated = Boolean(request.cookies.get(AUTH_COOKIE)?.value);
+  if (!authenticated && (path === "/login" || path === "/register" || path.startsWith("/verify-email/"))) return null;
+  const url = request.nextUrl.clone();
+  url.pathname = authenticated ? "/join" : "/login";
+  url.search = authenticated ? "" : "?invite=1";
+  return NextResponse.redirect(url);
+}
+
 function applySecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
@@ -84,6 +98,8 @@ export function proxy(request: NextRequest) {
 
   const mfaResponse = pendingMfaResponse(request);
   if (mfaResponse) return applySecurityHeaders(mfaResponse);
+  const inviteResponse = invitationResponse(request);
+  if (inviteResponse) return applySecurityHeaders(inviteResponse);
 
   if (!impersonationMutationAllowed(request)) {
     const response = request.nextUrl.pathname.startsWith("/api/")
