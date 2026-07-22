@@ -7,7 +7,6 @@ import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
 import { mergeGroupActivity } from "@/lib/group-activity";
-import { formatPlanLimit, PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Contacts" };
@@ -18,7 +17,6 @@ type SearchParams = {
   q?: string;
   group?: string;
   priority?: string;
-  owner?: string;
   permission?: string;
   view?: string;
   page?: string;
@@ -63,7 +61,6 @@ function pageHref(input: {
   q: string;
   groupId: string;
   priority: string;
-  owner: string;
   permission: string;
   viewId: string;
   intent?: string;
@@ -73,7 +70,6 @@ function pageHref(input: {
   if (input.q) params.set("q", input.q);
   if (input.groupId) params.set("group", input.groupId);
   if (input.priority) params.set("priority", input.priority);
-  if (input.owner) params.set("owner", input.owner);
   if (input.permission) params.set("permission", input.permission);
   if (input.viewId) params.set("view", input.viewId);
   if (input.intent) params.set("intent", input.intent);
@@ -98,7 +94,6 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const groupId = (params.group ?? (selectedView ? savedViewValue(selectedView.query, "group") : "")).trim();
   const requestedPriority = (params.priority ?? (selectedView ? savedViewValue(selectedView.query, "priority") : "")).trim().toUpperCase();
   const priority = ["LOW", "NORMAL", "HIGH", "URGENT"].includes(requestedPriority) ? requestedPriority : "";
-  const owner = (params.owner ?? (selectedView ? savedViewValue(selectedView.query, "owner") : "")).trim();
   const requestedPermission = (params.permission ?? (selectedView ? savedViewValue(selectedView.query, "permission") : "")).trim().toLowerCase();
   const permission = ["contactable", "do-not-contact"].includes(requestedPermission) ? requestedPermission : "";
   const importBatchId = params.importBatch?.trim() ?? "";
@@ -115,11 +110,6 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     relationshipFilters.push(priority === "NORMAL"
       ? { OR: [{ relationshipState: { is: null } }, { relationshipState: { is: { priority: "NORMAL" } } }] }
       : { relationshipState: { is: { priority: priority as "LOW" | "NORMAL" | "HIGH" | "URGENT" } } });
-  }
-  if (owner) {
-    relationshipFilters.push(owner === "unassigned"
-      ? { OR: [{ relationshipState: { is: null } }, { relationshipState: { is: { ownerUserId: null } } }] }
-      : { relationshipState: { is: { ownerUserId: owner } } });
   }
   if (permission) {
     relationshipFilters.push(permission === "do-not-contact"
@@ -145,7 +135,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     } : {})
   };
 
-  const [totalCount, contacts, rawGroups, groupStates, jumps, customFields, members] = await Promise.all([
+  const [totalCount, contacts, rawGroups, groupStates, jumps, customFields] = await Promise.all([
     prisma.contact.count({ where: contactWhere }),
     prisma.contact.findMany({
       where: contactWhere,
@@ -156,7 +146,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         groupMemberships: { include: { group: true } },
         customFieldValues: { include: { definition: true } },
         jumpDates: { where: { isActive: true }, include: { dateType: true }, orderBy: { dateValue: "asc" } },
-        relationshipState: { select: { ownerUserId: true, preferredChannel: true, priority: true, doNotContact: true } }
+        relationshipState: { select: { preferredChannel: true, priority: true, doNotContact: true } }
       },
       orderBy: [{ displayName: "asc" }, { id: "asc" }],
       skip: (page - 1) * PAGE_SIZE,
@@ -180,11 +170,6 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       where: { workspaceId: workspace.id },
       select: { id: true, name: true, key: true },
       orderBy: [{ createdAt: "asc" }, { name: "asc" }]
-    }),
-    prisma.workspaceMember.findMany({
-      where: { workspaceId: workspace.id },
-      select: { user: { select: { id: true, name: true } } },
-      orderBy: { createdAt: "asc" }
     })
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates);
@@ -196,7 +181,6 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   }) : [];
   const jumpsByContact = new Map<string, typeof contactJumps>();
   for (const jump of contactJumps) jumpsByContact.set(jump.contactId, [...(jumpsByContact.get(jump.contactId) ?? []), jump]);
-  const memberNameByUserId = new Map(members.map(({ user: member }) => [member.id, member.name]));
 
   const contactDtos: ContactBulkDto[] = contacts.map((contact) => {
     const state = jumpsByContact.get(contact.id) ?? [];
@@ -242,7 +226,6 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       relationshipType: custom.get("relationship-type") ?? custom.get("relationship") ?? null,
       preferredChannel: contact.relationshipState?.preferredChannel ?? custom.get("preferred-channel") ?? null,
       priority: contact.relationshipState?.priority ?? custom.get("priority") ?? "NORMAL",
-      ownerName: contact.relationshipState?.ownerUserId ? memberNameByUserId.get(contact.relationshipState.ownerUserId) ?? "Former teammate" : null,
       doNotContact: contact.relationshipState?.doNotContact ?? false
     };
   });
@@ -259,7 +242,6 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.created && <Notice type="success">Contact added. Add an Important Date or assign a Mix when you are ready.</Notice>}
       {params.archived && <Notice type="success">Contact archived. Completed history remains preserved.</Notice>}
       {params.groupCreated && <Notice type="success">Contact Group created.</Notice>}
-      {params.groupInactive && <Notice type="info">The new group was preserved as inactive because your active-group allowance is already full. Choose the groups that should remain active from Manage groups.</Notice>}
       {params.groupDeleted && <Notice type="success">Contact Group removed. Contacts were preserved.</Notice>}
       {params.groupsActiveSaved && <Notice type="success">Active Contact Groups updated. Existing memberships are preserved and future Jumps are being reconciled.</Notice>}
       {params.bulkAssigned && <Notice type="success">Assigned {params.bulkAssigned} selected Contact{params.bulkAssigned === "1" ? "" : "s"} to the group.</Notice>}
@@ -274,28 +256,25 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       <ContactSavedViewsBar
         views={savedViews.map(({ id, name, isDefault }) => ({ id, name, isDefault }))}
         selectedViewId={selectedView?.id ?? ""}
-        filters={{ q, group: groupId, priority, owner, permission }}
+        filters={{ q, group: groupId, priority, permission }}
       />
       <ContactsBulkWorkspace
         contacts={contactDtos}
         groups={groups.map((group) => ({ id: group.id, name: group.name, description: group.description, color: group.color, contactCount: group._count.memberships, isActive: group.isActive }))}
         jumps={jumps.map((jump) => ({ id: jump.id, name: jump.name, channel: jump.channel }))}
         customFields={customFields}
-        members={members.map(({ user: member }) => ({ id: member.id, name: member.name }))}
-        groupLimit={formatPlanLimit(PLAN_LIMITS[workspace.planTier].groups)}
         query={q}
         groupFilter={groupId}
         priorityFilter={priority}
-        ownerFilter={owner}
         permissionFilter={permission}
         intent={intent}
       />
       <nav className="pagination-bar" aria-label="Contact result pages">
         <span>{resultMessage}</span>
         <div className="page-actions">
-          {page > 1 && <Link className="button" href={pageHref({ page: page - 1, q, groupId, priority, owner, permission, viewId: selectedView?.id ?? "", intent, importBatchId })}>Previous</Link>}
+          {page > 1 && <Link className="button" href={pageHref({ page: page - 1, q, groupId, priority, permission, viewId: selectedView?.id ?? "", intent, importBatchId })}>Previous</Link>}
           <span>Page {Math.min(page, totalPages)} of {totalPages}</span>
-          {page < totalPages && <Link className="button" href={pageHref({ page: page + 1, q, groupId, priority, owner, permission, viewId: selectedView?.id ?? "", intent, importBatchId })}>Next</Link>}
+          {page < totalPages && <Link className="button" href={pageHref({ page: page + 1, q, groupId, priority, permission, viewId: selectedView?.id ?? "", intent, importBatchId })}>Next</Link>}
         </div>
       </nav>
     </div>

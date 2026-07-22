@@ -29,7 +29,6 @@ describe.sequential("Contact lifecycle management", () => {
       data: {
         workspaceId: ids.workspace,
         contactId: ids.contact,
-        ownerUserId: ids.user,
         preferredChannel: "PHONE_CALL",
         priority: "HIGH",
         doNotContact: true,
@@ -49,7 +48,7 @@ describe.sequential("Contact lifecycle management", () => {
       include: { relationshipState: true }
     });
     expect(filtered).toHaveLength(1);
-    expect(filtered[0]?.relationshipState).toMatchObject({ ownerUserId: ids.user, priority: "URGENT" });
+    expect(filtered[0]?.relationshipState).toMatchObject({ priority: "URGENT" });
   });
 
   it("stores one cross-device layout and reusable saved views per user and workspace", async () => {

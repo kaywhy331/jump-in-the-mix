@@ -49,7 +49,7 @@ async function loadMergeContact(workspaceId: string, contactId: string) {
 
 export async function mergeContactsAction(formData: FormData): Promise<void> {
   const { workspace, user, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Administrator support sessions are view-only.");
+  if (impersonation) fail("View-only support sessions cannot merge Contacts.");
   const survivorId = value(formData, "survivorContactId", 120);
   const sourceId = value(formData, "sourceContactId", 120);
   const confirmation = value(formData, "confirmation", 240);
@@ -142,7 +142,6 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
         create: {
           workspaceId: workspace.id,
           contactId: survivor.id,
-          ownerUserId: survivorState?.ownerUserId ?? sourceState.ownerUserId,
           preferredChannel: survivorState?.preferredChannel ?? sourceState.preferredChannel,
           priority: survivorState?.priority === "NORMAL" || !survivorState ? sourceState.priority : survivorState.priority,
           doNotContact: Boolean(survivorState?.doNotContact || sourceState.doNotContact),
@@ -150,7 +149,6 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
           nextCommitmentAt: survivorState?.nextCommitmentAt ?? sourceState.nextCommitmentAt
         },
         update: {
-          ownerUserId: survivorState?.ownerUserId ?? sourceState.ownerUserId,
           preferredChannel: survivorState?.preferredChannel ?? sourceState.preferredChannel,
           priority: survivorState?.priority === "NORMAL" ? sourceState.priority : survivorState?.priority,
           doNotContact: Boolean(survivorState?.doNotContact || sourceState.doNotContact),

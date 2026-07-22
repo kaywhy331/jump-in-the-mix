@@ -34,7 +34,7 @@ function addressText(address: { street1: string | null; street2: string | null; 
 
 export default async function ContactDetailPage({ params, searchParams }: { params: Promise<{ contactId: string }>; searchParams: Promise<SearchParams> }) {
   const [{ contactId }, query, { workspace, user }] = await Promise.all([params, searchParams, requireWorkspace()]);
-  const [contact, dateTypes, mixes, stops, groupStates, relationshipState, members, layout, mergeHistory] = await Promise.all([
+  const [contact, dateTypes, mixes, stops, groupStates, relationshipState, layout, mergeHistory] = await Promise.all([
     prisma.contact.findFirst({
       where: { id: contactId, workspaceId: workspace.id, archivedAt: null },
       include: {
@@ -52,7 +52,6 @@ export default async function ContactDetailPage({ params, searchParams }: { para
     prisma.mixStop.findMany({ where: { workspaceId: workspace.id, contactId }, orderBy: { stoppedAt: "desc" } }),
     listGroupStates(workspace.id),
     prisma.contactRelationshipState.findUnique({ where: { contactId } }),
-    prisma.workspaceMember.findMany({ where: { workspaceId: workspace.id }, include: { user: { select: { id: true, name: true, email: true } } }, orderBy: { createdAt: "asc" } }),
     prisma.userContactLayout.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } } }),
     prisma.contactMergeRecord.findMany({ where: { workspaceId: workspace.id, survivorContactId: contactId }, orderBy: { createdAt: "desc" }, take: 10 })
   ]);
@@ -65,14 +64,14 @@ export default async function ContactDetailPage({ params, searchParams }: { para
   const activeByGroupId = new Map(groupStates.map((state) => [state.groupId, state.isActive]));
   const primaryEmail = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email ?? null;
   const primaryPhone = contact.phones.find((item) => item.isPrimary)?.phone ?? contact.phones[0]?.phone ?? null;
-  const state = relationshipState ?? { ownerUserId: null, preferredChannel: null, priority: "NORMAL" as const, doNotContact: false, relationshipStatus: null, nextCommitmentAt: null, version: 0 };
+  const state = relationshipState ?? { preferredChannel: null, priority: "NORMAL" as const, doNotContact: false, relationshipStatus: null, nextCommitmentAt: null, version: 0 };
 
   const cardItems: PersonalizableCardItem[] = [
     {
       id: "relationship-state",
       title: "Relationship state",
-      description: "Ownership, urgency, communication preference, next commitment, and contact permission.",
-      content: <ContactRelationshipStatePanel contactId={contact.id} state={state} members={members.map((member) => ({ userId: member.user.id, name: member.user.name, email: member.user.email }))} />
+      description: "Priority, communication preference, next commitment, and contact permission.",
+      content: <ContactRelationshipStatePanel contactId={contact.id} state={state} />
     },
     {
       id: "relationship-timeline",

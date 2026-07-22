@@ -2,7 +2,6 @@ import type { Channel, ContactPriority } from "@/generated/prisma/client";
 import { updateContactBasicsInlineAction, updateContactRelationshipStateAction } from "@/lib/contact-state-actions";
 
 export type ContactRelationshipStateValue = {
-  ownerUserId: string | null;
   preferredChannel: Channel | null;
   priority: ContactPriority;
   doNotContact: boolean;
@@ -13,19 +12,16 @@ export type ContactRelationshipStateValue = {
 
 export function ContactRelationshipStatePanel({
   contactId,
-  state,
-  members
+  state
 }: {
   contactId: string;
   state: ContactRelationshipStateValue;
-  members: Array<{ userId: string; name: string; email: string }>;
 }) {
   const nextCommitment = state.nextCommitmentAt ? new Date(state.nextCommitmentAt.getTime() - state.nextCommitmentAt.getTimezoneOffset() * 60_000).toISOString().slice(0, 16) : "";
   return (
     <form action={updateContactRelationshipStateAction} className="form-grid contact-relationship-state-form">
       <input type="hidden" name="contactId" value={contactId} />
       <input type="hidden" name="version" value={state.version} />
-      <label className="field"><span>Relationship owner</span><select name="ownerUserId" defaultValue={state.ownerUserId ?? ""}><option value="">Unassigned</option>{members.map((member) => <option value={member.userId} key={member.userId}>{member.name} · {member.email}</option>)}</select></label>
       <label className="field"><span>Priority</span><select name="priority" defaultValue={state.priority}><option value="LOW">Low</option><option value="NORMAL">Normal</option><option value="HIGH">High</option><option value="URGENT">Urgent</option></select></label>
       <label className="field"><span>Preferred channel</span><select name="preferredChannel" defaultValue={state.preferredChannel ?? ""}><option value="">Not specified</option><option value="EMAIL">Email</option><option value="SMS">SMS</option><option value="PHONE_CALL">Phone call</option><option value="WHATSAPP">WhatsApp</option><option value="VOICEMAIL">Voicemail script</option></select></label>
       <label className="field"><span>Relationship status</span><input name="relationshipStatus" defaultValue={state.relationshipStatus ?? ""} maxLength={160} placeholder="Active client, prospect, partner…" /></label>

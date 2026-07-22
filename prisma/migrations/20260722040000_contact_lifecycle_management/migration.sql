@@ -4,7 +4,6 @@ CREATE TABLE "ContactRelationshipState" (
   "id" TEXT NOT NULL,
   "workspaceId" TEXT NOT NULL,
   "contactId" TEXT NOT NULL,
-  "ownerUserId" TEXT,
   "preferredChannel" "Channel",
   "priority" "ContactPriority" NOT NULL DEFAULT 'NORMAL',
   "doNotContact" BOOLEAN NOT NULL DEFAULT FALSE,
@@ -17,12 +16,11 @@ CREATE TABLE "ContactRelationshipState" (
   CONSTRAINT "ContactRelationshipState_version_check" CHECK ("version" > 0)
 );
 CREATE UNIQUE INDEX "ContactRelationshipState_contactId_key" ON "ContactRelationshipState"("contactId");
-CREATE INDEX "ContactRelationshipState_workspaceId_ownerUserId_priority_idx" ON "ContactRelationshipState"("workspaceId", "ownerUserId", "priority");
+CREATE INDEX "ContactRelationshipState_workspaceId_priority_idx" ON "ContactRelationshipState"("workspaceId", "priority");
 CREATE INDEX "ContactRelationshipState_workspaceId_doNotContact_idx" ON "ContactRelationshipState"("workspaceId", "doNotContact");
 CREATE INDEX "ContactRelationshipState_workspaceId_nextCommitmentAt_idx" ON "ContactRelationshipState"("workspaceId", "nextCommitmentAt");
 ALTER TABLE "ContactRelationshipState" ADD CONSTRAINT "ContactRelationshipState_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "ContactRelationshipState" ADD CONSTRAINT "ContactRelationshipState_contactId_fkey" FOREIGN KEY ("contactId") REFERENCES "Contact"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "ContactRelationshipState" ADD CONSTRAINT "ContactRelationshipState_ownerUserId_fkey" FOREIGN KEY ("ownerUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 CREATE TABLE "UserContactLayout" (
   "id" TEXT NOT NULL,

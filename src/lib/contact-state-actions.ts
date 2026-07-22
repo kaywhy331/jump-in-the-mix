@@ -17,7 +17,7 @@ function fail(contactId: string, message: string): never {
 export async function updateContactBasicsInlineAction(formData: FormData): Promise<void> {
   const { workspace, user, impersonation } = await requireWorkspace();
   const contactId = value(formData, "contactId", 120);
-  if (impersonation) fail(contactId, "Administrator support sessions are view-only.");
+  if (impersonation) fail(contactId, "View-only support sessions cannot change Contact details.");
   const contact = await prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, include: { emails: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, phones: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] } } });
   if (!contact) fail(contactId, "Contact not found.");
   const company = value(formData, "company", 240) || null;
@@ -58,11 +58,10 @@ export async function updateContactBasicsInlineAction(formData: FormData): Promi
 export async function updateContactRelationshipStateAction(formData: FormData): Promise<void> {
   const { workspace, user, impersonation } = await requireWorkspace();
   const contactId = value(formData, "contactId", 120);
-  if (impersonation) fail(contactId, "Administrator support sessions are view-only.");
+  if (impersonation) fail(contactId, "View-only support sessions cannot change relationship details.");
   const contact = await prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, select: { id: true } });
   if (!contact) fail(contactId, "Contact not found.");
   const submittedVersion = Number.parseInt(value(formData, "version", 20) || "0", 10);
-  const ownerUserId = value(formData, "ownerUserId", 120) || null;
   const preferredRaw = value(formData, "preferredChannel", 40);
   const preferredChannel = preferredRaw && ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"].includes(preferredRaw) ? preferredRaw as Channel : null;
   const priorityRaw = value(formData, "priority", 40);
@@ -71,24 +70,20 @@ export async function updateContactRelationshipStateAction(formData: FormData): 
   const nextCommitmentRaw = value(formData, "nextCommitmentAt", 40);
   const nextCommitmentAt = nextCommitmentRaw ? new Date(nextCommitmentRaw) : null;
   if (nextCommitmentRaw && (!nextCommitmentAt || Number.isNaN(nextCommitmentAt.getTime()))) fail(contactId, "Choose a valid next commitment date and time.");
-  if (ownerUserId) {
-    const member = await prisma.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId: workspace.id, userId: ownerUserId } }, select: { id: true } });
-    if (!member) fail(contactId, "Choose a current workspace teammate as owner.");
-  }
   const existing = await prisma.contactRelationshipState.findUnique({ where: { contactId } });
   if (existing && submittedVersion !== existing.version) fail(contactId, "This relationship state changed in another tab. Reload before saving again.");
   const doNotContact = formData.get("doNotContact") === "on";
   await prisma.$transaction(async (tx) => {
     if (existing) {
-      const updated = await tx.contactRelationshipState.updateMany({ where: { id: existing.id, version: submittedVersion }, data: { ownerUserId, preferredChannel, priority, doNotContact, relationshipStatus, nextCommitmentAt, version: { increment: 1 } } });
+      const updated = await tx.contactRelationshipState.updateMany({ where: { id: existing.id, version: submittedVersion }, data: { preferredChannel, priority, doNotContact, relationshipStatus, nextCommitmentAt, version: { increment: 1 } } });
       if (updated.count !== 1) throw new Error("This relationship state changed in another session.");
     } else {
-      await tx.contactRelationshipState.create({ data: { workspaceId: workspace.id, contactId, ownerUserId, preferredChannel, priority, doNotContact, relationshipStatus, nextCommitmentAt } });
+      await tx.contactRelationshipState.create({ data: { workspaceId: workspace.id, contactId, preferredChannel, priority, doNotContact, relationshipStatus, nextCommitmentAt } });
     }
     if (doNotContact) await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId, status: { in: ["PENDING", "COPIED"] } }, data: { status: "CANCELED", completionMethod: "do_not_contact", completedAt: null } });
     else await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId } } });
-    await tx.contactActivity.create({ data: { workspaceId: workspace.id, contactId, actorUserId: user.id, kind: "SYSTEM", visibility: "WORKSPACE", summary: doNotContact ? "Contact marked do not contact." : `Relationship state updated to ${priority.toLowerCase()} priority${relationshipStatus ? ` · ${relationshipStatus}` : ""}.`, nextCommitmentAt, metadata: { ownerUserId, preferredChannel, priority, doNotContact } } });
-    await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "contact.relationship-state.update", entityType: "ContactRelationshipState", entityId: contactId, source: "contacts.detail", beforeData: existing ? { ownerUserId: existing.ownerUserId, preferredChannel: existing.preferredChannel, priority: existing.priority, doNotContact: existing.doNotContact, relationshipStatus: existing.relationshipStatus, nextCommitmentAt: existing.nextCommitmentAt } : undefined, afterData: { ownerUserId, preferredChannel, priority, doNotContact, relationshipStatus, nextCommitmentAt } } });
+    await tx.contactActivity.create({ data: { workspaceId: workspace.id, contactId, actorUserId: user.id, kind: "SYSTEM", visibility: "WORKSPACE", summary: doNotContact ? "Contact marked do not contact." : `Relationship state updated to ${priority.toLowerCase()} priority${relationshipStatus ? ` · ${relationshipStatus}` : ""}.`, nextCommitmentAt, metadata: { preferredChannel, priority, doNotContact } } });
+    await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "contact.relationship-state.update", entityType: "ContactRelationshipState", entityId: contactId, source: "contacts.detail", beforeData: existing ? { preferredChannel: existing.preferredChannel, priority: existing.priority, doNotContact: existing.doNotContact, relationshipStatus: existing.relationshipStatus, nextCommitmentAt: existing.nextCommitmentAt } : undefined, afterData: { preferredChannel, priority, doNotContact, relationshipStatus, nextCommitmentAt } } });
   });
   redirect(`/contacts/${contactId}?stateUpdated=1`);
 }

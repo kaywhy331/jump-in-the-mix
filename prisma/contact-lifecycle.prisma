@@ -9,7 +9,6 @@ model ContactRelationshipState {
   id                 String          @id @default(cuid())
   workspaceId        String
   contactId          String          @unique
-  ownerUserId        String?
   preferredChannel   Channel?
   priority           ContactPriority @default(NORMAL)
   doNotContact       Boolean         @default(false)
@@ -20,7 +19,7 @@ model ContactRelationshipState {
   updatedAt          DateTime        @updatedAt
   contact            Contact         @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
-  @@index([workspaceId, ownerUserId, priority])
+  @@index([workspaceId, priority])
   @@index([workspaceId, doNotContact])
   @@index([workspaceId, nextCommitmentAt])
 }
