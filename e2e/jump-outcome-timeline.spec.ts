@@ -84,11 +84,12 @@ test("Jump outcomes complete in place and appear on the Contact timeline", async
     await expect(page.getByText(`How did the follow-up with ${displayName} go?`)).toBeVisible();
     const tray = page.getByLabel(`Finish follow-up with ${displayName}`).filter({ visible: true });
     await tray.getByText("Add a note, detailed outcome, or next follow-up", { exact: true }).click();
-    await tray.getByLabel("Outcome", { exact: true }).selectOption("NO_ANSWER");
-    await tray.getByLabel("Outcome note", { exact: true }).fill("No answer; try again tomorrow morning.");
+    const outcomeForm = tray.locator("form");
+    await outcomeForm.getByRole("combobox").first().selectOption("NO_ANSWER");
+    await outcomeForm.locator("textarea").fill("No answer; try again tomorrow morning.");
     const nextDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    await tray.getByLabel("Next follow-up date").fill(nextDate);
-    await tray.getByRole("button", { name: "Save outcome" }).click();
+    await outcomeForm.locator('input[type="date"]').fill(nextDate);
+    await outcomeForm.getByRole("button", { name: "Save outcome" }).click();
     await expect(workflow.getByText("Jump completed")).toBeVisible();
     await expect.poll(async () => prisma.contactActivity.count({ where: { jumpId, outcome: "NO_ANSWER" } })).toBe(1);
     await expect.poll(async () => prisma.jumpDate.count({ where: { contactId, isActive: true, label: { contains: "Next commitment" } } })).toBe(1);
