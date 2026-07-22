@@ -49,7 +49,7 @@ export function AiMixWizardForm({
   const [framework, setFramework] = useState(preferredOption(frameworks, "Question-Led Consultative"));
   const [triggerMode, setTriggerMode] = useState<TriggerMode>("MANUAL_START");
   const [industryContext, setIndustryContext] = useState(industry ? "MY_INFO" : "NONE");
-  const [productPlaceholder, setProductPlaceholder] = useState(AI_MIX_PRODUCT_PLACEHOLDERS[0] ?? "");
+  const [productPlaceholder, setProductPlaceholder] = useState<string>(AI_MIX_PRODUCT_PLACEHOLDERS[0] ?? "");
   const [assignAllContacts, setAssignAllContacts] = useState(false);
 
   return (

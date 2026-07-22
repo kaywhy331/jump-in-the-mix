@@ -89,7 +89,8 @@ describe.sequential("AI Mix draft service", () => {
       actorUserId: ids.userB,
       draftId,
       generatedMixValue: generation.draft,
-      validationValue: generation.validation
+      validationValue: generation.validation,
+      targetStatus: "DRAFT"
     })).rejects.toThrow(/not found/i);
 
     const mixId = await publishAiMixDraft({
@@ -97,7 +98,8 @@ describe.sequential("AI Mix draft service", () => {
       actorUserId: ids.userA,
       draftId,
       generatedMixValue: generation.draft,
-      validationValue: generation.validation
+      validationValue: generation.validation,
+      targetStatus: "DRAFT"
     });
 
     const [mix, draft, auditCount, jobCount] = await Promise.all([
@@ -119,14 +121,15 @@ describe.sequential("AI Mix draft service", () => {
     expect(mix.assignments).toEqual(expect.arrayContaining([expect.objectContaining({ groupId: ids.group, mode: "DYNAMIC", isActive: true })]));
     expect(draft.status).toBe("PUBLISHED");
     expect(auditCount).toBe(1);
-    expect(jobCount).toBe(1);
+    expect(jobCount).toBe(0);
 
     await expect(publishAiMixDraft({
       workspaceId: ids.workspaceA,
       actorUserId: ids.userA,
       draftId,
       generatedMixValue: generation.draft,
-      validationValue: generation.validation
+      validationValue: generation.validation,
+      targetStatus: "DRAFT"
     })).rejects.toThrow(/no longer editable/i);
   });
 });

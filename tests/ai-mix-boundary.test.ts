@@ -50,7 +50,7 @@ describe("AI Mix Wizard boundary", () => {
     expect(service).toContain('status: "DRAFT"');
     expect(service).toContain('source: "AI_WIZARD"');
     expect(service).toContain("tx.stepTemplate.create");
-    expect(service).toContain("tx.stepVersion.create");
+    expect(service).toContain("versions: { create:");
     expect(service).toContain("tx.mixStep.create");
     expect(service).toContain("tx.mixAssignment.create");
     expect(service).toContain('task: "generate-jumps"');
@@ -58,11 +58,13 @@ describe("AI Mix Wizard boundary", () => {
 
   it("keeps the workflow review-first and never inserts Reply STOP copy", () => {
     const wizard = read("src/app/(app)/mixes/wizard/page.tsx");
+    const wizardForm = read("src/components/AiMixWizardForm.tsx");
     const review = read("src/app/(app)/mixes/wizard/[draftId]/page.tsx");
     const service = read("src/lib/ai-mix.ts");
-    expect(wizard).toContain("Generate review draft");
-    expect(review).toContain("Create editable Mix Draft");
-    expect(review).toContain("Nothing has been activated");
+    expect(wizard).toContain("one final review");
+    expect(wizardForm).toContain("Generate final review");
+    expect(wizardForm).toContain("Nothing activates without your explicit choice");
+    expect(review).toContain("Create Mix Draft");
     expect(service).toContain("Personal SMS Jumps must not include");
     expect(service).not.toContain('body: "Reply STOP');
   });
