@@ -20,9 +20,9 @@ function clean(value: string | undefined): string {
   return (value ?? "").trim();
 }
 
-function selectedPrimaryIndex(raw: string | undefined, length: number): number {
+function requestedPrimaryIndex(raw: string | undefined, length: number): number | null {
   const parsed = Number.parseInt(raw ?? "", 10);
-  return Number.isInteger(parsed) && parsed >= 0 && parsed < length ? parsed : 0;
+  return Number.isInteger(parsed) && parsed >= 0 && parsed < length ? parsed : null;
 }
 
 export function normalizeEmail(value: string): string {
@@ -30,7 +30,8 @@ export function normalizeEmail(value: string): string {
 }
 
 export function isValidEmail(value: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
+  const normalized = normalizeEmail(value);
+  return normalized.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
 }
 
 export function normalizePhone(value: string): string | null {
@@ -42,40 +43,46 @@ export function normalizePhone(value: string): string | null {
 }
 
 export function buildEmailInputs(values: string[], labels: string[], primaryRaw?: string): ContactMethodInput[] {
+  const requestedIndex = requestedPrimaryIndex(primaryRaw, values.length);
+  let requestedKey: string | null = null;
   const deduped = new Map<string, { value: string; label: string | null }>();
   for (let index = 0; index < values.length; index += 1) {
     const value = clean(values[index]);
     if (!value) continue;
     const normalized = normalizeEmail(value);
     if (!isValidEmail(normalized)) throw new Error(`Invalid email address: ${value}`);
+    if (index === requestedIndex) requestedKey = normalized;
     if (!deduped.has(normalized)) deduped.set(normalized, { value, label: clean(labels[index]) || null });
   }
   const rows = [...deduped.entries()];
-  const primaryIndex = selectedPrimaryIndex(primaryRaw, rows.length);
-  return rows.map(([normalized, item], index) => ({
+  const primaryKey = requestedKey && deduped.has(requestedKey) ? requestedKey : rows[0]?.[0] ?? null;
+  return rows.map(([normalized, item]) => ({
     value: item.value,
     normalized,
     label: item.label,
-    isPrimary: index === primaryIndex
+    isPrimary: normalized === primaryKey
   }));
 }
 
 export function buildPhoneInputs(values: string[], labels: string[], primaryRaw?: string): ContactMethodInput[] {
+  const requestedIndex = requestedPrimaryIndex(primaryRaw, values.length);
+  let requestedKey: string | null = null;
   const deduped = new Map<string, { value: string; label: string | null }>();
   for (let index = 0; index < values.length; index += 1) {
     const value = clean(values[index]);
     if (!value) continue;
     const normalized = normalizePhone(value);
     if (!normalized) throw new Error(`Invalid phone number: ${value}`);
+    if (index === requestedIndex) requestedKey = normalized;
     if (!deduped.has(normalized)) deduped.set(normalized, { value, label: clean(labels[index]) || null });
   }
   const rows = [...deduped.entries()];
-  const primaryIndex = selectedPrimaryIndex(primaryRaw, rows.length);
-  return rows.map(([normalized, item], index) => ({
+  const primaryKey = requestedKey && deduped.has(requestedKey) ? requestedKey : rows[0]?.[0] ?? null;
+  return rows.map(([normalized, item]) => ({
     value: item.value,
     normalized,
     label: item.label,
-    isPrimary: index === primaryIndex
+    isPrimary: normalized === primaryKey
   }));
 }
 
@@ -98,7 +105,8 @@ export function buildAddressInputs(
     countryValues.length,
     labels.length
   );
-  const rows: Omit<ContactAddressInput, "isPrimary">[] = [];
+  const requestedIndex = requestedPrimaryIndex(primaryRaw, rowCount);
+  const rows: Array<{ originalIndex: number; row: Omit<ContactAddressInput, "isPrimary"> }> = [];
   for (let index = 0; index < rowCount; index += 1) {
     const row = {
       label: clean(labels[index]) || null,
@@ -109,8 +117,12 @@ export function buildAddressInputs(
       postalCode: clean(postalCodeValues[index]) || null,
       country: clean(countryValues[index]) || null
     };
-    if (Object.values(row).some(Boolean)) rows.push(row);
+    const hasAddressValue = Boolean(row.street1 || row.street2 || row.city || row.state || row.postalCode || row.country);
+    if (hasAddressValue) rows.push({ originalIndex: index, row });
   }
-  const primaryIndex = selectedPrimaryIndex(primaryRaw, rows.length);
-  return rows.map((row, index) => ({ ...row, isPrimary: index === primaryIndex }));
+  const selectedPosition = requestedIndex === null
+    ? -1
+    : rows.findIndex((item) => item.originalIndex === requestedIndex);
+  const primaryPosition = selectedPosition >= 0 ? selectedPosition : rows.length ? 0 : -1;
+  return rows.map((item, index) => ({ ...item.row, isPrimary: index === primaryPosition }));
 }
