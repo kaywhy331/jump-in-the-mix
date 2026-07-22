@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { Prisma } from "@/generated/prisma/client";
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
@@ -15,17 +16,31 @@ const PAGE_SIZE = 50;
 export default async function ArchivedContactsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [query, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
   const q = query.q?.trim() ?? "";
-  const page = Math.max(Number.parseInt(query.page ?? "1", 10) || 1, 1);
-  const where = {
+  const requestedPage = Math.max(Number.parseInt(query.page ?? "1", 10) || 1, 1);
+  const where: Prisma.ContactWhereInput = {
     workspaceId: workspace.id,
-    archivedAt: { not: null as null },
-    ...(q ? { OR: [{ displayName: { contains: q, mode: "insensitive" as const } }, { company: { contains: q, mode: "insensitive" as const } }, { emails: { some: { email: { contains: q, mode: "insensitive" as const } } } }, { phones: { some: { phone: { contains: q } } } }] } : {})
+    archivedAt: { not: null },
+    ...(q ? { OR: [
+      { displayName: { contains: q, mode: "insensitive" } },
+      { company: { contains: q, mode: "insensitive" } },
+      { emails: { some: { email: { contains: q, mode: "insensitive" } } } },
+      { phones: { some: { phone: { contains: q } } } }
+    ] } : {})
   };
-  const [contacts, total] = await Promise.all([
-    prisma.contact.findMany({ where, include: { emails: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, phones: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, _count: { select: { jumps: true, jumpDates: true } } }, orderBy: [{ archivedAt: "desc" }, { displayName: "asc" }], skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE }),
-    prisma.contact.count({ where })
-  ]);
+  const total = await prisma.contact.count({ where });
   const pages = Math.max(Math.ceil(total / PAGE_SIZE), 1);
+  const page = Math.min(requestedPage, pages);
+  const contacts = await prisma.contact.findMany({
+    where,
+    include: {
+      emails: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
+      phones: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
+      _count: { select: { jumps: true, jumpDates: true } }
+    },
+    orderBy: [{ archivedAt: "desc" }, { displayName: "asc" }],
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE
+  });
   const href = (nextPage: number) => `/contacts/archived?${new URLSearchParams({ ...(q ? { q } : {}), page: String(nextPage) }).toString()}`;
 
   return (
