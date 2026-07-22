@@ -26,7 +26,8 @@ const STALE_CANCELLATION_STATUSES: JumpStatus[] = ["PENDING", "COPIED"];
 const RECONCILABLE_CANCELLATION_METHODS = new Set([
   "reconciled",
   "mix_paused",
-  "contact_archived"
+  "contact_archived",
+  "do_not_contact"
 ]);
 const BATCH_SIZE = 500;
 const DEFAULT_PAST_DAYS = 45;
@@ -219,7 +220,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const occurrenceEnd = addUtcDays(horizonEnd, -Math.min(minimumOffset, 0) + 7);
 
   const workspaceIds = [...new Set(assignments.map((assignment) => assignment.workspaceId))];
-  const [inactiveGroupStates, broadcastSchedules, schedulingByDataSpace] = await Promise.all([
+  const [inactiveGroupStates, broadcastSchedules, schedulingByDataSpace, doNotContactStates] = await Promise.all([
     workspaceIds.length
       ? prisma.contactGroupState.findMany({
           where: { workspaceId: { in: workspaceIds }, isActive: false },
@@ -234,9 +235,13 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         }
       })
       : [],
-    personalSchedulingRules(workspaceIds)
+    personalSchedulingRules(workspaceIds),
+    workspaceIds.length
+      ? prisma.contactRelationshipState.findMany({ where: { workspaceId: { in: workspaceIds }, doNotContact: true }, select: { contactId: true } })
+      : []
   ]);
   const inactiveGroupIds = new Set(inactiveGroupStates.map((state) => state.groupId));
+  const doNotContactIds = new Set(doNotContactStates.map((state) => state.contactId));
   const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
   const stopped = new Set(stops.map((item) => stopKey(item.mixId, item.contactId)));
   const desired = new Map<string, DesiredJump>();
@@ -253,6 +258,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
 
     for (const contact of contacts.values()) {
       if (filters.contactId && contact.id !== filters.contactId) continue;
+      if (doNotContactIds.has(contact.id)) continue;
       if (stopped.has(stopKey(assignment.mixId, contact.id))) continue;
 
       const triggers: {
