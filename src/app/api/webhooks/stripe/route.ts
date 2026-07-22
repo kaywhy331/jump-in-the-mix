@@ -1,10 +1,6 @@
 import { NextResponse } from "next/server";
-import {
-  processStripeEvent,
-  syncStripeSubscription,
-  type StripeEvent,
-  type StripeSubscription
-} from "@/lib/billing-service";
+import { processStripeEvent, type StripeEvent } from "@/lib/billing-service";
+import { env } from "@/lib/env";
 import { enforceCurrentWorkspacePlanLimits } from "@/lib/plan-downgrade";
 import { prisma } from "@/lib/prisma";
 import { reconcileWorkspaceReferralEntitlement } from "@/lib/referral-service";
@@ -19,6 +15,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const PROCESSING_STALE_MS = 10 * 60 * 1000;
+const MAX_WEBHOOK_BYTES = 1_000_000;
 
 function isUniqueViolation(error: unknown): boolean {
   return Boolean(error && typeof error === "object" && "code" in error && error.code === "P2002");
@@ -26,7 +23,16 @@ function isUniqueViolation(error: unknown): boolean {
 
 function parseStripeEvent(payload: string): StripeEvent {
   const value = JSON.parse(payload) as Partial<StripeEvent>;
-  if (!value.id || !value.type || !value.data || typeof value.data !== "object" || !("object" in value.data)) {
+  if (
+    !value.id
+    || !value.type
+    || !Number.isFinite(value.created)
+    || value.created! <= 0
+    || typeof value.livemode !== "boolean"
+    || !value.data
+    || typeof value.data !== "object"
+    || !("object" in value.data)
+  ) {
     throw new Error("The Stripe event payload is incomplete.");
   }
   return value as StripeEvent;
@@ -44,19 +50,20 @@ function processingResponse() {
   );
 }
 
-async function reconcileEvent(event: StripeEvent): Promise<{ workspaceId: string | null }> {
-  if (event.type === "customer.subscription.paused" || event.type === "customer.subscription.resumed") {
-    const synced = await syncStripeSubscription({
-      subscription: event.data.object as StripeSubscription,
-      eventType: event.type
-    });
-    return { workspaceId: synced.workspaceId };
-  }
-  return processStripeEvent(event);
+function expectedLivemode(): boolean {
+  return env.stripeSecretKey.startsWith("sk_live_");
 }
 
 export async function POST(request: Request) {
+  const contentLength = Number(request.headers.get("content-length") ?? "0");
+  if (Number.isFinite(contentLength) && contentLength > MAX_WEBHOOK_BYTES) {
+    return NextResponse.json({ error: "Stripe event payload is too large." }, { status: 413 });
+  }
   const payload = await request.text();
+  if (Buffer.byteLength(payload, "utf8") > MAX_WEBHOOK_BYTES) {
+    return NextResponse.json({ error: "Stripe event payload is too large." }, { status: 413 });
+  }
+
   try {
     verifyStripeWebhookSignature(payload, request.headers.get("stripe-signature"));
   } catch (error) {
@@ -73,12 +80,19 @@ export async function POST(request: Request) {
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Invalid Stripe event." }, { status: 400 });
   }
+  if (event.livemode !== expectedLivemode()) {
+    return NextResponse.json({ error: "Stripe event mode does not match this deployment." }, { status: 400 });
+  }
 
   const payloadHash = stripePayloadHash(payload);
   const leaseStartedAt = new Date();
   let stored = await prisma.webhookEvent.findFirst({
     where: { provider: "STRIPE", externalId: event.id }
   });
+  if (stored && stored.payloadHash !== payloadHash) {
+    console.error(`Stripe event ${event.id} was received with a different payload hash.`);
+    return NextResponse.json({ error: "Stripe event identity conflict." }, { status: 400 });
+  }
   if (stored?.status === "PROCESSED") {
     return NextResponse.json({ received: true, duplicate: true });
   }
@@ -102,6 +116,9 @@ export async function POST(request: Request) {
       stored = await prisma.webhookEvent.findFirstOrThrow({
         where: { provider: "STRIPE", externalId: event.id }
       });
+      if (stored.payloadHash !== payloadHash) {
+        return NextResponse.json({ error: "Stripe event identity conflict." }, { status: 400 });
+      }
       if (stored.status === "PROCESSED") {
         return NextResponse.json({ received: true, duplicate: true });
       }
@@ -119,12 +136,12 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await reconcileEvent(event);
-    if (result.workspaceId) await reconcileWorkspaceReferralEntitlement(result.workspaceId);
+    const result = await processStripeEvent(event);
+    if (result.workspaceId && !result.ignored) await reconcileWorkspaceReferralEntitlement(result.workspaceId);
     const workspace = result.workspaceId
       ? await prisma.workspace.findUnique({ where: { id: result.workspaceId }, select: { planTier: true } })
       : null;
-    const safeguards = result.workspaceId && workspace
+    const safeguards = result.workspaceId && workspace && !result.ignored
       ? await enforceCurrentWorkspacePlanLimits(result.workspaceId, workspace.planTier)
       : null;
     await prisma.webhookEvent.update({
@@ -136,13 +153,14 @@ export async function POST(request: Request) {
         processedAt: new Date()
       }
     });
-    return NextResponse.json({ received: true, safeguards });
+    return NextResponse.json({ received: true, ignored: Boolean(result.ignored), safeguards });
   } catch (error) {
     const message = error instanceof Error ? error.message.slice(0, 2000) : "Stripe event processing failed.";
+    console.error(`Stripe event ${event.id} failed`, error);
     await prisma.webhookEvent.update({
       where: { id: stored.id },
       data: { status: "FAILED", error: message, processedAt: null }
     }).catch(() => null);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Stripe event processing failed." }, { status: 500 });
   }
 }
