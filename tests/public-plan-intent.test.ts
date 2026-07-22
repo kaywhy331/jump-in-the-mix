@@ -6,11 +6,13 @@ const read = (path: string) => readFileSync(path, "utf8");
 describe("public plan intent", () => {
   it("preserves paid plan and billing period through registration and onboarding", () => {
     const registration = read("src/lib/register-action.ts");
-    const onboarding = read("src/app/onboarding/page.tsx");
-    const actions = read("src/lib/actions.ts");
+    const onboardingPage = read("src/app/onboarding/page.tsx");
+    const onboardingActions = read("src/lib/onboarding-actions.ts");
     expect(registration).toContain("jitm_plan_intent");
-    expect(onboarding).toContain('name="planIntent"');
-    expect(actions).toContain("/plans?plan=${plan}&period=${period}");
+    expect(onboardingPage).toContain('name="planIntent"');
+    expect(onboardingActions).toContain('params.set("plan", intent.plan)');
+    expect(onboardingActions).toContain('params.set("period", intent.period)');
+    expect(onboardingActions).toContain("redirect(welcomePath");
   });
 
   it("uses only real local product-proof assets", () => {
