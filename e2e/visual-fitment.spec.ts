@@ -91,11 +91,29 @@ test("mobile navigation and actions stay inside the viewport", async ({ page }, 
   await expect(page.locator(".mobile-nav .nav-quick-add:visible")).toHaveCount(1);
   const viewport = page.viewportSize();
   expect(viewport).not.toBeNull();
+  const firstLinkBox = await links.first().boundingBox();
+  expect(firstLinkBox).not.toBeNull();
   for (let index = 0; index < await links.count(); index += 1) {
     const box = await links.nth(index).boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width + 1);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height + 1);
+    expect(Math.abs(box!.y - firstLinkBox!.y)).toBeLessThanOrEqual(1);
+  }
+  await expectNoHorizontalOverflow(page);
+});
+
+test("mobile text actions stay readable instead of collapsing into blank controls", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Mobile header geometry is checked once.");
+  await signIn(page);
+  await page.goto("/templates");
+  for (const label of ["My Mixes", "Create my own"]) {
+    const action = page.getByRole("link", { name: label, exact: true });
+    await expect(action).toBeVisible();
+    const box = await action.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThan(60);
   }
   await expectNoHorizontalOverflow(page);
 });
