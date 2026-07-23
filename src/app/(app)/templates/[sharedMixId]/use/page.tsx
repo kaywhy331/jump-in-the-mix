@@ -33,7 +33,7 @@ export default async function UseMixTemplatePage({ params, searchParams }: { par
       <header className="page-header"><div><h1>Use {shared.title}</h1><p>Choose the name, trigger timing, audience, and lifecycle in one setup screen.</p></div></header>
       <div className="template-use-grid">
         <section className="card template-use-preview"><p>{shared.description}</p><SharedMixPreview title={shared.title} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} durationDays={durationDays} steps={steps} expanded /></section>
-        <TemplateUseForm sharedMixId={shared.id} requestId={`use-${randomUUID()}`} title={shared.title} description={shared.description} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} stepCount={steps.length} durationDays={durationDays} groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, contactCount: group._count.memberships }))} activeContactCount={activeContactCount} workspaceTimezone={workspace.profile?.timezone ?? "UTC"} activationAvailable />
+        <TemplateUseForm sharedMixId={shared.id} requestId={`use-${randomUUID()}`} title={shared.title} description={shared.description} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} stepCount={steps.length} durationDays={durationDays} groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, contactCount: group._count.memberships }))} activeContactCount={activeContactCount} workspaceTimezone={workspace.profile?.timezone ?? "UTC"} />
       </div>
     </div>
   );

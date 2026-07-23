@@ -90,5 +90,7 @@ describe("single-user product boundary", () => {
     for (const path of ["src/lib/contact-lifecycle-actions.ts", "src/lib/group-actions.ts", "src/lib/date-type-actions.ts", "src/lib/mix-editor-actions.ts", "src/lib/reusable-jump-update.ts", "src/lib/bulk-contact-actions.ts"]) {
       expect(read(path), path).not.toMatch(/PLAN_LIMITS|upgrade|paid plan|plan allows/i);
     }
+    expect(read("src/components/TemplateUseForm.tsx")).not.toMatch(/activationAvailable|active Mix allowance/i);
+    expect(read("src/lib/mix-editor-actions.ts")).toContain('triggerMode === "MANUAL_START" && parsedOffsets.some((offset) => offset < 0)');
   });
 });

@@ -26,6 +26,12 @@ test("a Mix can be written inline without creating a prerequisite Action Templat
     await signIn(page);
     await page.goto("/mixes/new");
     await page.getByLabel("Mix name").fill(name);
+    await page.getByLabel("How should this plan start?").selectOption("MANUAL_START");
+    const dayOffset = page.getByLabel("Day offset");
+    await expect(dayOffset).toHaveAttribute("min", "0");
+    await dayOffset.fill("-1");
+    expect(await dayOffset.evaluate((input: HTMLInputElement) => input.validity.rangeUnderflow)).toBe(true);
+    await dayOffset.fill("0");
     await page.getByLabel("Write this action").click();
     await page.getByLabel("Internal action name").fill("Personal renewal question");
     await page.getByLabel("Email subject").fill("A renewal question for {{First Name}}");

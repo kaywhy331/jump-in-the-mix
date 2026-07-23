@@ -119,6 +119,9 @@ export async function saveMixAction(formData: FormData): Promise<void> {
     }
     return parsed;
   });
+  if (triggerMode === "MANUAL_START" && parsedOffsets.some((offset) => offset < 0)) {
+    fail(path, "Manual-start Mix actions cannot use negative day offsets.");
+  }
   const parsedSendTimes = sendTimes.map((raw, index) => {
     if (!raw) return null;
     const parsed = Number(raw);
