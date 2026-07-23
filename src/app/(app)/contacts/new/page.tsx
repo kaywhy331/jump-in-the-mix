@@ -13,6 +13,7 @@ type SearchParams = {
   quickAddFallback?: string;
   capture?: string;
   name?: string;
+  phone?: string;
   followUpDate?: string;
   reason?: string;
 };
@@ -45,8 +46,9 @@ export default async function NewContactPage({ searchParams }: { searchParams: P
   const groups = mergeGroupActivity(rawGroups, groupStates);
   const capture = query.capture?.slice(0, 2000);
   const name = splitContactName(query.name?.slice(0, 240));
-  const contact = capture || name.firstName || name.lastName
-    ? { firstName: name.firstName, lastName: name.lastName, publicNotes: capture }
+  const phone = query.phone?.slice(0, 80).trim();
+  const contact = capture || name.firstName || name.lastName || phone
+    ? { firstName: name.firstName, lastName: name.lastName, publicNotes: capture, phones: phone ? [{ phone, label: "Mobile", isPrimary: true }] : undefined }
     : undefined;
 
   return (
@@ -54,7 +56,7 @@ export default async function NewContactPage({ searchParams }: { searchParams: P
       <header className="page-header"><div><h1>Add a contact</h1><p>Add the essentials now, then schedule the first follow-up without returning to the Contacts list.</p></div></header>
       {query.error && <Notice type="error">{query.error}</Notice>}
       {query.quickAddFallback && <Notice type="info">Your browser does not expose the native Contact Picker. Use this compact form instead; supported browsers also offer optional voice dictation for Public Notes.</Notice>}
-      {capture && <Notice type="info">We carried over the person, timing, reason, and note that Quick Add recognized. Review the details before saving.</Notice>}
+      {capture && <Notice type="info">We carried over the details that Quick Add recognized. Review them before saving.</Notice>}
       <ContactForm
         mode="create"
         contact={contact}

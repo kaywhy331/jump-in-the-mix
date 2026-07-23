@@ -44,6 +44,24 @@ test("Quick Add carries recognized fields into Contact and follow-up creation", 
   await expect(page.getByRole("button", { name: "Save & schedule follow-up" })).toBeVisible();
 });
 
+test("Quick Add carries a recognized phone without folding it into the Contact name", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The structured phone handoff is checked once.");
+  await signIn(page);
+  await page.goto("/jumps");
+  await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Quick Add" });
+  await dialog.getByLabel("What do you want to remember?").fill("Add Sam with 626-555-0100");
+  await dialog.getByRole("button", { name: /Preview capture|Review/ }).click();
+  await expect(dialog.getByText("Sam", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("626-555-0100", { exact: true })).toBeVisible();
+  await dialog.getByRole("link", { name: "Continue with Contact" }).click();
+
+  await expect(page).toHaveURL(/\/contacts\/new\?/);
+  await expect(page.getByLabel("First name")).toHaveValue("Sam");
+  await expect(page.getByLabel("Last name")).toHaveValue("");
+  await expect(page.getByLabel("Phone 1", { exact: true })).toHaveValue("626-555-0100");
+});
+
 test("Contact selection is a direct list control", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The selection entry point is checked once.");
   await signIn(page);
