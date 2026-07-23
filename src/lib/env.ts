@@ -4,12 +4,28 @@ const DEFAULT_RATE_LIMIT_SECRET = "local-development-rate-limit-secret";
 const isProduction = process.env.NODE_ENV === "production";
 const appUrl = process.env.APP_URL ?? "http://localhost:3000";
 
+function enabled(value: string | undefined, fallback = false): boolean {
+  return (value ?? String(fallback)).toLowerCase() === "true";
+}
+
 type AuthRateLimitEnvironment = Partial<Pick<NodeJS.ProcessEnv, "AUTH_RATE_LIMIT_SECRET" | "DATA_ENCRYPTION_KEY">>;
 
 export function resolveAuthRateLimitSecret(source: AuthRateLimitEnvironment = process.env as AuthRateLimitEnvironment): string {
   return source.AUTH_RATE_LIMIT_SECRET?.trim()
     || source.DATA_ENCRYPTION_KEY?.trim()
     || DEFAULT_RATE_LIMIT_SECRET;
+}
+
+export function sessionCookieSecure(source: NodeJS.ProcessEnv = process.env): boolean {
+  if ((source.NODE_ENV ?? "development") !== "production") return false;
+  try {
+    const url = new URL(source.APP_URL ?? "");
+    const loopback = ["localhost", "127.0.0.1", "::1"].includes(url.hostname);
+    if (enabled(source.PILOT_MODE) && loopback && url.protocol === "http:") return false;
+  } catch {
+    // Invalid production URLs are rejected by productionConfigurationIssues.
+  }
+  return true;
 }
 
 function positiveNumber(value: string | undefined, fallback: number): number {
@@ -39,6 +55,7 @@ export const env = {
   emailVerificationHours: positiveNumber(process.env.AUTH_EMAIL_VERIFICATION_HOURS, 24),
   passwordResetMinutes: positiveNumber(process.env.AUTH_PASSWORD_RESET_MINUTES, 60),
   authRateLimitSecret: resolveAuthRateLimitSecret(),
+  secureSessionCookie: sessionCookieSecure(),
   dataEncryptionKey: process.env.DATA_ENCRYPTION_KEY ?? "",
   allowedOrigins: commaSeparated(process.env.AUTH_ALLOWED_ORIGINS),
   resendApiKey: process.env.RESEND_API_KEY ?? "",
@@ -61,7 +78,8 @@ export const env = {
   googleRedirectUri:
     process.env.GOOGLE_REDIRECT_URI ?? `${appUrl.replace(/\/$/, "")}/api/integrations/google/callback`,
   googleSyncHours: positiveNumber(process.env.GOOGLE_SYNC_HOURS, 24),
-  demoMode: (process.env.DEMO_MODE ?? (isProduction ? "false" : "true")).toLowerCase() === "true",
+  pilotMode: enabled(process.env.PILOT_MODE),
+  demoMode: enabled(process.env.DEMO_MODE, !isProduction),
   demoEmail: process.env.DEMO_USER_EMAIL ?? "demo@jumpinthemix.local",
   demoPassword: process.env.DEMO_USER_PASSWORD ?? "JumpInTheMix123!"
 };
@@ -82,7 +100,11 @@ export function productionConfigurationIssues(source: NodeJS.ProcessEnv = proces
 
   try {
     const publicUrl = new URL(source.APP_URL ?? "");
-    if (publicUrl.protocol !== "https:" || ["localhost", "127.0.0.1", "::1"].includes(publicUrl.hostname)) {
+    const pilotMode = enabled(source.PILOT_MODE);
+    const loopback = ["localhost", "127.0.0.1", "::1"].includes(publicUrl.hostname);
+    const validPilotOrigin = pilotMode && loopback && publicUrl.protocol === "http:";
+    const validHostedOrigin = publicUrl.protocol === "https:" && !loopback;
+    if (!validPilotOrigin && !validHostedOrigin) {
       issues.push("APP_URL must be a public https origin");
     }
   } catch {

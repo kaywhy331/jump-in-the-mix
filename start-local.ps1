@@ -166,8 +166,8 @@ if (-not (Test-Path ".env")) {
   $dbPassword = New-HexSecret 12
   $content = Get-Content ".env" -Raw
   $content = $content.Replace("DATA_ENCRYPTION_KEY=GENERATE_ME", "DATA_ENCRYPTION_KEY=$key")
-  $content = $content.Replace("POSTGRES_PASSWORD=jitm", "POSTGRES_PASSWORD=$dbPassword")
-  $content = $content.Replace("postgresql://jitm:jitm@localhost", "postgresql://jitm:$dbPassword@localhost")
+  $content = $content.Replace("POSTGRES_PASSWORD=GENERATE_ME", "POSTGRES_PASSWORD=$dbPassword")
+  $content = $content.Replace("postgresql://jitm:GENERATE_ME@localhost", "postgresql://jitm:$dbPassword@localhost")
   Set-Content ".env" $content -NoNewline
   Write-Host "Created .env with secure local secrets." -ForegroundColor Green
 }

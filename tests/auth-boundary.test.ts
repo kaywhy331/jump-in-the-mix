@@ -9,6 +9,7 @@ describe("authentication request boundary", () => {
     expect(login).toContain('from "@/lib/auth-actions"');
     expect(register).toContain('from "@/lib/auth-actions"');
     expect(register).toContain("registerAction");
+    expect(register).toContain("pilotRegistrationOpen");
     expect(register).not.toMatch(/referral|planIntent/i);
     expect(shell).toContain('from "@/lib/auth-actions"');
   });

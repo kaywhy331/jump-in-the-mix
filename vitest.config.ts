@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     exclude: [
+      ".artifacts/**",
       "e2e/**",
       "node_modules/**",
       // These suites certify dormant capabilities preserved only for migration safety.
@@ -24,6 +25,7 @@ export default defineConfig({
       "tests/shared-mix-integration.test.ts",
       "tests/stripe-signature.test.ts"
     ],
-    fileParallelism: true
+    fileParallelism: true,
+    maxWorkers: 4
   }
 });

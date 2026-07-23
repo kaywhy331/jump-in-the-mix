@@ -4,8 +4,10 @@ import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
 import { demoLoginAction, loginAction } from "@/lib/auth-actions";
 import { env } from "@/lib/env";
+import { pilotRegistrationOpen } from "@/lib/pilot-registration";
 
 export const metadata: Metadata = { title: "Sign in" };
+export const dynamic = "force-dynamic";
 
 type SearchParams = {
   error?: string;
@@ -16,14 +18,14 @@ type SearchParams = {
 };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams;
+  const [params, registrationOpen] = await Promise.all([searchParams, pilotRegistrationOpen()]);
   return (
     <main className="auth-shell">
       <section className="auth-card">
         <Logo />
         <h1>Welcome back</h1>
         <p>Sign in and see who needs your attention today.</p>
-        {params.firstRun && <Notice type="success">Installation complete. Open the guided demo below, or create your own account.</Notice>}
+        {params.firstRun && registrationOpen && <Notice type="success">Installation complete. Create the private owner account to begin.</Notice>}
         {params.reset && <Notice type="success">Your password was reset. Sign in with the new password.</Notice>}
         {params.verified && <Notice type="success">Your email is verified. You can sign in securely.</Notice>}
         {params.signedOutEverywhere && <Notice type="success">All sessions were signed out.</Notice>}
@@ -47,7 +49,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <div className="auth-inline-actions"><Link href="/forgot-password">Forgot password?</Link></div>
           <button className="button primary" type="submit">Sign in</button>
         </form>
-        <div className="auth-footer">New here? <Link href="/register"><strong>Create a free account</strong></Link></div>
+        <div className="auth-footer">{registrationOpen ? <>New here? <Link href="/register"><strong>Create the owner account</strong></Link></> : <>Owner setup is complete.</>}</div>
       </section>
     </main>
   );

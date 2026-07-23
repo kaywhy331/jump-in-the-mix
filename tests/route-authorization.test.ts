@@ -45,7 +45,7 @@ describe("server-enforced route authorization matrix", () => {
   });
 
   it("does not expose target-account security or mutation controls during support viewing", () => {
-    const account = read("src/app/(app)/account/page.tsx");
+    const account = read("src/app/(app)/account/page.tsx").replaceAll("\r\n", "\n");
     const start = account.indexOf("if (impersonation) return");
     const end = account.indexOf("\n\n  return <div className=\"page account-page\">", start);
     const impersonationBranch = account.slice(start, end);

@@ -7,6 +7,7 @@ import { AUTH_TOKEN_PURPOSES, findUsableAuthToken, hashAuthToken, issueAuthToken
 import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/auth-email";
 import { env } from "@/lib/env";
 import { passwordValidationError } from "@/lib/password-policy";
+import { PilotRegistrationClosedError, registrationAllowed } from "@/lib/pilot-registration";
 import { prisma } from "@/lib/prisma";
 import { clearRateLimit, consumeRateLimit, releaseRateLimitAttempt } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
@@ -77,6 +78,9 @@ export async function registerAction(formData: FormData): Promise<void> {
   let user: { id: string; email: string; name: string };
   try {
     user = await prisma.$transaction(async (tx) => {
+      if (!registrationAllowed(env.pilotMode, await tx.user.count())) {
+        throw new PilotRegistrationClosedError();
+      }
       const created = await tx.user.create({
         data: {
           email,
@@ -86,10 +90,10 @@ export async function registerAction(formData: FormData): Promise<void> {
         },
         select: { id: true, email: true, name: true }
       });
-      const workspaceSlug = `${slugify(name) || "workspace"}-${created.id.slice(-7)}`;
+      const workspaceSlug = `${slugify(name) || "personal"}-${created.id.slice(-7)}`;
       await tx.workspace.create({
         data: {
-          name: `${name}'s Workspace`,
+          name: `${name}'s personal data`,
           slug: workspaceSlug,
           ownerId: created.id,
           members: { create: { userId: created.id, role: "OWNER" } },
@@ -104,10 +108,16 @@ export async function registerAction(formData: FormData): Promise<void> {
         }
       });
       return created;
-    });
+    }, { isolationLevel: "Serializable" });
   } catch (error) {
+    if (error instanceof PilotRegistrationClosedError) {
+      fail("/login", "Owner setup is complete. Sign in with the owner account.");
+    }
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
     if (code === "P2002") fail("/login", "An account with that email already exists.");
+    if (env.pilotMode && code === "P2034" && (await prisma.user.count()) > 0) {
+      fail("/login", "Owner setup is complete. Sign in with the owner account.");
+    }
     throw error;
   }
 
