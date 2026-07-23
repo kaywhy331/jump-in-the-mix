@@ -2,7 +2,7 @@
 
 Jump in the Mix is a single-user relationship follow-through application. It helps one person remember relationship context, prepare follow-ups, complete Jumps, organize Contacts, and build repeatable Mixes without turning the experience into a team CRM.
 
-This repository is currently a `v0.1.0-rc.1` release candidate for a small private pilot. It is not generally production-certified.
+This repository is currently a `v0.1.0-rc.2` release candidate for a small private pilot. It is not generally production-certified.
 
 ## What is included
 
@@ -59,7 +59,7 @@ npm run pilot:restore -- backup-file.jitm-backup.enc --confirm=RESTORE
 npm run pilot:upgrade
 ```
 
-A restore requires an adjacent manifest and a separately configured, empty `RESTORE_DATABASE_URL`; in-place restore is blocked. An upgrade creates an encrypted backup before rebuilding or migrating. See [the pilot runbook](docs/PILOT_RUNBOOK.md) before operating real relationship data.
+A restore requires an adjacent manifest and a separately configured, empty `RESTORE_DATABASE_URL`; in-place restore is blocked. An upgrade creates an encrypted backup before rebuilding or migrating. See [the pilot runbook](docs/PILOT_RUNBOOK.md) and [private-pilot guide](docs/PRIVATE_PILOT_GUIDE.md) before operating real relationship data.
 
 The operator owns backup retention and must test restoration. Local encrypted files are not offsite backups.
 
@@ -84,4 +84,4 @@ Never post Contact data, relationship notes, databases, backups, screenshots con
 
 ## License
 
-No open-source license has been selected yet. Source availability does not by itself grant reuse rights. The repository owner should choose a license before inviting redistribution; common options include MIT (permissive), Apache-2.0 (permissive with an express patent grant), or a proprietary license for a closed pilot.
+No license has been selected yet. Source availability does not by itself grant reuse or private-evaluation rights. The private-pilot enrollment gate remains closed until the repository owner explicitly selects and approves MIT, Apache-2.0, or an owner-controlled proprietary pilot license.
