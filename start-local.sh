@@ -22,8 +22,8 @@ if [[ ! -f .env ]]; then
     DB_PASSWORD="jitm-$(date +%s)"
   fi
   sed -i.bak "s/DATA_ENCRYPTION_KEY=GENERATE_ME/DATA_ENCRYPTION_KEY=${KEY}/" .env
-  sed -i.bak "s/POSTGRES_PASSWORD=jitm/POSTGRES_PASSWORD=${DB_PASSWORD}/" .env
-  sed -i.bak "s#DATABASE_URL=postgresql://jitm:jitm@localhost#DATABASE_URL=postgresql://jitm:${DB_PASSWORD}@localhost#" .env
+  sed -i.bak "s/POSTGRES_PASSWORD=GENERATE_ME/POSTGRES_PASSWORD=${DB_PASSWORD}/" .env
+  sed -i.bak "s#DATABASE_URL=postgresql://jitm:GENERATE_ME@localhost#DATABASE_URL=postgresql://jitm:${DB_PASSWORD}@localhost#" .env
   rm -f .env.bak
   say "Created .env with secure local secrets."
 fi

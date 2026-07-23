@@ -1,0 +1,65 @@
+name: jump-in-the-mix-pilot
+
+x-pilot-environment: &pilot_environment
+  NODE_ENV: production
+  PILOT_MODE: "true"
+  APP_URL: ${APP_URL:-http://127.0.0.1:3000}
+  AUTH_COOKIE_NAME: jitm_session
+  AUTH_SESSION_DAYS: ${AUTH_SESSION_DAYS:-30}
+  AUTH_SESSION_TOUCH_MINUTES: ${AUTH_SESSION_TOUCH_MINUTES:-5}
+  AUTH_MAX_SESSIONS_PER_USER: ${AUTH_MAX_SESSIONS_PER_USER:-10}
+  AUTH_REQUIRE_EMAIL_VERIFICATION: "false"
+  AUTH_REQUIRE_ADMIN_MFA: "false"
+  AUTH_RATE_LIMIT_SECRET: ${AUTH_RATE_LIMIT_SECRET:?Set a unique AUTH_RATE_LIMIT_SECRET in .env}
+  AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-}
+  DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?Set a unique DATA_ENCRYPTION_KEY in .env}
+  DATABASE_URL: postgresql://jitm:${POSTGRES_PASSWORD:?Set a unique POSTGRES_PASSWORD in .env}@postgres:5432/jitm?schema=public
+  DEMO_MODE: "false"
+  DEMO_USER_EMAIL: ""
+  DEMO_USER_PASSWORD: ""
+  RESET_DEMO_DATA: "false"
+  PLATFORM_ADMIN_EMAILS: ""
+  RESEND_API_KEY: ""
+  EMAIL_FROM: ""
+  EMAIL_REPLY_TO: ""
+  WORKER_HEARTBEAT_STALE_SECONDS: ${WORKER_HEARTBEAT_STALE_SECONDS:-90}
+
+services:
+  postgres:
+    environment:
+      POSTGRES_DB: jitm
+      POSTGRES_USER: jitm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a unique POSTGRES_PASSWORD in .env}
+
+  setup:
+    image: jump-in-the-mix-pilot-tools:local
+    build:
+      target: tools
+    environment: *pilot_environment
+    command: ["sh", "-c", "node scripts/validate-pilot-env.mjs && npm run db:setup:docker"]
+
+  web:
+    image: jump-in-the-mix-pilot-web:local
+    build:
+      target: production
+    environment: *pilot_environment
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+
+  worker:
+    image: jump-in-the-mix-pilot-worker:local
+    build:
+      target: worker
+    environment: *pilot_environment
+
+  operations:
+    image: jump-in-the-mix-pilot-operations:local
+    build:
+      target: operations
+    environment:
+      <<: *pilot_environment
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-}
+      BACKUP_DIR: /backups
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      RESTORE_DATABASE_URL: ${RESTORE_DATABASE_URL:-}
+      OPS_ALERT_WEBHOOK_URL: ${OPS_ALERT_WEBHOOK_URL:-}
