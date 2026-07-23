@@ -19,6 +19,7 @@ test("Contact search updates while typing and shows phone, email, and customer n
   await signIn(page);
   await page.goto("/contacts");
 
+  await expect(page.locator(".contact-filter-bar")).toHaveAttribute("data-live-filter", "true");
   const search = page.locator('input[aria-label="Search contacts"]:visible');
   await search.fill("sarah@example.com");
   await expect(page).toHaveURL(/\/contacts\?q=sarah%40example\.com$/);
@@ -33,11 +34,12 @@ test("Contact search updates while typing and shows phone, email, and customer n
   await expect(rows.first()).toContainText("Introduced by a long-term client.");
 });
 
-test("search and select filters update automatically on other app surfaces", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "The shared live-filter behavior is exercised once.");
+test("Mix, template, and Action Template filters remain straightforward", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The supporting filter behavior is exercised once.");
   await signIn(page);
 
   await page.goto("/mixes");
+  await expect(page.locator(".mix-filter-bar")).toHaveAttribute("data-live-filter", "true");
   await page.locator('input[aria-label="Search Mixes"]:visible').fill("Warm Relationship");
   await expect(page).toHaveURL(/\/mixes\?q=Warm\+Relationship$/);
   await expect(page.getByText("Warm Relationship Follow-Up", { exact: true })).toBeVisible();
@@ -45,11 +47,13 @@ test("search and select filters update automatically on other app surfaces", asy
   await expect(page).toHaveURL(/\/mixes\?q=Warm\+Relationship&status=ACTIVE$/);
 
   await page.goto("/templates");
+  await expect(page.locator(".template-filter-bar")).toHaveAttribute("data-live-filter", "true");
   await page.getByLabel("Search Mix Templates").fill("Renewal Value");
-  await expect(page).toHaveURL(/\/templates\?source=platform&q=Renewal\+Value/);
+  await expect(page).toHaveURL(/\/templates\?q=Renewal\+Value/);
   await expect(page.getByRole("heading", { name: "Renewal Value Check-In" })).toBeVisible();
 
   await page.goto("/settings/jumps");
+  await expect(page.locator('form.filter-bar')).toHaveAttribute("data-live-filter", "true");
   await page.getByLabel("Search Action Templates").fill("Discovery call");
   await expect(page).toHaveURL(/\/settings\/jumps\?q=Discovery\+call$/);
   await expect(page.getByRole("heading", { name: "Discovery call" })).toBeVisible();
@@ -80,6 +84,8 @@ test("Contact cards use one column, text toggles, and persistent drag ordering",
   const jumpDateId = `e2e-card-date-${suffix}`;
   const workspace = await prisma.workspace.findUniqueOrThrow({ where: { id: "demo_workspace" } });
   const followUpType = await prisma.dateType.findUniqueOrThrow({ where: { id: "system_follow_up" } });
+  const demoUser = await prisma.user.findUniqueOrThrow({ where: { email: userEmail }, select: { id: true } });
+  await prisma.userContactLayout.deleteMany({ where: { userId: demoUser.id, workspaceId: workspace.id } });
 
   await prisma.contact.create({
     data: {
@@ -146,7 +152,10 @@ test("Contact cards use one column, text toggles, and persistent drag ordering",
 
     const minimize = page.getByRole("button", { name: "Minimize Important Dates" });
     await expect(minimize).toHaveText("Minimize");
-    await minimize.click();
+    await Promise.all([
+      page.waitForResponse((response) => response.url().includes("/api/preferences/contact-layout") && response.request().method() === "PUT" && response.ok()),
+      minimize.click()
+    ]);
     const expand = page.getByRole("button", { name: "Expand Important Dates" });
     await expect(expand).toHaveText("Expand");
     await expect(expand).toHaveAttribute("aria-expanded", "false");
@@ -155,13 +164,34 @@ test("Contact cards use one column, text toggles, and persistent drag ordering",
 
     await expect(page.getByRole("button", { name: /Move .+ (up|down)/ })).toHaveCount(0);
     const methodsCard = page.locator('[data-user-card="contact-methods"]');
-    const dragHandle = methodsCard.getByRole("button", { name: "Drag Contact methods to reorder" });
+    const dragHandle = methodsCard.getByRole("button", { name: "Drag All contact methods to reorder" });
     await expect(dragHandle).toContainText("Drag to reorder");
-    await dragHandle.dragTo(datesCard, { targetPosition: { x: 24, y: 4 } });
+    await page.getByRole("button", { name: "Minimize Relationship state" }).click();
+    await expect(page.getByRole("button", { name: "Expand Relationship state" })).toBeVisible();
+    await cards.first().scrollIntoViewIfNeeded();
+    const timelineHandle = cards.nth(1).getByRole("button", { name: /Drag .+ to reorder/ });
+    await expect(timelineHandle).toBeVisible();
+    const sourceBox = await timelineHandle.boundingBox();
+    const targetBox = await cards.first().boundingBox();
+    expect(sourceBox).not.toBeNull();
+    expect(targetBox).not.toBeNull();
+    await page.mouse.move(sourceBox!.x + sourceBox!.width / 2, sourceBox!.y + sourceBox!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(targetBox!.x + 24, targetBox!.y + 4, { steps: 12 });
+    await page.mouse.up();
+    await expect(cards.first()).toHaveAttribute("data-user-card", "relationship-timeline");
+
+    await Promise.all([
+      page.waitForResponse((response) => response.url().includes("/api/preferences/contact-layout") && response.request().method() === "PUT" && response.ok()),
+      (async () => {
+        for (let index = 0; index < 5; index += 1) await dragHandle.press("ArrowUp");
+      })()
+    ]);
     await expect(cards.first()).toHaveAttribute("data-user-card", "contact-methods");
     await page.reload();
     await expect(page.locator("[data-personalizable-card-board] > [data-user-card]").first()).toHaveAttribute("data-user-card", "contact-methods");
   } finally {
+    await prisma.userContactLayout.deleteMany({ where: { userId: demoUser.id, workspaceId: workspace.id } });
     await prisma.contact.deleteMany({ where: { id: contactId, workspaceId: workspace.id } });
   }
 });

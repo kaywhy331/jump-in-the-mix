@@ -1,7 +1,16 @@
 const DEFAULT_COOKIE = "jitm_session";
 const DEFAULT_IMPERSONATION_COOKIE = "jitm_impersonation";
+const DEFAULT_RATE_LIMIT_SECRET = "local-development-rate-limit-secret";
 const isProduction = process.env.NODE_ENV === "production";
 const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+
+type AuthRateLimitEnvironment = Partial<Pick<NodeJS.ProcessEnv, "AUTH_RATE_LIMIT_SECRET" | "DATA_ENCRYPTION_KEY">>;
+
+export function resolveAuthRateLimitSecret(source: AuthRateLimitEnvironment = process.env as AuthRateLimitEnvironment): string {
+  return source.AUTH_RATE_LIMIT_SECRET?.trim()
+    || source.DATA_ENCRYPTION_KEY?.trim()
+    || DEFAULT_RATE_LIMIT_SECRET;
+}
 
 function positiveNumber(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -29,10 +38,7 @@ export const env = {
   adminMfaMaxAgeMinutes: positiveNumber(process.env.AUTH_ADMIN_MFA_MAX_AGE_MINUTES, 12 * 60),
   emailVerificationHours: positiveNumber(process.env.AUTH_EMAIL_VERIFICATION_HOURS, 24),
   passwordResetMinutes: positiveNumber(process.env.AUTH_PASSWORD_RESET_MINUTES, 60),
-  authRateLimitSecret:
-    process.env.AUTH_RATE_LIMIT_SECRET ??
-    process.env.DATA_ENCRYPTION_KEY ??
-    "local-development-rate-limit-secret",
+  authRateLimitSecret: resolveAuthRateLimitSecret(),
   dataEncryptionKey: process.env.DATA_ENCRYPTION_KEY ?? "",
   allowedOrigins: commaSeparated(process.env.AUTH_ALLOWED_ORIGINS),
   resendApiKey: process.env.RESEND_API_KEY ?? "",
@@ -59,3 +65,30 @@ export const env = {
   demoEmail: process.env.DEMO_USER_EMAIL ?? "demo@jumpinthemix.local",
   demoPassword: process.env.DEMO_USER_PASSWORD ?? "JumpInTheMix123!"
 };
+
+export function productionConfigurationIssues(source: NodeJS.ProcessEnv = process.env): string[] {
+  if ((source.NODE_ENV ?? "development") !== "production" || source.CI === "true") return [];
+  const issues: string[] = [];
+  const databaseUrl = source.DATABASE_URL?.trim() ?? "";
+  if (!databaseUrl) issues.push("DATABASE_URL is required");
+
+  const rateLimitSecret = source.AUTH_RATE_LIMIT_SECRET?.trim() || source.DATA_ENCRYPTION_KEY?.trim() || "";
+  if (!rateLimitSecret || rateLimitSecret === DEFAULT_RATE_LIMIT_SECRET || rateLimitSecret.length < 32) {
+    issues.push("AUTH_RATE_LIMIT_SECRET must be a unique secret of at least 32 characters");
+  }
+
+  const encryptionKey = source.DATA_ENCRYPTION_KEY?.trim() ?? "";
+  if (encryptionKey.length < 32) issues.push("DATA_ENCRYPTION_KEY must contain at least 32 characters");
+
+  try {
+    const publicUrl = new URL(source.APP_URL ?? "");
+    if (publicUrl.protocol !== "https:" || ["localhost", "127.0.0.1", "::1"].includes(publicUrl.hostname)) {
+      issues.push("APP_URL must be a public https origin");
+    }
+  } catch {
+    issues.push("APP_URL must be a valid absolute URL");
+  }
+
+  if ((source.DEMO_MODE ?? "false").toLowerCase() === "true") issues.push("DEMO_MODE must be false");
+  return issues;
+}

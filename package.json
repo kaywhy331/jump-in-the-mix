@@ -18,6 +18,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:e2e-admin": "tsx scripts/seed-e2e-admin.ts",
     "db:setup": "npm run db:push && npm run db:seed",
+    "db:setup:docker": "npm run db:deploy && npm run db:seed",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:rehearse-migration": "node scripts/rehearse-migration.mjs && node scripts/rehearse-admin-control-plane.mjs && node scripts/rehearse-admin-mfa.mjs && node scripts/rehearse-worker-heartbeat.mjs",

@@ -36,7 +36,7 @@ export default async function ContactCustomFieldsPage({ searchParams }: { search
       {params.deleted && <Notice type="success">Custom field deleted{params.values && params.values !== "0" ? ` with ${params.values} saved value${params.values === "1" ? "" : "s"}` : ""}.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
       <header className="page-header">
-        <div><h1>Contact custom fields</h1><p>Add workspace-specific Contact data and use it in personalized Jumps.</p></div>
+        <div><h1>Contact custom fields</h1><p>Add personal Contact details and use them in personalized Jumps.</p></div>
         <div className="page-actions"><Link className="button" href="/contacts">Contacts</Link><Link className="button" href="/settings/jumps">Jumps</Link></div>
       </header>
 

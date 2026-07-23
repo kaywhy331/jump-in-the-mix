@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
-import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slug";
 
@@ -32,9 +31,7 @@ export async function createCustomDateTypeAction(formData: FormData): Promise<vo
     select: { id: true }
   });
   if (duplicate) fail("A system or custom Jump Date Type already uses that name.");
-  const activeCount = await prisma.dateType.count({ where: { workspaceId: workspace.id, isSystem: false, isActive: true } });
-  const limit = PLAN_LIMITS[workspace.planTier].customDateTypes;
-  const isActive = !Number.isFinite(limit) || activeCount < limit;
+  const isActive = true;
   await prisma.dateType.create({
     data: {
       workspaceId: workspace.id,
@@ -75,10 +72,6 @@ export async function renameCustomDateTypeAction(formData: FormData): Promise<vo
 export async function saveActiveDateTypesAction(formData: FormData): Promise<void> {
   const { workspace } = await requireWorkspace();
   const selectedIds = [...new Set(values(formData, "activeDateTypeIds"))];
-  const limit = PLAN_LIMITS[workspace.planTier].customDateTypes;
-  if (Number.isFinite(limit) && selectedIds.length > limit) {
-    fail(`Your ${workspace.planTier.toLowerCase()} plan allows ${limit} active custom Jump Date Types.`);
-  }
   const available = selectedIds.length
     ? await prisma.dateType.findMany({ where: { workspaceId: workspace.id, isSystem: false, id: { in: selectedIds } }, select: { id: true } })
     : [];

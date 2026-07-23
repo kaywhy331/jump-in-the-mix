@@ -4,7 +4,6 @@ import { AUTH_TOKEN_PURPOSES, hashAuthToken } from "@/lib/auth-tokens";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import { qualifyAttributedReferralForUser } from "@/lib/referral-service";
 import { getRequestMetadata } from "@/lib/request-context";
 
 function redirectTo(request: Request, path: string): NextResponse {
@@ -49,8 +48,7 @@ export async function GET(request: Request) {
         data: { emailVerifiedAt: now },
         select: { id: true, email: true }
       });
-      const referralQualified = await qualifyAttributedReferralForUser(tx, verified.id, now);
-      return { ...verified, referralQualified };
+      return verified;
     });
 
     if (!user) return redirectTo(request, "/verify-email/pending?error=That%20verification%20link%20is%20invalid%20or%20expired.");
@@ -61,7 +59,6 @@ export async function GET(request: Request) {
     });
     const destination = new URL(membership?.workspace.profile?.onboardingDone ? "/jumps" : "/onboarding", request.url);
     destination.searchParams.set("verified", "1");
-    if (user.referralQualified) destination.searchParams.set("referral", "qualified");
     return NextResponse.redirect(destination);
   } catch (error) {
     console.error("Email verification failed", error);

@@ -26,6 +26,29 @@ describe("inferQuickAddCapture", () => {
     expect(inferQuickAddCapture("Call Avery tomorrow regarding renewal", now).dateValue).toBe("2026-07-22");
   });
 
+  it("recognizes every supported named weekday and makes the resolved date explicit", () => {
+    expect(inferQuickAddCapture("Email Priya next Friday", now)).toMatchObject({
+      name: "Priya",
+      timing: "next Friday",
+      dateValue: "2026-07-24"
+    });
+  });
+
+  it("carries a phone number without including it in the Contact name", () => {
+    expect(inferQuickAddCapture("Add Sam with 626-555-0100", now)).toMatchObject({
+      name: "Sam",
+      phone: "626-555-0100"
+    });
+  });
+
+  it("carries a meeting name and context without inventing a scheduled follow-up", () => {
+    expect(inferQuickAddCapture("I met Elena at the chamber event.", now)).toMatchObject({
+      name: "Elena",
+      dateValue: null,
+      reason: "Met at the chamber event"
+    });
+  });
+
   it("rolls a yearless date forward when it has already passed", () => {
     expect(inferQuickAddCapture("Text Sam 1/15 about planning", now).dateValue).toBe("2027-01-15");
   });

@@ -1,5 +1,3 @@
-import type { PlanTier } from "@/generated/prisma/client";
-import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
 export type ContactGroupStateValue = {
@@ -63,16 +61,10 @@ export async function isGroupActive(workspaceId: string, groupId: string): Promi
 
 export async function setActiveWorkspaceGroups(input: {
   workspaceId: string;
-  planTier: PlanTier;
   selectedIds: string[];
   actorUserId?: string | null;
 }): Promise<{ activeCount: number; inactiveCount: number }> {
   const selectedIds = [...new Set(input.selectedIds.filter(Boolean))];
-  const limit = PLAN_LIMITS[input.planTier].groups;
-  if (Number.isFinite(limit) && selectedIds.length > limit) {
-    throw new Error(`Your ${input.planTier.toLowerCase()} plan allows ${limit} active Contact Groups.`);
-  }
-
   return prisma.$transaction(async (tx) => {
     const groups = await tx.group.findMany({
       where: { workspaceId: input.workspaceId },

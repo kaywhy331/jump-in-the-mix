@@ -60,22 +60,17 @@ test("core pages preserve clean fitment without horizontal overflow", async ({ p
   }
 });
 
-test("desktop card rows share a common top edge", async ({ page }, testInfo) => {
+test("desktop personal account and settings cards share a common top edge", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Desktop alignment is checked once.");
   await signIn(page);
 
-  await page.goto("/account?section=billing");
+  await page.goto("/account");
   const accountCards = page.locator(".account-grid > .card");
   const firstAccount = await accountCards.nth(0).boundingBox();
-  const billingCard = page.locator(".account-billing-card");
-  const billing = await billingCard.boundingBox();
-  const accountGrid = await page.locator(".account-grid").boundingBox();
+  const secondAccount = await accountCards.nth(1).boundingBox();
   expect(firstAccount).not.toBeNull();
-  expect(billing).not.toBeNull();
-  expect(accountGrid).not.toBeNull();
-  expect(Math.abs(firstAccount!.x - accountGrid!.x)).toBeLessThanOrEqual(1);
-  expect(Math.abs(billing!.x - accountGrid!.x)).toBeLessThanOrEqual(1);
-  expect(Math.abs(billing!.width - accountGrid!.width)).toBeLessThanOrEqual(1);
+  expect(secondAccount).not.toBeNull();
+  expect(Math.abs(firstAccount!.y - secondAccount!.y)).toBeLessThanOrEqual(1);
 
   await page.goto("/settings");
   const settingsCards = page.locator(".settings-hub-grid > .settings-hub-card");
@@ -91,15 +86,34 @@ test("mobile navigation and actions stay inside the viewport", async ({ page }, 
   await signIn(page);
   await page.goto("/jumps");
 
-  const links = page.locator(".mobile-nav .nav-link:visible");
+  const links = page.locator(".mobile-nav a.nav-link:visible");
   await expect(links).toHaveCount(5);
+  await expect(page.locator(".mobile-nav .nav-quick-add:visible")).toHaveCount(1);
   const viewport = page.viewportSize();
   expect(viewport).not.toBeNull();
+  const firstLinkBox = await links.first().boundingBox();
+  expect(firstLinkBox).not.toBeNull();
   for (let index = 0; index < await links.count(); index += 1) {
     const box = await links.nth(index).boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width + 1);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height + 1);
+    expect(Math.abs(box!.y - firstLinkBox!.y)).toBeLessThanOrEqual(1);
+  }
+  await expectNoHorizontalOverflow(page);
+});
+
+test("mobile text actions stay readable instead of collapsing into blank controls", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Mobile header geometry is checked once.");
+  await signIn(page);
+  await page.goto("/templates");
+  for (const label of ["My Mixes", "Create my own"]) {
+    const action = page.getByRole("link", { name: label, exact: true });
+    await expect(action).toBeVisible();
+    const box = await action.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThan(60);
   }
   await expectNoHorizontalOverflow(page);
 });
@@ -120,60 +134,33 @@ test("global Quick Add previews natural-language capture before continuing", asy
   await expect(dialog).toBeHidden();
 });
 
-test("settings hub opens focused profile tools with global timezone and repeatable records", async ({ page }) => {
+test("settings hub opens focused personal scheduling controls", async ({ page }) => {
   await signIn(page);
   await page.goto("/settings");
-  await expect(page.getByRole("link", { name: /Profile/ })).toBeVisible();
-  await expect(page.locator(".settings-profile-layout")).toHaveCount(0);
-
-  await page.getByRole("link", { name: /Profile/ }).click();
-  await expect(page).toHaveURL(/\/settings\?section=profile/);
-  await expect(page.getByRole("heading", { name: "Workspace profile" })).toBeVisible();
-  await expect(page.getByLabel("Timezone")).toBeVisible();
-  await page.getByRole("button", { name: "Use detected" }).click();
-  await expect(page.getByLabel("Timezone")).not.toHaveValue("");
-
-  const products = page.locator(".repeatable-profile-records").filter({ hasText: "Products and services" });
-  const recordName = `Consultation link ${Date.now()}`;
-  const initialCount = await products.getByPlaceholder("Name").count();
-  await products.getByRole("button", { name: "Add record" }).click();
-  await expect(products.getByPlaceholder("Name")).toHaveCount(initialCount + 1);
-  await products.getByPlaceholder("Name").last().fill(recordName);
-  await products.getByPlaceholder("Value").last().fill("https://example.com/book");
-  await expect(products.locator('input[type="hidden"]')).toHaveValue(new RegExp(recordName));
-  if (initialCount > 0) {
-    await products.locator(".repeatable-profile-row").last().getByRole("button", { name: new RegExp(`Move ${recordName} up`) }).click();
-    await expect(products.getByPlaceholder("Name").nth(initialCount - 1)).toHaveValue(recordName);
-  }
-  await Promise.all([
-    page.waitForURL(/\/settings\?section=profile&saved=1/),
-    page.getByRole("button", { name: "Save workspace profile" }).click()
-  ]);
-  const persistedName = page.locator(`input[value="${recordName}"]`);
-  await expect(persistedName).toBeVisible();
-  const persistedRow = page.locator(".repeatable-profile-row").filter({ has: persistedName });
-  await persistedRow.getByRole("button", { name: "Remove" }).click();
-  await Promise.all([
-    page.waitForURL(/\/settings\?section=profile&saved=1/),
-    page.getByRole("button", { name: "Save workspace profile" }).click()
-  ]);
-  await expect(page.locator(`input[value="${recordName}"]`)).toHaveCount(0);
+  const preferences = page.getByRole("link", { name: /Personal preferences/ });
+  await expect(preferences).toBeVisible();
+  await preferences.click();
+  await expect(page).toHaveURL(/\/account\/preferences$/);
+  await expect(page.getByRole("heading", { name: "Personal preferences" })).toBeVisible();
+  await expect(page.getByLabel("Display name")).toBeVisible();
+  await expect(page.getByLabel("Personal timezone")).toBeVisible();
+  await expect(page.getByLabel("Default follow-up time")).toBeVisible();
+  await expect(page.getByLabel("Quiet hours begin")).toBeVisible();
+  await expect(page.getByLabel("Quiet hours end")).toBeVisible();
+  await expect(page.getByLabel("Weekend scheduling")).toBeVisible();
 });
 
-test("public pricing preserves plan intent and remains responsive", async ({ page }, testInfo) => {
+test("public single-user product story remains focused and responsive", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The public viewport matrix runs once.");
   for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.goto("/?billing=annual#pricing");
-    await expect(page.getByText("Full plan comparison", { exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Choose Plus" })).toHaveAttribute("href", "/register?plan=plus&period=annual");
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Remember the person, the moment, and the next action." })).toBeVisible();
+    await expect(page.getByText("Structure without CRM clutter.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Get started" })).toHaveAttribute("href", "/register");
+    await expect(page.locator("main")).not.toContainText(/\b(?:pricing|billing|subscription|upgrade|downgrade|team|organization|stripe|google contacts|ai provider)\b/i);
     await expectNoHorizontalOverflow(page);
   }
-  await page.getByRole("link", { name: "Monthly" }).click();
-  await expect(page.getByRole("link", { name: "Choose Pro" })).toHaveAttribute("href", "/register?plan=pro&period=monthly");
-  await page.getByRole("link", { name: "Choose Pro" }).click();
-  await expect(page).toHaveURL(/\/register\?plan=pro&period=monthly/);
-  await expect(page.getByText("Your Pro · monthly selection is saved.")).toBeVisible();
 });
 
 test("confirmation dialogs restore focus and accessibility preferences remain usable", async ({ page }, testInfo) => {

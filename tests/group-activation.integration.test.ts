@@ -86,7 +86,6 @@ describe.sequential("Contact Group activation lifecycle", () => {
 
     await setActiveWorkspaceGroups({
       workspaceId: ids.workspace,
-      planTier: "FREE",
       selectedIds: [],
       actorUserId: ids.user
     });
@@ -100,7 +99,6 @@ describe.sequential("Contact Group activation lifecycle", () => {
 
     await setActiveWorkspaceGroups({
       workspaceId: ids.workspace,
-      planTier: "FREE",
       selectedIds: [ids.group],
       actorUserId: ids.user
     });

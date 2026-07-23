@@ -3,11 +3,9 @@
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import {
-  countActiveGroups,
   isGroupActive,
   setActiveWorkspaceGroups
 } from "@/lib/group-activity";
-import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
 function value(formData: FormData, key: string): string {
@@ -39,9 +37,7 @@ export async function createContactGroupAction(formData: FormData): Promise<void
   });
   if (duplicate) fail("A group with that name already exists.");
 
-  const activeCount = await countActiveGroups(workspace.id);
-  const limit = PLAN_LIMITS[workspace.planTier].groups;
-  const isActive = !Number.isFinite(limit) || activeCount < limit;
+  const isActive = true;
 
   await prisma.$transaction(async (tx) => {
     const group = await tx.group.create({
@@ -107,7 +103,6 @@ export async function saveActiveGroupsAction(formData: FormData): Promise<void> 
   try {
     await setActiveWorkspaceGroups({
       workspaceId: workspace.id,
-      planTier: workspace.planTier,
       selectedIds: values(formData, "activeGroupIds"),
       actorUserId: user.id
     });

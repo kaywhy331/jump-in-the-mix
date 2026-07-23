@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ContactImportWizard } from "@/components/ContactImportWizard";
+import { ContactImportWizardV2 } from "@/components/ContactImportWizardV2";
 import { requireWorkspace } from "@/lib/auth";
 import { mergeGroupActivity } from "@/lib/group-activity";
-import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Import Contacts" };
@@ -33,19 +32,18 @@ export default async function ImportContactsPage() {
     prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null } })
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates).filter((group) => group.isActive);
-  const contactLimit = PLAN_LIMITS[workspace.planTier].contacts;
 
   return (
     <div className="page import-contacts-page">
       <header className="page-header">
-        <div><h1>Import Contacts</h1><p>Bring in CSV or VCF data with field mapping, duplicate review, Important Dates, and a downloadable error report.</p></div>
+        <div><h1>Import Contacts</h1><p>Choose a file, review only the rows that need a decision, then let the background worker finish safely.</p></div>
         <div className="page-actions"><Link className="button" href="/contacts">Back to Contacts</Link></div>
       </header>
-      <ContactImportWizard
+      <ContactImportWizardV2
         groups={groups.map((group) => ({ id: group.id, name: group.name, contactCount: group._count.memberships }))}
         customFields={customFields}
         dateTypes={dateTypes}
-        initialUsage={{ activeContacts, contactLimit, remainingContacts: Math.max(contactLimit - activeContacts, 0) }}
+        initialUsage={{ activeContacts, contactLimit: Number.MAX_SAFE_INTEGER, remainingContacts: Number.MAX_SAFE_INTEGER }}
       />
     </div>
   );

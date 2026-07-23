@@ -101,3 +101,14 @@ export async function consumeRateLimit(input: RateLimitInput): Promise<RateLimit
 export async function clearRateLimit(scope: string, identifiers: RateLimitInput["identifiers"]): Promise<void> {
   await prisma.authRateLimit.deleteMany({ where: { key: rateLimitKey(scope, identifiers) } });
 }
+
+export async function releaseRateLimitAttempt(scope: string, identifiers: RateLimitInput["identifiers"]): Promise<void> {
+  await prisma.authRateLimit.updateMany({
+    where: {
+      key: rateLimitKey(scope, identifiers),
+      attempts: { gt: 0 },
+      blockedUntil: null
+    },
+    data: { attempts: { decrement: 1 } }
+  });
+}

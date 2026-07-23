@@ -14,20 +14,50 @@ async function signIn(page: Page) {
   ]);
 }
 
-test("legacy Account destinations resolve to the correct section", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "Account route normalization is exercised once.");
+test("retired commercial, team, provider, and sharing routes stay unavailable", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The retired route boundary is exercised once.");
   await signIn(page);
 
-  await page.goto("/account#referrals");
-  await expect(page).toHaveURL(/\/account\?section=referrals$/);
-  await expect(page.getByRole("heading", { name: "Invite friends to Jump in the Mix" })).toBeVisible();
+  for (const section of ["billing", "connections", "referrals", "team"]) {
+    await page.goto(`/account?section=${section}`);
+    await expect(page).toHaveURL(/\/account$/);
+    await expect(page.getByRole("heading", { name: "My Account" })).toBeVisible();
+  }
 
-  await page.goto("/account?google=connected");
-  await expect(page).toHaveURL(/\/account\?google=connected&section=connections$/);
-  await expect(page.getByRole("heading", { name: "Google Contacts" })).toBeVisible();
+  for (const route of [
+    "/plans",
+    "/account/team",
+    "/join",
+    "/api/billing/checkout",
+    "/api/integrations/google/status",
+    "/api/webhooks/stripe",
+    "/mixes/wizard",
+    "/mixes/example/share",
+    "/r/example"
+  ]) {
+    const response = await page.goto(route);
+    expect(response?.status(), route).toBe(404);
+  }
 
-  await page.goto("/more");
-  await expect(page.getByRole("link", { name: /Referrals/ })).toHaveAttribute("href", "/account?section=referrals");
+  const prohibited = /\b(?:billing|subscription|checkout|invoice|upgrade|downgrade|team|members|invitations|organization|stripe|google contacts|ai provider)\b/i;
+  for (const route of ["/jumps", "/contacts", "/mixes", "/templates", "/more", "/settings", "/account"]) {
+    await page.goto(route);
+    await expect(page.locator("main")).not.toContainText(prohibited);
+  }
+});
+
+test("a stale session cookie redirects to sign in instead of crashing a Server Component", async ({ context, page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The stale-session boundary is exercised once.");
+  await context.addCookies([{
+    name: "jitm_session",
+    value: "stale-e2e-session",
+    url: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000"
+  }]);
+
+  const response = await page.goto("/contacts");
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
 });
 
 test("name-only Contacts keep Important Date access and return to the filtered list", async ({ page }, testInfo) => {
@@ -82,6 +112,16 @@ test("name-only Contacts keep Important Date access and return to the filtered l
       editPanel.getByRole("button", { name: "Save changes" }).click()
     ]);
     await expect(page.getByText("2/28", { exact: true })).toBeVisible();
+
+    await datesCard.getByRole("button", { name: "Remove Birthday", exact: true }).click();
+    await Promise.all([
+      page.waitForURL(/dateDeleted=1/),
+      page.getByRole("button", { name: "Confirm removal" }).click()
+    ]);
+    await expect(page.getByText("2/28", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("No Important Dates yet.", { exact: false })).toBeVisible();
+    const storedDate = await prisma.jumpDate.findUniqueOrThrow({ where: { id: jumpDateId } });
+    expect(storedDate.isActive).toBe(false);
 
     await page.getByRole("link", { name: "Back to Contacts" }).click();
     await expect(page).toHaveURL(/\/contacts\?q=/);

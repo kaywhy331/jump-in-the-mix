@@ -9,7 +9,6 @@ import {
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { endAdminImpersonationGrant, resolveAdminImpersonationGrant } from "@/lib/impersonation";
-import { reconcileWorkspaceReferralEntitlement } from "@/lib/referral-service";
 import { getRequestMetadata } from "@/lib/request-context";
 
 export function hashSessionToken(token: string): string {
@@ -128,11 +127,11 @@ export async function getCurrentSession() {
     if (session) {
       await prisma.$transaction([
         prisma.adminMfaSession.deleteMany({ where: { sessionId: session.id } }),
-        prisma.session.delete({ where: { id: session.id } })
+        prisma.session.deleteMany({ where: { id: session.id } })
       ]);
     }
-    store.delete(env.impersonationCookieName);
-    store.delete(env.cookieName);
+    // Server Components can read cookies but cannot mutate the response. Treat stale
+    // credentials as signed out; the next auth Server Action overwrites or clears them.
     return null;
   }
 
@@ -160,9 +159,6 @@ export async function getCurrentSession() {
         }
       };
     }
-    store.delete(env.impersonationCookieName);
-  } else if (impersonationToken) {
-    store.delete(env.impersonationCookieName);
   }
 
   return { ...session, authUser, impersonation: null };
@@ -181,11 +177,7 @@ export async function requireWorkspace() {
   }
   const membership = session.user.memberships[0];
   if (!membership) redirect("/register");
-  let workspace = membership.workspace;
-  if (!session.impersonation && workspace.planTier === "PLUS" && !workspace.stripeSubscriptionId) {
-    const reconciled = await reconcileWorkspaceReferralEntitlement(workspace.id);
-    if (reconciled) workspace = { ...workspace, ...reconciled, profile: workspace.profile };
-  }
+  const workspace = membership.workspace;
   return {
     session,
     actorUser: session.authUser,

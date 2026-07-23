@@ -9,7 +9,6 @@ import {
   saveActiveDateTypesAction
 } from "@/lib/date-type-actions";
 import { requireWorkspace } from "@/lib/auth";
-import { formatPlanLimit, PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Important Date Types" };
@@ -38,13 +37,10 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
   const normalizedQuery = q.toLowerCase();
   const customTypes = normalizedQuery ? allCustomTypes.filter((item) => item.name.toLowerCase().includes(normalizedQuery)) : allCustomTypes;
   const hiddenActiveTypes = normalizedQuery ? allCustomTypes.filter((item) => item.isActive && !item.name.toLowerCase().includes(normalizedQuery)) : [];
-  const limit = PLAN_LIMITS[workspace.planTier].customDateTypes;
-  const activeCount = allCustomTypes.filter((item) => item.isActive).length;
 
   return (
     <div className="page">
       {params.created && <Notice type="success">Custom Important Date Type created.</Notice>}
-      {params.inactive && <Notice type="info">The type was preserved as inactive because your active-type limit is already reached. Select which types should remain active below.</Notice>}
       {params.updated && <Notice type="success">Important Date Type renamed.</Notice>}
       {params.activationSaved && <Notice type="success">Active Important Date Types updated. Future pending work is being reconciled.</Notice>}
       {params.deleted && <Notice type="success">Unused custom Important Date Type deleted.</Notice>}
@@ -53,7 +49,6 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
         <div><h1>Important Date Types</h1><p>Name the moments that can start your follow-up plans.</p></div>
         <div className="page-actions"><Link className="button" href="/mixes">Mixes</Link><Link className="button" href="/settings">Settings</Link></div>
       </header>
-      <div className="usage-line"><span>Active custom types</span><strong>{activeCount}/{formatPlanLimit(limit)}</strong></div>
 
       <section className="card">
         <div className="card-header"><div><h2>+ New custom type</h2><p>Examples: Policy Renewal, Closing Anniversary, Program Start, or Warranty Expiration.</p></div></div>
@@ -61,7 +56,7 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
       </section>
 
       <section className="card">
-        <div className="card-header"><div><h2>Manage custom types</h2><p>Choose which remain active after a plan change. Inactive types and their data are preserved.</p></div></div>
+        <div className="card-header"><div><h2>Manage custom types</h2><p>Choose which types appear in everyday workflows. Inactive types and their data are preserved.</p></div></div>
         <form className="filter-bar" action="/settings/jump-date-types" method="get"><input name="q" defaultValue={q} placeholder="Search custom types" aria-label="Search custom Important Date Types" /><button className="button" type="submit">Search</button>{q && <Link className="button" href="/settings/jump-date-types">Clear</Link>}</form>
         <form id="date-type-activation-form" action={saveActiveDateTypesAction}>{hiddenActiveTypes.map((item) => <input type="hidden" name="activeDateTypeIds" value={item.id} key={item.id} />)}</form>
         {customTypes.length ? <div className="date-type-list">{customTypes.map((dateType) => (
@@ -76,7 +71,7 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
       </section>
 
       <section className="card">
-        <div className="card-header"><div><h2>System types</h2><p>These global records are shared safely across all workspaces and do not count against custom-type limits.</p></div></div>
+        <div className="card-header"><div><h2>Built-in types</h2><p>These common Important Date Types are always available.</p></div></div>
         <div className="system-type-list">{systemTypes.map((dateType) => <span className="group-chip" key={dateType.id}>{dateType.name}</span>)}</div>
       </section>
     </div>

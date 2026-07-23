@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildAddressInputs, buildEmailInputs, buildPhoneInputs, normalizePhone } from "../src/lib/contact-input";
 
 describe("contact input normalization", () => {
-  it("normalizes, deduplicates, and selects one primary email", () => {
+  it("normalizes, deduplicates, and preserves the selected primary email", () => {
     const rows = buildEmailInputs(
       [" Person@Example.COM ", "person@example.com", "other@example.com"],
       ["Work", "Duplicate", "Personal"],
@@ -10,8 +10,8 @@ describe("contact input normalization", () => {
     );
 
     expect(rows).toEqual([
-      { value: "Person@Example.COM", normalized: "person@example.com", label: "Work", isPrimary: false },
-      { value: "other@example.com", normalized: "other@example.com", label: "Personal", isPrimary: true }
+      { value: "Person@Example.COM", normalized: "person@example.com", label: "Work", isPrimary: true },
+      { value: "other@example.com", normalized: "other@example.com", label: "Personal", isPrimary: false }
     ]);
   });
 

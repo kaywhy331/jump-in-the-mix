@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      APP_URL: http://localhost:3000
+      APP_URL: http://127.0.0.1:3000
       DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_test?schema=public
       DATA_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
       BACKUP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
@@ -53,7 +53,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-audit --no-fund
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
       - name: Install PostgreSQL client tools
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Verify committed existing-MVP baseline SQL
@@ -66,7 +68,22 @@ jobs:
           grep -q 'CREATE TABLE "Workspace"' "$baseline"
           grep -q 'CREATE TABLE "Jump"' "$baseline"
       - run: npm run db:generate
-      - run: npm run validate:static
+      - name: Validate Prisma schema
+        run: npm run validate:schema
+      - name: Validate source syntax
+        run: npm run validate:syntax
+      - name: Validate local imports and Server Action boundaries
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run validate:imports 2>&1 | tee import-validation.log
+      - name: Upload import-boundary diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: import-validation-diagnostics
+          path: import-validation.log
+          retention-days: 7
       - name: Populated migration, rollback, and reapply rehearsal
         shell: bash
         run: |
@@ -139,9 +156,16 @@ jobs:
           retention-days: 7
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
+      - name: Prepare standalone browser server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .next/standalone/.next
+          cp -R public .next/standalone/public
+          cp -R .next/static .next/standalone/.next/static
       - name: Browser-driven end-to-end tests
         env:
-          PLAYWRIGHT_WEB_SERVER_COMMAND: npm run start
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
         shell: bash
         run: |
           set -o pipefail

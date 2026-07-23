@@ -36,9 +36,23 @@ for (const file of files) {
   }
 }
 
+const compatibilityActions = resolve("src/lib/actions.ts");
+if (existsSync(compatibilityActions)) {
+  const source = readFileSync(compatibilityActions, "utf8");
+  const forbidden = [
+    /export\s+async\s+function/,
+    /\bprisma\./,
+    /\brequireWorkspace\s*\(/,
+    /\bredirect\s*\(/
+  ];
+  if (forbidden.some((pattern) => pattern.test(source))) {
+    missing.push("src/lib/actions.ts must remain a re-export-only compatibility boundary; move implementations into scoped modules");
+  }
+}
+
 if (missing.length) {
-  console.error(`[FAIL] ${missing.length} local import(s) could not be resolved:\n${missing.join("\n")}`);
+  console.error(`[FAIL] ${missing.length} local import or action-boundary issue(s):\n${missing.join("\n")}`);
   process.exitCode = 1;
 } else {
-  console.log(`[OK] Resolved local imports across ${files.length} source files.`);
+  console.log(`[OK] Resolved local imports across ${files.length} source files and verified the Server Action boundary.`);
 }

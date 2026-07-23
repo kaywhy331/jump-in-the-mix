@@ -63,7 +63,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
                 name="title"
                 minLength={5}
                 maxLength={160}
-                placeholder="Example: My Google Contacts preview is missing a label"
+                placeholder="Example: My Contact import is missing a label"
                 disabled={Boolean(impersonation)}
                 required
               />
@@ -82,7 +82,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
             </label>
             <div className="support-safety-note">
               <strong>Keep secrets out of tickets.</strong>
-              <span>Never send passwords, payment-card details, OAuth tokens, API keys, or webhook signing secrets.</span>
+              <span>Never send passwords, private keys, session tokens, or other secrets.</span>
             </div>
             <div className="form-actions">
               <button className="button primary" type="submit" disabled={Boolean(impersonation)}>Submit support ticket</button>

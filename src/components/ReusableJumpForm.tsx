@@ -37,7 +37,7 @@ function insertAtCursor(element: HTMLInputElement | HTMLTextAreaElement | null, 
 }
 
 function channelOptions() {
-  return <><option value="SMS">SMS</option><option value="EMAIL">Email</option><option value="PHONE_CALL">Phone Call</option><option value="VOICEMAIL">Ringless Voicemail</option><option value="WHATSAPP">WhatsApp</option></>;
+  return <><option value="SMS">SMS</option><option value="EMAIL">Email</option><option value="PHONE_CALL">Phone Call</option><option value="VOICEMAIL">Voicemail notes</option><option value="WHATSAPP">WhatsApp</option></>;
 }
 
 export function ReusableJumpForm({

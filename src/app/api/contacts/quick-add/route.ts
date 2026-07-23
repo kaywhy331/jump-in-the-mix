@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/lib/auth";
-import { quickAddDeviceContacts, QuickAddPlanLimitError } from "@/lib/contact-quick-add";
+import { quickAddDeviceContacts } from "@/lib/contact-quick-add";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 
@@ -59,22 +59,12 @@ export async function POST(request: Request) {
     const result = await quickAddDeviceContacts({
       workspaceId: membership.workspaceId,
       actorUserId: session.authUser.id,
-      planTier: membership.workspace.planTier,
       timezone: membership.workspace.profile?.timezone ?? "America/New_York",
       requestId: parsed.data.requestId,
       contacts: parsed.data.contacts
     });
     return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
-    if (error instanceof QuickAddPlanLimitError) {
-      return NextResponse.json({
-        error: error.message,
-        code: error.code,
-        planTier: error.planTier,
-        remainingContacts: error.remainingContacts,
-        requestedCreates: error.requestedCreates
-      }, { status: 409 });
-    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "The selected Contacts could not be added." },
       { status: 400 }

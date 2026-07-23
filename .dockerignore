@@ -5,6 +5,10 @@ src/generated/prisma
 .env
 .env.local
 coverage
+test-results
+playwright-report
+.artifacts
+.backups
 *.log
 *.tsbuildinfo
 *.zip

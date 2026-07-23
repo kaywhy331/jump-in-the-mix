@@ -1,10 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import {
-  QuickAddPlanLimitError,
-  quickAddDeviceContacts
-} from "../src/lib/contact-quick-add";
-import { PLAN_LIMITS } from "../src/lib/plans";
+import { quickAddDeviceContacts } from "../src/lib/contact-quick-add";
 import { prisma } from "../src/lib/prisma";
 
 describe.sequential("Device Contact Quick Add", () => {
@@ -89,7 +85,6 @@ describe.sequential("Device Contact Quick Add", () => {
     const input = {
       workspaceId: workspaceA,
       actorUserId,
-      planTier: "FREE" as const,
       timezone: "America/Los_Angeles",
       requestId: `request-${suffix.slice(0, 20)}`,
       contacts: [
@@ -125,7 +120,7 @@ describe.sequential("Device Contact Quick Add", () => {
     expect(await prisma.contact.count({ where: { workspaceId: workspaceA } })).toBe(5);
   });
 
-  it("rejects an over-limit selection before writing any row", async () => {
+  it("does not restrict Contact creation by a subscription tier", async () => {
     const user = await prisma.user.create({
       data: { email: `quick-add-limit-${suffix}@example.com`, name: "Quick Add Limit", passwordHash: "test-only" }
     });
@@ -139,28 +134,17 @@ describe.sequential("Device Contact Quick Add", () => {
       }
     });
     workspaceIds.push(workspace.id);
-    await prisma.contact.createMany({
-      data: Array.from({ length: PLAN_LIMITS.FREE.contacts - 1 }, (_, index) => ({
-        workspaceId: workspace.id,
-        displayName: `Capacity Contact ${index + 1}`
-      }))
-    });
-
-    await expect(quickAddDeviceContacts({
+    const result = await quickAddDeviceContacts({
       workspaceId: workspace.id,
       actorUserId: user.id,
-      planTier: "FREE",
       timezone: "America/Los_Angeles",
       requestId: `limit-${suffix.slice(0, 20)}`,
       contacts: [
         { names: ["Over Limit One"], emails: ["over-one@example.com"], phones: [], addresses: [] },
         { names: ["Over Limit Two"], emails: ["over-two@example.com"], phones: [], addresses: [] }
       ]
-    })).rejects.toMatchObject({
-      code: "CONTACT_LIMIT",
-      remainingContacts: 1,
-      requestedCreates: 2
     });
-    expect(await prisma.contact.count({ where: { workspaceId: workspace.id } })).toBe(PLAN_LIMITS.FREE.contacts - 1);
+    expect(result.summary.created).toBe(2);
+    expect(await prisma.contact.count({ where: { workspaceId: workspace.id } })).toBe(2);
   });
 });

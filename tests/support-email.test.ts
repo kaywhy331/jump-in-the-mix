@@ -8,12 +8,12 @@ describe("support reply email", () => {
       recipientName: "Jordan",
       ticketId: "ticket-123",
       reference: "JITM-ABC-1234",
-      title: "Google preview is missing a label",
-      responseBody: "Thank you for reporting this.\n\nPlease reconnect Google Contacts and preview the selected labels again."
+      title: "Contact import is missing a label",
+      responseBody: "Thank you for reporting this.\n\nPlease review the Contact import mapping and try the file again."
     });
 
     expect(email.subject).toContain("JITM-ABC-1234");
-    expect(email.subject).toContain("Google preview is missing a label");
+    expect(email.subject).toContain("Contact import is missing a label");
     expect(email.text).toContain("Jump in the Mix Response");
     expect(email.text).toContain("/account/tickets/ticket-123");
     expect(email.html).toContain("Jump in the Mix Support");

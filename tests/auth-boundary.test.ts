@@ -7,7 +7,9 @@ describe("authentication request boundary", () => {
     const register = readFileSync("src/app/register/page.tsx", "utf8");
     const shell = readFileSync("src/components/AppShell.tsx", "utf8");
     expect(login).toContain('from "@/lib/auth-actions"');
-    expect(register).toContain('from "@/lib/register-action"');
+    expect(register).toContain('from "@/lib/auth-actions"');
+    expect(register).toContain("registerAction");
+    expect(register).not.toMatch(/referral|planIntent/i);
     expect(shell).toContain('from "@/lib/auth-actions"');
   });
 

@@ -1,23 +1,34 @@
 import { randomUUID } from "node:crypto";
-import { prisma } from "@/lib/prisma";
+import { CONTACT_IMPORT_JOB_TASK, runContactImportBatch } from "@/lib/contact-import-jobs";
 import { generateJumps } from "@/lib/jump-engine";
-import {
-  enqueueDueGoogleContactsSyncs,
-  googleSyncJobTask,
-  runGoogleContactsSync
-} from "@/lib/google-sync-service";
-import { reconcileDueReferralEntitlements } from "@/lib/referral-service";
-import { retryPendingAccountDeletionRevocations } from "@/lib/account-deletion";
+import { cleanupOperationalData } from "@/lib/operational-retention";
+import { prisma } from "@/lib/prisma";
 
 const workerId = `worker-${randomUUID().slice(0, 8)}`;
 const workerStartedAt = new Date();
 const heartbeatIntervalMs = 15_000;
+const jobLeaseMs = 10 * 60_000;
+const jobLeaseRenewalMs = 30_000;
+const maintenanceIntervalMs = 5 * 60_000;
+const maximumRetryDelayMs = 6 * 60 * 60_000;
 let stopping = false;
 let heartbeatTimer: NodeJS.Timeout | null = null;
 let heartbeatChain: Promise<void> = Promise.resolve();
 
+class PermanentJobError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PermanentJobError";
+  }
+}
+
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function safeJobError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.replace(/(?:postgres(?:ql)?:\/\/)[^\s]+/gi, "[database-url-redacted]").slice(0, 2000);
 }
 
 async function recordHeartbeat(lastJobAt?: Date) {
@@ -57,49 +68,128 @@ async function markWorkerStopped() {
 }
 
 async function claimJob() {
+  const now = new Date();
+  const staleBefore = new Date(now.getTime() - jobLeaseMs);
   const candidate = await prisma.job.findFirst({
-    where: { completedAt: null, failedAt: null, lockedAt: null, runAt: { lte: new Date() } },
-    orderBy: { runAt: "asc" }
+    where: {
+      completedAt: null,
+      failedAt: null,
+      runAt: { lte: now },
+      OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }]
+    },
+    orderBy: [{ runAt: "asc" }, { createdAt: "asc" }]
   });
   if (!candidate) return null;
+
+  const leaseId = `${workerId}:${randomUUID()}`;
   const claimed = await prisma.job.updateMany({
-    where: { id: candidate.id, lockedAt: null, completedAt: null, failedAt: null },
-    data: { lockedAt: new Date(), lockedBy: workerId, attempts: { increment: 1 } }
+    where: {
+      id: candidate.id,
+      completedAt: null,
+      failedAt: null,
+      runAt: { lte: now },
+      OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }]
+    },
+    data: { lockedAt: now, lockedBy: leaseId, attempts: { increment: 1 } }
   });
-  return claimed.count ? candidate : null;
+  return claimed.count
+    ? { ...candidate, attempts: candidate.attempts + 1, lockedAt: now, lockedBy: leaseId }
+    : null;
 }
 
-async function processJob(job: Awaited<ReturnType<typeof claimJob>>) {
-  if (!job) return;
+type ClaimedJob = NonNullable<Awaited<ReturnType<typeof claimJob>>>;
+
+function retryDelayMs(attempts: number): number {
+  const base = Math.min(maximumRetryDelayMs, Math.max(5_000, 2 ** Math.min(attempts, 16) * 1000));
+  return Math.round(base * (0.8 + Math.random() * 0.4));
+}
+
+async function executeJob(job: ClaimedJob): Promise<void> {
+  if (job.task === "generate-jumps") {
+    const payload = job.payload as { contactId?: string; mixId?: string };
+    await generateJumps({ workspaceId: job.workspaceId ?? undefined, contactId: payload.contactId, mixId: payload.mixId });
+    return;
+  }
+  if (job.task === CONTACT_IMPORT_JOB_TASK) {
+    const payload = job.payload as { batchId?: string };
+    if (!payload.batchId) throw new PermanentJobError("Contact import job is missing its batch identifier.");
+    await runContactImportBatch(payload.batchId);
+    return;
+  }
+  throw new PermanentJobError(`Unsupported worker task: ${job.task}`);
+}
+
+async function processJob(job: ClaimedJob) {
+  const leaseId = job.lockedBy;
+  let leaseLost = false;
+  const renewal = setInterval(() => {
+    void prisma.job.updateMany({
+      where: { id: job.id, lockedBy: leaseId, completedAt: null, failedAt: null },
+      data: { lockedAt: new Date() }
+    }).then((result) => {
+      if (result.count !== 1) leaseLost = true;
+    }).catch((error) => {
+      leaseLost = true;
+      console.error(`[${workerId}] Job lease renewal failed for ${job.id}`, error);
+    });
+  }, jobLeaseRenewalMs);
+  renewal.unref();
+
   try {
-    if (job.task === "generate-jumps") {
-      const payload = job.payload as { contactId?: string; mixId?: string };
-      await generateJumps({ workspaceId: job.workspaceId ?? undefined, contactId: payload.contactId, mixId: payload.mixId });
-    } else if (job.task === googleSyncJobTask()) {
-      const payload = job.payload as { connectionId?: string; syncRunId?: string; actorUserId?: string | null };
-      if (!payload.connectionId || !payload.syncRunId) throw new Error("Google Contacts sync job is missing its connection or run identifier.");
-      await runGoogleContactsSync({
-        connectionId: payload.connectionId,
-        syncRunId: payload.syncRunId,
-        actorUserId: payload.actorUserId ?? null
-      });
-    }
-    await prisma.job.update({ where: { id: job.id }, data: { completedAt: new Date(), lockedAt: null, lockedBy: null } });
+    await executeJob(job);
+    if (leaseLost) throw new Error("The job lease was lost before completion could be recorded.");
+    const completed = await prisma.job.updateMany({
+      where: { id: job.id, lockedBy: leaseId, completedAt: null, failedAt: null },
+      data: { completedAt: new Date(), lockedAt: null, lockedBy: null, lastError: null }
+    });
+    if (completed.count !== 1) throw new Error("The job lease was lost before completion could be recorded.");
     await queueHeartbeat(new Date()).catch((error) => console.error("Worker heartbeat failed", error));
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const shouldFail = job.attempts + 1 >= job.maxAttempts;
-    await prisma.job.update({
-      where: { id: job.id },
+    const message = safeJobError(error);
+    const permanent = error instanceof PermanentJobError;
+    const shouldFail = permanent || job.attempts >= job.maxAttempts;
+    const updated = await prisma.job.updateMany({
+      where: { id: job.id, lockedBy: leaseId, completedAt: null, failedAt: null },
       data: {
         lastError: message,
         lockedAt: null,
         lockedBy: null,
         failedAt: shouldFail ? new Date() : null,
-        runAt: shouldFail ? job.runAt : new Date(Date.now() + Math.min(60_000, 2 ** (job.attempts + 1) * 1000))
+        runAt: shouldFail ? job.runAt : new Date(Date.now() + retryDelayMs(job.attempts))
       }
     });
-    await queueHeartbeat(new Date()).catch((heartbeatError) => console.error("Worker heartbeat failed", heartbeatError));
+    if (shouldFail && job.task === CONTACT_IMPORT_JOB_TASK) {
+      const payload = job.payload as { batchId?: string };
+      if (payload.batchId) {
+        await prisma.contactImportBatch.updateMany({
+          where: { id: payload.batchId, status: { in: ["QUEUED", "RUNNING"] } },
+          data: { status: "FAILED", failedCount: { increment: 1 }, completedAt: new Date(), errorSummary: message }
+        }).catch(() => undefined);
+      }
+    }
+    if (updated.count !== 1) {
+      console.error(`[${workerId}] Job ${job.id} failed after its lease was lost: ${message}`);
+    }
+    await queueHeartbeat().catch((heartbeatError) => console.error("Worker heartbeat failed", heartbeatError));
+  } finally {
+    clearInterval(renewal);
+  }
+}
+
+type MaintenanceState = {
+  jumpReconciliation: number;
+  retentionCleanup: number;
+};
+
+async function runMaintenanceIfDue(state: MaintenanceState): Promise<void> {
+  const now = Date.now();
+  if (now - state.jumpReconciliation >= maintenanceIntervalMs) {
+    try { await generateJumps(); } catch (error) { console.error("Periodic Jump reconciliation failed", error); }
+    state.jumpReconciliation = Date.now();
+  }
+  if (now - state.retentionCleanup >= maintenanceIntervalMs) {
+    try { await cleanupOperationalData(); } catch (error) { console.error("Operational retention cleanup failed", error); }
+    state.retentionCleanup = Date.now();
   }
 }
 
@@ -113,39 +203,17 @@ async function main() {
     void queueHeartbeat().catch((error) => console.error("Worker heartbeat failed", error));
   }, heartbeatIntervalMs);
   heartbeatTimer.unref();
-  await prisma.job.updateMany({
-    where: {
-      completedAt: null,
-      failedAt: null,
-      lockedAt: { lt: new Date(Date.now() - 10 * 60_000) }
-    },
-    data: { lockedAt: null, lockedBy: null }
-  });
-  let lastReconciliation = 0;
-  let lastGoogleSchedule = 0;
-  let lastReferralReconciliation = 0;
-  let lastAccountDeletionRevocation = 0;
+
+  const maintenance: MaintenanceState = {
+    jumpReconciliation: 0,
+    retentionCleanup: 0
+  };
   while (!stopping) {
+    await runMaintenanceIfDue(maintenance);
     const job = await claimJob();
     if (job) {
       await processJob(job);
       continue;
-    }
-    if (Date.now() - lastReconciliation > 5 * 60_000) {
-      try { await generateJumps(); } catch (error) { console.error("Periodic Jump reconciliation failed", error); }
-      lastReconciliation = Date.now();
-    }
-    if (Date.now() - lastGoogleSchedule > 5 * 60_000) {
-      try { await enqueueDueGoogleContactsSyncs(); } catch (error) { console.error("Google Contacts scheduling failed", error); }
-      lastGoogleSchedule = Date.now();
-    }
-    if (Date.now() - lastReferralReconciliation > 5 * 60_000) {
-      try { await reconcileDueReferralEntitlements(); } catch (error) { console.error("Referral entitlement reconciliation failed", error); }
-      lastReferralReconciliation = Date.now();
-    }
-    if (Date.now() - lastAccountDeletionRevocation > 5 * 60_000) {
-      try { await retryPendingAccountDeletionRevocations(); } catch (error) { console.error("Account deletion revocation retry failed", error); }
-      lastAccountDeletionRevocation = Date.now();
     }
     await sleep(2000);
   }
