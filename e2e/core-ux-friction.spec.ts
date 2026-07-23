@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createPendingJumpFixture, removePendingJumpFixture } from "./pending-jump-fixture";
 
 const userEmail = process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local";
 const userPassword = process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!";
@@ -15,14 +16,19 @@ async function signIn(page: Page) {
 
 test("mobile Today keeps Mark done visible for pending Jumps", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile completion geometry is checked once.");
-  await signIn(page);
-  await page.goto("/jumps");
-  const markDone = page.getByRole("button", { name: "Mark done" }).first();
-  await expect(markDone).toBeVisible();
-  const box = await markDone.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.width).toBeGreaterThanOrEqual(40);
-  expect(box!.height).toBeGreaterThanOrEqual(40);
+  const pendingJumpId = await createPendingJumpFixture("Mobile completion geometry");
+  try {
+    await signIn(page);
+    await page.goto("/jumps");
+    const markDone = page.locator(`[data-jump-workflow="${pendingJumpId}"]:visible`).getByRole("button", { name: "Mark done" });
+    await expect(markDone).toBeVisible();
+    const box = await markDone.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeGreaterThanOrEqual(40);
+    expect(box!.height).toBeGreaterThanOrEqual(40);
+  } finally {
+    await removePendingJumpFixture(pendingJumpId);
+  }
 });
 
 test("Quick Add carries recognized fields into Contact and follow-up creation", async ({ page }, testInfo) => {

@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { generateTotpCode } from "../src/lib/totp";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
+import { createPendingJumpFixture, removePendingJumpFixture } from "./pending-jump-fixture";
 
 const userEmail = process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local";
 const userPassword = process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!";
@@ -19,11 +20,13 @@ async function signIn(page: Page, email: string, password: string) {
 }
 
 test("single user can complete the primary discovery and support journey", async ({ page }, testInfo) => {
+  const pendingJumpId = await createPendingJumpFixture(`Discovery journey ${testInfo.project.name}`);
+  try {
   await signIn(page, userEmail, userPassword);
 
   await page.goto("/jumps");
   await expect(page.getByRole("heading", { name: "Today", exact: true }).first()).toBeVisible();
-  await expect(page.locator(".jump-task-card:visible").first()).toBeVisible();
+  await expect(page.locator(`[data-jump-workflow="${pendingJumpId}"]:visible`)).toBeVisible();
   const activeRangeLabel = testInfo.project.name === "mobile-chromium" ? "Today" : "Due";
   await expect(page.locator(".filter-presets a:visible").filter({ hasText: activeRangeLabel }).first()).toBeVisible();
 
@@ -73,6 +76,9 @@ test("single user can complete the primary discovery and support journey", async
     supportForm.getByRole("button", { name: "Submit support ticket" }).click()
   ]);
   await expect(page.getByRole("heading", { name: ticketTitle })).toBeVisible();
+  } finally {
+    await removePendingJumpFixture(pendingJumpId);
+  }
 });
 
 test("supported mobile browsers can Quick Add a selected device Contact", async ({ page }, testInfo) => {
