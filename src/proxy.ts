@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -54,6 +55,11 @@ function mutationAllowed(request: NextRequest): boolean {
   if (request.nextUrl.pathname.startsWith("/api/webhooks/")) return true;
 
   const origin = request.headers.get("origin");
+  if (
+    request.method.toUpperCase() === "POST"
+    && request.nextUrl.pathname === "/api/auth/oauth/apple/callback"
+    && origin === "https://appleid.apple.com"
+  ) return true;
   const fetchSite = request.headers.get("sec-fetch-site");
   if (!origin) {
     if (fetchSite === "same-origin" || fetchSite === "same-site" || fetchSite === "none") return true;
@@ -71,7 +77,26 @@ function impersonationMutationAllowed(request: NextRequest): boolean {
   return request.nextUrl.pathname === IMPERSONATION_END_PATH;
 }
 
-function applySecurityHeaders(response: NextResponse): NextResponse {
+function contentSecurityPolicy(nonce: string): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isProduction ? "" : " 'unsafe-eval'"}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    `connect-src 'self'${isProduction ? "" : " http: https: ws: wss:"}`,
+    "media-src 'self' blob:",
+    "manifest-src 'self'",
+    "worker-src 'self' blob:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    ...(isProduction ? ["upgrade-insecure-requests"] : [])
+  ].join("; ");
+}
+
+function applySecurityHeaders(response: NextResponse, nonce: string): NextResponse {
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
@@ -79,6 +104,7 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
   response.headers.set("X-Permitted-Cross-Domain-Policies", "none");
+  response.headers.set("Content-Security-Policy", contentSecurityPolicy(nonce));
   if (isProduction) {
     response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
@@ -86,27 +112,31 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
 }
 
 export function proxy(request: NextRequest) {
+  const nonce = randomBytes(16).toString("base64");
   if (isRetiredAccountSection(request)) {
-    return applySecurityHeaders(NextResponse.redirect(new URL("/account", request.url)));
+    return applySecurityHeaders(NextResponse.redirect(new URL("/account", request.url)), nonce);
   }
   if (isBlockedProductRoute(request)) {
-    return applySecurityHeaders(new NextResponse("Not found", { status: 404 }));
+    return applySecurityHeaders(new NextResponse("Not found", { status: 404 }), nonce);
   }
   if (!mutationAllowed(request)) {
     const response = request.nextUrl.pathname.startsWith("/api/")
       ? NextResponse.json({ error: "The request origin is not allowed." }, { status: 403 })
       : new NextResponse("The request origin is not allowed.", { status: 403 });
-    return applySecurityHeaders(response);
+    return applySecurityHeaders(response, nonce);
   }
 
   if (!impersonationMutationAllowed(request)) {
     const response = request.nextUrl.pathname.startsWith("/api/")
       ? NextResponse.json({ error: "This support session is view-only. End it before making changes." }, { status: 403 })
       : new NextResponse("This support session is view-only. End it before making changes.", { status: 403 });
-    return applySecurityHeaders(response);
+    return applySecurityHeaders(response, nonce);
   }
 
-  return applySecurityHeaders(NextResponse.next());
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", contentSecurityPolicy(nonce));
+  return applySecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), nonce);
 }
 
 export const config = {

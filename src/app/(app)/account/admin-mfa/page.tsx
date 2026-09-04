@@ -53,6 +53,15 @@ export default async function AdminMfaPage({ searchParams }: { searchParams: Pro
     );
   }
 
+  if (!user.passwordHash) {
+    return (
+      <div className="page admin-mfa-page">
+        <header className="page-header"><div><h1>Secure administrator access</h1><p>Administrator MFA requires password reauthentication during setup.</p></div></header>
+        <section className="card"><p>Set an account password first, then return here to enroll an authenticator.</p><Link className="button primary" href="/account?section=security">Set account password</Link></section>
+      </div>
+    );
+  }
+
   const enrollment = await prepareAdminMfaEnrollment(user.id);
   const otpAuthUri = adminMfaOtpAuthUri(user.email, enrollment.secret);
   const qrDataUrl = await QRCode.toDataURL(otpAuthUri, {

@@ -53,13 +53,22 @@ export async function createSession(userId: string): Promise<string> {
   store.delete(env.impersonationCookieName);
   store.set(env.cookieName, token, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
     secure: env.secureSessionCookie,
     path: "/",
     expires: expiresAt
   });
 
   return session.id;
+}
+
+export async function rotateSession(currentSessionId: string, userId: string): Promise<string> {
+  const nextSessionId = await createSession(userId);
+  await prisma.$transaction([
+    prisma.adminMfaSession.deleteMany({ where: { sessionId: currentSessionId } }),
+    prisma.session.deleteMany({ where: { id: currentSessionId, userId } })
+  ]);
+  return nextSessionId;
 }
 
 export async function destroySession(): Promise<void> {

@@ -12,6 +12,35 @@ model AuthRateLimit {
   @@index([blockedUntil])
 }
 
+model AuthIdentity {
+  id                String       @id @default(cuid())
+  userId            String
+  provider          AuthProvider
+  providerAccountId String
+  email             String
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@index([email])
+}
+
+model AuthOAuthState {
+  id           String       @id @default(cuid())
+  provider     AuthProvider
+  stateHash    String       @unique
+  codeVerifier String
+  nonce        String
+  returnTo     String?
+  expiresAt    DateTime
+  usedAt       DateTime?
+  createdAt    DateTime     @default(now())
+
+  @@index([provider, expiresAt])
+}
+
 model AdminImpersonation {
   id           String   @id @default(cuid())
   tokenHash    String   @unique

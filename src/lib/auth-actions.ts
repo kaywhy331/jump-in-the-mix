@@ -2,9 +2,9 @@
 
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
-import { createSession, destroyAllSessionsForUser, destroyOtherSessions, destroySession, requireSession, requireWorkspace } from "@/lib/auth";
+import { createSession, destroyAllSessionsForUser, destroyOtherSessions, destroySession, requireSession, requireWorkspace, rotateSession } from "@/lib/auth";
 import { AUTH_TOKEN_PURPOSES, findUsableAuthToken, hashAuthToken, issueAuthToken } from "@/lib/auth-tokens";
-import { sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/auth-email";
+import { sendMagicLoginEmail, sendPasswordChangedEmail, sendPasswordResetEmail, sendVerificationEmail } from "@/lib/auth-email";
 import { env } from "@/lib/env";
 import { passwordValidationError } from "@/lib/password-policy";
 import { PilotRegistrationClosedError, registrationAllowed } from "@/lib/pilot-registration";
@@ -168,6 +168,26 @@ export async function loginAction(formData: FormData): Promise<void> {
   redirect(membership?.workspace.profile?.onboardingDone ? "/jumps" : "/onboarding");
 }
 
+export async function requestMagicLinkAction(formData: FormData): Promise<void> {
+  const metadata = await getRequestMetadata();
+  const email = normalizedEmail(value(formData, "email"));
+  const path = "/login";
+  await enforceRateLimit(path, { scope: "auth.magic.ip", identifiers: [metadata.ipAddress], limit: 12, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 });
+  await enforceRateLimit(path, { scope: "auth.magic.email", identifiers: [email], limit: 5, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 });
+  if (!validEmail(email)) fail(path, "Enter a valid email address.");
+  if (!transactionalEmailConfigured()) fail(path, "Email sign-in is not configured on this server. Use your password instead.");
+  const token = await issueAuthToken(email, AUTH_TOKEN_PURPOSES.magicLogin, 15 * 60_000);
+  try {
+    await sendMagicLoginEmail(email, token);
+  } catch (error) {
+    console.error("Magic sign-in email failed", error);
+    fail(path, "The sign-in email could not be delivered. Try again or use your password.");
+  }
+  const params = new URLSearchParams({ magicSent: "1" });
+  if (process.env.NODE_ENV !== "production") params.set("devToken", token);
+  redirect(`/login?${params.toString()}`);
+}
+
 export async function demoLoginAction(): Promise<void> {
   const metadata = await getRequestMetadata();
   await enforceRateLimit("/login", { scope: "auth.demo.ip", identifiers: [metadata.ipAddress], limit: 20, windowMs: 15 * 60 * 1000 });
@@ -280,11 +300,12 @@ export async function changePasswordAction(formData: FormData): Promise<void> {
   const path = "/account";
 
   await enforceRateLimit(path, { scope: "auth.password.change", identifiers: [user.id], limit: 8, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 });
-  if (!(await bcrypt.compare(currentPassword, user.passwordHash))) fail(path, "The current password is incorrect.");
+  const hasPassword = Boolean(user.passwordHash);
+  if (hasPassword && !(await bcrypt.compare(currentPassword, user.passwordHash!))) fail(path, "The current password is incorrect.");
   const passwordError = passwordValidationError(password);
   if (passwordError) fail(path, passwordError);
   if (password !== confirmPassword) fail(path, "The new passwords do not match.");
-  if (await bcrypt.compare(password, user.passwordHash)) fail(path, "Choose a new password that is different from the current one.");
+  if (hasPassword && await bcrypt.compare(password, user.passwordHash!)) fail(path, "Choose a new password that is different from the current one.");
 
   const passwordHash = await bcrypt.hash(password, 12);
   await prisma.$transaction([
@@ -292,6 +313,7 @@ export async function changePasswordAction(formData: FormData): Promise<void> {
     prisma.adminMfaSession.deleteMany({ where: { userId: user.id } }),
     prisma.session.deleteMany({ where: { userId: user.id, id: { not: session.id } } })
   ]);
+  await rotateSession(session.id, user.id);
   sendPasswordChangedEmail(user.email, user.name).catch((error) => console.error("Password changed email failed", error));
   redirect("/account?passwordChanged=1");
 }

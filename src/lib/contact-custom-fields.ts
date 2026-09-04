@@ -50,12 +50,16 @@ export async function replaceContactCustomFieldValues(
   const contact = await db.contact.findFirst({ where: { id: contactId, workspaceId, archivedAt: null }, select: { id: true } });
   if (!contact) throw new WorkspaceScopeError("Contact");
   await validateContactCustomFieldInputs(db, workspaceId, inputs);
-  await db.contactCustomFieldValue.deleteMany({ where: { contactId: contact.id } });
-  if (inputs.length) {
-    await db.contactCustomFieldValue.createMany({
-      data: inputs.map((item) => ({ contactId: contact.id, definitionId: item.definitionId, value: item.value }))
+  for (const input of inputs) {
+    await db.contactCustomFieldValue.upsert({
+      where: { contactId_definitionId: { contactId: contact.id, definitionId: input.definitionId } },
+      create: { contactId: contact.id, definitionId: input.definitionId, value: input.value },
+      update: { value: input.value }
     });
   }
+  await db.contactCustomFieldValue.deleteMany({
+    where: { contactId: contact.id, ...(inputs.length ? { definitionId: { notIn: inputs.map((item) => item.definitionId) } } : {}) }
+  });
 }
 
 export function customFieldValuesData(inputs: ContactCustomFieldInput[]): Prisma.ContactCustomFieldValueCreateWithoutContactInput[] {

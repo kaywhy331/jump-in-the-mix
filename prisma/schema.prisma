@@ -124,14 +124,20 @@ enum WebhookProvider {
   WEBSITE
 }
 
+enum AuthProvider {
+  GOOGLE
+  APPLE
+}
+
 model User {
   id              String            @id @default(cuid())
   email           String            @unique
-  passwordHash    String
+  passwordHash    String?
   name            String
   emailVerifiedAt DateTime?
   isPlatformAdmin Boolean           @default(false)
   sessions        Session[]
+  authIdentities  AuthIdentity[]
   memberships     WorkspaceMember[]
   ownedWorkspaces Workspace[]       @relation("WorkspaceOwner")
   auditLogs       AuditLog[]        @relation("AuditActor")

@@ -53,3 +53,15 @@ export async function sendPasswordChangedEmail(email: string, name: string): Pro
   );
   await sendTransactionalEmail({ to: email, subject: "Your Jump in the Mix password changed", ...message });
 }
+
+export async function sendMagicLoginEmail(email: string, token: string): Promise<void> {
+  const url = absoluteUrl(`/api/auth/magic?token=${encodeURIComponent(token)}`);
+  const message = emailFrame(
+    "Your secure sign-in link",
+    "Tap the button below to sign in to Jump in the Mix. No password is needed.",
+    "Sign in",
+    url,
+    "This link expires in 15 minutes and can be used once."
+  );
+  await sendTransactionalEmail({ to: email, subject: "Sign in to Jump in the Mix", ...message, idempotencyKey: `magic-login:${token.slice(0, 24)}` });
+}

@@ -6,6 +6,7 @@ export type ContactMethodInput = {
 };
 
 export type ContactAddressInput = {
+  id?: string;
   label: string | null;
   street1: string | null;
   street2: string | null;
@@ -94,7 +95,8 @@ export function buildAddressInputs(
   postalCodeValues: string[],
   countryValues: string[],
   labels: string[],
-  primaryRaw?: string
+  primaryRaw?: string,
+  ids: string[] = []
 ): ContactAddressInput[] {
   const rowCount = Math.max(
     street1Values.length,
@@ -109,6 +111,7 @@ export function buildAddressInputs(
   const rows: Array<{ originalIndex: number; row: Omit<ContactAddressInput, "isPrimary"> }> = [];
   for (let index = 0; index < rowCount; index += 1) {
     const row = {
+      id: clean(ids[index]) || undefined,
       label: clean(labels[index]) || null,
       street1: clean(street1Values[index]) || null,
       street2: clean(street2Values[index]) || null,

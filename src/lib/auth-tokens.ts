@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 
 export const AUTH_TOKEN_PURPOSES = {
   verifyEmail: "verify_email",
-  resetPassword: "reset_password"
+  resetPassword: "reset_password",
+  magicLogin: "magic_login"
 } as const;
 
 export type AuthTokenPurpose = typeof AUTH_TOKEN_PURPOSES[keyof typeof AUTH_TOKEN_PURPOSES];

@@ -16,6 +16,7 @@ const referralMigration = "20260717010000_referral_rewards";
 const contactGroupActivationMigration = "20260717120000_contact_group_activation";
 const accountDeletionWorkflowMigration = "20260718190000_account_deletion_workflow";
 const productPlatformMigration = "20260904170000_product_platform";
+const hostedAuthMigration = "20260904180000_hosted_auth";
 const requiredMigrations = [
   baselineMigration,
   forwardMigration,
@@ -24,7 +25,8 @@ const requiredMigrations = [
   referralMigration,
   contactGroupActivationMigration,
   accountDeletionWorkflowMigration,
-  productPlatformMigration
+  productPlatformMigration,
+  hostedAuthMigration
 ];
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const schemaName = `jitm_rehearsal_${suffix}`;
@@ -70,6 +72,16 @@ async function columnExists(client, tableName, columnName, schema = schemaName) 
     [schema, tableName, columnName]
   );
   return Boolean(result.rows[0]?.exists);
+}
+
+async function columnIsNullable(client, tableName, columnName, schema = schemaName) {
+  const result = await client.query(
+    `SELECT is_nullable = 'YES' AS "nullable"
+       FROM information_schema.columns
+       WHERE table_schema = $1 AND table_name = $2 AND column_name = $3`,
+    [schema, tableName, columnName]
+  );
+  return Boolean(result.rows[0]?.nullable);
 }
 
 async function indexExists(client, indexName, schema = schemaName) {
@@ -176,13 +188,16 @@ async function assertForwardState(client) {
     "PushSubscription",
     "NotificationDelivery",
     "AutomationPreference",
-    "ReviewRequest"
+    "ReviewRequest",
+    "AuthIdentity",
+    "AuthOAuthState"
   ]) {
     if (!(await tableExists(client, table))) throw new Error(`Expected migrated table ${table}.`);
   }
   for (const [table, column] of [["Contact", "privateNotes"], ["MixStep", "isActive"], ["MixStep", "updatedAt"]]) {
     if (!(await columnExists(client, table, column))) throw new Error(`Expected migrated column ${table}.${column}.`);
   }
+  if (!(await columnIsNullable(client, "User", "passwordHash"))) throw new Error("Hosted passwordless accounts require nullable User.passwordHash.");
   if (await indexExists(client, "MixStep_mixId_sortOrder_key")) throw new Error("Legacy MixStep uniqueness index should be removed.");
   if (!(await indexExists(client, "MixStep_mixId_isActive_sortOrder_idx"))) throw new Error("Active MixStep ordering index is missing.");
   if (!(await indexExists(client, "Contact_displayName_trgm_idx"))) throw new Error("Hosted contact search index is missing.");
@@ -331,7 +346,9 @@ async function assertGreenfieldState(client) {
     "PushSubscription",
     "NotificationDelivery",
     "AutomationPreference",
-    "ReviewRequest"
+    "ReviewRequest",
+    "AuthIdentity",
+    "AuthOAuthState"
   ]) {
     if (!(await tableExists(client, table, greenfieldSchemaName))) {
       throw new Error(`Greenfield migration did not create ${table}.`);
@@ -339,6 +356,9 @@ async function assertGreenfieldState(client) {
   }
   if (!(await columnExists(client, "Contact", "privateNotes", greenfieldSchemaName))) {
     throw new Error("Greenfield migration did not create Contact.privateNotes.");
+  }
+  if (!(await columnIsNullable(client, "User", "passwordHash", greenfieldSchemaName))) {
+    throw new Error("Greenfield migration did not permit passwordless accounts.");
   }
   if (await columnExists(client, "WorkspaceProfile", "timezone", greenfieldSchemaName)) {
     throw new Error("Greenfield migration retained duplicate WorkspaceProfile.timezone.");

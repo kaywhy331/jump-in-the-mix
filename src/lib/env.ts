@@ -44,7 +44,7 @@ export const env = {
   appUrl,
   cookieName: process.env.AUTH_COOKIE_NAME ?? DEFAULT_COOKIE,
   impersonationCookieName: process.env.AUTH_IMPERSONATION_COOKIE_NAME ?? DEFAULT_IMPERSONATION_COOKIE,
-  sessionDays: positiveNumber(process.env.AUTH_SESSION_DAYS, 30),
+  sessionDays: positiveNumber(process.env.AUTH_SESSION_DAYS, 14),
   sessionTouchMinutes: positiveNumber(process.env.AUTH_SESSION_TOUCH_MINUTES, 5),
   maxSessionsPerUser: positiveNumber(process.env.AUTH_MAX_SESSIONS_PER_USER, 10),
   impersonationMinutes: positiveNumber(process.env.AUTH_IMPERSONATION_MINUTES, 30),
@@ -54,6 +54,7 @@ export const env = {
   adminMfaMaxAgeMinutes: positiveNumber(process.env.AUTH_ADMIN_MFA_MAX_AGE_MINUTES, 12 * 60),
   emailVerificationHours: positiveNumber(process.env.AUTH_EMAIL_VERIFICATION_HOURS, 24),
   passwordResetMinutes: positiveNumber(process.env.AUTH_PASSWORD_RESET_MINUTES, 60),
+  oauthStateMinutes: positiveNumber(process.env.AUTH_OAUTH_STATE_MINUTES, 10),
   authRateLimitSecret: resolveAuthRateLimitSecret(),
   secureSessionCookie: sessionCookieSecure(),
   dataEncryptionKey: process.env.DATA_ENCRYPTION_KEY ?? "",
@@ -61,6 +62,12 @@ export const env = {
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   emailFrom: process.env.EMAIL_FROM ?? "",
   emailReplyTo: process.env.EMAIL_REPLY_TO ?? "",
+  authGoogleClientId: process.env.AUTH_GOOGLE_CLIENT_ID ?? "",
+  authGoogleClientSecret: process.env.AUTH_GOOGLE_CLIENT_SECRET ?? "",
+  authAppleClientId: process.env.AUTH_APPLE_CLIENT_ID ?? "",
+  authAppleTeamId: process.env.AUTH_APPLE_TEAM_ID ?? "",
+  authAppleKeyId: process.env.AUTH_APPLE_KEY_ID ?? "",
+  authApplePrivateKey: (process.env.AUTH_APPLE_PRIVATE_KEY ?? "").replaceAll("\\n", "\n"),
   vapidPublicKey: process.env.WEB_PUSH_VAPID_PUBLIC_KEY ?? "",
   vapidPrivateKey: process.env.WEB_PUSH_VAPID_PRIVATE_KEY ?? "",
   vapidSubject: process.env.WEB_PUSH_VAPID_SUBJECT ?? process.env.EMAIL_FROM ?? "mailto:hello@jumpinthemix.app",
@@ -122,6 +129,8 @@ export function productionConfigurationIssues(source: NodeJS.ProcessEnv = proces
     if (!enabled(source.AUTH_REQUIRE_EMAIL_VERIFICATION)) issues.push("AUTH_REQUIRE_EMAIL_VERIFICATION must be true for hosted production");
     if (!source.RESEND_API_KEY?.trim()) issues.push("RESEND_API_KEY is required for hosted production");
     if (!source.EMAIL_FROM?.trim()) issues.push("EMAIL_FROM is required for hosted production");
+    if (!source.AUTH_GOOGLE_CLIENT_ID?.trim() || !source.AUTH_GOOGLE_CLIENT_SECRET?.trim()) issues.push("Google sign-in credentials are required for hosted production");
+    if (!source.AUTH_APPLE_CLIENT_ID?.trim() || !source.AUTH_APPLE_TEAM_ID?.trim() || !source.AUTH_APPLE_KEY_ID?.trim() || !source.AUTH_APPLE_PRIVATE_KEY?.trim()) issues.push("Apple sign-in credentials are required for hosted production");
   }
   return issues;
 }

@@ -32,6 +32,9 @@ export async function deleteAccountAction(
   if (field(formData, "confirmation") !== ACCOUNT_DELETION_PHRASE) {
     return { error: `Type ${ACCOUNT_DELETION_PHRASE} exactly to continue.` };
   }
+  if (!user.passwordHash) {
+    return { error: "Set a password in Security before permanently deleting this account." };
+  }
   const passwordMatches = await bcrypt.compare(field(formData, "currentPassword"), user.passwordHash).catch(() => false);
   if (!passwordMatches) return { error: "The current password is incorrect." };
 

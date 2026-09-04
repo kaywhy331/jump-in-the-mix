@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { deleteAccountAction, type AccountDeletionActionState } from "@/lib/account-deletion-actions";
@@ -12,8 +13,11 @@ function DeleteButton() {
   return <button className="button danger" type="submit" disabled={pending}>{pending ? "Deleting account…" : "Permanently delete account"}</button>;
 }
 
-export function AccountDeletionForm() {
+export function AccountDeletionForm({ hasPassword }: { hasPassword: boolean }) {
   const [state, action] = useActionState(deleteAccountAction, initialState);
+  if (!hasPassword) {
+    return <p className="notice info">For secure reauthentication, <Link href="/account?section=security">set an account password</Link> before deleting this account.</p>;
+  }
   return (
     <form action={action} className="form-stack" aria-describedby="account-deletion-warning">
       {state.error && <p className="notice error" role="alert">{state.error}</p>}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createContactsCsv, neutralizeSpreadsheetFormula } from "@/lib/contact-export";
+import { createContactsCsv, createFollowUpsCsv, createTimelineCsv, neutralizeSpreadsheetFormula } from "@/lib/contact-export";
 
 describe("Contact CSV export", () => {
   it("neutralizes formula-like values after leading whitespace", () => {
@@ -23,5 +23,34 @@ describe("Contact CSV export", () => {
     expect(csv).toContain("\"'=2+2\"");
     expect(csv).toContain("\"'@SUM(1,2)\"");
     expect(csv).toContain("\"'-10+20\"");
+  });
+
+  it("creates spreadsheet-safe timeline and follow-up tables", () => {
+    const timeline = createTimelineCsv([{
+      contactId: "contact-1",
+      occurredAt: new Date("2026-09-04T12:00:00Z"),
+      kind: "CUSTOMER_NOTE",
+      outcome: null,
+      channel: null,
+      visibility: "PRIVATE",
+      summary: "=unsafe",
+      nextCommitmentAt: null
+    }], new Map([["contact-1", "Jordan Lee"]]));
+    expect(timeline).toContain("Jordan Lee");
+    expect(timeline).toContain("\"'=unsafe\"");
+    expect(timeline).toContain("Private");
+
+    const followUps = createFollowUpsCsv([{
+      scheduledAt: new Date("2026-09-05T12:00:00Z"),
+      completedAt: null,
+      status: "PENDING",
+      reason: "Estimate follow-up",
+      contact: { displayName: "Jordan Lee" },
+      mix: { name: "Estimate check-in" },
+      stepVersion: { stepTemplate: { channel: "SMS" } },
+      renderedSnapshot: { body: "Hi Jordan" }
+    }]);
+    expect(followUps).toContain("Estimate check-in");
+    expect(followUps).toContain("Hi Jordan");
   });
 });

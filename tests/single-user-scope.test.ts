@@ -40,7 +40,7 @@ const prohibited = [
   "stripe", "billing", "subscription", "checkout", "payment", "invoice", "free plan",
   "plus", "pro plan", "upgrade", "downgrade", "plan usage", "pricing", "invite member",
   "workspace switcher", "transfer ownership", "member role", "admin role",
-  "google", "ai provider", "referral rewards"
+  "google contacts", "ai provider", "referral rewards"
 ];
 
 describe("single-user product boundary", () => {

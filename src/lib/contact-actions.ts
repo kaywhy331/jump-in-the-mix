@@ -8,7 +8,6 @@ import {
 } from "@/lib/contact-custom-fields";
 import { buildAddressInputs, buildEmailInputs, buildPhoneInputs } from "@/lib/contact-input";
 import { listGroupStates, mergeGroupActivity } from "@/lib/group-activity";
-import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
 
@@ -40,7 +39,8 @@ function contactPayload(formData: FormData) {
     values(formData, "addressPostalCode"),
     values(formData, "addressCountry"),
     values(formData, "addressLabel"),
-    value(formData, "addressPrimaryIndex")
+    value(formData, "addressPrimaryIndex"),
+    values(formData, "addressId")
   );
   const customFields = buildContactCustomFieldInputs(
     values(formData, "customFieldDefinitionId"),
@@ -160,10 +160,6 @@ export async function createContactAction(formData: FormData): Promise<void> {
     fail("/contacts/new", error instanceof Error ? error.message : "The Contact could not be saved.");
   }
 
-  const currentCount = await prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null } });
-  const limit = PLAN_LIMITS[workspace.planTier].contacts;
-  if (currentCount >= limit) fail("/contacts/new", `Your ${workspace.planTier.toLowerCase()} plan allows ${limit} active Contacts.`);
-
   const contact = await prisma.$transaction(async (tx) => {
     const created = await tx.contact.create({
       data: {
@@ -176,7 +172,7 @@ export async function createContactAction(formData: FormData): Promise<void> {
         privateNotes: payload.privateNotes,
         emails: payload.emails.length ? { create: payload.emails.map((item) => ({ email: item.value, normalized: item.normalized, label: item.label, isPrimary: item.isPrimary })) } : undefined,
         phones: payload.phones.length ? { create: payload.phones.map((item) => ({ phone: item.value, normalized: item.normalized, label: item.label, isPrimary: item.isPrimary })) } : undefined,
-        addresses: payload.addresses.length ? { create: payload.addresses } : undefined,
+        addresses: payload.addresses.length ? { create: payload.addresses.map(({ id: _id, ...item }) => item) } : undefined,
         groupMemberships: payload.groupIds.length ? { create: payload.groupIds.map((groupId) => ({ groupId })) } : undefined,
         customFieldValues: payload.customFields.length ? { create: payload.customFields.map((item) => ({ definitionId: item.definitionId, value: item.value })) } : undefined
       }
@@ -260,16 +256,56 @@ export async function updateContactAction(formData: FormData): Promise<void> {
         privateNotes: payload.privateNotes
       }
     });
-    await tx.contactEmail.deleteMany({ where: { contactId } });
-    await tx.contactPhone.deleteMany({ where: { contactId } });
-    await tx.contactAddress.deleteMany({ where: { contactId } });
-    await tx.contactGroupMembership.deleteMany({ where: { contactId } });
-    await tx.contactCustomFieldValue.deleteMany({ where: { contactId } });
-    if (payload.emails.length) await tx.contactEmail.createMany({ data: payload.emails.map((item) => ({ contactId, email: item.value, normalized: item.normalized, label: item.label, isPrimary: item.isPrimary })) });
-    if (payload.phones.length) await tx.contactPhone.createMany({ data: payload.phones.map((item) => ({ contactId, phone: item.value, normalized: item.normalized, label: item.label, isPrimary: item.isPrimary })) });
-    if (payload.addresses.length) await tx.contactAddress.createMany({ data: payload.addresses.map((item) => ({ contactId, ...item })) });
-    if (payload.groupIds.length) await tx.contactGroupMembership.createMany({ data: payload.groupIds.map((groupId) => ({ contactId, groupId })) });
-    if (payload.customFields.length) await tx.contactCustomFieldValue.createMany({ data: payload.customFields.map((item) => ({ contactId, definitionId: item.definitionId, value: item.value })) });
+    for (const item of payload.emails) {
+      await tx.contactEmail.upsert({
+        where: { contactId_normalized: { contactId, normalized: item.normalized } },
+        create: { contactId, email: item.value, normalized: item.normalized, label: item.label, isPrimary: item.isPrimary },
+        update: { email: item.value, label: item.label, isPrimary: item.isPrimary }
+      });
+    }
+    await tx.contactEmail.deleteMany({ where: { contactId, ...(payload.emails.length ? { normalized: { notIn: payload.emails.map((item) => item.normalized) } } : {}) } });
+
+    for (const item of payload.phones) {
+      await tx.contactPhone.upsert({
+        where: { contactId_normalized: { contactId, normalized: item.normalized } },
+        create: { contactId, phone: item.value, normalized: item.normalized, label: item.label, isPrimary: item.isPrimary },
+        update: { phone: item.value, label: item.label, isPrimary: item.isPrimary }
+      });
+    }
+    await tx.contactPhone.deleteMany({ where: { contactId, ...(payload.phones.length ? { normalized: { notIn: payload.phones.map((item) => item.normalized) } } : {}) } });
+
+    const existingAddresses = await tx.contactAddress.findMany({ where: { contactId }, select: { id: true } });
+    const existingAddressIds = new Set(existingAddresses.map((item) => item.id));
+    const retainedAddressIds: string[] = [];
+    for (const { id, ...item } of payload.addresses) {
+      if (id) {
+        if (!existingAddressIds.has(id)) throw new Error("One or more addresses no longer belong to this contact.");
+        await tx.contactAddress.update({ where: { id }, data: item });
+        retainedAddressIds.push(id);
+      } else {
+        const created = await tx.contactAddress.create({ data: { contactId, ...item }, select: { id: true } });
+        retainedAddressIds.push(created.id);
+      }
+    }
+    await tx.contactAddress.deleteMany({ where: { contactId, ...(retainedAddressIds.length ? { id: { notIn: retainedAddressIds } } : {}) } });
+
+    for (const groupId of payload.groupIds) {
+      await tx.contactGroupMembership.upsert({
+        where: { contactId_groupId: { contactId, groupId } },
+        create: { contactId, groupId },
+        update: {}
+      });
+    }
+    await tx.contactGroupMembership.deleteMany({ where: { contactId, ...(payload.groupIds.length ? { groupId: { notIn: payload.groupIds } } : {}) } });
+
+    for (const item of payload.customFields) {
+      await tx.contactCustomFieldValue.upsert({
+        where: { contactId_definitionId: { contactId, definitionId: item.definitionId } },
+        create: { contactId, definitionId: item.definitionId, value: item.value },
+        update: { value: item.value }
+      });
+    }
+    await tx.contactCustomFieldValue.deleteMany({ where: { contactId, ...(payload.customFields.length ? { definitionId: { notIn: payload.customFields.map((item) => item.definitionId) } } : {}) } });
     await tx.auditLog.create({
       data: {
         workspaceId: workspace.id,

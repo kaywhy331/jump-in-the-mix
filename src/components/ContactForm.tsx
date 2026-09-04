@@ -10,6 +10,7 @@ type GroupOption = { id: string; name: string; color: string | null; isActive: b
 type CustomFieldOption = { id: string; name: string; key: string };
 type ContactMethod = { value: string; label: string };
 type ContactAddress = {
+  id?: string;
   label: string;
   street1: string;
   street2: string;
@@ -36,6 +37,7 @@ type ContactFormValue = {
   emails?: { email: string; label: string | null; isPrimary: boolean }[];
   phones?: { phone: string; label: string | null; isPrimary: boolean }[];
   addresses?: {
+    id: string;
     label: string | null;
     street1: string | null;
     street2: string | null;
@@ -81,6 +83,7 @@ export function ContactForm({
   }, [contact?.phones, mode]);
   const startingAddresses = useMemo<ContactAddress[]>(() => {
     const values = contact?.addresses?.map((item) => ({
+      id: item.id,
       label: item.label ?? "",
       street1: item.street1 ?? "",
       street2: item.street2 ?? "",
@@ -193,6 +196,8 @@ export function ContactForm({
           {addresses.map((item, index) => (
             <fieldset className="address-row" key={`address-${index}`}>
               <legend>Address {index + 1}</legend>
+              {item.id && <input type="hidden" name="addressId" value={item.id} />}
+              {!item.id && <input type="hidden" name="addressId" value="" />}
               <label className="primary-choice"><input type="radio" name="addressPrimaryIndex" value={index} checked={primaryAddress === index} onChange={() => setPrimaryAddress(index)} /><span>Primary address</span></label>
               <div className="form-grid">
                 <div className="field"><label>Label</label><input name="addressLabel" value={item.label} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, label: event.target.value } : row))} placeholder="Home or office" /></div>

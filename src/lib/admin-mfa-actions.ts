@@ -66,6 +66,9 @@ export async function enableAdminMfaAction(
 
   const currentPassword = value(formData, "currentPassword", 72);
   const code = value(formData, "code", 40);
+  if (!user.passwordHash) {
+    return { status: "error", message: "Set an account password before enabling administrator MFA." };
+  }
   if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
     return { status: "error", message: "The current password is incorrect." };
   }
