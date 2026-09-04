@@ -17,6 +17,7 @@ const contactGroupActivationMigration = "20260717120000_contact_group_activation
 const accountDeletionWorkflowMigration = "20260718190000_account_deletion_workflow";
 const productPlatformMigration = "20260904170000_product_platform";
 const hostedAuthMigration = "20260904180000_hosted_auth";
+const automaticDeliveryMigration = "20260904190000_automatic_delivery_and_reviews";
 const requiredMigrations = [
   baselineMigration,
   forwardMigration,
@@ -26,7 +27,8 @@ const requiredMigrations = [
   contactGroupActivationMigration,
   accountDeletionWorkflowMigration,
   productPlatformMigration,
-  hostedAuthMigration
+  hostedAuthMigration,
+  automaticDeliveryMigration
 ];
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const schemaName = `jitm_rehearsal_${suffix}`;
@@ -190,7 +192,8 @@ async function assertForwardState(client) {
     "AutomationPreference",
     "ReviewRequest",
     "AuthIdentity",
-    "AuthOAuthState"
+    "AuthOAuthState",
+    "AutomatedDelivery"
   ]) {
     if (!(await tableExists(client, table))) throw new Error(`Expected migrated table ${table}.`);
   }
@@ -348,7 +351,8 @@ async function assertGreenfieldState(client) {
     "AutomationPreference",
     "ReviewRequest",
     "AuthIdentity",
-    "AuthOAuthState"
+    "AuthOAuthState",
+    "AutomatedDelivery"
   ]) {
     if (!(await tableExists(client, table, greenfieldSchemaName))) {
       throw new Error(`Greenfield migration did not create ${table}.`);

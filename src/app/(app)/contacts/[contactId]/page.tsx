@@ -7,6 +7,7 @@ import { ContactRelationshipStatePanel } from "@/components/ContactRelationshipS
 import { ContactTimeline } from "@/components/ContactTimeline";
 import { ContactsBackLink } from "@/components/ContactsBackLink";
 import { Notice } from "@/components/Notice";
+import { ReviewRequestButton } from "@/components/ReviewRequestButton";
 import { requireWorkspace } from "@/lib/auth";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { assignMixToContactAction, removeMixAssignmentAction } from "@/lib/contact-mix-actions";
@@ -98,6 +99,7 @@ export default async function ContactDetailPage({ params, searchParams }: { para
         {primaryPhone ? <a className="button primary" href={`sms:${primaryPhone}`}><AppIcon name="message" />Text</a> : <Link className="button primary" href={`/contacts/${contact.id}/edit`}><AppIcon name="add" />Add phone</Link>}
         {primaryPhone && <a className="button" href={`tel:${primaryPhone}`}><AppIcon name="phone" />Call</a>}
         {primaryEmail ? <a className="button" href={`mailto:${primaryEmail}`}><AppIcon name="email" />Email</a> : <Link className="button" href={`/contacts/${contact.id}/edit`}><AppIcon name="add" />Add email</Link>}
+        <ReviewRequestButton contactId={contact.id} />
       </nav>}
 
       <section className="contact-next-line" aria-label="Next follow-up">

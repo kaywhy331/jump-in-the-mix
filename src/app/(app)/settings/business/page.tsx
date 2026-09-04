@@ -37,6 +37,7 @@ export default async function BusinessSettingsPage({ searchParams }: { searchPar
           <label className="field"><span>Type of business</span><select name="industry" defaultValue={profile?.industry ?? "Other"}><option>Home services</option><option>Real estate</option><option>Insurance &amp; finance</option><option>Other</option></select></label>
           <label className="field"><span>Business phone</span><input name="phone" inputMode="tel" autoComplete="tel" defaultValue={profile?.phone ?? ""} maxLength={80} /></label>
           <label className="field"><span>Website</span><input name="website" type="url" inputMode="url" autoComplete="url" defaultValue={profile?.website ?? ""} placeholder="https://example.com" maxLength={500} /></label>
+          <label className="field full"><span>Public review page</span><input name="reviewUrl" type="url" inputMode="url" defaultValue={profile?.reviewUrl ?? ""} placeholder="https://g.page/r/your-business/review" maxLength={500} /><small>Happy customers can open this after answering your private check-in.</small></label>
           <div className="field full"><RepeatableProfileRecords fieldName="products" title="Services" description="Add up to five services that can be used in prepared messages." initial={services} maximum={5} /></div>
         </div>
       </section>

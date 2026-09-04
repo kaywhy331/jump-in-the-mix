@@ -21,7 +21,12 @@ export async function GET(request: Request) {
     templates,
     mixes,
     jumps,
-    imports
+    imports,
+    notificationPreference,
+    automationPreference,
+    reviewRequests,
+    automatedDeliveries,
+    authIdentities
   ] = await Promise.all([
     prisma.workspaceProfile.findUnique({ where: { workspaceId } }),
     prisma.userPreference.findUnique({ where: { userId: user.id } }),
@@ -33,7 +38,12 @@ export async function GET(request: Request) {
     prisma.stepTemplate.findMany({ where: { workspaceId }, include: { versions: { orderBy: { version: "asc" } } }, orderBy: { createdAt: "asc" } }),
     prisma.mix.findMany({ where: { workspaceId }, include: { steps: true, assignments: true }, orderBy: { createdAt: "asc" } }),
     prisma.jump.findMany({ where: { workspaceId }, include: { contact: { select: { displayName: true } }, mix: { select: { name: true } }, stepVersion: { include: { stepTemplate: { select: { channel: true } } } } }, orderBy: { scheduledAt: "asc" } }),
-    prisma.contactImportBatch.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } })
+    prisma.contactImportBatch.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
+    prisma.notificationPreference.findUnique({ where: { workspaceId } }),
+    prisma.automationPreference.findUnique({ where: { workspaceId } }),
+    prisma.reviewRequest.findMany({ where: { workspaceId }, select: { id: true, contactId: true, status: true, rating: true, feedback: true, openedAt: true, respondedAt: true, reviewClickedAt: true, referralClickedAt: true, expiresAt: true, createdAt: true, updatedAt: true }, orderBy: { createdAt: "asc" } }),
+    prisma.automatedDelivery.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
+    prisma.authIdentity.findMany({ where: { userId: user.id }, select: { provider: true, email: true, createdAt: true, updatedAt: true } })
   ]);
   const exportedAt = new Date();
   if (new URL(request.url).searchParams.get("format") === "csv") {
@@ -67,8 +77,8 @@ export async function GET(request: Request) {
   const document = {
     format: "jump-in-the-mix-personal-export",
     exportedAt: exportedAt.toISOString(),
-    account: { id: user.id, name: user.name, email: user.email, createdAt: user.createdAt, updatedAt: user.updatedAt },
-    preferences: { profile, userPreference, schedulingPreference },
+    account: { id: user.id, name: user.name, email: user.email, signInMethods: authIdentities, createdAt: user.createdAt, updatedAt: user.updatedAt },
+    preferences: { profile, userPreference, schedulingPreference, notificationPreference, automationPreference },
     contacts,
     activities,
     groups,
@@ -77,6 +87,8 @@ export async function GET(request: Request) {
     mixes,
     jumps,
     imports,
+    reviewRequests,
+    automatedDeliveries,
     excludedSecurityMaterial: ["password hashes", "session tokens", "provider credentials", "webhook payloads and secrets"]
   };
   return new NextResponse(JSON.stringify(document, null, 2), {

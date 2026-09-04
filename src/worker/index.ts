@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { runAutomaticDeliveries } from "@/lib/automatic-delivery";
 import { CONTACT_IMPORT_JOB_TASK, runContactImportBatch } from "@/lib/contact-import-jobs";
 import { generateJumps } from "@/lib/jump-engine";
 import { runScheduledNotifications } from "@/lib/notification-delivery";
@@ -179,6 +180,7 @@ async function processJob(job: ClaimedJob) {
 }
 
 type MaintenanceState = {
+  automaticDelivery: number;
   jumpReconciliation: number;
   notifications: number;
   retentionCleanup: number;
@@ -214,6 +216,10 @@ async function runDueWorkspaceReconciliations(now = new Date()): Promise<void> {
 
 async function runMaintenanceIfDue(state: MaintenanceState): Promise<void> {
   const now = Date.now();
+  if (now - state.automaticDelivery >= notificationIntervalMs) {
+    try { await runAutomaticDeliveries(workerId, new Date(now)); } catch (error) { console.error("Automatic delivery pass failed", error); }
+    state.automaticDelivery = Date.now();
+  }
   if (now - state.jumpReconciliation >= maintenanceIntervalMs) {
     try { await runDueWorkspaceReconciliations(new Date(now)); } catch (error) { console.error("Periodic follow-up preparation failed", error); }
     state.jumpReconciliation = Date.now();
@@ -240,6 +246,7 @@ async function main() {
   heartbeatTimer.unref();
 
   const maintenance: MaintenanceState = {
+    automaticDelivery: 0,
     jumpReconciliation: 0,
     notifications: 0,
     retentionCleanup: 0

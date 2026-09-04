@@ -57,6 +57,7 @@ export async function updateWorkspaceProfileAction(formData: FormData): Promise<
     company: company || null,
     industry: editsBusiness ? value(formData, "industry", 160) || null : workspace.profile?.industry ?? null,
     website: editsBusiness ? optionalHttpsUrl(formData, "website", "Website", section === "business" ? "business" : "profile") : workspace.profile?.website ?? null,
+    reviewUrl: editsBusiness ? optionalHttpsUrl(formData, "reviewUrl", "Public review page", section === "business" ? "business" : "profile") : workspace.profile?.reviewUrl ?? null,
     phone: editsBusiness ? value(formData, "phone", 80) || null : workspace.profile?.phone ?? null,
     street: section === "profile" || section === "all" ? value(formData, "street", 200) || null : workspace.profile?.street ?? null,
     city: section === "profile" || section === "all" ? value(formData, "city", 120) || null : workspace.profile?.city ?? null,

@@ -20,6 +20,13 @@ enum ReviewRequestStatus {
   REFERRAL_CLICKED
 }
 
+enum AutomatedDeliveryStatus {
+  PROCESSING
+  DELIVERED
+  FAILED
+  CANCELED
+}
+
 model NotificationPreference {
   id                  String   @id @default(cuid())
   workspaceId         String   @unique
@@ -93,9 +100,32 @@ model ReviewRequest {
   respondedAt     DateTime?
   reviewClickedAt DateTime?
   referralClickedAt DateTime?
+  expiresAt       DateTime
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
 
   @@index([workspaceId, createdAt])
   @@index([contactId, createdAt])
+  @@index([expiresAt])
+}
+
+model AutomatedDelivery {
+  id               String                  @id @default(cuid())
+  workspaceId      String
+  jumpId           String                  @unique
+  channel          Channel
+  status           AutomatedDeliveryStatus @default(PROCESSING)
+  reviewEligibleAt DateTime
+  attempts         Int                     @default(1)
+  lockedAt         DateTime?
+  lockedBy         String?
+  providerId       String?
+  error            String?
+  deliveredAt      DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  @@index([workspaceId, createdAt])
+  @@index([status, reviewEligibleAt])
+  @@index([lockedAt])
 }
