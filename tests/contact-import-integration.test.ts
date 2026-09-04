@@ -41,8 +41,8 @@ describe.sequential("Contact import service", () => {
     ids.userB = userB.id;
 
     const [workspaceA, workspaceB] = await Promise.all([
-      prisma.workspace.create({ data: { name: "Import A", slug: `import-a-${suffix}`, ownerId: userA.id, profile: { create: { timezone: "America/Los_Angeles" } } } }),
-      prisma.workspace.create({ data: { name: "Import B", slug: `import-b-${suffix}`, ownerId: userB.id, profile: { create: { timezone: "America/New_York" } } } })
+      prisma.workspace.create({ data: { name: "Import A", slug: `import-a-${suffix}`, ownerId: userA.id, profile: { create: {} } } }),
+      prisma.workspace.create({ data: { name: "Import B", slug: `import-b-${suffix}`, ownerId: userB.id, profile: { create: {} } } })
     ]);
     ids.workspaceA = workspaceA.id;
     ids.workspaceB = workspaceB.id;

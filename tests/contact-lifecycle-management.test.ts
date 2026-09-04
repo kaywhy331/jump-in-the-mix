@@ -11,7 +11,7 @@ describe.sequential("Contact lifecycle management", () => {
 
   beforeAll(async () => {
     const user = await prisma.user.create({ data: { email: `contact-lifecycle-${suffix}@example.com`, name: "Lifecycle Owner", passwordHash: "test-only" } });
-    const workspace = await prisma.workspace.create({ data: { name: "Lifecycle Test", slug: `contact-lifecycle-${suffix}`, ownerId: user.id, profile: { create: { timezone: "America/Los_Angeles" } } } });
+    const workspace = await prisma.workspace.create({ data: { name: "Lifecycle Test", slug: `contact-lifecycle-${suffix}`, ownerId: user.id, profile: { create: {} } } });
     const contact = await prisma.contact.create({ data: { workspaceId: workspace.id, displayName: "Jordan Lifecycle", firstName: "Jordan" } });
     await prisma.workspaceMember.create({ data: { workspaceId: workspace.id, userId: user.id, role: "OWNER" } });
     ids.user = user.id;

@@ -28,6 +28,7 @@ import { parseBroadcastScheduleInput, parseTimeInput } from "@/lib/mix-broadcast
 import { getPlatformBoolean, getPlatformStringList } from "@/lib/platform-settings";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
+import { timezoneForUser } from "@/lib/display-preferences";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { MIX_TEMPLATE_CATEGORIES, MIX_TEMPLATE_INDUSTRIES } from "@/lib/shared-mix";
 
@@ -77,10 +78,12 @@ async function buildPreflight(formData: FormData): Promise<{
   if (impersonation) fail("/mixes/wizard", "Administrator support sessions are view-only.");
   if (!PLAN_LIMITS[workspace.planTier].aiWizard) fail("/mixes/wizard", "The AI Mix Wizard is available on Plus and Pro.");
 
-  const [objectiveOptions, frameworkOptions, toneOptions] = await Promise.all([
+  const [objectiveOptions, frameworkOptions, toneOptions, workspaceTimezone, scheduling] = await Promise.all([
     getPlatformStringList("ai.objectives"),
     getPlatformStringList("ai.frameworks"),
-    getPlatformStringList("ai.tones")
+    getPlatformStringList("ai.tones"),
+    timezoneForUser(user.id),
+    prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })
   ]);
 
   const objectiveChoice = value(formData, "objective");
@@ -161,7 +164,7 @@ async function buildPreflight(formData: FormData): Promise<{
 
   const broadcastDate = value(formData, "broadcastDate") || null;
   const broadcastTime = value(formData, "broadcastTime") || null;
-  const broadcastTimezone = value(formData, "broadcastTimezone") || workspace.profile?.timezone || "UTC";
+  const broadcastTimezone = value(formData, "broadcastTimezone") || workspaceTimezone;
   if (triggerMode === "BROADCAST") {
     try {
       parseBroadcastScheduleInput(broadcastDate ?? "", broadcastTime ?? "", broadcastTimezone);
@@ -193,8 +196,8 @@ async function buildPreflight(formData: FormData): Promise<{
     customContext: value(formData, "customContext") || null,
     preferredSendTimeMinutes,
     includeOptOut: formData.get("includeOptOut") === "on",
-    quietHoursStart: workspace.profile?.quietHoursStart ?? 1200,
-    quietHoursEnd: workspace.profile?.quietHoursEnd ?? 480
+    quietHoursStart: scheduling?.quietHoursStart ?? 1200,
+    quietHoursEnd: scheduling?.quietHoursEnd ?? 480
   });
 
   return { workspaceId: workspace.id, actorUserId: user.id, preflight };

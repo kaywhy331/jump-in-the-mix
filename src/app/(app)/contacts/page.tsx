@@ -83,7 +83,7 @@ function pageHref(input: {
 export default async function ContactsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const { user, workspace } = await requireWorkspace();
-  const displayPreferences = await displayPreferencesForUser(user.id, workspace.profile?.timezone ?? "UTC");
+  const displayPreferences = await displayPreferencesForUser(user.id);
   const savedViews = await prisma.contactSavedView.findMany({
     where: { userId: user.id, workspaceId: workspace.id },
     select: { id: true, name: true, isDefault: true, query: true },
@@ -177,7 +177,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const contactDtos: ContactBulkDto[] = contacts.map((contact) => {
     const state = jumpsByContact.get(contact.id) ?? [];
     const last = [...state].filter((jump) => jump.completedAt).sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime())[0];
-    const next = state.find((jump) => ["PENDING", "COPIED"].includes(jump.status));
+    const next = state.find((jump) => jump.status === "PENDING");
     const custom = new Map(contact.customFieldValues.map((item) => [item.definition.key, item.value]));
     return {
       id: contact.id,

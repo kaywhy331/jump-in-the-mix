@@ -28,7 +28,7 @@ describe.sequential("support ticket lifecycle and workspace isolation", () => {
           name: "Support Workspace A",
           slug: `support-a-${suffix}`,
           ownerId: userA.id,
-          profile: { create: { timezone: "America/Los_Angeles" } },
+          profile: { create: {} },
           members: { create: { userId: userA.id, role: "OWNER" } }
         }
       }),
@@ -37,7 +37,7 @@ describe.sequential("support ticket lifecycle and workspace isolation", () => {
           name: "Support Workspace B",
           slug: `support-b-${suffix}`,
           ownerId: userB.id,
-          profile: { create: { timezone: "America/New_York" } },
+          profile: { create: {} },
           members: { create: { userId: userB.id, role: "OWNER" } }
         }
       })

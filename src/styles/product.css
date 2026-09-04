@@ -68,6 +68,16 @@
 .contact-add-date { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
 .private-note { margin-top: 14px; padding: 12px; border-left: 3px solid var(--brand); background: var(--surface-muted); }
 .private-note p { margin: 5px 0 0; white-space: pre-wrap; }
+.pwa-install-prompt { position: fixed; z-index: 55; right: 18px; bottom: 18px; width: min(430px, calc(100vw - 36px)); display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 17px; background: var(--surface, #fff); box-shadow: var(--shadow); }
+.pwa-install-prompt p { margin: 4px 0 0; color: var(--muted); }
+.timezone-current { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface, #fff); }
+.timezone-current > span { display: grid; gap: 2px; }
+.timezone-current small { color: var(--muted); }
+.timezone-city-list { max-height: 48dvh; display: grid; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; }
+.timezone-city { min-height: 52px; display: grid; gap: 2px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); background: var(--surface, #fff); text-align: left; cursor: pointer; }
+.timezone-city:last-child { border-bottom: 0; }
+.timezone-city small { color: var(--muted); }
+.timezone-city.selected { color: var(--brand-dark); background: var(--brand-soft); }
 
 @media (min-width: 768px) {
   .sheet-panel { inset: 50% auto auto 50%; width: min(620px, calc(100vw - 40px)); max-height: min(82vh, 760px); transform: translate(-50%, -50%); border-radius: 20px; }
@@ -98,4 +108,5 @@
   .contact-profile-quick-actions .button { min-width: 0; padding-inline: 8px; }
   .contact-next-line { align-items: center; }
   .contact-next-line a { width: 100%; margin-left: 0; }
+  .pwa-install-prompt { right: 10px; bottom: calc(82px + env(safe-area-inset-bottom)); width: calc(100vw - 20px); }
 }

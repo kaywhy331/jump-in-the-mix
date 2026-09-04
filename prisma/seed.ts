@@ -312,7 +312,6 @@ async function seedDemoWorkspace() {
           product1: "Business Growth Consulting",
           smsSignature: "— BrightPath Studio",
           emailSignature: "Demo Owner\nBrightPath Studio",
-          timezone: "America/New_York",
           onboardingStep: 5,
           onboardingDone: true
         }
@@ -326,6 +325,10 @@ async function seedDemoWorkspace() {
       }
     }
   });
+
+  await prisma.userPreference.create({ data: { userId: user.id, timezone: "America/New_York" } });
+  await prisma.workspacePreference.create({ data: { workspaceId: workspace.id } });
+  await prisma.notificationPreference.create({ data: { workspaceId: workspace.id, userId: user.id } });
 
   await prisma.contact.create({
     data: {

@@ -4,6 +4,7 @@ import { getCurrentSession } from "@/lib/auth";
 import { quickAddDeviceContacts } from "@/lib/contact-quick-add";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
+import { timezoneForUser } from "@/lib/display-preferences";
 
 const optionalText = (length: number) => z.string().trim().max(length).nullable().optional();
 const addressSchema = z.object({
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
     const result = await quickAddDeviceContacts({
       workspaceId: membership.workspaceId,
       actorUserId: session.authUser.id,
-      timezone: membership.workspace.profile?.timezone ?? "America/New_York",
+      timezone: await timezoneForUser(session.user.id),
       requestId: parsed.data.requestId,
       contacts: parsed.data.contacts
     });

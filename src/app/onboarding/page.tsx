@@ -5,11 +5,13 @@ import { Notice } from "@/components/Notice";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { requireWorkspace } from "@/lib/auth";
 import { completeOnboardingAction, skipOnboardingAction } from "@/lib/onboarding-actions";
+import { timezoneForUser } from "@/lib/display-preferences";
 
 export const metadata: Metadata = { title: "Create your first follow-up" };
 
 export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const [params, { workspace, user }] = await Promise.all([searchParams, requireWorkspace()]);
+  const timezone = await timezoneForUser(user.id);
   const today = new Date().toISOString().slice(0, 10);
   return (
     <main className="onboarding-shell">
@@ -44,7 +46,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
               <div className="field"><label htmlFor="contactEmail">Email <small>optional</small></label><input id="contactEmail" name="contactEmail" type="email" inputMode="email" autoComplete="email" /></div>
               <div className="field"><label htmlFor="reason">What should you remember?</label><select id="reason" name="reason" defaultValue="Follow up about an estimate"><option>Follow up about an estimate</option><option>Check in after the job</option><option>Ask for a review</option><option>Reconnect</option><option>General follow-up</option></select></div>
               <div className="field"><label htmlFor="followUpDate">Follow up on</label><LocalDateInput id="followUpDate" name="followUpDate" initialValue={today} /></div>
-              <div className="field full"><label htmlFor="timezone">Your timezone</label><TimezonePicker defaultValue={workspace.profile?.timezone ?? "UTC"} confirmDetection /></div>
+              <div className="field full"><label htmlFor="timezone">Your timezone</label><TimezonePicker defaultValue={timezone} confirmDetection /></div>
             </div>
           </fieldset>
           <div className="onboarding-preview"><strong>What happens next</strong><span>We create a warm three-step plan, prepare the first message, and take you to Today.</span></div>

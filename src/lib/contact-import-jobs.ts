@@ -2,6 +2,7 @@ import type { ContactImportBatchStatus, PlanTier, Prisma } from "@/generated/pri
 import { commitContactImportBatch, type ImportCommitItem } from "@/lib/contact-import-service";
 import type { ImportCommitResult } from "@/lib/contact-import-types";
 import { prisma } from "@/lib/prisma";
+import { timezoneForUser } from "@/lib/display-preferences";
 
 export const CONTACT_IMPORT_JOB_TASK = "contact-import";
 const MAX_IMPORT_ROWS = 5000;
@@ -205,6 +206,7 @@ export async function runContactImportBatch(batchId: string): Promise<void> {
   if (!workspace) throw new Error("The Contact import workspace no longer exists.");
   const actorUserId = batch.actorUserId;
   if (!actorUserId) throw new Error("The Contact import no longer has an owning user.");
+  const timezone = await timezoneForUser(actorUserId);
 
   await prisma.contactImportBatch.updateMany({
     where: { id: batch.id, status: { in: ["QUEUED", "RUNNING", "FAILED"] }, canceledAt: null },
@@ -224,7 +226,7 @@ export async function runContactImportBatch(batchId: string): Promise<void> {
         workspaceId: batch.workspaceId,
         actorUserId,
         planTier: workspace.planTier as PlanTier,
-        timezone: workspace.profile?.timezone ?? "UTC",
+        timezone,
         importId: batch.importId,
         items: chunk
       });

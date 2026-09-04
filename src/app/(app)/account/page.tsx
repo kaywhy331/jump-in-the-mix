@@ -30,7 +30,7 @@ type SearchParams = {
 export default async function AccountPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, context] = await Promise.all([searchParams, requireWorkspace()]);
   const { session, user, impersonation } = context;
-  const displayPreferences = await displayPreferencesForUser(user.id, context.workspace.profile?.timezone ?? "UTC");
+  const displayPreferences = await displayPreferencesForUser(user.id);
   const section = ["overview", "security", "privacy"].includes(params.section ?? "") ? params.section! : "overview";
   const sessions = impersonation ? [] : await prisma.session.findMany({
     where: { userId: user.id, expiresAt: { gt: new Date() } },

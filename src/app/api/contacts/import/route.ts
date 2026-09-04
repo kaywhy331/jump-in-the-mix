@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { timezoneForUser } from "@/lib/display-preferences";
 import { z } from "zod";
 import { getCurrentSession } from "@/lib/auth";
 import {
@@ -189,7 +190,7 @@ export async function POST(request: Request) {
       workspaceId: scoped.membership.workspaceId,
       actorUserId: scoped.session.authUser.id,
       planTier: scoped.membership.workspace.planTier,
-      timezone: scoped.membership.workspace.profile?.timezone ?? "UTC",
+      timezone: await timezoneForUser(scoped.session.user.id),
       importId: parsed.data.importId,
       items
     });

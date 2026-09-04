@@ -28,7 +28,7 @@ describe.sequential("administrator view-only impersonation", () => {
         slug: `impersonation-${suffix}`,
         ownerId: target.id,
         members: { create: { userId: target.id, role: "OWNER" } },
-        profile: { create: { timezone: "America/Los_Angeles" } }
+        profile: { create: {} }
       }
     });
     ids.workspace = workspace.id;

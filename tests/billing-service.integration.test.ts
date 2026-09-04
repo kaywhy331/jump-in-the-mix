@@ -61,7 +61,7 @@ describe.sequential("Stripe subscription reconciliation", () => {
         name: "Billing Test",
         slug: `billing-${suffix}`,
         ownerId: user.id,
-        profile: { create: { timezone: "America/Los_Angeles" } }
+        profile: { create: {} }
       }
     });
     ids.user = user.id;

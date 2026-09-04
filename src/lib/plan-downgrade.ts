@@ -85,7 +85,7 @@ async function enforceLimits(
       where: {
         workspaceId: input.workspaceId,
         mixId: { in: pausedMixIds },
-        status: { in: ["PENDING", "COPIED"] },
+        status: "PENDING",
         scheduledAt: { gte: now }
       },
       data: { status: "CANCELED", completedAt: null, completionMethod: "plan_downgrade" }

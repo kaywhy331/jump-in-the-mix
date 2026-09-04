@@ -57,7 +57,7 @@ export async function pauseMixAction(formData: FormData): Promise<void> {
   await prisma.$transaction([
     prisma.mix.update({ where: { id: mix.id }, data: { status: "PAUSED" } }),
     prisma.jump.updateMany({
-      where: { mixId: mix.id, workspaceId: workspace.id, status: { in: ["PENDING", "COPIED"] }, scheduledAt: { gte: new Date() } },
+      where: { mixId: mix.id, workspaceId: workspace.id, status: "PENDING", scheduledAt: { gte: new Date() } },
       data: { status: "CANCELED", completedAt: null, completionMethod: "mix_paused" }
     }),
     prisma.auditLog.create({
@@ -89,7 +89,7 @@ export async function archiveMixAction(formData: FormData): Promise<void> {
     prisma.mixAssignment.updateMany({ where: { mixId: mix.id, workspaceId: workspace.id }, data: { isActive: false } }),
     prisma.mixBroadcastSchedule.deleteMany({ where: { mixId: mix.id, workspaceId: workspace.id } }),
     prisma.jump.updateMany({
-      where: { mixId: mix.id, workspaceId: workspace.id, status: { in: ["PENDING", "COPIED"] } },
+      where: { mixId: mix.id, workspaceId: workspace.id, status: "PENDING" },
       data: { status: "CANCELED", completedAt: null, completionMethod: "mix_archived" }
     }),
     prisma.auditLog.create({

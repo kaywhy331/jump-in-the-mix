@@ -37,8 +37,8 @@ type SearchParams = {
 
 type ActionType = "COMPOSED" | "CALLED" | "VOICEMAIL_STARTED";
 
-const pendingStatuses: JumpStatus[] = ["PENDING", "COPIED"];
-const doneStatuses: JumpStatus[] = ["DONE", "SENT"];
+const pendingStatuses: JumpStatus[] = ["PENDING"];
+const doneStatuses: JumpStatus[] = ["DONE"];
 const completedStatuses: JumpStatus[] = [...doneStatuses, "SKIPPED"];
 const channels: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
 
@@ -77,7 +77,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const status = ["all", "pending", "done", "skipped"].includes(params.status ?? "") ? params.status! : "all";
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
   const { workspace, user } = await requireWorkspace();
-  const displayPreferences = await displayPreferencesForUser(user.id, workspace.profile?.timezone ?? "UTC");
+  const displayPreferences = await displayPreferencesForUser(user.id);
   const timezone = displayPreferences.timeZone;
   const today = logicalDateInTimezone(new Date(), timezone);
   const startToday = zonedDateTimeToUtc(today, 0, timezone);

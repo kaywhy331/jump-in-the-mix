@@ -10,6 +10,7 @@ import { buildAddressInputs, buildEmailInputs, buildPhoneInputs } from "@/lib/co
 import { listGroupStates, mergeGroupActivity } from "@/lib/group-activity";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
+import { timezoneForUser } from "@/lib/display-preferences";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -148,6 +149,7 @@ async function queueContactReconciliation(workspaceId: string, contactId: string
 
 export async function createContactAction(formData: FormData): Promise<void> {
   const { workspace, user } = await requireWorkspace();
+  const timezone = await timezoneForUser(user.id);
   let payload: ReturnType<typeof contactPayload>;
   let followUp: InitialFollowUp | null;
   try {
@@ -189,7 +191,7 @@ export async function createContactAction(formData: FormData): Promise<void> {
           month: followUp.dateValue.getUTCMonth() + 1,
           day: followUp.dateValue.getUTCDate(),
           recurrence: "NONE",
-          timezone: workspace.profile?.timezone ?? "UTC",
+          timezone,
           label: followUp.reason
         }
       });

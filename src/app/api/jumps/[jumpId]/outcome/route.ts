@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
+import { timezoneForUser } from "@/lib/display-preferences";
 import type { ContactActivityVisibility, JumpOutcome, Prisma } from "@/generated/prisma/client";
 import { getCurrentSession } from "@/lib/auth";
 import { logicalDateKey, zonedDateTimeToUtc } from "@/lib/jump-schedule";
@@ -128,7 +129,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
   if (!jump) return NextResponse.json({ error: "Jump not found." }, { status: 404 });
   if (jump.status === "CANCELED") return NextResponse.json({ error: "This Jump is no longer active." }, { status: 409 });
 
-  const timezone = jump.workspace.profile?.timezone ?? "UTC";
+  const timezone = await timezoneForUser(session.user.id);
   const rawNextDate = clean(payload?.nextDate, 10);
   const rawNextTime = clean(payload?.nextTime, 5) || "10:00";
   const nextLogicalDate = rawNextDate ? validLogicalDate(rawNextDate) : null;
@@ -158,24 +159,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
       let nextStatus: StoredResponse["status"];
       if (outcome === "REOPENED") {
         const updated = await tx.jump.updateMany({
-          where: { id: jump.id, workspaceId: membership.workspaceId, status: { in: ["DONE", "SENT", "SKIPPED"] } },
+          where: { id: jump.id, workspaceId: membership.workspaceId, status: { in: ["DONE", "SKIPPED"] } },
           data: { status: "PENDING", completedAt: null, completionMethod: null }
         });
         if (updated.count !== 1) throw new Error("This Jump is not available to reopen.");
         nextStatus = "PENDING";
       } else if (outcome === "NOT_SENT") {
-        if (!["PENDING", "COPIED"].includes(jump.status)) throw new Error("This Jump is no longer pending.");
+        if (jump.status !== "PENDING") throw new Error("This follow-up is no longer pending.");
         nextStatus = "PENDING";
       } else if (outcome === "SKIPPED") {
         const updated = await tx.jump.updateMany({
-          where: { id: jump.id, workspaceId: membership.workspaceId, status: { in: ["PENDING", "COPIED"] } },
+          where: { id: jump.id, workspaceId: membership.workspaceId, status: "PENDING" },
           data: { status: "SKIPPED", completedAt: new Date(), completionMethod: "outcome:skipped" }
         });
         if (updated.count !== 1) throw new Error("This Jump is no longer pending.");
         nextStatus = "SKIPPED";
       } else {
         const updated = await tx.jump.updateMany({
-          where: { id: jump.id, workspaceId: membership.workspaceId, status: { in: ["PENDING", "COPIED"] } },
+          where: { id: jump.id, workspaceId: membership.workspaceId, status: "PENDING" },
           data: { status: "DONE", completedAt: new Date(), completionMethod: `outcome:${outcome.toLowerCase()}` }
         });
         if (updated.count !== 1 || !COMPLETE_OUTCOMES.includes(outcome)) throw new Error("This Jump is no longer pending.");

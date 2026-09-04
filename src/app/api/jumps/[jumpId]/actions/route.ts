@@ -52,7 +52,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
   if (!action || !ACTIONS.includes(action)) return NextResponse.json({ error: "Invalid Jump action." }, { status: 400 });
 
   const jump = await prisma.jump.findFirst({
-    where: { id: jumpId, workspaceId: membership.workspaceId, status: { in: ["PENDING", "COPIED"] } },
+    where: { id: jumpId, workspaceId: membership.workspaceId, status: "PENDING" },
     include: { stepVersion: { include: { stepTemplate: true } } }
   });
   if (!jump) return NextResponse.json({ error: "This Jump is no longer pending." }, { status: 409 });

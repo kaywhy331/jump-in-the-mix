@@ -3,7 +3,6 @@
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isValidTimezone } from "@/lib/mix-broadcast";
 
 function records(formData: FormData, key: string, maximum: number): { name: string; value: string }[] {
   try {
@@ -24,10 +23,12 @@ function optionalHttpsUrl(formData: FormData, key: string, label: string, sectio
   try {
     url = new URL(raw);
   } catch {
-    redirect(`/settings?section=${section}&error=${encodeURIComponent(`${label} must be a valid https URL.`)}`);
+    const path = section === "business" ? "/settings/business" : `/settings?section=${section}`;
+    redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(`${label} must be a valid https URL.`)}`);
   }
   if (url.protocol !== "https:") {
-    redirect(`/settings?section=${section}&error=${encodeURIComponent(`${label} must use https.`)}`);
+    const path = section === "business" ? "/settings/business" : `/settings?section=${section}`;
+    redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(`${label} must use https.`)}`);
   }
   return url.toString();
 }
@@ -50,8 +51,6 @@ export async function updateWorkspaceProfileAction(formData: FormData): Promise<
   const legacyDetails = [workspace.profile?.myCustom1, workspace.profile?.myCustom2, workspace.profile?.myCustom3].flatMap((item, index) => item ? [{ name: `Sender detail ${index + 1}`, value: item }] : []);
   const productRecords = editsBusiness ? records(formData, "products", section === "business" ? 5 : 20) : (workspace.profile?.products as { name: string; value: string }[] | null) ?? legacyProducts;
   const senderDetails = section === "profile" || section === "all" ? records(formData, "senderDetails", 20) : (workspace.profile?.senderDetails as { name: string; value: string }[] | null) ?? legacyDetails;
-  const timezone = section === "profile" || section === "all" ? value(formData, "timezone", 120) || "America/New_York" : workspace.profile?.timezone ?? "America/New_York";
-  if (!isValidTimezone(timezone)) redirect(`/settings?section=profile&error=${encodeURIComponent("Choose a valid IANA timezone.")}`);
   const company = editsBusiness ? value(formData, "company", 200) : workspace.profile?.company ?? null;
   if (section === "business" && !company) redirect(`/settings/business?error=${encodeURIComponent("Enter your business name.")}`);
   const workspaceData = {
@@ -75,8 +74,7 @@ export async function updateWorkspaceProfileAction(formData: FormData): Promise<
     products: productRecords,
     senderDetails,
     smsSignature: editsMessaging ? value(formData, "smsSignature", 500) || user.name : workspace.profile?.smsSignature ?? null,
-    emailSignature: editsMessaging ? value(formData, "emailSignature", 2000) || user.name : workspace.profile?.emailSignature ?? null,
-    timezone
+    emailSignature: editsMessaging ? value(formData, "emailSignature", 2000) || user.name : workspace.profile?.emailSignature ?? null
   };
   const contributorData = {
     enabled: contributorEnabled,

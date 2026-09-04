@@ -64,7 +64,7 @@ export default async function AdminSupportTicketPage({
     Promise.all([
       prisma.contact.count({ where: { workspaceId: ticket.workspaceId, archivedAt: null } }),
       prisma.mix.count({ where: { workspaceId: ticket.workspaceId, status: "ACTIVE" } }),
-      prisma.jump.count({ where: { workspaceId: ticket.workspaceId, status: { in: ["PENDING", "COPIED"] } } }),
+      prisma.jump.count({ where: { workspaceId: ticket.workspaceId, status: "PENDING" } }),
       prisma.integrationConnection.count({ where: { workspaceId: ticket.workspaceId, status: "ACTIVE" } })
     ]).then(([contacts, mixes, pendingJumps, integrations]) => ({ contacts, mixes, pendingJumps, integrations }))
   ]);

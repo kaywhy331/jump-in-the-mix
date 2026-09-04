@@ -91,13 +91,13 @@ export async function registerAction(formData: FormData): Promise<void> {
         select: { id: true, email: true, name: true }
       });
       const workspaceSlug = `${slugify(name) || "personal"}-${created.id.slice(-7)}`;
-      await tx.workspace.create({
+      const createdWorkspace = await tx.workspace.create({
         data: {
-          name: `${name}'s personal data`,
+          name: `${name}'s business`,
           slug: workspaceSlug,
           ownerId: created.id,
           members: { create: { userId: created.id, role: "OWNER" } },
-          profile: { create: { timezone: "America/New_York" } },
+          profile: { create: {} },
           groups: {
             create: [
               { name: "Leads", description: "People who may become customers." },
@@ -105,8 +105,12 @@ export async function registerAction(formData: FormData): Promise<void> {
               { name: "Referrals", description: "People introduced by your network." }
             ]
           }
-        }
+        },
+        select: { id: true }
       });
+      await tx.userPreference.create({ data: { userId: created.id, timezone: "UTC" } });
+      await tx.workspacePreference.create({ data: { workspaceId: createdWorkspace.id } });
+      await tx.notificationPreference.create({ data: { workspaceId: createdWorkspace.id, userId: created.id } });
       return created;
     }, { isolationLevel: "Serializable" });
   } catch (error) {

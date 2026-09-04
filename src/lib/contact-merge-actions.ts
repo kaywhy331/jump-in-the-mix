@@ -117,8 +117,8 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
     await tx.jumpDate.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id } });
     await tx.contactActivity.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id } });
     await tx.externalContactLink.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id } });
-    await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId: source.id, status: { in: ["DONE", "SENT", "SKIPPED"] } }, data: { contactId: survivor.id } });
-    await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId: source.id, status: { in: ["PENDING", "COPIED"] } }, data: { status: "CANCELED", completionMethod: "contact_merged", completedAt: null } });
+    await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId: source.id, status: { in: ["DONE", "SKIPPED"] } }, data: { contactId: survivor.id } });
+    await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId: source.id, status: "PENDING" }, data: { status: "CANCELED", completionMethod: "contact_merged", completedAt: null } });
 
     for (const assignment of source.mixAssignments) {
       const key = `${assignment.mixId}:${assignment.mode}`;

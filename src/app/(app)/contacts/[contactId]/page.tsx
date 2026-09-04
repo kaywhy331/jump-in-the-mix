@@ -53,11 +53,11 @@ export default async function ContactDetailPage({ params, searchParams }: { para
     listGroupStates(workspace.id),
     prisma.contactRelationshipState.findUnique({ where: { contactId } }),
     prisma.contactMergeRecord.findMany({ where: { workspaceId: workspace.id, survivorContactId: contactId }, orderBy: { createdAt: "desc" }, take: 10 }),
-    prisma.jump.findFirst({ where: { workspaceId: workspace.id, contactId, status: { in: ["PENDING", "COPIED"] } }, orderBy: { scheduledAt: "asc" }, select: { scheduledAt: true, reason: true } })
+    prisma.jump.findFirst({ where: { workspaceId: workspace.id, contactId, status: "PENDING" }, orderBy: { scheduledAt: "asc" }, select: { scheduledAt: true, reason: true } })
   ]);
   if (!contact) notFound();
 
-  const displayPreferences = await displayPreferencesForUser(user.id, workspace.profile?.timezone ?? "UTC");
+  const displayPreferences = await displayPreferencesForUser(user.id);
   const followUpType = dateTypes.find((type) => type.slug === "follow-up");
   const stopByMixId = new Map(stops.map((stop) => [stop.mixId, stop]));
   const directPlanIds = new Set(contact.mixAssignments.map((assignment) => assignment.mixId));

@@ -22,9 +22,9 @@ describe.sequential("Mix Template service", () => {
     Object.assign(ids, { publisherUser: publisherUser.id, importerUser: importerUser.id, freeUser: freeUser.id });
 
     const [publisherWorkspace, importerWorkspace, freeWorkspace] = await Promise.all([
-      prisma.workspace.create({ data: { name: "Publisher Workspace", slug: `template-publisher-${suffix}`, ownerId: publisherUser.id, planTier: "PLUS", profile: { create: { timezone: "America/Los_Angeles" } } } }),
-      prisma.workspace.create({ data: { name: "Importer Workspace", slug: `template-importer-${suffix}`, ownerId: importerUser.id, planTier: "PLUS", profile: { create: { timezone: "America/New_York" } } } }),
-      prisma.workspace.create({ data: { name: "Free Workspace", slug: `template-free-${suffix}`, ownerId: freeUser.id, planTier: "FREE", profile: { create: { timezone: "America/Chicago" } } } })
+      prisma.workspace.create({ data: { name: "Publisher Workspace", slug: `template-publisher-${suffix}`, ownerId: publisherUser.id, planTier: "PLUS", profile: { create: {} } } }),
+      prisma.workspace.create({ data: { name: "Importer Workspace", slug: `template-importer-${suffix}`, ownerId: importerUser.id, planTier: "PLUS", profile: { create: {} } } }),
+      prisma.workspace.create({ data: { name: "Free Workspace", slug: `template-free-${suffix}`, ownerId: freeUser.id, planTier: "FREE", profile: { create: {} } } })
     ]);
     Object.assign(ids, { publisherWorkspace: publisherWorkspace.id, importerWorkspace: importerWorkspace.id, freeWorkspace: freeWorkspace.id });
 

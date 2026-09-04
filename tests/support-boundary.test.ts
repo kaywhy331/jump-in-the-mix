@@ -10,7 +10,7 @@ describe("Help and support boundaries", () => {
     const help = read("src/app/(app)/help/page.tsx");
     expect(nav).not.toContain('href: "/help", label: "Help"');
     expect(nav).toContain('href: "/more", label: "More"');
-    expect(more).toContain('["/help", "Help & Support"');
+    expect(more).toContain('["/help", "Help"');
     expect(help).toContain("<SupportFaq />");
     expect(help).toContain('id="contact-support"');
     expect(help.indexOf("<SupportFaq />")).toBeLessThan(help.indexOf('id="contact-support"'));

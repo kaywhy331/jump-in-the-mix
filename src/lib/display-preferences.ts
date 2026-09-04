@@ -11,3 +11,12 @@ export async function displayPreferencesForUser(userId: string, fallbackTimeZone
       : isValidTimezone(fallbackTimeZone) ? fallbackTimeZone : "UTC"
   };
 }
+
+export async function timezoneForUser(userId: string): Promise<string> {
+  return (await displayPreferencesForUser(userId)).timeZone;
+}
+
+export async function timezoneForWorkspace(workspaceId: string): Promise<string> {
+  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { ownerId: true } });
+  return workspace ? timezoneForUser(workspace.ownerId) : "UTC";
+}

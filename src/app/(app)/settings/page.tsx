@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Settings" };
 const destinations: Array<{ href: string; title: string; description: string; icon: AppIconName }> = [
   { href: "/settings/business", title: "My business", description: "Business name, services, contact details, and message signatures.", icon: "edit" },
   { href: "/account/preferences", title: "Personal preferences", description: "Display name, timezone, follow-up time, quiet hours, and weekends.", icon: "settings" },
-  { href: "/settings/jumps", title: "Saved messages", description: "Reusable text, email, call, and voicemail content.", icon: "bolt" },
+  { href: "/settings/notifications", title: "Notifications", description: "Morning email, weekly report, and push reminders.", icon: "alert" },
   { href: "/settings/jump-date-types", title: "Date types", description: "Manage the dates that can start a follow-up plan.", icon: "calendar" },
   { href: "/account?section=security", title: "Password & sessions", description: "Change your password and review active devices.", icon: "security" },
   { href: "/account?section=privacy", title: "Data & privacy", description: "Export your personal data or delete your account.", icon: "privacy" }

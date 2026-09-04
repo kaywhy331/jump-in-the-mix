@@ -73,8 +73,6 @@ enum AssignmentMode {
 
 enum JumpStatus {
   PENDING
-  COPIED
-  SENT
   DONE
   SKIPPED
   CANCELED
@@ -225,7 +223,6 @@ model WorkspaceMember {
 
 model WorkspaceProfile {
   workspaceId     String    @id
-  timezone        String    @default("America/New_York")
   industry        String?
   primaryGoal     String?
   company         String?
@@ -248,8 +245,7 @@ model WorkspaceProfile {
   senderDetails   Json?
   smsSignature    String?
   emailSignature  String?
-  quietHoursStart Int       @default(1200)
-  quietHoursEnd   Int       @default(480)
+  reviewUrl       String?
   onboardingStep  Int       @default(0)
   onboardingDone  Boolean   @default(false)
   workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

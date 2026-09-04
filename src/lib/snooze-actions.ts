@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { timezoneForUser } from "@/lib/display-preferences";
 import { calculateSnoozeAt, type SnoozePreset } from "@/lib/snooze-schedule";
 
 function value(formData: FormData, key: string): string {
@@ -19,19 +20,22 @@ function withParam(path: string, key: string, parameterValue: string): string {
 }
 
 export async function snoozeJumpAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireWorkspace();
+  const { workspace, user } = await requireWorkspace();
   const jumpId = value(formData, "jumpId");
   const returnTo = safeReturnTo(value(formData, "returnTo"));
   const presetRaw = value(formData, "preset") || "custom";
   const allowed: SnoozePreset[] = ["later-today", "tomorrow", "next-monday", "next-week", "custom"];
   const preset = allowed.includes(presetRaw as SnoozePreset) ? presetRaw as SnoozePreset : "custom";
 
-  const scheduling = await prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } });
+  const [scheduling, timezone] = await Promise.all([
+    prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } }),
+    timezoneForUser(user.id)
+  ]);
   let scheduledAt: Date;
   try {
     scheduledAt = calculateSnoozeAt({
       now: new Date(),
-      timezone: workspace.profile?.timezone ?? "UTC",
+      timezone,
       preset,
       customDate: value(formData, "customDate"),
       preferredMinutes: scheduling?.defaultFollowUpMinutes,
@@ -43,7 +47,7 @@ export async function snoozeJumpAction(formData: FormData): Promise<void> {
   }
 
   const result = await prisma.jump.updateMany({
-    where: { id: jumpId, workspaceId: workspace.id, status: { in: ["PENDING", "COPIED"] } },
+    where: { id: jumpId, workspaceId: workspace.id, status: "PENDING" },
     data: { scheduledAt }
   });
   if (!result.count) redirect(withParam(returnTo, "error", "This Jump is no longer available to snooze."));

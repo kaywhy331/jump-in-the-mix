@@ -40,7 +40,6 @@ export async function updatePersonalPreferencesAction(formData: FormData): Promi
   await prisma.$transaction([
     prisma.user.update({ where: { id: user.id }, data: { name } }),
     prisma.userPreference.upsert({ where: { userId: user.id }, create: { userId: user.id, locale, timezone }, update: { locale, timezone } }),
-    prisma.workspaceProfile.upsert({ where: { workspaceId: workspace.id }, create: { workspaceId: workspace.id, timezone }, update: { timezone } }),
     prisma.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "personal.preferences.update", entityType: "User", entityId: user.id, source: "account.preferences", metadata: { locale, timezone } } })
   ]);
   redirect("/account/preferences?personalSaved=1");
@@ -61,11 +60,6 @@ export async function updatePersonalSchedulingAction(formData: FormData): Promis
       where: { workspaceId: workspace.id },
       create: { workspaceId: workspace.id, defaultFollowUpMinutes, quietHoursStart, quietHoursEnd, weekendScheduling },
       update: { defaultFollowUpMinutes, quietHoursStart, quietHoursEnd, weekendScheduling }
-    });
-    await tx.workspaceProfile.upsert({
-      where: { workspaceId: workspace.id },
-      create: { workspaceId: workspace.id, timezone: workspace.profile?.timezone ?? "UTC", quietHoursStart, quietHoursEnd },
-      update: { quietHoursStart, quietHoursEnd }
     });
     await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: {} } });
     await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "personal.scheduling.update", entityType: "WorkspacePreference", entityId: workspace.id, source: "account.preferences", metadata: { defaultFollowUpMinutes, quietHoursStart, quietHoursEnd, weekendScheduling } } });

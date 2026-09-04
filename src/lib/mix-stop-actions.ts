@@ -37,7 +37,7 @@ export async function stopMixForContactAction(formData: FormData): Promise<void>
       update: { stoppedByUserId: user.id, reason: reason || null, stoppedAt: new Date() }
     }),
     prisma.jump.updateMany({
-      where: { workspaceId: workspace.id, mixId: mix.id, contactId: contact.id, status: { in: ["PENDING", "COPIED"] } },
+      where: { workspaceId: workspace.id, mixId: mix.id, contactId: contact.id, status: "PENDING" },
       data: { status: "CANCELED", completedAt: null, completionMethod: "mix_stopped_for_contact" }
     }),
     prisma.auditLog.create({

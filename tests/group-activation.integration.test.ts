@@ -22,7 +22,7 @@ describe.sequential("Contact Group activation lifecycle", () => {
         slug: `group-activation-${suffix}`,
         ownerId: user.id,
         planTier: "FREE",
-        profile: { create: { timezone: "UTC" } }
+        profile: { create: {} }
       }
     });
     const group = await prisma.group.create({

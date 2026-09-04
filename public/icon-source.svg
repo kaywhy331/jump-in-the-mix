@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Jump in the Mix">
+  <rect width="1024" height="1024" rx="224" fill="#5d4cf2"/>
+  <g fill="none" stroke="#fffdf8" stroke-width="82" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M286 738 738 286M456 286h282v282"/>
+    <path d="M286 286v150M286 588v150h150M588 738h150V588" opacity=".92"/>
+  </g>
+</svg>

@@ -122,7 +122,7 @@ export async function registerWithReferralAction(formData: FormData): Promise<vo
             slug: workspaceSlug,
             ownerId: created.id,
             members: { create: { userId: created.id, role: "OWNER" } },
-            profile: { create: { timezone: "America/New_York" } },
+            profile: { create: {} },
             groups: {
               create: [
                 { name: "Leads", description: "People who may become customers." },

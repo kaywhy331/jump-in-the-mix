@@ -61,6 +61,12 @@ export const env = {
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   emailFrom: process.env.EMAIL_FROM ?? "",
   emailReplyTo: process.env.EMAIL_REPLY_TO ?? "",
+  vapidPublicKey: process.env.WEB_PUSH_VAPID_PUBLIC_KEY ?? "",
+  vapidPrivateKey: process.env.WEB_PUSH_VAPID_PRIVATE_KEY ?? "",
+  vapidSubject: process.env.WEB_PUSH_VAPID_SUBJECT ?? process.env.EMAIL_FROM ?? "mailto:hello@jumpinthemix.app",
+  twilioAccountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
+  twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ?? "",
+  twilioFromNumber: process.env.TWILIO_FROM_NUMBER ?? "",
   aiProvider: (process.env.AI_PROVIDER ?? "openai").trim().toLowerCase(),
   aiApiKey: process.env.AI_API_KEY ?? "",
   aiModel: process.env.AI_MODEL ?? "gpt-5.6-luna",
@@ -103,7 +109,7 @@ export function productionConfigurationIssues(source: NodeJS.ProcessEnv = proces
     const pilotMode = enabled(source.PILOT_MODE);
     const loopback = ["localhost", "127.0.0.1", "::1"].includes(publicUrl.hostname);
     const validPilotOrigin = pilotMode && loopback && publicUrl.protocol === "http:";
-    const validHostedOrigin = publicUrl.protocol === "https:" && !loopback;
+    const validHostedOrigin = !pilotMode && publicUrl.protocol === "https:" && !loopback;
     if (!validPilotOrigin && !validHostedOrigin) {
       issues.push("APP_URL must be a public https origin");
     }
@@ -112,5 +118,10 @@ export function productionConfigurationIssues(source: NodeJS.ProcessEnv = proces
   }
 
   if ((source.DEMO_MODE ?? "false").toLowerCase() === "true") issues.push("DEMO_MODE must be false");
+  if (!enabled(source.PILOT_MODE)) {
+    if (!enabled(source.AUTH_REQUIRE_EMAIL_VERIFICATION)) issues.push("AUTH_REQUIRE_EMAIL_VERIFICATION must be true for hosted production");
+    if (!source.RESEND_API_KEY?.trim()) issues.push("RESEND_API_KEY is required for hosted production");
+    if (!source.EMAIL_FROM?.trim()) issues.push("EMAIL_FROM is required for hosted production");
+  }
   return issues;
 }

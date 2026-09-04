@@ -15,7 +15,6 @@ const contact = {
 
 const onboardingProfile = {
   workspaceId: "workspace",
-  timezone: "America/Chicago",
   industry: "Home services",
   primaryGoal: null,
   company: "Lee Plumbing",
@@ -38,8 +37,7 @@ const onboardingProfile = {
   senderDetails: [],
   smsSignature: "Alex",
   emailSignature: "Alex Morgan",
-  quietHoursStart: 1200,
-  quietHoursEnd: 480,
+  reviewUrl: null,
   onboardingStep: 5,
   onboardingDone: true,
   createdAt: new Date(),

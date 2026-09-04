@@ -4,6 +4,7 @@ import type { DateRecurrence } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { daysInMonth } from "@/lib/jump-schedule";
+import { timezoneForUser } from "@/lib/display-preferences";
 import { prisma } from "@/lib/prisma";
 
 function value(formData: FormData, key: string): string {
@@ -58,6 +59,7 @@ export async function createImportantDateAction(formData: FormData): Promise<voi
   const label = value(formData, "label");
   const fields = parseDateFields(formData, path);
   const autoAssignRecommended = formData.get("autoAssignRecommended") === "on";
+  const timezone = await timezoneForUser(user.id);
 
   const [contact, dateType] = await Promise.all([
     prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, select: { id: true } }),
@@ -90,7 +92,7 @@ export async function createImportantDateAction(formData: FormData): Promise<voi
         contactId: contact.id,
         dateTypeId: dateType.id,
         ...fields,
-        timezone: workspace.profile?.timezone ?? "UTC",
+        timezone,
         label: label || null,
         isActive: true
       }
@@ -137,6 +139,7 @@ export async function updateImportantDateAction(formData: FormData): Promise<voi
   const path = `/contacts/${contactId}`;
   if (impersonation) fail(path, "Administrator support sessions are view-only.");
   const fields = parseDateFields(formData, path);
+  const timezone = await timezoneForUser(user.id);
 
   const [contact, dateType, existing] = await Promise.all([
     prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, select: { id: true } }),
@@ -156,7 +159,7 @@ export async function updateImportantDateAction(formData: FormData): Promise<voi
         dateTypeId: dateType.id,
         ...fields,
         label: label || null,
-        timezone: workspace.profile?.timezone ?? "UTC"
+        timezone
       }
     }),
     prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId } } }),

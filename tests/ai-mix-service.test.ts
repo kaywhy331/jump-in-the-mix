@@ -23,7 +23,7 @@ describe.sequential("AI Mix draft service", () => {
           ownerId: userA.id,
           planTier: "PLUS",
           members: { create: { userId: userA.id, role: "OWNER" } },
-          profile: { create: { timezone: "America/Los_Angeles", industry: "Coaching / Consulting", product1: "Business Growth Consulting" } }
+          profile: { create: { industry: "Coaching / Consulting", product1: "Business Growth Consulting" } }
         }
       }),
       prisma.workspace.create({
@@ -33,7 +33,7 @@ describe.sequential("AI Mix draft service", () => {
           ownerId: userB.id,
           planTier: "PLUS",
           members: { create: { userId: userB.id, role: "OWNER" } },
-          profile: { create: { timezone: "America/New_York" } }
+          profile: { create: {} }
         }
       })
     ]);

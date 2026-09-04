@@ -24,7 +24,7 @@ async function createWorkspace(input: { suffix: string; label: string; planTier?
       ownerId: user.id,
       planTier: input.planTier ?? "FREE",
       members: { create: { userId: user.id, role: "OWNER" } },
-      profile: { create: { timezone: "America/Los_Angeles" } }
+      profile: { create: {} }
     }
   });
   const account = await prisma.$transaction((tx) => createReferralAccountInTransaction(tx, workspace.id));

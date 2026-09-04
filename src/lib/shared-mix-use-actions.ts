@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { useSharedMixTemplate } from "@/lib/shared-mix-use-service";
+import { timezoneForUser } from "@/lib/display-preferences";
 
 function value(formData: FormData, key: string, maximum = 4000): string {
   return String(formData.get(key) ?? "").trim().slice(0, maximum);
@@ -22,6 +23,7 @@ export async function useSharedMixTemplateAction(formData: FormData): Promise<vo
   if (!sharedMixId) redirect("/templates?error=Choose%20an%20approved%20Mix%20Template.");
   if (impersonation) fail(sharedMixId, "Administrator support sessions are view-only.");
   const status = value(formData, "status", 20) === "ACTIVE" ? "ACTIVE" : "DRAFT";
+  const workspaceTimezone = await timezoneForUser(user.id);
   let result: Awaited<ReturnType<typeof useSharedMixTemplate>>;
   try {
     result = await useSharedMixTemplate({
@@ -35,7 +37,7 @@ export async function useSharedMixTemplateAction(formData: FormData): Promise<vo
       groupIds: [...new Set(values(formData, "groupIds"))],
       broadcastDate: value(formData, "broadcastDate", 10) || null,
       broadcastTime: value(formData, "broadcastTime", 5) || null,
-      broadcastTimezone: value(formData, "broadcastTimezone", 120) || workspace.profile?.timezone || "UTC"
+      broadcastTimezone: value(formData, "broadcastTimezone", 120) || workspaceTimezone
     });
   } catch (error) {
     fail(sharedMixId, error instanceof Error ? error.message : "The Mix Template could not be used.");

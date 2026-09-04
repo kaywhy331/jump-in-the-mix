@@ -51,7 +51,7 @@ describe.sequential("Google Contacts sync", () => {
         ownerId: user.id,
         planTier: "PLUS",
         members: { create: { userId: user.id, role: "OWNER" } },
-        profile: { create: { timezone: "America/Los_Angeles" } }
+        profile: { create: {} }
       }
     });
     ids.workspace = workspace.id;

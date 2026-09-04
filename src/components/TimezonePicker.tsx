@@ -1,6 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { AppIcon } from "@/components/AppIcon";
+
+function cityLabel(zone: string): string {
+  const city = zone.split("/").at(-1)?.replaceAll("_", " ") ?? zone;
+  try {
+    const abbreviation = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "short" })
+      .formatToParts(new Date()).find((part) => part.type === "timeZoneName")?.value;
+    return abbreviation ? `${city} (${abbreviation})` : city;
+  } catch {
+    return city;
+  }
+}
 
 export function TimezonePicker({
   defaultValue,
@@ -16,13 +28,43 @@ export function TimezonePicker({
   label?: string;
 }) {
   const [value, setValue] = useState(defaultValue);
-  const listId = `${id}-global-timezones`;
-  const zones = useMemo(() => typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : ["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles"], []);
-  const detect = () => setValue(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
+  const [query, setQuery] = useState("");
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const zones = useMemo(() => typeof Intl.supportedValuesOf === "function"
+    ? Intl.supportedValuesOf("timeZone")
+    : ["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles"], []);
+  const visibleZones = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const sorted = [...zones].sort((left, right) => cityLabel(left).localeCompare(cityLabel(right)));
+    return needle ? sorted.filter((zone) => `${zone} ${cityLabel(zone)}`.toLowerCase().includes(needle)).slice(0, 100) : sorted.slice(0, 100);
+  }, [query, zones]);
+  const detect = () => {
+    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    setValue(detected);
+    dialogRef.current?.close();
+  };
+
   useEffect(() => {
     if (!confirmDetection) return;
     const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (detected) setValue(detected);
   }, [confirmDetection]);
-  return <div className="timezone-picker"><label htmlFor={id} className="sr-only">{label}</label><div className="timezone-input-row"><input id={id} name={name} value={value} onChange={(event) => setValue(event.target.value)} list={listId} autoComplete="off" required/><button className="button" type="button" onClick={detect}>{confirmDetection ? "Change" : "Use detected"}</button></div><datalist id={listId}>{zones.map((zone) => <option value={zone} key={zone}/>)}</datalist>{confirmDetection && <small>Detected automatically. Follow-ups will use {value.replaceAll("_", " ")}.</small>}</div>;
+
+  return <div className="timezone-picker">
+    <input id={id} name={name} value={value} type="hidden" />
+    <div className="timezone-current"><span><small>{label}</small><strong>{cityLabel(value)}</strong></span><button className="button" type="button" onClick={() => dialogRef.current?.showModal()}>Change</button></div>
+    {confirmDetection && <small>Detected automatically for follow-up times.</small>}
+    <dialog ref={dialogRef} className="sheet timezone-sheet" aria-labelledby={titleId} onClick={(event) => { if (event.target === event.currentTarget) dialogRef.current?.close(); }}>
+      <div className="sheet-panel">
+        <header className="sheet-header"><div><h2 id={titleId}>Choose your city</h2><p>We’ll handle daylight saving time automatically.</p></div><button className="icon-button" type="button" onClick={() => dialogRef.current?.close()} aria-label="Close timezone picker"><AppIcon name="close" /></button></header>
+        <div className="sheet-body">
+          <button className="button" type="button" onClick={detect}>Use my current location setting</button>
+          <label className="field"><span>Search cities</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Chicago, London, Tokyo…" autoComplete="off" /></label>
+          <div className="timezone-city-list">{visibleZones.map((zone) => <button className={zone === value ? "timezone-city selected" : "timezone-city"} type="button" key={zone} onClick={() => { setValue(zone); dialogRef.current?.close(); }}><strong>{cityLabel(zone)}</strong><small>{zone}</small></button>)}</div>
+          {!visibleZones.length && <p>No matching city found.</p>}
+        </div>
+      </div>
+    </dialog>
+  </div>;
 }

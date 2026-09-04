@@ -99,8 +99,8 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
     });
     await tx.workspaceProfile.upsert({
       where: { workspaceId: workspace.id },
-      create: { workspaceId: workspace.id, company: businessName, industry: businessType, smsSignature, emailSignature: user.name, primaryGoal: reason, timezone, onboardingStep: 5, onboardingDone: true },
-      update: { company: businessName, industry: businessType, smsSignature, emailSignature: user.name, primaryGoal: reason, timezone, onboardingStep: 5, onboardingDone: true }
+      create: { workspaceId: workspace.id, company: businessName, industry: businessType, smsSignature, emailSignature: user.name, primaryGoal: reason, onboardingStep: 5, onboardingDone: true },
+      update: { company: businessName, industry: businessType, smsSignature, emailSignature: user.name, primaryGoal: reason, onboardingStep: 5, onboardingDone: true }
     });
     await tx.workspace.update({ where: { id: workspace.id }, data: { name: businessName } });
     await tx.userPreference.upsert({ where: { userId: user.id }, create: { userId: user.id, timezone }, update: { timezone } });
@@ -112,7 +112,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
 export async function skipOnboardingAction(formData: FormData): Promise<void> {
   const { workspace, user } = await requireWorkspace();
   const submittedTimezone = value(formData, "timezone");
-  const existingTimezone = workspace.profile?.timezone ?? "UTC";
+  const existingTimezone = (await prisma.userPreference.findUnique({ where: { userId: user.id } }))?.timezone ?? "UTC";
   const timezone = isValidTimezone(submittedTimezone)
     ? submittedTimezone
     : isValidTimezone(existingTimezone)
@@ -120,8 +120,8 @@ export async function skipOnboardingAction(formData: FormData): Promise<void> {
       : "UTC";
   await prisma.workspaceProfile.upsert({
     where: { workspaceId: workspace.id },
-    create: { workspaceId: workspace.id, company: workspace.name, smsSignature: user.name, emailSignature: user.name, timezone, onboardingStep: 5, onboardingDone: true },
-    update: { smsSignature: workspace.profile?.smsSignature ?? user.name, emailSignature: workspace.profile?.emailSignature ?? user.name, timezone, onboardingStep: 5, onboardingDone: true }
+    create: { workspaceId: workspace.id, company: workspace.name, smsSignature: user.name, emailSignature: user.name, onboardingStep: 5, onboardingDone: true },
+    update: { smsSignature: workspace.profile?.smsSignature ?? user.name, emailSignature: workspace.profile?.emailSignature ?? user.name, onboardingStep: 5, onboardingDone: true }
   });
   await prisma.userPreference.upsert({ where: { userId: user.id }, create: { userId: user.id, timezone }, update: { timezone } });
   await ensureStarterMix(workspace.id);

@@ -26,7 +26,7 @@ describe.sequential("Device Contact Quick Add", () => {
           name: "Quick Add A",
           slug: `quick-add-a-${suffix}`,
           ownerId: userA.id,
-          profile: { create: { timezone: "America/Los_Angeles" } }
+          profile: { create: {} }
         }
       }),
       prisma.workspace.create({
@@ -34,7 +34,7 @@ describe.sequential("Device Contact Quick Add", () => {
           name: "Quick Add B",
           slug: `quick-add-b-${suffix}`,
           ownerId: userB.id,
-          profile: { create: { timezone: "America/New_York" } }
+          profile: { create: {} }
         }
       })
     ]);
@@ -130,7 +130,7 @@ describe.sequential("Device Contact Quick Add", () => {
         name: "Quick Add Limit",
         slug: `quick-add-limit-${suffix}`,
         ownerId: user.id,
-        profile: { create: { timezone: "America/Los_Angeles" } }
+        profile: { create: {} }
       }
     });
     workspaceIds.push(workspace.id);

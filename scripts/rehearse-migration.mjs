@@ -15,6 +15,7 @@ const supportMigration = "20260716210000_support_center";
 const referralMigration = "20260717010000_referral_rewards";
 const contactGroupActivationMigration = "20260717120000_contact_group_activation";
 const accountDeletionWorkflowMigration = "20260718190000_account_deletion_workflow";
+const productPlatformMigration = "20260904170000_product_platform";
 const requiredMigrations = [
   baselineMigration,
   forwardMigration,
@@ -22,7 +23,8 @@ const requiredMigrations = [
   supportMigration,
   referralMigration,
   contactGroupActivationMigration,
-  accountDeletionWorkflowMigration
+  accountDeletionWorkflowMigration,
+  productPlatformMigration
 ];
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const schemaName = `jitm_rehearsal_${suffix}`;
@@ -107,6 +109,11 @@ async function seedLegacyDatabase(client) {
     [now]
   );
   await client.query(
+    `INSERT INTO "WorkspaceProfile" ("workspaceId", "timezone", "quietHoursStart", "quietHoursEnd", "company", "createdAt", "updatedAt")
+     VALUES ('legacy-workspace', 'America/Chicago', 1260, 420, 'Legacy Plumbing', $1, $1)`,
+    [now]
+  );
+  await client.query(
     `INSERT INTO "Contact" ("id", "workspaceId", "firstName", "displayName", "company", "publicNotes", "source", "createdAt", "updatedAt")
      VALUES ('legacy-contact', 'legacy-workspace', 'Jordan', 'Jordan Legacy', 'Legacy Co', 'Preserve this note', 'MANUAL', $1, $1)`,
     [now]
@@ -136,6 +143,13 @@ async function seedLegacyDatabase(client) {
      VALUES ('legacy-mix-step', 'legacy-mix', 'legacy-version', 0, 1, $1)`,
     [now]
   );
+  await client.query(
+    `INSERT INTO "Jump" ("id", "workspaceId", "contactId", "mixId", "mixStepId", "stepVersionId", "scheduledAt", "status", "reason", "templateSnapshot", "renderedSnapshot", "uniquenessKey", "createdAt", "updatedAt")
+     VALUES
+       ('legacy-copied-jump', 'legacy-workspace', 'legacy-contact', 'legacy-mix', 'legacy-mix-step', 'legacy-version', $1, 'COPIED', 'Legacy copied', '{}'::jsonb, '{}'::jsonb, 'legacy-copied', $1, $1),
+       ('legacy-sent-jump', 'legacy-workspace', 'legacy-contact', 'legacy-mix', 'legacy-mix-step', 'legacy-version', $1, 'SENT', 'Legacy sent', '{}'::jsonb, '{}'::jsonb, 'legacy-sent', $1, $1)`,
+    [now]
+  );
 }
 
 async function assertForwardState(client) {
@@ -157,7 +171,12 @@ async function assertForwardState(client) {
     "ReferralReward",
     "ContactGroupState",
     "AccountDeletionAudit",
-    "AccountDeletionRevocation"
+    "AccountDeletionRevocation",
+    "NotificationPreference",
+    "PushSubscription",
+    "NotificationDelivery",
+    "AutomationPreference",
+    "ReviewRequest"
   ]) {
     if (!(await tableExists(client, table))) throw new Error(`Expected migrated table ${table}.`);
   }
@@ -166,6 +185,13 @@ async function assertForwardState(client) {
   }
   if (await indexExists(client, "MixStep_mixId_sortOrder_key")) throw new Error("Legacy MixStep uniqueness index should be removed.");
   if (!(await indexExists(client, "MixStep_mixId_isActive_sortOrder_idx"))) throw new Error("Active MixStep ordering index is missing.");
+  if (!(await indexExists(client, "Contact_displayName_trgm_idx"))) throw new Error("Hosted contact search index is missing.");
+  for (const column of ["timezone", "quietHoursStart", "quietHoursEnd"]) {
+    if (await columnExists(client, "WorkspaceProfile", column)) throw new Error(`Duplicate WorkspaceProfile.${column} was not removed.`);
+  }
+  for (const column of ["nextReconcileAt", "lastReconciledAt"]) {
+    if (!(await columnExists(client, "WorkspacePreference", column))) throw new Error(`WorkspacePreference.${column} is missing.`);
+  }
 
   const contact = await client.query(`SELECT "displayName", "publicNotes", "privateNotes" FROM "Contact" WHERE "id" = 'legacy-contact'`);
   if (contact.rows[0]?.displayName !== "Jordan Legacy" || contact.rows[0]?.publicNotes !== "Preserve this note" || contact.rows[0]?.privateNotes !== null) {
@@ -174,6 +200,15 @@ async function assertForwardState(client) {
   const mixStep = await client.query(`SELECT "isActive", "updatedAt" FROM "MixStep" WHERE "id" = 'legacy-mix-step'`);
   if (mixStep.rows[0]?.isActive !== true || !(mixStep.rows[0]?.updatedAt instanceof Date)) {
     throw new Error("Legacy MixStep was not backfilled correctly.");
+  }
+  const displayPreference = await client.query(`SELECT "timezone" FROM "UserPreference" WHERE "userId" = 'legacy-user'`);
+  const schedulePreference = await client.query(`SELECT "quietHoursStart", "quietHoursEnd" FROM "WorkspacePreference" WHERE "workspaceId" = 'legacy-workspace'`);
+  if (displayPreference.rows[0]?.timezone !== "America/Chicago" || schedulePreference.rows[0]?.quietHoursStart !== 1260 || schedulePreference.rows[0]?.quietHoursEnd !== 420) {
+    throw new Error("Legacy timezone and quiet-hour preferences were not preserved.");
+  }
+  const jumpStatuses = await client.query(`SELECT "id", "status"::text AS "status" FROM "Jump" WHERE "id" LIKE 'legacy-%-jump' ORDER BY "id"`);
+  if (jumpStatuses.rows[0]?.status !== "PENDING" || jumpStatuses.rows[1]?.status !== "DONE") {
+    throw new Error("Legacy Jump statuses were not consolidated.");
   }
   const migrations = await client.query(`SELECT "migration_name", "finished_at", "rolled_back_at" FROM "_prisma_migrations" ORDER BY "started_at"`);
   const names = migrations.rows.filter((row) => row.finished_at && !row.rolled_back_at).map((row) => row.migration_name);
@@ -291,7 +326,12 @@ async function assertGreenfieldState(client) {
     "ReferralReward",
     "ContactGroupState",
     "AccountDeletionAudit",
-    "AccountDeletionRevocation"
+    "AccountDeletionRevocation",
+    "NotificationPreference",
+    "PushSubscription",
+    "NotificationDelivery",
+    "AutomationPreference",
+    "ReviewRequest"
   ]) {
     if (!(await tableExists(client, table, greenfieldSchemaName))) {
       throw new Error(`Greenfield migration did not create ${table}.`);
@@ -299,6 +339,12 @@ async function assertGreenfieldState(client) {
   }
   if (!(await columnExists(client, "Contact", "privateNotes", greenfieldSchemaName))) {
     throw new Error("Greenfield migration did not create Contact.privateNotes.");
+  }
+  if (await columnExists(client, "WorkspaceProfile", "timezone", greenfieldSchemaName)) {
+    throw new Error("Greenfield migration retained duplicate WorkspaceProfile.timezone.");
+  }
+  if (!(await columnExists(client, "WorkspacePreference", "nextReconcileAt", greenfieldSchemaName))) {
+    throw new Error("Greenfield migration did not create per-workspace reconciliation scheduling.");
   }
   const migrations = await client.query(
     `SELECT "migration_name", "finished_at", "rolled_back_at"

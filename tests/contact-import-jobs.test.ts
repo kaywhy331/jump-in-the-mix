@@ -17,7 +17,7 @@ describe.sequential("Contact import jobs", () => {
     const user = await prisma.user.create({ data: { email: `import-job-${suffix}@example.com`, name: "Import Owner", passwordHash: "test-only" } });
     userIds.push(user.id);
     const workspace = await prisma.workspace.create({
-      data: { name: "Import Job", slug: `import-job-${suffix}`, ownerId: user.id, profile: { create: { timezone: "America/Los_Angeles" } } }
+      data: { name: "Import Job", slug: `import-job-${suffix}`, ownerId: user.id, profile: { create: {} } }
     });
     workspaceIds.push(workspace.id);
     const importId = `import-${suffix}`;

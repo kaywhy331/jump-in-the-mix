@@ -7,6 +7,7 @@ import { mergeGroupActivity } from "@/lib/group-activity";
 import { formatDateInput, formatTimeInput } from "@/lib/mix-broadcast";
 import { getPlatformStringList } from "@/lib/platform-settings";
 import { prisma } from "@/lib/prisma";
+import { timezoneForUser } from "@/lib/display-preferences";
 
 export const metadata: Metadata = { title: "Edit Mix" };
 
@@ -19,7 +20,8 @@ export default async function EditMixPage({
   params: Promise<{ mixId: string }>;
   searchParams: Promise<SearchParams>;
 }) {
-  const [{ mixId }, query, { workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
+  const [{ mixId }, query, { workspace, user }] = await Promise.all([params, searchParams, requireWorkspace()]);
+  const timezone = await timezoneForUser(user.id);
   const [mix, broadcastSchedule] = await Promise.all([
     prisma.mix.findFirst({
       where: { id: mixId, workspaceId: workspace.id, status: { not: "ARCHIVED" } },
@@ -65,7 +67,7 @@ export default async function EditMixPage({
         jumps={jumps.flatMap((item) => item.versions[0] ? [{ id: item.id, name: item.name, channel: item.channel, subject: item.versions[0].subject, body: item.versions[0].body, script: item.versions[0].script }] : [])}
         categories={categories}
         industries={industries}
-        workspaceTimezone={workspace.profile?.timezone ?? "UTC"}
+        workspaceTimezone={timezone}
         activeContactCount={activeContactCount}
         missingEmailCount={missingEmailCount}
         missingPhoneCount={missingPhoneCount}
@@ -83,7 +85,7 @@ export default async function EditMixPage({
           assignAllContacts,
           broadcastDate: formatDateInput(broadcastSchedule?.localDate),
           broadcastTime: formatTimeInput(broadcastSchedule?.timeMinutes),
-          broadcastTimezone: broadcastSchedule?.timezone ?? workspace.profile?.timezone ?? "UTC",
+          broadcastTimezone: broadcastSchedule?.timezone ?? timezone,
           steps: mix.steps.map((step) => ({
             id: step.id,
             stepTemplateId: step.stepVersion.stepTemplateId,

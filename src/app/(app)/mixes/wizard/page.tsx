@@ -13,6 +13,7 @@ import { formatTimeInput } from "@/lib/mix-broadcast";
 import { getPlatformBoolean, getPlatformStringList } from "@/lib/platform-settings";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
+import { timezoneForUser } from "@/lib/display-preferences";
 
 export const metadata: Metadata = { title: "AI Mix Wizard" };
 
@@ -34,7 +35,7 @@ function preferredOption(values: string[], preferred: string): string {
 }
 
 export default async function MixWizardPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [params, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
+  const [params, { workspace, user }] = await Promise.all([searchParams, requireWorkspace()]);
   const limits = PLAN_LIMITS[workspace.planTier];
 
   if (!limits.aiWizard) {
@@ -47,7 +48,7 @@ export default async function MixWizardPage({ searchParams }: { searchParams: Pr
     );
   }
 
-  const [rawGroups, groupStates, dateTypes, recentDrafts, objectives, frameworks, tones, providerEnabled] = await Promise.all([
+  const [rawGroups, groupStates, dateTypes, recentDrafts, objectives, frameworks, tones, providerEnabled, timezone, scheduling] = await Promise.all([
     prisma.group.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
     prisma.contactGroupState.findMany({ where: { workspaceId: workspace.id }, select: { groupId: true, isActive: true } }),
     prisma.dateType.findMany({
@@ -62,12 +63,13 @@ export default async function MixWizardPage({ searchParams }: { searchParams: Pr
     getPlatformStringList("ai.objectives"),
     getPlatformStringList("ai.frameworks"),
     getPlatformStringList("ai.tones"),
-    getPlatformBoolean("feature.aiProviderGeneration")
+    getPlatformBoolean("feature.aiProviderGeneration"),
+    timezoneForUser(user.id),
+    prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates).filter((group) => group.isActive);
   const profile = workspace.profile;
   const products = [profile?.product1, profile?.product2, profile?.product3, profile?.product4, profile?.product5];
-  const timezone = profile?.timezone ?? "UTC";
   const providerConnected = providerEnabled && isAiMixProviderConfigured();
 
   return (
@@ -120,7 +122,7 @@ export default async function MixWizardPage({ searchParams }: { searchParams: Pr
             <div className="field"><label htmlFor="touches">Number of Jumps</label><select id="touches" name="touches" defaultValue="5"><option value="3">3 Jumps</option><option value="4">4 Jumps</option><option value="5">5 Jumps</option><option value="6">6 Jumps</option><option value="7">7 Jumps</option></select></div>
             <div className="field"><label htmlFor="cadence">Cadence and intensity</label><select id="cadence" name="cadence" defaultValue="BALANCED">{AI_MIX_CADENCES.map((item) => <option key={item} value={item}>{cadenceLabel(item)}</option>)}</select></div>
             <div className="field"><label htmlFor="preferredSendTime">Preferred local time</label><input id="preferredSendTime" name="preferredSendTime" type="time" defaultValue="10:00" /></div>
-            <div className="field full"><small>Workspace quiet hours are currently {formatTimeInput(profile?.quietHoursStart)}–{formatTimeInput(profile?.quietHoursEnd)} in {timezone}. Generated Jumps keep one preferred time, which remains editable before activation.</small></div>
+            <div className="field full"><small>Quiet hours are {formatTimeInput(scheduling?.quietHoursStart)}–{formatTimeInput(scheduling?.quietHoursEnd)} in {timezone}. Generated follow-ups keep one preferred time, which remains editable before activation.</small></div>
           </div>
         </fieldset>
 

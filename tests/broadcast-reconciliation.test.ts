@@ -18,7 +18,7 @@ describe.sequential("fixed-date broadcast reconciliation", () => {
         name: "Broadcast Workspace",
         slug: `broadcast-${suffix}`,
         ownerId: user.id,
-        profile: { create: { timezone: "America/Los_Angeles" } }
+        profile: { create: {} }
       }
     });
     ids.workspace = workspace.id;

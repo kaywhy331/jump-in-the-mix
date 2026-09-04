@@ -64,7 +64,7 @@ describe.sequential("Contact activity timeline", () => {
     const workflow = readFileSync("src/components/JumpWorkflow.tsx", "utf8");
     const today = readFileSync("src/app/(app)/jumps/page.tsx", "utf8");
     expect(outcomeRoute).toContain("jump-outcome:${jumpId}:${requestId}");
-    expect(outcomeRoute).toContain('status: { in: ["PENDING", "COPIED"] }');
+    expect(outcomeRoute).toContain('status: "PENDING"');
     expect(outcomeRoute).toContain('kind: "JUMP_OUTCOME"');
     expect(workflow).toContain('"jitm:jump-state"');
     expect(workflow).toContain("How did the follow-up with");

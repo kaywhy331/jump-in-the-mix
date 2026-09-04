@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/AppShell";
+import { PwaInstallPrompt } from "@/components/PwaInstallPrompt";
 import { requireWorkspace } from "@/lib/auth";
 
 export default async function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -14,6 +15,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
       } : null}
     >
       {children}
+      {!impersonation && <PwaInstallPrompt />}
     </AppShell>
   );
 }

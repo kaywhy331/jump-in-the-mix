@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { CONTACT_IMPORT_JOB_TASK, runContactImportBatch } from "@/lib/contact-import-jobs";
 import { generateJumps } from "@/lib/jump-engine";
+import { runScheduledNotifications } from "@/lib/notification-delivery";
 import { cleanupOperationalData } from "@/lib/operational-retention";
 import { prisma } from "@/lib/prisma";
 
@@ -10,6 +11,7 @@ const heartbeatIntervalMs = 15_000;
 const jobLeaseMs = 10 * 60_000;
 const jobLeaseRenewalMs = 30_000;
 const maintenanceIntervalMs = 5 * 60_000;
+const notificationIntervalMs = 60_000;
 const maximumRetryDelayMs = 6 * 60 * 60_000;
 let stopping = false;
 let heartbeatTimer: NodeJS.Timeout | null = null;
@@ -178,14 +180,47 @@ async function processJob(job: ClaimedJob) {
 
 type MaintenanceState = {
   jumpReconciliation: number;
+  notifications: number;
   retentionCleanup: number;
 };
+
+async function runDueWorkspaceReconciliations(now = new Date()): Promise<void> {
+  const due = await prisma.workspacePreference.findMany({
+    where: { nextReconcileAt: { lte: now } },
+    orderBy: { nextReconcileAt: "asc" },
+    take: 25
+  });
+  for (const preference of due) {
+    const claimed = await prisma.workspacePreference.updateMany({
+      where: { id: preference.id, nextReconcileAt: { lte: now } },
+      data: { nextReconcileAt: new Date(now.getTime() + maintenanceIntervalMs) }
+    });
+    if (claimed.count !== 1) continue;
+    try {
+      await generateJumps({ workspaceId: preference.workspaceId });
+      await prisma.workspacePreference.updateMany({
+        where: { id: preference.id },
+        data: { lastReconciledAt: new Date() }
+      });
+    } catch (error) {
+      await prisma.workspacePreference.updateMany({
+        where: { id: preference.id },
+        data: { nextReconcileAt: new Date(Date.now() + notificationIntervalMs) }
+      }).catch(() => undefined);
+      console.error(`Periodic follow-up preparation failed for workspace ${preference.workspaceId}`, error);
+    }
+  }
+}
 
 async function runMaintenanceIfDue(state: MaintenanceState): Promise<void> {
   const now = Date.now();
   if (now - state.jumpReconciliation >= maintenanceIntervalMs) {
-    try { await generateJumps(); } catch (error) { console.error("Periodic Jump reconciliation failed", error); }
+    try { await runDueWorkspaceReconciliations(new Date(now)); } catch (error) { console.error("Periodic follow-up preparation failed", error); }
     state.jumpReconciliation = Date.now();
+  }
+  if (now - state.notifications >= notificationIntervalMs) {
+    try { await runScheduledNotifications(workerId, new Date(now)); } catch (error) { console.error("Scheduled notification pass failed", error); }
+    state.notifications = Date.now();
   }
   if (now - state.retentionCleanup >= maintenanceIntervalMs) {
     try { await cleanupOperationalData(); } catch (error) { console.error("Operational retention cleanup failed", error); }
@@ -206,6 +241,7 @@ async function main() {
 
   const maintenance: MaintenanceState = {
     jumpReconciliation: 0,
+    notifications: 0,
     retentionCleanup: 0
   };
   while (!stopping) {

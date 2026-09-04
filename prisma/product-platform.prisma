@@ -1,0 +1,101 @@
+enum NotificationDeliveryKind {
+  DAILY_DIGEST
+  DUE_PUSH
+  WEEKLY_REPORT
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  DELIVERED
+  SKIPPED
+  FAILED
+}
+
+enum ReviewRequestStatus {
+  READY
+  OPENED
+  HAPPY
+  NEEDS_ATTENTION
+  REVIEW_CLICKED
+  REFERRAL_CLICKED
+}
+
+model NotificationPreference {
+  id                  String   @id @default(cuid())
+  workspaceId         String   @unique
+  userId              String
+  emailDigestEnabled  Boolean  @default(true)
+  pushEnabled         Boolean  @default(false)
+  weeklyReportEnabled Boolean  @default(true)
+  digestHour          Int      @default(7)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model PushSubscription {
+  id         String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  endpoint    String   @unique
+  p256dh      String
+  auth        String
+  userAgent   String?
+  lastUsedAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([workspaceId, userId])
+}
+
+model NotificationDelivery {
+  id           String                     @id @default(cuid())
+  workspaceId  String
+  userId       String
+  kind         NotificationDeliveryKind
+  localDate    String
+  status       NotificationDeliveryStatus @default(PENDING)
+  providerId   String?
+  error        String?
+  attempts     Int                        @default(0)
+  lockedAt     DateTime?
+  lockedBy     String?
+  deliveredAt  DateTime?
+  createdAt    DateTime                   @default(now())
+  updatedAt    DateTime                   @updatedAt
+
+  @@unique([workspaceId, kind, localDate])
+  @@index([status, createdAt])
+  @@index([lockedAt])
+}
+
+model AutomationPreference {
+  id                  String   @id @default(cuid())
+  workspaceId         String   @unique
+  enabled             Boolean  @default(false)
+  emailEnabled        Boolean  @default(false)
+  smsEnabled          Boolean  @default(false)
+  reviewWindowMinutes Int      @default(30)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model ReviewRequest {
+  id              String              @id @default(cuid())
+  workspaceId     String
+  contactId       String
+  tokenHash       String              @unique
+  status          ReviewRequestStatus @default(READY)
+  rating          Int?
+  feedback        String?
+  openedAt        DateTime?
+  respondedAt     DateTime?
+  reviewClickedAt DateTime?
+  referralClickedAt DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([workspaceId, createdAt])
+  @@index([contactId, createdAt])
+}

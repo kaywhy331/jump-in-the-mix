@@ -7,11 +7,13 @@ import { mergeGroupActivity } from "@/lib/group-activity";
 import { getPlatformStringList } from "@/lib/platform-settings";
 import { prisma } from "@/lib/prisma";
 import { READY_MADE_PLANS } from "@/lib/vertical-plan-library";
+import { timezoneForUser } from "@/lib/display-preferences";
 
 export const metadata: Metadata = { title: "New plan" };
 
 export default async function NewMixPage({ searchParams }: { searchParams: Promise<{ error?: string; custom?: string }> }) {
-  const [query, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
+  const [query, { workspace, user }] = await Promise.all([searchParams, requireWorkspace()]);
+  const timezone = await timezoneForUser(user.id);
   if (query.custom !== "1" && !query.error) {
     const businessType = workspace.profile?.industry ?? "Other";
     const recommended = READY_MADE_PLANS.filter((plan) => plan.industry === businessType || plan.industry === "Other").slice(0, 6);
@@ -40,7 +42,7 @@ export default async function NewMixPage({ searchParams }: { searchParams: Promi
         jumps={jumps.flatMap((item) => item.versions[0] ? [{ id: item.id, name: item.name, channel: item.channel, subject: item.versions[0].subject, body: item.versions[0].body, script: item.versions[0].script }] : [])}
         categories={categories}
         industries={industries}
-        workspaceTimezone={workspace.profile?.timezone ?? "UTC"}
+        workspaceTimezone={timezone}
         activeContactCount={activeContactCount}
         missingEmailCount={missingEmailCount}
         missingPhoneCount={missingPhoneCount}

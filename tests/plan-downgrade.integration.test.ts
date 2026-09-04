@@ -18,7 +18,7 @@ describe.sequential("plan downgrade safeguards", () => {
         slug: `downgrade-${suffix}`,
         ownerId: user.id,
         planTier: "PRO",
-        profile: { create: { timezone: "America/Los_Angeles" } }
+        profile: { create: {} }
       }
     });
     ids.user = user.id;

@@ -31,8 +31,8 @@ export async function updateJumpStatusAction(formData: FormData): Promise<void> 
   if (!allowedTargets.includes(status)) redirect(withResult(destination, "invalid"));
 
   const currentStatuses: JumpStatus[] = status === "PENDING"
-    ? ["DONE", "SENT", "SKIPPED"]
-    : ["PENDING", "COPIED"];
+    ? ["DONE", "SKIPPED"]
+    : ["PENDING"];
   const completedAt = status === "DONE" || status === "SKIPPED" ? new Date() : null;
   const result = await prisma.$transaction(async (tx) => {
     const changed = await tx.jump.updateMany({

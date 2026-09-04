@@ -8,6 +8,7 @@ import { listGroupStates, mergeGroupActivity } from "@/lib/group-activity";
 import { parseBroadcastScheduleInput } from "@/lib/mix-broadcast";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
 import { prisma } from "@/lib/prisma";
+import { timezoneForUser } from "@/lib/display-preferences";
 
 const MAX_STEP_OFFSET_DAYS = 365;
 const CHANNELS: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
@@ -62,6 +63,7 @@ function validateInlineAction(formData: FormData, index: number, path: string): 
 
 export async function saveMixAction(formData: FormData): Promise<void> {
   const { workspace, user, impersonation } = await requireWorkspace();
+  const workspaceTimezone = await timezoneForUser(user.id);
   const mixIdRaw = value(formData, "mixId", 100);
   const name = value(formData, "name", 160);
   const description = value(formData, "description", 1200);
@@ -95,7 +97,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
       broadcastSchedule = parseBroadcastScheduleInput(
         value(formData, "broadcastDate", 10),
         value(formData, "broadcastTime", 5),
-        value(formData, "broadcastTimezone", 120) || workspace.profile?.timezone || "UTC"
+        value(formData, "broadcastTimezone", 120) || workspaceTimezone
       );
     } catch (error) {
       fail(path, error instanceof Error ? error.message : "Choose a valid broadcast schedule.");

@@ -26,7 +26,7 @@ export async function archiveContactAction(formData: FormData): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await tx.contact.update({ where: { id: contact.id }, data: { archivedAt } });
     await tx.jump.updateMany({
-      where: { contactId: contact.id, workspaceId: workspace.id, status: { in: ["PENDING", "COPIED"] } },
+      where: { contactId: contact.id, workspaceId: workspace.id, status: "PENDING" },
       data: { status: "CANCELED", completedAt: null, completionMethod: "contact_archived" }
     });
     await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId: contact.id } } });

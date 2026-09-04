@@ -13,6 +13,7 @@ import {
 } from "@/lib/google-contacts";
 import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
+import { timezoneForUser } from "@/lib/display-preferences";
 
 const ACTIVE_RUN_STATUSES = ["QUEUED", "RUNNING"];
 const GOOGLE_SYNC_TASK = "sync-google-contacts";
@@ -726,6 +727,7 @@ export async function runGoogleContactsSync(input: {
     data: { status: "RUNNING", startedAt: new Date(), errorSummary: null }
   });
   const config = configFromConnection(connection);
+  const timezone = await timezoneForUser(connection.workspace.ownerId);
   const errors: string[] = [];
   let created = 0;
   let updated = 0;
@@ -778,7 +780,7 @@ export async function runGoogleContactsSync(input: {
           const contactId = await createGoogleContact({
             workspaceId: connection.workspaceId,
             actorUserId: input.actorUserId ?? null,
-            timezone: connection.workspace.profile?.timezone ?? "America/New_York",
+            timezone,
             record: decision.record,
             dateTypeIds
           });
@@ -790,7 +792,7 @@ export async function runGoogleContactsSync(input: {
         const contactId = await mergeGoogleContact({
           workspaceId: connection.workspaceId,
           actorUserId: input.actorUserId ?? null,
-          timezone: connection.workspace.profile?.timezone ?? "America/New_York",
+          timezone,
           record: decision.record,
           contactId: decision.targetContactId,
           preferGoogleCanonical: decision.kind === "LINKED",

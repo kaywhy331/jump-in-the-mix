@@ -22,7 +22,7 @@ import {
 } from "@/lib/personal-scheduling";
 
 const RECONCILIATION_UPDATE_STATUSES: JumpStatus[] = ["PENDING", "CANCELED"];
-const STALE_CANCELLATION_STATUSES: JumpStatus[] = ["PENDING", "COPIED"];
+const STALE_CANCELLATION_STATUSES: JumpStatus[] = ["PENDING"];
 const RECONCILABLE_CANCELLATION_METHODS = new Set([
   "reconciled",
   "mix_paused",
@@ -127,16 +127,8 @@ function baseJumpWhere(filters: ReconciliationFilters): Prisma.JumpWhereInput {
   };
 }
 
-function schedulingRule(
-  stored: PersonalSchedulingRule | undefined,
-  profile: { quietHoursStart?: number | null; quietHoursEnd?: number | null } | null
-): PersonalSchedulingRule {
-  if (stored) return stored;
-  return {
-    ...DEFAULT_PERSONAL_SCHEDULING,
-    quietHoursStart: profile?.quietHoursStart ?? DEFAULT_PERSONAL_SCHEDULING.quietHoursStart,
-    quietHoursEnd: profile?.quietHoursEnd ?? DEFAULT_PERSONAL_SCHEDULING.quietHoursEnd
-  };
+function schedulingRule(stored: PersonalSchedulingRule | undefined): PersonalSchedulingRule {
+  return stored ?? DEFAULT_PERSONAL_SCHEDULING;
 }
 
 export async function reconcileJumps(filters: ReconciliationFilters = {}): Promise<JumpReconciliationResult> {
@@ -220,7 +212,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const occurrenceEnd = addUtcDays(horizonEnd, -Math.min(minimumOffset, 0) + 7);
 
   const workspaceIds = [...new Set(assignments.map((assignment) => assignment.workspaceId))];
-  const [inactiveGroupStates, broadcastSchedules, schedulingByDataSpace, doNotContactStates] = await Promise.all([
+  const ownerIds = [...new Set(assignments.map((assignment) => assignment.workspace.ownerId))];
+  const [inactiveGroupStates, broadcastSchedules, schedulingByDataSpace, doNotContactStates, ownerPreferences] = await Promise.all([
     workspaceIds.length
       ? prisma.contactGroupState.findMany({
           where: { workspaceId: { in: workspaceIds }, isActive: false },
@@ -238,17 +231,20 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
     personalSchedulingRules(workspaceIds),
     workspaceIds.length
       ? prisma.contactRelationshipState.findMany({ where: { workspaceId: { in: workspaceIds }, doNotContact: true }, select: { contactId: true } })
-      : []
+      : [],
+    ownerIds.length ? prisma.userPreference.findMany({ where: { userId: { in: ownerIds } }, select: { userId: true, timezone: true } }) : []
   ]);
   const inactiveGroupIds = new Set(inactiveGroupStates.map((state) => state.groupId));
   const doNotContactIds = new Set(doNotContactStates.map((state) => state.contactId));
   const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
+  const timezoneByOwnerId = new Map(ownerPreferences.map((preference) => [preference.userId, preference.timezone]));
   const stopped = new Set(stops.map((item) => stopKey(item.mixId, item.contactId)));
   const desired = new Map<string, DesiredJump>();
 
   for (const assignment of assignments) {
     if (assignment.groupId && inactiveGroupIds.has(assignment.groupId)) continue;
-    const personalRule = schedulingRule(schedulingByDataSpace.get(assignment.workspaceId), assignment.workspace.profile);
+    const personalRule = schedulingRule(schedulingByDataSpace.get(assignment.workspaceId));
+    const workspaceTimezone = timezoneByOwnerId.get(assignment.workspace.ownerId) ?? "UTC";
 
     const contacts = new Map<string, NonNullable<typeof assignment.contact>>();
     if (assignment.contact && !assignment.contact.archivedAt) contacts.set(assignment.contact.id, assignment.contact);
@@ -278,7 +274,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
               jumpDateId: jumpDate.id,
               occurrenceKey: `jump-date:${jumpDate.id}:${logicalDateKey(occurrence)}`,
               reason: jumpDate.label || jumpDate.dateType.name,
-              timezone: jumpDate.timezone || assignment.workspace.profile?.timezone || "UTC",
+              timezone: jumpDate.timezone || workspaceTimezone,
               timeMinutes: jumpDate.timeMinutes
             });
           }
@@ -297,7 +293,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
           });
         }
       } else {
-        const timezone = assignment.workspace.profile?.timezone || "UTC";
+        const timezone = workspaceTimezone;
         const startDate = assignment.startDate ?? assignment.createdAt;
         const logicalDate = logicalDateInTimezone(startDate, timezone);
         triggers.push({

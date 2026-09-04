@@ -70,7 +70,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ con
     where: {
       workspaceId: scoped.membership.workspaceId,
       contactId,
-      status: { in: ["DONE", "SENT", "SKIPPED"] },
+      status: { in: ["DONE", "SKIPPED"] },
       completedAt: { not: null }
     },
     include: { mix: { select: { name: true } }, stepVersion: { include: { stepTemplate: { select: { channel: true } } } } },

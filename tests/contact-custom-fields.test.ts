@@ -49,7 +49,7 @@ describe("Contact custom fields", () => {
     };
     const sms = renderJumpSnapshot(template, contact, null, { name: "Alex Morgan", email: "alex@example.com" }, "SMS");
     const call = renderJumpSnapshot({ script: template.body }, contact, null, { name: "Alex Morgan", email: "alex@example.com" }, "PHONE_CALL");
-    expect(sms.body).toBe("Policy PN-1042 · Preferred · ");
+    expect(sms.body).toBe("Policy PN-1042 · Preferred ·");
     expect(call.script).toBe("Policy PN-1042 · Preferred · Discuss the underwriting exception.");
   });
 });

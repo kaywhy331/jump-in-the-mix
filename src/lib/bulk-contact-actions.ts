@@ -86,7 +86,7 @@ export async function bulkArchiveContactsAction(formData: FormData): Promise<voi
   await prisma.$transaction([
     prisma.contact.updateMany({ where: { workspaceId: workspace.id, id: { in: contactIds } }, data: { archivedAt } }),
     prisma.mixAssignment.updateMany({ where: { workspaceId: workspace.id, contactId: { in: contactIds } }, data: { isActive: false } }),
-    prisma.jump.updateMany({ where: { workspaceId: workspace.id, contactId: { in: contactIds }, status: { in: ["PENDING", "COPIED"] } }, data: { status: "CANCELED", completedAt: null, completionMethod: "contacts_archived" } })
+    prisma.jump.updateMany({ where: { workspaceId: workspace.id, contactId: { in: contactIds }, status: "PENDING" }, data: { status: "CANCELED", completedAt: null, completionMethod: "contacts_archived" } })
   ]);
   redirect(`/contacts?bulkArchived=${contacts.length}`);
 }
@@ -175,7 +175,7 @@ export async function applyJumpToContactsAction(formData: FormData): Promise<voi
       prisma.userPreference.findUnique({ where: { userId: user.id } }),
       prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })
     ]);
-    const timezone = userPreference?.timezone ?? workspace.profile?.timezone ?? "UTC";
+    const timezone = userPreference?.timezone ?? "UTC";
     const date = sendWhen === "tomorrow"
       ? addLogicalDays(logicalDateInTimezone(now, timezone), 1)
       : selectedDate(value(formData, "scheduledDate"));

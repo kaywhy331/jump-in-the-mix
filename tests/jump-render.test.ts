@@ -16,7 +16,6 @@ const owner = { name: "Alex Morgan", email: "alex@example.com" };
 
 const profile = {
   workspaceId: "workspace",
-  timezone: "America/Los_Angeles",
   industry: "Consulting",
   primaryGoal: null,
   company: "Morgan Advisory",
@@ -39,8 +38,7 @@ const profile = {
   senderDetails: [],
   smsSignature: "— Alex",
   emailSignature: "Alex Morgan",
-  quietHoursStart: 1200,
-  quietHoursEnd: 480,
+  reviewUrl: null,
   onboardingStep: 5,
   onboardingDone: true,
   createdAt: new Date(),

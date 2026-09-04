@@ -134,7 +134,7 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
           name: "Onboarding Browser Workspace",
           slug: `e2e-onboarding-${suffix}`,
           members: { create: { userId, role: "OWNER" } },
-          profile: { create: { onboardingDone: false, timezone: "America/Los_Angeles" } }
+          profile: { create: { onboardingDone: false } }
         }
       }
     }
