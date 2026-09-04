@@ -4,12 +4,11 @@ import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
 import { SharedMixPreview } from "@/components/SharedMixPreview";
 import { requireWorkspace } from "@/lib/auth";
-import { formatDate } from "@/lib/format";
 import { getPlatformStringList } from "@/lib/platform-settings";
 import { prisma } from "@/lib/prisma";
 import { normalizeSharedMixSteps, sharedMixContentIssue } from "@/lib/shared-mix";
 
-export const metadata: Metadata = { title: "Mix Templates" };
+export const metadata: Metadata = { title: "Ready-made plans" };
 const PAGE_SIZE = 24;
 
 type SearchParams = { q?: string; category?: string; industry?: string; page?: string; error?: string };
@@ -61,18 +60,15 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
 
   return <div className="page mix-template-page">
     {params.error && <Notice type="error">{params.error}</Notice>}
-    <header className="page-header"><div><h1>Mix Templates</h1><p>Browse ready-to-use follow-up sequences, then choose the audience, timing, and lifecycle in one focused setup.</p></div><div className="page-actions"><Link className="button" href="/mixes">My Mixes</Link><Link className="button primary" href="/mixes/new">Create my own</Link></div></header>
-    <form className="filter-bar template-filter-bar" method="get"><input name="q" defaultValue={query} placeholder="Search outcome, situation, or phrase" aria-label="Search Mix Templates"/><select name="category" defaultValue={category} aria-label="Filter by category"><option value="">All categories</option>{categories.map((item) => <option key={item}>{item}</option>)}</select><select name="industry" defaultValue={industry} aria-label="Filter by industry"><option value="">All industries</option>{industries.map((item) => <option key={item}>{item}</option>)}</select><button className="button" type="submit">Apply</button>{(query || category || industry) && <Link className="button" href="/templates">Clear</Link>}</form>
-    <p className="sr-only" role="status" aria-live="polite">{templates.length} Mix Templates found. Showing page {currentPage} of {totalPages}.</p>
+    <header className="page-header"><div><h1>Ready-made plans</h1><p>Practical follow-ups for the moments that grow a small business.</p></div><div className="page-actions"><Link className="button" href="/mixes">My plans</Link><Link className="button primary" href="/mixes/new?custom=1">Build my own</Link></div></header>
+    <form className="filter-bar template-filter-bar" method="get"><input name="q" defaultValue={query} placeholder="Search by goal or situation" aria-label="Search ready-made plans"/><select name="category" defaultValue={category} aria-label="Filter by goal"><option value="">Every goal</option>{categories.map((item) => <option key={item}>{item}</option>)}</select><select name="industry" defaultValue={industry} aria-label="Filter by business type"><option value="">Every business type</option>{industries.map((item) => <option key={item}>{item}</option>)}</select><button className="button" type="submit">Show plans</button>{(query || category || industry) && <Link className="button" href="/templates">Clear</Link>}</form>
+    <p className="sr-only" role="status" aria-live="polite">{templates.length} ready-made plans found. Showing page {currentPage} of {totalPages}.</p>
     {visible.length ? <div className="mix-template-grid">{visible.map((template) => {
       const metadata = metadataById.get(template.id);
       const issue = sharedMixContentIssue(template.steps);
       const steps = issue ? [] : normalizeSharedMixSteps(template.steps);
-      const imported = importedByTemplate.get(template.id);
-      const version = metadata?.version ?? 1;
-      const updateAvailable = Boolean(imported && version > imported.latestVersion);
-      return <article className="card mix-template-card" key={template.id}><div className="mix-template-card-heading"><div><div className="template-badges"><span className="status-pill">{template.category}</span>{template.industry && <span className="status-pill">{template.industry}</span>}{updateAvailable && <span className="status-pill done">New version</span>}</div><h2>{template.title}</h2><p>{template.description}</p></div></div>{issue ? <Notice type="error">This template is temporarily unavailable: {issue}</Notice> : <SharedMixPreview title={template.title} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} durationDays={template.durationDays} steps={steps}/>}<div className="mix-template-card-footer">{!issue && <Link className="button small primary" href={`/templates/${template.id}/use`}>{updateAvailable ? "Use latest version" : imported ? "Use again" : "Use template"}</Link>}</div>{imported && <small>Previously used {imported.count}× · latest used version {imported.latestVersion}</small>}<small className="template-updated">Version {version} · Updated {formatDate(template.updatedAt)}</small></article>;
-    })}</div> : <EmptyState title="No templates match" description="Try clearing a filter or searching for a broader outcome." actionHref="/templates" actionLabel="Clear filters"/>}
-    <nav className="pagination-bar" aria-label="Mix Template result pages"><span>{templates.length.toLocaleString()} templates</span><div className="page-actions">{currentPage > 1 && <Link className="button" href={pageHref(params, currentPage - 1)}>Previous</Link>}<span>Page {currentPage} of {totalPages}</span>{currentPage < totalPages && <Link className="button" href={pageHref(params, currentPage + 1)}>Next</Link>}</div></nav>
+      return <article className="card mix-template-card" key={template.id}><div className="mix-template-card-heading"><div><div className="template-badges"><span className="status-pill">{template.category}</span>{template.industry && <span className="status-pill">{template.industry}</span>}</div><h2>{template.title}</h2><p>{template.description}</p></div></div>{issue ? <Notice type="error">This plan is temporarily unavailable: {issue}</Notice> : <SharedMixPreview title={template.title} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} durationDays={template.durationDays} steps={steps}/>}<div className="mix-template-card-footer">{!issue && <Link className="button small primary" href={`/templates/${template.id}/use`}>Use this plan</Link>}</div></article>;
+    })}</div> : <EmptyState title="No plans match" description="Try clearing a filter or searching for a broader goal." actionHref="/templates" actionLabel="Clear filters"/>}
+    <nav className="pagination-bar" aria-label="Ready-made plan result pages"><span>{templates.length.toLocaleString()} plans</span><div className="page-actions">{currentPage > 1 && <Link className="button" href={pageHref(params, currentPage - 1)}>Previous</Link>}<span>Page {currentPage} of {totalPages}</span>{currentPage < totalPages && <Link className="button" href={pageHref(params, currentPage + 1)}>Next</Link>}</div></nav>
   </div>;
 }

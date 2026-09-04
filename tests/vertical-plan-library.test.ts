@@ -1,0 +1,76 @@
+import { describe, expect, it } from "vitest";
+import { renderJumpSnapshot } from "../src/lib/jump-render";
+import { READY_MADE_PLANS, starterPlanForBusinessType } from "../src/lib/vertical-plan-library";
+
+const contact = {
+  firstName: "Jordan",
+  lastName: "Lee",
+  company: null,
+  publicNotes: null,
+  privateNotes: null,
+  emails: [{ email: "jordan@example.com", isPrimary: true }],
+  phones: [{ phone: "+15550101010", isPrimary: true }],
+  addresses: []
+};
+
+const onboardingProfile = {
+  workspaceId: "workspace",
+  timezone: "America/Chicago",
+  industry: "Home services",
+  primaryGoal: null,
+  company: "Lee Plumbing",
+  website: null,
+  phone: null,
+  street: null,
+  city: null,
+  state: null,
+  postalCode: null,
+  mailingAddress: null,
+  product1: null,
+  product2: null,
+  product3: null,
+  product4: null,
+  product5: null,
+  myCustom1: null,
+  myCustom2: null,
+  myCustom3: null,
+  products: [],
+  senderDetails: [],
+  smsSignature: "Alex",
+  emailSignature: "Alex Morgan",
+  quietHoursStart: 1200,
+  quietHoursEnd: 480,
+  onboardingStep: 5,
+  onboardingDone: true,
+  createdAt: new Date(),
+  updatedAt: new Date()
+};
+
+describe("ready-made vertical plans", () => {
+  it("provides a starter for every onboarding business type", () => {
+    for (const type of ["Home services", "Real estate", "Insurance & finance", "Other"]) {
+      expect(starterPlanForBusinessType(type).industry).toBe(type);
+    }
+  });
+
+  it("renders every seeded message using fields collected during onboarding", () => {
+    for (const plan of READY_MADE_PLANS) {
+      for (const step of plan.steps) {
+        const rendered = renderJumpSnapshot(step, contact, onboardingProfile, { name: "Alex Morgan", email: "alex@example.com" }, step.channel);
+        for (const content of [rendered.subject, rendered.body, rendered.script].filter(Boolean)) {
+          expect(content, `${plan.id}/${step.name}`).not.toContain("{{");
+          expect(content, `${plan.id}/${step.name}`).not.toContain("  ");
+        }
+      }
+    }
+  });
+
+  it("keeps text messages within the SMS-friendly 160 character limit", () => {
+    for (const plan of READY_MADE_PLANS) {
+      for (const step of plan.steps.filter((item) => item.channel === "SMS")) {
+        const rendered = renderJumpSnapshot(step, contact, onboardingProfile, { name: "Alex Morgan", email: "alex@example.com" }, step.channel);
+        expect(rendered.body?.length, `${plan.id}/${step.name}`).toBeLessThanOrEqual(160);
+      }
+    }
+  });
+});

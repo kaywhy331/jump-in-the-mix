@@ -1,20 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { EmptyState } from "@/components/EmptyState";
-import { AppIcon, type AppIconName } from "@/components/AppIcon";
+import { AppIcon } from "@/components/AppIcon";
+import { AutoSubmitForm } from "@/components/AutoSubmitForm";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { JumpActionLink, JumpCopyButton } from "@/components/JumpActionControls";
+import { EditableFollowUpAction } from "@/components/EditableFollowUpAction";
+import { EmptyState } from "@/components/EmptyState";
+import { JumpActionLink } from "@/components/JumpActionControls";
 import { JumpOutcomeButton, JumpReturnTray, JumpWorkflowCard } from "@/components/JumpWorkflow";
 import { Notice } from "@/components/Notice";
+import { Sheet } from "@/components/Sheet";
+import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
+import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
-import { addLogicalDays, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
+import { addLogicalDays, logicalDateInTimezone, logicalDateKey, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
 import { snoozeJumpAction } from "@/lib/snooze-actions";
-import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 
-export const metadata: Metadata = { title: "Jump" };
+export const metadata: Metadata = { title: "Today" };
 
 type Snapshot = { subject?: string | null; body?: string | null; script?: string | null };
 type SearchParams = {
@@ -53,51 +57,35 @@ function actionType(channel: Channel): ActionType {
   return "COMPOSED";
 }
 
-function channelIcon(channel: Channel): AppIconName {
-  if (channel === "EMAIL") return "email";
-  if (channel === "PHONE_CALL" || channel === "VOICEMAIL") return "phone";
-  return "message";
-}
-
 function channelLabel(channel: Channel): string {
+  if (channel === "PHONE_CALL") return "call";
+  if (channel === "VOICEMAIL") return "voicemail";
   return channel.replaceAll("_", " ").toLowerCase();
 }
 
-function taskStatusLabel(status: JumpStatus): string {
-  if (pendingStatuses.includes(status)) return "Mark done";
-  if (status === "SKIPPED") return "Reopen";
-  return "Undo";
-}
-
 function eventLabel(action: string): string {
-  if (action === "COPIED") return "Copied prepared content";
-  if (action === "CALLED") return "Opened phone call";
-  if (action === "VOICEMAIL_STARTED") return "Opened voicemail action";
-  if (action === "COMPOSED") return "Opened channel composer";
-  return "Opened Jump";
+  if (action === "COPIED") return "Copied message";
+  if (action === "CALLED") return "Opened call";
+  if (action === "VOICEMAIL_STARTED") return "Opened voicemail notes";
+  if (action === "COMPOSED") return "Opened message";
+  return "Opened follow-up";
 }
 
-function filterHref(current: { range: string; status: string; channel: string }, key: "range" | "status" | "channel", value: string): string {
-  const params = new URLSearchParams({ ...current, [key]: value });
-  return `/jumps?${params.toString()}`;
-}
-
-export default async function JumpsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+export default async function TodayPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const range = ["due", "week", "month", "all"].includes(params.range ?? "") ? params.range! : "due";
   const status = ["all", "pending", "done", "skipped"].includes(params.status ?? "") ? params.status! : "all";
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
-  const { workspace } = await requireWorkspace();
-  const timezone = workspace.profile?.timezone ?? "UTC";
+  const { workspace, user } = await requireWorkspace();
+  const displayPreferences = await displayPreferencesForUser(user.id, workspace.profile?.timezone ?? "UTC");
+  const timezone = displayPreferences.timeZone;
   const today = logicalDateInTimezone(new Date(), timezone);
   const startToday = zonedDateTimeToUtc(today, 0, timezone);
   const endToday = zonedDateTimeToUtc(addLogicalDays(today, 1), 0, timezone);
   const endWeek = zonedDateTimeToUtc(addLogicalDays(today, 7), 0, timezone);
   const endMonth = zonedDateTimeToUtc(addLogicalDays(today, 30), 0, timezone);
-  const quietSince = zonedDateTimeToUtc(addLogicalDays(today, -60), 0, timezone);
 
   const channelWhere: Prisma.JumpWhereInput = channel === "all" ? {} : { stepVersion: { stepTemplate: { channel } } };
-
   let statusWhere: Prisma.JumpWhereInput;
   if (status === "pending") statusWhere = { status: { in: pendingStatuses } };
   else if (status === "done") statusWhere = { status: { in: doneStatuses } };
@@ -106,20 +94,18 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
 
   let dateWhere: Prisma.JumpWhereInput = {};
   if (range === "due") {
-    if (status === "pending") dateWhere = { scheduledAt: { lt: endToday } };
-    else if (status === "done" || status === "skipped") dateWhere = { scheduledAt: { gte: startToday, lt: endToday } };
-    else {
-      dateWhere = {
-        OR: [
-          { status: { in: pendingStatuses }, scheduledAt: { lt: endToday } },
-          { status: { in: completedStatuses }, scheduledAt: { gte: startToday, lt: endToday } }
-        ]
-      };
-    }
+    dateWhere = status === "done" || status === "skipped"
+      ? { scheduledAt: { gte: startToday, lt: endToday } }
+      : status === "pending"
+        ? { scheduledAt: { lt: endToday } }
+        : { OR: [
+            { status: { in: pendingStatuses }, scheduledAt: { lt: endToday } },
+            { status: { in: completedStatuses }, scheduledAt: { gte: startToday, lt: endToday } }
+          ] };
   } else if (range === "week") dateWhere = { scheduledAt: { gte: startToday, lt: endWeek } };
   else if (range === "month") dateWhere = { scheduledAt: { gte: startToday, lt: endMonth } };
 
-  const [jumps, dueThisWeekCount, quietRelationshipCount, completedTodayCount] = await Promise.all([
+  const [followUps, dueThisWeekCount, completedTodayCount] = await Promise.all([
     prisma.jump.findMany({
       where: { workspaceId: workspace.id, ...statusWhere, ...dateWhere, ...channelWhere },
       include: {
@@ -131,105 +117,94 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
       take: 300
     }),
     prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: pendingStatuses }, scheduledAt: { gte: startToday, lt: endWeek } } }),
-    prisma.contact.count({
-      where: {
-        workspaceId: workspace.id,
-        archivedAt: null,
-        jumps: {
-          some: { status: { in: doneStatuses }, completedAt: { not: null } },
-          none: { status: { in: doneStatuses }, completedAt: { gte: quietSince } }
-        }
-      }
-    }),
     prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: completedStatuses }, completedAt: { gte: startToday, lt: endToday } } })
   ]);
-  const actionEvents = jumps.length
-    ? await prisma.jumpActionEvent.findMany({
-        where: { workspaceId: workspace.id, jumpId: { in: jumps.map((jump) => jump.id) } },
-        orderBy: { occurredAt: "desc" },
-        take: 900
-      })
-    : [];
-  const eventsByJump = new Map<string, typeof actionEvents>();
+  const actionEvents = followUps.length ? await prisma.jumpActionEvent.findMany({
+    where: { workspaceId: workspace.id, jumpId: { in: followUps.map((followUp) => followUp.id) } },
+    orderBy: { occurredAt: "desc" },
+    take: 900
+  }) : [];
+  const eventsByFollowUp = new Map<string, typeof actionEvents>();
   for (const event of actionEvents) {
-    const events = eventsByJump.get(event.jumpId) ?? [];
+    const events = eventsByFollowUp.get(event.jumpId) ?? [];
     if (events.length < 3) events.push(event);
-    eventsByJump.set(event.jumpId, events);
+    eventsByFollowUp.set(event.jumpId, events);
   }
 
-  const ordered = [...jumps].sort((left, right) => {
+  const ordered = [...followUps].sort((left, right) => {
     const leftPending = pendingStatuses.includes(left.status) ? 0 : 1;
     const rightPending = pendingStatuses.includes(right.status) ? 0 : 1;
     return leftPending - rightPending || left.scheduledAt.getTime() - right.scheduledAt.getTime();
   });
-  const pending = ordered.filter((jump) => pendingStatuses.includes(jump.status));
-  const overdue = pending.filter((jump) => jump.scheduledAt < startToday);
-  const dueToday = pending.filter((jump) => jump.scheduledAt >= startToday && jump.scheduledAt < endToday);
-  const upcoming = pending.filter((jump) => jump.scheduledAt >= endToday);
-  const completed = ordered.filter((jump) => completedStatuses.includes(jump.status));
-  const currentFilters = { range, status, channel };
-  const jumpsReturnTo = `/jumps?${new URLSearchParams(currentFilters).toString()}`;
-  const activeFilterCount = Number(status !== "all") + Number(channel !== "all");
-  const nextUp = overdue[0] ?? dueToday[0];
-  const visibleOverdue = nextUp ? overdue.filter((jump) => jump.id !== nextUp.id) : overdue;
-  const visibleToday = nextUp ? dueToday.filter((jump) => jump.id !== nextUp.id) : dueToday;
+  const pending = ordered.filter((followUp) => pendingStatuses.includes(followUp.status));
+  const needsAttention = pending.filter((followUp) => followUp.scheduledAt < endToday);
+  const upcoming = pending.filter((followUp) => followUp.scheduledAt >= endToday);
+  const completed = ordered.filter((followUp) => completedStatuses.includes(followUp.status));
+  const overdueCount = needsAttention.filter((followUp) => followUp.scheduledAt < startToday).length;
+  const nextUp = needsAttention[0] ?? null;
+  const returnTo = `/jumps?${new URLSearchParams({ range, status, channel }).toString()}`;
+  const activeFilterCount = Number(range !== "due") + Number(status !== "all") + Number(channel !== "all");
 
-  const renderCard = (jump: (typeof ordered)[number]) => {
-    const snapshot = (jump.renderedSnapshot ?? {}) as Snapshot;
-    const email = jump.contact.emails.find((item) => item.isPrimary)?.email ?? jump.contact.emails[0]?.email;
-    const phone = jump.contact.phones.find((item) => item.isPrimary)?.phone ?? jump.contact.phones[0]?.phone;
-    const jumpChannel = jump.stepVersion.stepTemplate.channel;
-    const url = actionUrl(jumpChannel, email, phone, snapshot);
-    const content = snapshot.body ?? snapshot.script ?? snapshot.subject ?? "No message content was saved for this Jump.";
-    const copyContent = [snapshot.subject, snapshot.body ?? snapshot.script].filter(Boolean).join("\n\n");
-    const snippet = content.length > 120 ? `${content.slice(0, 117)}…` : content;
-    const isPending = pendingStatuses.includes(jump.status);
-    const recentEvents = eventsByJump.get(jump.id) ?? [];
-    const daysOverdue = Math.max(1, Math.floor((startToday.getTime() - jump.scheduledAt.getTime()) / 86_400_000) + 1);
-    const dueLabel = jump.scheduledAt < startToday
+  const renderCard = (followUp: (typeof ordered)[number]) => {
+    const snapshot = (followUp.renderedSnapshot ?? {}) as Snapshot;
+    const email = followUp.contact.emails.find((item) => item.isPrimary)?.email ?? followUp.contact.emails[0]?.email;
+    const phone = followUp.contact.phones.find((item) => item.isPrimary)?.phone ?? followUp.contact.phones[0]?.phone;
+    const followUpChannel = followUp.stepVersion.stepTemplate.channel;
+    const url = actionUrl(followUpChannel, email, phone, snapshot);
+    const content = snapshot.body ?? snapshot.script ?? snapshot.subject ?? "No message has been prepared yet.";
+    const snippet = content.length > 150 ? `${content.slice(0, 147)}…` : content;
+    const isPending = pendingStatuses.includes(followUp.status);
+    const isNext = followUp.id === nextUp?.id;
+    const recentEvents = eventsByFollowUp.get(followUp.id) ?? [];
+    const daysOverdue = Math.max(1, Math.floor((startToday.getTime() - followUp.scheduledAt.getTime()) / 86_400_000) + 1);
+    const dueLabel = followUp.scheduledAt < startToday
       ? `${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue`
-      : jump.scheduledAt < endToday
-        ? `Today · ${formatDateTime(jump.scheduledAt)}`
-        : formatDateTime(jump.scheduledAt);
+      : followUp.scheduledAt < endToday
+        ? `Today · ${formatDateTime(followUp.scheduledAt, displayPreferences)}`
+        : formatDateTime(followUp.scheduledAt, displayPreferences);
+    const needsEmail = followUpChannel === "EMAIL";
+    const missingMethod = needsEmail ? !email : !phone;
+    const directCall = followUpChannel === "PHONE_CALL" || followUpChannel === "VOICEMAIL";
+    const editableAction = <EditableFollowUpAction
+      jumpId={followUp.id}
+      contactId={followUp.contactId}
+      contactName={followUp.contact.displayName}
+      channel={followUpChannel}
+      email={email ?? null}
+      phone={phone ?? null}
+      initialSubject={snapshot.subject}
+      initialContent={content}
+    />;
 
     return (
-      <JumpWorkflowCard jumpId={jump.id} contactName={jump.contact.displayName} key={jump.id}>
-        <article id={`jump-${jump.id}`} className={`jump-card jump-task-card ${isPending ? "" : "jump-task-complete"}`}>
-          <details className="jump-details">
-            <summary>
-              <div className="jump-card-heading"><h3>{jump.contact.displayName}</h3><span className={jump.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{dueLabel}</span><span className="channel-pill">{channelLabel(jumpChannel)}</span></div>
-              <div className="jump-meta"><span>{jump.mix.name}</span><span>{jump.reason}</span></div>
-              <p className="jump-snippet">{snippet}</p>
-            </summary>
-            <div className="jump-expanded-content">
-              {snapshot.subject && <div><small className="field-label">Subject</small><p>{snapshot.subject}</p></div>}
-              <div><small className="field-label">Prepared content</small><p>{snapshot.body ?? snapshot.script ?? "No content available."}</p></div>
-              {recentEvents.length > 0 && <div className="jump-action-history"><small className="field-label">Recent actions</small>{recentEvents.map((event) => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt)}</span>)}</div>}
-              <div className="jump-secondary-actions">
-                {copyContent && <JumpCopyButton jumpId={jump.id} text={copyContent} />}
-              </div>
-            </div>
-          </details>
+      <JumpWorkflowCard jumpId={followUp.id} contactName={followUp.contact.displayName} key={followUp.id}>
+        <article id={`jump-${followUp.id}`} className={`jump-card jump-task-card ${isNext ? "next-follow-up" : ""} ${isPending ? "" : "jump-task-complete"}`}>
+          <div className="jump-card-main">
+            {isNext && <span className="eyebrow">Next up</span>}
+            <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span className={followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{dueLabel}</span><span className="channel-pill">{channelLabel(followUpChannel)}</span></div>
+            <div className="jump-meta"><span>{followUp.mix.name}</span><span>{followUp.reason}</span></div>
+            {isNext ? <>{editableAction}{recentEvents.length > 0 && <div className="jump-action-history"><small>Recent activity</small>{recentEvents.map((event) => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt, displayPreferences)}</span>)}</div>}</> : <p className="jump-snippet">{snippet}</p>}
+          </div>
 
           <div className="jump-primary-action">
-            {url ? (
-              <JumpActionLink
-                jumpId={jump.id}
-                action={actionType(jumpChannel)}
-                href={url}
-                target={jumpChannel === "WHATSAPP" ? "_blank" : undefined}
-                className="button primary jump-channel-action"
-                ariaLabel={`Open ${channelLabel(jumpChannel)} for ${jump.contact.displayName}`}
-                title={`Open ${channelLabel(jumpChannel)}`}
-                contactName={jump.contact.displayName}
-                channel={jumpChannel}
-              >
-                <AppIcon name={channelIcon(jumpChannel)} /><span>{jumpChannel === "PHONE_CALL" ? "Call" : jumpChannel === "VOICEMAIL" ? "Open notes" : jumpChannel === "EMAIL" ? "Open email" : jumpChannel === "WHATSAPP" ? "Open WhatsApp" : "Open text"}</span>
-              </JumpActionLink>
-            ) : <span className="status-pill" title={`Add a primary ${jumpChannel === "EMAIL" ? "email" : "phone"} to this contact first`}>Missing</span>}
+            {!isNext && (missingMethod ? (
+              <Link className="button primary jump-channel-action" href={`/contacts/${followUp.contactId}/edit`}><AppIcon name="add" /><span>Add {needsEmail ? "email" : "phone"}</span></Link>
+            ) : directCall && url ? (
+              <JumpActionLink jumpId={followUp.id} action={actionType(followUpChannel)} href={url} className="button primary jump-channel-action" ariaLabel={`Call ${followUp.contact.displayName}`} title="Call" contactName={followUp.contact.displayName} channel={followUpChannel}><AppIcon name="phone" /><span>Call</span></JumpActionLink>
+            ) : (
+              <Sheet trigger={<button className="button primary jump-channel-action" type="button"><AppIcon name={followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Message ${followUp.contact.displayName}`} description="Review or edit this message before opening your phone’s composer.">{editableAction}</Sheet>
+            ))}
             <div className="jump-completion-actions">
-              <JumpOutcomeButton jumpId={jump.id} outcome={isPending ? "COMPLETED" : "REOPENED"} className={`button small jump-done-action ${isPending ? "" : "done"}`}>{taskStatusLabel(jump.status)}</JumpOutcomeButton>
-              {isPending && <details className="jump-overflow"><summary className="button small" aria-label={`More actions for ${jump.contact.displayName}`}>More</summary><div className="jump-overflow-panel"><strong>Snooze</strong>{[["later-today", "Later today"], ["tomorrow", "Tomorrow"], ["next-monday", "Next Monday"], ["next-week", "Next week"]].map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={jump.id}/><input type="hidden" name="preset" value={preset}/><input type="hidden" name="returnTo" value={jumpsReturnTo}/><button className="text-button" type="submit">{label}</button></form>)}<form action={snoozeJumpAction} className="custom-snooze"><input type="hidden" name="jumpId" value={jump.id}/><input type="hidden" name="preset" value="custom"/><input type="hidden" name="returnTo" value={jumpsReturnTo}/><input type="datetime-local" name="customDate" aria-label={`Custom snooze date and time in ${timezone}`} required/><small className="muted-copy">{timezone}</small><button className="button small" type="submit">Custom</button></form><JumpOutcomeButton jumpId={jump.id} outcome="SKIPPED" className="text-button danger-text">Skip</JumpOutcomeButton>{jump.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop Mix…" title={`Stop ${jump.mix.name} for ${jump.contact.displayName}?`} description="Pending Jumps from this Mix will leave the queue. Completed history remains available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={jump.mixId}/><input type="hidden" name="contactId" value={jump.contactId}/><input type="hidden" name="returnTo" value={jumpsReturnTo}/><button className="button small danger" type="submit">Confirm stop</button></form></ConfirmDialog>}</div></details>}
+              <JumpOutcomeButton jumpId={followUp.id} outcome={isPending ? "COMPLETED" : "REOPENED"} className={`button small jump-done-action ${isPending ? "" : "done"}`}>{isPending ? "Done" : "Undo"}</JumpOutcomeButton>
+              {isPending && <Sheet
+                trigger={<button className="button small" type="button" aria-label={`More options for ${followUp.contact.displayName}`}>More</button>}
+                title={`Follow up with ${followUp.contact.displayName}`}
+                description="Move it to a better day, skip it, or stop this plan."
+              >
+                <div className="sheet-section"><h3>Snooze</h3><div className="sheet-actions">{[["later-today", "Later today"], ["tomorrow", "Tomorrow"], ["next-monday", "Monday"], ["next-week", "Next week"]].map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value={preset} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div></div>
+                <form action={snoozeJumpAction} className="form-stack"><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value="custom" /><input type="hidden" name="returnTo" value={returnTo} /><label className="field"><span>Choose a day</span><input type="date" name="customDate" min={logicalDateKey(today)} required /></label><small className="muted-copy">Uses your default follow-up time in {timezone}.</small><button className="button" type="submit">Snooze to this day</button></form>
+                <div className="sheet-danger-zone"><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button">Skip this follow-up</JumpOutcomeButton>{followUp.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop plan…" title={`Stop ${followUp.mix.name} for ${followUp.contact.displayName}?`} description="Future follow-ups from this plan will be removed. Completed history stays available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={followUp.mixId} /><input type="hidden" name="contactId" value={followUp.contactId} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button danger" type="submit">Stop plan</button></form></ConfirmDialog>}</div>
+              </Sheet>}
             </div>
           </div>
         </article>
@@ -238,54 +213,37 @@ export default async function JumpsPage({ searchParams }: { searchParams: Promis
   };
 
   const welcomeMessage = params.firstContact
-    ? `Your first Jump for ${params.firstContact} is ready below.`
-    : "Your follow-up space is ready. Complete a prepared Jump or add a Contact and Important Date to create more.";
+    ? `Your first follow-up for ${params.firstContact} is ready.`
+    : "Your follow-up list is ready.";
 
   return (
-    <div className="page">
+    <div className="page today-page">
       <JumpReturnTray />
       {params.welcome && <Notice type="success">{welcomeMessage}</Notice>}
-      {params.demo && <Notice type="info">You are using local demo data. Actions remain on this computer.</Notice>}
-      {params.applied && <Notice type="success">Created {params.applied} one-time Jump{params.applied === "1" ? "" : "s"} for the selected Contacts.</Notice>}
-      {params.mixStopped && <Notice type="success">The Mix was stopped for this Contact. Its pending Jumps were removed from the queue.</Notice>}
-      {params.mixStopError && <Notice type="error">The Mix could not be stopped for this Contact.</Notice>}
-      {params.snoozed && <Notice type="success">Jump snoozed. It will return to your queue at the new time.</Notice>}
+      {params.demo && <Notice type="info">Using local demo data.</Notice>}
+      {params.applied && <Notice type="success">Messages scheduled.</Notice>}
+      {params.mixStopped && <Notice type="success">Plan stopped.</Notice>}
+      {params.mixStopError && <Notice type="error">Plan could not be stopped.</Notice>}
+      {params.snoozed && <Notice type="success">Follow-up snoozed.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
-      <header className="page-header"><div><h1>Today</h1><p>One clear list of the people who need your attention and what to do next.</p></div><div className="today-summary desktop-only" aria-label="Current Jump workload"><strong>{overdue.length + dueToday.length}</strong><span>due now</span>{overdue.length > 0 && <small>{overdue.length} overdue</small>}</div></header>
-      <section className="today-operating-view desktop-only" aria-label="Today at a glance"><article><small>Overdue</small><strong>{overdue.length}</strong></article><article><small>Due today</small><strong>{dueToday.length}</strong></article><article><small>Due this week</small><strong>{dueThisWeekCount}</strong></article><article><small>Completed today</small><strong>{completedTodayCount}</strong></article></section>
-      {nextUp && <aside className="do-next-card desktop-only"><span className="eyebrow">Do next</span><strong>{nextUp.contact.displayName}</strong><span>{nextUp.reason}</span><a className="button primary" href={`#jump-${nextUp.id}`}>Open next action</a></aside>}
-      {nextUp && <section className="next-up-section mobile-only" aria-labelledby="next-up-title"><span className="eyebrow" id="next-up-title">Next up</span>{renderCard(nextUp)}</section>}
-      <p className="today-compact-summary mobile-only" aria-label="Current Jump workload"><strong>{overdue.length + dueToday.length} need attention</strong>{overdue.length > 0 && <> · {overdue.length} overdue</>}{dueToday.length > 0 && <> · {dueToday.length} today</>}</p>
 
-      <div className="filter-stack" aria-label="Jump filters">
-        <div className="filter-bar filter-presets">
-          {[["due", "Due", "Today"], ["week", "Week", "7 days"], ["month", "Month", "30 days"], ["all", "All dates", "All"]].map(([key, desktopLabel, mobileLabel]) => <a key={key} className={range === key ? "button primary" : "button"} href={filterHref(currentFilters, "range", key)}><span className="desktop-label">{desktopLabel}</span><span className="mobile-label">{mobileLabel}</span></a>)}
-        </div>
-        <form className="filter-bar today-filter-controls desktop-only" method="get" action="/jumps">
-          <input type="hidden" name="range" value={range} />
-          <label className="filter-field"><span>Status</span><select name="status" defaultValue={status}><option value="all">All statuses</option><option value="pending">Pending</option><option value="done">Done</option><option value="skipped">Skipped</option></select></label>
-          <label className="filter-field"><span>Channel</span><select name="channel" defaultValue={channel}><option value="all">All channels</option>{channels.map((item) => <option key={item} value={item}>{channelLabel(item)}</option>)}</select></label>
-          <button className="button" type="submit">Apply</button>
-        </form>
-        <details className="mobile-filter-disclosure mobile-only">
-          <summary className={activeFilterCount ? "button filter-trigger active" : "button filter-trigger"}><AppIcon name="settings"/><span>Filter{activeFilterCount ? ` ${activeFilterCount}` : ""}</span></summary>
-          <form className="mobile-filter-panel" method="get" action="/jumps">
-            <input type="hidden" name="range" value={range} />
-            <label className="filter-field"><span>Status</span><select name="status" defaultValue={status}><option value="all">All statuses</option><option value="pending">Pending</option><option value="done">Done</option><option value="skipped">Skipped</option></select></label>
-            <label className="filter-field"><span>Channel</span><select name="channel" defaultValue={channel}><option value="all">All channels</option>{channels.map((item) => <option key={item} value={item}>{channelLabel(item)}</option>)}</select></label>
-            <div className="mobile-filter-actions"><Link className="button" href={filterHref(currentFilters, "status", "all")}>Reset</Link><button className="button primary" type="submit">Apply</button></div>
-          </form>
-        </details>
-      </div>
+      <header className="page-header today-page-header">
+        <div><h1>Today</h1><p>{needsAttention.length ? `${needsAttention.length} ${needsAttention.length === 1 ? "person needs" : "people need"} your attention${overdueCount ? ` · ${overdueCount} overdue` : ""}.` : "You’re caught up."}</p></div>
+        <Sheet trigger={<button className={activeFilterCount ? "button filter-trigger active" : "button filter-trigger"} type="button"><AppIcon name="settings" />Filter{activeFilterCount ? ` ${activeFilterCount}` : ""}</button>} title="Filter Today" description="Changes apply as soon as you choose them.">
+          <AutoSubmitForm className="form-stack" action="/jumps" ariaLabel="Today filters">
+            <label className="field"><span>Dates</span><select name="range" defaultValue={range}><option value="due">Due now</option><option value="week">Next 7 days</option><option value="month">Next 30 days</option><option value="all">All dates</option></select></label>
+            <label className="field"><span>Status</span><select name="status" defaultValue={status}><option value="all">Open and completed</option><option value="pending">Open</option><option value="done">Completed</option><option value="skipped">Skipped</option></select></label>
+            <label className="field"><span>How</span><select name="channel" defaultValue={channel}><option value="all">Any method</option>{channels.map((item) => <option key={item} value={item}>{channelLabel(item)}</option>)}</select></label>
+          </AutoSubmitForm>
+          {activeFilterCount > 0 && <Link className="button" href="/jumps">Clear filters</Link>}
+        </Sheet>
+      </header>
 
-      {overdue.length > 0 && <section className="desktop-only" aria-labelledby="overdue-jumps-desktop"><div className="section-label urgent"><h2 id="overdue-jumps-desktop">Overdue</h2><span>{overdue.length}</span></div><p className="section-guidance">Start with one. You can skip or stop a plan if it is no longer useful.</p><div className="jump-list">{overdue.map(renderCard)}</div></section>}
-      {dueToday.length > 0 && <section className="desktop-only" aria-labelledby="today-jumps-desktop"><div className="section-label"><h2 id="today-jumps-desktop">Today</h2><span>{dueToday.length}</span></div><div className="jump-list">{dueToday.map(renderCard)}</div></section>}
-      {visibleOverdue.length > 0 && <section className="mobile-only" aria-labelledby="overdue-jumps"><div className="section-label urgent"><h2 id="overdue-jumps">Overdue</h2><span>{visibleOverdue.length}</span></div><div className="jump-list">{visibleOverdue.map(renderCard)}</div></section>}
-      {visibleToday.length > 0 && <section className="mobile-only" aria-labelledby="today-jumps"><div className="section-label"><h2 id="today-jumps">Today</h2><span>{visibleToday.length}</span></div><div className="jump-list">{visibleToday.map(renderCard)}</div></section>}
-      {upcoming.length > 0 && <section aria-labelledby="upcoming-jumps"><div className="section-label"><h2 id="upcoming-jumps">Upcoming</h2><span>{upcoming.length}</span></div><div className="jump-list">{upcoming.map(renderCard)}</div></section>}
-      {completed.length > 0 && <section aria-labelledby="completed-jumps"><div className="completed-divider"><span id="completed-jumps">Completed</span></div><div className="jump-list">{completed.map(renderCard)}</div></section>}
-      {!ordered.length && <EmptyState title="You’re all caught up" description="Nothing needs your attention right now. Upcoming work will appear here." actionHref="/contacts" actionLabel="Review Contacts" />}
-      <div className="today-insights"><Link href="/jumps?range=week&status=pending">Upcoming moments <strong>{dueThisWeekCount}</strong></Link><Link href="/contacts">Relationships going quiet <strong>{quietRelationshipCount}</strong></Link><Link href="/jumps?range=due&status=done">Recently completed <strong>{completedTodayCount}</strong></Link></div>
+      <p className="today-week-line"><Link href="/jumps?range=week&status=pending">This week: {dueThisWeekCount} open</Link><span>·</span><Link href="/jumps?range=due&status=done">{completedTodayCount} completed today</Link></p>
+      {needsAttention.length > 0 && <section aria-labelledby="needs-attention"><div className="section-label urgent"><h2 id="needs-attention">Needs attention</h2><span>{needsAttention.length}</span></div><div className="jump-list">{needsAttention.map(renderCard)}</div></section>}
+      {upcoming.length > 0 && <section aria-labelledby="upcoming-follow-ups"><div className="section-label"><h2 id="upcoming-follow-ups">Upcoming</h2><span>{upcoming.length}</span></div><div className="jump-list">{upcoming.map(renderCard)}</div></section>}
+      {completed.length > 0 && <section aria-labelledby="completed-follow-ups"><div className="completed-divider"><span id="completed-follow-ups">Completed</span></div><div className="jump-list">{completed.map(renderCard)}</div></section>}
+      {!ordered.length && <EmptyState title="Nothing due right now" description="Add a person and choose a follow-up date. We’ll put the next action here." actionHref="/contacts/new" actionLabel="Add a person" />}
     </div>
   );
 }

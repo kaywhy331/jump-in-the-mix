@@ -1,3 +1,5 @@
+"use client";
+
 import type { Channel, ContactPriority } from "@/generated/prisma/client";
 import { updateContactBasicsInlineAction, updateContactRelationshipStateAction } from "@/lib/contact-state-actions";
 
@@ -17,17 +19,16 @@ export function ContactRelationshipStatePanel({
   contactId: string;
   state: ContactRelationshipStateValue;
 }) {
-  const nextCommitment = state.nextCommitmentAt ? new Date(state.nextCommitmentAt.getTime() - state.nextCommitmentAt.getTimezoneOffset() * 60_000).toISOString().slice(0, 16) : "";
   return (
-    <form action={updateContactRelationshipStateAction} className="form-grid contact-relationship-state-form">
+    <form action={updateContactRelationshipStateAction} className="contact-relationship-chips" onChange={(event) => event.currentTarget.requestSubmit()}>
       <input type="hidden" name="contactId" value={contactId} />
       <input type="hidden" name="version" value={state.version} />
-      <label className="field"><span>Priority</span><select name="priority" defaultValue={state.priority}><option value="LOW">Low</option><option value="NORMAL">Normal</option><option value="HIGH">High</option><option value="URGENT">Urgent</option></select></label>
-      <label className="field"><span>Preferred channel</span><select name="preferredChannel" defaultValue={state.preferredChannel ?? ""}><option value="">Not specified</option><option value="EMAIL">Email</option><option value="SMS">SMS</option><option value="PHONE_CALL">Phone call</option><option value="WHATSAPP">WhatsApp</option><option value="VOICEMAIL">Voicemail script</option></select></label>
-      <label className="field"><span>Relationship status</span><input name="relationshipStatus" defaultValue={state.relationshipStatus ?? ""} maxLength={160} placeholder="Active client, prospect, partner…" /></label>
-      <label className="field full"><span>Next commitment</span><input name="nextCommitmentAt" type="datetime-local" defaultValue={nextCommitment} /></label>
-      <label className="checkbox-card field full"><input type="checkbox" name="doNotContact" defaultChecked={state.doNotContact} /><span><strong>Do not contact</strong><small>Cancel and suppress future pending Jumps until this setting is cleared.</small></span></label>
-      <div className="form-actions field full"><button className="button primary" type="submit">Save relationship state</button></div>
+      <input type="hidden" name="relationshipStatus" value={state.relationshipStatus ?? ""} />
+      <input type="hidden" name="nextCommitmentAt" value={state.nextCommitmentAt?.toISOString() ?? ""} />
+      <fieldset><legend>Priority</legend><div className="relationship-chip-row">{(["LOW", "NORMAL", "HIGH", "URGENT"] as const).map((priority) => <label className="relationship-chip" key={priority}><input type="radio" name="priority" value={priority} defaultChecked={state.priority === priority} /><span>{priority === "NORMAL" ? "Normal" : priority[0] + priority.slice(1).toLowerCase()}</span></label>)}</div></fieldset>
+      <fieldset><legend>Prefers</legend><div className="relationship-chip-row">{([{ value: "", label: "Any" }, { value: "SMS", label: "Text" }, { value: "PHONE_CALL", label: "Call" }, { value: "EMAIL", label: "Email" }] as const).map((channel) => <label className="relationship-chip" key={channel.value || "any"}><input type="radio" name="preferredChannel" value={channel.value} defaultChecked={(state.preferredChannel ?? "") === channel.value} /><span>{channel.label}</span></label>)}</div></fieldset>
+      <label className="relationship-toggle"><input type="checkbox" name="doNotContact" defaultChecked={state.doNotContact} /><span><strong>Do not contact</strong><small>Stops future follow-ups until turned off.</small></span></label>
+      <button className="sr-only" type="submit">Save</button>
     </form>
   );
 }

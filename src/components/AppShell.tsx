@@ -43,8 +43,8 @@ export function AppShell({
                 <div className="profile-menu-panel">
                 <Link href="/account">My Account</Link>
                 <Link href="/settings">Settings</Link>
-                <Link href="/templates">Mix Templates</Link>
-                <Link href="/help">Help &amp; Support</Link>
+                <Link href="/templates">Ready-made plans</Link>
+                <Link href="/help">Help</Link>
                 <form action={logoutAction}><button className="text-button danger-text" type="submit">Sign out</button></form>
                 </div>
               </details>

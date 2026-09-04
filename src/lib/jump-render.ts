@@ -67,13 +67,20 @@ export function buildJumpReplacementValues(
   const phone = primaryContactPhone(contact);
   const address = formatContactAddress(contact);
   const ownerName = ownerNameParts(owner.name);
+  const ownerDisplayName = owner.name.trim() || owner.email;
   const privateNotes = channel === "PHONE_CALL" ? contact.privateNotes ?? "" : "";
   const myAddress = profile?.mailingAddress ?? [profile?.street, profile?.city, profile?.state, profile?.postalCode].filter(Boolean).join(", ");
+  const products = Array.isArray(profile?.products)
+    ? profile.products.flatMap((item) => item && typeof item === "object" && !Array.isArray(item) && "value" in item ? [String(item.value)] : [])
+    : [];
+  const firstService = profile?.product1 || products[0] || "our service";
+  const smsSignature = profile?.smsSignature?.trim() || ownerDisplayName;
+  const emailSignature = profile?.emailSignature?.trim() || ownerDisplayName;
 
   const values: Record<string, string> = {
     "{{First Name}}": contact.firstName ?? "there",
     "{{Last Name}}": contact.lastName ?? "",
-    "{{Company}}": contact.company ?? "",
+    "{{Company}}": contact.company?.trim() || "your business",
     "{{Email}}": email,
     "{{Phone}}": phone,
     "{{Address}}": address,
@@ -81,7 +88,7 @@ export function buildJumpReplacementValues(
     "{{Private Notes}}": privateNotes,
     "{{contact.first_name}}": contact.firstName ?? "there",
     "{{contact.last_name}}": contact.lastName ?? "",
-    "{{contact.company}}": contact.company ?? "",
+    "{{contact.company}}": contact.company?.trim() || "your business",
     "{{contact.email}}": email,
     "{{contact.phone}}": phone,
     "{{contact.address}}": address,
@@ -91,10 +98,10 @@ export function buildJumpReplacementValues(
     "{{My Last Name}}": ownerName.lastName,
     "{{My Email}}": owner.email,
     "{{My Phone}}": profile?.phone ?? "",
-    "{{My Company}}": profile?.company ?? "",
+    "{{My Company}}": profile?.company?.trim() || "my business",
     "{{My Website}}": profile?.website ?? "",
     "{{My Address}}": myAddress,
-    "{{My Product 1}}": profile?.product1 ?? "",
+    "{{My Product 1}}": firstService,
     "{{My Product 2}}": profile?.product2 ?? "",
     "{{My Product 3}}": profile?.product3 ?? "",
     "{{My Product 4}}": profile?.product4 ?? "",
@@ -103,16 +110,16 @@ export function buildJumpReplacementValues(
     "{{My Custom 1}}": profile?.myCustom1 ?? "",
     "{{My Custom 2}}": profile?.myCustom2 ?? "",
     "{{My Custom 3}}": profile?.myCustom3 ?? "",
-    "{{SMS Signature}}": profile?.smsSignature ?? "",
-    "{{Email Signature}}": profile?.emailSignature ?? "",
+    "{{SMS Signature}}": smsSignature,
+    "{{Email Signature}}": emailSignature,
     "{{my.first_name}}": ownerName.firstName,
     "{{my.last_name}}": ownerName.lastName,
     "{{my.email}}": owner.email,
     "{{my.phone}}": profile?.phone ?? "",
-    "{{my.company}}": profile?.company ?? "",
+    "{{my.company}}": profile?.company?.trim() || "my business",
     "{{my.website}}": profile?.website ?? "",
     "{{my.address}}": myAddress,
-    "{{my.product_1}}": profile?.product1 ?? "",
+    "{{my.product_1}}": firstService,
     "{{my.product_2}}": profile?.product2 ?? "",
     "{{my.product_3}}": profile?.product3 ?? "",
     "{{my.product_4}}": profile?.product4 ?? "",
@@ -121,8 +128,8 @@ export function buildJumpReplacementValues(
     "{{my.custom_1}}": profile?.myCustom1 ?? "",
     "{{my.custom_2}}": profile?.myCustom2 ?? "",
     "{{my.custom_3}}": profile?.myCustom3 ?? "",
-    "{{my.sms_signature}}": profile?.smsSignature ?? "",
-    "{{my.email_signature}}": profile?.emailSignature ?? ""
+    "{{my.sms_signature}}": smsSignature,
+    "{{my.email_signature}}": emailSignature
   };
 
   for (const item of contact.customFieldValues ?? []) {
@@ -133,7 +140,14 @@ export function buildJumpReplacementValues(
 
 export function renderJumpTemplate(template: string | null | undefined, values: Record<string, string>): string | null {
   if (!template) return null;
-  return template.replace(/{{[^}]+}}/g, (token) => values[token] ?? "");
+  return template
+    .replace(/{{[^}]+}}/g, (token) => values[token] ?? "")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/[ \t]+([,.;:!?])/g, "$1")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n[ \t]+/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export function renderJumpSnapshot(

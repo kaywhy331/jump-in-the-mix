@@ -32,20 +32,21 @@ function speechRecognitionConstructor(): SpeechRecognitionConstructor | null {
 }
 
 function appendTranscript(targetId: string, transcript: string): void {
-  const textarea = document.getElementById(targetId);
-  if (!(textarea instanceof HTMLTextAreaElement)) return;
-  const nextValue = textarea.value.trim()
-    ? `${textarea.value.trimEnd()}\n${transcript}`
+  const field = document.getElementById(targetId);
+  if (!(field instanceof HTMLTextAreaElement) && !(field instanceof HTMLInputElement)) return;
+  const nextValue = field.value.trim()
+    ? `${field.value.trimEnd()}${field instanceof HTMLTextAreaElement ? "\n" : " "}${transcript}`
     : transcript;
-  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
-  if (setter) setter.call(textarea, nextValue);
-  else textarea.value = nextValue;
-  textarea.dispatchEvent(new Event("input", { bubbles: true }));
-  textarea.focus();
-  textarea.setSelectionRange(nextValue.length, nextValue.length);
+  const prototype = field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+  if (setter) setter.call(field, nextValue);
+  else field.value = nextValue;
+  field.dispatchEvent(new Event("input", { bubbles: true }));
+  field.focus();
+  field.setSelectionRange(nextValue.length, nextValue.length);
 }
 
-export function VoiceNoteButton({ targetId }: { targetId: string }) {
+export function VoiceNoteButton({ targetId, label = "Dictate" }: { targetId: string; label?: string }) {
   const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
@@ -90,10 +91,10 @@ export function VoiceNoteButton({ targetId }: { targetId: string }) {
         onClick={start}
         disabled={listening}
         aria-pressed={listening}
-        title="Dictate Public Notes using your browser microphone"
+        title={`Use your microphone to ${label.toLowerCase()}`}
       >
         <AppIcon name="circle" />
-        <span>{listening ? "Listening…" : "Dictate"}</span>
+        <span>{listening ? "Listening…" : label}</span>
       </button>
       {error && <small className="voice-note-error" role="alert">{error}</small>}
     </span>

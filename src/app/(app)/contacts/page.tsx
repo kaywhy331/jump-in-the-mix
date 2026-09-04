@@ -6,6 +6,7 @@ import { ContactsBulkWorkspace, type ContactBulkDto } from "@/components/Contact
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
 import { formatDateTime } from "@/lib/format";
+import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { mergeGroupActivity } from "@/lib/group-activity";
 import { prisma } from "@/lib/prisma";
 
@@ -82,6 +83,7 @@ function pageHref(input: {
 export default async function ContactsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const { user, workspace } = await requireWorkspace();
+  const displayPreferences = await displayPreferencesForUser(user.id, workspace.profile?.timezone ?? "UTC");
   const savedViews = await prisma.contactSavedView.findMany({
     where: { userId: user.id, workspaceId: workspace.id },
     select: { id: true, name: true, isDefault: true, query: true },
@@ -135,7 +137,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     } : {})
   };
 
-  const [totalCount, contacts, rawGroups, groupStates, jumps, customFields] = await Promise.all([
+  const [totalCount, contacts, rawGroups, groupStates] = await Promise.all([
     prisma.contact.count({ where: contactWhere }),
     prisma.contact.findMany({
       where: contactWhere,
@@ -160,16 +162,6 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     prisma.contactGroupState.findMany({
       where: { workspaceId: workspace.id },
       select: { groupId: true, isActive: true }
-    }),
-    prisma.stepTemplate.findMany({
-      where: { workspaceId: workspace.id, isActive: true },
-      select: { id: true, name: true, channel: true },
-      orderBy: [{ channel: "asc" }, { name: "asc" }]
-    }),
-    prisma.contactCustomFieldDefinition.findMany({
-      where: { workspaceId: workspace.id },
-      select: { id: true, name: true, key: true },
-      orderBy: [{ createdAt: "asc" }, { name: "asc" }]
     })
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates);
@@ -220,8 +212,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         date: dateValue(item.dateValue),
         recurrence: item.recurrence.toLowerCase()
       })),
-      lastInteraction: last?.completedAt ? formatDateTime(last.completedAt) : null,
-      nextJump: next ? formatDateTime(next.scheduledAt) : null,
+      lastInteraction: last?.completedAt ? formatDateTime(last.completedAt, displayPreferences) : null,
+      nextJump: next ? formatDateTime(next.scheduledAt, displayPreferences) : null,
       nextJumpOverdue: Boolean(next && next.scheduledAt < new Date()),
       relationshipType: custom.get("relationship-type") ?? custom.get("relationship") ?? null,
       preferredChannel: contact.relationshipState?.preferredChannel ?? custom.get("preferred-channel") ?? null,
@@ -239,30 +231,28 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="page">
-      {params.created && <Notice type="success">Contact added. Add an Important Date or assign a Mix when you are ready.</Notice>}
-      {params.archived && <Notice type="success">Contact archived. Completed history remains preserved.</Notice>}
-      {params.groupCreated && <Notice type="success">Contact Group created.</Notice>}
-      {params.groupDeleted && <Notice type="success">Contact Group removed. Contacts were preserved.</Notice>}
-      {params.groupsActiveSaved && <Notice type="success">Active Contact Groups updated. Existing memberships are preserved and future Jumps are being reconciled.</Notice>}
-      {params.bulkAssigned && <Notice type="success">Assigned {params.bulkAssigned} selected Contact{params.bulkAssigned === "1" ? "" : "s"} to the group.</Notice>}
-      {params.bulkRemoved && <Notice type="success">Removed the group from {params.bulkRemoved} selected Contact{params.bulkRemoved === "1" ? "" : "s"}.</Notice>}
-      {params.bulkArchived && <Notice type="success">Archived {params.bulkArchived} Contact{params.bulkArchived === "1" ? "" : "s"}. Completed history remains preserved.</Notice>}
-      {params.viewSaved && <Notice type="success">Contact view saved.</Notice>}
-      {params.defaultViewSaved && <Notice type="success">Default Contact view updated.</Notice>}
-      {params.viewDeleted && <Notice type="success">Contact view deleted.</Notice>}
+      {params.created && <Notice type="success">Contact added.</Notice>}
+      {params.archived && <Notice type="success">Contact archived.</Notice>}
+      {params.groupCreated && <Notice type="success">Tag created.</Notice>}
+      {params.groupDeleted && <Notice type="success">Tag removed.</Notice>}
+      {params.groupsActiveSaved && <Notice type="success">Tags saved.</Notice>}
+      {params.bulkAssigned && <Notice type="success">Tag added.</Notice>}
+      {params.bulkRemoved && <Notice type="success">Tag removed.</Notice>}
+      {params.bulkArchived && <Notice type="success">Contacts archived.</Notice>}
+      {params.viewSaved && <Notice type="success">View saved.</Notice>}
+      {params.defaultViewSaved && <Notice type="success">Default view saved.</Notice>}
+      {params.viewDeleted && <Notice type="success">View deleted.</Notice>}
       {importBatchId && <Notice type={importBatch ? "info" : "error"}>{importBatch ? `Showing Contacts touched by the selected ${importBatch.status.toLowerCase()} import.` : "That import batch is unavailable in your personal data."}</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
       <p className="sr-only" role="status" aria-live="polite">{resultMessage}</p>
-      <ContactSavedViewsBar
+      {totalCount > 200 && <ContactSavedViewsBar
         views={savedViews.map(({ id, name, isDefault }) => ({ id, name, isDefault }))}
         selectedViewId={selectedView?.id ?? ""}
         filters={{ q, group: groupId, priority, permission }}
-      />
+      />}
       <ContactsBulkWorkspace
         contacts={contactDtos}
         groups={groups.map((group) => ({ id: group.id, name: group.name, description: group.description, color: group.color, contactCount: group._count.memberships, isActive: group.isActive }))}
-        jumps={jumps.map((jump) => ({ id: jump.id, name: jump.name, channel: jump.channel }))}
-        customFields={customFields}
         query={q}
         groupFilter={groupId}
         priorityFilter={priority}

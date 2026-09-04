@@ -3,6 +3,7 @@ FROM node:22-alpine AS base
 WORKDIR /app
 RUN apk add --no-cache curl openssl libc6-compat
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV TZ=UTC
 
 FROM base AS dependencies
 COPY package.json package-lock.json ./

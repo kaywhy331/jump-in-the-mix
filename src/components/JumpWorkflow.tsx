@@ -57,7 +57,7 @@ async function saveOutcome(
     body: JSON.stringify({ outcome, requestId: requestId(), ...details })
   });
   const payload = await response.json().catch(() => ({})) as OutcomeResponse;
-  if (!response.ok) throw new Error(payload.error || "The Jump outcome could not be saved.");
+  if (!response.ok) throw new Error(payload.error || "The follow-up outcome could not be saved.");
   dispatchJumpState({ jumpId, status: payload.status });
   return payload;
 }
@@ -101,7 +101,7 @@ export function JumpWorkflowCard({
     try {
       await saveOutcome(jumpId, "REOPENED");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The Jump could not be reopened.");
+      setError(reason instanceof Error ? reason.message : "The follow-up could not be reopened.");
     } finally {
       setUndoing(false);
     }
@@ -113,8 +113,8 @@ export function JumpWorkflowCard({
       <div className={styles.cardWrapper} data-jump-workflow={jumpId}>
         <div className={styles.completedPlaceholder} role="status">
           <span>
-            <strong>{state === "SKIPPED" ? "Jump skipped" : "Jump completed"}</strong>
-            <small>{contactName} · the next Jump moved into place</small>
+            <strong>{state === "SKIPPED" ? "Follow-up skipped" : "Follow-up completed"}</strong>
+            <small>{contactName} · the next follow-up is ready</small>
           </span>
           <button className="button small" type="button" onClick={undo} disabled={undoing}>{undoing ? "Restoring…" : "Undo"}</button>
         </div>
@@ -147,7 +147,7 @@ export function JumpOutcomeButton({
     try {
       await saveOutcome(jumpId, outcome);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The Jump could not be updated.");
+      setError(reason instanceof Error ? reason.message : "The follow-up could not be updated.");
     } finally {
       setSaving(false);
     }
@@ -278,7 +278,7 @@ export function JumpReturnTray() {
       <div className={styles.trayHeading}>
         <div>
           <strong>How did the follow-up with {session.contactName} go?</strong>
-          <p>Record the outcome once, then continue with the next Jump.</p>
+          <p>Record what happened, then continue with the next follow-up.</p>
         </div>
         <button className="button small" type="button" onClick={close} aria-label="Close outcome tray">Close</button>
       </div>
@@ -303,16 +303,13 @@ export function JumpReturnTray() {
               <option value="SKIPPED">Skip</option>
             </select>
           </label>
-          <label>
-            <span>Note visibility</span>
-            <select value={visibility} onChange={(event) => setVisibility(event.target.value as "WORKSPACE" | "PRIVATE")}>
-              <option value="WORKSPACE">Customer timeline</option>
-              <option value="PRIVATE">Private relationship update</option>
-            </select>
-          </label>
           <label className={styles.fullField}>
             <span>Outcome note</span>
             <textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={4000} placeholder="What happened, what they committed to, or what matters next" />
+          </label>
+          <label className={`checkbox-card ${styles.fullField}`}>
+            <input type="checkbox" checked={visibility === "PRIVATE"} onChange={(event) => setVisibility(event.target.checked ? "PRIVATE" : "WORKSPACE")} />
+            <span><strong>Keep private</strong><small>Never insert this note into messages.</small></span>
           </label>
           <label>
             <span>Next follow-up date</span>

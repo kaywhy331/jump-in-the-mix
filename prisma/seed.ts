@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
 import { generateJumps } from "../src/lib/jump-engine";
+import { READY_MADE_PLANS } from "../src/lib/vertical-plan-library";
 
 const demoMode = (process.env.DEMO_MODE ?? "true").toLowerCase() === "true";
 const demoEmail = process.env.DEMO_USER_EMAIL ?? "demo@jumpinthemix.local";
@@ -33,7 +34,7 @@ async function seedSystemData() {
     });
   }
 
-  const shared = [
+  const retiredConsultingTemplates = [
     {
       id: "shared_new_lead",
       title: "New Lead Follow-Up",
@@ -222,7 +223,12 @@ async function seedSystemData() {
     }
   ];
 
-  for (const item of shared) {
+  await prisma.sharedMix.updateMany({
+    where: { id: { in: retiredConsultingTemplates.map((item) => item.id) } },
+    data: { status: "UNPUBLISHED" }
+  });
+
+  for (const item of READY_MADE_PLANS) {
     await prisma.sharedMix.upsert({
       where: { id: item.id },
       create: {

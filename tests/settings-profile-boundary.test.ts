@@ -17,7 +17,9 @@ describe("settings and profile design boundaries", () => {
 
   it("exposes only personal and core workflow settings", () => {
     const page = read("src/app/(app)/settings/page.tsx");
-    for (const title of ["Personal preferences", "Action Templates", "Important Date Types", "Password & sessions", "Data & privacy"]) expect(page).toContain(title);
+    for (const title of ["My business", "Personal preferences", "Saved messages", "Date types", "Password & sessions", "Data & privacy"]) expect(page).toContain(title);
+    const business = read("src/app/(app)/settings/business/page.tsx");
+    for (const field of ["Business name", "Services", "Text signature", "Email signature"]) expect(business).toContain(field);
     expect(page).not.toMatch(/community|billing|integration|workspace profile|workspace switcher/i);
   });
 });

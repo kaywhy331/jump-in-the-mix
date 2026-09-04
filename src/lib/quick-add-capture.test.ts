@@ -34,6 +34,20 @@ describe("inferQuickAddCapture", () => {
     });
   });
 
+  it("recognizes bare and abbreviated weekdays", () => {
+    expect(inferQuickAddCapture("Text Maria Friday about the estimate", now)).toMatchObject({ name: "Maria", dateValue: "2026-07-24", reason: "the estimate" });
+    expect(inferQuickAddCapture("Call Devon Mon", now).dateValue).toBe("2026-07-27");
+  });
+
+  it("recognizes relative weeks and named months", () => {
+    expect(inferQuickAddCapture("Call Avery in 2 weeks", now).dateValue).toBe("2026-08-04");
+    expect(inferQuickAddCapture("Email Priya Sept 12", now).dateValue).toBe("2026-09-12");
+  });
+
+  it("captures an email address", () => {
+    expect(inferQuickAddCapture("Add Sam sam@example.com", now)).toMatchObject({ name: "Sam", email: "sam@example.com" });
+  });
+
   it("carries a phone number without including it in the Contact name", () => {
     expect(inferQuickAddCapture("Add Sam with 626-555-0100", now)).toMatchObject({
       name: "Sam",

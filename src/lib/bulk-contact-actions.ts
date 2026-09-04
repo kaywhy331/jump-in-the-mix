@@ -4,6 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Channel } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
+import { addLogicalDays, daysInMonth, logicalDateInTimezone, zonedDateTimeToUtc, type LogicalDate } from "@/lib/jump-schedule";
 import { renderJumpSnapshot } from "@/lib/jump-render";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
 import { prisma } from "@/lib/prisma";
@@ -125,6 +126,14 @@ function oneTimeId(prefix: string, input: string): string {
   return `${prefix}_${createHash("sha256").update(input).digest("hex").slice(0, 28)}`;
 }
 
+function selectedDate(raw: string): LogicalDate | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!match) return null;
+  const date = { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
+  if (date.month < 1 || date.month > 12 || date.day < 1 || date.day > daysInMonth(date.year, date.month)) return null;
+  return date;
+}
+
 export async function applyJumpToContactsAction(formData: FormData): Promise<void> {
   const { workspace, user, impersonation } = await requireWorkspace();
   if (impersonation) fail("Administrator support sessions are view-only.");
@@ -158,7 +167,22 @@ export async function applyJumpToContactsAction(formData: FormData): Promise<voi
   }
 
   const mixStepId = mode === "existing" ? oneTimeId("one_time_step", `${workspace.id}:${prepared.templateId}`) : oneTimeId("one_time_step", `${workspace.id}:${batchId}`);
-  const scheduledAt = new Date();
+  const now = new Date();
+  const sendWhen = value(formData, "sendWhen");
+  let scheduledAt = now;
+  if (sendWhen === "tomorrow" || sendWhen === "date") {
+    const [userPreference, scheduling] = await Promise.all([
+      prisma.userPreference.findUnique({ where: { userId: user.id } }),
+      prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })
+    ]);
+    const timezone = userPreference?.timezone ?? workspace.profile?.timezone ?? "UTC";
+    const date = sendWhen === "tomorrow"
+      ? addLogicalDays(logicalDateInTimezone(now, timezone), 1)
+      : selectedDate(value(formData, "scheduledDate"));
+    if (!date) fail("Choose a valid message date.");
+    scheduledAt = zonedDateTimeToUtc(date, scheduling?.defaultFollowUpMinutes ?? 600, timezone);
+    if (scheduledAt <= now) fail("Choose a future message date.");
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.mix.upsert({

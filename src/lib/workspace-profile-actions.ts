@@ -35,6 +35,8 @@ function optionalHttpsUrl(formData: FormData, key: string, label: string, sectio
 export async function updateWorkspaceProfileAction(formData: FormData): Promise<void> {
   const { workspace, user, impersonation } = await requireWorkspace();
   const section = value(formData, "settingsSection", 40) || "all";
+  const editsBusiness = section === "business" || section === "profile" || section === "all";
+  const editsMessaging = section === "business" || section === "messaging" || section === "all";
   if (impersonation) redirect(`/settings?error=${encodeURIComponent("Administrator support sessions are view-only.")}`);
   const existingContributor = await prisma.sharedMixContributorProfile.findUnique({ where: { workspaceId: workspace.id } });
   const contributorEnabled = section === "community" ? formData.get("communityProfileEnabled") === "on" : existingContributor?.enabled ?? false;
@@ -46,15 +48,17 @@ export async function updateWorkspaceProfileAction(formData: FormData): Promise<
   const contributorWebsite = section === "community" ? optionalHttpsUrl(formData, "communityWebsite", "Community website") : existingContributor?.website ?? null;
   const legacyProducts = [workspace.profile?.product1, workspace.profile?.product2, workspace.profile?.product3, workspace.profile?.product4, workspace.profile?.product5].flatMap((item, index) => item ? [{ name: `Product or service ${index + 1}`, value: item }] : []);
   const legacyDetails = [workspace.profile?.myCustom1, workspace.profile?.myCustom2, workspace.profile?.myCustom3].flatMap((item, index) => item ? [{ name: `Sender detail ${index + 1}`, value: item }] : []);
-  const productRecords = section === "profile" || section === "all" ? records(formData, "products", 20) : (workspace.profile?.products as { name: string; value: string }[] | null) ?? legacyProducts;
+  const productRecords = editsBusiness ? records(formData, "products", section === "business" ? 5 : 20) : (workspace.profile?.products as { name: string; value: string }[] | null) ?? legacyProducts;
   const senderDetails = section === "profile" || section === "all" ? records(formData, "senderDetails", 20) : (workspace.profile?.senderDetails as { name: string; value: string }[] | null) ?? legacyDetails;
   const timezone = section === "profile" || section === "all" ? value(formData, "timezone", 120) || "America/New_York" : workspace.profile?.timezone ?? "America/New_York";
   if (!isValidTimezone(timezone)) redirect(`/settings?section=profile&error=${encodeURIComponent("Choose a valid IANA timezone.")}`);
+  const company = editsBusiness ? value(formData, "company", 200) : workspace.profile?.company ?? null;
+  if (section === "business" && !company) redirect(`/settings/business?error=${encodeURIComponent("Enter your business name.")}`);
   const workspaceData = {
-    company: section === "profile" || section === "all" ? value(formData, "company", 200) || null : workspace.profile?.company ?? null,
-    industry: section === "profile" || section === "all" ? value(formData, "industry", 160) || null : workspace.profile?.industry ?? null,
-    website: section === "profile" || section === "all" ? optionalHttpsUrl(formData, "website", "Website", "profile") : workspace.profile?.website ?? null,
-    phone: section === "profile" || section === "all" ? value(formData, "phone", 80) || null : workspace.profile?.phone ?? null,
+    company: company || null,
+    industry: editsBusiness ? value(formData, "industry", 160) || null : workspace.profile?.industry ?? null,
+    website: editsBusiness ? optionalHttpsUrl(formData, "website", "Website", section === "business" ? "business" : "profile") : workspace.profile?.website ?? null,
+    phone: editsBusiness ? value(formData, "phone", 80) || null : workspace.profile?.phone ?? null,
     street: section === "profile" || section === "all" ? value(formData, "street", 200) || null : workspace.profile?.street ?? null,
     city: section === "profile" || section === "all" ? value(formData, "city", 120) || null : workspace.profile?.city ?? null,
     state: section === "profile" || section === "all" ? value(formData, "state", 120) || null : workspace.profile?.state ?? null,
@@ -70,8 +74,8 @@ export async function updateWorkspaceProfileAction(formData: FormData): Promise<
     myCustom3: senderDetails[2]?.value || null,
     products: productRecords,
     senderDetails,
-    smsSignature: section === "messaging" || section === "all" ? value(formData, "smsSignature", 500) || null : workspace.profile?.smsSignature ?? null,
-    emailSignature: section === "messaging" || section === "all" ? value(formData, "emailSignature", 2000) || null : workspace.profile?.emailSignature ?? null,
+    smsSignature: editsMessaging ? value(formData, "smsSignature", 500) || user.name : workspace.profile?.smsSignature ?? null,
+    emailSignature: editsMessaging ? value(formData, "emailSignature", 2000) || user.name : workspace.profile?.emailSignature ?? null,
     timezone
   };
   const contributorData = {
@@ -139,5 +143,6 @@ export async function updateWorkspaceProfileAction(formData: FormData): Promise<
       });
     }
   });
+  if (section === "business") redirect("/settings/business?saved=1");
   redirect(`/settings?section=${section === "all" ? "profile" : section}&saved=1${affectedSharedMixIds.length ? "&communityReview=1" : ""}`);
 }

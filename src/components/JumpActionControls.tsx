@@ -75,7 +75,7 @@ function copyWithFallback(text: string): boolean {
   return copied;
 }
 
-export function JumpCopyButton({ jumpId, text }: { jumpId: string; text: string }) {
+export function JumpCopyButton({ jumpId, text, label = "Copy prepared content" }: { jumpId: string; text: string; label?: string }) {
   const [status, setStatus] = useState<"IDLE" | "COPIED" | "FAILED">("IDLE");
 
   const copy = async () => {
@@ -97,5 +97,5 @@ export function JumpCopyButton({ jumpId, text }: { jumpId: string; text: string 
     }
   };
 
-  return <button className="button small" type="button" onClick={copy}>{status === "COPIED" ? "Copied" : status === "FAILED" ? "Copy failed" : "Copy prepared content"}</button>;
+  return <button className="button small" type="button" onClick={copy}>{status === "COPIED" ? "Copied" : status === "FAILED" ? "Copy failed" : label}</button>;
 }

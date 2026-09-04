@@ -23,6 +23,7 @@ const activeProductFiles = [
   "src/app/(app)/templates/page.tsx",
   "src/app/(app)/templates/[sharedMixId]/use/page.tsx",
   "src/app/(app)/settings/page.tsx",
+  "src/app/(app)/settings/business/page.tsx",
   "src/app/(app)/more/page.tsx",
   "src/app/(app)/account/page.tsx",
   "src/app/(app)/account/preferences/page.tsx",
@@ -38,7 +39,7 @@ const activeProductFiles = [
 const prohibited = [
   "stripe", "billing", "subscription", "checkout", "payment", "invoice", "free plan",
   "plus", "pro plan", "upgrade", "downgrade", "plan usage", "pricing", "invite member",
-  "workspace switcher", "transfer ownership", "organization", "member role", "admin role",
+  "workspace switcher", "transfer ownership", "member role", "admin role",
   "google", "ai provider", "referral rewards"
 ];
 
@@ -50,7 +51,8 @@ describe("single-user product boundary", () => {
 
   it("exposes the required navigation and global Quick Add", () => {
     const nav = read("src/components/Nav.tsx");
-    for (const label of ["Today", "Contacts", "Mixes", "Templates", "More"]) expect(nav).toContain(`label: "${label}"`);
+    for (const label of ["Today", "Contacts", "Plans", "More"]) expect(nav).toContain(`label: "${label}"`);
+    expect(nav).not.toContain('label: "Templates"');
     expect(nav).toContain("QuickAddButton mobile");
     expect(read("src/components/AppShell.tsx")).toContain("<QuickAddButton />");
     expect(read("src/components/AppShell.tsx")).toContain("<QuickAddDialog />");

@@ -1,18 +1,34 @@
-export function formatDate(value: Date | string, options?: Intl.DateTimeFormatOptions): string {
-  return new Intl.DateTimeFormat("en-US", {
+export type DisplayFormatPreferences = {
+  locale: string;
+  timeZone: string;
+};
+
+export const UTC_DISPLAY_PREFERENCES: DisplayFormatPreferences = {
+  locale: "en-US",
+  timeZone: "UTC"
+};
+
+export function formatDate(
+  value: Date | string,
+  preferences: DisplayFormatPreferences = UTC_DISPLAY_PREFERENCES,
+  options: Intl.DateTimeFormatOptions = {}
+): string {
+  return new Intl.DateTimeFormat(preferences.locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
-    ...options
+    ...options,
+    timeZone: preferences.timeZone
   }).format(new Date(value));
 }
 
-export function formatDateTime(value: Date | string): string {
-  return new Intl.DateTimeFormat("en-US", {
+export function formatDateTime(value: Date | string, preferences: DisplayFormatPreferences = UTC_DISPLAY_PREFERENCES): string {
+  return new Intl.DateTimeFormat(preferences.locale, {
     month: "short",
     day: "numeric",
     hour: "numeric",
-    minute: "2-digit"
+    minute: "2-digit",
+    timeZone: preferences.timeZone
   }).format(new Date(value));
 }
 

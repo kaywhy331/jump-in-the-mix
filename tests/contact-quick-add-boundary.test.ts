@@ -35,7 +35,7 @@ describe("Device Contact Picker and Quick Add boundaries", () => {
     const contacts = read("src/components/ContactsBulkWorkspace.tsx");
     const form = read("src/components/ContactForm.tsx");
     expect(contacts).toContain("DeviceContactQuickAdd");
-    expect(form).toContain('mode === "create" && <VoiceNoteButton targetId="publicNotes" />');
+    expect(form).toContain('<VoiceNoteButton targetId="publicNotes" />');
     expect(form).not.toContain('VoiceNoteButton targetId="privateNotes"');
   });
 });

@@ -41,10 +41,10 @@ export function generateMixDraft(input: WizardInput): { name: string; descriptio
         name: `Email ${stepNumber}`,
         channel,
         dayOffset,
-        subject: index === 0 ? "A quick question for {{Company}}" : "Worth a brief conversation?",
+        subject: index === 0 ? "A quick follow-up" : "Still need a hand?",
         body: isLast
-          ? `Hi {{First Name}}, I wanted to close the loop. Would it make sense to have a brief conversation about whether ${product} could support what {{Company}} is trying to accomplish?\n\n{{Email Signature}}`
-          : `Hi {{First Name}}, out of curiosity, how is {{Company}} currently handling this? I ask because ${product} may be relevant, but I would first like to understand what is working and what feels difficult.\n\n{{Email Signature}}`
+          ? `Hi {{First Name}},\n\nI don’t want to fill your inbox, so I’ll close the loop for now. If you still need help with ${product}, reply whenever the timing is right and I’ll be glad to pick it up from there.\n\n{{Email Signature}}`
+          : `Hi {{First Name}},\n\nThanks for getting in touch. I wanted to check what would be most helpful right now and whether you have any questions about ${product}. Just reply here and I’ll make the next step easy.\n\n{{Email Signature}}`
       };
     }
 
@@ -54,8 +54,8 @@ export function generateMixDraft(input: WizardInput): { name: string; descriptio
         channel,
         dayOffset,
         body: isLast
-          ? "Hi {{First Name}}, should I close the loop, or would a quick conversation be useful? {{SMS Signature}}"
-          : "Hi {{First Name}}, what would you most like to improve about the way this is handled today? {{SMS Signature}}"
+          ? "Hi {{First Name}}, should I close this out for now, or do you still need a hand? Either answer is fine. {{SMS Signature}}"
+          : "Hi {{First Name}}, just checking in. Is there a question I can answer or a next step I can make easier? {{SMS Signature}}"
       };
     }
 
@@ -63,7 +63,7 @@ export function generateMixDraft(input: WizardInput): { name: string; descriptio
       name: `Call ${stepNumber}`,
       channel,
       dayOffset,
-      script: "Ask how they are handling the situation now, what prompted them to consider a change, and what happens if the problem remains unresolved. Listen before presenting a solution."
+      script: "Ask whether they still need help, what has changed, and what one next step would be most useful. Listen, answer plainly, and agree on when to follow up."
     };
   });
 

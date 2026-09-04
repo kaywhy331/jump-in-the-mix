@@ -148,6 +148,13 @@ function upgrade() {
   console.log("Upgrade checks passed. Retain the pre-upgrade backup until the pilot has been exercised.");
 }
 
+function resetPassword() {
+  validateEnvironment();
+  const email = process.argv.slice(3).find((item) => !item.startsWith("--"));
+  if (!email) fail("Pass the owner's email after --, for example: npm run pilot:reset-password -- owner@example.com");
+  compose(["--profile", "ops", "run", "--rm", "--build", "operations", "npx", "tsx", "scripts/issue-password-reset-link.ts", email]);
+}
+
 const command = process.argv[2];
 switch (command) {
   case "init": initialize(); break;
@@ -163,5 +170,6 @@ switch (command) {
   case "restore": restore(); break;
   case "health": health(); break;
   case "upgrade": upgrade(); break;
-  default: fail("Choose init, up, down, status, logs, backup, restore, health, or upgrade.");
+  case "reset-password": resetPassword(); break;
+  default: fail("Choose init, up, down, status, logs, backup, restore, health, upgrade, or reset-password.");
 }

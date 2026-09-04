@@ -10,7 +10,7 @@ import { formatDateInput, formatTimeInput } from "@/lib/mix-broadcast";
 import { activateMixAction, archiveMixAction, pauseMixAction } from "@/lib/mix-lifecycle-actions";
 import { prisma } from "@/lib/prisma";
 
-export const metadata: Metadata = { title: "Mixes" };
+export const metadata: Metadata = { title: "Plans" };
 
 type SearchParams = {
   created?: string;
@@ -51,22 +51,22 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="page">
-      {params.created === "starter" && <Notice type="success">Starter Mix created. Assign it to a Contact with a matching Important Date.</Notice>}
-      {params.created === "manual" && <Notice type="success">Mix created. Future pending Jumps are being reconciled automatically.</Notice>}
-      {params.updated === "manual" && <Notice type="success">Mix updated. Removed or rescheduled future work is being reconciled.</Notice>}
-      {params.activated && <Notice type="success">Mix activated. Matching future Jumps are being reconciled automatically.</Notice>}
-      {params.paused && <Notice type="success">Mix paused. Future pending Jumps from this Mix were removed from the action queue.</Notice>}
-      {params.archived && <Notice type="success">Mix archived. Incomplete Jumps were removed while completed history remains available.</Notice>}
-      {params.starter === "exists" && <Notice type="info">Your simple starter Mix is already available below.</Notice>}
+      {params.created === "starter" && <Notice type="success">Starter plan created.</Notice>}
+      {params.created === "manual" && <Notice type="success">Plan created.</Notice>}
+      {params.updated === "manual" && <Notice type="success">Plan saved.</Notice>}
+      {params.activated && <Notice type="success">Plan turned on.</Notice>}
+      {params.paused && <Notice type="success">Plan paused.</Notice>}
+      {params.archived && <Notice type="success">Plan archived.</Notice>}
+      {params.starter === "exists" && <Notice type="info">Your starter plan is below.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
       <header className="page-header">
-        <div><h1>Mixes</h1><p>Mixes are follow-up plans: a timed sequence of actions for the people and moments that matter.</p></div>
+        <div><h1>Plans</h1><p>Ready-to-use follow-ups for leads, customers, reviews, renewals, and referrals.</p></div>
         <div className="page-actions">
-          <details className="mix-create-menu"><summary className="button primary mobile-header-action" aria-label="Create Mix"><AppIcon name="add"/><span className="mobile-action-label">New Mix</span></summary><div className="mix-create-menu-panel"><Link href="/templates"><strong>Start from template</strong><small>Use a reviewed plan</small></Link><Link href="/mixes/new"><strong>Build manually</strong><small>Control every action</small></Link><form action={createStarterMixAction}><button className="text-button" type="submit"><strong>Simple starter</strong><small>Create a warm three-step plan</small></button></form></div></details>
+          <Link className="button" href="/templates">Ready-made plans</Link><Link className="button primary mobile-header-action" href="/mixes/new" aria-label="Create plan"><AppIcon name="add"/><span className="mobile-action-label">New plan</span></Link>
         </div>
       </header>
-      <form className="filter-bar mix-filter-bar desktop-only" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search Mixes" aria-label="Search Mixes"/><select name="status" defaultValue={status} aria-label="Filter Mixes by status"><option value="">All statuses</option><option value="ACTIVE">Active</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select><button className="button" type="submit">Filter</button>{(q || status) && <Link className="button" href="/mixes">Clear</Link>}</form>
-      <div className="mobile-contact-controls mobile-only"><form className="mobile-search-form" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search mixes" aria-label="Search mixes"/>{status && <input type="hidden" name="status" value={status}/>}<button className="sr-only" type="submit">Search mixes</button></form><details className="mobile-filter-disclosure"><summary className={status ? "button filter-trigger active" : "button filter-trigger"}><AppIcon name="settings"/><span>Filter{status ? " 1" : ""}</span></summary><form className="mobile-filter-panel" action="/mixes" method="get"><input type="hidden" name="q" value={q}/><label className="filter-field"><span>Status</span><select name="status" defaultValue={status} aria-label="Filter Mixes by status"><option value="">All statuses</option><option value="ACTIVE">Active</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select></label><div className="mobile-filter-actions"><Link className="button" href={q ? `/mixes?q=${encodeURIComponent(q)}` : "/mixes"}>Reset</Link><button className="button primary" type="submit">Apply</button></div></form></details></div>
+      <form className="filter-bar mix-filter-bar desktop-only" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search plans" aria-label="Search plans"/><select name="status" defaultValue={status} aria-label="Filter plans by status"><option value="">All statuses</option><option value="ACTIVE">On</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select><button className="button" type="submit">Filter</button>{(q || status) && <Link className="button" href="/mixes">Clear</Link>}</form>
+      <div className="mobile-contact-controls mobile-only"><form className="mobile-search-form" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search plans" aria-label="Search plans"/>{status && <input type="hidden" name="status" value={status}/>}<button className="sr-only" type="submit">Search plans</button></form><details className="mobile-filter-disclosure"><summary className={status ? "button filter-trigger active" : "button filter-trigger"}><AppIcon name="settings"/><span>Filter{status ? " 1" : ""}</span></summary><form className="mobile-filter-panel" action="/mixes" method="get"><input type="hidden" name="q" value={q}/><label className="filter-field"><span>Status</span><select name="status" defaultValue={status} aria-label="Filter plans by status"><option value="">All statuses</option><option value="ACTIVE">On</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select></label><div className="mobile-filter-actions"><Link className="button" href={q ? `/mixes?q=${encodeURIComponent(q)}` : "/mixes"}>Reset</Link><button className="button primary" type="submit">Apply</button></div></form></details></div>
 
       {mixes.length ? (
         <div className="mix-list">
@@ -81,37 +81,37 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                     <h3>{mix.name}</h3>
                     <div className="mix-meta">
                       <span className={`status-pill ${mix.status === "ACTIVE" ? "done" : ""}`}>{mix.status.toLowerCase()}</span>
-                      <span className="mix-trigger">Starts when: {mix.dateType ? `${mix.dateType.name} occurs` : mix.triggerMode === "MANUAL_START" ? "you start it" : "a broadcast is scheduled"}</span>
-                      {broadcast && <span className="mix-broadcast">Broadcast: {formatDateInput(broadcast.localDate)} · {formatTimeInput(broadcast.timeMinutes)} {broadcast.timezone}</span>}
-                      <span className="mix-audience"><span className="desktop-label">Audience: </span>{mix._count.assignments} contact{mix._count.assignments === 1 ? "" : "s"}</span>
-                      <span className="mix-timing"><span className="desktop-label">Timing: </span>{mix.steps.length} action{mix.steps.length === 1 ? "" : "s"} · {lastDay + 1} day{lastDay ? "s" : ""}</span>
-                      <span className="mix-channels">Channels: {channelSequence.join(" → ") || "None yet"}</span>
+                      <span className="mix-trigger">Starts: {mix.dateType ? `when ${mix.dateType.name} is added` : mix.triggerMode === "MANUAL_START" ? "when you choose" : "on one scheduled date"}</span>
+                      {broadcast && <span className="mix-broadcast">Scheduled: {formatDateInput(broadcast.localDate)} · {formatTimeInput(broadcast.timeMinutes)} {broadcast.timezone}</span>}
+                      <span className="mix-audience">{mix._count.assignments} {mix._count.assignments === 1 ? "person" : "people"}</span>
+                      <span className="mix-timing">{mix.steps.length} follow-up{mix.steps.length === 1 ? "" : "s"} · {lastDay + 1} day{lastDay ? "s" : ""}</span>
+                      <span className="mix-channels">{channelSequence.join(" → ") || "No channels yet"}</span>
                     </div>
                   </div>
                   <div className="mix-card-actions">
                     <Link href={`/mixes/${mix.id}/edit`} className="button small primary">Edit</Link>
-                    <details className="mix-row-menu"><summary className="button small" aria-label={`More actions for ${mix.name}`}>More</summary><div className="mix-row-menu-panel">{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Pause Mix</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Activate Mix</button></form>}<ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The Mix leaves active workflows while completed Jump history remains available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small danger" type="submit">Confirm archive</button></form></ConfirmDialog></div></details>
+                    <details className="mix-row-menu"><summary className="button small" aria-label={`More actions for ${mix.name}`}>More</summary><div className="mix-row-menu-panel">{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Pause plan</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Turn on plan</button></form>}<ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The plan stops creating new follow-ups. Completed history stays available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small danger" type="submit">Archive plan</button></form></ConfirmDialog></div></details>
                   </div>
                 </div>
                 {mix.description && <p className="muted-copy">{mix.description}</p>}
-                <div className="mix-sequence-preview" aria-label={`${mix.name} Jump sequence`}>
+                <div className="mix-sequence-preview" aria-label={`${mix.name} follow-up sequence`}>
                   {mix.steps.length ? mix.steps.map((step, index) => (
-                    <div className="mix-sequence-item" key={step.id}><span className="mix-sequence-number">Jump #{index + 1}</span><span className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></span><span><strong>{step.stepVersion.stepTemplate.name}</strong><small>Day {step.dayOffset}</small></span></div>
-                  )) : <span className="status-pill">No Jumps added yet</span>}
+                    <div className="mix-sequence-item" key={step.id}><span className="mix-sequence-number">Follow-up {index + 1}</span><span className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></span><span><strong>{step.stepVersion.stepTemplate.name}</strong><small>Day {step.dayOffset}</small></span></div>
+                  )) : <span className="status-pill">No follow-ups yet</span>}
                 </div>
                 <details className="mix-details"><summary>View prepared content</summary><div className="timeline">{mix.steps.map((step, index) => {
                   const content = step.stepVersion.body ?? step.stepVersion.script ?? "No message content";
-                  return <div className="timeline-step" key={step.id}><div className="timeline-day">Jump #{index + 1}<small>Day {step.dayOffset}</small></div><div className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></div><div className="timeline-content"><strong>{step.stepVersion.stepTemplate.name}</strong><span className="channel-pill">{step.stepVersion.stepTemplate.channel.replaceAll("_", " ")}</span><p>{step.stepVersion.subject && `${step.stepVersion.subject}\n`}{content}</p></div></div>;
+                  return <div className="timeline-step" key={step.id}><div className="timeline-day">Follow-up {index + 1}<small>Day {step.dayOffset}</small></div><div className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></div><div className="timeline-content"><strong>{step.stepVersion.stepTemplate.name}</strong><span className="channel-pill">{step.stepVersion.stepTemplate.channel.replaceAll("_", " ")}</span><p>{step.stepVersion.subject && `${step.stepVersion.subject}\n`}{content}</p></div></div>;
                 })}</div></details>
               </article>
             );
           })}
         </div>
       ) : (
-        <EmptyState title="Create your first follow-up plan" description="Start from a reviewed Mix template or build a sequence for an Important Date and audience." actionHref="/templates" actionLabel="Browse Mix Templates" />
+        <EmptyState title="Choose your first plan" description="Start with a ready-made plan for your business, or build a simple one." actionHref="/mixes/new" actionLabel="Choose a plan" />
       )}
 
-      {!mixes.length && <form action={createStarterMixAction} className="starter-mix-inline"><button className="button" type="submit">Or create the simple starter Mix</button></form>}
+      {!mixes.length && <form action={createStarterMixAction} className="starter-mix-inline"><button className="button" type="submit">Create a basic starter plan</button></form>}
     </div>
   );
 }

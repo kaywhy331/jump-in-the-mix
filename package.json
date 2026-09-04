@@ -49,6 +49,7 @@
     "pilot:restore": "node scripts/pilot.mjs restore",
     "pilot:health": "node scripts/pilot.mjs health",
     "pilot:upgrade": "node scripts/pilot.mjs upgrade",
+    "pilot:reset-password": "node scripts/pilot.mjs reset-password",
     "security:audit": "npm audit --omit=dev --audit-level=high"
   },
   "dependencies": {

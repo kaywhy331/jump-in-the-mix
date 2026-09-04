@@ -45,6 +45,18 @@ describe("calculateSnoozeAt", () => {
     expect(scheduledAt.toISOString()).toBe("2026-07-21T17:30:00.000Z");
   });
 
+  it("uses the preferred follow-up time for a date-only custom snooze", () => {
+    const scheduledAt = calculateSnoozeAt({
+      now: new Date("2026-07-20T12:00:00.000Z"),
+      timezone: "America/Chicago",
+      preset: "custom",
+      customDate: "2026-07-22",
+      preferredMinutes: 9 * 60
+    });
+
+    expect(scheduledAt.toISOString()).toBe("2026-07-22T14:00:00.000Z");
+  });
+
   it("rejects past custom times", () => {
     expect(() => calculateSnoozeAt({
       now: new Date("2026-07-21T18:00:00.000Z"),

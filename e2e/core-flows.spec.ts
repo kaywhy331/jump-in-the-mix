@@ -142,16 +142,23 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
 
   await signIn(page, email, password);
   await expect(page).toHaveURL(/\/onboarding/);
-  await expect(page.getByRole("heading", { name: "Who would you like to remember?" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Never let a good customer go quiet" })).toBeVisible();
+  await page.getByLabel("Business name").fill("Browser Test Plumbing");
   await page.getByLabel("Name").fill("Jordan First Win");
   await page.getByLabel("Email optional").fill("jordan-first-win@example.com");
-  await page.getByRole("checkbox", { name: /Confirm timezone/ }).check();
   await Promise.all([
     page.waitForURL(/\/jumps\?.*welcome=1/),
-    page.getByRole("button", { name: "Create my first Jump" }).click()
+    page.getByRole("button", { name: "Prepare my first follow-up" }).click()
   ]);
   await expect(page.getByText("Your first Jump for Jordan First Win is ready below.")).toBeVisible();
-  await expect(page.locator(".jump-task-card:visible").filter({ hasText: "Jordan First Win" }).first()).toBeVisible();
+  const firstFollowUp = page.locator(".jump-task-card:visible").filter({ hasText: "Jordan First Win" }).first();
+  await expect(firstFollowUp).toBeVisible();
+  await firstFollowUp.locator("summary").click();
+  const preparedMessage = firstFollowUp.locator(".jump-expanded-content > div").filter({ hasText: "Prepared content" }).locator("p");
+  const renderedBody = await preparedMessage.textContent();
+  expect(renderedBody).not.toContain("{{");
+  expect(renderedBody).not.toContain("  ");
+  expect(renderedBody?.trim()).toMatch(/Onboarding Browser Test$/);
   await expect(prisma.contact.count({ where: { workspaceId, displayName: "Jordan First Win" } })).resolves.toBe(1);
   await expect(prisma.jump.count({ where: { workspaceId, contact: { displayName: "Jordan First Win" } } })).resolves.toBeGreaterThan(0);
 });

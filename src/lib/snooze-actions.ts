@@ -26,6 +26,7 @@ export async function snoozeJumpAction(formData: FormData): Promise<void> {
   const allowed: SnoozePreset[] = ["later-today", "tomorrow", "next-monday", "next-week", "custom"];
   const preset = allowed.includes(presetRaw as SnoozePreset) ? presetRaw as SnoozePreset : "custom";
 
+  const scheduling = await prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } });
   let scheduledAt: Date;
   try {
     scheduledAt = calculateSnoozeAt({
@@ -33,8 +34,9 @@ export async function snoozeJumpAction(formData: FormData): Promise<void> {
       timezone: workspace.profile?.timezone ?? "UTC",
       preset,
       customDate: value(formData, "customDate"),
-      quietHoursStart: workspace.profile?.quietHoursStart,
-      quietHoursEnd: workspace.profile?.quietHoursEnd
+      preferredMinutes: scheduling?.defaultFollowUpMinutes,
+      quietHoursStart: scheduling?.quietHoursStart,
+      quietHoursEnd: scheduling?.quietHoursEnd
     });
   } catch (error) {
     redirect(withParam(returnTo, "error", error instanceof Error ? error.message : "Choose a future date and time."));

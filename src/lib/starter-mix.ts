@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { generateMixDraft } from "@/lib/mix-generator";
+import { starterPlanForBusinessType } from "@/lib/vertical-plan-library";
 
-export async function ensureStarterMix(workspaceId: string) {
+export async function ensureStarterMix(workspaceId: string, businessType?: string | null) {
   const existing = await prisma.mix.findFirst({
     where: { workspaceId, source: "STARTER", status: { not: "ARCHIVED" } },
     orderBy: { createdAt: "asc" }
@@ -12,14 +12,7 @@ export async function ensureStarterMix(workspaceId: string) {
   const followUp = await prisma.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true } });
   if (!followUp) throw new Error("System Follow-up date type is missing. Run the seed command again.");
 
-  const draft = generateMixDraft({
-    objective: "Simple Follow-Up",
-    tone: "Warm",
-    durationDays: 9,
-    touches: 3,
-    channels: ["EMAIL", "SMS", "PHONE_CALL"],
-    productPlaceholder: "{{My Product 1}}"
-  });
+  const draft = starterPlanForBusinessType(businessType);
   const mixId = randomUUID();
 
   return prisma.$transaction(async (tx) => {
@@ -27,21 +20,22 @@ export async function ensureStarterMix(workspaceId: string) {
       data: {
         id: mixId,
         workspaceId,
-        name: draft.name,
+        name: draft.title,
         description: draft.description,
-        framework: "Starter",
-        category: "Business",
+        framework: draft.framework,
+        category: draft.category,
+        industry: draft.industry,
         triggerMode: "DATE_TRIGGERED",
         dateTypeId: followUp.id,
         status: "ACTIVE",
-        durationDays: 9,
+        durationDays: draft.durationDays,
         source: "STARTER"
       }
     });
 
     for (const [index, step] of draft.steps.entries()) {
       const template = await tx.stepTemplate.create({
-        data: { workspaceId, name: `${draft.name} — ${step.name}`, channel: step.channel }
+        data: { workspaceId, name: `${draft.title} — ${step.name}`, channel: step.channel }
       });
       const version = await tx.stepVersion.create({
         data: {
@@ -53,7 +47,7 @@ export async function ensureStarterMix(workspaceId: string) {
         }
       });
       await tx.mixStep.create({
-        data: { mixId, stepVersionId: version.id, dayOffset: step.dayOffset, sortOrder: index + 1 }
+        data: { mixId, stepVersionId: version.id, dayOffset: step.dayOffset, sendTimeMinutes: step.sendTimeMinutes, sortOrder: index + 1 }
       });
     }
     return mix;

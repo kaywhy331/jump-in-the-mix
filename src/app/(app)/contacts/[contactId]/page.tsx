@@ -3,15 +3,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { ContactRelationshipStatePanel, ContactInlineBasicsForm } from "@/components/ContactRelationshipStatePanel";
+import { ContactRelationshipStatePanel } from "@/components/ContactRelationshipStatePanel";
 import { ContactTimeline } from "@/components/ContactTimeline";
 import { ContactsBackLink } from "@/components/ContactsBackLink";
 import { Notice } from "@/components/Notice";
-import { PersonalizableCardBoard, type PersonalizableCardItem } from "@/components/PersonalizableCards";
 import { requireWorkspace } from "@/lib/auth";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { assignMixToContactAction, removeMixAssignmentAction } from "@/lib/contact-mix-actions";
-import { formatDate } from "@/lib/format";
+import { displayPreferencesForUser } from "@/lib/display-preferences";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { listGroupStates } from "@/lib/group-activity";
 import { createImportantDateAction, deactivateImportantDateAction, updateImportantDateAction } from "@/lib/important-date-actions";
 import { formatDateInput } from "@/lib/mix-broadcast";
@@ -34,7 +34,7 @@ function addressText(address: { street1: string | null; street2: string | null; 
 
 export default async function ContactDetailPage({ params, searchParams }: { params: Promise<{ contactId: string }>; searchParams: Promise<SearchParams> }) {
   const [{ contactId }, query, { workspace, user }] = await Promise.all([params, searchParams, requireWorkspace()]);
-  const [contact, dateTypes, mixes, stops, groupStates, relationshipState, layout, mergeHistory] = await Promise.all([
+  const [contact, dateTypes, plans, stops, groupStates, relationshipState, mergeHistory, nextFollowUp] = await Promise.all([
     prisma.contact.findFirst({
       where: { id: contactId, workspaceId: workspace.id, archivedAt: null },
       include: {
@@ -52,109 +52,119 @@ export default async function ContactDetailPage({ params, searchParams }: { para
     prisma.mixStop.findMany({ where: { workspaceId: workspace.id, contactId }, orderBy: { stoppedAt: "desc" } }),
     listGroupStates(workspace.id),
     prisma.contactRelationshipState.findUnique({ where: { contactId } }),
-    prisma.userContactLayout.findUnique({ where: { userId_workspaceId: { userId: user.id, workspaceId: workspace.id } } }),
-    prisma.contactMergeRecord.findMany({ where: { workspaceId: workspace.id, survivorContactId: contactId }, orderBy: { createdAt: "desc" }, take: 10 })
+    prisma.contactMergeRecord.findMany({ where: { workspaceId: workspace.id, survivorContactId: contactId }, orderBy: { createdAt: "desc" }, take: 10 }),
+    prisma.jump.findFirst({ where: { workspaceId: workspace.id, contactId, status: { in: ["PENDING", "COPIED"] } }, orderBy: { scheduledAt: "asc" }, select: { scheduledAt: true, reason: true } })
   ]);
   if (!contact) notFound();
 
+  const displayPreferences = await displayPreferencesForUser(user.id, workspace.profile?.timezone ?? "UTC");
   const followUpType = dateTypes.find((type) => type.slug === "follow-up");
   const stopByMixId = new Map(stops.map((stop) => [stop.mixId, stop]));
-  const directMixIds = new Set(contact.mixAssignments.map((assignment) => assignment.mixId));
-  const additionalStoppedMixes = mixes.filter((mix) => stopByMixId.has(mix.id) && !directMixIds.has(mix.id));
+  const directPlanIds = new Set(contact.mixAssignments.map((assignment) => assignment.mixId));
+  const additionalStoppedPlans = plans.filter((plan) => stopByMixId.has(plan.id) && !directPlanIds.has(plan.id));
   const activeByGroupId = new Map(groupStates.map((state) => [state.groupId, state.isActive]));
   const primaryEmail = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email ?? null;
   const primaryPhone = contact.phones.find((item) => item.isPrimary)?.phone ?? contact.phones[0]?.phone ?? null;
   const state = relationshipState ?? { preferredChannel: null, priority: "NORMAL" as const, doNotContact: false, relationshipStatus: null, nextCommitmentAt: null, version: 0 };
 
-  const cardItems: PersonalizableCardItem[] = [
-    {
-      id: "relationship-state",
-      title: "Relationship state",
-      description: "Priority, communication preference, next commitment, and contact permission.",
-      content: <ContactRelationshipStatePanel contactId={contact.id} state={state} />
-    },
-    {
-      id: "relationship-timeline",
-      title: "Relationship timeline",
-      description: "Calls, messages, outcomes, notes, system changes, and next commitments in chronological order.",
-      content: <ContactTimeline contactId={contact.id} />
-    },
-    {
-      id: "important-dates",
-      title: "Important Dates",
-      description: "Moments that can start a follow-up plan.",
-      content: contact.jumpDates.length ? <div className="important-date-list">{contact.jumpDates.map((item) => <article className="important-date-row" key={item.id} id={`important-date-${item.id}`}><div className="important-date-summary"><h3>{item.dateType.name}</h3><div className="jump-meta"><span>{item.dateValue ? formatDate(item.dateValue) : `${item.month}/${item.day}`}</span><span>{item.recurrence.toLowerCase()}</span>{item.label && <span>{item.label}</span>}</div></div><div className="important-date-actions"><details className="important-date-edit"><summary className="icon-button compact" aria-label={`Edit ${item.dateType.name}`} title="Edit Important Date"><AppIcon name="edit" /></summary><form action={updateImportantDateAction} className="important-date-edit-panel"><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} />{!item.dateValue && <input type="hidden" name="monthDayOnly" value="1" />}<label className="field"><span>Type</span><select name="dateTypeId" defaultValue={item.dateTypeId} required>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.isSystem ? `System · ${type.name}` : type.name}</option>)}</select></label>{item.dateValue ? <label className="field"><span>Date</span><input name="dateValue" type="date" defaultValue={formatDateInput(item.dateValue)} required /></label> : <><label className="field"><span>Month</span><select name="month" defaultValue={item.month ?? ""} required><option value="">Choose month</option>{MONTHS.map((month, index) => <option value={index + 1} key={month}>{month}</option>)}</select></label><label className="field"><span>Day</span><input name="day" type="number" min={1} max={31} defaultValue={item.day ?? ""} inputMode="numeric" required /></label></>}<label className="field"><span>Repeat</span><select name="recurrence" defaultValue={item.recurrence}><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label><label className="field"><span>Label</span><input name="label" defaultValue={item.label ?? ""} placeholder="Proposal follow-up" /></label><div className="form-actions"><button className="button primary" type="submit">Save changes</button></div></form></details><ConfirmDialog trigger={<AppIcon name="trash" />} triggerAriaLabel={`Remove ${item.dateType.name}`} triggerClassName="icon-button compact danger" title={`Remove ${item.dateType.name}?`} description="Future pending work tied to this Important Date will be canceled. The date remains recoverable in history." danger><form action={deactivateImportantDateAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} /><button className="button small danger" type="submit">Confirm removal</button></form></ConfirmDialog></div></article>)}</div> : <p className="muted-copy">No Important Dates yet. Add the next moment you genuinely need to remember.</p>
-    },
-    {
-      id: "add-important-date",
-      title: "Add an Important Date",
-      description: "Choose the moment and when it occurs.",
-      defaultCollapsed: true,
-      content: <form action={createImportantDateAction} className="form-grid personalizable-form-content"><input type="hidden" name="contactId" value={contact.id} /><div className="field"><label htmlFor="dateTypeId">Important Date Type</label><select id="dateTypeId" name="dateTypeId" required defaultValue={followUpType?.id}>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.isSystem ? `System · ${type.name}` : type.name}</option>)}</select></div><div className="field"><label htmlFor="dateValue">Date</label><input id="dateValue" name="dateValue" type="date" required /></div><div className="field"><label htmlFor="recurrence">Repeat</label><select id="recurrence" name="recurrence"><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></div><div className="field"><label htmlFor="label">Optional label</label><input id="label" name="label" placeholder="Proposal follow-up" /></div><label className="checkbox-card field full onboarding-default"><input type="checkbox" name="autoAssignRecommended" defaultChecked /><span><strong>Start a matching follow-up plan</strong><small>The first active Mix using this Important Date Type will be assigned automatically.</small></span></label><div className="form-actions field full"><button className="button primary" type="submit">Add Important Date</button></div></form>
-    },
-    {
-      id: "contact-summary",
-      title: "Contact summary",
-      description: "Edit the primary email, phone, company, and durable customer background without leaving the page.",
-      content: <ContactInlineBasicsForm contactId={contact.id} company={contact.company} primaryEmail={primaryEmail} primaryPhone={primaryPhone} publicNotes={contact.publicNotes} />
-    },
-    {
-      id: "contact-methods",
-      title: "All contact methods",
-      description: "Every phone, email, and address with primary values first.",
-      defaultCollapsed: true,
-      actions: <Link className="icon-button compact" href={`/contacts/${contact.id}/edit`} aria-label="Edit all Contact details" title="Edit all details"><AppIcon name="edit" /></Link>,
-      content: <div className="contact-method-sections personalizable-section-content"><section><h3>Email</h3>{contact.emails.length ? contact.emails.map((item) => <div className="contact-method-row" key={item.id}><span>{item.email}</span><small>{item.label || "Email"}{item.isPrimary ? " · Primary" : ""}</small></div>) : <p className="muted-copy">Not added</p>}</section><section><h3>Phone</h3>{contact.phones.length ? contact.phones.map((item) => <div className="contact-method-row" key={item.id}><span>{item.phone}</span><small>{item.label || "Phone"}{item.isPrimary ? " · Primary" : ""}</small></div>) : <p className="muted-copy">Not added</p>}</section><section><h3>Address</h3>{contact.addresses.length ? contact.addresses.map((item) => <div className="contact-method-row" key={item.id}><span>{addressText(item) || "Address details incomplete"}</span><small>{item.label || "Address"}{item.isPrimary ? " · Primary" : ""}</small></div>) : <p className="muted-copy">Not added</p>}</section></div>
-    },
-    {
-      id: "private-summary",
-      title: "Private relationship summary",
-      description: "Pinned phone, deal, and relationship context that is never inserted into written outreach.",
-      defaultCollapsed: true,
-      actions: <Link className="icon-button compact" href={`/contacts/${contact.id}/edit#contact-notes`} aria-label="Edit private relationship summary" title="Edit private summary"><AppIcon name="edit" /></Link>,
-      content: <section className="contact-note-block"><p className="note-copy">{contact.privateNotes || "No private relationship summary yet."}</p><small>Add dated private updates in the Relationship timeline so prior context remains visible.</small></section>
-    },
-    {
-      id: "custom-fields",
-      title: "Custom fields",
-      description: "Personal values available to approved placeholders.",
-      defaultCollapsed: true,
-      actions: <Link className="icon-button compact" href="/contacts/custom-fields" aria-label="Manage custom fields" title="Manage custom fields"><AppIcon name="settings" /></Link>,
-      content: contact.customFieldValues.length ? <div className="contact-method-sections personalizable-section-content">{contact.customFieldValues.map((item) => <div className="contact-method-row" key={item.id}><span>{item.value}</span><small>{item.definition.name} · {customFieldPlaceholder(item.definition.key)}</small></div>)}</div> : <p className="muted-copy">No custom values saved for this Contact.</p>
-    },
-    {
-      id: "assigned-mixes",
-      title: "Assigned Mixes",
-      description: state.doNotContact ? "Mix assignments are preserved, but future Jumps are suppressed by do-not-contact." : "Follow-up plans currently assigned to this Contact.",
-      defaultCollapsed: true,
-      content: <>{mixes.length ? <form action={assignMixToContactAction} className="form-stack personalizable-form-content"><input type="hidden" name="contactId" value={contact.id} /><div className="field"><label htmlFor="mixId">Mix</label><select id="mixId" name="mixId">{mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></div><button className="button primary" type="submit" disabled={state.doNotContact}>Assign Mix</button></form> : <p className="muted-copy">Create or activate a Mix first.</p>}{contact.mixAssignments.length > 0 && <div className="assigned-mix-list">{contact.mixAssignments.map((assignment) => { const stop = stopByMixId.get(assignment.mix.id); return <div className="assigned-mix-row" key={assignment.id}><div><Link href={`/mixes/${assignment.mix.id}/edit`}>{assignment.mix.name}</Link>{stop && <small className="stopped-mix-label">Stopped</small>}</div><div className="assigned-mix-actions">{stop ? <form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small primary" type="submit">Resume</button></form> : <ConfirmDialog trigger="Stop…" title={`Stop ${assignment.mix.name}?`} description={`Pending Jumps for ${contact.displayName} from this Mix will leave the queue.`}><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small danger" type="submit">Stop Mix</button></form></ConfirmDialog>}<ConfirmDialog trigger="Remove…" title={`Remove ${assignment.mix.name}?`} description={`The direct assignment to ${contact.displayName} is removed. Completed Jump history remains available.`} danger><form action={removeMixAssignmentAction}><input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Confirm remove</button></form></ConfirmDialog></div></div>; })}</div>}{additionalStoppedMixes.length > 0 && <div className="stopped-mix-section"><h3>Stopped from other audiences</h3>{additionalStoppedMixes.map((mix) => <div className="assigned-mix-row" key={mix.id}><div><Link href={`/mixes/${mix.id}/edit`}>{mix.name}</Link><small className="stopped-mix-label">Stopped</small></div><form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small primary" type="submit">Resume</button></form></div>)}</div>}</>
-    }
-  ];
-
   return (
     <div className="page contact-detail-page">
-      {query.created && <Notice type="success">{query.dateCreated ? `Contact added with the first Important Date${query.mixAssigned ? " and follow-up plan" : ""}. Future Jumps are being prepared.` : "Contact added. Add an Important Date when you are ready to schedule follow-up."}</Notice>}
-      {query.updated && <Notice type="success">Contact details updated. Future pending Jumps are being refreshed.</Notice>}
-      {query.inlineUpdated && <Notice type="success">Primary Contact details and customer summary saved.</Notice>}
-      {query.stateUpdated && <Notice type="success">Relationship state saved. Scheduling permissions are being reconciled.</Notice>}
-      {query.merged && <Notice type="success">Duplicate Contact merged. The source remains archived in the merge audit.</Notice>}
-      {!query.created && query.dateCreated && <Notice type="success">Important Date added. Matching Mixes can now create future Jumps.</Notice>}
-      {query.dateUpdated && <Notice type="success">Important Date updated. Future pending Jumps are being reconciled.</Notice>}
-      {query.dateDeleted && <Notice type="success">Important Date removed from active planning. Its historical record remains recoverable.</Notice>}
-      {!query.created && query.mixAssigned && <Notice type="success">Mix assigned. The background worker is preparing matching Jumps.</Notice>}
-      {query.mixRemoved && <Notice type="success">Mix removed from this Contact. Completed history remains available.</Notice>}
-      {query.mixStopped && <Notice type="success">Mix stopped for this Contact. Its pending Jumps were removed.</Notice>}
-      {query.mixResumed && <Notice type="success">Mix resumed for this Contact. Valid future Jumps are being restored.</Notice>}
-      {query.mixStopError && <Notice type="error">The Mix could not be stopped for this Contact.</Notice>}
-      {query.mixResumeError && <Notice type="error">The Mix stop could not be removed.</Notice>}
+      {query.created && <Notice type="success">Contact added.</Notice>}
+      {query.updated && <Notice type="success">Contact updated.</Notice>}
+      {query.inlineUpdated && <Notice type="success">Contact saved.</Notice>}
+      {query.stateUpdated && <Notice type="success">Saved.</Notice>}
+      {query.merged && <Notice type="success">Contacts merged.</Notice>}
+      {!query.created && query.dateCreated && <Notice type="success">Date added.</Notice>}
+      {query.dateUpdated && <Notice type="success">Date updated.</Notice>}
+      {query.dateDeleted && <Notice type="success">Date removed.</Notice>}
+      {!query.created && query.mixAssigned && <Notice type="success">Plan started.</Notice>}
+      {query.mixRemoved && <Notice type="success">Plan removed.</Notice>}
+      {query.mixStopped && <Notice type="success">Plan stopped.</Notice>}
+      {query.mixResumed && <Notice type="success">Plan resumed.</Notice>}
+      {query.mixStopError && <Notice type="error">Plan could not be stopped.</Notice>}
+      {query.mixResumeError && <Notice type="error">Plan could not be resumed.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
-      {state.doNotContact && <Notice type="info">Do not contact is enabled. Written and phone actions are suppressed until it is cleared.</Notice>}
+      {state.doNotContact && <Notice type="info">Do not contact is on.</Notice>}
 
-      <header className="page-header"><div><h1>{contact.displayName}</h1><p>{contact.company || "Relationship details and follow-up timing"}</p><div className="contact-state-badges"><span className={`status-pill ${state.priority === "URGENT" || state.priority === "HIGH" ? "overdue" : ""}`}>{state.priority.toLowerCase()} priority</span>{state.relationshipStatus && <span className="status-pill">{state.relationshipStatus}</span>}{state.preferredChannel && <span className="status-pill">Prefers {state.preferredChannel.replaceAll("_", " ").toLowerCase()}</span>}{mergeHistory.length > 0 && <span className="status-pill">{mergeHistory.length} merge{mergeHistory.length === 1 ? "" : "s"}</span>}</div></div><div className="page-actions contact-detail-header-actions"><Link href="/contacts/duplicates" className="button mobile-header-action" aria-label="Review duplicate Contacts"><AppIcon name="community" /><span>Duplicates</span></Link><Link href={`/contacts/${contact.id}/edit`} className="button primary mobile-header-action" aria-label="Edit contact"><AppIcon name="edit" /><span>Edit contact</span></Link><ContactsBackLink className="button mobile-header-action" ariaLabel="Back to Contacts"><AppIcon name="arrowLeft" /><span>Back</span></ContactsBackLink></div></header>
+      <header className="page-header contact-profile-header">
+        <div><h1>{contact.displayName}</h1><p>{contact.company || "Customer details"}</p></div>
+        <div className="page-actions contact-detail-header-actions">
+          <Link href={`/contacts/${contact.id}/edit`} className="button primary"><AppIcon name="edit" />Edit</Link>
+          <ContactsBackLink className="button" ariaLabel="Back to contacts"><AppIcon name="arrowLeft" />Back</ContactsBackLink>
+        </div>
+      </header>
 
-      {!state.doNotContact && <nav className="page-actions contact-profile-quick-actions" aria-label={`Contact ${contact.displayName}`}>{primaryPhone && <a className="button primary" href={`sms:${primaryPhone}`}><AppIcon name="message" />Text</a>}{primaryEmail && <a className="button" href={`mailto:${primaryEmail}`}><AppIcon name="email" />Email</a>}{primaryPhone && <a className="button" href={`tel:${primaryPhone}`}><AppIcon name="phone" />Call</a>}<a className="button" href="#add-important-date"><AppIcon name="calendar" />Add Important Date</a></nav>}
-      {contact.groupMemberships.length > 0 && <div className="contact-group-strip">{contact.groupMemberships.map(({ group }) => { const isActive = activeByGroupId.get(group.id) !== false; return <span className={`group-chip ${isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}{isActive ? "" : " · inactive"}</span>; })}</div>}
-      <PersonalizableCardBoard storageKey={`jitm:contact:${contact.id}:cards`} items={cardItems} initialOrder={layout?.cardOrder} initialCollapsed={layout?.collapsedCards} synchronize />
+      {!state.doNotContact && <nav className="contact-profile-quick-actions" aria-label={`Contact ${contact.displayName}`}>
+        {primaryPhone ? <a className="button primary" href={`sms:${primaryPhone}`}><AppIcon name="message" />Text</a> : <Link className="button primary" href={`/contacts/${contact.id}/edit`}><AppIcon name="add" />Add phone</Link>}
+        {primaryPhone && <a className="button" href={`tel:${primaryPhone}`}><AppIcon name="phone" />Call</a>}
+        {primaryEmail ? <a className="button" href={`mailto:${primaryEmail}`}><AppIcon name="email" />Email</a> : <Link className="button" href={`/contacts/${contact.id}/edit`}><AppIcon name="add" />Add email</Link>}
+      </nav>}
+
+      <section className="contact-next-line" aria-label="Next follow-up">
+        {nextFollowUp ? <><span>Next</span><strong>{nextFollowUp.reason}</strong><time>{formatDateTime(nextFollowUp.scheduledAt, displayPreferences)}</time><Link href="/jumps">Open Today</Link></> : <><span>Next</span><strong>Nothing scheduled</strong><Link href="#add-date">Add a date</Link></>}
+      </section>
+
+      {contact.groupMemberships.length > 0 && <div className="contact-group-strip" aria-label="Tags">{contact.groupMemberships.map(({ group }) => {
+        const isActive = activeByGroupId.get(group.id) !== false;
+        return <span className={`group-chip ${isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}</span>;
+      })}</div>}
+
+      <div className="contact-detail-primary">
+        <section className="card contact-notes-card">
+          <div className="card-header"><div><h2>Notes</h2><p>The useful context you want handy before calling.</p></div><Link className="button small" href={`/contacts/${contact.id}/edit#contact-notes`}>Edit</Link></div>
+          <p className="note-copy">{contact.publicNotes || "No notes yet."}</p>
+          {contact.privateNotes && <div className="private-note"><strong>Private</strong><p>{contact.privateNotes}</p></div>}
+        </section>
+
+        <section className="card contact-priority-card">
+          <div className="card-header"><div><h2>Relationship</h2><p>Changes save when tapped.</p></div></div>
+          <ContactRelationshipStatePanel contactId={contact.id} state={state} />
+        </section>
+
+        <section className="card contact-timeline-card">
+          <div className="card-header"><div><h2>Timeline</h2><p>Recent calls, messages, and notes.</p></div></div>
+          <ContactTimeline contactId={contact.id} />
+        </section>
+      </div>
+
+      <details className="card contact-detail-more">
+        <summary><span><strong>More</strong><small>Dates, plans, contact details, and custom fields</small></span><AppIcon name="chevronDown" /></summary>
+        <div className="contact-more-sections">
+          <section>
+            <div className="card-header"><div><h2>Contact details</h2><p>Primary details appear first.</p></div><Link className="button small" href={`/contacts/${contact.id}/edit`}>Edit</Link></div>
+            <div className="contact-method-sections">
+              <section><h3>Phone</h3>{contact.phones.length ? contact.phones.map((item) => <div className="contact-method-row" key={item.id}><span>{item.phone}</span><small>{item.label || "Phone"}{item.isPrimary ? " · Primary" : ""}</small></div>) : <p className="muted-copy">Not added</p>}</section>
+              <section><h3>Email</h3>{contact.emails.length ? contact.emails.map((item) => <div className="contact-method-row" key={item.id}><span>{item.email}</span><small>{item.label || "Email"}{item.isPrimary ? " · Primary" : ""}</small></div>) : <p className="muted-copy">Not added</p>}</section>
+              <section><h3>Address</h3>{contact.addresses.length ? contact.addresses.map((item) => <div className="contact-method-row" key={item.id}><span>{addressText(item) || "Address incomplete"}</span><small>{item.label || "Address"}{item.isPrimary ? " · Primary" : ""}</small></div>) : <p className="muted-copy">Not added</p>}</section>
+            </div>
+          </section>
+
+          <section>
+            <div className="card-header"><div><h2>Dates</h2><p>Moments that can start a follow-up plan.</p></div></div>
+            {contact.jumpDates.length ? <div className="important-date-list">{contact.jumpDates.map((item) => <article className="important-date-row" key={item.id}>
+              <div className="important-date-summary"><h3>{item.dateType.name}</h3><div className="jump-meta"><span>{item.dateValue ? formatDate(item.dateValue, displayPreferences) : `${item.month}/${item.day}`}</span><span>{item.recurrence.toLowerCase()}</span>{item.label && <span>{item.label}</span>}</div></div>
+              <div className="important-date-actions">
+                <details className="important-date-edit"><summary className="button small">Edit</summary><form action={updateImportantDateAction} className="important-date-edit-panel"><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} />{!item.dateValue && <input type="hidden" name="monthDayOnly" value="1" />}<label className="field"><span>Type</span><select name="dateTypeId" defaultValue={item.dateTypeId} required>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>{item.dateValue ? <label className="field"><span>Date</span><input name="dateValue" type="date" defaultValue={formatDateInput(item.dateValue)} required /></label> : <><label className="field"><span>Month</span><select name="month" defaultValue={item.month ?? ""} required><option value="">Choose month</option>{MONTHS.map((month, index) => <option value={index + 1} key={month}>{month}</option>)}</select></label><label className="field"><span>Day</span><input name="day" type="number" min={1} max={31} defaultValue={item.day ?? ""} inputMode="numeric" required /></label></>}<label className="field"><span>Repeat</span><select name="recurrence" defaultValue={item.recurrence}><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label><label className="field"><span>Note</span><input name="label" defaultValue={item.label ?? ""} /></label><button className="button primary" type="submit">Save</button></form></details>
+                <ConfirmDialog trigger={<AppIcon name="trash" />} triggerAriaLabel={`Remove ${item.dateType.name}`} triggerClassName="icon-button compact danger" title={`Remove ${item.dateType.name}?`} description="Future follow-ups tied to this date will be removed." danger><form action={deactivateImportantDateAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} /><button className="button danger" type="submit">Remove date</button></form></ConfirmDialog>
+              </div>
+            </article>)}</div> : <p className="muted-copy">No dates saved yet.</p>}
+            <form id="add-date" action={createImportantDateAction} className="form-grid contact-add-date"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>What date?</span><select name="dateTypeId" required defaultValue={followUpType?.id}>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label><label className="field"><span>When?</span><input name="dateValue" type="date" required /></label><label className="field"><span>Repeat</span><select name="recurrence"><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label><label className="field"><span>Note</span><input name="label" placeholder="Estimate follow-up" /></label><label className="checkbox-card field full"><input type="checkbox" name="autoAssignRecommended" defaultChecked /><span><strong>Start a matching plan</strong><small>Uses your first active plan for this kind of date.</small></span></label><button className="button primary" type="submit">Add date</button></form>
+          </section>
+
+          <section>
+            <div className="card-header"><div><h2>Plans</h2><p>Follow-up sequences assigned to this person.</p></div></div>
+            {plans.length ? <form action={assignMixToContactAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>Choose a plan</span><select name="mixId">{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label><button className="button primary" type="submit" disabled={state.doNotContact}>Start plan</button></form> : <p className="muted-copy">Create a plan first.</p>}
+            {contact.mixAssignments.length > 0 && <div className="assigned-mix-list">{contact.mixAssignments.map((assignment) => {
+              const stop = stopByMixId.get(assignment.mix.id);
+              return <div className="assigned-mix-row" key={assignment.id}><div><Link href={`/mixes/${assignment.mix.id}/edit`}>{assignment.mix.name}</Link>{stop && <small className="stopped-mix-label">Stopped</small>}</div><div className="assigned-mix-actions">{stop ? <form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small primary" type="submit">Resume</button></form> : <ConfirmDialog trigger="Stop…" title={`Stop ${assignment.mix.name}?`} description="Future follow-ups from this plan will be removed."><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small danger" type="submit">Stop plan</button></form></ConfirmDialog>}<ConfirmDialog trigger="Remove…" title={`Remove ${assignment.mix.name}?`} description="Completed history stays available." danger><form action={removeMixAssignmentAction}><input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Remove</button></form></ConfirmDialog></div></div>;
+            })}</div>}
+            {additionalStoppedPlans.length > 0 && <div className="stopped-mix-section"><h3>Other stopped plans</h3>{additionalStoppedPlans.map((plan) => <div className="assigned-mix-row" key={plan.id}><span>{plan.name}</span><form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={plan.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small" type="submit">Resume</button></form></div>)}</div>}
+          </section>
+
+          {contact.customFieldValues.length > 0 && <section><div className="card-header"><div><h2>Custom fields</h2></div><Link className="button small" href="/contacts/custom-fields">Manage</Link></div><div className="contact-method-sections">{contact.customFieldValues.map((item) => <div className="contact-method-row" key={item.id}><span>{item.value}</span><small>{item.definition.name} · {customFieldPlaceholder(item.definition.key)}</small></div>)}</div></section>}
+          {mergeHistory.length > 0 && <small className="muted-copy">{mergeHistory.length} duplicate merge{mergeHistory.length === 1 ? "" : "s"} recorded.</small>}
+        </div>
+      </details>
     </div>
   );
 }

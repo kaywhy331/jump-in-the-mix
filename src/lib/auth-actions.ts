@@ -208,8 +208,13 @@ export async function requestPasswordResetAction(formData: FormData): Promise<vo
   await enforceRateLimit(path, { scope: "auth.reset.request.ip", identifiers: [metadata.ipAddress], limit: 20, windowMs: 60 * 60 * 1000 });
   await enforceRateLimit(path, { scope: "auth.reset.request.email", identifiers: [email], limit: 5, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 });
 
+  if (process.env.NODE_ENV === "production" && !transactionalEmailConfigured()) {
+    redirect("/forgot-password?unavailable=1");
+  }
+
   const user = validEmail(email) ? await prisma.user.findUnique({ where: { email }, select: { email: true, name: true } }) : null;
   let devToken: string | null = null;
+  let deliveryFailed = false;
   if (user) {
     const token = await issueAuthToken(user.email, AUTH_TOKEN_PURPOSES.resetPassword, env.passwordResetMinutes * 60 * 1000);
     try {
@@ -218,9 +223,11 @@ export async function requestPasswordResetAction(formData: FormData): Promise<vo
     } catch (error) {
       console.error("Password reset email delivery failed", error);
       if (process.env.NODE_ENV !== "production") devToken = token;
+      else deliveryFailed = true;
     }
   }
 
+  if (deliveryFailed) redirect("/forgot-password?delivery=failed");
   const params = new URLSearchParams({ sent: "1" });
   if (devToken) params.set("devToken", devToken);
   redirect(`/forgot-password?${params.toString()}`);

@@ -65,4 +65,19 @@ describe("Jump rendering", () => {
     expect(phone.script).toBe("Ask about the renewal concern.");
     expect(sms.body).toBe("");
   });
+
+  it("produces useful first-run copy when the business profile is incomplete", () => {
+    const rendered = renderJumpSnapshot(
+      { body: "Hi {{First Name}}, how is {{Company}} handling this? {{My Product 1}} may help.  {{SMS Signature}}" },
+      { ...contact, company: null },
+      null,
+      owner,
+      "SMS"
+    );
+    expect(rendered.body).not.toContain("{{");
+    expect(rendered.body).not.toContain("  ");
+    expect(rendered.body).toContain("your business");
+    expect(rendered.body).toContain("our service");
+    expect(rendered.body).toMatch(/Alex Morgan$/);
+  });
 });

@@ -77,8 +77,8 @@ export function ContactForm({
   }, [contact?.emails]);
   const startingPhones = useMemo<ContactMethod[]>(() => {
     const values = contact?.phones?.map((item) => ({ value: item.phone, label: item.label ?? "" })) ?? [];
-    return values.length ? values : [{ value: "", label: "" }];
-  }, [contact?.phones]);
+    return values.length ? values : [{ value: "", label: mode === "create" ? "Mobile" : "" }];
+  }, [contact?.phones, mode]);
   const startingAddresses = useMemo<ContactAddress[]>(() => {
     const values = contact?.addresses?.map((item) => ({
       label: item.label ?? "",
@@ -125,30 +125,39 @@ export function ContactForm({
     <form action={mode === "create" ? createContactAction : updateContactAction} className="contact-editor">
       {contact?.id && <input type="hidden" name="contactId" value={contact.id} />}
 
-      <section className="card contact-editor-section">
-        <div className="card-header"><div><h2>Contact details</h2><p>Only one identifying value is required.</p></div></div>
+      <section className="card contact-editor-section contact-quick-form">
+        <div className="card-header"><div><h2>{mode === "create" ? "Add a person" : "Contact details"}</h2><p>{mode === "create" ? "A name and one way to reach them is plenty to start." : "Update the basics below."}</p></div></div>
         <div className="form-grid">
           <div className="field"><label htmlFor="firstName">First name</label><input id="firstName" name="firstName" defaultValue={contact?.firstName ?? ""} autoFocus /></div>
           <div className="field"><label htmlFor="lastName">Last name</label><input id="lastName" name="lastName" defaultValue={contact?.lastName ?? ""} /></div>
-          <div className="field full"><label htmlFor="company">Company</label><input id="company" name="company" defaultValue={contact?.company ?? ""} /></div>
+          {mode === "edit" && <div className="field full"><label htmlFor="company">Company</label><input id="company" name="company" defaultValue={contact?.company ?? ""} /></div>}
+          {mode === "create" && <>
+            <input type="hidden" name="phonePrimaryIndex" value="0" />
+            {phones.map((item, index) => <div className="field" key={`quick-phone-${index}`}><label htmlFor={`quick-phone-${index}`}>{index ? `Phone ${index + 1}` : "Phone"}</label><input id={`quick-phone-${index}`} name="phoneValue" type="tel" inputMode="tel" autoComplete={index ? "off" : "tel"} value={item.value} onChange={(event) => setPhones((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} placeholder="(555) 555-0123" /><input type="hidden" name="phoneLabel" value={index ? item.label || "Other" : "Mobile"} />{index > 0 && <button className="text-button" type="button" onClick={() => removePhone(index)}>Remove</button>}</div>)}
+            <input type="hidden" name="emailPrimaryIndex" value="0" />
+            {emails.map((item, index) => <div className="field" key={`quick-email-${index}`}><label htmlFor={`quick-email-${index}`}>{index ? `Email ${index + 1}` : <>Email <small>optional</small></>}</label><input id={`quick-email-${index}`} name="emailValue" type="email" inputMode="email" autoComplete={index ? "off" : "email"} value={item.value} onChange={(event) => setEmails((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} /><input type="hidden" name="emailLabel" value={item.label || "Email"} />{index > 0 && <button className="text-button" type="button" onClick={() => removeEmail(index)}>Remove</button>}</div>)}
+            {groups.length > 0 && <label className="field"><span>Tag <small>optional</small></span><select name="groupIds" defaultValue=""><option value="">No tag yet</option>{groups.filter((group) => group.isActive).map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>}
+            <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Note <small>optional</small></label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Job, estimate, how you met, or anything worth remembering" /></div>
+          </>}
         </div>
+        {mode === "create" && <div className="page-actions"><button className="button small" type="button" onClick={() => setPhones((current) => [...current, { value: "", label: "Other" }])}>Add another phone</button><button className="button small" type="button" onClick={() => setEmails((current) => [...current, { value: "", label: "Other" }])}>Add another email</button></div>}
       </section>
 
       {mode === "create" && followUp && <section className="card contact-editor-section contact-first-follow-up">
-        <div className="card-header"><div><h2>First follow-up</h2><p>Save the Contact and the first Important Date in one step.</p></div></div>
+        <div className="card-header"><div><h2>First follow-up</h2><p>Choose when you want this person to appear on Today.</p></div></div>
         <label className="checkbox-card onboarding-default">
           <input type="checkbox" name="scheduleFollowUp" checked={scheduleFollowUp} onChange={(event) => setScheduleFollowUp(event.target.checked)} />
-          <span><strong>Schedule a follow-up now</strong><small>Create a {followUp.dateTypeName} Important Date and optionally start a matching active Mix.</small></span>
+          <span><strong>Schedule a follow-up now</strong><small>Start a matching plan if one is available.</small></span>
         </label>
         {scheduleFollowUp && <div className="form-grid contact-first-follow-up-fields">
           <input type="hidden" name="followUpDateTypeId" value={followUp.dateTypeId} />
           <div className="field"><label htmlFor="followUpDate">Follow-up date</label><input id="followUpDate" name="followUpDate" type="date" defaultValue={followUp.defaultDate ?? ""} required /></div>
           <div className="field"><label htmlFor="followUpReason">Reason</label><input id="followUpReason" name="followUpReason" defaultValue={followUp.defaultReason ?? "Follow up"} placeholder="Proposal follow-up" /></div>
-          <div className="field full"><label htmlFor="followUpMixId">Follow-up plan</label>{followUp.mixes.length ? <><select id="followUpMixId" name="followUpMixId" defaultValue={followUp.mixes[0]?.id ?? ""}><option value="">Save the Important Date without starting a Mix</option>{followUp.mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select><small>The selected active Mix is assigned immediately; its future Jumps are then reconciled.</small></> : <><input id="followUpMixId" name="followUpMixId" type="hidden" value="" /><small>No active Mix currently targets {followUp.dateTypeName}. The Important Date will still be saved.</small></>}</div>
+          <div className="field full"><label htmlFor="followUpMixId">Plan</label>{followUp.mixes.length ? <select id="followUpMixId" name="followUpMixId" defaultValue={followUp.mixes[0]?.id ?? ""}><option value="">Just save the date</option>{followUp.mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select> : <><input id="followUpMixId" name="followUpMixId" type="hidden" value="" /><small>You can add a plan later.</small></>}</div>
         </div>}
       </section>}
 
-      <section className="card contact-editor-section">
+      {mode === "edit" && <section className="card contact-editor-section">
         <div className="card-header"><div><h2>Email addresses</h2><p>Choose the address used for email Jumps.</p></div><button type="button" className="button small" onClick={() => setEmails((current) => [...current, { value: "", label: "" }])}>+ Add email</button></div>
         <div className="repeatable-list">
           {emails.map((item, index) => (
@@ -160,9 +169,9 @@ export function ContactForm({
             </div>
           ))}
         </div>
-      </section>
+      </section>}
 
-      <section className="card contact-editor-section">
+      {mode === "edit" && <section className="card contact-editor-section">
         <div className="card-header"><div><h2>Phone numbers</h2><p>Numbers are normalized before saving.</p></div><button type="button" className="button small" onClick={() => setPhones((current) => [...current, { value: "", label: "" }])}>+ Add phone</button></div>
         <div className="repeatable-list">
           {phones.map((item, index) => (
@@ -174,8 +183,10 @@ export function ContactForm({
             </div>
           ))}
         </div>
-      </section>
+      </section>}
 
+      <details className="contact-more-details" open={mode === "edit" ? true : undefined}><summary>{mode === "create" ? "More details" : "Addresses and custom fields"}</summary>
+      {mode === "create" && <section className="card contact-editor-section"><div className="card-header"><div><h2>Company</h2><p>Optional.</p></div></div><label className="field"><span>Company</span><input id="company" name="company" defaultValue={contact?.company ?? ""} /></label></section>}
       <section className="card contact-editor-section">
         <div className="card-header"><div><h2>Addresses</h2><p>Choose the primary address available to placeholders.</p></div><button type="button" className="button small" onClick={() => setAddresses((current) => [...current, { label: "", street1: "", street2: "", city: "", state: "", postalCode: "", country: "" }])}>+ Add address</button></div>
         <div className="repeatable-list">
@@ -198,7 +209,7 @@ export function ContactForm({
         </div>
       </section>
 
-      <section className="card contact-editor-section" id="contact-notes">
+      {mode === "edit" && <section className="card contact-editor-section" id="contact-notes">
         <div className="card-header"><div><h2>Groups and notes</h2><p>Customer notes store reusable relationship context. Private relationship updates stay reserved for calls, deal movement, and sensitive follow-up context.</p></div></div>
         {groups.length ? <div className="group-choice-grid">{groups.map((group) => {
           const selected = selectedGroupIds.has(group.id);
@@ -214,10 +225,10 @@ export function ContactForm({
           );
         })}</div> : <p className="muted-copy">No groups have been created yet. You can add them from the Contacts page.</p>}
         <div className="form-grid notes-grid">
-          <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Customer notes</label>{mode === "create" && <VoiceNoteButton targetId="publicNotes" />}</div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="How you met, preferences, background, family context, interests, or other details that help you maintain the relationship." /><small>These notes may be used only through approved customer-note placeholders in prepared follow-up content.</small></div>
+          <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Customer notes</label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="How you met, preferences, background, family context, interests, or other details that help you maintain the relationship." /><small>These notes may be used only through approved customer-note placeholders in prepared follow-up content.</small></div>
           <div className="field full"><label htmlFor="privateNotes">Private relationship updates</label><textarea id="privateNotes" name="privateNotes" defaultValue={contact?.privateNotes ?? ""} placeholder="Phone-call context, deal movement, objections, commitments, or sensitive relationship updates." /><small>Private updates are available only to Phone Call Jump scripts and are never inserted into SMS, email, or WhatsApp content.</small></div>
         </div>
-      </section>
+      </section>}
 
       <section className="card contact-editor-section">
         <div className="card-header"><div><h2>Custom fields</h2><p>Workspace-specific values can be inserted into Jumps using their stable placeholder.</p></div><Link className="button small" href="/contacts/custom-fields">Manage fields</Link></div>
@@ -229,6 +240,7 @@ export function ContactForm({
           </div>
         ))}</div> : <p className="muted-copy">No custom fields yet. Create one when your workflow needs data beyond the standard Contact fields.</p>}
       </section>
+      </details>
 
       <div className="sticky-form-actions">
         <Link className="button" href={contact?.id ? `/contacts/${contact.id}` : "/contacts"}>Cancel</Link>
