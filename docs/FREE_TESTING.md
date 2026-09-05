@@ -4,6 +4,10 @@ The test topology is Netlify Free plus Neon Free PostgreSQL. It uses the same Ne
 
 The dedicated test URL is `https://jump-in-the-mix-test.netlify.app`. The production project at `jump-in-the-mix.netlify.app` remains separate.
 
+The test site's fallback worker timer is `.github/workflows/private-test-worker.yml`, running every five minutes on GitHub Actions. Standard hosted runners are free for this public repository. Netlify accepted its minute schedule but did not execute it during deployment qualification, so testing does not rely on that timer. Both timers use the same idempotent job claims if Netlify starts running later. GitHub schedules can be delayed; this is testing infrastructure, not a notification delivery guarantee. Set `WORKER_HEARTBEAT_STALE_SECONDS=1200` on the test site.
+
+The workflow uses the repository secret `JITM_TEST_WORKER_SECRET` and the expiry variable `JITM_TEST_EXPIRES_AT`. It does not invoke the worker after expiry. After claiming the database, update that variable along with the site's testing deadline. Disable the **Private test worker** workflow when testing ends.
+
 ## Private access
 
 Set `PRIVATE_TEST_MODE=true`, `PRIVATE_TEST_USERNAME`, and a random `PRIVATE_TEST_PASSWORD` of at least 32 characters. Every dynamic page and API request requires HTTP Basic authentication before normal application authentication. Authentication actions also enforce the private access credentials at their request boundary. Only the exact background-worker endpoint accepts its separately authenticated worker handoff. Missing access credentials make the test site unavailable rather than opening access.

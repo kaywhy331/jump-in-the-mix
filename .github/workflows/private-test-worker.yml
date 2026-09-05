@@ -1,0 +1,41 @@
+name: Private test worker
+
+on:
+  schedule:
+    - cron: '2-57/5 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: private-test-worker
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Dispatch the private test worker
+        env:
+          TEST_APP_URL: https://jump-in-the-mix-test.netlify.app
+          TEST_WORKER_SECRET: ${{ secrets.JITM_TEST_WORKER_SECRET }}
+          TEST_EXPIRES_AT: ${{ vars.JITM_TEST_EXPIRES_AT }}
+        run: |
+          node --input-type=module <<'NODE'
+          const expiry = Date.parse(process.env.TEST_EXPIRES_AT || '');
+          if (!Number.isFinite(expiry) || expiry <= Date.now()) {
+            console.log('The private test window is closed; no worker was invoked.');
+            process.exit(0);
+          }
+          const secret = process.env.TEST_WORKER_SECRET;
+          if (!secret || secret.length < 32) throw new Error('The test worker secret is not configured.');
+          const origin = new URL(process.env.TEST_APP_URL).origin;
+          const response = await fetch(new URL('/.netlify/functions/jump-worker-background', origin), {
+            method: 'POST',
+            headers: { authorization: `Bearer ${secret}`, origin },
+            signal: AbortSignal.timeout(20_000)
+          });
+          if (response.status !== 202) throw new Error(`Worker handoff failed (${response.status}).`);
+          console.log('The private test background worker accepted the invocation.');
+          NODE

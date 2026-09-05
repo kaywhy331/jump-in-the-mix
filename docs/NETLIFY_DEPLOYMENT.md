@@ -14,6 +14,8 @@ The background endpoint performs no application work without a matching secret. 
 
 The scheduled tick uses Netlify's buffered handler API. Default-export v2 handlers are bundled in streaming mode by the current CLI; scheduled invocations do not support streaming. Confirm both the minute schedule and buffered invocation mode in the generated function manifest, then verify an actual queued job is processed by the live schedule.
 
+The test deployment did not receive automatic Netlify invocations even after that correction. It uses the separate GitHub Actions timer documented in [Free private testing](FREE_TESTING.md). Do not infer a working production schedule from the manifest alone.
+
 ## Database and configuration
 
 The existing Prisma PostgreSQL schema is retained. Set `DATABASE_URL` for external PostgreSQL, or enable Netlify Database, which supplies `NETLIFY_DB_URL`. Both Prisma runtime and migration configuration accept the managed variable. Migrations remain under `prisma/migrations`; Netlify's automatic SQL migration mechanism is not used.
