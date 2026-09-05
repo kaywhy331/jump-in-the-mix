@@ -2,7 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-const configuredConnectionString = process.env.DATABASE_URL?.trim();
+const configuredConnectionString = process.env.DATABASE_URL?.trim() || process.env.NETLIFY_DB_URL?.trim();
 if (!configuredConnectionString && process.env.NODE_ENV === "production") {
   throw new Error("DATABASE_URL is required in production.");
 }

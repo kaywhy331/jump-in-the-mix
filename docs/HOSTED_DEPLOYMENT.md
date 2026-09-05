@@ -1,5 +1,7 @@
 # Hosted deployment
 
+For the Netlify web and scheduled-worker deployment, see [Netlify deployment](NETLIFY_DEPLOYMENT.md). The persistent web/worker topology below remains available through Render or another Node host.
+
 The hosted edition runs as three independently supervised resources:
 
 - a public Next.js web service;

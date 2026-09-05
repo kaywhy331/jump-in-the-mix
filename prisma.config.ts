@@ -8,6 +8,6 @@ export default defineConfig({
     seed: "tsx prisma/seed.ts"
   },
   datasource: {
-    url: process.env.DATABASE_URL ?? "postgresql://jitm:jitm@localhost:5432/jitm?schema=public"
+    url: process.env.DATABASE_URL || process.env.NETLIFY_DB_URL || "postgresql://jitm:jitm@localhost:5432/jitm?schema=public"
   }
 });

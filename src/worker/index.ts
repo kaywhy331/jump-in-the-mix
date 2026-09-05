@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { pathToFileURL } from "node:url";
 import { runAutomaticDeliveries } from "@/lib/automatic-delivery";
 import { CONTACT_IMPORT_JOB_TASK, runContactImportBatch } from "@/lib/contact-import-jobs";
 import { generateJumps } from "@/lib/jump-engine";
@@ -266,14 +267,40 @@ async function main() {
   await prisma.$disconnect();
 }
 
-process.on("SIGTERM", () => { stopping = true; });
-process.on("SIGINT", () => { stopping = true; });
+// Background invocations reuse the same durable claims as the persistent worker.
+// Leave time before the platform's 15-minute limit for the last job to finish.
+export async function runWorkerPass({ budgetMs = 8 * 60_000, maxJobs = 25 } = {}): Promise<number> {
+  const deadline = Date.now() + budgetMs;
+  await queueHeartbeat();
+  const timer = setInterval(() => {
+    void queueHeartbeat().catch((error) => console.error("Worker heartbeat failed", error));
+  }, heartbeatIntervalMs);
+  timer.unref();
+  let processed = 0;
+  try {
+    await runMaintenanceIfDue({ automaticDelivery: 0, jumpReconciliation: 0, notifications: 0, retentionCleanup: 0 });
+    while (processed < maxJobs && Date.now() < deadline) {
+      const job = await claimJob();
+      if (!job) break;
+      await processJob(job);
+      processed += 1;
+    }
+    return processed;
+  } finally {
+    clearInterval(timer);
+    await queueHeartbeat();
+  }
+}
 
-main().catch(async (error) => {
-  console.error(error);
-  if (heartbeatTimer) clearInterval(heartbeatTimer);
-  await heartbeatChain.catch(() => undefined);
-  await markWorkerStopped().catch(() => undefined);
-  await prisma.$disconnect().catch(() => undefined);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.on("SIGTERM", () => { stopping = true; });
+  process.on("SIGINT", () => { stopping = true; });
+  main().catch(async (error) => {
+    console.error(error);
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+    await heartbeatChain.catch(() => undefined);
+    await markWorkerStopped().catch(() => undefined);
+    await prisma.$disconnect().catch(() => undefined);
+    process.exit(1);
+  });
+}

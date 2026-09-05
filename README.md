@@ -18,6 +18,8 @@ The free beta does not include billing, paid tiers, teams, Google Contacts sync,
 
 ## Hosted deployment
 
+For Netlify, use [docs/NETLIFY_DEPLOYMENT.md](docs/NETLIFY_DEPLOYMENT.md), which covers Next.js, scheduled background processing, PostgreSQL, and the publish checks.
+
 The hosted topology is one web service, one worker service, and PostgreSQL. The checked-in deployment blueprint provisions that topology and runs committed migrations before the web release. See [docs/HOSTED_DEPLOYMENT.md](docs/HOSTED_DEPLOYMENT.md) for required secrets, DNS/provider setup, rollback, and smoke checks.
 
 Hosted production requires HTTPS, verified transactional email, strong unique secrets, and provider credentials for each enabled sign-in or delivery option. `PILOT_MODE` and `DEMO_MODE` must both be false.

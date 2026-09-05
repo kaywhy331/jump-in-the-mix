@@ -43,4 +43,16 @@ describe("environment fallbacks", () => {
     expect(issues).toContain("RESEND_API_KEY is required for hosted production");
     expect(issues).toContain("EMAIL_FROM is required for hosted production");
   });
+
+  it("accepts the managed Netlify database without disabling hosted email checks", () => {
+    const issues = productionConfigurationIssues({
+      NODE_ENV: "production",
+      APP_URL: "https://app.netlify.app",
+      NETLIFY_DB_URL: "postgresql://example.invalid/app",
+      AUTH_RATE_LIMIT_SECRET: "r".repeat(32),
+      DATA_ENCRYPTION_KEY: "e".repeat(32)
+    });
+    expect(issues).not.toContain("DATABASE_URL is required");
+    expect(issues).toContain("RESEND_API_KEY is required for hosted production");
+  });
 });
