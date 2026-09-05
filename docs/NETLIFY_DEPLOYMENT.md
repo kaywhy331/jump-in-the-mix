@@ -12,6 +12,8 @@ The Netlify project is **jump-in-the-mix**, in the **Kevin** team (`kaywhy331`).
 
 The background endpoint performs no application work without a matching secret. Netlify returns an immediate 202 for background requests, so use worker health and function logs to verify actual processing.
 
+The scheduled tick uses Netlify's buffered handler API. Default-export v2 handlers are bundled in streaming mode by the current CLI; scheduled invocations do not support streaming. Confirm both the minute schedule and buffered invocation mode in the generated function manifest, then verify an actual queued job is processed by the live schedule.
+
 ## Database and configuration
 
 The existing Prisma PostgreSQL schema is retained. Set `DATABASE_URL` for external PostgreSQL, or enable Netlify Database, which supplies `NETLIFY_DB_URL`. Both Prisma runtime and migration configuration accept the managed variable. Migrations remain under `prisma/migrations`; Netlify's automatic SQL migration mechanism is not used.

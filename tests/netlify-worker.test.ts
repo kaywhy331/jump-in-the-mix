@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { workerRequestAuthorized } from "../src/lib/worker-request";
-import tick from "../netlify/functions/jump-worker-tick";
+import { handler as tick } from "../netlify/functions/jump-worker-tick";
 
 const mocks = vi.hoisted(() => ({
   heartbeat: vi.fn(),
@@ -78,7 +78,7 @@ describe("Netlify background worker", () => {
     vi.stubEnv("NETLIFY_WORKER_SECRET", secret);
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
     vi.stubGlobal("fetch", fetchMock);
-    await tick();
+    await expect(tick()).resolves.toEqual({ statusCode: 200 });
     expect(fetchMock).toHaveBeenCalledWith(new URL(endpoint), expect.objectContaining({
       method: "POST", headers: { authorization: `Bearer ${secret}`, origin: "https://example.netlify.app" }
     }));
