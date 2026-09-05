@@ -6,7 +6,7 @@ The dedicated test URL is `https://jump-in-the-mix-test.netlify.app`. The produc
 
 The test site's fallback worker timer is `.github/workflows/private-test-worker.yml`, running every five minutes on GitHub Actions. Standard hosted runners are free for this public repository. Netlify accepted its minute schedule but did not execute it during deployment qualification, so testing does not rely on that timer. Both timers use the same idempotent job claims if Netlify starts running later. GitHub schedules can be delayed; this is testing infrastructure, not a notification delivery guarantee. Set `WORKER_HEARTBEAT_STALE_SECONDS=1200` on the test site.
 
-The workflow uses the repository secret `JITM_TEST_WORKER_SECRET` and the expiry variable `JITM_TEST_EXPIRES_AT`. It does not invoke the worker after expiry. After claiming the database, update that variable along with the site's testing deadline. Disable the **Private test worker** workflow when testing ends.
+The workflow uses the repository secret `JITM_TEST_WORKER_SECRET` and an optional expiry variable `JITM_TEST_EXPIRES_AT`. With no expiry variable, the worker continues running. A configured expiry must be a valid future date; expired or invalid values prevent invocation. The claimed database's original deadline has been removed from both the site and this workflow. Disable the **Private test worker** workflow when testing ends.
 
 ## Private access
 
@@ -18,11 +18,11 @@ For private password testing, set `AUTH_REQUIRE_EMAIL_VERIFICATION=false`. Uncon
 
 Email sending, verification, magic links, and email password recovery cannot be tested without a configured email provider. For a forgotten test-account password, the operator can run `npx tsx scripts/issue-password-reset-link.ts user@example.com` with the test site's `DATABASE_URL` and `APP_URL`. Give the one-time link directly to that tester; never log or commit it.
 
-## Temporary database
+## Claimed database
 
-Neon's documented claimable database API provisions an isolated database without an account. This database expires on **2026-09-08 at 17:20 UTC** unless claimed. Its private claim link and connection are stored only in the ignored local deployment artifacts and the hosting secret manager. Claim it into a free Neon account to retain it. Keep the project on the Free plan and do not enable paid features.
+The owner claimed the Neon database, and the claim API confirms its status is `CLAIMED`. The original three-day test deadline has been removed. Its connection is stored only in ignored local deployment artifacts and the hosting secret manager. The test site continues to use the same database and existing data. Keep the project on the Free plan and do not enable paid features.
 
-`PRIVATE_TEST_EXPIRES_AT` closes test access at the database expiry time. After claiming the database and confirming its continued availability, remove that variable or set a new testing deadline. Export anything worth keeping before expiry. Test data has no production backup guarantee.
+`PRIVATE_TEST_EXPIRES_AT` remains available as an optional testing deadline but is unset for this deployment. Setting a deadline later closes private access at that time; set `JITM_TEST_EXPIRES_AT` to the same deadline to stop worker invocations too. Test data has no production backup guarantee.
 
 ## Google sign-in
 

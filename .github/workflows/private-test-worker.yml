@@ -23,8 +23,9 @@ jobs:
           TEST_EXPIRES_AT: ${{ vars.JITM_TEST_EXPIRES_AT }}
         run: |
           node --input-type=module <<'NODE'
-          const expiry = Date.parse(process.env.TEST_EXPIRES_AT || '');
-          if (!Number.isFinite(expiry) || expiry <= Date.now()) {
+          const configuredExpiry = process.env.TEST_EXPIRES_AT?.trim();
+          const expiry = configuredExpiry ? Date.parse(configuredExpiry) : null;
+          if (expiry !== null && (!Number.isFinite(expiry) || expiry <= Date.now())) {
             console.log('The private test window is closed; no worker was invoked.');
             process.exit(0);
           }
