@@ -49,7 +49,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
               <div className="field full"><label htmlFor="timezone">Your timezone</label><TimezonePicker defaultValue={timezone} confirmDetection /></div>
             </div>
           </fieldset>
-          <div className="onboarding-preview"><strong>What happens next</strong><span>We create a warm three-step plan, prepare the first message, and take you to Today.</span></div>
+          <div className="onboarding-preview"><strong>What happens next</strong><span>We prepare a plan for your chosen follow-up, starting on the date you picked, and take you to Today.</span></div>
           <button className="button primary" type="submit">Prepare my first follow-up</button>
           <div className="skip-setup-form"><button className="text-button" type="submit" formAction={skipOnboardingAction} formNoValidate>Skip for now</button></div>
         </form>

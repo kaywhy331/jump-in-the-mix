@@ -261,3 +261,32 @@ export function starterPlanForBusinessType(businessType: string | null | undefin
         : "Other";
   return READY_MADE_PLANS.find((plan) => plan.industry === industry && plan.featured) ?? READY_MADE_PLANS.at(-1)!;
 }
+
+export function starterPlanForOnboarding(businessType: string | null | undefined, reason: string): ReadyMadePlan {
+  const plansByReason: Record<string, string> = {
+    "Follow up about an estimate": "plan_home_estimate",
+    "Check in after the job": "plan_home_job_done",
+    "Ask for a review": "plan_home_job_done",
+    "Reconnect": "plan_generic_reconnect",
+    "General follow-up": "plan_generic_reconnect"
+  };
+  const planId = plansByReason[reason];
+  const businessPlan = starterPlanForBusinessType(businessType);
+  const plan = READY_MADE_PLANS.find((item) => item.id === planId) ?? businessPlan;
+  const reviewOnly = reason === "Ask for a review";
+  const steps = reviewOnly ? plan.steps.slice(1) : plan.steps;
+  // Onboarding asks when to follow up, not when the estimate or job happened.
+  const firstOffset = steps[0].dayOffset;
+  return {
+    ...plan,
+    industry: businessPlan.industry,
+    ...(reason === "Follow up about an estimate" ? { description: "Check that the estimate arrived, then call five days later to answer questions." } : {}),
+    ...(reviewOnly ? { title: "Review and referral follow-up", description: "Ask for a review, then follow up about referrals." } : {}),
+    durationDays: plan.durationDays - firstOffset,
+    steps: steps.map((step, index) => ({
+      ...step,
+      name: index === 0 && firstOffset > 0 ? "First follow-up" : step.name,
+      dayOffset: step.dayOffset - firstOffset
+    }))
+  };
+}

@@ -2,6 +2,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { generateTotpCode } from "../src/lib/totp";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
+import { formatDateTime } from "../src/lib/format";
+import { logicalDateInTimezone, logicalDateKey } from "../src/lib/jump-schedule";
 import { createPendingJumpFixture, removePendingJumpFixture } from "./pending-jump-fixture";
 
 const userEmail = process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local";
@@ -109,8 +111,7 @@ test("supported mobile browsers can Quick Add a selected device Contact", async 
   await expect(tools.getByText(/\d+ added · \d+ merged/)).toBeVisible();
 });
 
-test("new customer reaches a prepared first Jump through onboarding", async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== "desktop-chromium", "The stateful first-win journey runs once.");
+test("new customer reaches a prepared first Jump through onboarding", async ({ page }) => {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const userId = `e2e-onboarding-user-${suffix}`;
   const workspaceId = `e2e-onboarding-workspace-${suffix}`;
@@ -141,6 +142,14 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   await page.getByLabel("Business name").fill("Browser Test Plumbing");
   await page.getByLabel("Name", { exact: true }).fill("Jordan First Win");
   await page.getByLabel("Email optional").fill("jordan-first-win@example.com");
+  await page.getByLabel("Phone recommended").fill("+1 (555) 010-0123");
+  await page.getByLabel("What should you remember?").selectOption("Follow up about an estimate");
+  await page.getByRole("button", { name: "Change", exact: true }).click();
+  const timezonePicker = page.getByRole("dialog", { name: "Choose your city" });
+  await timezonePicker.getByLabel("Search cities").fill("Chicago");
+  await timezonePicker.getByRole("button", { name: /Chicago.*America\/Chicago/ }).click();
+  const followUpDate = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+  await page.getByLabel("Follow up on").fill(followUpDate);
   await Promise.all([
     page.waitForURL(/\/jumps\?.*welcome=1/),
     page.getByRole("button", { name: "Prepare my first follow-up" }).click()
@@ -148,11 +157,20 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   await expect(page.getByText("Your first follow-up for Jordan First Win is ready.")).toBeVisible();
   const firstFollowUp = page.locator(".jump-task-card:visible").filter({ hasText: "Jordan First Win" }).first();
   await expect(firstFollowUp).toBeVisible();
+  await firstFollowUp.getByRole("button", { name: "Review message for Jordan First Win" }).click();
   const preparedMessage = firstFollowUp.getByLabel("Edit before sending");
+  await expect(preparedMessage).toBeVisible();
   const renderedBody = await preparedMessage.inputValue();
   expect(renderedBody).not.toContain("{{");
   expect(renderedBody).not.toContain("  ");
   expect(renderedBody?.trim()).toMatch(/Onboarding Browser Test$/);
+  expect(renderedBody).toContain("received the estimate from Browser Test Plumbing");
+  expect(renderedBody).not.toContain("working the way you expected");
+  await expect(firstFollowUp.getByRole("link", { name: "Open text for Jordan First Win" })).toHaveAttribute("href", /^sms:\+1.*body=/);
+  const firstJump = await prisma.jump.findFirstOrThrow({ where: { workspaceId }, orderBy: { scheduledAt: "asc" } });
+  expect(logicalDateKey(logicalDateInTimezone(firstJump.scheduledAt, "America/Chicago"))).toBe(followUpDate);
+  await expect(firstFollowUp).toContainText(formatDateTime(firstJump.scheduledAt, { timeZone: "America/Chicago", locale: "en-US" }));
+  await expect(prisma.contactPhone.findFirst({ where: { contact: { workspaceId } } })).resolves.toMatchObject({ normalized: "+15550100123" });
   await expect(prisma.contact.count({ where: { workspaceId, displayName: "Jordan First Win" } })).resolves.toBe(1);
   await expect(prisma.jump.count({ where: { workspaceId, contact: { displayName: "Jordan First Win" } } })).resolves.toBeGreaterThan(0);
 });

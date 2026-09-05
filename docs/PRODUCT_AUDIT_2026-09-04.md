@@ -4,6 +4,8 @@
 **Scope:** Every user-facing screen, the scheduling engine, worker, data model, deployment model, docs, tests, and CI at commit `e08e1d3` (v0.1.0-rc.1).
 **Lens:** The product the owner described. A lightweight, phone-first CRM that a self-employed plumber or a solo real-estate agent can set up in minutes with no marketing knowledge, and that populates the important outreach for them without requiring extra services. Judged against "product ready" and "best in class."
 
+**Historical report:** This audit describes `e08e1d3`. Subsequent remediation is recorded in [Implementation status](IMPLEMENTATION_STATUS.md); fresh verification and a further onboarding fix are recorded in [Audit follow-up](PRODUCT_AUDIT_FOLLOWUP.md).
+
 ---
 
 ## 1. Executive summary

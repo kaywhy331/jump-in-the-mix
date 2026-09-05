@@ -60,7 +60,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
 
   const followUpType = await prisma.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true } });
   if (!followUpType) fail("/onboarding", "The follow-up date type is unavailable. Run setup again.");
-  const starterMix = await ensureStarterMix(workspace.id, businessType);
+  const starterMix = await ensureStarterMix(workspace.id, businessType, reason);
   const contactId = randomUUID();
   await prisma.$transaction(async (tx) => {
     await tx.contact.create({

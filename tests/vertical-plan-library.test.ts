@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderJumpSnapshot } from "../src/lib/jump-render";
-import { READY_MADE_PLANS, starterPlanForBusinessType } from "../src/lib/vertical-plan-library";
+import { READY_MADE_PLANS, starterPlanForBusinessType, starterPlanForOnboarding } from "../src/lib/vertical-plan-library";
 
 const contact = {
   firstName: "Jordan",
@@ -49,6 +49,36 @@ describe("ready-made vertical plans", () => {
     for (const type of ["Home services", "Real estate", "Insurance & finance", "Other"]) {
       expect(starterPlanForBusinessType(type).industry).toBe(type);
     }
+  });
+
+  it("prepares an estimate follow-up on the chosen date without implying the job is done", () => {
+    const plan = starterPlanForOnboarding("Home services", "Follow up about an estimate");
+    const first = plan.steps[0];
+    const rendered = renderJumpSnapshot(first, contact, onboardingProfile, { name: "Alex Morgan", email: "alex@example.com" }, first.channel);
+    expect(rendered.body).toContain("received the estimate from Lee Plumbing");
+    expect(rendered.body).not.toMatch(/thanks for trusting|working the way you expected/i);
+    expect(plan.steps.map((step) => step.dayOffset)).toEqual([0, 5]);
+    expect(plan.durationDays).toBe(5);
+    // Library plans still anchor their offsets to the original event date.
+    expect(READY_MADE_PLANS.find((item) => item.id === "plan_home_estimate")?.steps.map((step) => step.dayOffset)).toEqual([2, 7]);
+  });
+
+  it.each([
+    ["Check in after the job", "Is everything working"],
+    ["Ask for a review", "leave a quick review"],
+    ["Reconnect", "just checking in"],
+    ["General follow-up", "just checking in"]
+  ])("honors the selected reason: %s", (reason, expectedMessage) => {
+    const plan = starterPlanForOnboarding("Home services", reason);
+    expect(plan.steps[0].body).toContain(expectedMessage);
+    expect(plan.steps[0].dayOffset).toBe(0);
+  });
+
+  it("keeps the business type while honoring a reconnect request", () => {
+    const plan = starterPlanForOnboarding("Real estate", "Reconnect");
+    expect(plan.industry).toBe("Real estate");
+    expect(plan.steps[0].body).toContain("has the timing changed");
+    expect(plan.steps[0].body).not.toContain("thanks for reaching out");
   });
 
   it("renders every seeded message using fields collected during onboarding", () => {

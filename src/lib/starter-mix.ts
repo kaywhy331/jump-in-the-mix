@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { starterPlanForBusinessType } from "@/lib/vertical-plan-library";
+import { starterPlanForBusinessType, starterPlanForOnboarding } from "@/lib/vertical-plan-library";
 
-export async function ensureStarterMix(workspaceId: string, businessType?: string | null) {
+export async function ensureStarterMix(workspaceId: string, businessType?: string | null, reason?: string) {
+  const draft = reason ? starterPlanForOnboarding(businessType, reason) : starterPlanForBusinessType(businessType);
   const existing = await prisma.mix.findFirst({
-    where: { workspaceId, source: "STARTER", status: { not: "ARCHIVED" } },
+    where: { workspaceId, source: "STARTER", status: { not: "ARCHIVED" }, ...(reason ? { name: draft.title } : {}) },
     orderBy: { createdAt: "asc" }
   });
   if (existing) return existing;
@@ -12,7 +13,6 @@ export async function ensureStarterMix(workspaceId: string, businessType?: strin
   const followUp = await prisma.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true } });
   if (!followUp) throw new Error("System Follow-up date type is missing. Run the seed command again.");
 
-  const draft = starterPlanForBusinessType(businessType);
   const mixId = randomUUID();
 
   return prisma.$transaction(async (tx) => {
