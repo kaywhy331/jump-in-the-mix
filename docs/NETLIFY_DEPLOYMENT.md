@@ -1,5 +1,7 @@
 # Netlify deployment
 
+For the separate password-protected free testing deployment, see [Free private testing](FREE_TESTING.md). Its test configuration and temporary database do not replace the production setup below.
+
 The Netlify project is **jump-in-the-mix**, in the **Kevin** team (`kaywhy331`). Its production URL is `https://jump-in-the-mix.netlify.app` and its project ID is `43280ec7-18ff-46f1-a583-17e2a52f66c5`.
 
 ## Runtime

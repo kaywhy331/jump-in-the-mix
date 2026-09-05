@@ -21,7 +21,7 @@ export default async function ForgotPasswordPage({ searchParams }: { searchParam
         <h1>Reset your password</h1>
         <p>Enter the email used for your account. The response is intentionally the same whether or not an account exists.</p>
         {params.sent && <Notice type="success">If an account matches that email, a reset link has been sent.</Notice>}
-        {(params.unavailable || !emailAvailable) && <Notice type="info">Password-reset email is not configured for this installation. {env.pilotMode ? <>Ask the operator to run <code>npm run pilot:reset-password -- your@email.com</code> on the server.</> : "Ask the site operator to restore email delivery."}</Notice>}
+        {(params.unavailable || !emailAvailable) && <Notice type="info">Password-reset email is not configured for this installation. {env.privateTestMode ? "Ask the site operator for a one-time password reset link." : env.pilotMode ? <>Ask the operator to run <code>npm run pilot:reset-password -- your@email.com</code> on the server.</> : "Ask the site operator to restore email delivery."}</Notice>}
         {params.delivery === "failed" && <Notice type="error">The reset email could not be delivered. Nothing was reported as sent; please try again or contact the site operator.</Notice>}
         {params.error && <Notice type="error">{params.error}</Notice>}
         {developmentResetUrl && process.env.NODE_ENV !== "production" && <Notice type="info">Development email preview: <Link href={developmentResetUrl}><strong>open the reset link</strong></Link>.</Notice>}

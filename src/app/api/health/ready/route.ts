@@ -1,4 +1,4 @@
-import { productionConfigurationIssues } from "@/lib/env";
+import { env, productionConfigurationIssues } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -15,6 +15,7 @@ export async function GET() {
     }
     return Response.json({
       status: "ready",
+      deployment: env.privateTestMode ? "private-test" : "standard",
       checks: { database: "connected", configuration: "valid" }
     }, { headers });
   } catch (error) {

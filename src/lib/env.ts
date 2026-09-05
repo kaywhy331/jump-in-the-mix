@@ -1,3 +1,5 @@
+import { privateTestConfigurationIssues, privateTestEnabled } from "@/lib/private-test";
+
 const DEFAULT_COOKIE = "jitm_session";
 const DEFAULT_IMPERSONATION_COOKIE = "jitm_impersonation";
 const DEFAULT_RATE_LIMIT_SECRET = "local-development-rate-limit-secret";
@@ -75,6 +77,7 @@ export const env = {
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ?? "",
   twilioFromNumber: process.env.TWILIO_FROM_NUMBER ?? "",
   pilotMode: enabled(process.env.PILOT_MODE),
+  privateTestMode: privateTestEnabled(),
   demoMode: enabled(process.env.DEMO_MODE),
   demoEmail: process.env.DEMO_USER_EMAIL ?? "",
   demoPassword: process.env.DEMO_USER_PASSWORD ?? ""
@@ -83,6 +86,8 @@ export const env = {
 export function productionConfigurationIssues(source: NodeJS.ProcessEnv = process.env): string[] {
   if ((source.NODE_ENV ?? "development") !== "production" || source.CI === "true") return [];
   const issues: string[] = [];
+  const privateTest = privateTestEnabled(source);
+  issues.push(...privateTestConfigurationIssues(source));
   const databaseUrl = source.DATABASE_URL?.trim() || source.NETLIFY_DB_URL?.trim() || "";
   if (!databaseUrl) issues.push("DATABASE_URL is required");
 
@@ -109,11 +114,17 @@ export function productionConfigurationIssues(source: NodeJS.ProcessEnv = proces
 
   if ((source.DEMO_MODE ?? "false").toLowerCase() === "true") issues.push("DEMO_MODE must be false");
   if (!enabled(source.PILOT_MODE)) {
-    if (!enabled(source.AUTH_REQUIRE_EMAIL_VERIFICATION)) issues.push("AUTH_REQUIRE_EMAIL_VERIFICATION must be true for hosted production");
-    if (!source.RESEND_API_KEY?.trim()) issues.push("RESEND_API_KEY is required for hosted production");
-    if (!source.EMAIL_FROM?.trim()) issues.push("EMAIL_FROM is required for hosted production");
-    if (!source.AUTH_GOOGLE_CLIENT_ID?.trim() || !source.AUTH_GOOGLE_CLIENT_SECRET?.trim()) issues.push("Google sign-in credentials are required for hosted production");
-    if (!source.AUTH_APPLE_CLIENT_ID?.trim() || !source.AUTH_APPLE_TEAM_ID?.trim() || !source.AUTH_APPLE_KEY_ID?.trim() || !source.AUTH_APPLE_PRIVATE_KEY?.trim()) issues.push("Apple sign-in credentials are required for hosted production");
+    if (!privateTest && !enabled(source.AUTH_REQUIRE_EMAIL_VERIFICATION)) issues.push("AUTH_REQUIRE_EMAIL_VERIFICATION must be true for hosted production");
+    if (!privateTest || enabled(source.AUTH_REQUIRE_EMAIL_VERIFICATION) || source.RESEND_API_KEY || source.EMAIL_FROM) {
+      if (!source.RESEND_API_KEY?.trim()) issues.push("RESEND_API_KEY is required for hosted production");
+      if (!source.EMAIL_FROM?.trim()) issues.push("EMAIL_FROM is required for hosted production");
+    }
+    if (!privateTest || source.AUTH_GOOGLE_CLIENT_ID || source.AUTH_GOOGLE_CLIENT_SECRET) {
+      if (!source.AUTH_GOOGLE_CLIENT_ID?.trim() || !source.AUTH_GOOGLE_CLIENT_SECRET?.trim()) issues.push("Google sign-in credentials are required for hosted production");
+    }
+    if (!privateTest || source.AUTH_APPLE_CLIENT_ID || source.AUTH_APPLE_TEAM_ID || source.AUTH_APPLE_KEY_ID || source.AUTH_APPLE_PRIVATE_KEY) {
+      if (!source.AUTH_APPLE_CLIENT_ID?.trim() || !source.AUTH_APPLE_TEAM_ID?.trim() || !source.AUTH_APPLE_KEY_ID?.trim() || !source.AUTH_APPLE_PRIVATE_KEY?.trim()) issues.push("Apple sign-in credentials are required for hosted production");
+    }
   }
   return issues;
 }

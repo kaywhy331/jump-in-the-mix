@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { privateTestConfigurationIssues, privateTestEnabled, privateTestRequestAuthorized } from "@/lib/private-test";
+import { workerRequestAuthorized } from "@/lib/worker-request";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const IMPERSONATION_COOKIE = process.env.AUTH_IMPERSONATION_COOKIE_NAME ?? "jitm_impersonation";
@@ -91,6 +93,22 @@ function applySecurityHeaders(response: NextResponse, nonce: string): NextRespon
 
 export function proxy(request: NextRequest) {
   const nonce = randomBytes(16).toString("base64");
+  if (privateTestEnabled()) {
+    const workerHandoff = request.nextUrl.pathname === "/.netlify/functions/jump-worker-background"
+      && workerRequestAuthorized(request, process.env.NETLIFY_WORKER_SECRET);
+    if (!workerHandoff && !privateTestRequestAuthorized(request.headers)) {
+      const unavailable = privateTestConfigurationIssues().length > 0;
+      const response = new NextResponse(unavailable ? "This private test deployment is unavailable." : "This test site requires its private access credentials.", {
+        status: unavailable ? 503 : 401,
+        headers: {
+          "Cache-Control": "private, no-store",
+          "X-Robots-Tag": "noindex, nofollow",
+          ...(!unavailable ? { "WWW-Authenticate": 'Basic realm="Jump in the Mix private testing", charset="UTF-8"' } : {})
+        }
+      });
+      return applySecurityHeaders(response, nonce);
+    }
+  }
   if (!mutationAllowed(request)) {
     const response = request.nextUrl.pathname.startsWith("/api/")
       ? NextResponse.json({ error: "The request origin is not allowed." }, { status: 403 })
@@ -108,7 +126,12 @@ export function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", contentSecurityPolicy(nonce));
-  return applySecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), nonce);
+  const response = applySecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), nonce);
+  if (privateTestEnabled()) {
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
+  return response;
 }
 
 export const config = {

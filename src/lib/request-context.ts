@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { privateTestRequestAuthorized } from "@/lib/private-test";
 
 export type RequestMetadata = {
   ipAddress: string | null;
@@ -11,6 +12,7 @@ function firstForwardedAddress(value: string | null): string | null {
 
 export async function getRequestMetadata(): Promise<RequestMetadata> {
   const store = await headers();
+  if (!privateTestRequestAuthorized(store)) throw new Error("Private test access is required.");
   return {
     ipAddress:
       firstForwardedAddress(store.get("x-forwarded-for")) ??

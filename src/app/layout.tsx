@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { GlobalLiveSearch } from "@/components/GlobalLiveSearch";
+import { env } from "@/lib/env";
 import "@/styles/index.css";
 
 export const metadata: Metadata = {
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body>
+        {env.privateTestMode && <aside role="note" style={{ padding: "8px 16px", textAlign: "center", background: "#fff0c2", color: "#4a3500", fontSize: "14px" }}>Private test site. Use sample data only.</aside>}
         <Suspense fallback={null}><GlobalLiveSearch /></Suspense>
         {children}
       </body>
