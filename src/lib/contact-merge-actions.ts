@@ -41,8 +41,7 @@ async function loadMergeContact(workspaceId: string, contactId: string) {
       groupMemberships: true,
       customFieldValues: true,
       jumpDates: true,
-      mixAssignments: true,
-      externalLinks: true
+      mixAssignments: true
     }
   });
 }
@@ -116,7 +115,6 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
 
     await tx.jumpDate.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id } });
     await tx.contactActivity.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id } });
-    await tx.externalContactLink.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id } });
     await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId: source.id, status: { in: ["DONE", "SKIPPED"] } }, data: { contactId: survivor.id } });
     await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId: source.id, status: "PENDING" }, data: { status: "CANCELED", completionMethod: "contact_merged", completedAt: null } });
 

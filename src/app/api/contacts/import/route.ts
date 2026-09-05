@@ -109,7 +109,7 @@ async function assertActiveGroupReferences(workspaceId: string, items: CommitIte
   if (!requestedIds.length) return;
   const activeIds = await activeGroupIdsForWorkspace(workspaceId, requestedIds);
   if (activeIds.length !== requestedIds.length) {
-    throw new Error("One or more selected Contact Groups are inactive. Choose an active group from Contacts before importing.");
+    throw new Error("One or more selected tags are hidden. Choose an active tag from Contacts before importing.");
   }
 }
 
@@ -170,7 +170,7 @@ export async function POST(request: Request) {
 
   try {
     if (parsed.data.mode === "match") {
-      const result = await findImportMatches(scoped.membership.workspaceId, scoped.membership.workspace.planTier, parsed.data.records);
+      const result = await findImportMatches(scoped.membership.workspaceId, parsed.data.records);
       return NextResponse.json(result);
     }
     await assertActiveGroupReferences(scoped.membership.workspaceId, parsed.data.items);
@@ -189,7 +189,6 @@ export async function POST(request: Request) {
     const results = await commitContactImportBatch({
       workspaceId: scoped.membership.workspaceId,
       actorUserId: scoped.session.authUser.id,
-      planTier: scoped.membership.workspace.planTier,
       timezone: await timezoneForUser(scoped.session.user.id),
       importId: parsed.data.importId,
       items

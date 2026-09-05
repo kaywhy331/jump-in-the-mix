@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   normalizeSharedMixSteps,
-  sharedMixContentIssue,
-  sharedMixTrendingScore
+  sharedMixContentIssue
 } from "../src/lib/shared-mix";
 
 describe("Mix Template content", () => {
@@ -23,19 +22,12 @@ describe("Mix Template content", () => {
   });
 
   it("rejects missing content and unsupported placeholders", () => {
-    expect(sharedMixContentIssue([{ channel: "EMAIL", dayOffset: 0, subject: "Hello" }])).toContain("requires both a subject and body");
+    expect(sharedMixContentIssue([{ channel: "EMAIL", dayOffset: 0, subject: "Hello" }])).toContain("requires both a subject and message");
     expect(sharedMixContentIssue([{ channel: "SMS", dayOffset: 0, body: "Hi {{secret.account_number}}" }])).toContain("unsupported placeholders");
   });
 
   it("allows Private Notes only in Phone Call scripts", () => {
-    expect(sharedMixContentIssue([{ channel: "SMS", dayOffset: 0, body: "{{Private Notes}}" }])).toContain("outside a Phone Call");
+    expect(sharedMixContentIssue([{ channel: "SMS", dayOffset: 0, body: "{{Private Notes}}" }])).toContain("outside a phone call");
     expect(sharedMixContentIssue([{ channel: "PHONE_CALL", dayOffset: 0, script: "Review {{Private Notes}} before calling." }])).toBeNull();
-  });
-
-  it("ranks recent, voted, and imported templates more highly", () => {
-    const now = new Date("2026-07-16T12:00:00.000Z");
-    const trending = sharedMixTrendingScore({ voteCount: 8, importCount: 12, publishedAt: new Date("2026-07-15T12:00:00.000Z"), updatedAt: now }, now);
-    const quiet = sharedMixTrendingScore({ voteCount: 1, importCount: 1, publishedAt: new Date("2026-04-01T12:00:00.000Z"), updatedAt: now }, now);
-    expect(trending).toBeGreaterThan(quiet);
   });
 });

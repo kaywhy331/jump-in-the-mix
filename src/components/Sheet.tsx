@@ -20,6 +20,7 @@ export function Sheet({
   initiallyOpen?: boolean;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
   const titleId = useId();
   const descriptionId = useId();
 
@@ -27,17 +28,24 @@ export function Sheet({
     if (initiallyOpen && !dialogRef.current?.open) dialogRef.current?.showModal();
   }, [initiallyOpen]);
 
+  const open = () => {
+    if (!dialogRef.current?.open) dialogRef.current?.showModal();
+  };
   const close = () => dialogRef.current?.close();
+  const restoreTriggerFocus = () => {
+    triggerRef.current?.querySelector<HTMLElement>("button, a, [tabindex]")?.focus();
+  };
 
   return (
     <>
-      <span className="sheet-trigger" onClick={() => dialogRef.current?.showModal()}>{trigger}</span>
+      <span ref={triggerRef} className="sheet-trigger" onClick={open}>{trigger}</span>
       <dialog
         ref={dialogRef}
         className={`sheet ${className}`.trim()}
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         onClick={(event) => { if (event.target === event.currentTarget) close(); }}
+        onClose={restoreTriggerFocus}
       >
         <div className="sheet-panel">
           <header className="sheet-header">

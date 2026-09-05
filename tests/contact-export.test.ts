@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createContactsCsv } from "../src/lib/contact-export";
 
 describe("Contact CSV export", () => {
-  it("exports primary values, groups, Jump Dates, Public Notes, and custom fields", () => {
+  it("exports primary values, tags, saved dates, notes, and custom fields", () => {
     const csv = createContactsCsv([{
       firstName: "Jordan",
       lastName: "Lee",

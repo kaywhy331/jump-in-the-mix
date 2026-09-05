@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
-import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 
 function value(formData: FormData, key: string): string {
@@ -24,10 +23,7 @@ export async function activateMixAction(formData: FormData): Promise<void> {
     where: { id: mixId, workspaceId: workspace.id, status: { in: ["DRAFT", "PAUSED"] }, source: { not: "ONE_TIME" } },
     select: { id: true, name: true }
   });
-  if (!mix) fail("Mix not found or already active.");
-  const activeCount = await prisma.mix.count({ where: { workspaceId: workspace.id, status: "ACTIVE", id: { not: mix.id } } });
-  const limit = PLAN_LIMITS[workspace.planTier].mixes;
-  if (Number.isFinite(limit) && activeCount >= limit) fail(`Your plan allows ${limit} active Mixes.`);
+  if (!mix) fail("Plan not found or already active.");
   await prisma.$transaction([
     prisma.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } }),
     prisma.auditLog.create({
@@ -53,7 +49,7 @@ export async function pauseMixAction(formData: FormData): Promise<void> {
     where: { id: mixId, workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } },
     select: { id: true }
   });
-  if (!mix) fail("Active Mix not found.");
+  if (!mix) fail("Active plan not found.");
   await prisma.$transaction([
     prisma.mix.update({ where: { id: mix.id }, data: { status: "PAUSED" } }),
     prisma.jump.updateMany({
@@ -83,7 +79,7 @@ export async function archiveMixAction(formData: FormData): Promise<void> {
     where: { id: mixId, workspaceId: workspace.id, status: { not: "ARCHIVED" }, source: { not: "ONE_TIME" } },
     select: { id: true }
   });
-  if (!mix) fail("Mix not found.");
+  if (!mix) fail("Plan not found.");
   await prisma.$transaction([
     prisma.mix.update({ where: { id: mix.id }, data: { status: "ARCHIVED" } }),
     prisma.mixAssignment.updateMany({ where: { mixId: mix.id, workspaceId: workspace.id }, data: { isActive: false } }),

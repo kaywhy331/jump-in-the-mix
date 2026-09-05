@@ -49,15 +49,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
   const { jumpId } = await params;
   const payload = await request.json().catch(() => null) as { action?: string } | null;
   const action = payload?.action as JumpActionType | undefined;
-  if (!action || !ACTIONS.includes(action)) return NextResponse.json({ error: "Invalid Jump action." }, { status: 400 });
+  if (!action || !ACTIONS.includes(action)) return NextResponse.json({ error: "Invalid follow-up action." }, { status: 400 });
 
   const jump = await prisma.jump.findFirst({
     where: { id: jumpId, workspaceId: membership.workspaceId, status: "PENDING" },
     include: { stepVersion: { include: { stepTemplate: true } } }
   });
-  if (!jump) return NextResponse.json({ error: "This Jump is no longer pending." }, { status: 409 });
+  if (!jump) return NextResponse.json({ error: "This follow-up is no longer pending." }, { status: 409 });
   const channel = jump.stepVersion.stepTemplate.channel;
-  if (!actionMatchesChannel(action, channel)) return NextResponse.json({ error: "That action does not match this Jump channel." }, { status: 400 });
+  if (!actionMatchesChannel(action, channel)) return NextResponse.json({ error: "That action does not match this follow-up type." }, { status: 400 });
 
   await prisma.jumpActionEvent.create({
     data: {

@@ -1,0 +1,89 @@
+databases:
+  - name: jump-in-the-mix-postgres
+    databaseName: jump_in_the_mix
+    user: jump_in_the_mix
+    plan: basic-256mb
+    ipAllowList: []
+
+envVarGroups:
+  - name: jump-in-the-mix-hosted
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PILOT_MODE
+        value: "false"
+      - key: DEMO_MODE
+        value: "false"
+      - key: AUTH_REQUIRE_EMAIL_VERIFICATION
+        value: "true"
+      - key: AUTH_REQUIRE_ADMIN_MFA
+        value: "true"
+      - key: AUTH_SESSION_DAYS
+        value: "14"
+      - key: AUTH_RATE_LIMIT_SECRET
+        generateValue: true
+      - key: DATA_ENCRYPTION_KEY
+        generateValue: true
+      - key: APP_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_REPLY_TO
+        sync: false
+      - key: AUTH_GOOGLE_CLIENT_ID
+        sync: false
+      - key: AUTH_GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: AUTH_APPLE_CLIENT_ID
+        sync: false
+      - key: AUTH_APPLE_TEAM_ID
+        sync: false
+      - key: AUTH_APPLE_KEY_ID
+        sync: false
+      - key: AUTH_APPLE_PRIVATE_KEY
+        sync: false
+      - key: WEB_PUSH_VAPID_PUBLIC_KEY
+        sync: false
+      - key: WEB_PUSH_VAPID_PRIVATE_KEY
+        sync: false
+      - key: WEB_PUSH_VAPID_SUBJECT
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+
+services:
+  - type: web
+    name: jump-in-the-mix-web
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev --no-audit --no-fund && npm run db:generate && npm run build
+    preDeployCommand: npm run db:deploy
+    startCommand: npm run start
+    healthCheckPath: /api/health/ready
+    autoDeployTrigger: checksPass
+    envVars:
+      - fromGroup: jump-in-the-mix-hosted
+      - key: DATABASE_URL
+        fromDatabase:
+          name: jump-in-the-mix-postgres
+          property: connectionString
+
+  - type: worker
+    name: jump-in-the-mix-worker
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev --no-audit --no-fund && npm run db:generate
+    startCommand: npm run worker
+    autoDeployTrigger: checksPass
+    envVars:
+      - fromGroup: jump-in-the-mix-hosted
+      - key: DATABASE_URL
+        fromDatabase:
+          name: jump-in-the-mix-postgres
+          property: connectionString

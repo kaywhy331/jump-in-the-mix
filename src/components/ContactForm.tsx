@@ -161,7 +161,7 @@ export function ContactForm({
       </section>}
 
       {mode === "edit" && <section className="card contact-editor-section">
-        <div className="card-header"><div><h2>Email addresses</h2><p>Choose the address used for email Jumps.</p></div><button type="button" className="button small" onClick={() => setEmails((current) => [...current, { value: "", label: "" }])}>+ Add email</button></div>
+        <div className="card-header"><div><h2>Email addresses</h2><p>Choose the address used for email follow-ups.</p></div><button type="button" className="button small" onClick={() => setEmails((current) => [...current, { value: "", label: "" }])}>+ Add email</button></div>
         <div className="repeatable-list">
           {emails.map((item, index) => (
             <div className="repeatable-row" key={`email-${index}`}>
@@ -215,7 +215,7 @@ export function ContactForm({
       </section>
 
       {mode === "edit" && <section className="card contact-editor-section" id="contact-notes">
-        <div className="card-header"><div><h2>Groups and notes</h2><p>Customer notes store reusable relationship context. Private relationship updates stay reserved for calls, deal movement, and sensitive follow-up context.</p></div></div>
+        <div className="card-header"><div><h2>Tags and notes</h2><p>Use a private note for anything that should never appear in a prepared message.</p></div></div>
         {groups.length ? <div className="group-choice-grid">{groups.map((group) => {
           const selected = selectedGroupIds.has(group.id);
           return (
@@ -228,15 +228,15 @@ export function ContactForm({
               </label>
             </div>
           );
-        })}</div> : <p className="muted-copy">No groups have been created yet. You can add them from the Contacts page.</p>}
+        })}</div> : <p className="muted-copy">No tags have been created yet. You can add them from the Contacts page.</p>}
         <div className="form-grid notes-grid">
-          <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Customer notes</label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="How you met, preferences, background, family context, interests, or other details that help you maintain the relationship." /><small>These notes may be used only through approved customer-note placeholders in prepared follow-up content.</small></div>
-          <div className="field full"><label htmlFor="privateNotes">Private relationship updates</label><textarea id="privateNotes" name="privateNotes" defaultValue={contact?.privateNotes ?? ""} placeholder="Phone-call context, deal movement, objections, commitments, or sensitive relationship updates." /><small>Private updates are available only to Phone Call Jump scripts and are never inserted into SMS, email, or WhatsApp content.</small></div>
+          <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Notes</label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="How you met, preferences, background, or details worth remembering." /><small>A plan can use a note only when you deliberately add its note placeholder.</small></div>
+          <div className="field full"><label htmlFor="privateNotes">Private note</label><textarea id="privateNotes" name="privateNotes" defaultValue={contact?.privateNotes ?? ""} placeholder="Sensitive context, commitments, or details for your eyes only." /><small>Private notes never appear in texts, emails, or WhatsApp messages.</small></div>
         </div>
       </section>}
 
       <section className="card contact-editor-section">
-        <div className="card-header"><div><h2>Custom fields</h2><p>Workspace-specific values can be inserted into Jumps using their stable placeholder.</p></div><Link className="button small" href="/contacts/custom-fields">Manage fields</Link></div>
+        <div className="card-header"><div><h2>Custom fields</h2><p>Customer details can be inserted into prepared messages with a placeholder.</p></div><Link className="button small" href="/contacts/custom-fields">Manage fields</Link></div>
         {customFields.length ? <div className="form-grid">{customFields.map((field) => (
           <div className="field" key={field.id}>
             <input type="hidden" name="customFieldDefinitionId" value={field.id} />

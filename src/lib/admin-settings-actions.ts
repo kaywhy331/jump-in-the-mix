@@ -39,7 +39,6 @@ function revalidateSettingConsumers(): void {
   revalidatePath("/mixes/new");
   revalidatePath("/mixes");
   revalidatePath("/templates");
-  revalidatePath("/mixes/wizard");
 }
 
 export async function savePlatformSettingAction(formData: FormData): Promise<void> {
@@ -48,7 +47,7 @@ export async function savePlatformSettingAction(formData: FormData): Promise<voi
   const definition = PLATFORM_SETTING_DEFINITIONS[key];
   const nextValue = validatePlatformSettingValue(
     key,
-    definition.kind === "boolean" ? formData.get("enabled") === "on" : listValue(value(formData, "options"))
+    listValue(value(formData, "options"))
   );
   const auditWorkspaceId = user.memberships[0]?.workspaceId ?? null;
 

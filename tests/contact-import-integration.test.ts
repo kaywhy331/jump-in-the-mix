@@ -96,7 +96,7 @@ describe.sequential("Contact import service", () => {
 
   it("matches exact email only inside the active workspace", async () => {
     const row = record({ rowId: "row-match", emails: [{ value: "SHARED@example.com", label: null, isPrimary: true }] });
-    const result = await findImportMatches(ids.workspaceA, "FREE", [row]);
+    const result = await findImportMatches(ids.workspaceA, [row]);
     expect(result.matches).toHaveLength(1);
     expect(result.matches[0]).toMatchObject({ kind: "EXACT", recommendedAction: "MERGE" });
     expect(result.matches[0].candidates.map((candidate) => candidate.contactId)).toEqual([ids.contactA]);
@@ -121,7 +121,6 @@ describe.sequential("Contact import service", () => {
     const first = await commitContactImportBatch({
       workspaceId: ids.workspaceA,
       actorUserId: ids.userA,
-      planTier: "FREE",
       timezone: "America/Los_Angeles",
       importId,
       items: [{ record: row, resolution: resolution(row.rowId, "CREATE") }]
@@ -144,7 +143,6 @@ describe.sequential("Contact import service", () => {
     const second = await commitContactImportBatch({
       workspaceId: ids.workspaceA,
       actorUserId: ids.userA,
-      planTier: "FREE",
       timezone: "America/Los_Angeles",
       importId,
       items: [{ record: row, resolution: resolution(row.rowId, "CREATE") }]
@@ -170,7 +168,6 @@ describe.sequential("Contact import service", () => {
     const results = await commitContactImportBatch({
       workspaceId: ids.workspaceA,
       actorUserId: ids.userA,
-      planTier: "FREE",
       timezone: "America/Los_Angeles",
       importId: `import-merge-${suffix}`,
       items: [{ record: row, resolution: resolution(row.rowId, "MERGE", ids.contactA) }]
@@ -191,7 +188,6 @@ describe.sequential("Contact import service", () => {
     const results = await commitContactImportBatch({
       workspaceId: ids.workspaceA,
       actorUserId: ids.userA,
-      planTier: "FREE",
       timezone: "America/Los_Angeles",
       importId: `import-cross-${suffix}`,
       items: [{ record: row, resolution: resolution(row.rowId, "MERGE", ids.contactB) }]

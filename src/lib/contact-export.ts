@@ -53,9 +53,9 @@ export function createContactsCsv(contacts: ExportContact[]): string {
     "All Phones",
     "Primary Address",
     "All Addresses",
-    "Groups",
-    "Jump Dates",
-    "Public Notes",
+    "Tags",
+    "Saved Dates",
+    "Notes",
     ...orderedCustomFields.map(([, name]) => `Custom: ${name}`)
   ];
 
@@ -110,7 +110,7 @@ export function createTimelineCsv(activities: ExportTimelineActivity[], contactN
       activity.kind,
       activity.outcome ?? "",
       activity.channel ?? "",
-      activity.visibility === "PRIVATE" ? "Private" : "Customer timeline",
+      activity.visibility === "PRIVATE" ? "Private note" : "Timeline note",
       activity.summary ?? "",
       activity.nextCommitmentAt?.toISOString() ?? ""
     ])

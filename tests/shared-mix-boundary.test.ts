@@ -4,18 +4,16 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(path, "utf8");
 
 describe("Mix Template boundary", () => {
-  it("shows only approved built-in templates", () => {
+  it("shows only approved curated plans", () => {
     const page = read("src/app/(app)/templates/page.tsx");
     expect(page).toContain('status: "APPROVED"');
-    expect(page).toContain("isPlatform: true");
-    expect(page).toContain("item.publisherWorkspaceId === null || metadataById.has(item.id)");
     expect(page).not.toMatch(/community|contributor|vote/i);
   });
 
-  it("requires authentication and rejects non-platform shared records on use", () => {
+  it("requires authentication and rejects hidden records on use", () => {
     const page = read("src/app/(app)/templates/[sharedMixId]/use/page.tsx");
     expect(page).toContain("requireWorkspace()");
-    expect(page).toContain("!metadata?.isPlatform");
+    expect(page).toContain('status: "APPROVED"');
     expect(page).toContain("notFound()");
   });
 

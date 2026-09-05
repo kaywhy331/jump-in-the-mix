@@ -33,7 +33,7 @@ export default async function EditContactPage({
   return (
     <div className="page">
       <header className="page-header">
-        <div><h1>Edit {contact.displayName}</h1><p>Primary and custom values are used to render accurate Jumps.</p></div>
+        <div><h1>Edit {contact.displayName}</h1><p>Primary contact details are used in prepared follow-ups.</p></div>
         <div className="page-actions contact-detail-header-actions">
           <Link className="button mobile-header-action" href={`/contacts/${contact.id}`} aria-label="Back to Contact"><AppIcon name="arrowLeft" /><span>Back to Contact</span></Link>
         </div>

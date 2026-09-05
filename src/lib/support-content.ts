@@ -1,11 +1,11 @@
 export const SUPPORT_CATEGORIES = [
   { value: "GENERAL", label: "General help" },
   { value: "ACCOUNT", label: "Account and access" },
-  { value: "CONTACTS", label: "Contacts and Groups" },
-  { value: "JUMPS", label: "Today and actions" },
-  { value: "MIXES", label: "Mixes and scheduling" },
-  { value: "JUMP_DATES", label: "Important Dates and types" },
-  { value: "TEMPLATES", label: "Mix Templates" },
+  { value: "CONTACTS", label: "Customers and tags" },
+  { value: "JUMPS", label: "Today and follow-ups" },
+  { value: "MIXES", label: "Plans and scheduling" },
+  { value: "JUMP_DATES", label: "Saved dates" },
+  { value: "TEMPLATES", label: "Ready-made plans" },
   { value: "IMPORTS_SYNC", label: "Contact imports" },
   { value: "PRIVACY_SECURITY", label: "Privacy and security" },
   { value: "BUG", label: "Something is not working" },
@@ -17,7 +17,7 @@ export const SUPPORT_PRIORITIES = [
   { value: "HIGH", label: "High" }, { value: "URGENT", label: "Urgent" }
 ] as const;
 export const SUPPORT_STATUSES = [
-  { value: "OPEN", label: "Open" }, { value: "WAITING_ON_SUPPORT", label: "Waiting on Jump in the Mix" },
+  { value: "OPEN", label: "Open" }, { value: "WAITING_ON_SUPPORT", label: "Waiting on support" },
   { value: "WAITING_ON_USER", label: "Waiting on you" }, { value: "RESOLVED", label: "Resolved" },
   { value: "CLOSED", label: "Closed" }
 ] as const;
@@ -34,23 +34,23 @@ export type SupportEmailStatusValue = (typeof SUPPORT_EMAIL_STATUSES)[number]["v
 export type SupportFaqItem = { category: string; question: string; answer: string; keywords: string[] };
 
 export const SUPPORT_FAQS: SupportFaqItem[] = [
-  { category: "Getting started", question: "What is the difference between an Action Template, a Mix, and a Jump?", answer: "An Action Template is reusable message or call content. A Mix arranges actions into an ordered follow-up sequence with timing and an audience. Today shows the individual Jumps ready for you to complete.", keywords: ["jump", "mix", "sequence", "message", "call"] },
-  { category: "Today", question: "Why is a Jump not appearing on Today?", answer: "Confirm that the Contact is active, the Mix is active, the Important Date Type matches the Mix trigger, the audience includes the Contact, and the Mix has not been stopped for that Contact. Saving those records queues automatic reconciliation.", keywords: ["missing", "reconciliation", "queue", "stopped"] },
-  { category: "Today", question: "Does opening a message or phone call mark the Jump done?", answer: "No. Opening or copying a prepared action is recorded separately from completion. Mark it done after the relationship action is complete. You can undo a mistaken completion or skip work you will not perform.", keywords: ["done", "copied", "skip", "undo"] },
-  { category: "Contacts", question: "How are duplicate Contacts identified?", answer: "Exact normalized email is checked first, followed by exact normalized phone. File imports hold ambiguous and fuzzy matches for review instead of silently merging them. A reviewed merge preserves primary choices and combines unique relationship data.", keywords: ["duplicate", "merge", "email", "phone"] },
-  { category: "Contacts", question: "Which email, phone number, or address is used for a Jump?", answer: "Each Contact can have multiple labeled values. The value marked Primary is used by placeholders and one-tap actions. You can change the primary choice from the Contact editor.", keywords: ["primary", "email", "phone", "address"] },
-  { category: "Important Dates", question: "How do Important Dates and custom types work?", answer: "An Important Date records a meaningful date for one Contact. Its type lets active Mixes recognize the event. Monthly and yearly recurrence use logical calendar dates so timezone conversion does not shift the day.", keywords: ["birthday", "anniversary", "date type", "recurrence", "timezone"] },
-  { category: "Mixes", question: "Can I build a Mix without a template?", answer: "Yes. Write each action directly, choose its channel and timing, reorder the sequence, select an audience, and save it as a draft or activate it. Reusable Action Templates are optional.", keywords: ["manual", "action", "template", "audience"] },
-  { category: "Templates", question: "What happens when I use a Mix Template?", answer: "The template creates an independent editable Mix. Choose its name, audience, schedule, and draft or active state in one setup screen. Your Contacts and completed history are never copied into the template.", keywords: ["template", "import", "draft", "activate"] },
-  { category: "Imports", question: "How do CSV and VCF imports protect my data?", answer: "Files are parsed in the browser before reviewed rows are sent in small authenticated batches. Exact and possible duplicates are shown for review, while a background worker can continue an approved import after the browser closes.", keywords: ["csv", "vcf", "duplicate", "import", "worker"] },
-  { category: "Privacy and security", question: "How can I control my personal data?", answer: "My Account lets you export your data, review active sessions, change your password, and permanently delete your account. Private Relationship Updates remain distinct from Customer Notes throughout Contact workflows.", keywords: ["privacy", "export", "delete", "sessions", "private"] },
-  { category: "Troubleshooting", question: "What should I include when reporting a problem?", answer: "Describe what you expected, what happened instead, the page or workflow involved, and the approximate time. Do not include passwords, private keys, or other secrets.", keywords: ["bug", "problem", "report", "troubleshooting"] }
+  { category: "Getting started", question: "What are Today, plans, and follow-ups?", answer: "Today is your short work list. A plan is a reusable series of texts, calls, or emails. Each item that becomes due is a follow-up you can review, edit, and complete.", keywords: ["today", "plan", "sequence", "message", "call"] },
+  { category: "Today", question: "Why is a follow-up not on Today?", answer: "Check that the person is active, the plan is on, its saved date matches the plan, and the person or their tag is included. A stopped plan will not create more follow-ups for that person.", keywords: ["missing", "schedule", "stopped", "tag"] },
+  { category: "Today", question: "Does opening a text, email, or call mark it done?", answer: "No. Opening or copying records what you started, but you mark the follow-up done after you finish. You can undo a mistaken completion or skip something you no longer need.", keywords: ["done", "copied", "skip", "undo"] },
+  { category: "Contacts", question: "How are possible duplicate contacts found?", answer: "The app checks exact email first and exact phone second. Imports hold uncertain matches for your review instead of silently combining people. A confirmed merge keeps primary contact details and unique history.", keywords: ["duplicate", "merge", "email", "phone"] },
+  { category: "Contacts", question: "Which email or phone number does a follow-up use?", answer: "A person can have several labeled contact methods. The primary value is used for prepared messages and one-tap actions. Change it from Edit contact.", keywords: ["primary", "email", "phone", "address"] },
+  { category: "Saved dates", question: "How do birthdays, job dates, and renewals work?", answer: "Save a meaningful date on a person and choose what it represents. A plan can start from that date. Repeating dates stay on the correct calendar day in your timezone.", keywords: ["birthday", "anniversary", "renewal", "timezone"] },
+  { category: "Plans", question: "Can I build a plan from scratch?", answer: "Yes. Choose when it starts, who it applies to, and add each text, call, or email with the number of days to wait. Extra timing controls stay under Advanced.", keywords: ["custom", "message", "timing", "tag"] },
+  { category: "Plans", question: "What happens when I choose a ready-made plan?", answer: "The app makes your own editable copy. You choose who gets it and whether to turn it on now. Your contacts, notes, and completed history are never added to the shared starting plan.", keywords: ["ready-made", "copy", "draft", "turn on"] },
+  { category: "Imports", question: "How do CSV and VCF imports protect my data?", answer: "Files are read in your browser, then reviewed rows are sent in small signed-in batches. Exact and possible duplicates are shown before changes are made, and an approved import can finish after you close the browser.", keywords: ["csv", "vcf", "duplicate", "import"] },
+  { category: "Privacy and security", question: "How can I control my data?", answer: "My Account lets you download a spreadsheet or complete JSON copy, review active sessions, change your password, and permanently delete the account. Private notes are never inserted into prepared messages.", keywords: ["privacy", "export", "delete", "sessions", "private"] },
+  { category: "Troubleshooting", question: "What should I include when reporting a problem?", answer: "Say what you expected, what happened instead, the page you were using, and the approximate time. Never include passwords, private keys, customer information, or provider tokens.", keywords: ["bug", "problem", "report", "troubleshooting"] }
 ];
 
 export const SUPPORT_REPLY_TEMPLATES = [
-  { name: "Need more information", body: "Thank you for the details. Please tell us what you expected, what happened instead, the page involved, and the approximate time. Do not send passwords or private keys." },
-  { name: "Steps to try", body: "Please refresh the page, sign out and back in, and retry once. If the behavior continues, reply with the page name, exact message, and whether it happens on mobile, desktop, or both." },
-  { name: "Resolved", body: "We applied a correction and believe this issue is resolved. Please retry the original workflow. If it continues, reply to this ticket and it will return to the support queue." }
+  { name: "Need more information", body: "Thank you for the details. Please tell us what you expected, what happened instead, the page involved, and the approximate time. Do not send passwords, customer information, or private keys." },
+  { name: "Steps to try", body: "Please refresh the page, sign out and back in, and retry once. If it continues, reply with the page name, exact message, and whether it happens on mobile, desktop, or both." },
+  { name: "Resolved", body: "We applied a correction and believe this is resolved. Please retry the original task. If it continues, reply here and the conversation will reopen." }
 ] as const;
 
 function optionLabel<T extends readonly { value: string; label: string }[]>(options: T, value: string): string { return options.find((option) => option.value === value)?.label ?? value.toLowerCase().replaceAll("_", " "); }

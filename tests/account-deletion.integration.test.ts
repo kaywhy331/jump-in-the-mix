@@ -1,6 +1,5 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { deleteAccountData, retryPendingAccountDeletionRevocations } from "../src/lib/account-deletion";
-import { encryptIntegrationCredentials } from "../src/lib/integration-crypto";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { deleteAccountData } from "../src/lib/account-deletion";
 import { prisma } from "../src/lib/prisma";
 
 const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -21,16 +20,7 @@ async function seedDeletionGraph() {
           slug: `delete-${suffix}`,
           members: { create: { id: `delete-member-${suffix}`, userId, role: "OWNER" } },
           contacts: { create: { id: `delete-contact-${suffix}`, displayName: "Delete Me" } },
-          jobs: { create: { id: `delete-job-${suffix}`, task: "delete.test", payload: {} } },
-          integrations: {
-            create: {
-              id: `delete-integration-${suffix}`,
-              provider: "GOOGLE_CONTACTS",
-              status: "ACTIVE",
-              scopes: [],
-              credentialsCiphertext: encryptIntegrationCredentials({ refreshToken: "test-refresh-token" })
-            }
-          }
+          jobs: { create: { id: `delete-job-${suffix}`, task: "delete.test", payload: {} } }
         }
       }
     }
@@ -81,45 +71,27 @@ afterAll(async () => {
   await prisma.supportTicket.deleteMany({ where: { workspaceId } });
   await prisma.workspace.deleteMany({ where: { id: workspaceId } });
   await prisma.user.deleteMany({ where: { id: userId } });
-  await prisma.accountDeletionRevocation.deleteMany({ where: { requestId: { startsWith: `delete-request-${suffix}` } } });
   await prisma.accountDeletionAudit.deleteMany({ where: { requestId: { startsWith: `delete-request-${suffix}` } } });
   await prisma.$disconnect();
 });
 
 describe("account deletion", () => {
-  it("revokes providers and atomically removes sessions, credentials, jobs, contacts, and workspace data", async () => {
-    const revoke = vi.fn().mockResolvedValue(undefined);
+  it("atomically removes sessions, jobs, contacts, support history, and workspace data", async () => {
     const requestId = `delete-request-${suffix}-success`;
-    await expect(deleteAccountData(userId, revoke, requestId)).resolves.toEqual({ deleted: true, requestId, revocationWarnings: [] });
-    expect(revoke).toHaveBeenCalledOnce();
+    await expect(deleteAccountData(userId, requestId)).resolves.toEqual({ deleted: true, requestId });
     await expect(prisma.user.findUnique({ where: { id: userId } })).resolves.toBeNull();
     await expect(prisma.session.count({ where: { userId } })).resolves.toBe(0);
     await expect(prisma.workspace.count({ where: { id: workspaceId } })).resolves.toBe(0);
     await expect(prisma.contact.count({ where: { workspaceId } })).resolves.toBe(0);
     await expect(prisma.job.count({ where: { workspaceId } })).resolves.toBe(0);
     await expect(prisma.jump.count({ where: { workspaceId } })).resolves.toBe(0);
-    await expect(prisma.integrationConnection.count({ where: { workspaceId } })).resolves.toBe(0);
     await expect(prisma.supportTicket.count({ where: { workspaceId } })).resolves.toBe(0);
-    await expect(prisma.accountDeletionRevocation.count({ where: { requestId } })).resolves.toBe(0);
     await expect(prisma.accountDeletionAudit.findUnique({ where: { requestId } })).resolves.toMatchObject({ status: "COMPLETED" });
   });
 
-  it("finishes local deletion when revocation fails and is idempotent when repeated", async () => {
-    const requestId = `delete-request-${suffix}-failure`;
-    const result = await deleteAccountData(userId, async () => { throw new Error("provider timeout"); }, requestId);
-    expect(result.deleted).toBe(true);
-    expect(result.revocationWarnings).toEqual(["GOOGLE_CONTACTS: provider timeout"]);
-    await expect(deleteAccountData(userId)).resolves.toEqual({ deleted: false, revocationWarnings: [] });
-    await expect(prisma.accountDeletionRevocation.findFirst({ where: { requestId } })).resolves.toMatchObject({ status: "RETRY_PENDING", attempts: 1 });
-  });
-
-  it("resumes a pending encrypted revocation after an application restart", async () => {
-    const requestId = `delete-request-${suffix}-restart`;
-    await deleteAccountData(userId, async () => { throw new Error("provider unavailable"); }, requestId);
-    await prisma.accountDeletionRevocation.updateMany({ where: { requestId }, data: { nextAttemptAt: new Date(0) } });
-    const revoke = vi.fn().mockResolvedValue(undefined);
-    await expect(retryPendingAccountDeletionRevocations(revoke)).resolves.toEqual({ completed: 1, pending: 0 });
-    expect(revoke).toHaveBeenCalledOnce();
-    await expect(prisma.accountDeletionRevocation.count({ where: { requestId } })).resolves.toBe(0);
+  it("is idempotent when repeated after deletion", async () => {
+    const requestId = `delete-request-${suffix}-repeat`;
+    await expect(deleteAccountData(userId, requestId)).resolves.toEqual({ deleted: true, requestId });
+    await expect(deleteAccountData(userId)).resolves.toEqual({ deleted: false });
   });
 });

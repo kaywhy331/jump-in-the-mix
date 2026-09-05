@@ -8,6 +8,7 @@ import { ContactTimeline } from "@/components/ContactTimeline";
 import { ContactsBackLink } from "@/components/ContactsBackLink";
 import { Notice } from "@/components/Notice";
 import { ReviewRequestButton } from "@/components/ReviewRequestButton";
+import { Sheet } from "@/components/Sheet";
 import { requireWorkspace } from "@/lib/auth";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { assignMixToContactAction, removeMixAssignmentAction } from "@/lib/contact-mix-actions";
@@ -125,7 +126,7 @@ export default async function ContactDetailPage({ params, searchParams }: { para
 
         <section className="card contact-timeline-card">
           <div className="card-header"><div><h2>Timeline</h2><p>Recent calls, messages, and notes.</p></div></div>
-          <ContactTimeline contactId={contact.id} />
+          <ContactTimeline contactId={contact.id} displayPreferences={displayPreferences} />
         </section>
       </div>
 
@@ -146,7 +147,9 @@ export default async function ContactDetailPage({ params, searchParams }: { para
             {contact.jumpDates.length ? <div className="important-date-list">{contact.jumpDates.map((item) => <article className="important-date-row" key={item.id}>
               <div className="important-date-summary"><h3>{item.dateType.name}</h3><div className="jump-meta"><span>{item.dateValue ? formatDate(item.dateValue, displayPreferences) : `${item.month}/${item.day}`}</span><span>{item.recurrence.toLowerCase()}</span>{item.label && <span>{item.label}</span>}</div></div>
               <div className="important-date-actions">
-                <details className="important-date-edit"><summary className="button small">Edit</summary><form action={updateImportantDateAction} className="important-date-edit-panel"><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} />{!item.dateValue && <input type="hidden" name="monthDayOnly" value="1" />}<label className="field"><span>Type</span><select name="dateTypeId" defaultValue={item.dateTypeId} required>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>{item.dateValue ? <label className="field"><span>Date</span><input name="dateValue" type="date" defaultValue={formatDateInput(item.dateValue)} required /></label> : <><label className="field"><span>Month</span><select name="month" defaultValue={item.month ?? ""} required><option value="">Choose month</option>{MONTHS.map((month, index) => <option value={index + 1} key={month}>{month}</option>)}</select></label><label className="field"><span>Day</span><input name="day" type="number" min={1} max={31} defaultValue={item.day ?? ""} inputMode="numeric" required /></label></>}<label className="field"><span>Repeat</span><select name="recurrence" defaultValue={item.recurrence}><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label><label className="field"><span>Note</span><input name="label" defaultValue={item.label ?? ""} /></label><button className="button primary" type="submit">Save</button></form></details>
+                <Sheet trigger={<button className="button small" type="button">Edit</button>} title={`Edit ${item.dateType.name}`} description={`Update this saved date for ${contact.displayName}.`}>
+                  <form action={updateImportantDateAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} />{!item.dateValue && <input type="hidden" name="monthDayOnly" value="1" />}<label className="field"><span>Type</span><select name="dateTypeId" defaultValue={item.dateTypeId} required>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>{item.dateValue ? <label className="field"><span>Date</span><input name="dateValue" type="date" defaultValue={formatDateInput(item.dateValue)} required /></label> : <><label className="field"><span>Month</span><select name="month" defaultValue={item.month ?? ""} required><option value="">Choose month</option>{MONTHS.map((month, index) => <option value={index + 1} key={month}>{month}</option>)}</select></label><label className="field"><span>Day</span><input name="day" type="number" min={1} max={31} defaultValue={item.day ?? ""} inputMode="numeric" required /></label></>}<label className="field"><span>Repeat</span><select name="recurrence" defaultValue={item.recurrence}><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label><label className="field"><span>Note</span><input name="label" defaultValue={item.label ?? ""} /></label><button className="button primary" type="submit">Save date</button></form>
+                </Sheet>
                 <ConfirmDialog trigger={<AppIcon name="trash" />} triggerAriaLabel={`Remove ${item.dateType.name}`} triggerClassName="icon-button compact danger" title={`Remove ${item.dateType.name}?`} description="Future follow-ups tied to this date will be removed." danger><form action={deactivateImportantDateAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} /><button className="button danger" type="submit">Remove date</button></form></ConfirmDialog>
               </div>
             </article>)}</div> : <p className="muted-copy">No dates saved yet.</p>}

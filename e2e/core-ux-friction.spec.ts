@@ -14,13 +14,13 @@ async function signIn(page: Page) {
   ]);
 }
 
-test("mobile Today keeps Mark done visible for pending Jumps", async ({ page }, testInfo) => {
+test("mobile Today keeps Done visible for pending follow-ups", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile completion geometry is checked once.");
   const pendingJumpId = await createPendingJumpFixture("Mobile completion geometry");
   try {
     await signIn(page);
     await page.goto("/jumps");
-    const markDone = page.locator(`[data-jump-workflow="${pendingJumpId}"]:visible`).getByRole("button", { name: "Mark done" });
+    const markDone = page.locator(`[data-jump-workflow="${pendingJumpId}"]:visible`).getByRole("button", { name: "Done", exact: true });
     await expect(markDone).toBeVisible();
     const box = await markDone.boundingBox();
     expect(box).not.toBeNull();
@@ -38,7 +38,7 @@ test("Quick Add carries recognized fields into Contact and follow-up creation", 
   await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
   const dialog = page.getByRole("dialog", { name: "Quick Add" });
   await dialog.getByLabel("What do you want to remember?").fill("Follow up with Jordan Lee next Monday about the proposal");
-  await dialog.getByRole("button", { name: /Preview capture|Review/ }).click();
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await dialog.getByRole("link", { name: "Continue with Contact" }).click();
 
   await expect(page).toHaveURL(/\/contacts\/new\?/);
@@ -57,7 +57,7 @@ test("Quick Add carries a recognized phone without folding it into the Contact n
   await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
   const dialog = page.getByRole("dialog", { name: "Quick Add" });
   await dialog.getByLabel("What do you want to remember?").fill("Add Sam with 626-555-0100");
-  await dialog.getByRole("button", { name: /Preview capture|Review/ }).click();
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(dialog.getByText("Sam", { exact: true })).toBeVisible();
   await expect(dialog.getByText("626-555-0100", { exact: true })).toBeVisible();
   await dialog.getByRole("link", { name: "Continue with Contact" }).click();
@@ -65,7 +65,7 @@ test("Quick Add carries a recognized phone without folding it into the Contact n
   await expect(page).toHaveURL(/\/contacts\/new\?/);
   await expect(page.getByLabel("First name")).toHaveValue("Sam");
   await expect(page.getByLabel("Last name")).toHaveValue("");
-  await expect(page.getByLabel("Phone 1", { exact: true })).toHaveValue("626-555-0100");
+  await expect(page.getByLabel("Phone", { exact: true })).toHaveValue("626-555-0100");
 });
 
 test("Contact selection is a direct list control", async ({ page }, testInfo) => {
@@ -73,6 +73,6 @@ test("Contact selection is a direct list control", async ({ page }, testInfo) =>
   await signIn(page);
   await page.goto("/contacts");
   await page.getByRole("button", { name: "Select", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Done selecting" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Done", exact: true })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: /^Select / }).first()).toBeVisible();
 });

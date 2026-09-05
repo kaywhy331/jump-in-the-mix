@@ -107,7 +107,7 @@ export async function saveActiveGroupsAction(formData: FormData): Promise<void> 
       actorUserId: user.id
     });
   } catch (error) {
-    fail(error instanceof Error ? error.message : "The active Contact Group selection could not be saved.");
+    fail(error instanceof Error ? error.message : "The active tag selection could not be saved.");
   }
   redirect("/contacts?groupsActiveSaved=1");
 }
@@ -118,7 +118,7 @@ export async function assignSelectedContactsToActiveGroupAction(formData: FormDa
   const groupId = value(formData, "groupId");
   if (!contactIds.length) fail("Select at least one Contact.");
   if (!(await isGroupActive(workspace.id, groupId))) {
-    fail("Choose an active Contact Group. Inactive groups are preserved but unavailable for new assignments.");
+    fail("Choose an active tag. Hidden tags stay saved but cannot receive new assignments.");
   }
 
   const contacts = await prisma.contact.findMany({

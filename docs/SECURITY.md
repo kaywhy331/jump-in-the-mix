@@ -1,154 +1,39 @@
-# Security Model
+# Security model
 
-## Authentication
+## Authentication and sessions
 
-- Passwords use bcrypt with a work factor of 12. New and changed passwords require at least 12 characters and remain within bcrypt's supported input length.
-- Unknown-account login attempts still perform a bcrypt comparison before returning the same generic error used for invalid passwords.
-- Session tokens are cryptographically random, stored only as SHA-256 hashes, and delivered through HTTP-only cookies.
-- Production cookies use `Secure`, `SameSite=Lax`, and a root path.
-- Sessions record a bounded user-agent string, the best available client IP, last-seen time, creation time, and expiration.
-- A configurable per-user cap removes the oldest sessions after a successful new sign-in.
-- Users can inspect and revoke remote sessions, sign out other devices, or sign out everywhere.
-- Password changes close other sessions. Password resets close every session.
-- Optional email verification and password recovery use one-time, expiring tokens stored only as hashes.
-- Verification, recovery, login, registration, and authenticated action-event requests use database-backed rate limits.
-- Public reset and verification responses avoid disclosing whether an email is registered.
+Passwords use bcrypt with work factor 12 and a 12-character minimum. Unknown-account sign-in still performs a comparison before returning the generic error. Hosted accounts may also use one-time email links, Google, or Apple; OAuth state is random, hashed at rest, expiring, and single-use.
 
-Before enabling mandatory verification in production, configure and validate the transactional-email provider. Optional MFA for normal workspace users remains a future hardening item; platform-administrator MFA is implemented and enforced by default in production.
+Session tokens are random and stored only as SHA-256 hashes. Cookies are HTTP-only, `SameSite=Strict`, and Secure on public production origins. Sessions expire after at most 14 days by default, are capped per user, and can be inspected or revoked. Password changes rotate the current session and close other sessions; password reset closes all sessions. Email verification, password reset, sign-in, registration, and authenticated mutations are database-rate-limited.
 
-## Browser request boundary
+Hosted production refuses readiness without HTTPS, mandatory email verification, verified transactional email configuration, and configured Google and Apple sign-in. The loopback Docker edition may omit email and provides an operator-only password reset command.
 
-- State-changing browser requests are rejected when their `Origin` is not same-origin or explicitly trusted.
-- `Sec-Fetch-Site` is used as a secondary signal when an Origin header is unavailable.
-- Signed provider webhook routes are explicitly separated from the browser-origin rule.
-- Next.js Server Actions keep their built-in origin comparison, accept only configured additional origins, and use a one-megabyte body limit.
-- Responses apply `nosniff`, clickjacking protection, a strict referrer policy, restrictive browser permissions, COOP/CORP, and production HSTS.
-- While an administrator support-view cookie is present, all unsafe browser methods are rejected with HTTP 403 except the dedicated endpoint that ends the view-only session.
-- Desktop browser coverage proves administrator enrollment and recovery-code step-up; desktop and mobile coverage prove normal authenticated workflows; and an impersonated browser POST proves the central view-only mutation boundary.
+## Browser boundary
 
-## Tenant isolation
+Unsafe browser requests must be same-origin or come from an explicitly allowed origin. Fetch Metadata is a secondary signal. Apple’s signed callback and separately verified provider webhooks are the only scoped exceptions. Next.js Server Actions use the same origin allowlist and a one-megabyte body limit.
 
-Every business entity is associated with a `workspaceId`. API and server actions locate records through the authenticated workspace rather than trusting browser-supplied ownership fields.
+Responses set a nonce-based Content Security Policy, HSTS on production, MIME sniffing and framing protections, a strict referrer policy, restrictive Permissions Policy, COOP/CORP, and cross-domain-policy denial. Administrator support views are centrally limited to safe methods until explicitly ended.
 
-PostgreSQL integration tests create two independent workspaces and verify that one cannot retrieve or mutate the other's Contacts, Groups, Mixes, reusable Jumps, generated Jumps, custom fields, broadcasts, imports, or provider links. Static regression tests require tenant mutation modules to derive the workspace from the authenticated session.
+## Tenant and administrator isolation
 
-The complete authenticated application subtree resolves its workspace through the server layout. Administrator pages add an explicit platform-administrator guard and a current MFA step-up. Support impersonation changes only the read context after confirming that the target user belongs to the selected workspace; the authenticated actor remains the administrator for auditing and authorization.
+`workspaceId` comes from the authenticated session, never trusted browser input. Routes, actions, imports, exports, worker tasks, notifications, review requests, and support access scope every query to it. Integration tests maintain two independent businesses to catch cross-tenant reads and writes.
 
-For defense in depth, production PostgreSQL may add row-level policies after deciding how application and migration roles are separated.
+Platform administration requires an allowlisted account and, in production, a current TOTP MFA step-up. TOTP secrets are AES-256-GCM encrypted, recovery codes are keyed hashes, and accepted counters prevent replay. Support views keep the real administrator as actor, expire, display a warning, and are read-only.
 
-## Integration credentials
+## Data protection
 
-OAuth refresh tokens and provider secrets are encrypted with AES-256-GCM before database storage. `DATA_ENCRYPTION_KEY` must be unique per environment, stored in the hosting secret manager, and excluded from logs and backups that are not independently encrypted.
+`DATA_ENCRYPTION_KEY` is unique per environment and stored only in the hosting secret manager. Backup archives use a separate key, AES-256-GCM authentication, manifests, checksums, migration inventories, and critical row counts. Restore into the source database is blocked.
 
-Google Contacts controls:
+Logs and diagnostics must not contain passwords, raw session or auth tokens, MFA secrets/codes, OAuth codes, provider credentials, encryption keys, contact exports, message bodies, or customer notes. Automatic-delivery and notification records contain bounded provider identifiers and status, not credentials.
 
-- The OAuth redirect URI is explicit and must exactly match the configured Google OAuth web client.
-- OAuth `state` is random, expires after ten minutes, can be used once, and is stored only as a SHA-256 hash.
-- The integration requests read-only Google Contacts access and does not write to Google.
-- Access and refresh tokens are encrypted before storage and never returned by the account status API.
-- Access-token refresh happens server-side.
-- Revoked credentials change the connection state and require reconnecting.
-- Connecting a different Google account retires old provider links and cancels active provider jobs while preserving local Contacts.
-- Disconnect removes locally stored credentials, stops future syncs, attempts provider revocation, and preserves local Contacts.
-- Provider reads and user-initiated sync actions are authenticated, workspace-scoped, plan-gated, rate-limited, and blocked during view-only administrator support sessions.
-- Google deletions do not delete local Contacts.
+Spreadsheet export neutralizes formula-leading values. Account deletion requires reauthentication and an exact confirmation phrase, deletes owned data transactionally, and leaves only a one-way subject hash with aggregate counts in the deletion audit.
 
-Account deletion removes owned workspace data and credentials in one database transaction after best-effort provider revocation. Sessions, Contacts, jobs, support records, MFA state, and encrypted integration credentials are covered by PostgreSQL integration tests; repeated deletion is idempotent, and provider failure does not strand locally stored credentials.
+## Provider and operational controls
 
-Do not rotate `DATA_ENCRYPTION_KEY` without a credential re-encryption plan. A destructive rotation requires every connected provider account and every administrator authenticator to be re-enrolled.
+Resend, Web Push, and Twilio are disabled when credentials are absent. Automatic customer-message delivery is additionally disabled per business until the owner opts in and chooses a review window. Durable claims prevent duplicate sending; an uncertain provider response is not retried automatically. Quiet hours use the owner’s timezone.
 
-Provider integrations are not considered production-ready until credential rotation, OAuth consent, revocation, inbox/provider behavior, and recovery paths pass production-like staging tests.
+Review/referral links use random expiring tokens. Public responses are schema-validated, rate-limited, single-use where required, and reveal no private contact record.
 
-## Webhooks
+Keep PostgreSQL private, enable managed backups and point-in-time recovery, patch dependencies and base images, alert on readiness/worker failure and authentication abuse, and rehearse restoration. Do not rotate the data-encryption key without a re-encryption plan.
 
-Provider webhooks must meet all of the following requirements before launch:
-
-- Stripe verifies the raw body with the Stripe signing secret.
-- WhatsApp validates Meta's HMAC signature.
-- Website webhooks use a constant-time secret comparison.
-- Provider event IDs are stored to prevent duplicate processing.
-- Expensive work is queued rather than performed inline.
-- Public webhook routes do not rely on a browser session and remain outside the browser Origin gate only after provider signature verification is implemented.
-
-Google Contacts in this release uses OAuth plus scheduled/delta pulls rather than an inbound webhook.
-
-## AI
-
-- AI receives only the data required for the requested draft.
-- Responses are parsed through strict schemas.
-- AI cannot execute arbitrary database queries.
-- Multi-entity actions require user confirmation.
-- Built-in generation rejects unknown placeholders and Public Notes assumptions.
-
-## Data minimization
-
-Operational logs must not contain:
-
-- Passwords.
-- Raw session tokens.
-- Raw administrator impersonation tokens.
-- Raw administrator TOTP secrets, TOTP codes, recovery codes, or QR payloads.
-- Raw email-verification or password-reset tokens.
-- OAuth authorization codes.
-- OAuth access or refresh tokens.
-- Provider client secrets.
-- Stripe secrets.
-- Full webhook secrets.
-- Unredacted contact exports or Google People responses.
-
-Authentication rate-limit keys are derived with a keyed SHA-256 digest rather than storing raw email/IP combinations as the bucket key. Session and administrator-support tables contain only token hashes. Administrator TOTP secrets are AES-256-GCM encrypted, recovery codes are keyed hashes, and only the last accepted TOTP counter is retained for replay prevention. Google account status responses contain connection state, labels, counts, and errors but never encrypted or decrypted credentials.
-
-Account deletion requires the current password and the exact phrase `DELETE MY ACCOUNT`, is rate limited, and is unavailable during administrator impersonation. All sessions and owned workspace data are removed transactionally. Provider revocation is best effort and occurs outside that transaction; failures retain only the existing encrypted credential plus provider/status/error metadata in a retry queue. Successful revocation removes that ciphertext. The surviving deletion audit uses a one-way subject hash and counts only—never name, email, Contact content, messages, or raw tokens.
-
-## Administrative access
-
-Platform administration is controlled by `isPlatformAdmin` plus a fresh administrator MFA step-up when `AUTH_REQUIRE_ADMIN_MFA` is enabled. Enforcement defaults to enabled in production.
-
-Implemented administrator MFA controls:
-
-- Standards-based six-digit TOTP enrollment with QR and manual-secret options.
-- Current-password confirmation before enrollment.
-- Encrypted TOTP secret storage.
-- Ten one-time recovery codes stored only as keyed hashes.
-- TOTP replay prevention through the last accepted counter.
-- Database-backed rate limits for enrollment and verification.
-- Step-up state scoped to one authenticated application session and bounded by `AUTH_ADMIN_MFA_MAX_AGE_MINUTES`.
-- Step-up invalidation on sign-out, remote session revocation, password change, password reset, expiration, and session-cap eviction.
-- Audited enrollment and verification events.
-
-Implemented support-view controls:
-
-- A fresh administrator MFA step-up is required before the view can begin.
-- The target user and workspace membership are revalidated server-side before a session begins.
-- A support reason of 10–500 characters is mandatory.
-- Tokens are random, HTTP-only, stored only as SHA-256 hashes, and expire after 30 minutes by default.
-- Only one active support-view grant is retained per administrator.
-- The application displays a persistent banner identifying the target, reason, expiry, and view-only mode.
-- Password, device-session, and other target-account security controls are not exposed.
-- All impersonated browser writes are blocked centrally.
-- Start and end events are written to the target workspace audit log with the real administrator actor.
-
-Before operationally enabling administrator support views in production:
-
-- Confirm `AUTH_REQUIRE_ADMIN_MFA=true`, validate enrollment on the deployed origin, and rehearse the lost-device procedure.
-- Review all administrator actions for comprehensive audit coverage.
-- Mask sensitive Contact and integration fields according to support role.
-- Use separate operational accounts rather than shared credentials.
-- Complete browser-driven route and mutation tests in production-like staging.
-- Alert on repeated administrator verification failures and unusual support-view activity.
-
-Follow `docs/ADMIN_MFA.md` for enrollment, recovery, deployment, and incident procedures.
-
-## Infrastructure and migrations
-
-- Place the database on a private network when possible.
-- Restrict database access to application and migration roles.
-- Apply operating-system and image security updates.
-- Use encrypted offsite backups.
-- Test restoration.
-- Rotate integration, authentication, and webhook secrets after suspected exposure.
-- The committed legacy baseline is generated directly from `main` and CI byte-compares it with a fresh Prisma diff to prevent drift.
-- Existing populated `db push` databases resolve that complete baseline as applied once before the first `migrate deploy`.
-- Clean databases execute the complete baseline and guarded forward migration directly through `migrate deploy`.
-- CI rehearses clean and populated deployments, validates preservation, executes pre-traffic reverse SQL, reapplies the forward migration, and independently proves administrator-control-plane and administrator-MFA tables accept durable writes.
-- Production rollback uses a validated backup restore; reverse SQL is not a substitute after new-schema data exists.
+See [Hosted deployment](HOSTED_DEPLOYMENT.md), [Operations readiness](OPERATIONS_READINESS.md), and [Admin MFA](ADMIN_MFA.md).

@@ -29,10 +29,10 @@ describe("Contact import boundary", () => {
   });
 
   it("keeps file parsing in the browser and batches server writes", () => {
-    const wizard = read("src/components/ContactImportWizard.tsx");
+    const wizard = read("src/components/ContactImportWizardV2.tsx");
     expect(wizard).toContain("parseContactFile(await file.text()");
-    expect(wizard).toContain("chunk(analyzable, 25)");
-    expect(wizard).toContain("chunk(selectedValidRows, 25)");
+    expect(wizard).toContain("chunk(analyzable, 100)");
+    expect(wizard).toContain('mode: "queue"');
     expect(wizard).toContain('fetch("/api/contacts/import"');
   });
 });

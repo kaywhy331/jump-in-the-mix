@@ -1,123 +1,57 @@
-# Local MVP Test Guide
+# Local testing
 
-## 1. Start through the supported launcher
+## Self-hosted product smoke
 
-Follow [START_HERE.md](../START_HERE.md).
-
-Windows:
-
-```text
-start-local.cmd
-```
-
-macOS:
-
-```text
-start-local.command
-```
-
-Linux/macOS terminal:
+Initialize and start the production-like Docker edition:
 
 ```bash
-./start-local.sh
+npm ci --no-audit --no-fund
+npm run pilot:init
+npm run pilot:up
+npm run pilot:health
 ```
 
-Do not manually create secrets for the normal Docker path. The launcher handles that automatically.
+Open `http://127.0.0.1:3000/register`, create the owner, complete business setup, and confirm Today contains a prepared follow-up with no unresolved placeholders. Exercise Text/Email/Call, the return tray, undo, snooze, contact history, export, and password recovery. Stop with `npm run pilot:down`.
 
-## 2. Confirm installation readiness
+The developer demo is separate and may be started with `npm run quickstart`. Demo data must never be loaded into a production database.
 
-The launcher should report:
+## Repository checks
 
-```text
-Jump in the Mix is ready
-```
-
-Then verify:
-
-- `http://localhost:3000/api/health/live` returns `status: ok`
-- `http://localhost:3000/api/health/ready` returns `status: ready`
-- The browser opens the sign-in page
-
-If the app does not become ready, run:
+With PostgreSQL available through `DATABASE_URL`:
 
 ```bash
-./doctor.sh
-```
-
-or on Windows:
-
-```powershell
-.\doctor.ps1
-```
-
-## 3. Guided demo smoke test
-
-1. Click **Open the guided demo**.
-2. Confirm the Dashboard shows sample contacts, an active Mix, and Jumps.
-3. Open **Contacts** and search for a sample contact.
-4. Open the contact detail page.
-5. Add an Important Date and leave **Use a matching follow-up Mix automatically** selected.
-6. Confirm the app reports that the matching Mix was assigned automatically.
-7. Open **Jumps** and switch between Today, Upcoming, Past, and Completed.
-8. Use a message/call action. The operating system should open the relevant native app when the contact has that communication method.
-9. Mark a Jump Done or Skipped.
-10. Open **Mixes → AI Mix Wizard**, generate a draft, and confirm it appears under Mixes.
-
-The demo workspace uses the Plus plan so the Wizard can be evaluated without editing the database.
-
-## 4. New-user journey test
-
-1. Sign out of the demo.
-2. Create a new account.
-3. Complete the one-screen setup, or use **Skip for now**.
-4. Confirm the Dashboard explains the next action.
-5. Confirm a simple starter Mix was created automatically.
-6. Add one contact.
-7. Add a **Follow-up** Important Date and keep automatic Mix assignment selected.
-8. Wait a few seconds for the worker and refresh Jumps.
-9. Confirm a Jump appears without requiring a separate Mix-assignment screen.
-
-The journey should remain understandable without consulting documentation.
-
-## 5. Persistence test
-
-1. Add or change a record.
-2. Stop the app:
-
-   ```bash
-   ./stop-local.sh
-   ```
-
-3. Start it again.
-4. Confirm the change remains.
-
-## 6. Reset test
-
-Run:
-
-```bash
-./reset-local.sh
-```
-
-Type `RESET` when prompted. Confirm the clean guided demo returns. This permanently deletes only the local Docker database volume.
-
-## 7. Code-quality checks
-
-For native developer validation:
-
-```bash
-npm install
+npm ci --no-audit --no-fund
 npm run db:generate
 npm run validate:static
+npm run db:rehearse-migration
+npm run db:deploy
 npm run typecheck
 npm test
 npm run build
+RESET_DEMO_DATA=true DEMO_MODE=true npm run db:seed
+npm run db:seed:e2e-admin
+npm run db:rehearse-restore
+npx playwright install chromium
+npm run test:e2e
+npm run security:audit
 ```
 
-All checks should pass before merging a change.
+Run database tests serially when a local Prisma Postgres development server cannot safely multiplex prepared statements:
 
-## 8. Integration testing status
+```bash
+npx vitest run --no-file-parallelism --maxWorkers=1
+```
 
-Stripe and Google Contacts are implemented and have deterministic boundary/integration coverage; live provider credentials are still required for their external sandbox matrices. Resend is implemented with live delivery pending. Microsoft Contacts and WhatsApp/Meta assistant behavior are boundary/scaffolding only, while Twilio and the website webhook are planned. See `docs/INTEGRATIONS.md` for the exact status of each provider.
+## Manual journey
 
-Account deletion browser coverage creates a dedicated synthetic owner, verifies wrong-password and wrong-phrase rejection, deletes the account, and checks database residue. Provider revocation failures are deterministic mocks; never place live tokens in test fixtures or reports.
+Verify both desktop and phone viewports:
+
+1. Create an account and complete the three-part business setup.
+2. Confirm the first message uses the owner’s business name/signature and the displayed time matches their timezone.
+3. Add, edit, archive, restore, search, and deduplicate a contact.
+4. Start a ready-made plan and build a simple custom plan.
+5. Complete and undo a follow-up; return from a native composer and record the result.
+6. Enable a digest or push notification and confirm quiet hours are respected.
+7. Export spreadsheet and JSON data, revoke a session, and exercise account deletion with a synthetic account.
+
+Never put real customer data, provider tokens, passwords, databases, or backup archives in fixtures or test reports.

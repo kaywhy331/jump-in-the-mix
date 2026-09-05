@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { Sheet } from "@/components/Sheet";
 import { requirePlatformAdmin } from "@/lib/auth";
+import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDate } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
@@ -15,6 +17,7 @@ type SearchParams = {
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, { user: adminUser }] = await Promise.all([searchParams, requirePlatformAdmin()]);
+  const displayPreferences = await displayPreferencesForUser(adminUser.id);
   const query = params.q?.trim() ?? "";
   const users = await prisma.user.findMany({
     where: query
@@ -33,10 +36,6 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
             select: {
               id: true,
               name: true,
-              planTier: true,
-              subscriptionStatus: true,
-              currentPeriodEnd: true,
-              cancelAtPeriodEnd: true,
               _count: { select: { contacts: true, mixes: true, jumps: true } }
             }
           }
@@ -57,10 +56,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
         </div>
         <div className="page-actions">
           <Link className="button" href="/admin/support">Support</Link>
-          <Link className="button" href="/admin/billing">Billing</Link>
-          <Link className="button" href="/admin/referrals">Referrals</Link>
-          <Link className="button" href="/admin/templates">Mix Templates</Link>
-          <Link className="button" href="/admin/integrations">Integrations</Link>
+          <Link className="button" href="/admin/templates">Ready-made plans</Link>
         </div>
       </header>
 
@@ -91,7 +87,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                 <span className={user.emailVerifiedAt ? "status-pill done" : "status-pill"}>{user.emailVerifiedAt ? "Verified" : "Unverified"}</span>
               </div>
             </div>
-            <small>Joined {formatDate(user.createdAt)}</small>
+            <small>Joined {formatDate(user.createdAt, displayPreferences)}</small>
 
             {!user.memberships.length ? (
               <div className="notice info">No workspace membership is attached to this account.</div>
@@ -101,17 +97,15 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                   <section className="admin-workspace-row" key={workspace.id}>
                     <div>
                       <strong>{workspace.name}</strong>
-                      <span>{role.toLowerCase()} · {workspace.planTier.toLowerCase()} · {workspace.subscriptionStatus.toLowerCase().replaceAll("_", " ")}{workspace.cancelAtPeriodEnd ? " · canceling" : ""}</span>
+                      <span>{role.toLowerCase()}</span>
                       <small>
-                        {workspace._count.contacts} Contacts · {workspace._count.mixes} Mixes · {workspace._count.jumps} Jumps
-                        {workspace.currentPeriodEnd ? ` · Period ends ${formatDate(workspace.currentPeriodEnd)}` : ""}
+                        {workspace._count.contacts} contacts · {workspace._count.mixes} plans · {workspace._count.jumps} follow-ups
                       </small>
                     </div>
                     {user.id === adminUser.id ? (
                       <span className="muted-copy">Current administrator</span>
                     ) : (
-                      <details className="admin-impersonation-panel">
-                        <summary className="button small">View account…</summary>
+                      <Sheet trigger={<button className="button small" type="button">View account…</button>} title={`View ${user.name}’s account`} description="This creates a time-limited, audited, read-only support session.">
                         <form action="/api/admin/impersonation/start" method="post" className="form-stack">
                           <input type="hidden" name="targetUserId" value={user.id} />
                           <input type="hidden" name="workspaceId" value={workspace.id} />
@@ -122,14 +116,14 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                               name="reason"
                               minLength={10}
                               maxLength={500}
-                              placeholder="Example: Investigating ticket #1842 about missing Jump tasks."
+                              placeholder="Example: Investigating ticket #1842 about missing follow-ups."
                               required
                             />
                             <small>This reason is stored in the workspace audit log.</small>
                           </div>
                           <button className="button primary" type="submit">Start 30-minute view-only session</button>
                         </form>
-                      </details>
+                      </Sheet>
                     )}
                   </section>
                 ))}

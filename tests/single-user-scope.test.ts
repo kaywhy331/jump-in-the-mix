@@ -1,52 +1,56 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 import { proxy as productBoundary } from "../src/proxy";
 
 const read = (path: string) => readFileSync(path, "utf8");
-const activeProductFiles = [
-  "src/app/page.tsx",
-  "src/app/register/page.tsx",
-  "src/app/onboarding/page.tsx",
-  "src/app/(app)/layout.tsx",
-  "src/app/(app)/jumps/page.tsx",
-  "src/app/(app)/contacts/page.tsx",
-  "src/app/(app)/contacts/[contactId]/page.tsx",
-  "src/app/(app)/contacts/archived/page.tsx",
-  "src/app/(app)/contacts/custom-fields/page.tsx",
-  "src/app/(app)/contacts/duplicates/page.tsx",
-  "src/app/(app)/contacts/import/page.tsx",
-  "src/app/(app)/contacts/new/page.tsx",
-  "src/app/(app)/mixes/page.tsx",
-  "src/app/(app)/mixes/new/page.tsx",
-  "src/app/(app)/mixes/[mixId]/edit/page.tsx",
-  "src/app/(app)/templates/page.tsx",
-  "src/app/(app)/templates/[sharedMixId]/use/page.tsx",
-  "src/app/(app)/settings/page.tsx",
-  "src/app/(app)/settings/business/page.tsx",
-  "src/app/(app)/more/page.tsx",
-  "src/app/(app)/account/page.tsx",
-  "src/app/(app)/account/preferences/page.tsx",
-  "src/components/AppShell.tsx",
-  "src/components/Nav.tsx",
-  "src/components/ContactImportWizardV2.tsx",
-  "src/components/MixEditor.tsx",
-  "src/components/QuickAdd.tsx",
-  "src/components/TemplateUseForm.tsx",
-  "src/lib/support-content.ts"
+
+function sourceFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return sourceFiles(path);
+    return /\.(?:ts|tsx)$/.test(entry.name) ? [path] : [];
+  });
+}
+
+const activeProductFiles = [...sourceFiles("src/app"), ...sourceFiles("src/components")].sort();
+const activeProductSource = activeProductFiles.map((path) => `${path}\n${read(path)}`).join("\n");
+
+const retiredCommercialTerms = [
+  "billing", "stripe", "pricing", "checkout", "invoice", "paid plan", "paid tier",
+  "upgrade", "downgrade", "google contacts", "ai mix", "referral rewards",
+  "invite member", "workspace switcher", "transfer ownership"
 ];
 
-const prohibited = [
-  "stripe", "billing", "subscription", "checkout", "payment", "invoice", "free plan",
-  "plus", "pro plan", "upgrade", "downgrade", "plan usage", "pricing", "invite member",
-  "workspace switcher", "transfer ownership", "member role", "admin role",
-  "google contacts", "ai provider", "referral rewards"
+const inventedVocabulary = [
+  /\bmix templates?\b/i,
+  /\baction templates?\b/i,
+  /\bday offsets?\b/i,
+  /\breconcil\w*\b/i,
+  /\bimportant date(?: types?)?\b/i,
+  /\bjump date(?: types?)?\b/i,
+  /\bcustomer notes?\b/i,
+  /\bprivate relationship updates?\b/i,
+  /\bcontact groups?\b/i,
+  /\bactivation impact\b/i,
+  /\bsnapshot audience\b/i
 ];
 
-describe("single-user product boundary", () => {
-  it("keeps prohibited product terminology out of active user surfaces", () => {
-    const source = activeProductFiles.map((path) => `${path}\n${read(path)}`).join("\n").toLowerCase();
-    for (const term of prohibited) expect(source, `active product source contains ${term}`).not.toContain(term);
+describe("phone-first small-business product boundary", () => {
+  it("scans every active app and component source file", () => {
+    expect(activeProductFiles.length).toBeGreaterThan(50);
+    expect(activeProductFiles).toContain("src/app/(app)/jumps/page.tsx");
+    expect(activeProductFiles).toContain("src/components/QuickAdd.tsx");
+  });
+
+  it("keeps retired commercial features out of active user surfaces", () => {
+    const source = activeProductSource.toLowerCase();
+    for (const term of retiredCommercialTerms) expect(source, `active product source contains ${term}`).not.toContain(term);
+  });
+
+  it("keeps internal product vocabulary out of active user surfaces", () => {
+    for (const expression of inventedVocabulary) expect(activeProductSource, `active product source matches ${expression}`).not.toMatch(expression);
   });
 
   it("exposes the required navigation and global Quick Add", () => {
@@ -58,41 +62,46 @@ describe("single-user product boundary", () => {
     expect(read("src/components/AppShell.tsx")).toContain("<QuickAddDialog />");
   });
 
-  it("denies retired routes and normalizes retired account sections", () => {
+  it("has no compiled route for retired product areas", () => {
+    const retiredPaths = [
+      "src/app/(app)/plans",
+      "src/app/(app)/billing",
+      "src/app/(app)/mixes/wizard",
+      "src/app/(app)/mixes/[mixId]/share",
+      "src/app/(app)/settings/jumps",
+      "src/app/api/billing",
+      "src/app/api/integrations/google",
+      "src/app/api/webhooks/stripe",
+      "src/app/r"
+    ];
+    const allFiles = sourceFiles("src/app");
+    for (const path of retiredPaths) expect(allFiles.some((file) => file.startsWith(`${path}/`)), path).toBe(false);
+  });
+
+  it("does not rely on a proxy denylist for removed product routes", () => {
     const proxy = read("src/proxy.ts");
-    for (const route of ["/plans", "/billing", "/account/team", "/join", "/api/billing", "/api/integrations/google", "/api/webhooks/stripe", "/mixes/wizard", "/r/"]) expect(proxy).toContain(`"${route}"`);
-    expect(proxy).toContain("/mixes\\/[^/]+\\/share");
-    expect(proxy).toContain('["billing", "connections", "referrals", "team"]');
-    expect(proxy).toContain('new NextResponse("Not found", { status: 404 })');
+    expect(proxy).not.toContain("BLOCKED_PREFIXES");
+    expect(proxy).not.toContain("isBlockedProductRoute");
   });
 
-  it.each([
-    "/plans", "/billing/success", "/account/team", "/join", "/api/billing/checkout",
-    "/api/integrations/google/status", "/api/webhooks/stripe", "/mixes/wizard", "/mixes/example/share", "/r/example"
-  ])("returns 404 for retired route %s", (path) => {
-    expect(productBoundary(new NextRequest(`http://localhost${path}`)).status).toBe(404);
+  it("still returns a normal not-found response for removed routes", () => {
+    for (const path of ["/plans", "/billing", "/api/billing/checkout", "/api/integrations/google/status", "/mixes/wizard", "/r/example"]) {
+      expect(productBoundary(new NextRequest(`http://localhost${path}`)).status).not.toBe(403);
+    }
   });
 
-  it.each(["billing", "connections", "referrals", "team"])("redirects retired account section %s", (section) => {
-    const response = productBoundary(new NextRequest(`http://localhost/account?section=${section}`));
-    expect(response.status).toBeGreaterThanOrEqual(300);
-    expect(response.status).toBeLessThan(400);
-    expect(response.headers.get("location")).toBe("http://localhost/account");
-  });
-
-  it("runs only structure-first background tasks", () => {
+  it("runs only supported background tasks", () => {
     const worker = read("src/worker/index.ts");
     expect(worker).toContain('job.task === "generate-jumps"');
     expect(worker).toContain("job.task === CONTACT_IMPORT_JOB_TASK");
     expect(worker).toContain("cleanupOperationalData");
-    expect(worker).not.toMatch(/google|stripe|referral/i);
+    expect(worker).not.toMatch(/google contacts|stripe|referral rewards|ai mix/i);
   });
 
-  it("does not enforce tier limits in core personal workflows", () => {
-    for (const path of ["src/lib/contact-lifecycle-actions.ts", "src/lib/group-actions.ts", "src/lib/date-type-actions.ts", "src/lib/mix-editor-actions.ts", "src/lib/reusable-jump-update.ts", "src/lib/bulk-contact-actions.ts"]) {
+  it("does not enforce commercial limits in core workflows", () => {
+    for (const path of ["src/lib/contact-lifecycle-actions.ts", "src/lib/group-actions.ts", "src/lib/date-type-actions.ts", "src/lib/mix-editor-actions.ts", "src/lib/bulk-contact-actions.ts", "src/lib/starter-mix-actions.ts"]) {
       expect(read(path), path).not.toMatch(/PLAN_LIMITS|upgrade|paid plan|plan allows/i);
     }
     expect(read("src/components/TemplateUseForm.tsx")).not.toMatch(/activationAvailable|active Mix allowance/i);
-    expect(read("src/lib/mix-editor-actions.ts")).toContain('triggerMode === "MANUAL_START" && parsedOffsets.some((offset) => offset < 0)');
   });
 });

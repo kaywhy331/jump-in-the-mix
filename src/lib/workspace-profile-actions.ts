@@ -16,7 +16,7 @@ function value(formData: FormData, key: string, maxLength = 2000): string {
   return String(formData.get(key) ?? "").trim().slice(0, maxLength);
 }
 
-function optionalHttpsUrl(formData: FormData, key: string, label: string, section = "community"): string | null {
+function optionalHttpsUrl(formData: FormData, key: string, label: string, section = "business"): string | null {
   const raw = value(formData, key, 500);
   if (!raw) return null;
   let url: URL;
@@ -39,14 +39,6 @@ export async function updateWorkspaceProfileAction(formData: FormData): Promise<
   const editsBusiness = section === "business" || section === "profile" || section === "all";
   const editsMessaging = section === "business" || section === "messaging" || section === "all";
   if (impersonation) redirect(`/settings?error=${encodeURIComponent("Administrator support sessions are view-only.")}`);
-  const existingContributor = await prisma.sharedMixContributorProfile.findUnique({ where: { workspaceId: workspace.id } });
-  const contributorEnabled = section === "community" ? formData.get("communityProfileEnabled") === "on" : existingContributor?.enabled ?? false;
-  const contributorDisplayName = section === "community" ? value(formData, "communityDisplayName", 120) || null : existingContributor?.displayName ?? null;
-  if (contributorEnabled && !contributorDisplayName) {
-    redirect(`/settings?error=${encodeURIComponent("Add a Community display name before making the profile public.")}#community-profile`);
-  }
-
-  const contributorWebsite = section === "community" ? optionalHttpsUrl(formData, "communityWebsite", "Community website") : existingContributor?.website ?? null;
   const legacyProducts = [workspace.profile?.product1, workspace.profile?.product2, workspace.profile?.product3, workspace.profile?.product4, workspace.profile?.product5].flatMap((item, index) => item ? [{ name: `Product or service ${index + 1}`, value: item }] : []);
   const legacyDetails = [workspace.profile?.myCustom1, workspace.profile?.myCustom2, workspace.profile?.myCustom3].flatMap((item, index) => item ? [{ name: `Sender detail ${index + 1}`, value: item }] : []);
   const productRecords = editsBusiness ? records(formData, "products", section === "business" ? 5 : 20) : (workspace.profile?.products as { name: string; value: string }[] | null) ?? legacyProducts;
@@ -77,71 +69,11 @@ export async function updateWorkspaceProfileAction(formData: FormData): Promise<
     smsSignature: editsMessaging ? value(formData, "smsSignature", 500) || user.name : workspace.profile?.smsSignature ?? null,
     emailSignature: editsMessaging ? value(formData, "emailSignature", 2000) || user.name : workspace.profile?.emailSignature ?? null
   };
-  const contributorData = {
-    enabled: contributorEnabled,
-    displayName: contributorDisplayName,
-    title: section === "community" ? value(formData, "communityTitle", 160) || null : existingContributor?.title ?? null,
-    bio: section === "community" ? value(formData, "communityBio", 500) || null : existingContributor?.bio ?? null,
-    avatarUrl: section === "community" ? optionalHttpsUrl(formData, "communityAvatarUrl", "Profile image") : existingContributor?.avatarUrl ?? null,
-    website: contributorWebsite
-  };
-  const reviewRequired = Boolean(
-    (contributorWebsite && contributorWebsite !== existingContributor?.website)
-    || (existingContributor?.enabled && !contributorEnabled)
-  );
-  const approvedShares = reviewRequired
-    ? await prisma.sharedMixMetadata.findMany({
-        where: {
-          publisherWorkspaceId: workspace.id,
-          isPlatform: false,
-          reviewState: "APPROVED"
-        },
-        select: { sharedMixId: true }
-      })
-    : [];
-  const affectedSharedMixIds = approvedShares.map((item) => item.sharedMixId);
-
-  await prisma.$transaction(async (tx) => {
-    await tx.workspaceProfile.upsert({
-      where: { workspaceId: workspace.id },
-      create: { workspaceId: workspace.id, ...workspaceData, onboardingDone: true },
-      update: workspaceData
-    });
-    await tx.sharedMixContributorProfile.upsert({
-      where: { workspaceId: workspace.id },
-      create: { workspaceId: workspace.id, ...contributorData },
-      update: contributorData
-    });
-    if (affectedSharedMixIds.length) {
-      await tx.sharedMixMetadata.updateMany({
-        where: { sharedMixId: { in: affectedSharedMixIds } },
-        data: {
-          reviewState: "FLAGGED",
-          moderationNote: contributorEnabled
-            ? "The contributor website changed and requires administrator review."
-            : "The contributor disabled their public profile.",
-          reviewedAt: null,
-          reviewedByUserId: null
-        }
-      });
-      await tx.sharedMix.updateMany({
-        where: { id: { in: affectedSharedMixIds } },
-        data: { status: "PENDING" }
-      });
-      await tx.auditLog.create({
-        data: {
-          workspaceId: workspace.id,
-          actorType: "USER",
-          actorUserId: user.id,
-          action: "shared-mix.profile-review-required",
-          entityType: "SharedMixContributorProfile",
-          entityId: workspace.id,
-          source: "settings.community-profile",
-          metadata: { affectedSharedMixIds, websiteChanged: contributorWebsite !== existingContributor?.website, profileDisabled: !contributorEnabled }
-        }
-      });
-    }
+  await prisma.workspaceProfile.upsert({
+    where: { workspaceId: workspace.id },
+    create: { workspaceId: workspace.id, ...workspaceData, onboardingDone: true },
+    update: workspaceData
   });
   if (section === "business") redirect("/settings/business?saved=1");
-  redirect(`/settings?section=${section === "all" ? "profile" : section}&saved=1${affectedSharedMixIds.length ? "&communityReview=1" : ""}`);
+  redirect(`/settings?section=${section === "all" ? "profile" : section}&saved=1`);
 }

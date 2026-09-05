@@ -74,7 +74,7 @@ const FIELD_OPTIONS: { value: string; label: string }[] = [
   { value: "field:state", label: "Contact · State / region" },
   { value: "field:postalCode", label: "Contact · ZIP / postal code" },
   { value: "field:country", label: "Contact · Country" },
-  { value: "field:publicNotes", label: "Contact · Customer notes" }
+  { value: "field:publicNotes", label: "Contact · Notes" }
 ];
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -118,14 +118,14 @@ function mappingOptionsForHeader(header: string, dateTypes: ImportDateTypeOption
     for (const recurrence of ["NONE", "MONTHLY", "YEARLY"] as const) {
       options.push({
         value: encodeMappingTarget({ kind: "DATE", dateTypeId: type.id, dateTypeName: null, recurrence }),
-        label: `Important Date · ${type.name} · ${recurrence === "NONE" ? "one time" : recurrence.toLowerCase()}`
+        label: `Saved date · ${type.name} · ${recurrence === "NONE" ? "one time" : recurrence.toLowerCase()}`
       });
     }
   }
   const inferredName = header.replace(/[_-]+/g, " ").replace(/\b(date|dt)\b/gi, "").replace(/\s+/g, " ").trim() || "Imported Date";
   for (const recurrence of ["NONE", "MONTHLY", "YEARLY"] as const) {
     const target: ImportMappingTarget = { kind: "DATE", dateTypeId: null, dateTypeName: inferredName, recurrence };
-    options.push({ value: encodeMappingTarget(target), label: `New Important Date Type · ${inferredName} · ${recurrence === "NONE" ? "one time" : recurrence.toLowerCase()}` });
+    options.push({ value: encodeMappingTarget(target), label: `New saved date type · ${inferredName} · ${recurrence === "NONE" ? "one time" : recurrence.toLowerCase()}` });
   }
   return options;
 }
@@ -377,7 +377,7 @@ export function ContactImportWizardV2({
                 return <label className="import-mapping-row" key={header}><span><strong>{header}</strong><small>{samples.join(" · ") || "No sample value"}</small></span><select value={mapping[header] ?? "ignore"} onChange={(event) => setMapping((current) => ({ ...current, [header]: event.target.value }))}>{mappingOptionsForHeader(header, dateTypes, customFields).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
               })}
             </div>
-            {groups.length > 0 && <fieldset className="import-groups"><legend>Assign imported Contacts to optional groups</legend><div className="group-choice-grid">{groups.map((group) => <label className="checkbox-card" key={group.id}><input type="checkbox" checked={selectedGroups.includes(group.id)} onChange={() => setSelectedGroups((current) => current.includes(group.id) ? current.filter((id) => id !== group.id) : [...current, group.id])} /><span><strong>{group.name}</strong><small>{group.contactCount} current Contacts</small></span></label>)}</div></fieldset>}
+            {groups.length > 0 && <fieldset className="import-groups"><legend>Add optional tags to imported contacts</legend><div className="group-choice-grid">{groups.map((group) => <label className="checkbox-card" key={group.id}><input type="checkbox" checked={selectedGroups.includes(group.id)} onChange={() => setSelectedGroups((current) => current.includes(group.id) ? current.filter((id) => id !== group.id) : [...current, group.id])} /><span><strong>{group.name}</strong><small>{group.contactCount} current contacts</small></span></label>)}</div></fieldset>}
             <button className="button" type="button" disabled={busy} onClick={() => void analyze(table, mapping, selectedGroups)}>{busy ? "Reanalyzing…" : "Apply mapping changes"}</button>
           </details>
 

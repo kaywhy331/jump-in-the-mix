@@ -4,7 +4,7 @@ export type WorkspaceDb = PrismaClient | Prisma.TransactionClient;
 
 export class WorkspaceScopeError extends Error {
   constructor(entity: string) {
-    super(`${entity} is not available in this workspace.`);
+    super(`${entity} is not available for this account.`);
     this.name = "WorkspaceScopeError";
   }
 }
@@ -54,7 +54,7 @@ export async function requireWorkspaceContacts(db: WorkspaceDb, workspaceId: str
     where: { workspaceId, archivedAt: null, id: { in: uniqueIds } },
     orderBy: { displayName: "asc" }
   });
-  if (contacts.length !== uniqueIds.length) throw new WorkspaceScopeError("One or more Contacts");
+  if (contacts.length !== uniqueIds.length) throw new WorkspaceScopeError("One or more contacts");
   return contacts;
 }
 
@@ -69,6 +69,6 @@ export async function requireWorkspaceCustomFieldDefinitions(
     where: { workspaceId, id: { in: uniqueIds } },
     orderBy: { name: "asc" }
   });
-  if (definitions.length !== uniqueIds.length) throw new WorkspaceScopeError("One or more Contact custom fields");
+  if (definitions.length !== uniqueIds.length) throw new WorkspaceScopeError("One or more custom contact fields");
   return definitions;
 }

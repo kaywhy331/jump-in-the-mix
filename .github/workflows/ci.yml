@@ -56,6 +56,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci --no-audit --no-fund
+      - name: Audit production dependencies
+        run: npm run security:audit
       - name: Install PostgreSQL client tools
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
       - name: Verify committed existing-MVP baseline SQL
@@ -181,3 +183,24 @@ jobs:
             test-results
           if-no-files-found: ignore
           retention-days: 7
+      - name: Mobile Lighthouse quality budgets
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:lighthouse 2>&1 | tee lighthouse.log
+      - name: Upload Lighthouse diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-diagnostics
+          path: |
+            lighthouse.log
+            .artifacts/lighthouse
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Build production web and worker images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --target production --tag jump-in-the-mix-web:${{ github.sha }} .
+          docker build --target worker --tag jump-in-the-mix-worker:${{ github.sha }} .

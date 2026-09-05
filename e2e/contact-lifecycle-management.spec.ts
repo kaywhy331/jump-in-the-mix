@@ -14,7 +14,7 @@ async function signIn(page: Page) {
   ]);
 }
 
-test("Contact state, archive restoration, duplicate review, and layout preferences are operable", async ({ page }, testInfo) => {
+test("Contact state, archive restoration, and duplicate review are operable", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Lifecycle management is exercised once.");
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const workspaceId = "demo_workspace";
@@ -23,7 +23,6 @@ test("Contact state, archive restoration, duplicate review, and layout preferenc
   const duplicateId = `e2e-lifecycle-duplicate-${suffix}`;
   const displayName = `Lifecycle Person ${suffix}`;
   const duplicateName = `Duplicate Pair ${suffix}`;
-  const demoUser = await prisma.user.findUniqueOrThrow({ where: { email: userEmail }, select: { id: true } });
 
   await prisma.contact.createMany({
     data: [
@@ -37,29 +36,15 @@ test("Contact state, archive restoration, duplicate review, and layout preferenc
   try {
     await signIn(page);
     await page.goto(`/contacts/${activeId}`);
-    await expect(page.getByRole("heading", { name: "Relationship state" })).toBeVisible();
-    await page.getByLabel("Priority").selectOption("URGENT");
-    await page.getByLabel("Do not contact").check();
-    await Promise.all([
-      page.waitForURL(/stateUpdated=1/),
-      page.getByRole("button", { name: "Save relationship state" }).click()
-    ]);
-    await expect(page.getByText("Do not contact is enabled")).toBeVisible();
-    expect(await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: activeId } })).toMatchObject({ priority: "URGENT", doNotContact: true });
+    await expect(page.getByRole("heading", { name: "Relationship" })).toBeVisible();
+    await page.locator("label.relationship-chip").filter({ hasText: "Urgent" }).click();
+    await expect(page).toHaveURL(/stateUpdated=1/);
+    await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
+    await expect.poll(async () => (await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: activeId } })).priority).toBe("URGENT");
 
-    // Leave the Contact detail view before exercising the API directly so its
-    // layout-persistence effect cannot race this explicit preference update.
-    await page.goto("/settings");
-    const layoutResponse = await page.evaluate(async () => {
-      const response = await fetch("/api/preferences/contact-layout", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ order: ["relationship-state", "contact-summary"], collapsed: ["contact-summary"] })
-      });
-      return response.status;
-    });
-    expect(layoutResponse).toBe(204);
-    expect(await prisma.userContactLayout.findUniqueOrThrow({ where: { userId_workspaceId: { userId: demoUser.id, workspaceId } } })).toMatchObject({ cardOrder: ["relationship-state", "contact-summary"], collapsedCards: ["contact-summary"] });
+    await page.getByLabel("Do not contact").check();
+    await expect(page.getByLabel("Do not contact")).toBeChecked();
+    await expect.poll(async () => await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: activeId } })).toMatchObject({ priority: "URGENT", doNotContact: true });
 
     await page.goto(`/contacts/archived?q=${encodeURIComponent(`Archived ${suffix}`)}`);
     await expect(page.getByText(`Archived ${suffix}`, { exact: true })).toBeVisible();
@@ -75,7 +60,6 @@ test("Contact state, archive restoration, duplicate review, and layout preferenc
     await expect(duplicateCard.getByRole("button", { name: "Merge Contacts" })).toBeVisible();
   } finally {
     await prisma.contactRelationshipState.deleteMany({ where: { contactId: activeId } });
-    await prisma.userContactLayout.deleteMany({ where: { userId: demoUser.id, workspaceId } });
     await prisma.contact.deleteMany({ where: { workspaceId, id: { in: [activeId, archivedId, duplicateId, `${duplicateId}-2`] } } });
   }
 });

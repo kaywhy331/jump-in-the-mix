@@ -21,7 +21,6 @@ describe.sequential("Contact Group activation lifecycle", () => {
         name: "Group Activation Test",
         slug: `group-activation-${suffix}`,
         ownerId: user.id,
-        planTier: "FREE",
         profile: { create: {} }
       }
     });

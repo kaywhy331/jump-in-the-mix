@@ -19,7 +19,6 @@ type InlineAction = {
   subject: string | null;
   body: string | null;
   script: string | null;
-  saveAsTemplate: boolean;
 };
 
 function value(formData: FormData, key: string, maximum = 4000): string {
@@ -49,15 +48,14 @@ function validateInlineAction(formData: FormData, index: number, path: string): 
   const unknown = findUnknownPlaceholders(content);
   if (unknown.length) fail(path, `Action #${index + 1} uses unsupported placeholders: ${unknown.join(", ")}`);
   if (channel !== "PHONE_CALL" && containsPrivateNotesPlaceholder(content)) {
-    fail(path, `Private relationship updates may only be inserted into Phone Call action #${index + 1}.`);
+    fail(path, `Private notes may only be inserted into phone-call follow-up #${index + 1}.`);
   }
   return {
     name,
     channel,
     subject,
     body,
-    script,
-    saveAsTemplate: formData.get(`saveAsTemplate-${index}`) === "on"
+    script
   };
 }
 
@@ -78,17 +76,17 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   const allowedStatuses: MixStatus[] = ["DRAFT", "ACTIVE", "PAUSED"];
 
   if (impersonation) fail(path, "Administrator support sessions are view-only.");
-  if (!name) fail(path, "Give the Mix a name.");
+  if (!name) fail(path, "Give the plan a name.");
   if (!allowedTriggers.includes(triggerMode)) fail(path, "Choose a valid trigger mode.");
   if (!allowedStatuses.includes(status)) fail(path, "Choose Draft, Active, or Paused.");
-  if (status === "ACTIVE" && value(formData, "activationConfirmed", 4) !== "1") fail(path, "Review the activation impact before activating this Mix.");
+  if (status === "ACTIVE" && value(formData, "activationConfirmed", 4) !== "1") fail(path, "Review who gets the plan before turning it on.");
 
   if (triggerMode === "DATE_TRIGGERED") {
     const dateType = await prisma.dateType.findFirst({
       where: { id: dateTypeId, isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null, isSystem: true }] },
       select: { id: true }
     });
-    if (!dateType) fail(path, "Choose a valid Target Important Date Type.");
+    if (!dateType) fail(path, "Choose a valid saved date type.");
   }
 
   let broadcastSchedule: ReturnType<typeof parseBroadcastScheduleInput> | null = null;
@@ -100,19 +98,16 @@ export async function saveMixAction(formData: FormData): Promise<void> {
         value(formData, "broadcastTimezone", 120) || workspaceTimezone
       );
     } catch (error) {
-      fail(path, error instanceof Error ? error.message : "Choose a valid broadcast schedule.");
+      fail(path, error instanceof Error ? error.message : "Choose a valid fixed date and time.");
     }
   }
 
   const mixStepIds = values(formData, "mixStepId");
-  const actionModes = values(formData, "actionMode");
-  const stepTemplateIds = values(formData, "stepTemplateId");
   const offsets = values(formData, "dayOffset");
   const sendTimes = values(formData, "sendTimeMinutes");
-  const stepCount = actionModes.length;
-  if (!stepCount || stepCount > 50) fail(path, "Add between one and fifty actions to the Mix.");
-  if ([mixStepIds, stepTemplateIds, offsets, sendTimes].some((items) => items.length !== stepCount)) fail(path, "The action sequence is incomplete. Reload and try again.");
-  if (actionModes.some((mode) => mode !== "INLINE" && mode !== "TEMPLATE")) fail(path, "Choose a valid authoring mode for every action.");
+  const stepCount = offsets.length;
+  if (!stepCount || stepCount > 50) fail(path, "Add between one and fifty follow-ups to the plan.");
+  if ([mixStepIds, sendTimes].some((items) => items.length !== stepCount)) fail(path, "The follow-up sequence is incomplete. Reload and try again.");
 
   const parsedOffsets = offsets.map((raw, index) => {
     const parsed = Number(raw);
@@ -122,7 +117,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
     return parsed;
   });
   if (triggerMode === "MANUAL_START" && parsedOffsets.some((offset) => offset < 0)) {
-    fail(path, "Manual-start Mix actions cannot use negative day offsets.");
+    fail(path, "A manually started plan cannot schedule a follow-up before its start date.");
   }
   const parsedSendTimes = sendTimes.map((raw, index) => {
     if (!raw) return null;
@@ -130,15 +125,9 @@ export async function saveMixAction(formData: FormData): Promise<void> {
     if (!Number.isInteger(parsed) || parsed < 0 || parsed > 1439) fail(path, `Action #${index + 1} has an invalid local time.`);
     return parsed;
   });
-  const inlineActions = actionModes.map((mode, index) => mode === "INLINE" ? validateInlineAction(formData, index, path) : null);
-  const requestedTemplateIds = [...new Set(actionModes.flatMap((mode, index) => mode === "TEMPLATE" && stepTemplateIds[index] ? [stepTemplateIds[index]] : []))];
+  const inlineActions = offsets.map((_, index) => validateInlineAction(formData, index, path));
 
-  const [templates, existingMix] = await Promise.all([
-    requestedTemplateIds.length ? prisma.stepTemplate.findMany({
-      where: { id: { in: requestedTemplateIds }, workspaceId: workspace.id },
-      include: { versions: { orderBy: { version: "desc" }, take: 1 } }
-    }) : Promise.resolve([]),
-    mixIdRaw
+  const existingMix = await (mixIdRaw
       ? prisma.mix.findFirst({
           where: { id: mixIdRaw, workspaceId: workspace.id, status: { not: "ARCHIVED" } },
           include: {
@@ -146,17 +135,8 @@ export async function saveMixAction(formData: FormData): Promise<void> {
             assignments: { where: { mode: "DYNAMIC" } }
           }
         })
-      : Promise.resolve(null)
-  ]);
-  if (mixIdRaw && !existingMix) fail("/mixes", "Mix not found.");
-  const templateById = new Map(templates.map((template) => [template.id, template]));
-  for (let index = 0; index < stepCount; index += 1) {
-    if (actionModes[index] !== "TEMPLATE") continue;
-    const template = templateById.get(stepTemplateIds[index]);
-    if (!template?.versions[0]) fail(path, `Action Template #${index + 1} is unavailable.`);
-    const existingUsesTemplate = existingMix?.steps.some((step) => step.stepVersion.stepTemplateId === template.id);
-    if (!template.isActive && !existingUsesTemplate) fail(path, `Action Template #${index + 1} is archived.`);
-  }
+      : Promise.resolve(null));
+  if (mixIdRaw && !existingMix) fail("/mixes", "Plan not found.");
 
   const groupIds = [...new Set(values(formData, "groupIds").filter(Boolean))];
   if (groupIds.length) {
@@ -164,14 +144,14 @@ export async function saveMixAction(formData: FormData): Promise<void> {
       prisma.group.findMany({ where: { workspaceId: workspace.id, id: { in: groupIds } }, select: { id: true } }),
       listGroupStates(workspace.id)
     ]);
-    if (availableGroups.length !== groupIds.length) fail(path, "One or more selected Contact Groups are unavailable.");
+    if (availableGroups.length !== groupIds.length) fail(path, "One or more selected tags are unavailable.");
     const existingGroupIds = new Set((existingMix?.assignments ?? []).flatMap((assignment) => assignment.groupId ? [assignment.groupId] : []));
     const unavailableNewGroup = mergeGroupActivity(availableGroups, groupStates).some((group) => !group.isActive && !existingGroupIds.has(group.id));
-    if (unavailableNewGroup) fail(path, "Inactive Contact Groups cannot be added to a Mix.");
+    if (unavailableNewGroup) fail(path, "Hidden tags cannot be added to a plan.");
   }
   const assignAllContacts = formData.get("assignAllContacts") === "on";
-  if (status === "ACTIVE" && !assignAllContacts && !groupIds.length) fail(path, "Choose All active Contacts or at least one active Contact Group before activation.");
-  if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) fail(path, "Choose an audience for the broadcast.");
+  if (status === "ACTIVE" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the plan.");
+  if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) fail(path, "Choose who gets the plan.");
 
   const allContactIds = assignAllContacts
     ? (await prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true } })).map((contact) => contact.id)
@@ -216,26 +196,21 @@ export async function saveMixAction(formData: FormData): Promise<void> {
       for (let index = 0; index < stepCount; index += 1) {
         const requestedId = mixStepIds[index] || "";
         const existingStep = existingMix?.steps.find((step) => step.id === requestedId);
-        let stepVersionId: string;
-        if (actionModes[index] === "TEMPLATE") {
-          stepVersionId = templateById.get(stepTemplateIds[index])!.versions[0]!.id;
-        } else {
-          const action = inlineActions[index]!;
-          const template = await tx.stepTemplate.create({
-            data: {
-              workspaceId: workspace.id,
-              name: action.saveAsTemplate ? action.name : `${name} — ${action.name}`,
-              channel: action.channel,
-              isActive: action.saveAsTemplate,
-              versions: { create: { version: 1, subject: action.subject, body: action.body, script: action.script, longSms: action.channel === "SMS" && (action.body?.length ?? 0) > 160 } }
-            },
-            include: { versions: true }
-          });
-          const version = template.versions[0];
-          if (!version) throw new Error(`Inline action #${index + 1} could not be created.`);
-          stepVersionId = version.id;
-          if (existingStep && !existingStep.stepVersion.stepTemplate.isActive) replacedInternalTemplateIds.add(existingStep.stepVersion.stepTemplateId);
-        }
+        const action = inlineActions[index];
+        const template = await tx.stepTemplate.create({
+          data: {
+            workspaceId: workspace.id,
+            name: `${name} — ${action.name}`,
+            channel: action.channel,
+            isActive: false,
+            versions: { create: { version: 1, subject: action.subject, body: action.body, script: action.script, longSms: action.channel === "SMS" && (action.body?.length ?? 0) > 160 } }
+          },
+          include: { versions: true }
+        });
+        const version = template.versions[0];
+        if (!version) throw new Error(`Follow-up #${index + 1} could not be created.`);
+        const stepVersionId = version.id;
+        if (existingStep && !existingStep.stepVersion.stepTemplate.isActive) replacedInternalTemplateIds.add(existingStep.stepVersion.stepTemplateId);
         if (existingStep) {
           await tx.mixStep.update({ where: { id: existingStep.id }, data: { stepVersionId, dayOffset: parsedOffsets[index], sendTimeMinutes: parsedSendTimes[index], sortOrder: index + 1, isActive: true } });
           retainedIds.add(existingStep.id);
@@ -279,13 +254,13 @@ export async function saveMixAction(formData: FormData): Promise<void> {
           entityType: "Mix",
           entityId: mixId,
           source: "mixes.editor",
-          metadata: { triggerMode, status, actionCount: stepCount, inlineActionCount: actionModes.filter((mode) => mode === "INLINE").length, groupCount: groupIds.length, allContactCount: allContactIds.length, projectedJumpCount: (groupIds.length ? null : allContactIds.length * stepCount) }
+          metadata: { triggerMode, status, followUpCount: stepCount, tagCount: groupIds.length, allContactCount: allContactIds.length, projectedFollowUpCount: (groupIds.length ? null : allContactIds.length * stepCount) }
         }
       });
       await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });
     });
   } catch (error) {
-    fail(path, error instanceof Error ? error.message : "The Mix could not be saved.");
+    fail(path, error instanceof Error ? error.message : "The plan could not be saved.");
   }
 
   redirect(`/mixes/${mixId}/edit?${existingMix ? "updated" : "created"}=manual`);

@@ -129,12 +129,14 @@ export function JumpOutcomeButton({
   jumpId,
   outcome = "COMPLETED",
   className,
+  ariaLabel,
   children,
   disabled
 }: {
   jumpId: string;
   outcome?: Outcome;
   className?: string;
+  ariaLabel?: string;
   children: ReactNode;
   disabled?: boolean;
 }) {
@@ -155,7 +157,7 @@ export function JumpOutcomeButton({
 
   return (
     <span>
-      <button className={className} type="button" onClick={submit} disabled={saving || disabled}>{saving ? "Saving…" : children}</button>
+      <button className={className} type="button" aria-label={ariaLabel} onClick={submit} disabled={saving || disabled}>{saving ? "Saving…" : children}</button>
       {error && <small className={styles.error} role="alert">{error}</small>}
     </span>
   );

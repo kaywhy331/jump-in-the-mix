@@ -34,197 +34,17 @@ async function seedSystemData() {
     });
   }
 
-  const retiredConsultingTemplates = [
-    {
-      id: "shared_new_lead",
-      title: "New Lead Follow-Up",
-      description: "A warm, question-led five-Jump sequence for responding to a new inquiry without sounding aggressive.",
-      category: "Sales & Prospecting",
-      industry: "General / Other",
-      framework: "Question-Led Consultative",
-      triggerMode: "MANUAL_START" as const,
-      dateTypeName: null,
-      dateTypeSlug: null,
-      durationDays: 12,
-      featured: true,
-      steps: [
-        {
-          name: "Helpful first response",
-          channel: "EMAIL",
-          dayOffset: 0,
-          sendTimeMinutes: 540,
-          subject: "A quick question for {{Company}}",
-          body: "Hi {{First Name}},\n\nThanks for reaching out. Before I make assumptions, what would be most useful for you to improve or solve right now?\n\n{{Email Signature}}"
-        },
-        {
-          name: "Permission-based text",
-          channel: "SMS",
-          dayOffset: 2,
-          sendTimeMinutes: 600,
-          body: "Hi {{First Name}}, I wanted to make sure my note reached you. Would it be helpful to compare a few options, or is the timing not right? {{SMS Signature}}"
-        },
-        {
-          name: "Discovery call",
-          channel: "PHONE_CALL",
-          dayOffset: 4,
-          sendTimeMinutes: 660,
-          script: "Ask what prompted the inquiry, what outcome matters most, what they have already tried, and what would make a next conversation worthwhile."
-        },
-        {
-          name: "Useful perspective",
-          channel: "EMAIL",
-          dayOffset: 7,
-          sendTimeMinutes: 540,
-          subject: "One useful thought, {{First Name}}",
-          body: "Hi {{First Name}},\n\nOne pattern I often see is that the real constraint is not a lack of options—it is deciding which tradeoff matters most. What would you need to feel confident about a next step?\n\n{{Email Signature}}"
-        },
-        {
-          name: "Close the loop",
-          channel: "SMS",
-          dayOffset: 12,
-          sendTimeMinutes: 600,
-          body: "Hi {{First Name}}, should I keep this conversation open, or would it be better for me to close the loop for now? {{SMS Signature}}"
-        }
-      ]
-    },
-    {
-      id: "shared_referral",
-      title: "Referral Introduction Follow-Up",
-      description: "A relationship-first sequence for acknowledging an introduction and creating a comfortable next step with the referred Contact.",
-      category: "Events & Networking",
-      industry: "General / Other",
-      framework: "Relationship Nurture",
-      triggerMode: "DATE_TRIGGERED" as const,
-      dateTypeName: "Referral",
-      dateTypeSlug: "referral",
-      durationDays: 9,
-      featured: false,
-      steps: [
-        {
-          name: "Warm introduction text",
-          channel: "SMS",
-          dayOffset: 0,
-          sendTimeMinutes: 600,
-          body: "Hi {{First Name}}, I appreciated the introduction and wanted to say hello directly. What would make our conversation most useful for you? {{SMS Signature}}"
-        },
-        {
-          name: "Context email",
-          channel: "EMAIL",
-          dayOffset: 2,
-          sendTimeMinutes: 540,
-          subject: "Following up on our introduction",
-          body: "Hi {{First Name}},\n\nI am glad we were introduced. I would rather understand your priorities than send a generic overview. What are you hoping to improve, protect, or plan for next?\n\n{{Email Signature}}"
-        },
-        {
-          name: "Introduction call",
-          channel: "PHONE_CALL",
-          dayOffset: 5,
-          sendTimeMinutes: 660,
-          script: "Thank the Contact for taking the call. Ask what made the introduction timely, what they would like to be different, and whether a second conversation would be useful."
-        },
-        {
-          name: "Respectful follow-through",
-          channel: "SMS",
-          dayOffset: 9,
-          sendTimeMinutes: 600,
-          body: "Hi {{First Name}}, I wanted to respect your timing. Would a brief conversation still be useful, or should we reconnect another time? {{SMS Signature}}"
-        }
-      ]
-    },
-    {
-      id: "shared_client_onboarding",
-      title: "New Client Onboarding",
-      description: "A clear, reassuring onboarding Mix that confirms expectations, reduces uncertainty, and creates an early success moment.",
-      category: "Client Success / Retention",
-      industry: "Coaching / Consulting",
-      framework: "Expectation Alignment",
-      triggerMode: "MANUAL_START" as const,
-      dateTypeName: null,
-      dateTypeSlug: null,
-      durationDays: 7,
-      featured: true,
-      steps: [
-        {
-          name: "Welcome email",
-          channel: "EMAIL",
-          dayOffset: 0,
-          sendTimeMinutes: 540,
-          subject: "Welcome, {{First Name}} — here is what happens next",
-          body: "Hi {{First Name}},\n\nWelcome. I am excited to support you. Our first priority is {{My Product 1}}. What would make the first week feel like meaningful progress for you?\n\n{{Email Signature}}"
-        },
-        {
-          name: "First-day check-in",
-          channel: "SMS",
-          dayOffset: 1,
-          sendTimeMinutes: 600,
-          body: "Hi {{First Name}}, how is the first step feeling so far? Is anything unclear or harder than expected? {{SMS Signature}}"
-        },
-        {
-          name: "Expectation alignment call",
-          channel: "PHONE_CALL",
-          dayOffset: 3,
-          sendTimeMinutes: 660,
-          script: "Confirm the desired outcome, define what success looks like, identify likely obstacles, and agree on the next measurable action."
-        },
-        {
-          name: "Week-one recap",
-          channel: "EMAIL",
-          dayOffset: 7,
-          sendTimeMinutes: 540,
-          subject: "Your first-week recap",
-          body: "Hi {{First Name}},\n\nYou have completed the first week. What feels clearer now, and where would a little more support create the biggest improvement?\n\n{{Email Signature}}"
-        }
-      ]
-    },
-    {
-      id: "shared_renewal_checkin",
-      title: "Renewal Value Check-In",
-      description: "A calm renewal sequence that surfaces value, concerns, and next priorities before asking for a decision.",
-      category: "Client Success / Retention",
-      industry: "General / Other",
-      framework: "Value Review",
-      triggerMode: "DATE_TRIGGERED" as const,
-      dateTypeName: "Renewal",
-      dateTypeSlug: "renewal",
-      durationDays: 21,
-      featured: false,
-      steps: [
-        {
-          name: "Early value review",
-          channel: "EMAIL",
-          dayOffset: -21,
-          sendTimeMinutes: 540,
-          subject: "Before your renewal, {{First Name}}",
-          body: "Hi {{First Name}},\n\nBefore your renewal, I would like to make sure our work is still aligned with what matters most. What has created the most value, and what would you want improved next?\n\n{{Email Signature}}"
-        },
-        {
-          name: "Renewal conversation",
-          channel: "PHONE_CALL",
-          dayOffset: -14,
-          sendTimeMinutes: 660,
-          script: "Review outcomes achieved, ask what still feels unresolved, confirm next priorities, and discuss whether the current relationship remains the right fit."
-        },
-        {
-          name: "Decision support text",
-          channel: "SMS",
-          dayOffset: -7,
-          sendTimeMinutes: 600,
-          body: "Hi {{First Name}}, as you consider the renewal, is there any question or concern I can help clarify? {{SMS Signature}}"
-        },
-        {
-          name: "Renewal day note",
-          channel: "EMAIL",
-          dayOffset: 0,
-          sendTimeMinutes: 540,
-          subject: "Your renewal is ready",
-          body: "Hi {{First Name}},\n\nYour renewal date is here. Based on our conversation, does continuing feel like the right next step? I am available if one final question would help.\n\n{{Email Signature}}"
-        }
-      ]
-    }
+  // These ids shipped before the product moved to trade-specific ready-made plans.
+  // Keep the retirement list so an upgrade cannot surface stale consulting copy.
+  const retiredConsultingTemplateIds = [
+    "shared_new_lead",
+    "shared_referral",
+    "shared_client_onboarding",
+    "shared_renewal_checkin"
   ];
 
   await prisma.sharedMix.updateMany({
-    where: { id: { in: retiredConsultingTemplates.map((item) => item.id) } },
+    where: { id: { in: retiredConsultingTemplateIds } },
     data: { status: "UNPUBLISHED" }
   });
 
@@ -257,20 +77,16 @@ async function seedSystemData() {
       where: { sharedMixId: item.id },
       create: {
         sharedMixId: item.id,
-        isPlatform: true,
         triggerMode: item.triggerMode,
         dateTypeName: item.dateTypeName,
         dateTypeSlug: item.dateTypeSlug,
-        reviewState: "APPROVED",
         featuredAt: item.featured ? new Date() : null,
         publishedAt: new Date()
       },
       update: {
-        isPlatform: true,
         triggerMode: item.triggerMode,
         dateTypeName: item.dateTypeName,
         dateTypeSlug: item.dateTypeSlug,
-        reviewState: "APPROVED",
         featuredAt: item.featured ? new Date() : null,
         publishedAt: new Date()
       }
@@ -287,7 +103,6 @@ async function seedDemoWorkspace() {
   }
   if (existingUser) {
     for (const workspace of existingUser.ownedWorkspaces) {
-      await prisma.sharedMixContributorProfile.deleteMany({ where: { workspaceId: workspace.id } });
       await prisma.workspace.delete({ where: { id: workspace.id } });
     }
     await prisma.user.delete({ where: { id: existingUser.id } });
@@ -298,29 +113,27 @@ async function seedDemoWorkspace() {
   const workspace = await prisma.workspace.create({
     data: {
       id: "demo_workspace",
-      name: "BrightPath Studio",
-      slug: "brightpath-demo",
+      name: "Northline Home Services",
+      slug: "northline-home-services-demo",
       ownerId: user.id,
-      planTier: "FREE",
-      subscriptionStatus: "ACTIVE",
       members: { create: { id: "demo_member", userId: user.id, role: "OWNER" } },
       profile: {
         create: {
-          company: "BrightPath Studio",
-          industry: "Professional Services",
-          primaryGoal: "Stay connected with clients",
-          product1: "Business Growth Consulting",
-          smsSignature: "— BrightPath Studio",
-          emailSignature: "Demo Owner\nBrightPath Studio",
+          company: "Northline Home Services",
+          industry: "Home services",
+          primaryGoal: "Turn finished jobs into repeat work and referrals",
+          product1: "Plumbing and home repair",
+          smsSignature: "— Alex at Northline Home Services",
+          emailSignature: "Alex Morgan\nNorthline Home Services",
           onboardingStep: 5,
           onboardingDone: true
         }
       },
       groups: {
         create: [
-          { id: "demo_group_leads", name: "Leads", description: "People considering our services." },
-          { id: "demo_group_clients", name: "Clients", description: "Active client relationships." },
-          { id: "demo_group_referrals", name: "Referrals", description: "Introductions from our network." }
+          { id: "demo_group_leads", name: "Estimates", description: "Homeowners deciding on an estimate." },
+          { id: "demo_group_clients", name: "Customers", description: "People we have helped." },
+          { id: "demo_group_referrals", name: "Referrals", description: "People introduced by a customer." }
         ]
       }
     }
@@ -337,8 +150,8 @@ async function seedDemoWorkspace() {
       firstName: "Sarah",
       lastName: "Chen",
       displayName: "Sarah Chen",
-      company: "Northstar Design",
-      publicNotes: "Introduced by a long-term client.",
+      company: null,
+      publicNotes: "Introduced by a past customer; asked about a water-heater replacement.",
       source: "MANUAL",
       emails: { create: { email: "sarah@example.com", normalized: "sarah@example.com", isPrimary: true, label: "Work" } },
       phones: { create: { phone: "+1 555 010 1001", normalized: "15550101001", isPrimary: true, label: "Mobile" } },
@@ -352,7 +165,7 @@ async function seedDemoWorkspace() {
       firstName: "Marcus",
       lastName: "Reed",
       displayName: "Marcus Reed",
-      company: "Northline Construction",
+      company: null,
       source: "MANUAL",
       emails: { create: { email: "marcus@example.com", normalized: "marcus@example.com", isPrimary: true, label: "Work" } },
       phones: { create: { phone: "+1 555 010 1002", normalized: "15550101002", isPrimary: true, label: "Mobile" } },
@@ -366,7 +179,7 @@ async function seedDemoWorkspace() {
       firstName: "Elena",
       lastName: "Torres",
       displayName: "Elena Torres",
-      company: "Torres Events",
+      company: null,
       source: "MANUAL",
       emails: { create: { email: "elena@example.com", normalized: "elena@example.com", isPrimary: true, label: "Work" } },
       phones: { create: { phone: "+1 555 010 1003", normalized: "15550101003", isPrimary: true, label: "Mobile" } },
@@ -378,8 +191,8 @@ async function seedDemoWorkspace() {
   await prisma.jumpDate.createMany({
     data: [
       { id: "demo_date_sarah", workspaceId: workspace.id, contactId: "demo_contact_sarah", dateTypeId: followUp.id, dateValue: atNoon(0), month: atNoon(0).getMonth() + 1, day: atNoon(0).getDate(), recurrence: "NONE", timezone: "America/New_York", label: "Referral follow-up" },
-      { id: "demo_date_marcus", workspaceId: workspace.id, contactId: "demo_contact_marcus", dateTypeId: followUp.id, dateValue: atNoon(-2), month: atNoon(-2).getMonth() + 1, day: atNoon(-2).getDate(), recurrence: "NONE", timezone: "America/New_York", label: "Renewal conversation" },
-      { id: "demo_date_elena", workspaceId: workspace.id, contactId: "demo_contact_elena", dateTypeId: followUp.id, dateValue: atNoon(1), month: atNoon(1).getMonth() + 1, day: atNoon(1).getDate(), recurrence: "NONE", timezone: "America/New_York", label: "Client check-in" }
+      { id: "demo_date_marcus", workspaceId: workspace.id, contactId: "demo_contact_marcus", dateTypeId: followUp.id, dateValue: atNoon(-2), month: atNoon(-2).getMonth() + 1, day: atNoon(-2).getDate(), recurrence: "NONE", timezone: "America/New_York", label: "Estimate follow-up" },
+      { id: "demo_date_elena", workspaceId: workspace.id, contactId: "demo_contact_elena", dateTypeId: followUp.id, dateValue: atNoon(1), month: atNoon(1).getMonth() + 1, day: atNoon(1).getDate(), recurrence: "NONE", timezone: "America/New_York", label: "Post-job check-in" }
     ]
   });
 
@@ -387,10 +200,10 @@ async function seedDemoWorkspace() {
     data: {
       id: "demo_mix_relationship",
       workspaceId: workspace.id,
-      name: "Warm Relationship Follow-Up",
-      description: "A short, question-led sequence that makes it easy to reconnect without sounding pushy.",
-      framework: "Question-Led Consultative",
-      category: "Business",
+      name: "Estimate follow-up",
+      description: "A short, friendly plan for homeowners who received an estimate.",
+      framework: "Ready-made",
+      category: "Estimates",
       triggerMode: "DATE_TRIGGERED",
       dateTypeId: followUp.id,
       status: "ACTIVE",
@@ -400,9 +213,9 @@ async function seedDemoWorkspace() {
   });
 
   const stepData = [
-    { templateId: "demo_step_sms", versionId: "demo_step_sms_v1", mixStepId: "demo_mix_step_1", name: "Warm text opener", channel: "SMS" as const, dayOffset: 0, body: "Hi {{First Name}}, what would be most useful to revisit from our last conversation? {{SMS Signature}}" },
-    { templateId: "demo_step_call", versionId: "demo_step_call_v1", mixStepId: "demo_mix_step_2", name: "Discovery call", channel: "PHONE_CALL" as const, dayOffset: 2, script: "Ask what has changed since the last conversation, what outcome matters now, and what is getting in the way." },
-    { templateId: "demo_step_email", versionId: "demo_step_email_v1", mixStepId: "demo_mix_step_3", name: "Helpful close-the-loop email", channel: "EMAIL" as const, dayOffset: 5, subject: "Worth revisiting, {{First Name}}?", body: "Hi {{First Name}}, I wanted to close the loop. Would a brief conversation about {{My Product 1}} be useful, or is the timing not right?\n\n{{Email Signature}}" }
+    { templateId: "demo_step_sms", versionId: "demo_step_sms_v1", mixStepId: "demo_mix_step_1", name: "Estimate check-in", channel: "SMS" as const, dayOffset: 0, body: "Hi {{First Name}}, just checking that you received the estimate. Any questions I can clear up? {{SMS Signature}}" },
+    { templateId: "demo_step_call", versionId: "demo_step_call_v1", mixStepId: "demo_mix_step_2", name: "Questions call", channel: "PHONE_CALL" as const, dayOffset: 2, script: "Ask whether the estimate was clear, answer questions about the work or timing, and agree on the next step without pressure." },
+    { templateId: "demo_step_email", versionId: "demo_step_email_v1", mixStepId: "demo_mix_step_3", name: "Leave the door open", channel: "EMAIL" as const, dayOffset: 5, subject: "Any questions about your estimate?", body: "Hi {{First Name}},\n\nI wanted to leave the door open in case you have questions about the estimate or timing. Reply whenever you’re ready and I’ll be glad to help.\n\n{{Email Signature}}" }
   ];
 
   for (const [index, item] of stepData.entries()) {

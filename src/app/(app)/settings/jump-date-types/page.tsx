@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Sheet } from "@/components/Sheet";
 import {
   createCustomDateTypeAction,
   deleteCustomDateTypeAction,
@@ -11,7 +12,7 @@ import {
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-export const metadata: Metadata = { title: "Important Date Types" };
+export const metadata: Metadata = { title: "Saved date types" };
 
 type SearchParams = {
   q?: string;
@@ -40,38 +41,38 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
 
   return (
     <div className="page">
-      {params.created && <Notice type="success">Custom Important Date Type created.</Notice>}
-      {params.updated && <Notice type="success">Important Date Type renamed.</Notice>}
-      {params.activationSaved && <Notice type="success">Active Important Date Types updated. Future pending work is being reconciled.</Notice>}
-      {params.deleted && <Notice type="success">Unused custom Important Date Type deleted.</Notice>}
+      {params.created && <Notice type="success">Date type created.</Notice>}
+      {params.updated && <Notice type="success">Date type renamed.</Notice>}
+      {params.activationSaved && <Notice type="success">Date types saved.</Notice>}
+      {params.deleted && <Notice type="success">Date type deleted.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
       <header className="page-header">
-        <div><h1>Important Date Types</h1><p>Name the moments that can start your follow-up plans.</p></div>
-        <div className="page-actions"><Link className="button" href="/mixes">Mixes</Link><Link className="button" href="/settings">Settings</Link></div>
+        <div><h1>Saved date types</h1><p>Name the moments that can start a follow-up plan.</p></div>
+        <div className="page-actions"><Link className="button" href="/mixes">Plans</Link><Link className="button" href="/settings">Settings</Link></div>
       </header>
 
       <section className="card">
         <div className="card-header"><div><h2>+ New custom type</h2><p>Examples: Policy Renewal, Closing Anniversary, Program Start, or Warranty Expiration.</p></div></div>
-        <form action={createCustomDateTypeAction} className="inline-create-form"><input name="name" placeholder="Custom Important Date Type" required /><button className="button primary" type="submit">Create type</button></form>
+        <form action={createCustomDateTypeAction} className="inline-create-form"><input name="name" placeholder="Date type, such as Warranty expires" required /><button className="button primary" type="submit">Create type</button></form>
       </section>
 
       <section className="card">
         <div className="card-header"><div><h2>Manage custom types</h2><p>Choose which types appear in everyday workflows. Inactive types and their data are preserved.</p></div></div>
-        <form className="filter-bar" action="/settings/jump-date-types" method="get"><input name="q" defaultValue={q} placeholder="Search custom types" aria-label="Search custom Important Date Types" /><button className="button" type="submit">Search</button>{q && <Link className="button" href="/settings/jump-date-types">Clear</Link>}</form>
+        <form className="filter-bar" action="/settings/jump-date-types" method="get"><input name="q" defaultValue={q} placeholder="Search custom types" aria-label="Search saved date types" /><button className="button" type="submit">Search</button>{q && <Link className="button" href="/settings/jump-date-types">Clear</Link>}</form>
         <form id="date-type-activation-form" action={saveActiveDateTypesAction}>{hiddenActiveTypes.map((item) => <input type="hidden" name="activeDateTypeIds" value={item.id} key={item.id} />)}</form>
         {customTypes.length ? <div className="date-type-list">{customTypes.map((dateType) => (
           <article className={dateType.isActive ? "date-type-row" : "date-type-row inactive"} key={dateType.id}>
             <label className="date-type-active-choice"><input form="date-type-activation-form" type="checkbox" name="activeDateTypeIds" value={dateType.id} defaultChecked={dateType.isActive} /><span>{dateType.isActive ? "Active" : "Inactive"}</span></label>
-            <div><strong>{dateType.name}</strong><div className="jump-meta"><span>{dateType._count.jumpDates} Important Date{dateType._count.jumpDates === 1 ? "" : "s"}</span><span>{dateType._count.mixes} Mix{dateType._count.mixes === 1 ? "" : "es"}</span></div></div>
-            <details className="date-type-edit"><summary className="button small">Edit</summary><form action={renameCustomDateTypeAction} className="date-type-edit-panel"><input type="hidden" name="dateTypeId" value={dateType.id} /><input name="name" defaultValue={dateType.name} required /><button className="button small primary" type="submit">Save name</button></form></details>
-            <ConfirmDialog trigger="Delete…" title={`Delete ${dateType.name}?`} description="Deletion is allowed only when no Important Dates or active Mixes use this type. Otherwise, leave it inactive." danger><form action={deleteCustomDateTypeAction}><input type="hidden" name="dateTypeId" value={dateType.id} /><button className="button small danger" type="submit">Confirm delete</button></form></ConfirmDialog>
+            <div><strong>{dateType.name}</strong><div className="jump-meta"><span>{dateType._count.jumpDates} saved date{dateType._count.jumpDates === 1 ? "" : "s"}</span><span>{dateType._count.mixes} plan{dateType._count.mixes === 1 ? "" : "s"}</span></div></div>
+            <Sheet trigger={<button className="button small" type="button">Edit</button>} title={`Rename ${dateType.name}`} description="The saved dates and plans using this type stay connected."><form action={renameCustomDateTypeAction} className="form-stack"><input type="hidden" name="dateTypeId" value={dateType.id} /><label className="field"><span>Name</span><input name="name" defaultValue={dateType.name} required /></label><button className="button primary" type="submit">Save name</button></form></Sheet>
+            <ConfirmDialog trigger="Delete…" title={`Delete ${dateType.name}?`} description="You can delete it only when no saved dates or active plans use it. Otherwise, turn it off." danger><form action={deleteCustomDateTypeAction}><input type="hidden" name="dateTypeId" value={dateType.id} /><button className="button small danger" type="submit">Confirm delete</button></form></ConfirmDialog>
           </article>
-        ))}</div> : <p className="muted-copy">No custom Important Date Types match this view.</p>}
+        ))}</div> : <p className="muted-copy">No custom date types match this view.</p>}
         <div className="form-actions"><button className="button primary" form="date-type-activation-form" type="submit">Save active selection</button></div>
       </section>
 
       <section className="card">
-        <div className="card-header"><div><h2>Built-in types</h2><p>These common Important Date Types are always available.</p></div></div>
+        <div className="card-header"><div><h2>Built-in types</h2><p>These common saved dates are always available.</p></div></div>
         <div className="system-type-list">{systemTypes.map((dateType) => <span className="group-chip" key={dateType.id}>{dateType.name}</span>)}</div>
       </section>
     </div>

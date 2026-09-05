@@ -28,7 +28,7 @@ export function SupportFaq() {
       <div className="card-header">
         <div>
           <h2 id="support-faq-heading">Frequently asked questions</h2>
-          <p>Search first for the fastest answer. Questions stay collapsed until you open them.</p>
+          <p>Search for a quick, plain-language answer.</p>
         </div>
         <span className="status-pill">{results.length}</span>
       </div>
@@ -40,7 +40,7 @@ export function SupportFaq() {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search Contacts, Mixes, imports, privacy…"
+            placeholder="Search contacts, plans, imports, privacy…"
             autoComplete="off"
           />
         </label>
@@ -69,7 +69,7 @@ export function SupportFaq() {
         {!results.length && (
           <div className="support-faq-empty" role="status">
             <strong>No FAQ matched that search.</strong>
-            <span>Clear the filters or submit a support ticket below.</span>
+            <span>Clear the filters or use the help option below.</span>
           </div>
         )}
       </div>

@@ -1,97 +1,23 @@
 import type { Prisma } from "@/generated/prisma/client";
-import { AI_MIX_REFINEMENT_PRESETS } from "@/lib/ai-mix";
 import { prisma } from "@/lib/prisma";
 import { MIX_TEMPLATE_CATEGORIES, MIX_TEMPLATE_INDUSTRIES } from "@/lib/shared-mix";
 
-const AI_TONE_VALUES = ["Warm", "Professional", "Conversational", "Direct"] as const;
-const AI_REFINEMENT_LABELS = AI_MIX_REFINEMENT_PRESETS.map(([, label]) => label);
-
 export const PLATFORM_SETTING_DEFINITIONS = {
   "mix.categories": {
-    category: "Mixes and Templates",
-    label: "Mix categories",
-    description: "Reviewed categories available when organizing Mixes and publishing Mix Templates. They can be reordered or hidden without invalidating existing content.",
+    category: "Plans",
+    label: "Plan categories",
+    description: "Reviewed categories used to organize plans and help customers find a useful starting point.",
     kind: "string-list",
     isPublic: true,
     defaultValue: [...MIX_TEMPLATE_CATEGORIES]
   },
   "mix.industries": {
-    category: "Mixes and Templates",
+    category: "Plans",
     label: "Industries",
-    description: "Reviewed industry filters available on Mixes and Mix Templates. They can be reordered or hidden without invalidating existing content.",
+    description: "Reviewed business-type filters available in the ready-made plan library.",
     kind: "string-list",
     isPublic: true,
     defaultValue: [...MIX_TEMPLATE_INDUSTRIES]
-  },
-  "ai.objectives": {
-    category: "AI Mix Wizard",
-    label: "AI objectives",
-    description: "Primary objectives offered in the AI Mix Wizard.",
-    kind: "string-list",
-    isPublic: true,
-    defaultValue: [
-      "Book Discovery Calls",
-      "Follow Up With New Leads",
-      "Client Onboarding",
-      "Renewal and Retention",
-      "Re-engage Past Contacts",
-      "Referral Outreach",
-      "Event Follow-Up",
-      "Upsell or Cross-sell",
-      "General Check-In",
-      "Other"
-    ]
-  },
-  "ai.tones": {
-    category: "AI Mix Wizard",
-    label: "AI tones",
-    description: "Reviewed tone choices available to the AI Mix Wizard. These can be reordered or hidden without changing the generation schema.",
-    kind: "string-list",
-    isPublic: true,
-    defaultValue: [...AI_TONE_VALUES]
-  },
-  "ai.frameworks": {
-    category: "AI Mix Wizard",
-    label: "AI strategic frameworks",
-    description: "Framework labels used to guide AI-generated Mix structure and copy.",
-    kind: "string-list",
-    isPublic: true,
-    defaultValue: [
-      "Question-Led Consultative",
-      "Problem, Impact, Next Step",
-      "Teaching-Led Reframe",
-      "Mutual Qualification",
-      "SPIN Selling",
-      "Challenger Sale",
-      "Sandler System",
-      "AIDA",
-      "Relationship Nurture",
-      "Other"
-    ]
-  },
-  "ai.refinementReasons": {
-    category: "AI Mix Wizard",
-    label: "AI refinement reasons",
-    description: "Reviewed labels shown beside the built-in refinement controls. They can be reordered or hidden.",
-    kind: "string-list",
-    isPublic: true,
-    defaultValue: [...AI_REFINEMENT_LABELS]
-  },
-  "feature.communityTemplates": {
-    category: "Feature flags",
-    label: "Community Mix Templates",
-    description: "Controls public Community discovery without deleting submissions, votes, imports, or moderation history.",
-    kind: "boolean",
-    isPublic: false,
-    defaultValue: true
-  },
-  "feature.aiProviderGeneration": {
-    category: "Feature flags",
-    label: "Provider-backed AI draft generation",
-    description: "Controls new external-provider draft generation. The built-in strategist remains available when this is disabled.",
-    kind: "boolean",
-    isPublic: false,
-    defaultValue: true
   }
 } as const;
 
@@ -120,15 +46,9 @@ function assertAllowedSubset(label: string, list: string[], allowed: readonly st
 
 export function validatePlatformSettingValue(key: PlatformSettingKey, value: unknown): Prisma.InputJsonValue {
   const definition = PLATFORM_SETTING_DEFINITIONS[key];
-  if (definition.kind === "boolean") {
-    if (typeof value !== "boolean") throw new Error(`${definition.label} must be enabled or disabled.`);
-    return value;
-  }
   const list = uniqueStrings(value);
   if (!list.length) throw new Error(`${definition.label} needs at least one option.`);
   if (list.length > 100) throw new Error(`${definition.label} may contain at most 100 options.`);
-  if (key === "ai.tones") assertAllowedSubset(definition.label, list, AI_TONE_VALUES);
-  if (key === "ai.refinementReasons") assertAllowedSubset(definition.label, list, AI_REFINEMENT_LABELS);
   if (key === "mix.categories") assertAllowedSubset(definition.label, list, MIX_TEMPLATE_CATEGORIES);
   if (key === "mix.industries") assertAllowedSubset(definition.label, list, MIX_TEMPLATE_INDUSTRIES);
   return list;
@@ -148,13 +68,6 @@ export async function getPlatformStringList(key: PlatformSettingKey): Promise<st
   if (definition.kind !== "string-list") throw new Error(`${key} is not a string-list setting.`);
   const stored = uniqueStrings(await getPlatformSettingValue(key));
   return stored.length ? stored : [...definition.defaultValue];
-}
-
-export async function getPlatformBoolean(key: PlatformSettingKey): Promise<boolean> {
-  const definition = PLATFORM_SETTING_DEFINITIONS[key];
-  if (definition.kind !== "boolean") throw new Error(`${key} is not a boolean setting.`);
-  const stored = await getPlatformSettingValue(key);
-  return typeof stored === "boolean" ? stored : definition.defaultValue;
 }
 
 export async function getPlatformSettingsSnapshot() {

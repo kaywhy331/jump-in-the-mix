@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
-import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 import { ensureStarterMix } from "@/lib/starter-mix";
 
@@ -19,15 +18,11 @@ export async function createStarterMixAction(): Promise<void> {
   });
   if (existingStarter) redirect(`/mixes/${existingStarter.id}/edit?starter=exists`);
 
-  const current = await prisma.mix.count({ where: { workspaceId: workspace.id, status: "ACTIVE" } });
-  const limit = PLAN_LIMITS[workspace.planTier].mixes;
-  if (Number.isFinite(limit) && current >= limit) fail("Your plan's active Mix limit has been reached.");
-
   let mixId: string;
   try {
     mixId = (await ensureStarterMix(workspace.id)).id;
   } catch (error) {
-    fail(error instanceof Error ? error.message : "The starter Mix could not be created.");
+    fail(error instanceof Error ? error.message : "The starter plan could not be created.");
   }
   await prisma.$transaction([
     prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } }),

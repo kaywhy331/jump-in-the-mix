@@ -96,7 +96,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
   });
   if (!limit.allowed) {
     return NextResponse.json(
-      { error: "Too many Jump updates. Try again shortly." },
+      { error: "Too many follow-up updates. Try again shortly." },
       { status: 429, headers: { "Retry-After": String(limit.retryAfterSeconds) } }
     );
   }
@@ -126,8 +126,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
       stepVersion: { include: { stepTemplate: true } }
     }
   });
-  if (!jump) return NextResponse.json({ error: "Jump not found." }, { status: 404 });
-  if (jump.status === "CANCELED") return NextResponse.json({ error: "This Jump is no longer active." }, { status: 409 });
+  if (!jump) return NextResponse.json({ error: "Follow-up not found." }, { status: 404 });
+  if (jump.status === "CANCELED") return NextResponse.json({ error: "This follow-up is no longer active." }, { status: 409 });
 
   const timezone = await timezoneForUser(session.user.id);
   const rawNextDate = clean(payload?.nextDate, 10);
@@ -162,7 +162,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
           where: { id: jump.id, workspaceId: membership.workspaceId, status: { in: ["DONE", "SKIPPED"] } },
           data: { status: "PENDING", completedAt: null, completionMethod: null }
         });
-        if (updated.count !== 1) throw new Error("This Jump is not available to reopen.");
+        if (updated.count !== 1) throw new Error("This follow-up is not available to reopen.");
         nextStatus = "PENDING";
       } else if (outcome === "NOT_SENT") {
         if (jump.status !== "PENDING") throw new Error("This follow-up is no longer pending.");
@@ -172,14 +172,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
           where: { id: jump.id, workspaceId: membership.workspaceId, status: "PENDING" },
           data: { status: "SKIPPED", completedAt: new Date(), completionMethod: "outcome:skipped" }
         });
-        if (updated.count !== 1) throw new Error("This Jump is no longer pending.");
+        if (updated.count !== 1) throw new Error("This follow-up is no longer pending.");
         nextStatus = "SKIPPED";
       } else {
         const updated = await tx.jump.updateMany({
           where: { id: jump.id, workspaceId: membership.workspaceId, status: "PENDING" },
           data: { status: "DONE", completedAt: new Date(), completionMethod: `outcome:${outcome.toLowerCase()}` }
         });
-        if (updated.count !== 1 || !COMPLETE_OUTCOMES.includes(outcome)) throw new Error("This Jump is no longer pending.");
+        if (updated.count !== 1 || !COMPLETE_OUTCOMES.includes(outcome)) throw new Error("This follow-up is no longer pending.");
         nextStatus = "DONE";
       }
 
@@ -189,7 +189,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
           where: { scopeKey: "system", slug: "follow-up", isActive: true },
           select: { id: true }
         });
-        if (!followUpType) throw new Error("The Follow-up Important Date type is unavailable.");
+        if (!followUpType) throw new Error("The follow-up date type is unavailable.");
         const jumpDate = await tx.jumpDate.create({
           data: {
             workspaceId: membership.workspaceId,
@@ -271,7 +271,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
     const replayAfterRace = jsonResponse(duplicate?.response ?? null);
     if (replayAfterRace) return NextResponse.json({ ...replayAfterRace, duplicate: true });
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "The Jump outcome could not be saved." },
+      { error: error instanceof Error ? error.message : "The follow-up outcome could not be saved." },
       { status: 409 }
     );
   }

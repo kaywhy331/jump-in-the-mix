@@ -141,7 +141,7 @@
 
 .shared-mix-trigger-summary strong {
   color: var(--ink);
-  font-size: .72rem;
+  font-size: .8125rem;
   text-transform: uppercase;
   letter-spacing: .04em;
 }
@@ -166,7 +166,7 @@
   min-width: 67px;
   color: var(--brand-dark);
   font-weight: 800;
-  font-size: .76rem;
+  font-size: .8125rem;
 }
 
 .shared-mix-channel-icon {

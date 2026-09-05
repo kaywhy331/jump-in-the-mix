@@ -42,15 +42,12 @@ describe("administration and observability boundaries", () => {
     expect(actions).toContain('action: "admin.platform-setting.reset"');
   });
 
-  it("connects managed options to Mix and AI authoring", () => {
+  it("connects managed options to plan authoring and discovery", () => {
     const mixNew = read("src/app/(app)/mixes/new/page.tsx");
     const mixEdit = read("src/app/(app)/mixes/[mixId]/edit/page.tsx");
-    const wizard = read("src/app/(app)/mixes/wizard/page.tsx");
-    const wizardActions = read("src/lib/ai-mix-actions.ts");
     expect(mixNew).toContain('getPlatformStringList("mix.categories")');
     expect(mixEdit).toContain('getPlatformStringList("mix.industries")');
-    expect(wizard).toContain('getPlatformStringList("ai.objectives")');
-    expect(wizardActions).toContain('getPlatformBoolean("feature.aiProviderGeneration")');
+    expect(read("src/app/(app)/templates/page.tsx")).toContain('getPlatformStringList("mix.categories")');
   });
 
   it("ships a dedicated production migration for PlatformSetting", () => {

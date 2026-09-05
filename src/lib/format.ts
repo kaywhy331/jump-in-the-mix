@@ -3,14 +3,9 @@ export type DisplayFormatPreferences = {
   timeZone: string;
 };
 
-export const UTC_DISPLAY_PREFERENCES: DisplayFormatPreferences = {
-  locale: "en-US",
-  timeZone: "UTC"
-};
-
 export function formatDate(
   value: Date | string,
-  preferences: DisplayFormatPreferences = UTC_DISPLAY_PREFERENCES,
+  preferences: DisplayFormatPreferences,
   options: Intl.DateTimeFormatOptions = {}
 ): string {
   return new Intl.DateTimeFormat(preferences.locale, {
@@ -22,7 +17,7 @@ export function formatDate(
   }).format(new Date(value));
 }
 
-export function formatDateTime(value: Date | string, preferences: DisplayFormatPreferences = UTC_DISPLAY_PREFERENCES): string {
+export function formatDateTime(value: Date | string, preferences: DisplayFormatPreferences): string {
   return new Intl.DateTimeFormat(preferences.locale, {
     month: "short",
     day: "numeric",

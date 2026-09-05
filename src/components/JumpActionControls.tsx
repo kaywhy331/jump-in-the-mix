@@ -13,7 +13,7 @@ async function recordAction(jumpId: string, action: JumpActionType): Promise<voi
     body: JSON.stringify({ action }),
     keepalive: true
   });
-  if (!response.ok) throw new Error("The Jump action could not be recorded.");
+  if (!response.ok) throw new Error("The follow-up action could not be recorded.");
 }
 
 function rememberOpenedJump(detail: OpenedJumpDetail): void {

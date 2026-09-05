@@ -50,6 +50,6 @@ export async function snoozeJumpAction(formData: FormData): Promise<void> {
     where: { id: jumpId, workspaceId: workspace.id, status: "PENDING" },
     data: { scheduledAt }
   });
-  if (!result.count) redirect(withParam(returnTo, "error", "This Jump is no longer available to snooze."));
+  if (!result.count) redirect(withParam(returnTo, "error", "This follow-up is no longer available to snooze."));
   redirect(withParam(returnTo, "snoozed", "1"));
 }

@@ -17,7 +17,11 @@ describe("server-enforced route authorization matrix", () => {
       "src/app/(app)/admin/users/page.tsx",
       "src/app/(app)/admin/support/page.tsx",
       "src/app/(app)/admin/support/[ticketId]/page.tsx",
-      "src/app/(app)/admin/referrals/page.tsx"
+      "src/app/(app)/admin/templates/page.tsx",
+      "src/app/(app)/admin/templates/[sharedMixId]/edit/page.tsx",
+      "src/app/(app)/admin/operations/page.tsx",
+      "src/app/(app)/admin/audit/page.tsx",
+      "src/app/(app)/admin/settings/page.tsx"
     ]) {
       expect(read(path), `${path} must require a platform administrator`).toContain("requirePlatformAdmin(");
     }

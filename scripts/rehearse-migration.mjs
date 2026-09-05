@@ -18,6 +18,7 @@ const accountDeletionWorkflowMigration = "20260718190000_account_deletion_workfl
 const productPlatformMigration = "20260904170000_product_platform";
 const hostedAuthMigration = "20260904180000_hosted_auth";
 const automaticDeliveryMigration = "20260904190000_automatic_delivery_and_reviews";
+const dormantFeatureRetirementMigration = "20260904200000_retire_dormant_features";
 const requiredMigrations = [
   baselineMigration,
   forwardMigration,
@@ -28,11 +29,31 @@ const requiredMigrations = [
   accountDeletionWorkflowMigration,
   productPlatformMigration,
   hostedAuthMigration,
-  automaticDeliveryMigration
+  automaticDeliveryMigration,
+  dormantFeatureRetirementMigration
 ];
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const schemaName = `jitm_rehearsal_${suffix}`;
 const greenfieldSchemaName = `jitm_greenfield_${suffix}`;
+const retiredTables = [
+  "IntegrationConnection",
+  "ExternalContactLink",
+  "SyncRun",
+  "OAuthState",
+  "MessagingIdentity",
+  "ChannelLinkCode",
+  "CaptureDraft",
+  "AiMixDraft",
+  "Subscription",
+  "WebhookEvent",
+  "ReferralAccount",
+  "Referral",
+  "ReferralReward",
+  "AccountDeletionRevocation",
+  "UserContactLayout",
+  "SharedMixContributorProfile",
+  "SharedMixVote"
+];
 
 function databaseUrlForSchema(schema) {
   const url = new URL(rootUrl);
@@ -119,7 +140,7 @@ async function seedLegacyDatabase(client) {
   );
   await client.query(
     `INSERT INTO "WorkspaceMember" ("id", "workspaceId", "userId", "role", "createdAt")
-     VALUES ('legacy-membership', 'legacy-workspace', 'legacy-user', 'OWNER', $1)`,
+     VALUES ('legacy-membership', 'legacy-workspace', 'legacy-user', 'MEMBER', $1)`,
     [now]
   );
   await client.query(
@@ -129,7 +150,7 @@ async function seedLegacyDatabase(client) {
   );
   await client.query(
     `INSERT INTO "Contact" ("id", "workspaceId", "firstName", "displayName", "company", "publicNotes", "source", "createdAt", "updatedAt")
-     VALUES ('legacy-contact', 'legacy-workspace', 'Jordan', 'Jordan Legacy', 'Legacy Co', 'Preserve this note', 'MANUAL', $1, $1)`,
+     VALUES ('legacy-contact', 'legacy-workspace', 'Jordan', 'Jordan Legacy', 'Legacy Co', 'Preserve this note', 'GOOGLE', $1, $1)`,
     [now]
   );
   await client.query(
@@ -164,6 +185,18 @@ async function seedLegacyDatabase(client) {
        ('legacy-sent-jump', 'legacy-workspace', 'legacy-contact', 'legacy-mix', 'legacy-mix-step', 'legacy-version', $1, 'SENT', 'Legacy sent', '{}'::jsonb, '{}'::jsonb, 'legacy-sent', $1, $1)`,
     [now]
   );
+  await client.query(
+    `INSERT INTO "SharedMix" ("id", "publisherWorkspaceId", "title", "description", "category", "durationDays", "steps", "status", "createdAt", "updatedAt")
+     VALUES
+       ('legacy-curated-plan', NULL, 'Curated plan', 'Preserve this curated ready-made plan.', 'General / Other', 0, '[]'::jsonb, 'APPROVED', $1, $1),
+       ('legacy-community-plan', 'legacy-workspace', 'Community plan', 'Remove this retired community submission.', 'General / Other', 0, '[]'::jsonb, 'PENDING', $1, $1)`,
+    [now]
+  );
+  await client.query(
+    `INSERT INTO "SharedMixImport" ("id", "importKey", "workspaceId", "sharedMixId", "createdAt")
+     VALUES ('legacy-community-import', 'legacy-community-import', 'legacy-workspace', 'legacy-community-plan', $1)`,
+    [now]
+  );
 }
 
 async function assertForwardState(client) {
@@ -175,17 +208,11 @@ async function assertForwardState(client) {
     "MixBroadcastSchedule",
     "AdminImpersonation",
     "SharedMixMetadata",
-    "SharedMixContributorProfile",
-    "SharedMixVote",
     "SharedMixImportMetadata",
     "SupportTicket",
     "SupportTicketMessage",
-    "ReferralAccount",
-    "Referral",
-    "ReferralReward",
     "ContactGroupState",
     "AccountDeletionAudit",
-    "AccountDeletionRevocation",
     "NotificationPreference",
     "PushSubscription",
     "NotificationDelivery",
@@ -196,6 +223,9 @@ async function assertForwardState(client) {
     "AutomatedDelivery"
   ]) {
     if (!(await tableExists(client, table))) throw new Error(`Expected migrated table ${table}.`);
+  }
+  for (const table of retiredTables) {
+    if (await tableExists(client, table)) throw new Error(`Retired table ${table} still exists.`);
   }
   for (const [table, column] of [["Contact", "privateNotes"], ["MixStep", "isActive"], ["MixStep", "updatedAt"]]) {
     if (!(await columnExists(client, table, column))) throw new Error(`Expected migrated column ${table}.${column}.`);
@@ -210,10 +240,23 @@ async function assertForwardState(client) {
   for (const column of ["nextReconcileAt", "lastReconciledAt"]) {
     if (!(await columnExists(client, "WorkspacePreference", column))) throw new Error(`WorkspacePreference.${column} is missing.`);
   }
+  for (const column of ["planTier", "subscriptionStatus", "stripeCustomerId", "stripeSubscriptionId", "currentPeriodEnd", "cancelAtPeriodEnd"]) {
+    if (await columnExists(client, "Workspace", column)) throw new Error(`Retired Workspace.${column} still exists.`);
+  }
+  for (const column of ["publisherWorkspaceId", "publisherMixId", "isPlatform", "voteCount", "reviewState", "reviewedAt", "reviewedByUserId", "moderationNote"]) {
+    if (await columnExists(client, "SharedMixMetadata", column)) throw new Error(`Retired SharedMixMetadata.${column} still exists.`);
+  }
 
-  const contact = await client.query(`SELECT "displayName", "publicNotes", "privateNotes" FROM "Contact" WHERE "id" = 'legacy-contact'`);
-  if (contact.rows[0]?.displayName !== "Jordan Legacy" || contact.rows[0]?.publicNotes !== "Preserve this note" || contact.rows[0]?.privateNotes !== null) {
+  const contact = await client.query(`SELECT "displayName", "publicNotes", "privateNotes", "source"::text AS "source" FROM "Contact" WHERE "id" = 'legacy-contact'`);
+  if (contact.rows[0]?.displayName !== "Jordan Legacy" || contact.rows[0]?.publicNotes !== "Preserve this note" || contact.rows[0]?.privateNotes !== null || contact.rows[0]?.source !== "MANUAL") {
     throw new Error("Legacy Contact data was not preserved through migration.");
+  }
+  const membership = await client.query(`SELECT "role"::text AS "role" FROM "WorkspaceMember" WHERE "id" = 'legacy-membership'`);
+  if (membership.rows[0]?.role !== "OWNER") throw new Error("Legacy workspace role was not consolidated to owner.");
+  const curatedPlan = await client.query(`SELECT "title" FROM "SharedMix" WHERE "id" = 'legacy-curated-plan'`);
+  if (curatedPlan.rows[0]?.title !== "Curated plan") throw new Error("Curated ready-made plan was not preserved.");
+  if ((await client.query(`SELECT 1 FROM "SharedMix" WHERE "id" = 'legacy-community-plan'`)).rowCount) {
+    throw new Error("Retired community plan was not removed.");
   }
   const mixStep = await client.query(`SELECT "isActive", "updatedAt" FROM "MixStep" WHERE "id" = 'legacy-mix-step'`);
   if (mixStep.rows[0]?.isActive !== true || !(mixStep.rows[0]?.updatedAt instanceof Date)) {
@@ -268,38 +311,6 @@ async function assertForwardState(client) {
   }
 
   await client.query(
-    `INSERT INTO "ReferralAccount" ("workspaceId", "code", "bankedDays", "createdAt", "updatedAt")
-     VALUES ('legacy-workspace', 'LEGACYREF1', 30, $1, $1)
-     ON CONFLICT ("workspaceId") DO NOTHING`,
-    [now]
-  );
-  await client.query(
-    `INSERT INTO "Referral" ("id", "codeUsed", "referrerWorkspaceId", "referredWorkspaceId", "status", "qualifiedAt", "createdAt", "updatedAt")
-     VALUES ('rehearsal-referral', 'LEGACYREF1', 'legacy-workspace', 'rehearsal-friend-workspace', 'QUALIFIED', $1, $1, $1)
-     ON CONFLICT ("id") DO NOTHING`,
-    [now]
-  );
-  await client.query(
-    `INSERT INTO "ReferralReward" ("id", "referralId", "workspaceId", "recipient", "days", "status", "appliedAt", "createdAt", "updatedAt")
-     VALUES
-       ('rehearsal-referrer-reward', 'rehearsal-referral', 'legacy-workspace', 'REFERRER', 30, 'BANKED', $1, $1, $1),
-       ('rehearsal-friend-reward', 'rehearsal-referral', 'rehearsal-friend-workspace', 'REFERRED', 30, 'ACTIVE', $1, $1, $1)
-     ON CONFLICT ("id") DO NOTHING`,
-    [now]
-  );
-  const referralThread = await client.query(
-    `SELECT a."code", r."status", COUNT(w."id")::int AS "rewardCount"
-     FROM "ReferralAccount" a
-     JOIN "Referral" r ON r."referrerWorkspaceId" = a."workspaceId"
-     JOIN "ReferralReward" w ON w."referralId" = r."id"
-     WHERE a."workspaceId" = 'legacy-workspace'
-     GROUP BY a."code", r."status"`
-  );
-  if (referralThread.rows[0]?.code !== "LEGACYREF1" || referralThread.rows[0]?.status !== "QUALIFIED" || referralThread.rows[0]?.rewardCount !== 2) {
-    throw new Error("Referral migration did not accept a qualified attribution and both reward records.");
-  }
-
-  await client.query(
     `INSERT INTO "ContactGroupState" ("groupId", "workspaceId", "isActive", "createdAt", "updatedAt")
      VALUES ('legacy-group', 'legacy-workspace', false, $1, $1)
      ON CONFLICT ("groupId") DO UPDATE SET "isActive" = EXCLUDED."isActive", "updatedAt" = EXCLUDED."updatedAt"`,
@@ -339,12 +350,8 @@ async function assertGreenfieldState(client) {
     "SharedMixMetadata",
     "SupportTicket",
     "SupportTicketMessage",
-    "ReferralAccount",
-    "Referral",
-    "ReferralReward",
     "ContactGroupState",
     "AccountDeletionAudit",
-    "AccountDeletionRevocation",
     "NotificationPreference",
     "PushSubscription",
     "NotificationDelivery",
@@ -356,6 +363,11 @@ async function assertGreenfieldState(client) {
   ]) {
     if (!(await tableExists(client, table, greenfieldSchemaName))) {
       throw new Error(`Greenfield migration did not create ${table}.`);
+    }
+  }
+  for (const table of retiredTables) {
+    if (await tableExists(client, table, greenfieldSchemaName)) {
+      throw new Error(`Greenfield migration retained retired table ${table}.`);
     }
   }
   if (!(await columnExists(client, "Contact", "privateNotes", greenfieldSchemaName))) {

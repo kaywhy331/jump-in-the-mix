@@ -45,12 +45,11 @@ export async function quickAddDeviceContacts(input: {
   if (!input.contacts.length || input.contacts.length > 50) throw new Error("Choose between 1 and 50 device Contacts at a time.");
 
   const records = input.contacts.map((contact, index) => deviceContactToImportRecord(contact, index, input.requestId));
-  const analysis = await findImportMatches(input.workspaceId, "FREE", records);
+  const analysis = await findImportMatches(input.workspaceId, records);
   const matchByRowId = new Map(analysis.matches.map((match) => [match.rowId, match]));
   const results = await commitContactImportBatch({
     workspaceId: input.workspaceId,
     actorUserId: input.actorUserId,
-    planTier: "FREE",
     timezone: input.timezone,
     importId: `quick-add-${input.requestId}`,
     items: records.map((record) => {

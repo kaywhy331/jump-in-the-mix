@@ -188,14 +188,14 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
           <div className="jump-primary-action">
             {!isNext && (missingMethod ? (
-              <Link className="button primary jump-channel-action" href={`/contacts/${followUp.contactId}/edit`}><AppIcon name="add" /><span>Add {needsEmail ? "email" : "phone"}</span></Link>
+              <Link className="button primary jump-channel-action" href={`/contacts/${followUp.contactId}/edit`} aria-label={`Add ${needsEmail ? "email" : "phone"} for ${followUp.contact.displayName}`}><AppIcon name="add" /><span>Add {needsEmail ? "email" : "phone"}</span></Link>
             ) : directCall && url ? (
               <JumpActionLink jumpId={followUp.id} action={actionType(followUpChannel)} href={url} className="button primary jump-channel-action" ariaLabel={`Call ${followUp.contact.displayName}`} title="Call" contactName={followUp.contact.displayName} channel={followUpChannel}><AppIcon name="phone" /><span>Call</span></JumpActionLink>
             ) : (
-              <Sheet trigger={<button className="button primary jump-channel-action" type="button"><AppIcon name={followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Message ${followUp.contact.displayName}`} description="Review or edit this message before opening your phone’s composer.">{editableAction}</Sheet>
+              <Sheet trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review message for ${followUp.contact.displayName}`}><AppIcon name={followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Message ${followUp.contact.displayName}`} description="Review or edit this message before opening your phone’s composer.">{editableAction}</Sheet>
             ))}
             <div className="jump-completion-actions">
-              <JumpOutcomeButton jumpId={followUp.id} outcome={isPending ? "COMPLETED" : "REOPENED"} className={`button small jump-done-action ${isPending ? "" : "done"}`}>{isPending ? "Done" : "Undo"}</JumpOutcomeButton>
+              <JumpOutcomeButton jumpId={followUp.id} outcome={isPending ? "COMPLETED" : "REOPENED"} className={`button small jump-done-action ${isPending ? "" : "done"}`} ariaLabel={isPending ? "Done" : "Undo"}>{isPending ? "Done" : "Undo"}</JumpOutcomeButton>
               {isPending && <Sheet
                 trigger={<button className="button small" type="button" aria-label={`More options for ${followUp.contact.displayName}`}>More</button>}
                 title={`Follow up with ${followUp.contact.displayName}`}

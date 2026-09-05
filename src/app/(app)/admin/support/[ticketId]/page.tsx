@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { SupportReplyComposer } from "@/components/SupportReplyComposer";
 import { requirePlatformAdmin } from "@/lib/auth";
+import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import {
@@ -38,7 +39,8 @@ export default async function AdminSupportTicketPage({
   params: Promise<{ ticketId: string }>;
   searchParams: Promise<SearchParams>;
 }) {
-  const [{ ticketId }, query] = await Promise.all([params, searchParams, requirePlatformAdmin()]);
+  const [{ ticketId }, query, { user }] = await Promise.all([params, searchParams, requirePlatformAdmin()]);
+  const displayPreferences = await displayPreferencesForUser(user.id);
   const ticket = await prisma.supportTicket.findUnique({
     where: { id: ticketId },
     include: { messages: { orderBy: { createdAt: "asc" } } }
@@ -52,21 +54,13 @@ export default async function AdminSupportTicketPage({
     }),
     prisma.workspace.findUnique({
       where: { id: ticket.workspaceId },
-      select: {
-        id: true,
-        name: true,
-        planTier: true,
-        subscriptionStatus: true,
-        currentPeriodEnd: true,
-        cancelAtPeriodEnd: true
-      }
+      select: { id: true, name: true }
     }),
     Promise.all([
       prisma.contact.count({ where: { workspaceId: ticket.workspaceId, archivedAt: null } }),
       prisma.mix.count({ where: { workspaceId: ticket.workspaceId, status: "ACTIVE" } }),
-      prisma.jump.count({ where: { workspaceId: ticket.workspaceId, status: "PENDING" } }),
-      prisma.integrationConnection.count({ where: { workspaceId: ticket.workspaceId, status: "ACTIVE" } })
-    ]).then(([contacts, mixes, pendingJumps, integrations]) => ({ contacts, mixes, pendingJumps, integrations }))
+      prisma.jump.count({ where: { workspaceId: ticket.workspaceId, status: "PENDING" } })
+    ]).then(([contacts, plans, pendingFollowUps]) => ({ contacts, plans, pendingFollowUps }))
   ]);
 
   return (
@@ -83,7 +77,7 @@ export default async function AdminSupportTicketPage({
         </div>
       </header>
 
-      {query.replied && <Notice type="success">The Jump in the Mix Response was saved to the ticket.</Notice>}
+      {query.replied && <Notice type="success">The support response was saved to the ticket.</Notice>}
       {query.email === "sent" && <Notice type="success">The response email was delivered to the transactional email provider.</Notice>}
       {query.email === "previewed" && <Notice type="info">Transactional email is not configured in this development environment. The response was saved and rendered as a local preview.</Notice>}
       {query.email === "failed" && <Notice type="error">The response is safely stored in the ticket, but the email failed. Review the message below and retry delivery.</Notice>}
@@ -103,14 +97,14 @@ export default async function AdminSupportTicketPage({
               {ticket.messages.map((message) => (
                 <article className={`support-message ${message.authorType === "ADMIN" ? "admin" : "user"}`} key={message.id}>
                   <header>
-                    <strong>{message.authorType === "ADMIN" ? "Jump in the Mix Response" : requester?.name ?? "Customer"}</strong>
-                    <time dateTime={message.createdAt.toISOString()}>{formatDateTime(message.createdAt)}</time>
+                    <strong>{message.authorType === "ADMIN" ? "Support" : requester?.name ?? "Customer"}</strong>
+                    <time dateTime={message.createdAt.toISOString()}>{formatDateTime(message.createdAt, displayPreferences)}</time>
                   </header>
                   <p>{message.body}</p>
                   {message.authorType === "ADMIN" && (
                     <footer className="support-email-state">
                       <span className={`status-pill email-${message.emailStatus.toLowerCase()}`}>{supportEmailStatusLabel(message.emailStatus)}</span>
-                      {message.emailSentAt && <small>Sent {formatDateTime(message.emailSentAt)}</small>}
+                      {message.emailSentAt && <small>Sent {formatDateTime(message.emailSentAt, displayPreferences)}</small>}
                       {message.emailError && <small className="support-email-error">{message.emailError}</small>}
                       {["FAILED", "PREVIEWED"].includes(message.emailStatus) && (
                         <form action={adminRetrySupportEmailAction}>
@@ -161,7 +155,7 @@ export default async function AdminSupportTicketPage({
           </section>
 
           <section className="card">
-            <div className="card-header"><div><h2>Status</h2><p>{supportStatusLabel(ticket.status)} · last activity {formatDateTime(ticket.lastActivityAt)}</p></div></div>
+            <div className="card-header"><div><h2>Status</h2><p>{supportStatusLabel(ticket.status)} · last activity {formatDateTime(ticket.lastActivityAt, displayPreferences)}</p></div></div>
             <div className="support-status-actions">
               {ticket.status !== "WAITING_ON_SUPPORT" && (
                 <form action={adminUpdateSupportTicketStatusAction}><input type="hidden" name="ticketId" value={ticket.id} /><input type="hidden" name="status" value="WAITING_ON_SUPPORT" /><button className="button" type="submit">Return to support queue</button></form>
@@ -184,12 +178,9 @@ export default async function AdminSupportTicketPage({
               <div><dt>Email</dt><dd>{requester?.email ?? ticket.requesterUserId}</dd></div>
               <div><dt>Email verified</dt><dd>{requester?.emailVerifiedAt ? "Yes" : "No"}</dd></div>
               <div><dt>Workspace</dt><dd>{workspace?.name ?? ticket.workspaceId}</dd></div>
-              <div><dt>Plan</dt><dd>{workspace?.planTier.toLowerCase() ?? "Unavailable"}</dd></div>
-              <div><dt>Subscription</dt><dd>{workspace?.subscriptionStatus.toLowerCase().replaceAll("_", " ") ?? "Unavailable"}</dd></div>
               <div><dt>Contacts</dt><dd>{usage.contacts}</dd></div>
-              <div><dt>Active Mixes</dt><dd>{usage.mixes}</dd></div>
-              <div><dt>Incomplete Jumps</dt><dd>{usage.pendingJumps}</dd></div>
-              <div><dt>Active integrations</dt><dd>{usage.integrations}</dd></div>
+              <div><dt>Active plans</dt><dd>{usage.plans}</dd></div>
+              <div><dt>Pending follow-ups</dt><dd>{usage.pendingFollowUps}</dd></div>
               <div><dt>Category</dt><dd>{supportCategoryLabel(ticket.category)}</dd></div>
               <div><dt>Priority</dt><dd>{supportPriorityLabel(ticket.priority)}</dd></div>
             </dl>

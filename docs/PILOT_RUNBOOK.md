@@ -1,6 +1,6 @@
 # Single-user pilot runbook
 
-This runbook operates the private, single-user release candidate. The pilot profile runs PostgreSQL, migrations/setup, web, and worker only. It does not enable demo accounts, payment, Google, external AI, teams, invitations, or subscriptions.
+This runbook operates the private, single-owner Docker edition. The profile runs PostgreSQL, migrations/setup, web, and worker only. It never enables demo accounts or hosted registration behavior.
 
 ## Prerequisites
 
@@ -81,7 +81,7 @@ The archive and its `.manifest.json` file must both be inside `.backups`. Restor
 3. Run `npm run pilot:upgrade`.
 4. The command creates an encrypted backup before rebuilding.
 5. It runs committed migrations, recreates web and worker, and verifies readiness, worker health, and migration state.
-6. Exercise Today, Contacts, Mixes, and one Jump completion.
+6. Exercise Today, Contacts, Plans, and one follow-up completion.
 7. Retain the pre-upgrade backup until validation succeeds.
 
 Do not bypass a failed backup, migration, readiness, or worker check.

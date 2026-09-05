@@ -31,10 +31,15 @@ export function rateLimitKey(scope: string, identifiers: RateLimitInput["identif
 function retryableTransactionError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const code = "code" in error ? String(error.code) : "";
+  const message = "message" in error ? String(error.message) : "";
   const cause = "cause" in error && error.cause && typeof error.cause === "object" ? error.cause : null;
   const originalCode = cause && "originalCode" in cause ? String(cause.originalCode) : "";
   const kind = cause && "kind" in cause ? String(cause.kind) : "";
-  return code === "P2034" || code === "P2002" || originalCode === "40001" || kind === "TransactionWriteConflict";
+  return code === "P2034"
+    || code === "P2002"
+    || (code === "P2028" && message.includes("Unable to start a transaction"))
+    || originalCode === "40001"
+    || kind === "TransactionWriteConflict";
 }
 
 export async function consumeRateLimit(input: RateLimitInput): Promise<RateLimitDecision> {
@@ -89,9 +94,10 @@ export async function consumeRateLimit(input: RateLimitInput): Promise<RateLimit
 
         await tx.authRateLimit.update({ where: { key }, data: { attempts, blockedUntil: null } });
         return { allowed: true, remaining: Math.max(input.limit - attempts, 0), retryAfterSeconds: 0 };
-      }, { isolationLevel: "Serializable" });
+      }, { isolationLevel: "Serializable", maxWait: 5_000, timeout: 5_000 });
     } catch (error) {
       if (!retryableTransactionError(error) || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
     }
   }
 

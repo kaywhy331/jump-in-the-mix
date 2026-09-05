@@ -15,7 +15,6 @@ const TENANT_ACTION_MODULES = [
   "src/lib/mix-lifecycle-actions.ts",
   "src/lib/mix-stop-actions.ts",
   "src/lib/onboarding-actions.ts",
-  "src/lib/reusable-jump-update.ts",
   "src/lib/snooze-actions.ts",
   "src/lib/starter-mix-actions.ts",
   "src/lib/support-actions.ts",

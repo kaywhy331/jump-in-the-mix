@@ -14,7 +14,7 @@ async function signIn(page: Page) {
   ]);
 }
 
-test("Jump outcomes complete in place and appear on the Contact timeline", async ({ page }, testInfo) => {
+test("follow-up outcomes complete in place and appear on the Contact timeline", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The complete workflow is exercised once.");
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const contactId = `e2e-outcome-contact-${suffix}`;
@@ -67,13 +67,13 @@ test("Jump outcomes complete in place and appear on the Contact timeline", async
     await page.goto("/jumps?range=all&status=pending");
     const workflow = page.locator(`[data-jump-workflow="${jumpId}"]:visible`);
     await expect(workflow).toBeVisible();
-    await workflow.getByRole("button", { name: "Mark done" }).click();
-    await expect(workflow.getByText("Jump completed")).toBeVisible();
+    await workflow.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(workflow.getByText("Follow-up completed")).toBeVisible({ timeout: 30_000 });
     await expect.poll(async () => (await prisma.jump.findUniqueOrThrow({ where: { id: jumpId } })).status).toBe("DONE");
     await expect.poll(async () => prisma.contactActivity.count({ where: { jumpId, outcome: "COMPLETED" } })).toBe(1);
 
     await workflow.getByRole("button", { name: "Undo" }).click();
-    await expect(workflow.getByRole("button", { name: "Mark done" })).toBeVisible();
+    await expect(workflow.getByRole("button", { name: "Done", exact: true })).toBeVisible();
     await expect.poll(async () => (await prisma.jump.findUniqueOrThrow({ where: { id: jumpId } })).status).toBe("PENDING");
 
     await page.evaluate(({ jumpId: id, contactName }) => {
@@ -90,16 +90,14 @@ test("Jump outcomes complete in place and appear on the Contact timeline", async
     const nextDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     await outcomeForm.locator('input[type="date"]').fill(nextDate);
     await outcomeForm.getByRole("button", { name: "Save outcome" }).click();
-    await expect(workflow.getByText("Jump completed")).toBeVisible();
+    await expect(workflow.getByText("Follow-up completed")).toBeVisible({ timeout: 30_000 });
     await expect.poll(async () => prisma.contactActivity.count({ where: { jumpId, outcome: "NO_ANSWER" } })).toBe(1);
     await expect.poll(async () => prisma.jumpDate.count({ where: { contactId, isActive: true, label: { contains: "Next commitment" } } })).toBe(1);
 
     await page.goto(`/contacts/${contactId}`);
-    const timeline = page.locator('[data-user-card="relationship-timeline"]');
-    const expandTimeline = timeline.getByRole("button", { name: "Expand Relationship timeline" });
-    if (await expandTimeline.isVisible()) await expandTimeline.click();
+    const timeline = page.locator(".contact-timeline-card");
     await expect(timeline.getByText("No answer; try again tomorrow morning.", { exact: true })).toBeVisible();
-    await timeline.getByLabel("Add customer note").fill("Met through the regional business association.");
+    await timeline.getByLabel("Add a note").fill("Met through the regional business association.");
     await timeline.getByRole("button", { name: "Add update" }).click();
     await expect(timeline.getByText("Met through the regional business association.")).toBeVisible();
     await expect.poll(async () => prisma.contactActivity.count({ where: { contactId, kind: "CUSTOMER_NOTE" } })).toBe(1);

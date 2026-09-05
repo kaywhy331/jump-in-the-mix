@@ -101,7 +101,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const importBatchId = params.importBatch?.trim() ?? "";
   const requestedPage = Number(params.page ?? "1");
   const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10_000) : 1;
-  const intent = params.intent === "important-date" || params.intent === "one-time-jump" ? params.intent : undefined;
+  const intent = params.intent === "important-date" || params.intent === "one-time-jump" || params.intent === "log-note" ? params.intent : undefined;
 
   const importBatch = importBatchId
     ? await prisma.contactImportBatch.findFirst({ where: { id: importBatchId, workspaceId: workspace.id }, select: { id: true, results: true, status: true } })

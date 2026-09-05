@@ -43,6 +43,34 @@ async function expectNoClippedControls(page: Page) {
   expect(clipped).toEqual([]);
 }
 
+async function expectReadableMeaningfulText(page: Page) {
+  const tooSmall = await page.locator("body *:visible").evaluateAll((elements) => elements.flatMap((element) => {
+    if (!(element instanceof HTMLElement)) return [];
+    if (element.closest(".sr-only, [aria-hidden='true']")) return [];
+    const directText = [...element.childNodes]
+      .filter((node) => node.nodeType === Node.TEXT_NODE)
+      .map((node) => node.textContent?.trim() ?? "")
+      .filter(Boolean)
+      .join(" ");
+    const controlText = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
+      ? element.getAttribute("aria-label") || element.placeholder || element.value
+      : element instanceof HTMLSelectElement
+        ? element.getAttribute("aria-label") || element.name
+        : "";
+    const text = directText || controlText;
+    if (!text) return [];
+    const fontSize = Number.parseFloat(getComputedStyle(element).fontSize);
+    if (!Number.isFinite(fontSize) || fontSize === 0 || fontSize >= 13) return [];
+    return [{
+      tag: element.tagName.toLowerCase(),
+      className: element.className,
+      text: text.slice(0, 100),
+      fontSize
+    }];
+  }));
+  expect(tooSmall).toEqual([]);
+}
+
 test("core design primitives match the visual baseline", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The canonical visual baseline runs once.");
   const css = `${readFileSync("src/styles/base.css", "utf8")}\n${readFileSync("src/styles/components.css", "utf8")}`;
@@ -87,7 +115,7 @@ test("mobile navigation and actions stay inside the viewport", async ({ page }, 
   await page.goto("/jumps");
 
   const links = page.locator(".mobile-nav a.nav-link:visible");
-  await expect(links).toHaveCount(5);
+  await expect(links).toHaveCount(4);
   await expect(page.locator(".mobile-nav .nav-quick-add:visible")).toHaveCount(1);
   const viewport = page.viewportSize();
   expect(viewport).not.toBeNull();
@@ -104,11 +132,36 @@ test("mobile navigation and actions stay inside the viewport", async ({ page }, 
   await expectNoHorizontalOverflow(page);
 });
 
+test("meaningful text remains readable on phone-sized screens", async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  test.skip(testInfo.project.name !== "mobile-chromium", "Phone typography is checked once.");
+  await signIn(page);
+  for (const route of [
+    "/jumps",
+    "/contacts",
+    "/contacts/new",
+    "/contacts/import",
+    "/contacts/custom-fields",
+    "/mixes",
+    "/templates",
+    "/settings",
+    "/settings/business",
+    "/settings/jump-date-types",
+    "/settings/notifications",
+    "/account",
+    "/help"
+  ]) {
+    await page.goto(route);
+    await expect(page.locator("main")).toBeVisible();
+    await expectReadableMeaningfulText(page);
+  }
+});
+
 test("mobile text actions stay readable instead of collapsing into blank controls", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile header geometry is checked once.");
   await signIn(page);
   await page.goto("/templates");
-  for (const label of ["My Mixes", "Create my own"]) {
+  for (const label of ["My plans", "Build my own"]) {
     const action = page.getByRole("link", { name: label, exact: true });
     await expect(action).toBeVisible();
     const box = await action.boundingBox();
@@ -125,7 +178,7 @@ test("global Quick Add previews natural-language capture before continuing", asy
   const dialog = page.getByRole("dialog", { name: "Quick Add" });
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("What do you want to remember?").fill("Follow up with Jordan next Monday about the proposal");
-  await dialog.getByRole("button", { name: /Preview capture|Review/ }).click();
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(dialog.getByText("Confirm this interpretation")).toBeVisible();
   await expect(dialog.getByText("Jordan", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("link", { name: "Continue with Contact" })).toBeVisible();
@@ -143,7 +196,12 @@ test("settings hub opens focused personal scheduling controls", async ({ page })
   await expect(page).toHaveURL(/\/account\/preferences$/);
   await expect(page.getByRole("heading", { name: "Personal preferences" })).toBeVisible();
   await expect(page.getByLabel("Display name")).toBeVisible();
-  await expect(page.getByLabel("Personal timezone")).toBeVisible();
+  const timezone = page.locator(".timezone-current").filter({ hasText: "Personal timezone" });
+  await expect(timezone).toBeVisible();
+  await timezone.getByRole("button", { name: "Change" }).click();
+  const timezoneDialog = page.getByRole("dialog", { name: "Choose your city" });
+  await expect(timezoneDialog.getByLabel("Search cities")).toBeVisible();
+  await timezoneDialog.getByRole("button", { name: "Close timezone picker" }).click();
   await expect(page.getByLabel("Default follow-up time")).toBeVisible();
   await expect(page.getByLabel("Quiet hours begin")).toBeVisible();
   await expect(page.getByLabel("Quiet hours end")).toBeVisible();
@@ -155,9 +213,9 @@ test("public single-user product story remains focused and responsive", async ({
   for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Remember the person, the moment, and the next action." })).toBeVisible();
-    await expect(page.getByText("Structure without CRM clutter.", { exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Get started" })).toHaveAttribute("href", "/register");
+    await expect(page.getByRole("heading", { name: "Turn today’s customers into tomorrow’s repeat jobs and referrals." })).toBeVisible();
+    await expect(page.getByText("The follow-up CRM for busy local businesses", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Start free" })).toHaveAttribute("href", "/register");
     await expect(page.locator("main")).not.toContainText(/\b(?:pricing|billing|subscription|upgrade|downgrade|team|organization|stripe|google contacts|ai provider)\b/i);
     await expectNoHorizontalOverflow(page);
   }
@@ -179,7 +237,7 @@ test("confirmation dialogs restore focus and accessibility preferences remain us
 
   await page.goto("/contacts");
   const firstContact = page.locator(".contact-row").first();
-  await firstContact.getByLabel(/More actions for/).click();
+  await firstContact.getByLabel(/More options for/).click();
   const archiveTrigger = firstContact.getByRole("button", { name: "Archive…" });
   await archiveTrigger.click();
   const archiveDialog = page.getByRole("dialog", { name: /Archive .+\?/ });
@@ -189,25 +247,23 @@ test("confirmation dialogs restore focus and accessibility preferences remain us
   await expect(archiveTrigger).toBeFocused();
 });
 
-test("Quick Add Important Date and one-time Jump continue into actionable Contact journeys", async ({ page }, testInfo) => {
+test("Quick Add shortcuts continue into actionable contact journeys", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The stateful shortcut journeys run once.");
   await signIn(page);
   await page.goto("/jumps");
   await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
-  await page.getByRole("dialog", { name: "Quick Add" }).getByRole("link", { name: /Important Date/ }).click();
-  await expect(page).toHaveURL(/\/contacts\?intent=important-date/);
-  await expect(page.getByText("Choose who the date belongs to.")).toBeVisible();
-  await page.getByRole("link", { name: "Add Important Date" }).first().click();
-  await expect(page).toHaveURL(/\/contacts\/[^#]+#add-important-date/);
-  await expect(page.getByRole("heading", { name: "Add an Important Date" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Quick Add" }).getByRole("link", { name: /Add a person/ }).click();
+  await expect(page).toHaveURL(/\/contacts\/new$/);
+  await expect(page.getByRole("heading", { name: "Add a contact" })).toBeVisible();
 
   await page.goto("/jumps");
   await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
-  await page.getByRole("dialog", { name: "Quick Add" }).getByRole("link", { name: /One-time Jump/ }).click();
-  await expect(page).toHaveURL(/\/contacts\?intent=one-time-jump/);
-  await expect(page.getByText("Choose one or more Contacts.")).toBeVisible();
-  await page.getByRole("checkbox", { name: /^Select / }).first().check();
-  await expect(page.getByRole("heading", { name: "Apply one-time Jump" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Quick Add" }).getByRole("link", { name: /Log what happened/ }).click();
+  await expect(page).toHaveURL(/\/contacts\?intent=log-note/);
+  await expect(page.getByText("Then add what happened to their notes.")).toBeVisible();
+  await page.getByRole("link", { name: "Add note" }).first().click();
+  await expect(page).toHaveURL(/\/contacts\/[^#]+#add-note/);
+  await expect(page.getByRole("textbox", { name: "Add a note" })).toBeVisible();
 });
 
 test("responsive controls remain complete and align to card width", async ({ page }, testInfo) => {
@@ -245,9 +301,9 @@ test("Jump overflow provides first-class snooze presets", async ({ page }, testI
   test.skip(testInfo.project.name !== "desktop-chromium", "The stateful snooze journey runs once.");
   await signIn(page);
   await page.goto("/jumps");
-  const pendingCard = page.locator(".jump-task-card").filter({ has: page.getByRole("button", { name: "Mark done" }) }).first();
+  const pendingCard = page.locator(".jump-task-card").filter({ has: page.getByRole("button", { name: "Done", exact: true }) }).first();
   await expect(pendingCard).toBeVisible();
-  await pendingCard.getByLabel(/More actions for/).click();
+  await pendingCard.getByLabel(/More options for/).click();
   await pendingCard.getByRole("button", { name: "Tomorrow" }).click();
-  await expect(page.getByText("Jump snoozed. It will return to your queue at the new time.")).toBeVisible();
+  await expect(page.getByText("Follow-up snoozed.")).toBeVisible();
 });

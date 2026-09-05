@@ -3,14 +3,18 @@ import { Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
 import { logoutAction } from "@/lib/auth-actions";
 import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
+import { Sheet } from "@/components/Sheet";
+import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 
 export function AppShell({
   children,
   userName,
+  displayPreferences,
   impersonation
 }: {
   children: React.ReactNode;
   userName: string;
+  displayPreferences: DisplayFormatPreferences;
   impersonation: {
     targetName: string;
     targetEmail: string;
@@ -19,7 +23,7 @@ export function AppShell({
   } | null;
 }) {
   const expiresLabel = impersonation
-    ? new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(new Date(impersonation.expiresAt))
+    ? formatDateTime(impersonation.expiresAt, displayPreferences)
     : null;
 
   const endImpersonationForm = (
@@ -38,16 +42,20 @@ export function AppShell({
           <span className="user-label">{impersonation ? `Viewing as ${userName}` : `Signed in as ${userName}`}</span>
           <div className="account-sidebar-actions">
             {impersonation ? endImpersonationForm : (
-              <details className="profile-menu">
-                <summary className="button small">Profile</summary>
-                <div className="profile-menu-panel">
-                <Link href="/account">My Account</Link>
-                <Link href="/settings">Settings</Link>
-                <Link href="/templates">Ready-made plans</Link>
-                <Link href="/help">Help</Link>
-                <form action={logoutAction}><button className="text-button danger-text" type="submit">Sign out</button></form>
-                </div>
-              </details>
+              <Sheet
+                trigger={<button className="button small" type="button">Profile</button>}
+                title="Profile and settings"
+                description={`Signed in as ${userName}`}
+                className="profile-sheet"
+              >
+                <nav className="sheet-link-list" aria-label="Profile and settings">
+                  <Link className="button" href="/account">My Account</Link>
+                  <Link className="button" href="/settings">Settings</Link>
+                  <Link className="button" href="/templates">Ready-made plans</Link>
+                  <Link className="button" href="/help">Help</Link>
+                </nav>
+                <form action={logoutAction}><button className="button danger" type="submit">Sign out</button></form>
+              </Sheet>
             )}
           </div>
         </div>

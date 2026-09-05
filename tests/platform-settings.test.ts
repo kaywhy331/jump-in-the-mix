@@ -8,26 +8,21 @@ import {
 describe("platform settings", () => {
   it("normalizes ordered string options and removes duplicates", () => {
     expect(validatePlatformSettingValue("mix.categories", [
-      " Business ",
-      "Sales & Prospecting",
-      "business",
+      " Estimates ",
+      "Reviews & referrals",
+      "estimates",
       "",
-      "Events & Networking"
-    ])).toEqual(["Business", "Sales & Prospecting", "Events & Networking"]);
+      "Past clients"
+    ])).toEqual(["Estimates", "Reviews & referrals", "Past clients"]);
   });
 
   it("rejects empty option sets", () => {
-    expect(() => validatePlatformSettingValue("ai.objectives", ["", "  "])).toThrow("needs at least one option");
+    expect(() => validatePlatformSettingValue("mix.categories", ["", "  "])).toThrow("needs at least one option");
   });
 
-  it("accepts only reviewed AI tone values", () => {
-    expect(validatePlatformSettingValue("ai.tones", ["Warm", "Direct"])).toEqual(["Warm", "Direct"]);
-    expect(() => validatePlatformSettingValue("ai.tones", ["Aggressive"])).toThrow("reviewed values");
-  });
-
-  it("validates feature flags as booleans", () => {
-    expect(validatePlatformSettingValue("feature.communityTemplates", false)).toBe(false);
-    expect(() => validatePlatformSettingValue("feature.communityTemplates", "false")).toThrow("enabled or disabled");
+  it("accepts only reviewed plan-library values", () => {
+    expect(validatePlatformSettingValue("mix.industries", ["Home services", "Other"])).toEqual(["Home services", "Other"]);
+    expect(() => validatePlatformSettingValue("mix.industries", ["Unreviewed vertical"])).toThrow("reviewed values");
   });
 
   it("keeps a reviewed fallback for every registered key", () => {

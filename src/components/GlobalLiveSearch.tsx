@@ -5,8 +5,7 @@ import { useEffect, useRef } from "react";
 
 const FILTER_FORM_SELECTOR = [
   "form.filter-bar",
-  "form.mobile-search-form",
-  "form.mobile-filter-panel"
+  "form.live-search-form"
 ].join(",");
 
 function shouldEnhance(form: HTMLFormElement): boolean {

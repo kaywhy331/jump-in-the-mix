@@ -82,7 +82,7 @@ async function initialFollowUpPayload(workspaceId: string, formData: FormData): 
     where: { id: dateTypeId, isActive: true, OR: [{ workspaceId }, { workspaceId: null }] },
     select: { id: true }
   });
-  if (!dateType) throw new Error("The selected Important Date Type is unavailable.");
+  if (!dateType) throw new Error("The selected saved date type is unavailable.");
   if (!requestedMixId) return { dateTypeId: dateType.id, dateValue, reason, mixId: null };
   const mix = await prisma.mix.findFirst({
     where: {
@@ -95,7 +95,7 @@ async function initialFollowUpPayload(workspaceId: string, formData: FormData): 
     },
     select: { id: true }
   });
-  if (!mix) throw new Error("The selected follow-up plan is no longer active or does not match this Important Date.");
+  if (!mix) throw new Error("The selected follow-up plan is no longer active or does not match this saved date.");
   return { dateTypeId: dateType.id, dateValue, reason, mixId: mix.id };
 }
 
@@ -114,7 +114,7 @@ async function validateContactPayload(workspaceId: string, payload: ReturnType<t
   const unavailableNewGroup = mergeGroupActivity(groups, groupStates)
     .some((group) => !group.isActive && !existingGroupIds.has(group.id));
   if (unavailableNewGroup) {
-    throw new Error("Inactive Contact Groups cannot receive new assignments. Choose an active group or change the active selection from Contacts.");
+    throw new Error("Hidden tags cannot receive new assignments. Choose an active tag from Contacts.");
   }
 
   await validateContactCustomFieldInputs(prisma, workspaceId, payload.customFields);

@@ -1,56 +1,16 @@
-enum SharedMixReviewState {
-  PENDING
-  APPROVED
-  REJECTED
-  UNPUBLISHED
-  FLAGGED
-}
-
 model SharedMixMetadata {
-  sharedMixId          String               @id
-  publisherWorkspaceId String?
-  publisherMixId       String?
-  sourceMixId          String?
-  isPlatform           Boolean              @default(false)
-  triggerMode          MixTriggerMode       @default(MANUAL_START)
-  dateTypeName         String?
-  dateTypeSlug         String?
-  version              Int                  @default(1)
-  voteCount            Int                  @default(0)
-  reviewState          SharedMixReviewState @default(PENDING)
-  featuredAt           DateTime?
-  publishedAt          DateTime?
-  reviewedAt           DateTime?
-  reviewedByUserId     String?
-  moderationNote       String?
-  createdAt            DateTime             @default(now())
-  updatedAt            DateTime             @updatedAt
+  sharedMixId  String         @id
+  sourceMixId  String?
+  triggerMode  MixTriggerMode @default(MANUAL_START)
+  dateTypeName String?
+  dateTypeSlug String?
+  version      Int            @default(1)
+  featuredAt   DateTime?
+  publishedAt  DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
-  @@unique([publisherWorkspaceId, publisherMixId])
-  @@index([isPlatform, reviewState])
-  @@index([voteCount, publishedAt])
-}
-
-model SharedMixContributorProfile {
-  workspaceId String   @id
-  enabled     Boolean  @default(false)
-  displayName String?
-  title       String?
-  bio         String?
-  avatarUrl   String?
-  website     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-model SharedMixVote {
-  id          String   @id @default(cuid())
-  workspaceId String
-  sharedMixId String
-  createdAt   DateTime @default(now())
-
-  @@unique([workspaceId, sharedMixId])
-  @@index([sharedMixId, createdAt])
+  @@index([featuredAt, publishedAt])
 }
 
 model SharedMixImportMetadata {

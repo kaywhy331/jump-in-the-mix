@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/EmptyState";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
+import { AutoSubmitForm } from "@/components/AutoSubmitForm";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Notice } from "@/components/Notice";
+import { Sheet } from "@/components/Sheet";
 import { createStarterMixAction } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
 import { formatDateInput, formatTimeInput } from "@/lib/mix-broadcast";
@@ -65,8 +67,13 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
           <Link className="button" href="/templates">Ready-made plans</Link><Link className="button primary mobile-header-action" href="/mixes/new" aria-label="Create plan"><AppIcon name="add"/><span className="mobile-action-label">New plan</span></Link>
         </div>
       </header>
-      <form className="filter-bar mix-filter-bar desktop-only" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search plans" aria-label="Search plans"/><select name="status" defaultValue={status} aria-label="Filter plans by status"><option value="">All statuses</option><option value="ACTIVE">On</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select><button className="button" type="submit">Filter</button>{(q || status) && <Link className="button" href="/mixes">Clear</Link>}</form>
-      <div className="mobile-contact-controls mobile-only"><form className="mobile-search-form" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search plans" aria-label="Search plans"/>{status && <input type="hidden" name="status" value={status}/>}<button className="sr-only" type="submit">Search plans</button></form><details className="mobile-filter-disclosure"><summary className={status ? "button filter-trigger active" : "button filter-trigger"}><AppIcon name="settings"/><span>Filter{status ? " 1" : ""}</span></summary><form className="mobile-filter-panel" action="/mixes" method="get"><input type="hidden" name="q" value={q}/><label className="filter-field"><span>Status</span><select name="status" defaultValue={status} aria-label="Filter plans by status"><option value="">All statuses</option><option value="ACTIVE">On</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select></label><div className="mobile-filter-actions"><Link className="button" href={q ? `/mixes?q=${encodeURIComponent(q)}` : "/mixes"}>Reset</Link><button className="button primary" type="submit">Apply</button></div></form></details></div>
+      <div className="mix-filter-row">
+        <form className="filter-bar mix-filter-bar" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search plans" aria-label="Search plans"/>{status && <input type="hidden" name="status" value={status}/>}<button className="sr-only" type="submit">Search plans</button></form>
+        <Sheet trigger={<button className={status ? "button filter-trigger active" : "button filter-trigger"} type="button"><AppIcon name="settings"/><span>Filter{status ? " 1" : ""}</span></button>} title="Filter plans" description="Changes apply as soon as you choose them.">
+          <AutoSubmitForm className="form-stack" action="/mixes" ariaLabel="Plan filters"><input type="hidden" name="q" value={q}/><label className="field"><span>Status</span><select name="status" defaultValue={status} aria-label="Filter plans by status"><option value="">All statuses</option><option value="ACTIVE">On</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select></label></AutoSubmitForm>
+          {(q || status) && <Link className="button" href="/mixes">Clear search and filters</Link>}
+        </Sheet>
+      </div>
 
       {mixes.length ? (
         <div className="mix-list">
@@ -88,10 +95,9 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                       <span className="mix-channels">{channelSequence.join(" → ") || "No channels yet"}</span>
                     </div>
                   </div>
-                  <div className="mix-card-actions">
-                    <Link href={`/mixes/${mix.id}/edit`} className="button small primary">Edit</Link>
-                    <details className="mix-row-menu"><summary className="button small" aria-label={`More actions for ${mix.name}`}>More</summary><div className="mix-row-menu-panel">{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Pause plan</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="text-button" type="submit">Turn on plan</button></form>}<ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The plan stops creating new follow-ups. Completed history stays available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small danger" type="submit">Archive plan</button></form></ConfirmDialog></div></details>
-                  </div>
+                  <div className="mix-card-actions"><Sheet trigger={<button className="button small" type="button" aria-label={`Manage ${mix.name}`}><AppIcon name="more"/><span>Manage</span></button>} title={mix.name} description="Edit this plan, change whether it is running, or archive it.">
+                    <div className="sheet-actions vertical"><Link href={`/mixes/${mix.id}/edit`} className="button primary"><AppIcon name="edit"/>Edit plan</Link>{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button" type="submit">Pause plan</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button" type="submit">Turn on plan</button></form>}</div><div className="sheet-danger-zone"><ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The plan stops creating new follow-ups. Completed history stays available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button danger" type="submit">Archive plan</button></form></ConfirmDialog></div>
+                  </Sheet></div>
                 </div>
                 {mix.description && <p className="muted-copy">{mix.description}</p>}
                 <div className="mix-sequence-preview" aria-label={`${mix.name} follow-up sequence`}>

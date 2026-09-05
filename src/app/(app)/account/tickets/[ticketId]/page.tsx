@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
+import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 import {
   reopenSupportTicketAction,
@@ -42,6 +43,7 @@ export default async function SupportTicketPage({
     requesterUserId: user.id
   });
   if (!ticket) notFound();
+  const displayPreferences = await displayPreferencesForUser(user.id);
   const replyAllowed = ticket.status !== "CLOSED" && !impersonation;
 
   return (
@@ -71,7 +73,7 @@ export default async function SupportTicketPage({
               <article className={`support-message ${message.authorType === "ADMIN" ? "admin" : "user"}`} key={message.id}>
                 <header>
                   <strong>{message.authorType === "ADMIN" ? "Jump in the Mix Response" : "You"}</strong>
-                  <time dateTime={message.createdAt.toISOString()}>{formatDateTime(message.createdAt)}</time>
+                  <time dateTime={message.createdAt.toISOString()}>{formatDateTime(message.createdAt, displayPreferences)}</time>
                 </header>
                 <p>{message.body}</p>
               </article>
@@ -121,8 +123,8 @@ export default async function SupportTicketPage({
             <div><dt>Status</dt><dd><span className={`status-pill ${ticket.status === "RESOLVED" ? "done" : ""}`}>{supportStatusLabel(ticket.status)}</span></dd></div>
             <div><dt>Category</dt><dd>{supportCategoryLabel(ticket.category)}</dd></div>
             <div><dt>Priority</dt><dd>{supportPriorityLabel(ticket.priority)}</dd></div>
-            <div><dt>Opened</dt><dd>{formatDateTime(ticket.createdAt)}</dd></div>
-            <div><dt>Last activity</dt><dd>{formatDateTime(ticket.lastActivityAt)}</dd></div>
+            <div><dt>Opened</dt><dd>{formatDateTime(ticket.createdAt, displayPreferences)}</dd></div>
+            <div><dt>Last activity</dt><dd>{formatDateTime(ticket.lastActivityAt, displayPreferences)}</dd></div>
             <div><dt>Messages</dt><dd>{ticket.messages.length}</dd></div>
           </dl>
         </aside>

@@ -1,4 +1,4 @@
-import type { PlanTier, Prisma } from "@/generated/prisma/client";
+import type { Prisma } from "@/generated/prisma/client";
 import { isValidEmail, normalizeEmail, normalizePhone } from "@/lib/contact-input";
 import { contactNameForImport, textSimilarity } from "@/lib/contact-import-report";
 import { stableKey } from "@/lib/contact-import-shared";
@@ -85,7 +85,7 @@ async function loadWorkspaceContacts(workspaceId: string): Promise<MatchContact[
   });
 }
 
-export async function contactImportUsage(workspaceId: string, _planTier: PlanTier): Promise<ContactImportUsage> {
+export async function contactImportUsage(workspaceId: string): Promise<ContactImportUsage> {
   const activeContacts = await prisma.contact.count({ where: { workspaceId, archivedAt: null } });
   return { activeContacts, contactLimit: Number.MAX_SAFE_INTEGER, remainingContacts: Number.MAX_SAFE_INTEGER };
 }
@@ -143,13 +143,12 @@ function matchCandidate(
 
 export async function findImportMatches(
   workspaceId: string,
-  planTier: PlanTier,
   records: ImportContactRecord[]
 ): Promise<ImportMatchResponse> {
   if (records.length > 100) throw new Error("Analyze no more than 100 import rows per request.");
   const [contacts, usage] = await Promise.all([
     loadWorkspaceContacts(workspaceId),
-    contactImportUsage(workspaceId, planTier)
+    contactImportUsage(workspaceId)
   ]);
 
   const matches: ImportMatch[] = records.map((record) => {
@@ -173,13 +172,13 @@ export async function findImportMatches(
 
 function validateCalendarDate(value: string): void {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) throw new Error(`Invalid Jump Date: ${value}`);
+  if (!match) throw new Error(`Invalid saved date: ${value}`);
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
   const parsed = new Date(Date.UTC(year, month - 1, day));
   if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() + 1 !== month || parsed.getUTCDate() !== day) {
-    throw new Error(`Invalid Jump Date: ${value}`);
+    throw new Error(`Invalid saved date: ${value}`);
   }
 }
 
@@ -205,11 +204,11 @@ function validateImportRecord(record: ImportContactRecord): void {
   if (record.addresses.filter((item) => item.isPrimary).length > 1) throw new Error("Choose only one primary address per Contact.");
 
   for (const jumpDate of record.jumpDates) {
-    if (!jumpDate.dateTypeId && !jumpDate.dateTypeName?.trim()) throw new Error("Every imported Jump Date needs a type.");
-    if (jumpDate.recurrence === "NONE" && !jumpDate.dateValue) throw new Error("A one-time Jump Date needs a full date.");
+    if (!jumpDate.dateTypeId && !jumpDate.dateTypeName?.trim()) throw new Error("Every imported saved date needs a type.");
+    if (jumpDate.recurrence === "NONE" && !jumpDate.dateValue) throw new Error("A one-time saved date needs a full date.");
     if (jumpDate.dateValue) validateCalendarDate(jumpDate.dateValue);
     if (jumpDate.recurrence !== "NONE" && (!jumpDate.month || !jumpDate.day)) {
-      throw new Error("A repeating Jump Date needs a month and day.");
+      throw new Error("A repeating saved date needs a month and day.");
     }
   }
 }
@@ -225,7 +224,7 @@ async function validateWorkspaceReferences(workspaceId: string, record: ImportCo
       ? prisma.contactCustomFieldDefinition.findMany({ where: { workspaceId, id: { in: customFieldIds } }, select: { id: true } })
       : []
   ]);
-  if (groups.length !== groupIds.length) throw new Error("One or more selected Contact Groups are unavailable.");
+  if (groups.length !== groupIds.length) throw new Error("One or more selected tags are unavailable.");
   if (customFields.length !== customFieldIds.length) throw new Error("One or more mapped custom fields are unavailable.");
 }
 
@@ -273,7 +272,6 @@ function appendImportedNotes(existing: string | null, incoming: string | null, s
 
 async function resolveJumpDates(
   workspaceId: string,
-  planTier: PlanTier,
   jumpDates: ImportJumpDate[]
 ): Promise<ResolvedJumpDate[]> {
   const resolved: ResolvedJumpDate[] = [];
@@ -285,7 +283,7 @@ async function resolveJumpDates(
         where: { id: jumpDate.dateTypeId, OR: [{ workspaceId }, { workspaceId: null, isSystem: true }] },
         select: { id: true }
       });
-      if (!available) throw new Error("A mapped Jump Date Type is no longer available.");
+      if (!available) throw new Error("A mapped saved date type is no longer available.");
       resolved.push({ ...jumpDate, resolvedDateTypeId: available.id, createdInactiveType: null });
       continue;
     }
@@ -381,13 +379,12 @@ async function queueReconciliation(workspaceId: string, contactId: string): Prom
 async function createImportedContact(input: {
   workspaceId: string;
   actorUserId: string;
-  planTier: PlanTier;
   timezone: string;
   record: ImportContactRecord;
 }): Promise<{ contactId: string; message: string }> {
-  const { workspaceId, actorUserId, planTier, timezone, record } = input;
+  const { workspaceId, actorUserId, timezone, record } = input;
   await assertNoMethodConflict(workspaceId, record);
-  const resolvedDates = await resolveJumpDates(workspaceId, planTier, record.jumpDates);
+  const resolvedDates = await resolveJumpDates(workspaceId, record.jumpDates);
   const inactiveTypes = [...new Set(
     resolvedDates.map((item) => item.createdInactiveType).filter((value): value is string => Boolean(value))
   )];
@@ -449,7 +446,7 @@ async function createImportedContact(input: {
   return {
     contactId: contact.id,
     message: inactiveTypes.length
-      ? `Created. ${inactiveTypes.join(", ")} was preserved as an inactive custom Important Date Type.`
+      ? `Created. ${inactiveTypes.join(", ")} was kept as an inactive custom date type.`
       : "Contact created."
   };
 }
@@ -457,13 +454,12 @@ async function createImportedContact(input: {
 async function mergeImportedContact(input: {
   workspaceId: string;
   actorUserId: string;
-  planTier: PlanTier;
   timezone: string;
   record: ImportContactRecord;
   contactId: string;
   preferImported: boolean;
 }): Promise<{ contactId: string; message: string }> {
-  const { workspaceId, actorUserId, planTier, timezone, record, contactId, preferImported } = input;
+  const { workspaceId, actorUserId, timezone, record, contactId, preferImported } = input;
   await assertNoMethodConflict(workspaceId, record, contactId);
   const existing = await prisma.contact.findFirst({
     where: { id: contactId, workspaceId, archivedAt: null },
@@ -478,7 +474,7 @@ async function mergeImportedContact(input: {
   });
   if (!existing) throw new Error("The selected existing Contact is no longer available.");
 
-  const resolvedDates = await resolveJumpDates(workspaceId, planTier, record.jumpDates);
+  const resolvedDates = await resolveJumpDates(workspaceId, record.jumpDates);
   const inactiveTypes = [...new Set(
     resolvedDates.map((item) => item.createdInactiveType).filter((value): value is string => Boolean(value))
   )];
@@ -627,7 +623,7 @@ async function mergeImportedContact(input: {
   return {
     contactId,
     message: inactiveTypes.length
-      ? `${preferImported ? "Updated" : "Merged"}. ${inactiveTypes.join(", ")} was preserved as an inactive custom Important Date Type.`
+      ? `${preferImported ? "Updated" : "Merged"}. ${inactiveTypes.join(", ")} was kept as an inactive custom date type.`
       : preferImported ? "Contact updated while preserving additional existing values." : "Contact merged."
   };
 }
@@ -651,7 +647,6 @@ async function saveIdempotentResult(workspaceId: string, key: string, result: Im
 export async function commitContactImportBatch(input: {
   workspaceId: string;
   actorUserId: string;
-  planTier: PlanTier;
   timezone: string;
   importId: string;
   items: ImportCommitItem[];
@@ -686,7 +681,6 @@ export async function commitContactImportBatch(input: {
         outcome = await createImportedContact({
           workspaceId: input.workspaceId,
           actorUserId: input.actorUserId,
-          planTier: input.planTier,
           timezone: input.timezone,
           record
         });
@@ -696,7 +690,6 @@ export async function commitContactImportBatch(input: {
         outcome = await mergeImportedContact({
           workspaceId: input.workspaceId,
           actorUserId: input.actorUserId,
-          planTier: input.planTier,
           timezone: input.timezone,
           record,
           contactId: resolution.targetContactId,

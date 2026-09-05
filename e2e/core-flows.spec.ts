@@ -27,53 +27,48 @@ test("single user can complete the primary discovery and support journey", async
   await page.goto("/jumps");
   await expect(page.getByRole("heading", { name: "Today", exact: true }).first()).toBeVisible();
   await expect(page.locator(`[data-jump-workflow="${pendingJumpId}"]:visible`)).toBeVisible();
-  const activeRangeLabel = testInfo.project.name === "mobile-chromium" ? "Today" : "Due";
-  await expect(page.locator(".filter-presets a:visible").filter({ hasText: activeRangeLabel }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Filter/ })).toBeVisible();
+  await expect(page.getByRole("link", { name: /This week:/ })).toBeVisible();
 
   await page.goto("/contacts");
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
-  await page.getByLabel("More Contact tools").click();
-  await expect(page.getByRole("heading", { name: "Contact Groups" })).toBeVisible();
-  await expect(page.getByText("3 active · 3 stored", { exact: true })).toBeVisible();
+  await page.getByLabel("More contact tools").click();
+  const contactTools = page.getByRole("dialog", { name: "Contact tools" });
+  await expect(contactTools.getByRole("heading", { name: "Tags" })).toBeVisible();
+  await expect(contactTools.getByRole("link", { name: "Import contacts" })).toBeVisible();
+  await expect(contactTools.getByText(/Google Contacts/)).toHaveCount(0);
   await page.getByLabel("Close Contact tools").click();
-  await expect(page.getByRole("heading", { name: "Contact Groups" })).toBeHidden();
-  if (testInfo.project.name === "mobile-chromium") {
-    const mobileFilter = page.locator(".mobile-filter-disclosure").first();
-    await mobileFilter.locator("summary").click();
-    await expect(mobileFilter.getByRole("combobox", { name: "Group", exact: true })).toBeVisible();
-    await mobileFilter.locator("summary").click();
-  } else {
-    await expect(page.locator('select[aria-label="Filter Contacts by group"]:visible')).toBeVisible();
-  }
-  await page.getByLabel("Add Contact", { exact: true }).click();
-  const addPanel = page.locator(".contact-add-panel");
-  await expect(addPanel.locator(".device-contact-picker")).toBeVisible();
-  await expect(addPanel.getByRole("link", { name: /Import CSV \/ VCF/ })).toBeVisible();
-  await expect(addPanel.getByRole("link", { name: /Google Contacts/ })).toHaveCount(0);
+  await expect(contactTools).toBeHidden();
+  await page.getByRole("button", { name: /^Filter/ }).click();
+  const contactFilters = page.getByRole("dialog", { name: "Filter contacts" });
+  await expect(contactFilters.getByLabel("Tag")).toBeVisible();
+  await page.getByLabel("Close Filter contacts").click();
+  await page.getByRole("link", { name: "Add", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Add a contact" })).toBeVisible();
 
   await page.goto("/templates");
-  await expect(page.getByRole("heading", { name: "Mix Templates" })).toBeVisible();
-  await expect(page.getByText("New Lead Follow-Up", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Create my own" })).toHaveAttribute("href", "/mixes/new");
+  await expect(page.getByRole("heading", { name: "Ready-made plans" })).toBeVisible();
+  await expect(page.getByText("Estimate sent: gentle follow-up", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Build my own" })).toHaveAttribute("href", "/mixes/new?custom=1");
 
-  await page.goto("/mixes/new");
-  await expect(page.getByRole("heading", { name: "Create a follow-up plan" })).toBeVisible();
-  await expect(page.getByLabel("Write this action")).toBeVisible();
+  await page.goto("/mixes/new?custom=1");
+  await expect(page.getByRole("heading", { name: "Build a custom plan" })).toBeVisible();
+  await expect(page.getByLabel("Plan name")).toBeVisible();
 
   const ticketTitle = `E2E browser support ticket ${testInfo.project.name}`;
   await page.goto("/help");
-  await expect(page.getByRole("heading", { name: "Help & Support" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Help", exact: true })).toBeVisible();
   const supportForm = page.locator("#contact-support form");
   if (testInfo.project.name === "mobile-chromium") {
-    await expect(supportForm.getByRole("button", { name: "Submit support ticket" })).toBeVisible();
+    await expect(supportForm.getByRole("button", { name: "Send to support" })).toBeVisible();
     return;
   }
   await supportForm.getByLabel("Topic").selectOption("GENERAL");
-  await supportForm.getByLabel("Ticket title").fill(ticketTitle);
+  await supportForm.getByLabel("Short title").fill(ticketTitle);
   await supportForm.getByLabel("What happened?").fill("Browser coverage is verifying that a private support conversation can be submitted and opened.");
   await Promise.all([
     page.waitForURL(/\/account\/tickets\//),
-    supportForm.getByRole("button", { name: "Submit support ticket" }).click()
+    supportForm.getByRole("button", { name: "Send to support" }).click()
   ]);
   await expect(page.getByRole("heading", { name: ticketTitle })).toBeVisible();
   } finally {
@@ -108,10 +103,10 @@ test("supported mobile browsers can Quick Add a selected device Contact", async 
   await signIn(page, userEmail, userPassword);
   await page.goto("/contacts");
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
-  const addPanel = page.locator("details").filter({ has: page.locator(".contact-add-panel") });
-  await addPanel.evaluate((element) => { (element as HTMLDetailsElement).open = true; });
-  await page.getByRole("button", { name: /Pick from device/ }).click();
-  await expect(page.getByText(/\d+ added · \d+ merged/)).toBeVisible();
+  await page.getByRole("button", { name: "More contact tools" }).click();
+  const tools = page.getByRole("dialog", { name: "Contact tools" });
+  await tools.getByRole("button", { name: /Pick from device/ }).click();
+  await expect(tools.getByText(/\d+ added · \d+ merged/)).toBeVisible();
 });
 
 test("new customer reaches a prepared first Jump through onboarding", async ({ page }, testInfo) => {
@@ -144,18 +139,17 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   await expect(page).toHaveURL(/\/onboarding/);
   await expect(page.getByRole("heading", { name: "Never let a good customer go quiet" })).toBeVisible();
   await page.getByLabel("Business name").fill("Browser Test Plumbing");
-  await page.getByLabel("Name").fill("Jordan First Win");
+  await page.getByLabel("Name", { exact: true }).fill("Jordan First Win");
   await page.getByLabel("Email optional").fill("jordan-first-win@example.com");
   await Promise.all([
     page.waitForURL(/\/jumps\?.*welcome=1/),
     page.getByRole("button", { name: "Prepare my first follow-up" }).click()
   ]);
-  await expect(page.getByText("Your first Jump for Jordan First Win is ready below.")).toBeVisible();
+  await expect(page.getByText("Your first follow-up for Jordan First Win is ready.")).toBeVisible();
   const firstFollowUp = page.locator(".jump-task-card:visible").filter({ hasText: "Jordan First Win" }).first();
   await expect(firstFollowUp).toBeVisible();
-  await firstFollowUp.locator("summary").click();
-  const preparedMessage = firstFollowUp.locator(".jump-expanded-content > div").filter({ hasText: "Prepared content" }).locator("p");
-  const renderedBody = await preparedMessage.textContent();
+  const preparedMessage = firstFollowUp.getByLabel("Edit before sending");
+  const renderedBody = await preparedMessage.inputValue();
   expect(renderedBody).not.toContain("{{");
   expect(renderedBody).not.toContain("  ");
   expect(renderedBody?.trim()).toMatch(/Onboarding Browser Test$/);
@@ -271,11 +265,12 @@ test.describe("stateful administrator security journey", () => {
 
     await page.goto("/admin/users");
     const targetCard = page.locator(".admin-user-card").filter({ hasText: userEmail });
-    await targetCard.locator("summary").filter({ hasText: "View account" }).click();
-    await targetCard.getByLabel("Support reason").fill("E2E verification of the centrally enforced view-only mutation boundary.");
+    await targetCard.getByRole("button", { name: "View account…" }).click();
+    const supportView = page.getByRole("dialog", { name: /View Demo Owner’s account/ });
+    await supportView.getByLabel("Support reason").fill("E2E verification of the centrally enforced view-only mutation boundary.");
     await Promise.all([
       page.waitForURL(/\/jumps\?impersonating=1/),
-      targetCard.getByRole("button", { name: "Start 30-minute view-only session" }).click()
+      supportView.getByRole("button", { name: "Start 30-minute view-only session" }).click()
     ]);
     await expect(page.getByText("View-only support session", { exact: true }).first()).toBeVisible();
 

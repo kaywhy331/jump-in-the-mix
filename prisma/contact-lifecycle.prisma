@@ -24,19 +24,6 @@ model ContactRelationshipState {
   @@index([workspaceId, nextCommitmentAt])
 }
 
-model UserContactLayout {
-  id             String   @id @default(cuid())
-  userId         String
-  workspaceId    String
-  cardOrder      String[]
-  collapsedCards String[]
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@unique([userId, workspaceId])
-  @@index([workspaceId])
-}
-
 model ContactSavedView {
   id          String   @id @default(cuid())
   userId      String

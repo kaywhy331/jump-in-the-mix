@@ -128,7 +128,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
   const payload = await request.json().catch(() => null) as NotePayload | null;
   const kind = clean(payload?.kind, 40).toUpperCase() as ContactActivityKind;
   const summary = clean(payload?.summary, 4000);
-  if (!NOTE_KINDS.includes(kind)) return NextResponse.json({ error: "Choose Customer note or Private relationship update." }, { status: 400 });
+  if (!NOTE_KINDS.includes(kind)) return NextResponse.json({ error: "Choose a regular or private note." }, { status: 400 });
   if (!summary) return NextResponse.json({ error: "Add a note before saving." }, { status: 400 });
 
   const requestId = clean(payload?.requestId, 120) || randomUUID();

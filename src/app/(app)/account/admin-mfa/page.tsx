@@ -9,7 +9,9 @@ import {
   prepareAdminMfaEnrollment
 } from "@/lib/admin-mfa";
 import { requirePlatformAdminIdentity } from "@/lib/auth";
+import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { env } from "@/lib/env";
+import { formatDateTime } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Administrator MFA" };
 
@@ -22,6 +24,7 @@ function safeReturnTo(value: string | undefined): string {
 
 export default async function AdminMfaPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, { session, user }] = await Promise.all([searchParams, requirePlatformAdminIdentity()]);
+  const displayPreferences = await displayPreferencesForUser(user.id);
   const returnTo = safeReturnTo(params.returnTo);
   const [credential, verified] = await Promise.all([
     adminMfaCredentialStatus(user.id),
@@ -35,7 +38,7 @@ export default async function AdminMfaPage({ searchParams }: { searchParams: Pro
         <section className="card admin-mfa-ready-card">
           <div className="card-header"><div><h2>This session is verified</h2><p>Step-up access remains valid for up to {env.adminMfaMaxAgeMinutes} minutes on this signed-in session.</p></div><span className="status-pill done">Protected</span></div>
           <dl className="account-definition-list">
-            <div><dt>Enabled</dt><dd>{credential.enabledAt.toLocaleString()}</dd></div>
+            <div><dt>Enabled</dt><dd>{formatDateTime(credential.enabledAt, displayPreferences)}</dd></div>
             <div><dt>Recovery codes remaining</dt><dd>{credential.recoveryCodesRemaining}</dd></div>
           </dl>
           <div className="form-actions"><Link className="button primary" href={returnTo}>Continue to Admin</Link></div>

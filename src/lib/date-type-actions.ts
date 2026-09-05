@@ -20,7 +20,7 @@ function fail(message: string): never {
 export async function createCustomDateTypeAction(formData: FormData): Promise<void> {
   const { workspace } = await requireWorkspace();
   const name = value(formData, "name");
-  if (!name) fail("Give the Jump Date Type a name.");
+  if (!name) fail("Give the saved date type a name.");
   const slug = slugify(name);
   if (!slug) fail("Use at least one letter or number in the name.");
   const duplicate = await prisma.dateType.findFirst({
@@ -30,7 +30,7 @@ export async function createCustomDateTypeAction(formData: FormData): Promise<vo
     },
     select: { id: true }
   });
-  if (duplicate) fail("A system or custom Jump Date Type already uses that name.");
+  if (duplicate) fail("A built-in or custom date type already uses that name.");
   const isActive = true;
   await prisma.dateType.create({
     data: {
@@ -49,12 +49,12 @@ export async function renameCustomDateTypeAction(formData: FormData): Promise<vo
   const { workspace } = await requireWorkspace();
   const dateTypeId = value(formData, "dateTypeId");
   const name = value(formData, "name");
-  if (!name) fail("Give the Jump Date Type a name.");
+  if (!name) fail("Give the saved date type a name.");
   const current = await prisma.dateType.findFirst({
     where: { id: dateTypeId, workspaceId: workspace.id, isSystem: false },
     select: { id: true }
   });
-  if (!current) fail("Custom Jump Date Type not found.");
+  if (!current) fail("Custom date type not found.");
   const slug = slugify(name);
   const duplicate = await prisma.dateType.findFirst({
     where: {
@@ -64,7 +64,7 @@ export async function renameCustomDateTypeAction(formData: FormData): Promise<vo
     },
     select: { id: true }
   });
-  if (duplicate) fail("A system or custom Jump Date Type already uses that name.");
+  if (duplicate) fail("A built-in or custom date type already uses that name.");
   await prisma.dateType.update({ where: { id: current.id }, data: { name, slug } });
   redirect("/settings/jump-date-types?updated=1");
 }
@@ -75,7 +75,7 @@ export async function saveActiveDateTypesAction(formData: FormData): Promise<voi
   const available = selectedIds.length
     ? await prisma.dateType.findMany({ where: { workspaceId: workspace.id, isSystem: false, id: { in: selectedIds } }, select: { id: true } })
     : [];
-  if (available.length !== selectedIds.length) fail("One or more selected Jump Date Types are unavailable.");
+  if (available.length !== selectedIds.length) fail("One or more selected date types are unavailable.");
   await prisma.$transaction(async (tx) => {
     await tx.dateType.updateMany({ where: { workspaceId: workspace.id, isSystem: false }, data: { isActive: false } });
     if (selectedIds.length) {
@@ -93,13 +93,13 @@ export async function deleteCustomDateTypeAction(formData: FormData): Promise<vo
     where: { id: dateTypeId, workspaceId: workspace.id, isSystem: false },
     select: { id: true }
   });
-  if (!dateType) fail("Custom Jump Date Type not found.");
+  if (!dateType) fail("Custom date type not found.");
   const [jumpDateCount, mixCount] = await Promise.all([
     prisma.jumpDate.count({ where: { workspaceId: workspace.id, dateTypeId: dateType.id } }),
     prisma.mix.count({ where: { workspaceId: workspace.id, dateTypeId: dateType.id, status: { not: "ARCHIVED" } } })
   ]);
   if (jumpDateCount || mixCount) {
-    fail(`This type is still used by ${jumpDateCount} Jump Date${jumpDateCount === 1 ? "" : "s"} and ${mixCount} Mix${mixCount === 1 ? "" : "es"}. Deactivate it instead of deleting it.`);
+    fail(`This type is still used by ${jumpDateCount} saved date${jumpDateCount === 1 ? "" : "s"} and ${mixCount} plan${mixCount === 1 ? "" : "s"}. Turn it off instead of deleting it.`);
   }
   await prisma.dateType.delete({ where: { id: dateType.id } });
   redirect("/settings/jump-date-types?deleted=1");

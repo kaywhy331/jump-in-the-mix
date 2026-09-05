@@ -74,27 +74,10 @@ export const env = {
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ?? "",
   twilioFromNumber: process.env.TWILIO_FROM_NUMBER ?? "",
-  aiProvider: (process.env.AI_PROVIDER ?? "openai").trim().toLowerCase(),
-  aiApiKey: process.env.AI_API_KEY ?? "",
-  aiModel: process.env.AI_MODEL ?? "gpt-5.6-luna",
-  aiBaseUrl: (process.env.AI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, ""),
-  stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? "",
-  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? "",
-  stripeApiVersion: process.env.STRIPE_API_VERSION ?? "2026-02-25.clover",
-  stripeWebhookToleranceSeconds: positiveNumber(process.env.STRIPE_WEBHOOK_TOLERANCE_SECONDS, 300),
-  stripePlusMonthlyPriceId: process.env.STRIPE_PLUS_MONTHLY_PRICE_ID ?? "",
-  stripePlusAnnualPriceId: process.env.STRIPE_PLUS_ANNUAL_PRICE_ID ?? "",
-  stripeProMonthlyPriceId: process.env.STRIPE_PRO_MONTHLY_PRICE_ID ?? "",
-  stripeProAnnualPriceId: process.env.STRIPE_PRO_ANNUAL_PRICE_ID ?? "",
-  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
-  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-  googleRedirectUri:
-    process.env.GOOGLE_REDIRECT_URI ?? `${appUrl.replace(/\/$/, "")}/api/integrations/google/callback`,
-  googleSyncHours: positiveNumber(process.env.GOOGLE_SYNC_HOURS, 24),
   pilotMode: enabled(process.env.PILOT_MODE),
-  demoMode: enabled(process.env.DEMO_MODE, !isProduction),
-  demoEmail: process.env.DEMO_USER_EMAIL ?? "demo@jumpinthemix.local",
-  demoPassword: process.env.DEMO_USER_PASSWORD ?? "JumpInTheMix123!"
+  demoMode: enabled(process.env.DEMO_MODE),
+  demoEmail: process.env.DEMO_USER_EMAIL ?? "",
+  demoPassword: process.env.DEMO_USER_PASSWORD ?? ""
 };
 
 export function productionConfigurationIssues(source: NodeJS.ProcessEnv = process.env): string[] {

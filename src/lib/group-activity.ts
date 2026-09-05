@@ -72,7 +72,7 @@ export async function setActiveWorkspaceGroups(input: {
     });
     const availableIds = new Set(groups.map((group) => group.id));
     if (selectedIds.some((id) => !availableIds.has(id))) {
-      throw new Error("One or more selected Contact Groups are unavailable.");
+      throw new Error("One or more selected tags are unavailable.");
     }
 
     const selected = new Set(selectedIds);

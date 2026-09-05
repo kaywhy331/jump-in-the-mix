@@ -24,10 +24,5 @@ export {
 export { createStarterMixAction } from "@/lib/starter-mix-actions";
 export { activateMixAction, pauseMixAction, archiveMixAction } from "@/lib/mix-lifecycle-actions";
 export { assignMixToContactAction, removeMixAssignmentAction } from "@/lib/contact-mix-actions";
-export {
-  createReusableJumpAction,
-  updateReusableJumpAction,
-  archiveReusableJumpAction
-} from "@/lib/reusable-jump-update";
 export { saveMixAction } from "@/lib/mix-editor-actions";
 export { updateWorkspaceProfileAction as updateWorkspaceSettingsAction } from "@/lib/workspace-profile-actions";

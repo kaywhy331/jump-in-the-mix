@@ -2,24 +2,22 @@ import type { Channel, MixTriggerMode } from "@/generated/prisma/client";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
 
 export const MIX_TEMPLATE_CATEGORIES = [
-  "Business",
-  "Sales & Prospecting",
-  "Client Success / Retention",
-  "Events & Networking",
-  "Personal / Relationships",
-  "Marketing Campaigns",
-  "General / Other"
+  "Finished jobs",
+  "Estimates",
+  "New clients",
+  "Current clients",
+  "Past clients",
+  "Reviews & referrals",
+  "Reconnect",
+  "Neighborhood",
+  "Other"
 ] as const;
 
 export const MIX_TEMPLATE_INDUSTRIES = [
-  "Real Estate",
-  "Insurance",
-  "Finance",
-  "Healthcare",
-  "Contractors / Home Services",
-  "Coaching / Consulting",
-  "Nonprofit",
-  "General / Other"
+  "Home services",
+  "Real estate",
+  "Insurance & finance",
+  "Other"
 ] as const;
 
 export type SharedMixStep = {
@@ -124,14 +122,14 @@ export function sharedMixChannelLabel(channel: Channel): string {
 
 export function normalizeSharedMixSteps(value: unknown): SharedMixStep[] {
   const rows = normalizedRows(value);
-  if (!rows.length) throw new SharedMixContentError("This Mix Template does not contain any Jumps.");
-  if (rows.length > 50) throw new SharedMixContentError("A Mix Template may contain at most 50 Jumps.");
+  if (!rows.length) throw new SharedMixContentError("This ready-made plan has no follow-ups.");
+  if (rows.length > 50) throw new SharedMixContentError("A ready-made plan may contain at most 50 follow-ups.");
 
   return rows.map((value, index) => {
     const record = asRecord(value);
-    if (!record) throw new SharedMixContentError(`Jump #${index + 1} has an invalid structure.`);
+    if (!record) throw new SharedMixContentError(`Follow-up #${index + 1} has an invalid structure.`);
     const channel = normalizeSharedMixChannel(firstDefined(record, ["channel", "type", "kind"]));
-    if (!channel) throw new SharedMixContentError(`Jump #${index + 1} does not use a supported channel.`);
+    if (!channel) throw new SharedMixContentError(`Follow-up #${index + 1} does not use a supported channel.`);
 
     const subject = cleanString(firstDefined(record, ["subject", "emailSubject", "email_subject"]), 300);
     let body = cleanString(firstDefined(record, ["body", "message", "content", "text"]), 20_000);
@@ -142,32 +140,32 @@ export function normalizeSharedMixSteps(value: unknown): SharedMixStep[] {
     }
 
     if (channel === "EMAIL" && (!subject || !body)) {
-      throw new SharedMixContentError(`Email Jump #${index + 1} requires both a subject and body.`);
+      throw new SharedMixContentError(`Email follow-up #${index + 1} requires both a subject and message.`);
     }
     if (["SMS", "WHATSAPP"].includes(channel) && !body) {
-      throw new SharedMixContentError(`${sharedMixChannelLabel(channel)} Jump #${index + 1} requires message content.`);
+      throw new SharedMixContentError(`${sharedMixChannelLabel(channel)} follow-up #${index + 1} requires message content.`);
     }
     if (["PHONE_CALL", "VOICEMAIL"].includes(channel) && !script) {
-      throw new SharedMixContentError(`${sharedMixChannelLabel(channel)} Jump #${index + 1} requires a script or notes.`);
+      throw new SharedMixContentError(`${sharedMixChannelLabel(channel)} follow-up #${index + 1} requires a script or notes.`);
     }
 
     const content = [subject, body, script].filter(Boolean).join("\n");
     const unknown = findUnknownPlaceholders(content);
     if (unknown.length) {
-      throw new SharedMixContentError(`Jump #${index + 1} contains unsupported placeholders: ${unknown.join(", ")}.`);
+      throw new SharedMixContentError(`Follow-up #${index + 1} contains unsupported placeholders: ${unknown.join(", ")}.`);
     }
     if (channel !== "PHONE_CALL" && containsPrivateNotesPlaceholder(content)) {
-      throw new SharedMixContentError(`Jump #${index + 1} uses Private Notes outside a Phone Call.`);
+      throw new SharedMixContentError(`Follow-up #${index + 1} uses Private Notes outside a phone call.`);
     }
 
     const dayOffset = integer(firstDefined(record, ["dayOffset", "day_offset", "triggerDays", "trigger_days", "day", "offset"]));
     if (dayOffset < -3650 || dayOffset > 3650) {
-      throw new SharedMixContentError(`Jump #${index + 1} has an unsupported day offset.`);
+      throw new SharedMixContentError(`Follow-up #${index + 1} has unsupported timing.`);
     }
     const parsedTime = integer(firstDefined(record, ["sendTimeMinutes", "send_time_minutes", "timeMinutes", "time_minutes"]), -1);
     const sendTimeMinutes = parsedTime >= 0 && parsedTime <= 1439 ? parsedTime : null;
     const name = cleanString(firstDefined(record, ["name", "label", "title"]), 160)
-      ?? `${sharedMixChannelLabel(channel)} Jump #${index + 1}`;
+      ?? `${sharedMixChannelLabel(channel)} follow-up #${index + 1}`;
 
     return {
       name,
@@ -188,20 +186,8 @@ export function sharedMixContentIssue(value: unknown): string | null {
     normalizeSharedMixSteps(value);
     return null;
   } catch (error) {
-    return error instanceof Error ? error.message : "This Mix Template has invalid content.";
+    return error instanceof Error ? error.message : "This ready-made plan has invalid content.";
   }
-}
-
-export function sharedMixTrendingScore(input: {
-  voteCount: number;
-  importCount: number;
-  publishedAt: Date | null;
-  updatedAt: Date;
-}, now = new Date()): number {
-  const activityDate = input.publishedAt ?? input.updatedAt;
-  const ageDays = Math.max((now.getTime() - activityDate.getTime()) / 86_400_000, 0);
-  const freshness = Math.max(30 - ageDays, 0) / 5;
-  return input.voteCount * 4 + input.importCount * 2 + freshness;
 }
 
 export function formatSharedMixTime(minutes: number | null): string | null {

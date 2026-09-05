@@ -1,21 +1,28 @@
 # Jump in the Mix
 
-Jump in the Mix is a single-user relationship follow-through application. It helps one person remember relationship context, prepare follow-ups, complete Jumps, organize Contacts, and build repeatable Mixes without turning the experience into a team CRM.
+Jump in the Mix is a phone-first follow-up CRM for owner-operated small businesses. It prepares the texts, calls, and emails that keep estimates moving, customers cared for, and a business top of mind for repeat work and referrals.
 
-This repository is currently a `v0.1.0-rc.1` release candidate for a small private pilot. It is not generally production-certified.
+The primary product is a hosted free beta. A Docker-based, single-owner edition remains available as a secondary privacy-oriented option. The active product contract is [docs/CANONICAL_PRODUCT_DECISIONS.md](docs/CANONICAL_PRODUCT_DECISIONS.md).
 
 ## What is included
 
-- Today: prepared follow-up actions, completion outcomes, snooze, and undo
-- Contacts: live search, relationship notes and timeline, Important Dates, archive/restore, and duplicate review
-- Mixes and Templates: manual action authoring, explicit audiences, workload review, and reusable templates
+- Today: prepared follow-ups, completion outcomes, snooze, and undo
+- Contacts: live search, notes and timeline, saved dates, archive/restore, and duplicate review
+- Plans: vertical ready-made plans and a simple custom-plan builder
 - Quick Add and resumable CSV/VCF imports
-- Personal profile, scheduling preferences, sessions, data export, and account deletion
+- Business profile, scheduling preferences, digests, Web Push, sessions, spreadsheet/JSON export, and account deletion
+- Optional, review-window-protected email/SMS delivery and review/referral requests
 - PostgreSQL-backed persistence, a background worker, health checks, and encrypted backup/restore tooling
 
-The active product does not include billing, pricing tiers, subscriptions, teams, invitations, workspace switching, Google integration, Stripe, external AI providers, or referral rewards. Some historical database structures remain dormant to avoid unsafe migration churn.
+The free beta does not include billing, paid tiers, teams, Google Contacts sync, Stripe, an AI plan wizard, or signup-reward referrals.
 
-## Pilot requirements
+## Hosted deployment
+
+The hosted topology is one web service, one worker service, and PostgreSQL. The checked-in deployment blueprint provisions that topology and runs committed migrations before the web release. See [docs/HOSTED_DEPLOYMENT.md](docs/HOSTED_DEPLOYMENT.md) for required secrets, DNS/provider setup, rollback, and smoke checks.
+
+Hosted production requires HTTPS, verified transactional email, strong unique secrets, and provider credentials for each enabled sign-in or delivery option. `PILOT_MODE` and `DEMO_MODE` must both be false.
+
+## Self-hosted requirements
 
 - Docker with Docker Compose v2
 - Node.js 22 or newer for the convenience commands
@@ -24,7 +31,7 @@ The active product does not include billing, pricing tiers, subscriptions, teams
 
 PostgreSQL is not published to the host in the pilot profile. The web application binds to `127.0.0.1` by default. Web and worker containers run as the non-root `node` user.
 
-## Start a private pilot installation
+## Start a self-hosted installation
 
 ```bash
 npm ci --no-audit --no-fund
@@ -32,7 +39,7 @@ npm run pilot:init
 npm run pilot:up
 ```
 
-`pilot:init` creates an ignored `.env` with unique random secrets. It never creates an account or prints credentials. Open `http://127.0.0.1:3000/register`, create the one owner account, and confirm the timezone during onboarding. Registration closes after that owner is created.
+`pilot:init` creates an ignored `.env` with unique random secrets. It never creates an account or prints credentials. Open `http://127.0.0.1:3000/register` and create the one owner account. Registration closes after that owner is created.
 
 To configure values manually, copy `.env.example` to `.env`, set `NODE_ENV=production`, `PILOT_MODE=true`, `DEMO_MODE=false`, and replace every `GENERATE_ME` value. Then start the profile with:
 
@@ -78,7 +85,7 @@ CI validates migrations, source boundaries, TypeScript, unit/integration tests, 
 
 ## Security and privacy
 
-Data remains in the operator-controlled PostgreSQL environment. Keep the application loopback-only unless you can provide TLS, host hardening, access controls, monitoring, and tested recovery. See [SECURITY.md](SECURITY.md) for private reporting guidance.
+Hosted accounts are isolated by workspace in PostgreSQL. In the self-hosted edition, data remains in the operator-controlled environment. Keep a self-hosted installation loopback-only unless you can provide TLS, host hardening, access controls, monitoring, and tested recovery. See [the security model](docs/SECURITY.md) for controls and private reporting guidance.
 
 Never post Contact data, relationship notes, databases, backups, screenshots containing personal data, or credentials in a public GitHub issue.
 

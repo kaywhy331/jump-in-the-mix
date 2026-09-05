@@ -4,6 +4,7 @@
   --muted: #647089;
   --surface: #ffffff;
   --surface-soft: #f5f7fb;
+  --surface-muted: #eef1f7;
   --line: #dfe4ee;
   --brand: #5d4cf2;
   --brand-dark: #4837ce;
@@ -35,6 +36,7 @@
   --z-sticky: 40;
   --z-modal: 100;
   --motion-fast: 160ms;
+  --focus: #826cff;
   --status-success-bg: #e8f8f1;
   --status-success-ink: #0d7758;
   --status-danger-bg: #fff0f2;

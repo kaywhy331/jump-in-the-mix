@@ -1,4 +1,4 @@
-/* Authoritative mobile application layout. Loaded after legacy feature styles. */
+/* Phone-sized adjustments for the shared responsive application DOM. */
 @media (max-width: 767px) {
   .mobile-app-header { display: none !important; }
   .app-main { padding: 0 0 calc(76px + env(safe-area-inset-bottom)); }
@@ -48,42 +48,15 @@
   .mobile-nav .nav-quick-add { width: 52px; min-width: 52px; height: 52px; min-height: 52px; justify-self: center; margin: -8px auto 0; box-shadow: 0 8px 22px rgba(71,54,210,.25); }
   .mobile-nav .nav-quick-add svg { width: 27px; height: 27px; }
 
-  /* Shared mobile search and filter disclosure */
-  .mobile-contact-controls { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; margin: 0 0 4px; }
-  .mobile-search-form { display: block; }
-  .mobile-search-form input { width: 100%; min-width: 0; height: 48px; padding: 0 12px; }
-  .mobile-filter-disclosure { position: relative; }
-  .mobile-filter-disclosure > summary { list-style: none; }
-  .mobile-filter-disclosure > summary::-webkit-details-marker { display: none; }
+  /* Shared mobile filter trigger */
   .filter-trigger { min-width: 48px; height: 48px; gap: 7px; padding: 0 12px; }
   .filter-trigger svg { width: 19px; height: 19px; }
   .filter-trigger.active { color: var(--brand-dark); border-color: #bdb4ff; background: var(--brand-soft); }
-  .mobile-filter-panel {
-    position: absolute;
-    z-index: 45;
-    top: calc(100% + 7px);
-    right: 0;
-    width: min(330px, calc(100vw - 32px));
-    display: grid;
-    gap: 12px;
-    padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: white;
-    box-shadow: var(--shadow);
-  }
-  .mobile-filter-panel select { width: 100%; }
-  .mobile-filter-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .mobile-filter-actions .button { width: 100%; }
 
   /* Today */
   .next-up-section { gap: 5px; }
   .next-up-section > .eyebrow { padding-left: 2px; background: none; color: var(--brand-dark); }
   .today-compact-summary { padding: 0 2px; font-size: .82rem; }
-  .filter-stack { grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; margin-bottom: 8px; }
-  .filter-presets { gap: 1px; }
-  .filter-presets .button { min-height: 40px; }
-  .filter-stack > .mobile-filter-disclosure { grid-column: 2; grid-row: 1; }
 
   .jump-list { border-top: 0; }
   .jump-task-card {
@@ -167,7 +140,6 @@
   .page { padding-inline: 12px; }
   .page-header { margin-inline: -12px; padding-inline: 12px; }
   .filter-trigger span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-  .mobile-contact-controls { grid-template-columns: minmax(0, 1fr) 48px; }
   .next-up-section .jump-primary-action .jump-channel-action { min-width: 44px; width: 44px; padding: 0; }
   .next-up-section .jump-primary-action .jump-channel-action span { display: none; }
 }

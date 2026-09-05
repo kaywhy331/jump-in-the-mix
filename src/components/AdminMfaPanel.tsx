@@ -114,7 +114,7 @@ export function AdminMfaPanel({
       {state.status === "error" && <div className="notice error" role="alert">{state.message}</div>}
 
       <div className="form-actions">
-        <Link className="button" href="/jumps">Return to Jump</Link>
+        <Link className="button" href="/jumps">Return to Today</Link>
         <button className="button primary" type="submit" disabled={pending}>
           {pending ? "Verifying…" : mode === "setup" ? "Enable administrator MFA" : "Verify and continue"}
         </button>

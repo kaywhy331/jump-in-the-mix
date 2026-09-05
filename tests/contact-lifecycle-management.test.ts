@@ -51,14 +51,9 @@ describe.sequential("Contact lifecycle management", () => {
     expect(filtered[0]?.relationshipState).toMatchObject({ priority: "URGENT" });
   });
 
-  it("stores one cross-device layout and reusable saved views per user and workspace", async () => {
-    await prisma.userContactLayout.create({ data: { userId: ids.user, workspaceId: ids.workspace, cardOrder: ["relationship-state", "important-dates"], collapsedCards: ["important-dates"] } });
+  it("stores reusable saved views per user and workspace", async () => {
     await prisma.contactSavedView.create({ data: { userId: ids.user, workspaceId: ids.workspace, name: "Urgent clients", query: { priority: "URGENT", permission: "contactable" }, isDefault: true } });
-    const [layout, view] = await Promise.all([
-      prisma.userContactLayout.findUniqueOrThrow({ where: { userId_workspaceId: { userId: ids.user, workspaceId: ids.workspace } } }),
-      prisma.contactSavedView.findUniqueOrThrow({ where: { userId_workspaceId_name: { userId: ids.user, workspaceId: ids.workspace, name: "Urgent clients" } } })
-    ]);
-    expect(layout.cardOrder).toEqual(["relationship-state", "important-dates"]);
+    const view = await prisma.contactSavedView.findUniqueOrThrow({ where: { userId_workspaceId_name: { userId: ids.user, workspaceId: ids.workspace, name: "Urgent clients" } } });
     expect(view).toMatchObject({ isDefault: true, query: { priority: "URGENT", permission: "contactable" } });
   });
 
@@ -67,7 +62,6 @@ describe.sequential("Contact lifecycle management", () => {
     const merge = read("src/lib/contact-merge-actions.ts");
     const bulk = read("src/lib/bulk-contact-actions.ts");
     const engine = read("src/lib/jump-engine.ts");
-    const layoutApi = read("src/app/api/preferences/contact-layout/route.ts");
     const contactsPage = read("src/app/(app)/contacts/page.tsx");
     expect(lifecycle).toContain("restoreContactAction");
     expect(lifecycle).not.toMatch(/PLAN_LIMITS|upgrade|plan allows/i);
@@ -75,8 +69,6 @@ describe.sequential("Contact lifecycle management", () => {
     expect(merge).toContain("sourceSnapshot");
     expect(bulk).toContain("assertContactable");
     expect(engine).toContain("doNotContactIds.has(contact.id)");
-    expect(layoutApi).toContain("getCurrentSession()");
-    expect(layoutApi).toContain("workspaceId: membership.workspaceId");
     expect(contactsPage).toContain("ContactSavedViewsBar");
     expect(contactsPage).toContain("relationshipState: { is:");
     expect(contactsPage).toContain("doNotContact: contact.relationshipState?.doNotContact ?? false");

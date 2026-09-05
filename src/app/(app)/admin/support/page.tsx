@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@/generated/prisma/client";
 import { requirePlatformAdmin } from "@/lib/auth";
+import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import {
@@ -29,7 +30,8 @@ type SearchParams = {
 };
 
 export default async function AdminSupportPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [params] = await Promise.all([searchParams, requirePlatformAdmin()]);
+  const [params, { user }] = await Promise.all([searchParams, requirePlatformAdmin()]);
+  const displayPreferences = await displayPreferencesForUser(user.id);
   const query = params.q?.trim() ?? "";
   const statusValue = params.status ?? "";
   const categoryValue = params.category ?? "";
@@ -97,7 +99,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
     workspaceIds.length
       ? prisma.workspace.findMany({
           where: { id: { in: workspaceIds } },
-          select: { id: true, name: true, planTier: true, subscriptionStatus: true }
+          select: { id: true, name: true }
         })
       : []
   ]);
@@ -113,9 +115,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
         </div>
         <div className="page-actions">
           <Link className="button" href="/admin/users">Users</Link>
-          <Link className="button" href="/admin/billing">Billing</Link>
-          <Link className="button" href="/admin/integrations">Integrations</Link>
-          <Link className="button" href="/admin/templates">Templates</Link>
+          <Link className="button" href="/admin/templates">Ready-made plans</Link>
         </div>
       </header>
 
@@ -179,11 +179,10 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
               <div className="support-admin-ticket-context">
                 <span>{supportCategoryLabel(ticket.category)}</span>
                 <span>{workspace?.name ?? ticket.workspaceId}</span>
-                <span>{workspace ? `${workspace.planTier.toLowerCase()} · ${workspace.subscriptionStatus.toLowerCase().replaceAll("_", " ")}` : "Workspace unavailable"}</span>
                 <span>{ticket._count.messages} messages</span>
-                <span>Updated {formatDateTime(ticket.lastActivityAt)}</span>
+                <span>Updated {formatDateTime(ticket.lastActivityAt, displayPreferences)}</span>
               </div>
-              {lastMessage && <p className="support-admin-snippet"><strong>{lastMessage.authorType === "ADMIN" ? "Jump in the Mix Response" : "Customer"}:</strong> {lastMessage.body}</p>}
+              {lastMessage && <p className="support-admin-snippet"><strong>{lastMessage.authorType === "ADMIN" ? "Support" : "Customer"}:</strong> {lastMessage.body}</p>}
             </Link>
           );
         })}

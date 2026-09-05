@@ -33,7 +33,7 @@ function parseDateFields(formData: FormData, path: string): {
     if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(day) || day < 1 || day > daysInMonth(2000, month)) {
       fail(path, "Choose a valid month and day.");
     }
-    if (recurrence === "NONE") fail(path, "A month-and-day Important Date must repeat monthly or yearly.");
+    if (recurrence === "NONE") fail(path, "A month-and-day saved date must repeat monthly or yearly.");
     return { dateValue: null, month, day, recurrence };
   }
 
@@ -69,7 +69,7 @@ export async function createImportantDateAction(formData: FormData): Promise<voi
     })
   ]);
   if (!contact) fail("/contacts", "Contact not found.");
-  if (!dateType) fail(path, "Choose a valid Important Date Type.");
+  if (!dateType) fail(path, "Choose a valid saved date type.");
 
   const matchingMix = autoAssignRecommended
     ? await prisma.mix.findFirst({
@@ -149,8 +149,8 @@ export async function updateImportantDateAction(formData: FormData): Promise<voi
     }),
     prisma.jumpDate.findFirst({ where: { id: jumpDateId, contactId, workspaceId: workspace.id, isActive: true }, select: { id: true } })
   ]);
-  if (!contact || !existing) fail("/contacts", "Important Date not found.");
-  if (!dateType) fail(path, "Choose a valid Important Date Type.");
+  if (!contact || !existing) fail("/contacts", "Saved date not found.");
+  if (!dateType) fail(path, "Choose a valid saved date type.");
 
   await prisma.$transaction([
     prisma.jumpDate.update({
@@ -189,7 +189,7 @@ export async function deactivateImportantDateAction(formData: FormData): Promise
     where: { id: jumpDateId, contactId, workspaceId: workspace.id, isActive: true },
     select: { id: true }
   });
-  if (!existing) fail(path, "Important Date not found.");
+  if (!existing) fail(path, "Saved date not found.");
 
   await prisma.$transaction([
     prisma.jumpDate.update({ where: { id: existing.id }, data: { isActive: false } }),

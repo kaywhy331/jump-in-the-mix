@@ -6,8 +6,8 @@ For failures, save a sanitized screenshot or trace outside public issues, remove
 
 | Scenario | Device / browser | Date | Tester | Result | Notes | Screenshot / trace reference | Classification |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Core Today, Contacts, Mixes, Templates navigation | Physical iPhone / Safari | — | — | NOT RUN | Record model, iOS, Safari | — | Unclassified |
-| Core Today, Contacts, Mixes, Templates navigation | Physical Android / Chrome | — | — | NOT RUN | Record model, Android, Chrome | — | Unclassified |
+| Core Today, Contacts, Plans, More navigation | Physical iPhone / Safari | — | — | NOT RUN | Record model, iOS, Safari | — | Unclassified |
+| Core Today, Contacts, Plans, More navigation | Physical Android / Chrome | — | — | NOT RUN | Record model, Android, Chrome | — | Unclassified |
 | Desktop primary workflows | macOS or Windows / Chrome | — | — | NOT RUN | Include viewport | — | Unclassified |
 | Desktop primary workflows | macOS or Windows / Firefox | — | — | NOT RUN | Include viewport | — | Unclassified |
 | Desktop primary workflows | macOS / Safari | — | — | NOT RUN | Run where hardware is available | — | Unclassified |
@@ -19,14 +19,14 @@ For failures, save a sanitized screenshot or trace outside public issues, remove
 | Native phone call and return outcome tray | Physical Android / Chrome | — | — | NOT RUN | Verify No answer / voicemail / Done | — | Unclassified |
 | WhatsApp handoff and return outcome tray | Physical iPhone / Safari | — | — | NOT RUN | Verify installed/not-installed behavior | — | Unclassified |
 | WhatsApp handoff and return outcome tray | Physical Android / Chrome | — | — | NOT RUN | Verify installed/not-installed behavior | — | Unclassified |
-| Touch Contact-card drag ordering and persistence | Physical iPhone / Safari | — | — | NOT RUN | Test expanded and collapsed cards | — | Unclassified |
-| Touch Contact-card drag ordering and persistence | Physical Android / Chrome | — | — | NOT RUN | Test expanded and collapsed cards | — | Unclassified |
+| Contact detail fixed layout and More disclosure | Physical iPhone / Safari | — | — | NOT RUN | Verify Text/Call/Email, next follow-up, notes, timeline, and More | — | Unclassified |
+| Contact detail fixed layout and More disclosure | Physical Android / Chrome | — | — | NOT RUN | Verify Text/Call/Email, next follow-up, notes, timeline, and More | — | Unclassified |
 | Mobile keyboard overlap in Quick Add and forms | Physical iPhone / Safari | — | — | NOT RUN | Test longest form and outcome tray | — | Unclassified |
 | Mobile keyboard overlap in Quick Add and forms | Physical Android / Chrome | — | — | NOT RUN | Test longest form and outcome tray | — | Unclassified |
 | Safe-area spacing in portrait and landscape | Physical iPhone / Safari | — | — | NOT RUN | Include notched device | — | Unclassified |
 | Safe-area spacing in portrait and landscape | Physical Android / Chrome | — | — | NOT RUN | Include gesture navigation | — | Unclassified |
-| VoiceOver primary workflows | Physical iPhone / Safari | — | — | NOT RUN | Include rotor, dialogs, outcomes, reordering | — | Unclassified |
-| TalkBack primary workflows | Physical Android / Chrome | — | — | NOT RUN | Include dialogs, outcomes, reordering | — | Unclassified |
+| VoiceOver primary workflows | Physical iPhone / Safari | — | — | NOT RUN | Include rotor, sheets, prepared messages, and outcomes | — | Unclassified |
+| TalkBack primary workflows | Physical Android / Chrome | — | — | NOT RUN | Include sheets, prepared messages, and outcomes | — | Unclassified |
 | Keyboard-only primary workflows | Desktop Chrome | — | — | NOT RUN | Verify focus, dialogs, Escape, reordering | — | Unclassified |
 | Keyboard-only primary workflows | Desktop Firefox | — | — | NOT RUN | Verify focus, dialogs, Escape, reordering | — | Unclassified |
 | Browser zoom at 200% | Desktop Chrome and Firefox | — | — | NOT RUN | Check horizontal scroll and sticky controls | — | Unclassified |

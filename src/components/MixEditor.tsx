@@ -145,9 +145,7 @@ export function MixEditor({
         return <fieldset className={`mix-editor-jump ${styles.sequenceCard}`} key={item.key}>
           <legend>Follow-up {index + 1}</legend>
           <input type="hidden" name="mixStepId" value={item.id ?? ""} />
-          <input type="hidden" name="actionMode" value="INLINE" />
-          <input type="hidden" name="stepTemplateId" value="" />
-          <input type="hidden" name={`inlineName-${index}`} value={`${CHANNELS.find((channel) => channel.value === item.channel)?.label ?? "Follow-up"} on day ${signedOffset}`} />
+          <input type="hidden" name={`inlineName-${index}`} value={`${CHANNELS.find((channel) => channel.value === item.channel)?.label ?? "Follow-up"} ${index + 1}`} />
           <input type="hidden" name="dayOffset" value={signedOffset} />
           <input type="hidden" name="sendTimeMinutes" value={item.sendTimeMinutes ?? ""} />
           <div className={styles.sequenceHeading}><div className="page-actions"><button className="icon-button small" type="button" onClick={() => moveStep(index, -1)} disabled={index === 0} aria-label={`Move follow-up ${index + 1} up`}>↑</button><button className="icon-button small" type="button" onClick={() => moveStep(index, 1)} disabled={index === sequence.length - 1} aria-label={`Move follow-up ${index + 1} down`}>↓</button></div><button className="button small danger" type="button" onClick={() => removeStep(index)} disabled={sequence.length === 1}>Remove</button></div>

@@ -30,8 +30,8 @@ async function main() {
 
   await prisma.workspaceMember.upsert({
     where: { workspaceId_userId: { workspaceId, userId: user.id } },
-    create: { id: "e2e_admin_membership", workspaceId, userId: user.id, role: "ADMIN" },
-    update: { role: "ADMIN" }
+    create: { id: "e2e_admin_membership", workspaceId, userId: user.id, role: "OWNER" },
+    update: { role: "OWNER" }
   });
   await prisma.adminMfaSession.deleteMany({ where: { userId: user.id } });
   await prisma.adminMfaCredential.deleteMany({ where: { userId: user.id } });

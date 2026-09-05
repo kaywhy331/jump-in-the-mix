@@ -52,7 +52,7 @@ export function ContactsBulkWorkspace({
   groupFilter: string;
   priorityFilter: string;
   permissionFilter: string;
-  intent?: "important-date" | "one-time-jump";
+  intent?: "important-date" | "one-time-jump" | "log-note";
 }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [selectionMode, setSelectionMode] = useState(intent === "one-time-jump");
@@ -139,6 +139,7 @@ export function ContactsBulkWorkspace({
 
       {intent === "important-date" && <div className="notice info" role="status"><strong>Choose a person.</strong> Then add the date you want to remember.</div>}
       {intent === "one-time-jump" && <div className="notice info" role="status"><strong>Choose one or more people.</strong></div>}
+      {intent === "log-note" && <div className="notice info" role="status"><strong>Choose a person.</strong> Then add what happened to their notes.</div>}
 
       <div className="contact-list-controls">
         <Sheet trigger={<button className={activeFilterCount ? "button filter-trigger active" : "button filter-trigger"} type="button"><AppIcon name="settings" />Filter{activeFilterCount ? ` ${activeFilterCount}` : ""}</button>} title="Filter contacts" description="Changes apply right away.">
@@ -169,13 +170,13 @@ export function ContactsBulkWorkspace({
               {contact.groupDetails.length > 0 && <div className="contact-group-list">{contact.groupDetails.slice(0, 3).map((group) => <span className={`group-chip ${group.isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}</span>)}{contact.groupDetails.length > 3 && <span className="group-chip">+{contact.groupDetails.length - 3}</span>}</div>}
             </div>
           </Link>
-          <div className="table-actions">{intent === "important-date" ? <Link className="button small primary" href={`/contacts/${contact.id}#add-date`} onClick={saveContactListState}>Add date</Link> : <Sheet trigger={<button className="button small" type="button" aria-label={`More options for ${contact.displayName}`}>More</button>} title={contact.displayName}><Link className="button" href={`/contacts/${contact.id}/edit`} onClick={saveContactListState}>Edit contact</Link><ConfirmDialog trigger="Archive…" title={`Archive ${contact.displayName}?`} description="Future follow-ups will be removed. Completed history stays available." danger><form action={archiveContactAction}><input type="hidden" name="contactId" value={contact.id} /><button className="button danger" type="submit">Archive contact</button></form></ConfirmDialog></Sheet>}</div>
+          <div className="table-actions">{intent === "important-date" ? <Link className="button small primary" href={`/contacts/${contact.id}#add-date`} onClick={saveContactListState}>Add date</Link> : intent === "log-note" ? <Link className="button small primary" href={`/contacts/${contact.id}#add-note`} onClick={saveContactListState}>Add note</Link> : <Sheet trigger={<button className="button small" type="button" aria-label={`More options for ${contact.displayName}`}>More</button>} title={contact.displayName}><Link className="button" href={`/contacts/${contact.id}/edit`} onClick={saveContactListState}>Edit contact</Link><ConfirmDialog trigger="Archive…" title={`Archive ${contact.displayName}?`} description="Future follow-ups will be removed. Completed history stays available." danger><form action={archiveContactAction}><input type="hidden" name="contactId" value={contact.id} /><button className="button danger" type="submit">Archive contact</button></form></ConfirmDialog></Sheet>}</div>
         </article>;
       })}</div> : query || activeFilterCount ? <EmptyState title="No contacts matched" description="Try a different search or filter." actionHref="/contacts" actionLabel="Clear filters" /> : <EmptyState title="Start with one person" description="Add the next customer, lead, or referral you want to remember." actionHref="/contacts/new" actionLabel="Add a person" />}
 
       {selectedIds.length > 0 && <aside className="bulk-contact-bar" aria-label="Actions for selected contacts">
         <div className="bulk-selection-count"><strong>{selectedIds.length}</strong><span>selected</span><button type="button" className="text-button" onClick={() => setSelected(new Set())}>Clear</button>{contacts.length > 1 && <button type="button" className="text-button" onClick={toggleAll}>{allSelected ? "Deselect all" : "Select all"}</button>}</div>
-        <Sheet trigger={<button className="button bulk-action-button" type="button"><AppIcon name="community" /><span className="bulk-action-label">Tags</span></button>} title="Update tags">
+        <Sheet trigger={<button className="button bulk-action-button" type="button"><AppIcon name="people" /><span className="bulk-action-label">Tags</span></button>} title="Update tags">
           {groups.length ? <>
             {activeTags.length ? <form action={assignSelectedContactsToActiveGroupAction} className="form-stack">{contactIdsInputs(selectedIds)}<label className="field"><span>Add tag</span><select name="groupId" required>{activeTags.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><button className="button primary" type="submit">Add tag</button></form> : <p>No tags are available.</p>}
             <form action={bulkRemoveGroupAction} className="form-stack">{contactIdsInputs(selectedIds)}<label className="field"><span>Remove tag</span><select name="groupId" required>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><button className="button" type="submit">Remove tag</button></form>

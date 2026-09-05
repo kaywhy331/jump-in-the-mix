@@ -43,9 +43,9 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
     orderBy: [{ updatedAt: "desc" }],
     take: 500
   });
-  const metadataRows = candidates.length ? await prisma.sharedMixMetadata.findMany({ where: { sharedMixId: { in: candidates.map((item) => item.id) }, isPlatform: true } }) : [];
+  const metadataRows = candidates.length ? await prisma.sharedMixMetadata.findMany({ where: { sharedMixId: { in: candidates.map((item) => item.id) } } }) : [];
   const metadataById = new Map(metadataRows.map((item) => [item.sharedMixId, item]));
-  const templates = candidates.filter((item) => item.publisherWorkspaceId === null || metadataById.has(item.id));
+  const templates = [...candidates].sort((left, right) => Number(Boolean(metadataById.get(right.id)?.featuredAt)) - Number(Boolean(metadataById.get(left.id)?.featuredAt)));
   const totalPages = Math.max(1, Math.ceil(templates.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const visible = templates.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);

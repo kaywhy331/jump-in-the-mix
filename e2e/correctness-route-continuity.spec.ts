@@ -20,8 +20,9 @@ test("retired commercial, team, provider, and sharing routes stay unavailable", 
 
   for (const section of ["billing", "connections", "referrals", "team"]) {
     await page.goto(`/account?section=${section}`);
-    await expect(page).toHaveURL(/\/account$/);
+    expect(new URL(page.url()).pathname).toBe("/account");
     await expect(page.getByRole("heading", { name: "My Account" })).toBeVisible();
+    await expect(page.locator("main")).not.toContainText(new RegExp(section, "i"));
   }
 
   for (const route of [
@@ -60,7 +61,7 @@ test("a stale session cookie redirects to sign in instead of crashing a Server C
   await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
 });
 
-test("name-only Contacts keep Important Date access and return to the filtered list", async ({ page }, testInfo) => {
+test("name-only contacts keep saved-date access and return to the filtered list", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Contact route continuity is exercised once.");
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const contactId = `e2e-continuity-contact-${suffix}`;
@@ -99,31 +100,39 @@ test("name-only Contacts keep Important Date access and return to the filtered l
     await expect(row).toHaveCount(1);
     await row.locator("a.contact-main").click();
 
-    await expect(page.getByRole("link", { name: "Add Important Date" })).toBeVisible();
-    const datesCard = page.locator('[data-user-card="important-dates"]');
-    await datesCard.getByLabel("Edit Birthday").click();
-    const editPanel = datesCard.locator(".important-date-edit-panel");
-    await expect(editPanel.locator('input[name="dateValue"]')).toHaveCount(0);
-    await expect(editPanel.locator('select[name="month"]')).toHaveValue("2");
-    await expect(editPanel.locator('input[name="day"]')).toHaveValue("29");
-    await editPanel.locator('input[name="day"]').fill("28");
+    const more = page.locator("details.contact-detail-more");
+    const openMore = async () => {
+      if (!await more.evaluate((element) => (element as HTMLDetailsElement).open)) await more.locator(":scope > summary").click();
+    };
+    await openMore();
+    const datesSection = more.locator(".contact-more-sections > section").filter({ has: page.locator("h2", { hasText: /^Dates$/ }) });
+    await expect(datesSection.getByRole("button", { name: "Add date" })).toBeVisible();
+    await datesSection.getByRole("button", { name: "Edit", exact: true }).click();
+    const editDialog = page.getByRole("dialog", { name: "Edit Birthday" });
+    await expect(editDialog.locator('input[name="dateValue"]')).toHaveCount(0);
+    await expect(editDialog.locator('select[name="month"]')).toHaveValue("2");
+    await expect(editDialog.locator('input[name="day"]')).toHaveValue("29");
+    await editDialog.locator('input[name="day"]').fill("28");
     await Promise.all([
       page.waitForURL(/dateUpdated=1/),
-      editPanel.getByRole("button", { name: "Save changes" }).click()
+      editDialog.getByRole("button", { name: "Save date" }).click()
     ]);
+    await openMore();
     await expect(page.getByText("2/28", { exact: true })).toBeVisible();
 
-    await datesCard.getByRole("button", { name: "Remove Birthday", exact: true }).click();
+    await datesSection.getByRole("button", { name: "Remove Birthday", exact: true }).click();
+    const removeDialog = page.getByRole("dialog", { name: "Remove Birthday?" });
     await Promise.all([
       page.waitForURL(/dateDeleted=1/),
-      page.getByRole("button", { name: "Confirm removal" }).click()
+      removeDialog.getByRole("button", { name: "Remove date" }).click()
     ]);
     await expect(page.getByText("2/28", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("No Important Dates yet.", { exact: false })).toBeVisible();
+    await openMore();
+    await expect(datesSection.getByText("No dates saved yet.", { exact: true })).toBeVisible();
     const storedDate = await prisma.jumpDate.findUniqueOrThrow({ where: { id: jumpDateId } });
     expect(storedDate.isActive).toBe(false);
 
-    await page.getByRole("link", { name: "Back to Contacts" }).click();
+    await page.getByRole("link", { name: "Back to contacts" }).click();
     await expect(page).toHaveURL(/\/contacts\?q=/);
     await expect(page.locator('input[aria-label="Search contacts"]:visible')).toHaveValue(displayName);
   } finally {

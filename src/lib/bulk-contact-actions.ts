@@ -56,7 +56,7 @@ export async function bulkAssignGroupAction(formData: FormData): Promise<void> {
     scopedContacts(workspace.id, contactIds),
     prisma.group.findFirst({ where: { id: groupId, workspaceId: workspace.id }, select: { id: true } })
   ]);
-  if (!group) fail("Choose an available Contact Group.");
+  if (!group) fail("Choose an available tag.");
   await prisma.contactGroupMembership.createMany({ data: contacts.map((contact) => ({ contactId: contact.id, groupId: group.id })), skipDuplicates: true });
   await queueWorkspaceReconciliation(workspace.id);
   redirect(`/contacts?bulkAssigned=${contacts.length}`);
@@ -71,7 +71,7 @@ export async function bulkRemoveGroupAction(formData: FormData): Promise<void> {
     scopedContacts(workspace.id, contactIds),
     prisma.group.findFirst({ where: { id: groupId, workspaceId: workspace.id }, select: { id: true } })
   ]);
-  if (!group) fail("Choose an available Contact Group.");
+  if (!group) fail("Choose an available tag.");
   await prisma.contactGroupMembership.deleteMany({ where: { groupId: group.id, contactId: { in: contacts.map((contact) => contact.id) } } });
   await queueWorkspaceReconciliation(workspace.id);
   redirect(`/contacts?bulkRemoved=${contacts.length}`);
@@ -111,14 +111,14 @@ function validateManualContent(formData: FormData) {
   const subject = value(formData, "manualSubject");
   const body = value(formData, "manualBody");
   const script = value(formData, "manualScript");
-  if (!channel) throw new Error("Choose a valid one-time Jump channel.");
-  if (channel === "EMAIL" && (!subject || !body)) throw new Error("Email Jumps require a subject and body.");
-  if (["SMS", "WHATSAPP"].includes(channel) && !body) throw new Error("This one-time Jump requires message content.");
-  if (["PHONE_CALL", "VOICEMAIL"].includes(channel) && !script) throw new Error("This one-time Jump requires a script or notes.");
+  if (!channel) throw new Error("Choose a valid message type.");
+  if (channel === "EMAIL" && (!subject || !body)) throw new Error("Email follow-ups require a subject and message.");
+  if (["SMS", "WHATSAPP"].includes(channel) && !body) throw new Error("This follow-up needs a message.");
+  if (["PHONE_CALL", "VOICEMAIL"].includes(channel) && !script) throw new Error("This follow-up needs call notes.");
   const content = [subject, body, script].filter(Boolean).join("\n");
   const unknown = findUnknownPlaceholders(content);
   if (unknown.length) throw new Error(`Unsupported placeholders: ${unknown.join(", ")}`);
-  if (channel !== "PHONE_CALL" && containsPrivateNotesPlaceholder(content)) throw new Error("Private Notes placeholders may only be used in Phone Call Jumps.");
+  if (channel !== "PHONE_CALL" && containsPrivateNotesPlaceholder(content)) throw new Error("Private-note placeholders may only be used in phone-call follow-ups.");
   return { channel, subject: subject || null, body: body || null, script: script || null };
 }
 
@@ -149,12 +149,12 @@ export async function applyJumpToContactsAction(formData: FormData): Promise<voi
     const stepTemplateId = value(formData, "stepTemplateId");
     const template = await prisma.stepTemplate.findFirst({ where: { id: stepTemplateId, workspaceId: workspace.id, isActive: true }, include: { versions: { orderBy: { version: "desc" }, take: 1 } } });
     const version = template?.versions[0];
-    if (!template || !version) fail("Choose an available reusable Jump.");
+    if (!template || !version) fail("Choose an available reusable follow-up.");
     prepared = { name: template.name, channel: template.channel, subject: version.subject, body: version.body, script: version.script, templateId: template.id, versionId: version.id };
   } else {
     let manual: ReturnType<typeof validateManualContent>;
     try { manual = validateManualContent(formData); }
-    catch (error) { fail(error instanceof Error ? error.message : "The one-time Jump could not be prepared."); }
+    catch (error) { fail(error instanceof Error ? error.message : "The one-time follow-up could not be prepared."); }
     prepared = {
       name: value(formData, "manualName") || `One-time ${manual.channel.replaceAll("_", " ").toLowerCase()}`,
       channel: manual.channel,
@@ -187,8 +187,8 @@ export async function applyJumpToContactsAction(formData: FormData): Promise<voi
   await prisma.$transaction(async (tx) => {
     await tx.mix.upsert({
       where: { id: hiddenMixId },
-      create: { id: hiddenMixId, workspaceId: workspace.id, name: "One-time Jumps", description: "Internal history container for directly applied Jumps.", triggerMode: "MANUAL_START", status: "ARCHIVED", source: "ONE_TIME" },
-      update: { name: "One-time Jumps", status: "ARCHIVED", source: "ONE_TIME" }
+      create: { id: hiddenMixId, workspaceId: workspace.id, name: "One-time follow-ups", description: "Internal history for direct follow-ups.", triggerMode: "MANUAL_START", status: "ARCHIVED", source: "ONE_TIME" },
+      update: { name: "One-time follow-ups", status: "ARCHIVED", source: "ONE_TIME" }
     });
     if (mode === "manual") {
       await tx.stepTemplate.create({ data: { id: prepared.templateId, workspaceId: workspace.id, name: prepared.name, channel: prepared.channel, isActive: false, currentVersion: 1 } });

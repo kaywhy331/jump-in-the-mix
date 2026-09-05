@@ -20,6 +20,7 @@ prisma/dev.db
 *.jitm-backup.enc
 .backups/
 .artifacts/
+.lighthouseci/
 playwright-report-staging/
 test-results-staging/
 playwright-report/

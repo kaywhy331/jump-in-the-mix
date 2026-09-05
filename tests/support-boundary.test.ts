@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(path, "utf8");
 
 describe("Help and support boundaries", () => {
-  it("places Help under More and keeps FAQ above the contact form", () => {
+  it("places Help under More and separates hosted from self-hosted support", () => {
     const nav = read("src/components/Nav.tsx");
     const more = read("src/app/(app)/more/page.tsx");
     const help = read("src/app/(app)/help/page.tsx");
@@ -13,7 +13,8 @@ describe("Help and support boundaries", () => {
     expect(more).toContain('["/help", "Help"');
     expect(help).toContain("<SupportFaq />");
     expect(help).toContain('id="contact-support"');
-    expect(help.indexOf("<SupportFaq />")).toBeLessThan(help.indexOf('id="contact-support"'));
+    expect(help).toContain("if (env.pilotMode)");
+    expect(help).toContain("<SelfHostedHelp />");
     expect(help).toContain("SUPPORT_CATEGORIES");
     expect(help).toContain("createSupportTicketAction");
   });
@@ -53,8 +54,8 @@ describe("Help and support boundaries", () => {
     const adminThread = read("src/app/(app)/admin/support/[ticketId]/page.tsx");
     const email = read("src/lib/support-email.ts");
     expect(userThread).toContain("Jump in the Mix Response");
-    expect(userThread).toContain("formatDateTime(message.createdAt)");
-    expect(adminThread).toContain("Jump in the Mix Response");
+    expect(userThread).toContain("formatDateTime(message.createdAt, displayPreferences)");
+    expect(adminThread).toContain('message.authorType === "ADMIN" ? "Support"');
     expect(adminThread).toContain("emailStatus");
     expect(email).toContain("Ticket title");
     expect(email).toContain("View and reply to ticket");

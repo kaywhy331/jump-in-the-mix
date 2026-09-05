@@ -1,4 +1,4 @@
-import type { ContactImportBatchStatus, PlanTier, Prisma } from "@/generated/prisma/client";
+import type { ContactImportBatchStatus, Prisma } from "@/generated/prisma/client";
 import { commitContactImportBatch, type ImportCommitItem } from "@/lib/contact-import-service";
 import type { ImportCommitResult } from "@/lib/contact-import-types";
 import { prisma } from "@/lib/prisma";
@@ -225,7 +225,6 @@ export async function runContactImportBatch(batchId: string): Promise<void> {
       const chunkResults = await commitContactImportBatch({
         workspaceId: batch.workspaceId,
         actorUserId,
-        planTier: workspace.planTier as PlanTier,
         timezone,
         importId: batch.importId,
         items: chunk

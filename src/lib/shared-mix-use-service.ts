@@ -1,6 +1,5 @@
-import type { MixStatus, MixTriggerMode, PlanTier, Prisma } from "@/generated/prisma/client";
+import type { MixStatus, MixTriggerMode, Prisma } from "@/generated/prisma/client";
 import { parseBroadcastScheduleInput } from "@/lib/mix-broadcast";
-import { PLAN_LIMITS } from "@/lib/plans";
 import { prisma } from "@/lib/prisma";
 import { normalizeSharedMixSteps } from "@/lib/shared-mix";
 import { slugify } from "@/lib/slug";
@@ -12,7 +11,6 @@ function clean(value: string | null | undefined, maximum: number): string {
 async function resolveDateType(
   tx: Prisma.TransactionClient,
   workspaceId: string,
-  planTier: PlanTier,
   triggerMode: MixTriggerMode,
   nameValue: string | null,
   slugValue: string | null
@@ -20,18 +18,15 @@ async function resolveDateType(
   if (triggerMode !== "DATE_TRIGGERED") return null;
   const name = clean(nameValue, 120);
   const slug = slugify(slugValue || name);
-  if (!name || !slug) throw new Error("This date-triggered template does not identify its Important Date Type.");
+  if (!name || !slug) throw new Error("This plan does not identify its saved date type.");
   const existing = await tx.dateType.findFirst({
     where: { slug, OR: [{ workspaceId, isSystem: false }, { workspaceId: null, isSystem: true }] },
     orderBy: { isSystem: "desc" }
   });
   if (existing) {
-    if (!existing.isActive) throw new Error(`Activate the ${existing.name} Important Date Type before using this template.`);
+    if (!existing.isActive) throw new Error(`Turn on the ${existing.name} date type before using this plan.`);
     return existing.id;
   }
-  const activeCount = await tx.dateType.count({ where: { workspaceId, isSystem: false, isActive: true } });
-  const limit = PLAN_LIMITS[planTier].customDateTypes;
-  if (Number.isFinite(limit) && activeCount >= limit) throw new Error(`This template needs a new ${name} Important Date Type, but the active custom-type allowance is full.`);
   return (await tx.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name, slug, isSystem: false, isActive: true } })).id;
 }
 
@@ -55,29 +50,23 @@ export async function useSharedMixTemplate(input: {
   if (existing?.mixId) return { mixId: existing.mixId, repeated: true };
 
   const [workspace, shared, metadata] = await Promise.all([
-    prisma.workspace.findUnique({ where: { id: input.workspaceId }, select: { planTier: true } }),
+    prisma.workspace.findUnique({ where: { id: input.workspaceId }, select: { id: true } }),
     prisma.sharedMix.findFirst({ where: { id: input.sharedMixId, status: "APPROVED" } }),
     prisma.sharedMixMetadata.findUnique({ where: { sharedMixId: input.sharedMixId } })
   ]);
-  if (!workspace || !shared) throw new Error("This Mix Template is not currently available.");
+  if (!workspace || !shared) throw new Error("This ready-made plan is not currently available.");
   const steps = normalizeSharedMixSteps(shared.steps);
   const name = clean(input.name, 160) || shared.title;
   const triggerMode = metadata?.triggerMode ?? "MANUAL_START";
   const groupIds = [...new Set(input.groupIds.filter(Boolean))];
-  if (!input.assignAllContacts && !groupIds.length) throw new Error("Choose All active Contacts or at least one active Contact Group.");
+  if (!input.assignAllContacts && !groupIds.length) throw new Error("Choose everyone or at least one tag.");
   if (groupIds.length) {
     const [groupCount, inactiveCount] = await Promise.all([
       prisma.group.count({ where: { workspaceId: input.workspaceId, id: { in: groupIds } } }),
       prisma.contactGroupState.count({ where: { workspaceId: input.workspaceId, groupId: { in: groupIds }, isActive: false } })
     ]);
-    if (groupCount !== groupIds.length || inactiveCount > 0) throw new Error("Choose only active Contact Groups.");
+    if (groupCount !== groupIds.length || inactiveCount > 0) throw new Error("Choose only active tags.");
   }
-  if (input.status === "ACTIVE") {
-    const activeCount = await prisma.mix.count({ where: { workspaceId: input.workspaceId, status: "ACTIVE" } });
-    const limit = PLAN_LIMITS[workspace.planTier].mixes;
-    if (Number.isFinite(limit) && activeCount >= limit) throw new Error(`Your plan allows ${limit} active Mixes.`);
-  }
-
   const contactIds = input.assignAllContacts
     ? (await prisma.contact.findMany({ where: { workspaceId: input.workspaceId, archivedAt: null }, select: { id: true } })).map((contact) => contact.id)
     : [];
@@ -90,7 +79,7 @@ export async function useSharedMixTemplate(input: {
   await prisma.$transaction(async (tx) => {
     const duplicate = await tx.sharedMixImport.findUnique({ where: { importKey }, select: { mixId: true } });
     if (duplicate?.mixId) return;
-    const dateTypeId = await resolveDateType(tx, input.workspaceId, workspace.planTier, triggerMode, metadata?.dateTypeName ?? null, metadata?.dateTypeSlug ?? null);
+    const dateTypeId = await resolveDateType(tx, input.workspaceId, triggerMode, metadata?.dateTypeName ?? null, metadata?.dateTypeSlug ?? null);
     await tx.mix.create({
       data: {
         id: mixId,

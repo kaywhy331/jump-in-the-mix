@@ -3,6 +3,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AdminNav } from "@/components/AdminNav";
 import { requirePlatformAdmin } from "@/lib/auth";
+import { displayPreferencesForUser } from "@/lib/display-preferences";
+import { formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Admin · Audit" };
@@ -13,10 +15,6 @@ type SearchParams = {
   source?: string;
 };
 
-function timestamp(value: Date): string {
-  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(value);
-}
-
 function jsonText(value: unknown): string {
   try {
     return JSON.stringify(value, null, 2);
@@ -26,7 +24,8 @@ function jsonText(value: unknown): string {
 }
 
 export default async function AdminAuditPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  await requirePlatformAdmin();
+  const { user } = await requirePlatformAdmin();
+  const displayPreferences = await displayPreferencesForUser(user.id);
   const params = await searchParams;
   const query = params.q?.trim() ?? "";
   const actor = params.actor ?? "ALL";
@@ -59,12 +58,12 @@ export default async function AdminAuditPage({ searchParams }: { searchParams: P
 
   return (
     <div className="page admin-control-page">
-      <header className="page-header"><div><h1>Admin · Audit</h1><p>Review security-sensitive, customer, administrator, AI, webhook, and system actions.</p></div></header>
+      <header className="page-header"><div><h1>Admin · Audit</h1><p>Review security-sensitive customer, administrator, and system actions.</p></div></header>
       <AdminNav current="/admin/audit" />
 
       <form className="filter-bar admin-audit-filters" method="get">
         <input name="q" defaultValue={query} placeholder="Search action, workspace, user, entity, or source" aria-label="Search audit log" />
-        <select name="actor" defaultValue={actor} aria-label="Filter audit actor"><option value="ALL">All actors</option><option value="USER">User</option><option value="ADMIN">Admin</option><option value="SYSTEM">System</option><option value="AI">AI</option><option value="WEBHOOK">Webhook</option></select>
+        <select name="actor" defaultValue={actor} aria-label="Filter audit actor"><option value="ALL">All actors</option><option value="USER">User</option><option value="ADMIN">Admin</option><option value="SYSTEM">System</option></select>
         <select name="source" defaultValue={source} aria-label="Filter audit source"><option value="">All sources</option>{sourceRows.map((row) => <option key={row.source}>{row.source}</option>)}</select>
         <button className="button" type="submit">Filter</button>
         {(query || actor !== "ALL" || source) && <Link className="button" href="/admin/audit">Clear</Link>}
@@ -83,7 +82,7 @@ export default async function AdminAuditPage({ searchParams }: { searchParams: P
               <span>{log.workspace.name}</span>
               <span>{log.actorUser ? `${log.actorUser.name} · ${log.actorUser.email}` : "No user actor"}</span>
               <span>{log.source}</span>
-              <time dateTime={log.createdAt.toISOString()}>{timestamp(log.createdAt)}</time>
+              <time dateTime={log.createdAt.toISOString()}>{formatDateTime(log.createdAt, displayPreferences)}</time>
             </div>
             {(log.beforeData || log.afterData || log.metadata) && (
               <details className="admin-audit-details">

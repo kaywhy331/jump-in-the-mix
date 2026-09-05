@@ -1,8 +1,6 @@
 /* Live search, Contact visibility, and user-arranged card workspaces. */
 form[data-live-filter="true"] { position: relative; }
-form[data-live-filter="true"] > button[type="submit"],
-form[data-live-filter="true"] .mobile-filter-actions > button[type="submit"] { display: none; }
-form[data-live-filter="true"] .mobile-filter-actions { grid-template-columns: 1fr; }
+form[data-live-filter="true"] > button[type="submit"] { display: none; }
 form[data-live-pending="true"]::after {
   content: "";
   width: 15px;

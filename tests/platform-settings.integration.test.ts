@@ -28,6 +28,6 @@ describe.sequential("platform settings persistence", () => {
     const snapshot = await getPlatformSettingsSnapshot();
     expect(snapshot.some((setting) => setting.key === key)).toBe(false);
     expect(snapshot.map((setting) => setting.key)).toContain("mix.categories");
-    expect(snapshot.map((setting) => setting.key)).toContain("feature.aiProviderGeneration");
+    expect(snapshot.map((setting) => setting.key)).toContain("mix.industries");
   });
 });

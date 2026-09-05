@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import styles from "@/components/JumpWorkflow.module.css";
+import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 
 type TimelineItem = {
   id: string;
@@ -25,8 +26,8 @@ function requestId(): string {
 }
 
 function label(item: TimelineItem): string {
-  if (item.kind === "CUSTOMER_NOTE") return "Customer note";
-  if (item.kind === "PRIVATE_UPDATE") return "Private relationship update";
+  if (item.kind === "CUSTOMER_NOTE") return "Note";
+  if (item.kind === "PRIVATE_UPDATE") return "Private note";
   if (item.kind === "SYSTEM") return "System update";
   if (item.outcome === "CONNECTED") return "Connected";
   if (item.outcome === "LEFT_VOICEMAIL") return "Left voicemail";
@@ -34,22 +35,22 @@ function label(item: TimelineItem): string {
   if (item.outcome === "NOT_SENT") return "Not sent";
   if (item.outcome === "WRONG_NUMBER") return "Wrong number";
   if (item.outcome === "RESCHEDULED") return "Rescheduled";
-  if (item.outcome === "SKIPPED") return "Jump skipped";
-  if (item.outcome === "REOPENED") return "Jump reopened";
-  return "Jump completed";
+  if (item.outcome === "SKIPPED") return "Follow-up skipped";
+  if (item.outcome === "REOPENED") return "Follow-up reopened";
+  return "Follow-up completed";
 }
 
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
-}
-
-export function ContactTimeline({ contactId }: { contactId: string }) {
+export function ContactTimeline({
+  contactId,
+  displayPreferences
+}: {
+  contactId: string;
+  displayPreferences: DisplayFormatPreferences;
+}) {
   const [items, setItems] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [kind, setKind] = useState<"CUSTOMER_NOTE" | "PRIVATE_UPDATE">("CUSTOMER_NOTE");
+  const [privateNote, setPrivateNote] = useState(false);
   const [summary, setSummary] = useState("");
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<"ALL" | "COMMUNICATIONS" | "NOTES">("ALL");
@@ -86,7 +87,7 @@ export function ContactTimeline({ contactId }: { contactId: string }) {
       const response = await fetch(`/api/contacts/${encodeURIComponent(contactId)}/activity`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ kind, summary, requestId: requestId() })
+        body: JSON.stringify({ kind: privateNote ? "PRIVATE_UPDATE" : "CUSTOMER_NOTE", summary, requestId: requestId() })
       });
       const payload = await response.json().catch(() => ({})) as { item?: TimelineItem; error?: string };
       if (!response.ok || !payload.item) throw new Error(payload.error || "The note could not be saved.");
@@ -101,16 +102,13 @@ export function ContactTimeline({ contactId }: { contactId: string }) {
 
   return (
     <div className={styles.timeline}>
-      <form className={styles.noteComposer} onSubmit={submit}>
+      <form id="add-note" className={styles.noteComposer} onSubmit={submit}>
         <label>
-          <span>{kind === "CUSTOMER_NOTE" ? "Add customer note" : "Add private relationship update"}</span>
-          <textarea value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={4000} placeholder={kind === "CUSTOMER_NOTE" ? "How you met, preferences, interests, family context, or reusable background" : "Phone-call context, deal movement, objections, commitments, or sensitive updates"} required />
+          <span>Add a note</span>
+          <textarea value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={4000} placeholder="What should you remember about this person or conversation?" required />
         </label>
         <div>
-          <select aria-label="Note type" value={kind} onChange={(event) => setKind(event.target.value as typeof kind)}>
-            <option value="CUSTOMER_NOTE">Customer note</option>
-            <option value="PRIVATE_UPDATE">Private update</option>
-          </select>
+          <label className="checkbox-row"><input type="checkbox" checked={privateNote} onChange={(event) => setPrivateNote(event.target.checked)} /><span>Keep private (never used in messages)</span></label>
           <button className="button primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Add update"}</button>
         </div>
       </form>
@@ -124,7 +122,7 @@ export function ContactTimeline({ contactId }: { contactId: string }) {
 
       {error && <p className={styles.error} role="alert">{error}</p>}
       {loading && <p className={styles.loading} role="status">Loading relationship history…</p>}
-      {!loading && !visibleItems.length && <p className={styles.loading}>No timeline entries yet. Complete a Jump or add the first note above.</p>}
+      {!loading && !visibleItems.length && <p className={styles.loading}>No history yet. Complete a follow-up or add the first note above.</p>}
       {visibleItems.length > 0 && (
         <ol className={styles.timelineList}>
           {visibleItems.map((item) => (
@@ -135,10 +133,10 @@ export function ContactTimeline({ contactId }: { contactId: string }) {
                   <strong>{label(item)}</strong>
                   {item.channel && <span>{item.channel.replaceAll("_", " ").toLowerCase()}</span>}
                   {item.visibility === "PRIVATE" && <span className={styles.privateBadge}>Private</span>}
-                  <time dateTime={item.occurredAt}>{formatDateTime(item.occurredAt)}</time>
+                  <time dateTime={item.occurredAt}>{formatDateTime(item.occurredAt, displayPreferences)}</time>
                 </div>
                 {item.summary && <p>{item.summary}</p>}
-                {item.nextCommitmentAt && <p><strong>Next follow-up:</strong> {formatDateTime(item.nextCommitmentAt)}</p>}
+                {item.nextCommitmentAt && <p><strong>Next follow-up:</strong> {formatDateTime(item.nextCommitmentAt, displayPreferences)}</p>}
               </div>
             </li>
           ))}

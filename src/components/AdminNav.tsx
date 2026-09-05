@@ -6,11 +6,8 @@ import { usePathname } from "next/navigation";
 const items = [
   ["Overview", "/admin"],
   ["Users", "/admin/users"],
-  ["Billing", "/admin/billing"],
   ["Support", "/admin/support"],
-  ["Mix Templates", "/admin/templates"],
-  ["Integrations", "/admin/integrations"],
-  ["Referrals", "/admin/referrals"],
+  ["Ready-made plans", "/admin/templates"],
   ["Operations", "/admin/operations"],
   ["Audit", "/admin/audit"],
   ["System Settings", "/admin/settings"]

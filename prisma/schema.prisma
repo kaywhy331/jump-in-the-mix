@@ -7,36 +7,16 @@ datasource db {
   provider = "postgresql"
 }
 
-enum PlanTier {
-  FREE
-  PLUS
-  PRO
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  TRIALING
-  PAST_DUE
-  CANCELED
-  INCOMPLETE
-  UNPAID
-}
-
 enum WorkspaceRole {
   OWNER
-  ADMIN
-  MEMBER
 }
 
 enum ContactSource {
   MANUAL
   CSV
-  GOOGLE
-  OUTLOOK
   WEBSITE
   WHATSAPP
   API
-  AI
 }
 
 enum DateRecurrence {
@@ -78,50 +58,15 @@ enum JumpStatus {
   CANCELED
 }
 
-enum IntegrationProvider {
-  GOOGLE_CONTACTS
-  MICROSOFT_CONTACTS
-  WHATSAPP
-  STRIPE
-  WEBSITE_WEBHOOK
-}
-
-enum IntegrationStatus {
-  PENDING
-  ACTIVE
-  ERROR
-  REVOKED
-}
-
-enum DraftStatus {
-  DRAFT
-  CONFIRMED
-  PUBLISHED
-  CANCELED
-  EXPIRED
-}
-
 enum SharedMixStatus {
-  PENDING
   APPROVED
-  REJECTED
   UNPUBLISHED
 }
 
 enum AuditActorType {
   USER
   SYSTEM
-  AI
-  WEBHOOK
   ADMIN
-}
-
-enum WebhookProvider {
-  STRIPE
-  WHATSAPP
-  GOOGLE
-  MICROSOFT
-  WEBSITE
 }
 
 enum AuthProvider {
@@ -177,12 +122,6 @@ model Workspace {
   name                   String
   slug                   String                         @unique
   ownerId                String
-  planTier               PlanTier                       @default(FREE)
-  subscriptionStatus     SubscriptionStatus             @default(ACTIVE)
-  stripeCustomerId       String?                        @unique
-  stripeSubscriptionId   String?                        @unique
-  currentPeriodEnd       DateTime?
-  cancelAtPeriodEnd      Boolean                        @default(false)
   owner                  User                           @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   members                WorkspaceMember[]
   profile                WorkspaceProfile?
@@ -194,18 +133,7 @@ model Workspace {
   mixes                  Mix[]
   mixAssignments         MixAssignment[]
   jumps                  Jump[]
-  integrations           IntegrationConnection[]
-  externalContactLinks   ExternalContactLink[]
-  syncRuns               SyncRun[]
-  oauthStates            OAuthState[]
-  messagingIdentities    MessagingIdentity[]
-  channelLinkCodes       ChannelLinkCode[]
-  captureDrafts          CaptureDraft[]
-  aiMixDrafts            AiMixDraft[]
-  sharedMixes            SharedMix[]                    @relation("SharedMixPublisher")
   importedSharedMixes    SharedMixImport[]
-  subscriptions          Subscription[]
-  webhookEvents          WebhookEvent[]
   idempotencyKeys        IdempotencyKey[]
   jobs                   Job[]
   auditLogs              AuditLog[]
@@ -218,7 +146,7 @@ model WorkspaceMember {
   id          String        @id @default(cuid())
   workspaceId String
   userId      String
-  role        WorkspaceRole @default(MEMBER)
+  role        WorkspaceRole @default(OWNER)
   workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt   DateTime      @default(now())
@@ -281,7 +209,6 @@ model Contact {
   jumpDates             JumpDate[]
   mixAssignments        MixAssignment[]
   jumps                 Jump[]
-  externalLinks         ExternalContactLink[]
   customFieldValues     ContactCustomFieldValue[]
   relationshipState     ContactRelationshipState?
   createdAt             DateTime                  @default(now())
@@ -559,155 +486,20 @@ model Jump {
   @@index([contactId, scheduledAt])
 }
 
-model IntegrationConnection {
-  id                    String              @id @default(cuid())
-  workspaceId           String
-  provider              IntegrationProvider
-  status                IntegrationStatus   @default(PENDING)
-  externalAccountId     String?
-  scopes                String[]
-  credentialsCiphertext String?
-  syncCursor            String?
-  metadata              Json?
-  lastSyncAt            DateTime?
-  nextSyncAt            DateTime?
-  lastError             String?
-  workspace             Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  syncRuns              SyncRun[]
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt
-
-  @@unique([workspaceId, provider])
-}
-
-model ExternalContactLink {
-  id          String              @id @default(cuid())
-  workspaceId String
-  contactId   String
-  provider    IntegrationProvider
-  externalId  String
-  etag        String?
-  deletedAt   DateTime?
-  lastSeenAt  DateTime            @default(now())
-  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact     Contact             @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-
-  @@unique([workspaceId, provider, externalId])
-  @@index([contactId])
-}
-
-model SyncRun {
-  id            String                @id @default(cuid())
-  workspaceId   String
-  connectionId  String
-  mode          String
-  status        String
-  startedAt     DateTime              @default(now())
-  completedAt   DateTime?
-  createdCount  Int                   @default(0)
-  updatedCount  Int                   @default(0)
-  skippedCount  Int                   @default(0)
-  errorCount    Int                   @default(0)
-  errorSummary  String?
-  workspace     Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  connection    IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-
-  @@index([workspaceId, startedAt])
-}
-
-model OAuthState {
-  id          String              @id @default(cuid())
-  workspaceId String
-  provider    IntegrationProvider
-  tokenHash   String              @unique
-  returnTo    String?
-  expiresAt   DateTime
-  usedAt      DateTime?
-  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdAt   DateTime            @default(now())
-
-  @@index([workspaceId, provider, expiresAt])
-}
-
-model MessagingIdentity {
-  id             String              @id @default(cuid())
-  workspaceId    String
-  provider       IntegrationProvider
-  externalUserId String
-  displayName    String?
-  verifiedAt     DateTime            @default(now())
-  workspace      Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-
-  @@unique([provider, externalUserId])
-  @@index([workspaceId])
-}
-
-model ChannelLinkCode {
-  id          String              @id @default(cuid())
-  workspaceId String
-  provider    IntegrationProvider
-  codeHash    String              @unique
-  expiresAt   DateTime
-  usedAt      DateTime?
-  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdAt   DateTime            @default(now())
-
-  @@index([workspaceId, provider, expiresAt])
-}
-
-model CaptureDraft {
-  id               String      @id @default(cuid())
-  workspaceId      String
-  shortCode        String      @unique
-  source           String
-  sourceExternalId String?
-  inputText        String
-  proposed         Json
-  status           DraftStatus @default(DRAFT)
-  expiresAt        DateTime
-  workspace        Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
-
-  @@index([workspaceId, status, expiresAt])
-}
-
-model AiMixDraft {
-  id               String      @id @default(cuid())
-  workspaceId      String
-  preflightPayload Json
-  generatedMix     Json
-  validation       Json
-  status           DraftStatus @default(DRAFT)
-  expiresAt        DateTime
-  workspace        Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
-
-  @@index([workspaceId, status, expiresAt])
-}
-
 model SharedMix {
-  id                   String          @id @default(cuid())
-  publisherWorkspaceId String?
-  title                String
-  description          String
-  category             String
-  industry             String?
-  framework            String?
-  durationDays         Int
-  steps                Json
-  status               SharedMixStatus @default(PENDING)
-  importCount          Int             @default(0)
-  rating               Float?
-  publisherWorkspace   Workspace?      @relation("SharedMixPublisher", fields: [publisherWorkspaceId], references: [id], onDelete: SetNull)
-  imports              SharedMixImport[]
-  createdAt            DateTime        @default(now())
-  updatedAt            DateTime        @updatedAt
+  id           String          @id @default(cuid())
+  title        String
+  description  String
+  category     String
+  industry     String?
+  framework    String?
+  durationDays Int
+  steps        Json
+  status       SharedMixStatus @default(APPROVED)
+  importCount  Int             @default(0)
+  imports      SharedMixImport[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
 
   @@index([status, category])
   @@index([industry])
@@ -724,40 +516,6 @@ model SharedMixImport {
   createdAt   DateTime  @default(now())
 
   @@index([workspaceId, sharedMixId])
-}
-
-model Subscription {
-  id                   String             @id @default(cuid())
-  workspaceId          String
-  stripeSubscriptionId String             @unique
-  stripePriceId        String
-  planTier             PlanTier
-  billingPeriod        String
-  status               SubscriptionStatus
-  currentPeriodStart   DateTime?
-  currentPeriodEnd     DateTime?
-  cancelAtPeriodEnd    Boolean            @default(false)
-  workspace            Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-
-  @@index([workspaceId, status])
-}
-
-model WebhookEvent {
-  id          String          @id @default(cuid())
-  workspaceId String?
-  provider    WebhookProvider
-  externalId  String
-  payloadHash String
-  status      String
-  error       String?
-  processedAt DateTime?
-  workspace   Workspace?      @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
-  createdAt   DateTime        @default(now())
-
-  @@unique([provider, externalId])
-  @@index([status, createdAt])
 }
 
 model IdempotencyKey {
@@ -825,22 +583,4 @@ model AccountDeletionAudit {
 
   @@index([subjectHash, createdAt])
   @@index([status, createdAt])
-}
-
-model AccountDeletionRevocation {
-  id                    String              @id @default(cuid())
-  requestId             String
-  connectionFingerprint String
-  provider              IntegrationProvider
-  credentialsCiphertext String
-  status                String              @default("PENDING")
-  attempts              Int                 @default(0)
-  lastError             String?
-  nextAttemptAt         DateTime             @default(now())
-  completedAt           DateTime?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-
-  @@unique([requestId, connectionFingerprint])
-  @@index([status, nextAttemptAt])
 }

@@ -9,7 +9,7 @@ import { getPlatformStringList } from "@/lib/platform-settings";
 import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
 
-export const metadata: Metadata = { title: "Edit Mix" };
+export const metadata: Metadata = { title: "Edit plan" };
 
 type SearchParams = { error?: string; created?: string; updated?: string; imported?: string };
 
@@ -56,9 +56,9 @@ export default async function EditMixPage({
 
   return (
     <div className="page">
-      <header className="page-header"><div><h1>Edit {mix.name}</h1><p>Saving reconciles future pending Jumps without rewriting completed history.</p></div></header>
-      {query.created === "manual" && <Notice type="success">Mix created. Future work is being reconciled.</Notice>}
-      {query.updated && <Notice type="success">Mix updated. Future pending work is being reconciled.</Notice>}
+      <header className="page-header"><div><h1>Edit {mix.name}</h1><p>Saving updates future follow-ups without rewriting completed history.</p></div></header>
+      {query.created === "manual" && <Notice type="success">Plan created. Future follow-ups are updating.</Notice>}
+      {query.updated && <Notice type="success">Plan updated. Future follow-ups are updating.</Notice>}
       {query.imported && <Notice type="success">Template setup completed. Review the result or activate it when ready.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
       <MixEditor
