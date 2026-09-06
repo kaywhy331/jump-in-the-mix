@@ -128,6 +128,8 @@ export function ContactForm({
     <form action={mode === "create" ? createContactAction : updateContactAction} className="contact-editor" onFocusCapture={(event) => {
       const control = event.target;
       if (!(control instanceof HTMLElement) || control.closest(".sticky-form-actions")) return;
+      // Pointer-focused buttons and disclosures must stay put until activation.
+      if (!control.matches(":focus-visible")) return;
       const bounds = control.getBoundingClientRect();
       const overlays = document.querySelectorAll(".sticky-form-actions, .mobile-nav, .mobile-app-header");
       const obscured = Array.from(overlays).some((overlay) => {

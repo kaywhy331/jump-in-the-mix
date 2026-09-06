@@ -17,6 +17,7 @@ let contactId: string;
 let jumpId: string;
 let userId: string;
 let addressId: string;
+let supportConversationCount: number;
 
 async function hitTarget(locator: Locator) {
   await locator.scrollIntoViewIfNeeded();
@@ -55,6 +56,7 @@ test.beforeAll(async ({ browser }) => {
     id: `${templateId}-${index}`, title: `Design sample ${index}`, description: "A synthetic plan for checking setup and goal aliases.", category, industry: index ? "Home services" : "Any business", framework, status: "APPROVED", durationDays: 7,
     steps: [{ name: "Check in", channel: "SMS", dayOffset: 0, sendTimeMinutes: 600, body: "Hi {{First Name}}, how can we help?", subject: null, script: null, longSms: false, includeOptOut: false }]
   } });
+  supportConversationCount = 16 + await prisma.supportTicket.count({ where: { workspaceId: "demo_workspace", requesterUserId: userId } });
   await prisma.supportTicket.createMany({ data: Array.from({ length: 18 }, (_, index) => ({
     id: `design-ticket-${suffix}-${index}`, reference: `DS-${suffix}-${index}`, workspaceId: index === 16 ? "other-design-workspace" : "demo_workspace", requesterUserId: index === 17 ? "other-design-requester" : userId,
     title: index >= 16 ? "Hidden foreign conversation" : `Design conversation ${index}`, category: "GENERAL" as const, lastActivityAt: new Date(Date.now() + index * 1000)
@@ -142,7 +144,20 @@ test("collapsed contact details retain address identity and notes on save", asyn
   expect(saved.addresses).toHaveLength(1);
   expect(saved.addresses[0]).toMatchObject({ id: addressId, street1: "42 Sample Street", city: "Sample City", isPrimary: true });
   await page.goto(`/contacts/${contactId}/edit`);
+  await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
+  // Keep the click point visible while the disclosure's lower edge overlaps
+  // Save. Focus must not scroll the target away between pointerdown and click.
+  const edge = await disclosure.locator("summary").evaluate(element => {
+    const footer = element.closest("form")!.querySelector(".sticky-form-actions")!;
+    window.scrollBy({ top: element.getBoundingClientRect().bottom - footer.getBoundingClientRect().top - 2, behavior: "instant" });
+    const bounds = element.getBoundingClientRect();
+    return { bottom: bounds.bottom, footerTop: footer.getBoundingClientRect().top,
+      reachable: element.contains(document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)) };
+  });
+  expect(edge.bottom).toBeGreaterThan(edge.footerTop);
+  expect(edge.reachable).toBe(true);
   await disclosure.locator("summary").first().click();
+  await expect(disclosure).toHaveAttribute("open", "");
   await expect(page.getByLabel("Street", { exact: true })).toHaveValue("42 Sample Street");
   await page.locator(`label[for="addressCity-0"]`).click();
   await expect(page.getByLabel("City", { exact: true })).toBeFocused();
@@ -156,13 +171,13 @@ test("support pagination scopes both workspace and requester and links return co
   await expect(page.locator(".support-ticket-row")).toHaveCount(15);
   await expect(page.getByText("Hidden foreign conversation")).toHaveCount(0);
   await page.getByRole("link", { name: "Next", exact: true }).click();
-  await expect(page.locator(".support-ticket-row")).toHaveCount(1);
+  await expect(page.locator(".support-ticket-row")).toHaveCount(Math.min(15, supportConversationCount - 15));
   await expect(page.getByText("Hidden foreign conversation")).toHaveCount(0);
-  await page.locator(".support-ticket-row").click();
+  await page.locator(".support-ticket-row").first().click();
   await page.getByRole("link", { name: "All tickets" }).click();
   await expect(page).toHaveURL(/\/account\/tickets$/);
   await page.goto("/account/tickets?page=9999");
-  await expect(page.locator(".support-ticket-row")).toHaveCount(1);
+  await expect(page.locator(".support-ticket-row")).toHaveCount(((supportConversationCount - 1) % 15) + 1);
 });
 
 test("responsive destinations stay reachable and hydration stays consistent", async ({ page }) => {

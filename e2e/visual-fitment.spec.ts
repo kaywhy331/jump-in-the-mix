@@ -72,6 +72,7 @@ async function expectReadableMeaningfulText(page: Page) {
 }
 
 test("core design primitives match the visual baseline", async ({ page }, testInfo) => {
+  test.skip(process.env.PLAYWRIGHT_CAPTURE === "off", "Visual comparison requires screenshot capture.");
   test.skip(testInfo.project.name !== "desktop-chromium", "The canonical visual baseline runs once.");
   const css = `${readFileSync("src/styles/base.css", "utf8")}\n${readFileSync("src/styles/components.css", "utf8")}`;
   await page.setViewportSize({ width: 720, height: 420 });
@@ -213,8 +214,8 @@ test("public single-user product story remains focused and responsive", async ({
   for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Turn today’s customers into tomorrow’s repeat jobs and referrals." })).toBeVisible();
-    await expect(page.getByText("The follow-up CRM for busy local businesses", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Good work deserves a follow-up." })).toBeVisible();
+    await expect(page.getByText("Made for owner-operated businesses. Ready on your phone.", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Start free" })).toHaveAttribute("href", "/register");
     await expect(page.locator("main")).not.toContainText(/\b(?:pricing|billing|subscription|upgrade|downgrade|team|organization|stripe|google contacts|ai provider)\b/i);
     await expectNoHorizontalOverflow(page);

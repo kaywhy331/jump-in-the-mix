@@ -44,6 +44,7 @@ test.beforeEach(async ({ context }) => {
   await prisma.mixStop.deleteMany({ where: { workspaceId } });
   await prisma.jump.updateMany({ where: { workspaceId, id: { in: smsIds } }, data: { status: "PENDING", scheduledAt, completedAt: null } });
   await prisma.jump.updateMany({ where: { workspaceId, id: { in: emailIds } }, data: { status: "PENDING", scheduledAt: new Date(scheduledAt.getTime() + 1000), completedAt: null } });
+  await prisma.jump.updateMany({ where: { workspaceId, id: { in: completedIds } }, data: { status: "DONE" } });
   await context.addCookies([{ name: process.env.AUTH_COOKIE_NAME ?? "jitm_session", value: token, url: process.env.APP_URL!, httpOnly: true, secure: true, sameSite: "Strict" }]);
 });
 test.afterAll(async () => {

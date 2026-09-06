@@ -105,7 +105,7 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
     </div>
     <dialog ref={gate} className="browser-account-gate" aria-labelledby="browser-account-title" onCancel={event => event.preventDefault()} onKeyDown={event => {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); }
-    }}><main className="auth-card">
+    }}><div className="auth-card">
       <h1 id="browser-account-title">{state === "checking" ? "Checking your account…" : state === "changed" ? "Your account changed" : state === "signed-out" ? "You’re signed out" : state === "expired" ? "Sign in to continue" : "Reconnect to continue"}</h1>
       <p role="status">{state === "checking" ? "Your workspace will be ready in a moment." : state === "changed" || state === "signed-out" ? "This tab’s previous account has been cleared." : state === "expired" ? "Sign in to the same account in another tab, then return here to keep your draft." : "We couldn’t confirm your account. Reconnect, then try again. Your unsaved work stays in this tab."}</p>
       {(state === "changed" || state === "signed-out") ? <a className="button primary" href={state === "changed" ? "/jumps" : "/login"}>{state === "changed" ? "Open current account" : "Sign in"}</a> : state !== "checking" && <div className="page-actions">
@@ -113,6 +113,6 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
         <button className="button" type="button" onClick={() => checkRef.current()}>Check again</button>
       </div>}
       <noscript>Enable JavaScript to confirm your account and open your workspace.</noscript>
-    </main></dialog>
+    </div></dialog>
   </AccountScope.Provider>;
 }
