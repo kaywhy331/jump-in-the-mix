@@ -1,62 +1,6 @@
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { Client } from "pg";
-
-export const CRITICAL_TABLES = [
-  "User",
-  "Session",
-  "VerificationToken",
-  "Workspace",
-  "WorkspaceMember",
-  "WorkspaceProfile",
-  "UserPreference",
-  "WorkspacePreference",
-  "Contact",
-  "ContactEmail",
-  "ContactPhone",
-  "ContactAddress",
-  "ContactCustomFieldDefinition",
-  "ContactCustomFieldValue",
-  "Group",
-  "ContactGroupMembership",
-  "ContactGroupState",
-  "ContactActivity",
-  "ContactRelationshipState",
-  "ContactSavedView",
-  "ContactMergeRecord",
-  "ContactImportBatch",
-  "DateType",
-  "JumpDate",
-  "StepTemplate",
-  "StepVersion",
-  "Mix",
-  "MixStep",
-  "MixAssignment",
-  "Jump",
-  "MixStop",
-  "JumpActionEvent",
-  "MixBroadcastSchedule",
-  "SharedMix",
-  "SharedMixImport",
-  "SharedMixMetadata",
-  "SharedMixImportMetadata",
-  "IdempotencyKey",
-  "Job",
-  "WorkerHeartbeat",
-  "AuthIdentity",
-  "SupportTicket",
-  "SupportTicketMessage",
-  "PlatformSetting",
-  "AdminMfaCredential",
-  "AdminMfaSession",
-  "AuditLog",
-  "AccountDeletionAudit",
-  "NotificationPreference",
-  "PushSubscription",
-  "NotificationDelivery",
-  "AutomationPreference",
-  "ReviewRequest",
-  "AutomatedDelivery"
-];
 
 const PRISMA_ONLY_QUERY_PARAMETERS = [
   "schema",
@@ -184,72 +128,133 @@ export async function commandVersion(command) {
   return result.stdout.trim() || result.stderr.trim();
 }
 
-async function tableExists(client, schema, table) {
-  const result = await client.query(
-    `SELECT EXISTS (
-       SELECT 1 FROM information_schema.tables
-       WHERE table_schema = $1 AND table_name = $2 AND table_type = 'BASE TABLE'
-     ) AS "exists"`,
-    [schema, table]
+const CONTENT_HASH_ALGORITHM = "sha256-jsonb-sorted-v1";
+
+/** Discover every declared relationship, including composite and cross-schema keys. */
+export async function verifyForeignKeys(client, schema) {
+  const inventory = await client.query(`
+    SELECT fk.oid, fk.conname AS name, fk.confmatchtype AS match,
+      cn.nspname AS child_schema, child.relname AS child_table,
+      pn.nspname AS parent_schema, parent.relname AS parent_table,
+      array_agg(ca.attname::text ORDER BY key.position) AS child_columns,
+      array_agg(pa.attname::text ORDER BY key.position) AS parent_columns,
+      array_agg(op.oprname::text ORDER BY key.position) AS operators,
+      array_agg(opn.nspname::text ORDER BY key.position) AS operator_schemas
+    FROM pg_constraint fk
+    JOIN pg_class child ON child.oid = fk.conrelid
+    JOIN pg_namespace cn ON cn.oid = child.relnamespace
+    JOIN pg_class parent ON parent.oid = fk.confrelid
+    JOIN pg_namespace pn ON pn.oid = parent.relnamespace
+    CROSS JOIN LATERAL unnest(fk.conkey, fk.confkey, fk.conpfeqop)
+      WITH ORDINALITY AS key(child_attnum, parent_attnum, operator_oid, position)
+    JOIN pg_attribute ca ON ca.attrelid = child.oid AND ca.attnum = key.child_attnum
+    JOIN pg_attribute pa ON pa.attrelid = parent.oid AND pa.attnum = key.parent_attnum
+    JOIN pg_operator op ON op.oid = key.operator_oid
+    JOIN pg_namespace opn ON opn.oid = op.oprnamespace
+    WHERE fk.contype = 'f' AND cn.nspname = $1
+    GROUP BY fk.oid, fk.conname, fk.confmatchtype, cn.nspname, child.relname, pn.nspname, parent.relname
+    ORDER BY cn.nspname, child.relname, fk.conname`, [schema]);
+  const checks = [];
+  for (const relation of inventory.rows) {
+    if (!["s", "f"].includes(relation.match)) throw new Error(`Unsupported foreign-key match type for ${relation.name}.`);
+    const child = `${quoteIdentifier(relation.child_schema)}.${quoteIdentifier(relation.child_table)}`;
+    const parent = `${quoteIdentifier(relation.parent_schema)}.${quoteIdentifier(relation.parent_table)}`;
+    const allPresent = relation.child_columns.map(column => `c.${quoteIdentifier(column)} IS NOT NULL`).join(" AND ");
+    const anyPresent = relation.child_columns.map(column => `c.${quoteIdentifier(column)} IS NOT NULL`).join(" OR ");
+    const join = relation.child_columns.map((column, index) =>
+      `p.${quoteIdentifier(relation.parent_columns[index])} OPERATOR(${quoteIdentifier(relation.operator_schemas[index])}.${relation.operators[index]}) c.${quoteIdentifier(column)}`
+    ).join(" AND ");
+    const missingParent = `((${allPresent}) AND NOT EXISTS (SELECT 1 FROM ${parent} p WHERE ${join}))`;
+    // MATCH SIMPLE exempts any nullable key; MATCH FULL exempts only all-null keys.
+    const invalid = relation.match === "f"
+      ? `((${anyPresent}) AND NOT (${allPresent})) OR ${missingParent}` : missingParent;
+    const result = await client.query(`SELECT COUNT(*)::text AS count FROM ${child} c WHERE ${invalid}`);
+    const count = result.rows[0].count;
+    const label = `${relation.child_schema}.${relation.child_table}.${relation.name}`;
+    if (count !== "0") throw new Error(`${label} has ${count} row(s) violating its foreign key.`);
+    checks.push({ relation: label, skipped: false, count: 0 });
+  }
+  return checks;
+}
+
+async function tableContent(client, schema, table) {
+  // Hash rows in PostgreSQL so contact details and credentials never leave the
+  // database during verification. A cursor bounds memory for large tables.
+  await client.query(`DECLARE jitm_backup_rows NO SCROLL CURSOR FOR
+    SELECT row_hash FROM (
+      SELECT encode(sha256(convert_to(to_jsonb(r)::text, 'UTF8')), 'hex') AS row_hash
+      FROM ${quoteIdentifier(schema)}.${quoteIdentifier(table)} r
+    ) hashes ORDER BY row_hash COLLATE "C"`);
+  const digest = createHash("sha256");
+  let count = 0n;
+  try {
+    while (true) {
+      const batch = await client.query("FETCH FORWARD 1000 FROM jitm_backup_rows");
+      if (!batch.rows.length) break;
+      for (const row of batch.rows) digest.update(`${row.row_hash}\n`);
+      count += BigInt(batch.rows.length);
+    }
+  } finally { await client.query("CLOSE jitm_backup_rows"); }
+  return { count: count.toString(), sha256: digest.digest("hex") };
+}
+
+async function snapshotInTransaction(client, identity, capturedAt) {
+  const versionResult = await client.query("SHOW server_version");
+  const extensionResult = await client.query("SELECT extname FROM pg_extension WHERE extname <> 'plpgsql' ORDER BY extname");
+  const inventory = await client.query(
+    `SELECT table_name FROM information_schema.tables
+     WHERE table_schema = $1 AND table_type = 'BASE TABLE' ORDER BY table_name COLLATE "C"`, [identity.schema]
   );
-  return Boolean(result.rows[0]?.exists);
+  const tableNames = inventory.rows.map(row => row.table_name);
+  const tableCounts = Object.create(null), tableDigests = Object.create(null);
+  for (const table of tableNames) {
+    const content = await tableContent(client, identity.schema, table);
+    tableCounts[table] = content.count;
+    tableDigests[table] = content.sha256;
+  }
+  let appliedMigrationNames = [], failedMigrationCount = 0;
+  if (tableNames.includes("_prisma_migrations")) {
+    const migrations = await client.query(
+      `SELECT "migration_name", "finished_at", "rolled_back_at" FROM ${quoteIdentifier(identity.schema)}."_prisma_migrations"
+       ORDER BY "started_at", "migration_name"`
+    );
+    appliedMigrationNames = migrations.rows.filter(row => row.finished_at && !row.rolled_back_at).map(row => String(row.migration_name));
+    failedMigrationCount = migrations.rows.filter(row => !row.finished_at && !row.rolled_back_at).length;
+  }
+  return {
+    database: identity.database, schema: identity.schema, capturedAt,
+    serverVersion: String(versionResult.rows[0]?.server_version ?? "unknown"),
+    tableCount: tableNames.length, tableNames, tableCounts, tableDigests,
+    contentHashAlgorithm: CONTENT_HASH_ALGORITHM,
+    appliedMigrationNames, failedMigrationCount,
+    requiredExtensions: extensionResult.rows.map(row => String(row.extname))
+  };
 }
 
-async function countTable(client, schema, table) {
-  const result = await client.query(`SELECT COUNT(*)::text AS "count" FROM ${quoteIdentifier(schema)}.${quoteIdentifier(table)}`);
-  return String(result.rows[0]?.count ?? "0");
-}
-
-export async function collectDatabaseSnapshot(databaseUrl, tables = CRITICAL_TABLES) {
+/** Keep the exported read-only transaction open until pg_dump has consumed it.
+ * Normal application writes may continue; metadata and archive share one view. */
+export async function withDatabaseSnapshot(databaseUrl, consume) {
   const identity = databaseIdentity(databaseUrl);
   const client = new Client({ connectionString: postgresCliUrl(databaseUrl) });
   await client.connect();
   try {
-    const versionResult = await client.query("SHOW server_version");
-    const extensionResult = await client.query(
-      "SELECT extname FROM pg_extension WHERE extname <> 'plpgsql' ORDER BY extname"
-    );
-    const tableCounts = {};
-    for (const table of tables) {
-      if (await tableExists(client, identity.schema, table)) {
-        tableCounts[table] = await countTable(client, identity.schema, table);
-      }
-    }
-
-    let appliedMigrationNames = [];
-    let failedMigrationCount = 0;
-    if (await tableExists(client, identity.schema, "_prisma_migrations")) {
-      const migrations = await client.query(
-        `SELECT "migration_name", "finished_at", "rolled_back_at"
-         FROM ${quoteIdentifier(identity.schema)}."_prisma_migrations"
-         ORDER BY "started_at"`
-      );
-      appliedMigrationNames = migrations.rows
-        .filter((row) => row.finished_at && !row.rolled_back_at)
-        .map((row) => String(row.migration_name));
-      failedMigrationCount = migrations.rows.filter((row) => !row.finished_at && !row.rolled_back_at).length;
-    }
-
-    const tableTotal = await client.query(
-      `SELECT COUNT(*)::int AS "count"
-       FROM information_schema.tables
-       WHERE table_schema = $1 AND table_type = 'BASE TABLE'`,
-      [identity.schema]
-    );
-
-    return {
-      database: identity.database,
-      schema: identity.schema,
-      serverVersion: String(versionResult.rows[0]?.server_version ?? "unknown"),
-      tableCount: Number(tableTotal.rows[0]?.count ?? 0),
-      tableCounts,
-      appliedMigrationNames,
-      failedMigrationCount,
-      requiredExtensions: extensionResult.rows.map((row) => String(row.extname))
-    };
+    await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    await client.query("SET LOCAL TIME ZONE 'UTC'");
+    await client.query("SET LOCAL DateStyle = 'ISO, YMD'");
+    await client.query("SET LOCAL IntervalStyle = 'postgres'");
+    await client.query("SET LOCAL extra_float_digits = 3");
+    await client.query("SET LOCAL bytea_output = 'hex'");
+    const exported = await client.query("SELECT pg_export_snapshot() AS id, transaction_timestamp() AS captured_at");
+    const snapshot = await snapshotInTransaction(client, identity, exported.rows[0].captured_at.toISOString());
+    return await consume({ snapshot, snapshotId: exported.rows[0].id });
   } finally {
+    await client.query("ROLLBACK").catch(() => undefined);
     await client.end();
   }
+}
+
+export async function collectDatabaseSnapshot(databaseUrl) {
+  return withDatabaseSnapshot(databaseUrl, ({ snapshot }) => snapshot);
 }
 
 export async function assertDatabaseEmpty(databaseUrl) {
@@ -283,6 +288,18 @@ export function compareSnapshots(expected, actual) {
     differences.push(`table count expected ${expected.tableCount}, restored ${actual.tableCount}`);
   }
 
+  if (expected.tableNames && JSON.stringify(expected.tableNames) !== JSON.stringify(actual.tableNames)) {
+    differences.push("application table inventory differs");
+  }
+  if (expected.tableDigests) {
+    if (expected.contentHashAlgorithm !== CONTENT_HASH_ALGORITHM || actual.contentHashAlgorithm !== CONTENT_HASH_ALGORITHM) {
+      differences.push("table content hash algorithm differs or is unsupported");
+    }
+    for (const [table, digest] of Object.entries(expected.tableDigests)) {
+      if (digest !== actual.tableDigests?.[table]) differences.push(`${table} row contents differ`);
+    }
+  }
+
   const expectedMigrations = expected.appliedMigrationNames ?? [];
   const actualMigrations = actual.appliedMigrationNames ?? [];
   if (JSON.stringify(expectedMigrations) !== JSON.stringify(actualMigrations)) {
@@ -303,4 +320,24 @@ export function compareSnapshots(expected, actual) {
     }
   }
   return differences;
+}
+
+export function assertBackupManifest(manifest) {
+  const source = manifest?.source;
+  if (![1, 2].includes(manifest?.manifestVersion) || !/^[a-f0-9]{64}$/u.test(manifest?.archive?.sha256 ?? "")
+    || !source || typeof source.schema !== "string" || !source.schema) {
+    throw new Error("Backup manifest is missing required version, checksum, or source snapshot fields.");
+  }
+  // Existing version-one archives retain their original count-based checks.
+  if (manifest.manifestVersion === 1) return;
+  const names = source.tableNames;
+  if (!Array.isArray(names) || !names.length || names.some(name => typeof name !== "string" || !name)
+    || new Set(names).size !== names.length || source.tableCount !== names.length
+    || source.contentHashAlgorithm !== CONTENT_HASH_ALGORITHM
+    || !Array.isArray(source.appliedMigrationNames) || !Number.isInteger(source.failedMigrationCount)
+    || !source.tableCounts || !source.tableDigests
+    || Object.keys(source.tableCounts).length !== names.length || Object.keys(source.tableDigests).length !== names.length
+    || names.some(name => !/^\d+$/u.test(String(source.tableCounts[name] ?? "")) || !/^[a-f0-9]{64}$/u.test(source.tableDigests[name] ?? ""))) {
+    throw new Error("Version-two backup manifest must verify the inventory, row counts, and contents of every table.");
+  }
 }

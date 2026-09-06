@@ -200,7 +200,7 @@ export async function demoLoginAction(): Promise<void> {
 
 export async function logoutAction(): Promise<void> {
   await destroySession();
-  redirect("/");
+  redirect("/signed-out");
 }
 
 export async function resendVerificationAction(formData: FormData): Promise<void> {
@@ -339,5 +339,5 @@ export async function signOutEverywhereAction(): Promise<void> {
   const session = await requireSession();
   await destroyAllSessionsForUser(session.userId);
   await destroySession();
-  redirect("/login?signedOutEverywhere=1");
+  redirect("/signed-out?everywhere=1");
 }

@@ -21,6 +21,12 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   allowedDevOrigins: ["127.0.0.1"],
+  async headers() {
+    return [{ source: "/sw.js", headers: [
+      { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+      { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }
+    ] }];
+  },
   turbopack: {
     root: dirname(fileURLToPath(import.meta.url))
   },

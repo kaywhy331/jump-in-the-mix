@@ -9,7 +9,7 @@ function value(formData: FormData, key: string): string {
 }
 
 function safeReturnTo(raw: string, contactId: string): string {
-  if (raw === "/jumps") return raw;
+  if (raw === "/jumps" || raw.startsWith("/jumps?")) return raw;
   if (raw === `/contacts/${contactId}`) return raw;
   return `/contacts/${contactId}`;
 }

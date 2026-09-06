@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { encryptFile, sha256File } from "./lib/backup-archive.mjs";
 import {
-  collectDatabaseSnapshot,
   commandVersion,
-  compareSnapshots,
   databaseIdentity,
   postgresCliEnv,
-  runCommand
+  quoteIdentifier,
+  runCommand,
+  withDatabaseSnapshot
 } from "./lib/postgres-ops.mjs";
 import { sendOpsAlert } from "./lib/ops-alert.mjs";
 
@@ -59,36 +59,23 @@ async function main() {
   const rawDumpPath = join(temporaryDirectory, "database.dump");
 
   try {
-    const [pgDumpVersion, before] = await Promise.all([
-      commandVersion("pg_dump"),
-      collectDatabaseSnapshot(databaseUrl)
-    ]);
-
-    if (!before.tableCount) throw new Error("Source database contains no application tables.");
-    if (before.failedMigrationCount) throw new Error(`Source database has ${before.failedMigrationCount} unfinished migration(s).`);
-
-    await runCommand("pg_dump", [
-      "--format=custom",
-      "--no-owner",
-      "--no-privileges",
-      "--compress=6",
-      "--schema",
-      identity.schema,
-      "--file",
-      rawDumpPath
-    ], { env: postgresCliEnv(databaseUrl) });
-
-    const after = await collectDatabaseSnapshot(databaseUrl);
-    const sourceChanges = compareSnapshots(before, after);
-    if (sourceChanges.length) {
-      throw new Error(`Database changed while the backup was being captured: ${sourceChanges.join("; ")}. Pause writes and retry.`);
-    }
+    const pgDumpVersion = await commandVersion("pg_dump");
+    const source = await withDatabaseSnapshot(databaseUrl, async ({ snapshot, snapshotId }) => {
+      if (!snapshot.tableCount) throw new Error("Source database contains no application tables.");
+      if (snapshot.failedMigrationCount) throw new Error(`Source database has ${snapshot.failedMigrationCount} unfinished migration(s).`);
+      await runCommand("pg_dump", [
+        "--format=custom", "--no-owner", "--no-privileges", "--compress=6",
+        "--schema", quoteIdentifier(identity.schema), "--strict-names",
+        "--snapshot", snapshotId, "--file", rawDumpPath
+      ], { env: postgresCliEnv(databaseUrl) });
+      return snapshot;
+    });
 
     const encryption = await encryptFile(rawDumpPath, outputPath);
     const archiveStat = await stat(outputPath);
     const checksum = await sha256File(outputPath);
     const manifest = {
-      manifestVersion: 1,
+      manifestVersion: 2,
       createdAt: new Date().toISOString(),
       archive: {
         file: basename(outputPath),
@@ -97,14 +84,8 @@ async function main() {
         ...encryption
       },
       source: {
-        database: identity.database,
-        schema: identity.schema,
-        serverVersion: before.serverVersion,
-        tableCount: before.tableCount,
-        tableCounts: before.tableCounts,
-        appliedMigrationNames: before.appliedMigrationNames,
-        failedMigrationCount: before.failedMigrationCount,
-        requiredExtensions: before.requiredExtensions
+        ...source,
+        captureMethod: "exported-postgres-snapshot"
       },
       tooling: { pgDumpVersion }
     };

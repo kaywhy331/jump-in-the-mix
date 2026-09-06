@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { GlobalLiveSearch } from "@/components/GlobalLiveSearch";
+import { PwaRegistration } from "@/components/PwaRegistration";
 import { env } from "@/lib/env";
 import "@/styles/index.css";
 
@@ -20,10 +22,14 @@ export const metadata: Metadata = {
 
 export const viewport = { themeColor: "#5d4cf2", width: "device-width", initialScale: 1, viewportFit: "cover" };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // The request's CSP nonce must also be present on public-page scripts.
+  // A static document cannot carry a fresh nonce for each response.
+  await connection();
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body>
+        <PwaRegistration />
         {env.privateTestMode && <aside role="note" style={{ padding: "8px 16px", textAlign: "center", background: "#fff0c2", color: "#4a3500", fontSize: "14px" }}>Private test site. Use sample data only.</aside>}
         <Suspense fallback={null}><GlobalLiveSearch /></Suspense>
         {children}

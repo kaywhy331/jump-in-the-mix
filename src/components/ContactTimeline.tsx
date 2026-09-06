@@ -49,6 +49,7 @@ export function ContactTimeline({
 }) {
   const [items, setItems] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [privateNote, setPrivateNote] = useState(false);
   const [summary, setSummary] = useState("");
@@ -70,7 +71,7 @@ export function ContactTimeline({
     }
   };
 
-  useEffect(() => { void load(); }, [contactId]);
+  useEffect(() => { setReady(true); void load(); }, [contactId]);
 
   const visibleItems = useMemo(() => items.filter((item) => {
     if (filter === "COMMUNICATIONS") return item.kind === "JUMP_OUTCOME";
@@ -105,11 +106,11 @@ export function ContactTimeline({
       <form id="add-note" className={styles.noteComposer} onSubmit={submit}>
         <label>
           <span>Add a note</span>
-          <textarea value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={4000} placeholder="What should you remember about this person or conversation?" required />
+          <textarea disabled={!ready} value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={4000} placeholder="What should you remember about this person or conversation?" required />
         </label>
         <div>
-          <label className="checkbox-row"><input type="checkbox" checked={privateNote} onChange={(event) => setPrivateNote(event.target.checked)} /><span>Keep private (never used in messages)</span></label>
-          <button className="button primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Add update"}</button>
+          <label className="checkbox-row"><input type="checkbox" disabled={!ready} checked={privateNote} onChange={(event) => setPrivateNote(event.target.checked)} /><span>Keep private (never used in messages)</span></label>
+          <button className="button primary" type="submit" disabled={!ready || saving}>{saving ? "Saving…" : "Add update"}</button>
         </div>
       </form>
 

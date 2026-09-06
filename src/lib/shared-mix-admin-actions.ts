@@ -67,7 +67,7 @@ export async function saveSharedMixAdminAction(formData: FormData): Promise<void
     const channel = normalizeSharedMixChannel(channels[index]);
     if (!channel) fail(path, `Follow-up #${index + 1} does not use a supported channel.`);
     const offset = Number(offsets[index]);
-    const parsedTime = Number(times[index]);
+    const parsedTime = times[index]?.trim() ? Number(times[index]) : NaN;
     const body = (bodies[index] ?? "").trim() || null;
     return {
       name: name.trim(),

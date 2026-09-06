@@ -1,3 +1,4 @@
+import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
 import type { Metadata } from "next";
 import { Logo } from "@/components/Logo";
 import { LocalDateInput } from "@/components/LocalDateInput";
@@ -24,12 +25,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
         <form action={completeOnboardingAction} className="form-stack">
           <fieldset className="onboarding-step-card">
             <legend><span>1</span> What do you do?</legend>
-            <div className="onboarding-business-types">
-              <label className="checkbox-card"><input type="radio" name="businessType" value="Home services" defaultChecked /><span><strong>Home services</strong><small>Plumbing, HVAC, electrical, and other trades</small></span></label>
-              <label className="checkbox-card"><input type="radio" name="businessType" value="Real estate" /><span><strong>Real estate</strong><small>Agents, brokers, and property professionals</small></span></label>
-              <label className="checkbox-card"><input type="radio" name="businessType" value="Insurance & finance" /><span><strong>Insurance &amp; finance</strong><small>Advisors, agents, and local firms</small></span></label>
-              <label className="checkbox-card"><input type="radio" name="businessType" value="Other" /><span><strong>Something else</strong><small>Use the flexible starter plan</small></span></label>
-            </div>
+            <label className="field"><span>Type of business</span><select name="businessType" defaultValue={workspace.profile?.industry ?? "Home services"}>{BUSINESS_TYPES.map(type => <option key={type}>{type}</option>)}</select><small>We’ll suggest plans that fit your work.</small></label>
           </fieldset>
           <fieldset className="onboarding-step-card">
             <legend><span>2</span> Make messages yours</legend>

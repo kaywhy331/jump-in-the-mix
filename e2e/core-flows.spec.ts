@@ -50,6 +50,7 @@ test("single user can complete the primary discovery and support journey", async
 
   await page.goto("/templates");
   await expect(page.getByRole("heading", { name: "Ready-made plans" })).toBeVisible();
+  await page.getByRole("searchbox", { name: "Search ready-made plans" }).fill("Estimate sent");
   await expect(page.getByText("Estimate sent: gentle follow-up", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Build my own" })).toHaveAttribute("href", "/mixes/new?custom=1");
 

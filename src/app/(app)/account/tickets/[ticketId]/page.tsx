@@ -52,11 +52,11 @@ export default async function SupportTicketPage({
         <div>
           <span className="support-ticket-reference">{ticket.reference}</span>
           <h1>{ticket.title}</h1>
-          <p>Every message below uses a server timestamp and remains attached to this private support ticket.</p>
+          <p>Your conversation with support. Replies and next steps stay together.</p>
         </div>
         <div className="page-actions">
           <Link className="button" href="/help">Help & FAQ</Link>
-          <Link className="button" href="/account?section=support">All tickets</Link>
+          <Link className="button" href="/account/tickets">All tickets</Link>
         </div>
       </header>
 
@@ -118,7 +118,7 @@ export default async function SupportTicketPage({
         </main>
 
         <aside className="card support-ticket-summary">
-          <div className="card-header"><div><h2>Ticket details</h2><p>Current queue and classification state.</p></div></div>
+          <div className="card-header"><div><h2>Ticket details</h2><p>The latest information about your conversation.</p></div></div>
           <dl className="support-definition-list">
             <div><dt>Status</dt><dd><span className={`status-pill ${ticket.status === "RESOLVED" ? "done" : ""}`}>{supportStatusLabel(ticket.status)}</span></dd></div>
             <div><dt>Category</dt><dd>{supportCategoryLabel(ticket.category)}</dd></div>

@@ -1,3 +1,4 @@
+import { ContactJourneyPanel } from "@/components/ContactJourneyPanel";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,6 +8,7 @@ import { ContactRelationshipStatePanel } from "@/components/ContactRelationshipS
 import { ContactTimeline } from "@/components/ContactTimeline";
 import { ContactsBackLink } from "@/components/ContactsBackLink";
 import { Notice } from "@/components/Notice";
+import { PreparationNotice } from "@/components/PreparationNotice";
 import { ReviewRequestButton } from "@/components/ReviewRequestButton";
 import { Sheet } from "@/components/Sheet";
 import { requireWorkspace } from "@/lib/auth";
@@ -19,6 +21,7 @@ import { createImportantDateAction, deactivateImportantDateAction, updateImporta
 import { formatDateInput } from "@/lib/mix-broadcast";
 import { resumeMixForContactAction, stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
+import { readPreparationStatus } from "@/lib/preparation";
 
 export const metadata: Metadata = { title: "Contact details" };
 
@@ -35,7 +38,8 @@ function addressText(address: { street1: string | null; street2: string | null; 
 }
 
 export default async function ContactDetailPage({ params, searchParams }: { params: Promise<{ contactId: string }>; searchParams: Promise<SearchParams> }) {
-  const [{ contactId }, query, { workspace, user }] = await Promise.all([params, searchParams, requireWorkspace()]);
+  const [{ contactId }, query, { workspace, user, impersonation }] = await Promise.all([params, searchParams, requireWorkspace()]);
+  const preparation = await readPreparationStatus(workspace.id, contactId);
   const [contact, dateTypes, plans, stops, groupStates, relationshipState, mergeHistory, nextFollowUp] = await Promise.all([
     prisma.contact.findFirst({
       where: { id: contactId, workspaceId: workspace.id, archivedAt: null },
@@ -104,8 +108,9 @@ export default async function ContactDetailPage({ params, searchParams }: { para
       </nav>}
 
       <section className="contact-next-line" aria-label="Next follow-up">
-        {nextFollowUp ? <><span>Next</span><strong>{nextFollowUp.reason}</strong><time>{formatDateTime(nextFollowUp.scheduledAt, displayPreferences)}</time><Link href="/jumps">Open Today</Link></> : <><span>Next</span><strong>Nothing scheduled</strong><Link href="#add-date">Add a date</Link></>}
+        {nextFollowUp ? <><span>Next</span><strong>{nextFollowUp.reason}</strong><time>{formatDateTime(nextFollowUp.scheduledAt, displayPreferences)}</time><Link href="/jumps">Open Today</Link></> : preparation.state !== "ready" ? <><span>Next</span><strong>Awaiting follow-up preparation</strong></> : <><span>Next</span><strong>Nothing scheduled</strong><Link href="#add-date">Add a date</Link></>}
       </section>
+      <PreparationNotice key={contact.id} initial={preparation} contactId={contact.id} canRetry={!impersonation} />
 
       {contact.groupMemberships.length > 0 && <div className="contact-group-strip" aria-label="Tags">{contact.groupMemberships.map(({ group }) => {
         const isActive = activeByGroupId.get(group.id) !== false;
@@ -120,7 +125,8 @@ export default async function ContactDetailPage({ params, searchParams }: { para
         </section>
 
         <section className="card contact-priority-card">
-          <div className="card-header"><div><h2>Relationship</h2><p>Changes save when tapped.</p></div></div>
+          <div className="card-header"><div><h2>Relationship</h2><p>Stages, priorities, and preferences.</p></div></div>
+          <ContactJourneyPanel workspaceId={workspace.id} contactId={contact.id} />
           <ContactRelationshipStatePanel contactId={contact.id} state={state} />
         </section>
 

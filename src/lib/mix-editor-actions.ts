@@ -8,6 +8,7 @@ import { listGroupStates, mergeGroupActivity } from "@/lib/group-activity";
 import { parseBroadcastScheduleInput } from "@/lib/mix-broadcast";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
 import { prisma } from "@/lib/prisma";
+import { startDraftMix } from "@/lib/mix-start";
 import { timezoneForUser } from "@/lib/display-preferences";
 
 const MAX_STEP_OFFSET_DAYS = 365;
@@ -163,6 +164,8 @@ export async function saveMixAction(formData: FormData): Promise<void> {
 
   try {
     await prisma.$transaction(async (tx) => {
+      const freshStart = Boolean(existingMix && status === "ACTIVE" && triggerMode === "MANUAL_START"
+        && await startDraftMix(tx, { workspaceId: workspace.id, mixId, now }));
       const mixData = {
         name,
         description: description || null,
@@ -235,13 +238,13 @@ export async function saveMixAction(formData: FormData): Promise<void> {
       for (const groupId of groupIds) {
         const assignmentKey = `${workspace.id}:${mixId}:group:${groupId}`;
         const existing = existingAssignmentByKey.get(assignmentKey);
-        const startDate = triggerMode === "MANUAL_START" ? existing?.startDate ?? now : null;
+        const startDate = triggerMode === "MANUAL_START" ? freshStart ? now : existing?.startDate ?? now : null;
         await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, groupId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
       }
       for (const contactId of allContactIds) {
         const assignmentKey = `${workspace.id}:${mixId}:audience:${contactId}`;
         const existing = existingAssignmentByKey.get(assignmentKey);
-        const startDate = triggerMode === "MANUAL_START" ? existing?.startDate ?? now : null;
+        const startDate = triggerMode === "MANUAL_START" ? freshStart ? now : existing?.startDate ?? now : null;
         await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, contactId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
       }
 

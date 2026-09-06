@@ -25,6 +25,16 @@ async function seedDeletionGraph() {
       }
     }
   });
+  const stage = await prisma.journeyStage.create({ data: { workspaceId, name: "Deletion stage", position: 0 } });
+  await prisma.journeyPreference.create({ data: { workspaceId } });
+  await prisma.contactJourney.create({ data: { workspaceId, contactId: `delete-contact-${suffix}`, stageId: stage.id } });
+  await prisma.journeyEvent.create({ data: { workspaceId, contactId: `delete-contact-${suffix}`, eventKey: "delete-event", eventType: "CONTACT_RECEIVED", source: "Deletion test" } });
+  const intake = await prisma.intakeConnection.create({ data: { workspaceId, name: "Delete intake", kind: "CRM", tokenHash: `delete-intake-${suffix}`, tokenEncrypted: "test-only" } });
+  await prisma.intakeIdentity.create({ data: { connectionId: intake.id, externalId: "delete-person", contactId: `delete-contact-${suffix}` } });
+  await prisma.intakeReceipt.create({ data: { connectionId: intake.id, eventKey: "delete-receipt", payloadHash: "test", payload: { message: "Private inquiry" }, status: "ACCEPTED", contactId: `delete-contact-${suffix}` } });
+  const calendar = await prisma.calendarConnection.create({ data: { workspaceId, name: "Delete calendar", urlEncrypted: "test-only" } });
+  await prisma.calendarPreference.create({ data: { workspaceId, tokenHash: `delete-calendar-${suffix}`, tokenEncrypted: "test-only" } });
+  await prisma.calendarEntry.create({ data: { workspaceId, contactId: `delete-contact-${suffix}`, connectionId: calendar.id, title: "Private event", kind: "BUSY", startsAt: new Date(), endsAt: new Date(Date.now()+60_000), timezone: "UTC" } });
   await prisma.session.create({
     data: { id: `delete-session-${suffix}`, userId, tokenHash: `delete-token-${suffix}`, expiresAt: new Date(Date.now() + 60_000) }
   });
@@ -84,6 +94,15 @@ describe("account deletion", () => {
     await expect(prisma.workspace.count({ where: { id: workspaceId } })).resolves.toBe(0);
     await expect(prisma.contact.count({ where: { workspaceId } })).resolves.toBe(0);
     await expect(prisma.job.count({ where: { workspaceId } })).resolves.toBe(0);
+    const journeyAndConnectionCounts = await Promise.all([
+      prisma.journeyPreference.count({ where: { workspaceId } }), prisma.journeyStage.count({ where: { workspaceId } }),
+      prisma.contactJourney.count({ where: { workspaceId } }), prisma.journeyEvent.count({ where: { workspaceId } }),
+      prisma.intakeConnection.count({ where: { workspaceId } }), prisma.calendarPreference.count({ where: { workspaceId } }),
+      prisma.calendarConnection.count({ where: { workspaceId } }), prisma.calendarEntry.count({ where: { workspaceId } })
+    ]);
+    expect(journeyAndConnectionCounts).toEqual(Array(8).fill(0));
+    await expect(prisma.intakeReceipt.count({ where: { contactId: `delete-contact-${suffix}` } })).resolves.toBe(0);
+    await expect(prisma.intakeIdentity.count({ where: { contactId: `delete-contact-${suffix}` } })).resolves.toBe(0);
     await expect(prisma.jump.count({ where: { workspaceId } })).resolves.toBe(0);
     await expect(prisma.supportTicket.count({ where: { workspaceId } })).resolves.toBe(0);
     await expect(prisma.accountDeletionAudit.findUnique({ where: { requestId } })).resolves.toMatchObject({ status: "COMPLETED" });

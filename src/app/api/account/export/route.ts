@@ -26,7 +26,9 @@ export async function GET(request: Request) {
     automationPreference,
     reviewRequests,
     automatedDeliveries,
-    authIdentities
+    authIdentities,
+    journeyPreference, journeyStages, journeys, journeyEvents,
+    calendarEntries, calendarConnections, intakeConnections, intakeReceipts, intakeIdentities
   ] = await Promise.all([
     prisma.workspaceProfile.findUnique({ where: { workspaceId } }),
     prisma.userPreference.findUnique({ where: { userId: user.id } }),
@@ -43,7 +45,16 @@ export async function GET(request: Request) {
     prisma.automationPreference.findUnique({ where: { workspaceId } }),
     prisma.reviewRequest.findMany({ where: { workspaceId }, select: { id: true, contactId: true, status: true, rating: true, feedback: true, openedAt: true, respondedAt: true, reviewClickedAt: true, referralClickedAt: true, expiresAt: true, createdAt: true, updatedAt: true }, orderBy: { createdAt: "asc" } }),
     prisma.automatedDelivery.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
-    prisma.authIdentity.findMany({ where: { userId: user.id }, select: { provider: true, email: true, createdAt: true, updatedAt: true } })
+    prisma.authIdentity.findMany({ where: { userId: user.id }, select: { provider: true, email: true, createdAt: true, updatedAt: true } }),
+    prisma.journeyPreference.findUnique({ where: { workspaceId } }),
+    prisma.journeyStage.findMany({ where: { workspaceId }, include: { outgoingRules: true }, orderBy: { position: "asc" } }),
+    prisma.contactJourney.findMany({ where: { workspaceId } }),
+    prisma.journeyEvent.findMany({ where: { workspaceId }, orderBy: { occurredAt: "asc" } }),
+    prisma.calendarEntry.findMany({ where: { workspaceId }, orderBy: { startsAt: "asc" } }),
+    prisma.calendarConnection.findMany({ where: { workspaceId }, select: { id: true, name: true, enabled: true, lastSyncedAt: true, lastAttemptAt: true, lastError: true, createdAt: true } }),
+    prisma.intakeConnection.findMany({ where: { workspaceId }, select: { id: true, name: true, kind: true, enabled: true, createdAt: true } }),
+    prisma.intakeReceipt.findMany({ where: { connection: { workspaceId } }, orderBy: { createdAt: "asc" } }),
+    prisma.intakeIdentity.findMany({ where: { connection: { workspaceId } } })
   ]);
   const exportedAt = new Date();
   if (new URL(request.url).searchParams.get("format") === "csv") {
@@ -89,7 +100,10 @@ export async function GET(request: Request) {
     imports,
     reviewRequests,
     automatedDeliveries,
-    excludedSecurityMaterial: ["password hashes", "session tokens", "provider credentials", "webhook payloads and secrets"]
+    journey: { preference: journeyPreference, stages: journeyStages, contacts: journeys, events: journeyEvents },
+    calendar: { entries: calendarEntries, connections: calendarConnections },
+    leadIntake: { connections: intakeConnections, receipts: intakeReceipts, identities: intakeIdentities },
+    excludedSecurityMaterial: ["password hashes", "session tokens", "provider credentials", "provider webhook payloads", "connection keys and private calendar URLs"]
   };
   return new NextResponse(JSON.stringify(document, null, 2), {
     headers: {

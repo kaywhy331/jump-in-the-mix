@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
 import { generateJumps } from "../src/lib/jump-engine";
 import { READY_MADE_PLANS } from "../src/lib/vertical-plan-library";
+import { publishReadyMadePlans } from "../src/lib/publish-plan-library";
 
 const demoMode = (process.env.DEMO_MODE ?? "true").toLowerCase() === "true";
 const demoEmail = process.env.DEMO_USER_EMAIL ?? "demo@jumpinthemix.local";
@@ -48,50 +49,7 @@ async function seedSystemData() {
     data: { status: "UNPUBLISHED" }
   });
 
-  for (const item of READY_MADE_PLANS) {
-    await prisma.sharedMix.upsert({
-      where: { id: item.id },
-      create: {
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        category: item.category,
-        industry: item.industry,
-        framework: item.framework,
-        durationDays: item.durationDays,
-        steps: item.steps,
-        status: "APPROVED"
-      },
-      update: {
-        title: item.title,
-        description: item.description,
-        category: item.category,
-        industry: item.industry,
-        framework: item.framework,
-        durationDays: item.durationDays,
-        steps: item.steps,
-        status: "APPROVED"
-      }
-    });
-    await prisma.sharedMixMetadata.upsert({
-      where: { sharedMixId: item.id },
-      create: {
-        sharedMixId: item.id,
-        triggerMode: item.triggerMode,
-        dateTypeName: item.dateTypeName,
-        dateTypeSlug: item.dateTypeSlug,
-        featuredAt: item.featured ? new Date() : null,
-        publishedAt: new Date()
-      },
-      update: {
-        triggerMode: item.triggerMode,
-        dateTypeName: item.dateTypeName,
-        dateTypeSlug: item.dateTypeSlug,
-        featuredAt: item.featured ? new Date() : null,
-        publishedAt: new Date()
-      }
-    });
-  }
+  await publishReadyMadePlans(READY_MADE_PLANS);
 }
 
 async function seedDemoWorkspace() {

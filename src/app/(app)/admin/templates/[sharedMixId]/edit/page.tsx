@@ -1,3 +1,4 @@
+import { SendTimeField } from "@/components/SendTimeField";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -79,7 +80,7 @@ export default async function AdminEditTemplatePage({
                   <div className="field full"><label htmlFor={`stepName-${index}`}>Follow-up name</label><input id={`stepName-${index}`} name="stepName" defaultValue={step.name} maxLength={160} required /></div>
                   <div className="field"><label htmlFor={`stepChannel-${index}`}>Channel</label><select id={`stepChannel-${index}`} name="stepChannel" defaultValue={step.channel}><option value="SMS">SMS</option><option value="EMAIL">Email</option><option value="PHONE_CALL">Phone Call</option><option value="VOICEMAIL">Voicemail Script</option><option value="WHATSAPP">WhatsApp</option></select></div>
                   <div className="field"><label htmlFor={`stepDayOffset-${index}`}>Days after start</label><input id={`stepDayOffset-${index}`} name="stepDayOffset" type="number" min={-3650} max={3650} defaultValue={step.dayOffset} required /></div>
-                  <div className="field"><label htmlFor={`stepSendTimeMinutes-${index}`}>Time, minutes after midnight</label><input id={`stepSendTimeMinutes-${index}`} name="stepSendTimeMinutes" type="number" min={0} max={1439} defaultValue={step.sendTimeMinutes ?? ""} /></div>
+                  <SendTimeField id={`stepSendTimeMinutes-${index}`} defaultMinutes={step.sendTimeMinutes ?? null} />
                   <div className="field full"><label htmlFor={`stepSubject-${index}`}>Email subject</label><input id={`stepSubject-${index}`} name="stepSubject" defaultValue={step.subject ?? ""} maxLength={300} /></div>
                   <div className="field full"><label htmlFor={`stepBody-${index}`}>SMS, email, or WhatsApp content</label><textarea id={`stepBody-${index}`} name="stepBody" defaultValue={step.body ?? ""} rows={6} /></div>
                   <div className="field full"><label htmlFor={`stepScript-${index}`}>Phone or voicemail script</label><textarea id={`stepScript-${index}`} name="stepScript" defaultValue={step.script ?? ""} rows={6} /></div>

@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { startDraftMix } from "@/lib/mix-start";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -24,9 +25,10 @@ export async function activateMixAction(formData: FormData): Promise<void> {
     select: { id: true, name: true }
   });
   if (!mix) fail("Plan not found or already active.");
-  await prisma.$transaction([
-    prisma.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } }),
-    prisma.auditLog.create({
+  await prisma.$transaction(async tx => {
+    await startDraftMix(tx, { workspaceId: workspace.id, mixId: mix.id, now: new Date() });
+    await tx.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } });
+    await tx.auditLog.create({
       data: {
         workspaceId: workspace.id,
         actorType: "USER",
@@ -36,8 +38,8 @@ export async function activateMixAction(formData: FormData): Promise<void> {
         entityId: mix.id,
         source: "mixes.list"
       }
-    })
-  ]);
+    });
+  });
   await queueMixReconciliation(workspace.id, mix.id);
   redirect("/mixes?activated=1");
 }

@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
-import { appendFile, mkdir, open, rm, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, open, rm, stat } from "node:fs/promises";
 import { createReadStream, createWriteStream } from "node:fs";
 import { dirname } from "node:path";
 import { pipeline } from "node:stream/promises";
@@ -58,27 +58,25 @@ export async function encryptFile(inputPath, outputPath, keyValue = process.env.
   const key = Buffer.isBuffer(keyValue) ? keyValue : parseBackupKey(keyValue);
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
-  const cipherPath = `${outputPath}.${process.pid}.${Date.now()}.cipher.tmp`;
+  let ownsOutput = false;
 
   await mkdir(dirname(outputPath), { recursive: true });
   try {
-    await pipeline(createReadStream(inputPath), cipher, createWriteStream(cipherPath, { flags: "wx" }));
-    const tag = cipher.getAuthTag();
     const header = Buffer.concat([MAGIC, Buffer.from([VERSION, iv.length]), iv]);
-    await writeFile(outputPath, header, { flag: "wx", mode: 0o600 });
-    await pipeline(createReadStream(cipherPath), createWriteStream(outputPath, { flags: "a", mode: 0o600 }));
-    await appendFile(outputPath, tag);
+    const output = await open(outputPath, "wx", 0o600);
+    ownsOutput = true;
+    try { await output.writeFile(header); } finally { await output.close(); }
+    await pipeline(createReadStream(inputPath), cipher, createWriteStream(outputPath, { flags: "a" }));
+    await appendFile(outputPath, cipher.getAuthTag());
     return {
       version: VERSION,
       algorithm: "aes-256-gcm",
       ivBytes: iv.length,
-      tagBytes: tag.length
+      tagBytes: TAG_BYTES
     };
   } catch (error) {
-    await rm(outputPath, { force: true }).catch(() => undefined);
+    if (ownsOutput) await rm(outputPath, { force: true }).catch(() => undefined);
     throw error;
-  } finally {
-    await rm(cipherPath, { force: true }).catch(() => undefined);
   }
 }
 
@@ -134,18 +132,23 @@ export async function decryptFile(inputPath, outputPath, keyValue = process.env.
   decipher.setAuthTag(tag);
 
   await mkdir(dirname(outputPath), { recursive: true });
+  let output;
   try {
+    output = await open(outputPath, "wx", 0o600);
     await pipeline(
       createReadStream(inputPath, {
         start: metadata.headerBytes,
         end: metadata.totalBytes - TAG_BYTES - 1
       }),
       decipher,
-      createWriteStream(outputPath, { flags: "wx", mode: 0o600 })
+      output.createWriteStream()
     );
     return metadata;
   } catch (error) {
-    await rm(outputPath, { force: true }).catch(() => undefined);
+    if (output) {
+      await output.close().catch(() => undefined);
+      await rm(outputPath, { force: true }).catch(() => undefined);
+    }
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(`Backup archive could not be decrypted or authenticated: ${message}`);
   }

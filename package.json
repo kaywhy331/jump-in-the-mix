@@ -52,7 +52,10 @@
     "pilot:health": "node scripts/pilot.mjs health",
     "pilot:upgrade": "node scripts/pilot.mjs upgrade",
     "pilot:reset-password": "node scripts/pilot.mjs reset-password",
-    "security:audit": "npm audit --omit=dev --audit-level=high"
+    "security:audit": "npm audit --omit=dev --audit-level=high",
+    "scheduler:types": "npx --yes wrangler@4.129.0 types infra/cloudflare-scheduler/worker-configuration.d.ts --config infra/cloudflare-scheduler/wrangler.jsonc --env-interface JitmSchedulerEnv --include-runtime=false --strict-vars=false",
+    "scheduler:types:check": "npm run scheduler:types -- --check",
+    "scheduler:check": "npm run scheduler:types:check && npx --yes wrangler@4.129.0 deploy --config infra/cloudflare-scheduler/wrangler.jsonc --dry-run --outdir ../../.artifacts/cloudflare-scheduler"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",
@@ -62,6 +65,7 @@
     "fflate": "0.8.3",
     "jose": "6.2.11",
     "next": "16.3.4",
+    "node-ical": "0.27.1",
     "pg": "8.16.3",
     "qrcode": "1.5.4",
     "react": "19.2.7",
@@ -71,6 +75,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
+    "@cloudflare/workers-types": "5.20260906.1",
     "@lhci/cli": "0.15.1",
     "@playwright/test": "1.58.0",
     "@prisma/prisma-schema-wasm": "7.10.0-1.6d040c802892de6d56c7e0061b7a10b3e6a0c7a0",

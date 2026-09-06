@@ -42,35 +42,63 @@ model NotificationPreference {
 }
 
 model PushSubscription {
-  id         String   @id @default(cuid())
-  workspaceId String
-  userId      String
-  endpoint    String   @unique
-  p256dh      String
-  auth        String
-  userAgent   String?
-  lastUsedAt  DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                 String                 @id @default(cuid())
+  workspaceId        String
+  userId             String
+  sessionId          String?
+  endpoint           String                 @unique
+  p256dh             String
+  auth               String
+  userAgent          String?
+  lastUsedAt         DateTime               @default(now())
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  followUpDeliveries FollowUpPushDelivery[]
+  session            Session?               @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, userId])
+  @@index([sessionId])
+}
+
+// Receipts are per device and scheduled occurrence, so a later follow-up can
+// notify on the same day without repeating an already delivered reminder.
+model FollowUpPushDelivery {
+  id             String                     @id
+  workspaceId    String
+  subscriptionId String
+  jumpId         String
+  scheduledAt    DateTime
+  status         NotificationDeliveryStatus @default(PENDING)
+  attempts       Int                        @default(0)
+  lockedAt       DateTime?
+  lockedBy       String?
+  deliveredAt    DateTime?
+  error          String?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  subscription   PushSubscription           @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  jump           Jump                       @relation(fields: [jumpId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, jumpId, scheduledAt])
+  @@index([workspaceId, status])
+  @@index([jumpId])
 }
 
 model NotificationDelivery {
-  id           String                     @id @default(cuid())
-  workspaceId  String
-  userId       String
-  kind         NotificationDeliveryKind
-  localDate    String
-  status       NotificationDeliveryStatus @default(PENDING)
-  providerId   String?
-  error        String?
-  attempts     Int                        @default(0)
-  lockedAt     DateTime?
-  lockedBy     String?
-  deliveredAt  DateTime?
-  createdAt    DateTime                   @default(now())
-  updatedAt    DateTime                   @updatedAt
+  id          String                     @id @default(cuid())
+  workspaceId String
+  userId      String
+  kind        NotificationDeliveryKind
+  localDate   String
+  status      NotificationDeliveryStatus @default(PENDING)
+  providerId  String?
+  error       String?
+  attempts    Int                        @default(0)
+  lockedAt    DateTime?
+  lockedBy    String?
+  deliveredAt DateTime?
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
 
   @@unique([workspaceId, kind, localDate])
   @@index([status, createdAt])
@@ -89,20 +117,20 @@ model AutomationPreference {
 }
 
 model ReviewRequest {
-  id              String              @id @default(cuid())
-  workspaceId     String
-  contactId       String
-  tokenHash       String              @unique
-  status          ReviewRequestStatus @default(READY)
-  rating          Int?
-  feedback        String?
-  openedAt        DateTime?
-  respondedAt     DateTime?
-  reviewClickedAt DateTime?
+  id                String              @id @default(cuid())
+  workspaceId       String
+  contactId         String
+  tokenHash         String              @unique
+  status            ReviewRequestStatus @default(READY)
+  rating            Int?
+  feedback          String?
+  openedAt          DateTime?
+  respondedAt       DateTime?
+  reviewClickedAt   DateTime?
   referralClickedAt DateTime?
-  expiresAt       DateTime
-  createdAt       DateTime            @default(now())
-  updatedAt       DateTime            @updatedAt
+  expiresAt         DateTime
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   @@index([workspaceId, createdAt])
   @@index([contactId, createdAt])

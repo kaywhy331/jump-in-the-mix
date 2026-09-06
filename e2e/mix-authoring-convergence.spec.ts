@@ -27,7 +27,7 @@ test("a plan can be written inline without creating a prerequisite message templ
     await page.goto("/mixes/new?custom=1");
     await page.getByLabel("Plan name").fill(name);
     await page.getByLabel("When should it start?").selectOption("MANUAL_START");
-    const dayOffset = page.getByLabel("Days later");
+    const dayOffset = page.getByLabel("Days after start");
     await expect(dayOffset).toHaveAttribute("min", "0");
     await dayOffset.fill("0");
     await page.getByLabel("How?").selectOption("EMAIL");
@@ -70,7 +70,7 @@ test("an approved template uses one setup screen and explicit audience", async (
   try {
     await signIn(page);
     await page.goto(`/templates/${sharedId}/use`);
-    await expect(page.getByRole("heading", { name: `Use ${title}` })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Set up your plan" })).toBeVisible();
     await page.getByLabel("Plan name").fill(mixName);
     await page.getByLabel("Everyone").check();
     await page.getByRole("button", { name: "Create plan" }).click();

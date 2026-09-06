@@ -1,6 +1,6 @@
 "use client";
 
-const CONTACT_LIST_STATE_KEY = "jitm:contacts:list-state";
+import { privateStorageKey } from "@/lib/private-browser-state";
 const MAX_STATE_AGE_MS = 30 * 60 * 1000;
 
 export type ContactListState = {
@@ -13,9 +13,10 @@ function isSafeContactsListHref(value: string): boolean {
   return value === "/contacts" || value.startsWith("/contacts?");
 }
 
-export function readContactListState(): ContactListState | null {
+export function readContactListState(scope: string): ContactListState | null {
   try {
-    const raw = window.sessionStorage.getItem(CONTACT_LIST_STATE_KEY);
+    const key = privateStorageKey(scope, "contacts:list-state");
+    const raw = window.sessionStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<ContactListState>;
     if (
@@ -24,9 +25,11 @@ export function readContactListState(): ContactListState | null {
       || typeof parsed.scrollY !== "number"
       || !Number.isFinite(parsed.scrollY)
       || typeof parsed.savedAt !== "number"
+      || !Number.isFinite(parsed.savedAt)
+      || parsed.savedAt > Date.now()
       || Date.now() - parsed.savedAt > MAX_STATE_AGE_MS
     ) {
-      window.sessionStorage.removeItem(CONTACT_LIST_STATE_KEY);
+      window.sessionStorage.removeItem(key);
       return null;
     }
     return { href: parsed.href, scrollY: Math.max(parsed.scrollY, 0), savedAt: parsed.savedAt };
@@ -35,19 +38,19 @@ export function readContactListState(): ContactListState | null {
   }
 }
 
-export function saveContactListState(): void {
+export function saveContactListState(scope: string): void {
   try {
     const href = `${window.location.pathname}${window.location.search}`;
     if (!isSafeContactsListHref(href)) return;
     const state: ContactListState = { href, scrollY: window.scrollY, savedAt: Date.now() };
-    window.sessionStorage.setItem(CONTACT_LIST_STATE_KEY, JSON.stringify(state));
+    window.sessionStorage.setItem(privateStorageKey(scope, "contacts:list-state"), JSON.stringify(state));
   } catch {
     // Session storage is an enhancement; navigation remains functional without it.
   }
 }
 
-export function restoreContactListScroll(): void {
-  const state = readContactListState();
+export function restoreContactListScroll(scope: string): void {
+  const state = readContactListState(scope);
   if (!state) return;
   const currentHref = `${window.location.pathname}${window.location.search}`;
   if (state.href !== currentHref) return;

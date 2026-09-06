@@ -1,3 +1,4 @@
+import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
@@ -34,7 +35,7 @@ export default async function BusinessSettingsPage({ searchParams }: { searchPar
         <div className="card-header"><div><h2>Business details</h2><p>Tell customers who you are and what you help with.</p></div></div>
         <div className="form-grid">
           <label className="field"><span>Business name</span><input name="company" defaultValue={profile?.company ?? ""} autoComplete="organization" maxLength={200} required /></label>
-          <label className="field"><span>Type of business</span><select name="industry" defaultValue={profile?.industry ?? "Other"}><option>Home services</option><option>Real estate</option><option>Insurance &amp; finance</option><option>Other</option></select></label>
+          <label className="field"><span>Type of business</span><select name="industry" defaultValue={profile?.industry ?? "Other"}>{[...new Set([...BUSINESS_TYPES, ...(profile?.industry ? [profile.industry] : [])])].map(type => <option key={type}>{type}</option>)}</select></label>
           <label className="field"><span>Business phone</span><input name="phone" inputMode="tel" autoComplete="tel" defaultValue={profile?.phone ?? ""} maxLength={80} /></label>
           <label className="field"><span>Website</span><input name="website" type="url" inputMode="url" autoComplete="url" defaultValue={profile?.website ?? ""} placeholder="https://example.com" maxLength={500} /></label>
           <label className="field full"><span>Public review page</span><input name="reviewUrl" type="url" inputMode="url" defaultValue={profile?.reviewUrl ?? ""} placeholder="https://g.page/r/your-business/review" maxLength={500} /><small>Happy customers can open this after answering your private check-in.</small></label>

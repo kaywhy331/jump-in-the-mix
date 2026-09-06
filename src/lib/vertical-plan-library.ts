@@ -1,31 +1,8 @@
-import type { Channel, MixTriggerMode } from "@/generated/prisma/client";
+import type { ReadyMadePlan } from "@/lib/plan-library-types";
+import { SALES_PLANS } from "@/lib/sales-plan-library";
+export type { ReadyMadePlan, ReadyMadePlanStep } from "@/lib/plan-library-types";
 
-export type ReadyMadePlanStep = {
-  name: string;
-  channel: Channel;
-  dayOffset: number;
-  sendTimeMinutes: number;
-  subject?: string;
-  body?: string;
-  script?: string;
-};
-
-export type ReadyMadePlan = {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  industry: "Home services" | "Real estate" | "Insurance & finance" | "Other";
-  framework: "Ready-made";
-  triggerMode: MixTriggerMode;
-  dateTypeName: string | null;
-  dateTypeSlug: string | null;
-  durationDays: number;
-  featured: boolean;
-  steps: ReadyMadePlanStep[];
-};
-
-export const READY_MADE_PLANS: ReadyMadePlan[] = [
+const VERTICAL_PLANS: ReadyMadePlan[] = [
   {
     id: "plan_home_job_done",
     title: "Job done: thank-you, review, and referral",
@@ -250,6 +227,8 @@ export const READY_MADE_PLANS: ReadyMadePlan[] = [
   }
 ];
 
+export const READY_MADE_PLANS: ReadyMadePlan[] = [...VERTICAL_PLANS, ...SALES_PLANS];
+
 export function starterPlanForBusinessType(businessType: string | null | undefined): ReadyMadePlan {
   const normalized = businessType?.toLowerCase() ?? "";
   const industry = normalized.includes("home") || /plumb|hvac|electric|trade/.test(normalized)
@@ -259,7 +238,7 @@ export function starterPlanForBusinessType(businessType: string | null | undefin
       : /insurance|finance/.test(normalized)
         ? "Insurance & finance"
         : "Other";
-  return READY_MADE_PLANS.find((plan) => plan.industry === industry && plan.featured) ?? READY_MADE_PLANS.at(-1)!;
+  return READY_MADE_PLANS.find((plan) => plan.industry === industry && plan.featured) ?? READY_MADE_PLANS.find((plan) => plan.id === "plan_generic_reconnect")!;
 }
 
 export function starterPlanForOnboarding(businessType: string | null | undefined, reason: string): ReadyMadePlan {

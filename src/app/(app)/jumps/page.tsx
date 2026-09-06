@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AppIcon } from "@/components/AppIcon";
 import { AutoSubmitForm } from "@/components/AutoSubmitForm";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -8,7 +9,9 @@ import { EmptyState } from "@/components/EmptyState";
 import { JumpActionLink } from "@/components/JumpActionControls";
 import { JumpOutcomeButton, JumpReturnTray, JumpWorkflowCard } from "@/components/JumpWorkflow";
 import { Notice } from "@/components/Notice";
+import { PreparationNotice } from "@/components/PreparationNotice";
 import { Sheet } from "@/components/Sheet";
+import { TodayLink, TodayNavigation } from "@/components/TodayNavigation";
 import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
@@ -16,7 +19,9 @@ import { formatDateTime } from "@/lib/format";
 import { addLogicalDays, logicalDateInTimezone, logicalDateKey, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
+import { readPreparationStatus } from "@/lib/preparation";
 import { snoozeJumpAction } from "@/lib/snooze-actions";
+import { parseTodayCursor, readTodayPage } from "@/lib/today-list";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -33,6 +38,9 @@ type SearchParams = {
   snoozed?: string;
   firstContact?: string;
   error?: string;
+  after?: string;
+  before?: string;
+  listReset?: string;
 };
 
 type ActionType = "COMPOSED" | "CALLED" | "VOICEMAIL_STARTED";
@@ -76,7 +84,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const range = ["due", "week", "month", "all"].includes(params.range ?? "") ? params.range! : "due";
   const status = ["all", "pending", "done", "skipped"].includes(params.status ?? "") ? params.status! : "all";
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, impersonation } = await requireWorkspace();
   const displayPreferences = await displayPreferencesForUser(user.id);
   const timezone = displayPreferences.timeZone;
   const today = logicalDateInTimezone(new Date(), timezone);
@@ -105,20 +113,26 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   } else if (range === "week") dateWhere = { scheduledAt: { gte: startToday, lt: endWeek } };
   else if (range === "month") dateWhere = { scheduledAt: { gte: startToday, lt: endMonth } };
 
-  const [followUps, dueThisWeekCount, completedTodayCount] = await Promise.all([
-    prisma.jump.findMany({
-      where: { workspaceId: workspace.id, ...statusWhere, ...dateWhere, ...channelWhere },
-      include: {
-        contact: { include: { emails: true, phones: true } },
-        mix: true,
-        stepVersion: { include: { stepTemplate: true } }
-      },
-      orderBy: { scheduledAt: "asc" },
-      take: 300
-    }),
+  const where: Prisma.JumpWhereInput = { workspaceId: workspace.id, ...statusWhere, ...dateWhere, ...channelWhere };
+  // Observe preparation first so a just-finished job cannot report ready beside an older list.
+  const preparation = await readPreparationStatus(workspace.id);
+  const [list, totalCount, pendingCount, attentionCount, overdueCount, dueThisWeekCount, completedTodayCount] = await Promise.all([
+    readTodayPage(workspace.id, where, params),
+    prisma.jump.count({ where }),
+    prisma.jump.count({ where: { AND: [where, { status: "PENDING" }] } }),
+    prisma.jump.count({ where: { AND: [where, { status: "PENDING", scheduledAt: { lt: endToday } }] } }),
+    prisma.jump.count({ where: { AND: [where, { status: "PENDING", scheduledAt: { lt: startToday } }] } }),
     prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: pendingStatuses }, scheduledAt: { gte: startToday, lt: endWeek } } }),
     prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: completedStatuses }, completedAt: { gte: startToday, lt: endToday } } })
   ]);
+  const followUps = list.items;
+  const viewParams = new URLSearchParams({ range, status, channel });
+  const firstHref = `/jumps?${viewParams}`;
+  if (list.reset) redirect(`${firstHref}&listReset=1`);
+  const pageHref = (direction: "after" | "before", cursor: string) => `${firstHref}&${direction}=${encodeURIComponent(cursor)}`;
+  const currentCursor = parseTodayCursor(params.after) ? { direction: "after" as const, value: params.after! }
+    : parseTodayCursor(params.before) ? { direction: "before" as const, value: params.before! } : null;
+  const returnTo = currentCursor ? pageHref(currentCursor.direction, currentCursor.value) : firstHref;
   const actionEvents = followUps.length ? await prisma.jumpActionEvent.findMany({
     where: { workspaceId: workspace.id, jumpId: { in: followUps.map((followUp) => followUp.id) } },
     orderBy: { occurredAt: "desc" },
@@ -131,18 +145,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     eventsByFollowUp.set(event.jumpId, events);
   }
 
-  const ordered = [...followUps].sort((left, right) => {
-    const leftPending = pendingStatuses.includes(left.status) ? 0 : 1;
-    const rightPending = pendingStatuses.includes(right.status) ? 0 : 1;
-    return leftPending - rightPending || left.scheduledAt.getTime() - right.scheduledAt.getTime();
-  });
+  const ordered = followUps;
   const pending = ordered.filter((followUp) => pendingStatuses.includes(followUp.status));
   const needsAttention = pending.filter((followUp) => followUp.scheduledAt < endToday);
   const upcoming = pending.filter((followUp) => followUp.scheduledAt >= endToday);
   const completed = ordered.filter((followUp) => completedStatuses.includes(followUp.status));
-  const overdueCount = needsAttention.filter((followUp) => followUp.scheduledAt < startToday).length;
+  const upcomingCount = pendingCount - attentionCount;
   const nextUp = needsAttention[0] ?? null;
-  const returnTo = `/jumps?${new URLSearchParams({ range, status, channel }).toString()}`;
   const activeFilterCount = Number(range !== "due") + Number(status !== "all") + Number(channel !== "all");
 
   const renderCard = (followUp: (typeof ordered)[number]) => {
@@ -177,7 +186,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     />;
 
     return (
-      <JumpWorkflowCard jumpId={followUp.id} contactName={followUp.contact.displayName} key={followUp.id}>
+      <JumpWorkflowCard jumpId={followUp.id} contactName={followUp.contact.displayName} revision={followUp.updatedAt.toISOString()} key={followUp.id}>
         <article id={`jump-${followUp.id}`} className={`jump-card jump-task-card ${isNext ? "next-follow-up" : ""} ${isPending ? "" : "jump-task-complete"}`}>
           <div className="jump-card-main">
             {isNext && <span className="eyebrow">Next up</span>}
@@ -212,38 +221,49 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     );
   };
 
-  const welcomeMessage = params.firstContact
-    ? `Your first follow-up for ${params.firstContact} is ready.`
-    : "Your follow-up list is ready.";
+  const firstFollowUpReady = params.firstContact && followUps.some(followUp => followUp.contact.displayName === params.firstContact);
+  const welcomeMessage = firstFollowUpReady ? `Your first follow-up for ${params.firstContact} is ready.`
+    : preparation.state !== "ready" ? "Your details are saved. We’re checking your follow-ups." : "Your follow-up list is ready.";
 
   return (
-    <div className="page today-page">
+    <TodayNavigation key={workspace.id} viewKey={returnTo}>
       <JumpReturnTray />
       {params.welcome && <Notice type="success">{welcomeMessage}</Notice>}
       {params.demo && <Notice type="info">Using local demo data.</Notice>}
-      {params.applied && <Notice type="success">Messages scheduled.</Notice>}
+      {params.applied && <Notice type="success">Plan changes saved.</Notice>}
       {params.mixStopped && <Notice type="success">Plan stopped.</Notice>}
       {params.mixStopError && <Notice type="error">Plan could not be stopped.</Notice>}
       {params.snoozed && <Notice type="success">Follow-up snoozed.</Notice>}
+      {params.listReset && <Notice type="info">This part of the list changed. You’re back at the first follow-ups.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
 
       <header className="page-header today-page-header">
-        <div><h1>Today</h1><p>{needsAttention.length ? `${needsAttention.length} ${needsAttention.length === 1 ? "person needs" : "people need"} your attention${overdueCount ? ` · ${overdueCount} overdue` : ""}.` : "You’re caught up."}</p></div>
+        <div><h1 tabIndex={-1}>Today</h1><p>{attentionCount ? `${attentionCount.toLocaleString()} follow-up${attentionCount === 1 ? " needs" : "s need"} your attention${overdueCount ? ` · ${overdueCount.toLocaleString()} overdue` : ""}.` : preparation.state !== "ready" ? "Your follow-up list is awaiting preparation." : upcomingCount ? `${upcomingCount.toLocaleString()} upcoming follow-up${upcomingCount === 1 ? "" : "s"}.` : activeFilterCount ? "No open follow-ups in this view." : "You’re caught up."}</p></div>
         <Sheet trigger={<button className={activeFilterCount ? "button filter-trigger active" : "button filter-trigger"} type="button"><AppIcon name="settings" />Filter{activeFilterCount ? ` ${activeFilterCount}` : ""}</button>} title="Filter Today" description="Changes apply as soon as you choose them.">
-          <AutoSubmitForm className="form-stack" action="/jumps" ariaLabel="Today filters">
+          <AutoSubmitForm key={viewParams.toString()} className="form-stack" action="/jumps" ariaLabel="Today filters">
             <label className="field"><span>Dates</span><select name="range" defaultValue={range}><option value="due">Due now</option><option value="week">Next 7 days</option><option value="month">Next 30 days</option><option value="all">All dates</option></select></label>
             <label className="field"><span>Status</span><select name="status" defaultValue={status}><option value="all">Open and completed</option><option value="pending">Open</option><option value="done">Completed</option><option value="skipped">Skipped</option></select></label>
             <label className="field"><span>How</span><select name="channel" defaultValue={channel}><option value="all">Any method</option>{channels.map((item) => <option key={item} value={item}>{channelLabel(item)}</option>)}</select></label>
           </AutoSubmitForm>
-          {activeFilterCount > 0 && <Link className="button" href="/jumps">Clear filters</Link>}
+          {activeFilterCount > 0 && <TodayLink className="button" href="/jumps">Clear filters</TodayLink>}
         </Sheet>
       </header>
 
-      <p className="today-week-line"><Link href="/jumps?range=week&status=pending">This week: {dueThisWeekCount} open</Link><span>·</span><Link href="/jumps?range=due&status=done">{completedTodayCount} completed today</Link></p>
-      {needsAttention.length > 0 && <section aria-labelledby="needs-attention"><div className="section-label urgent"><h2 id="needs-attention">Needs attention</h2><span>{needsAttention.length}</span></div><div className="jump-list">{needsAttention.map(renderCard)}</div></section>}
-      {upcoming.length > 0 && <section aria-labelledby="upcoming-follow-ups"><div className="section-label"><h2 id="upcoming-follow-ups">Upcoming</h2><span>{upcoming.length}</span></div><div className="jump-list">{upcoming.map(renderCard)}</div></section>}
+      <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
+      <p className="today-week-line"><TodayLink href="/jumps?range=week&status=pending">This week: {dueThisWeekCount} open</TodayLink><span>·</span><TodayLink href="/jumps?range=due&status=done">{completedTodayCount} completed today</TodayLink></p>
+      {needsAttention.length > 0 && <section aria-labelledby="needs-attention"><div className="section-label urgent"><h2 id="needs-attention">Needs attention</h2><span>{needsAttention.length < attentionCount ? `${needsAttention.length} of ${attentionCount.toLocaleString()}` : needsAttention.length}</span></div><div className="jump-list">{needsAttention.map(renderCard)}</div></section>}
+      {upcoming.length > 0 && <section aria-labelledby="upcoming-follow-ups"><div className="section-label"><h2 id="upcoming-follow-ups">Upcoming</h2><span>{upcoming.length < upcomingCount ? `${upcoming.length} of ${upcomingCount.toLocaleString()}` : upcoming.length}</span></div><div className="jump-list">{upcoming.map(renderCard)}</div></section>}
       {completed.length > 0 && <section aria-labelledby="completed-follow-ups"><div className="completed-divider"><span id="completed-follow-ups">Completed</span></div><div className="jump-list">{completed.map(renderCard)}</div></section>}
-      {!ordered.length && <EmptyState title="Nothing due right now" description="Add a person and choose a follow-up date. We’ll put the next action here." actionHref="/contacts/new" actionLabel="Add a person" />}
-    </div>
+      {totalCount > 0 && <nav className="pagination-bar today-pagination" aria-label="Follow-up pages">
+        <span role="status">Showing {ordered.length} of {totalCount.toLocaleString()} follow-up{totalCount === 1 ? "" : "s"} in this view.</span>
+        <div className="page-actions">
+          {list.previous && <><TodayLink className="button" href={firstHref}>First follow-ups</TodayLink><TodayLink className="button" href={pageHref("before", list.previous)}>Previous</TodayLink></>}
+          {list.next && <TodayLink className="button primary" href={pageHref("after", list.next)}>Next follow-ups</TodayLink>}
+        </div>
+      </nav>}
+      {!ordered.length && preparation.state === "ready" && (activeFilterCount
+        ? <EmptyState title="No follow-ups match these filters" description="Try clearing the filters to see what needs your attention today." actionHref="/jumps" actionLabel="Clear filters" />
+        : <EmptyState title="Nothing due right now" description="Add a person and choose a follow-up date. We’ll put the next action here." actionHref="/contacts/new" actionLabel="Add a person" />)}
+    </TodayNavigation>
   );
 }

@@ -4,6 +4,8 @@ node_modules/
 deno.lock
 src/generated/prisma/
 .env*
+.dev.vars*
+.wrangler/
 !.env.example
 coverage/
 *.log

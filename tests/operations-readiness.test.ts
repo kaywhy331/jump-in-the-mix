@@ -12,7 +12,7 @@ describe("operations readiness boundaries", () => {
     const smoke = read("scripts/smoke-restored-database.mjs");
     const rehearsal = read("scripts/rehearse-backup-restore.mjs");
     expect(archive).toContain('createCipheriv("aes-256-gcm"');
-    expect(backup).toContain("Database changed while the backup was being captured");
+    // Concurrent-write consistency is exercised with pg_dump in the recovery integration suite.
     expect(restore).toContain("Restore target must be a different database from DATABASE_URL");
     expect(restore).toContain("assertDatabaseEmpty");
     expect(restore).toContain("compareSnapshots");

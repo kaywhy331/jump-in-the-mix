@@ -60,7 +60,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
     <div className="page help-page">
       <header className="page-header">
         <div><h1>Help</h1><p>Find a quick answer or send a private message to the support team.</p></div>
-        <div className="page-actions"><Link className="button" href="/account#support">My conversations</Link></div>
+        <div className="page-actions"><Link className="button" href="/account/tickets">My conversations</Link></div>
       </header>
 
       {query.error && <Notice type="error">{query.error}</Notice>}
@@ -91,7 +91,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
             ))}
             {!recentTickets.length && <div className="support-inline-empty"><strong>No conversations yet.</strong><span>Messages you send to support will appear here.</span></div>}
           </div>
-          <Link className="button full-width" href="/account#support">View all conversations</Link>
+          <Link className="button full-width" href="/account/tickets">View all conversations</Link>
         </aside>
       </section>
     </div>

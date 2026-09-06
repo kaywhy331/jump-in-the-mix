@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { JumpActionLink, JumpCopyButton } from "@/components/JumpActionControls";
 
@@ -54,8 +54,12 @@ export function EditableFollowUpAction({
   initialSubject?: string | null;
   initialContent: string;
 }) {
-  const [subject, setSubject] = useState(initialSubject ?? "");
-  const [content, setContent] = useState(initialContent);
+  const [ready, setReady] = useState(false);
+  const [subjectDraft, setSubject] = useState<string | null>(null);
+  const [contentDraft, setContent] = useState<string | null>(null);
+  const subject = subjectDraft ?? initialSubject ?? "";
+  const content = contentDraft ?? initialContent;
+  useEffect(() => { setReady(true); }, []);
   const url = useMemo(() => composeUrl(channel, email, phone, subject, content), [channel, content, email, phone, subject]);
   const needsEmail = channel === "EMAIL";
   const methodLabel = needsEmail ? "email" : "phone";
@@ -63,10 +67,10 @@ export function EditableFollowUpAction({
   const copyContent = [subject, content].filter(Boolean).join("\n\n");
 
   return (
-    <div className="editable-follow-up">
-      {channel === "EMAIL" && <label className="field"><span>Subject</span><input value={subject} onChange={(event) => setSubject(event.target.value)} /></label>}
+    <div className="editable-follow-up" data-follow-up-draft={subjectDraft !== null || contentDraft !== null}>
+      {channel === "EMAIL" && <label className="field"><span>Subject</span><input disabled={!ready} value={subject} onChange={(event) => setSubject(event.target.value)} /></label>}
       {(channel === "SMS" || channel === "EMAIL" || channel === "WHATSAPP") ? (
-        <label className="field"><span>Edit before sending</span><textarea value={content} onChange={(event) => setContent(event.target.value)} rows={5} /></label>
+        <label className="field"><span>Edit before sending</span><textarea disabled={!ready} value={content} onChange={(event) => setContent(event.target.value)} rows={5} /></label>
       ) : <div className="prepared-call-notes"><small>Call notes</small><p>{content}</p></div>}
       {longSms && <p className="notice warning compact" role="status">This text is over 900 characters and may be cut off by some phones. Copy it instead, or shorten it.</p>}
       <div className="editable-follow-up-actions">
@@ -84,6 +88,7 @@ export function EditableFollowUpAction({
           <a className="button primary" href={`/contacts/${contactId}/edit`}><AppIcon name="add" />Add {methodLabel}</a>
         )}
         {copyContent && <span className={longSms ? "copy-primary" : ""}><JumpCopyButton jumpId={jumpId} text={copyContent} label="Copy" /></span>}
+        {(subjectDraft !== null || contentDraft !== null) && <button type="button" className="button" data-discard-follow-up-draft onClick={() => { setSubject(null); setContent(null); }}>Discard edits</button>}
       </div>
     </div>
   );

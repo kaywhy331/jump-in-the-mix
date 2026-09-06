@@ -1,6 +1,7 @@
-import webPush from "web-push";
 import type { NotificationDeliveryKind } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
+import { sendFollowUpPush } from "@/lib/follow-up-push";
+import { DEFAULT_PERSONAL_SCHEDULING } from "@/lib/personal-scheduling";
 import { formatDateTime } from "@/lib/format";
 import {
   addLogicalDays,
@@ -290,59 +291,6 @@ async function sendWeeklyReport(input: {
   }
 }
 
-function pushExpired(error: unknown): boolean {
-  const status = error && typeof error === "object" && "statusCode" in error ? Number(error.statusCode) : 0;
-  return status === 404 || status === 410;
-}
-
-async function sendDuePush(input: {
-  workspaceId: string;
-  userId: string;
-  localDate: string;
-  now: Date;
-  workerId: string;
-}): Promise<boolean> {
-  const due = await prisma.jump.count({ where: { workspaceId: input.workspaceId, status: "PENDING", scheduledAt: { lte: input.now } } });
-  if (!due) return false;
-  const deliveryId = await claimDelivery({ ...input, kind: "DUE_PUSH" });
-  if (!deliveryId) return false;
-  try {
-    if (!env.vapidPublicKey || !env.vapidPrivateKey) {
-      await finishDelivery(deliveryId, input.workerId, { skipped: true });
-      return true;
-    }
-    const subscriptions = await prisma.pushSubscription.findMany({ where: { workspaceId: input.workspaceId, userId: input.userId } });
-    if (!subscriptions.length) {
-      await prisma.notificationPreference.updateMany({ where: { workspaceId: input.workspaceId, userId: input.userId }, data: { pushEnabled: false } });
-      await finishDelivery(deliveryId, input.workerId, { skipped: true });
-      return true;
-    }
-    webPush.setVapidDetails(env.vapidSubject, env.vapidPublicKey, env.vapidPrivateKey);
-    const body = due === 1 ? "1 follow-up is ready." : `${due} follow-ups are ready.`;
-    const payload = JSON.stringify({ title: "Your follow-ups are ready", body, url: "/jumps", tag: `jitm-due-${input.localDate}` });
-    let delivered = 0;
-    let transientFailure: unknown = null;
-    for (const subscription of subscriptions) {
-      try {
-        await webPush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload, { TTL: 60 * 60, urgency: "normal" });
-        delivered += 1;
-        await prisma.pushSubscription.updateMany({ where: { id: subscription.id }, data: { lastUsedAt: input.now } });
-      } catch (error) {
-        if (pushExpired(error)) await prisma.pushSubscription.deleteMany({ where: { id: subscription.id } });
-        else transientFailure = error;
-      }
-    }
-    if (!delivered && transientFailure) throw transientFailure;
-    if (!delivered) await prisma.notificationPreference.updateMany({ where: { workspaceId: input.workspaceId, userId: input.userId }, data: { pushEnabled: false } });
-    await finishDelivery(deliveryId, input.workerId, { skipped: !delivered, providerId: delivered ? `web-push:${delivered}` : null });
-    return true;
-  } catch (error) {
-    await failDelivery(deliveryId, input.workerId, error);
-    console.error(`Push delivery failed for workspace ${input.workspaceId}`, safeError(error));
-    return false;
-  }
-}
-
 export async function runScheduledNotifications(workerId: string, now = new Date()): Promise<{ attempted: number }> {
   const notificationPreferences = await prisma.notificationPreference.findMany({
     where: { OR: [{ emailDigestEnabled: true }, { pushEnabled: true }, { weeklyReportEnabled: true }] }
@@ -380,11 +328,11 @@ export async function runScheduledNotifications(workerId: string, now = new Date
     if (preference.weeklyReportEnabled && weeklyReportIsDue(clock, preference.digestHour)) {
       if (await sendWeeklyReport({ ...common, start: zonedDateTimeToUtc(addLogicalDays(logicalToday, -7), 0, effectiveDisplay.timeZone) })) attempted += 1;
     }
-    const scheduling = schedulingByWorkspace.get(workspace.id);
+    const scheduling = schedulingByWorkspace.get(workspace.id) ?? DEFAULT_PERSONAL_SCHEDULING;
     const localMinutes = clock.hour * 60 + clock.minute;
-    const quiet = scheduling ? isQuietTime(localMinutes, scheduling.quietHoursStart, scheduling.quietHoursEnd) : false;
+    const quiet = isQuietTime(localMinutes, scheduling.quietHoursStart, scheduling.quietHoursEnd);
     if (preference.pushEnabled && !quiet) {
-      if (await sendDuePush({ workspaceId: workspace.id, userId: preference.userId, localDate: common.localDate, now, workerId })) attempted += 1;
+      attempted += await sendFollowUpPush({ workspaceId: workspace.id, userId: preference.userId, now });
     }
   }
   return { attempted };

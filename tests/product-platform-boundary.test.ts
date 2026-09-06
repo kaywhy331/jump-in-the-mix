@@ -6,7 +6,7 @@ const read = (path: string) => readFileSync(path, "utf8");
 describe("best-in-class product workflows", () => {
   it("keeps autonomous sending explicitly opt-in with a review window and no ambiguous retry", () => {
     const schema = read("prisma/product-platform.prisma");
-    const settings = read("src/app/(app)/settings/notifications/page.tsx");
+    const settings = read("src/app/(app)/settings/sending/page.tsx");
     const delivery = read("src/lib/automatic-delivery.ts");
     const worker = read("src/worker/index.ts");
     expect(schema).toContain("enabled             Boolean  @default(false)");

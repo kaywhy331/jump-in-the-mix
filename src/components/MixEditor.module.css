@@ -51,22 +51,9 @@
   gap: 0.75rem;
 }
 
-.activationReview {
-  position: sticky;
-  z-index: 20;
-  bottom: 0.75rem;
-  margin-top: 1rem;
-  padding: 1rem;
-  border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
-  border-radius: 1rem;
-  background: Canvas;
-  color: CanvasText;
-  box-shadow: 0 1rem 2.5rem rgb(0 0 0 / 18%);
-}
-
 .reviewGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem;
   margin: 0.85rem 0;
 }
@@ -74,7 +61,7 @@
 .reviewGrid div {
   padding: 0.65rem;
   border-radius: 0.7rem;
-  background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+  background: var(--surface-soft);
 }
 
 .reviewGrid strong,
@@ -85,7 +72,7 @@
 .reviewGrid span {
   margin-top: 0.2rem;
   font-size: 0.82rem;
-  opacity: 0.68;
+  color: var(--muted);
 }
 
 .reviewWarnings {
@@ -104,7 +91,4 @@
     grid-template-columns: 1fr;
   }
 
-  .activationReview {
-    bottom: max(0.5rem, env(safe-area-inset-bottom));
-  }
 }

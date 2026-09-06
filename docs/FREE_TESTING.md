@@ -4,7 +4,13 @@ The test topology is Netlify Free plus Neon Free PostgreSQL. It uses the same Ne
 
 The dedicated test URL is `https://jump-in-the-mix-test.netlify.app`. The production project at `jump-in-the-mix.netlify.app` remains separate.
 
-The test site's fallback worker timer is `.github/workflows/private-test-worker.yml`, running every five minutes on GitHub Actions. Standard hosted runners are free for this public repository. Netlify accepted its minute schedule but did not execute it during deployment qualification, so testing does not rely on that timer. Both timers use the same idempotent job claims if Netlify starts running later. GitHub schedules can be delayed; this is testing infrastructure, not a notification delivery guarantee. Set `WORKER_HEARTBEAT_STALE_SECONDS=1200` on the test site.
+The test site's fallback worker timer is `.github/workflows/private-test-worker.yml`, scheduled every five minutes on GitHub Actions. Standard hosted runners are free for this public repository. Netlify accepted its minute schedule but did not execute it during deployment qualification. Both timers use the same idempotent job claims if Netlify starts running later. Observed GitHub schedule gaps exceeded 90 minutes, so this testing infrastructure does not qualify timely unattended processing.
+
+The September 6 test release now uses `WORKER_HEARTBEAT_STALE_SECONDS=180`, replacing the former 1200-second window. Runtime checks returned 200 at a heartbeat age of about 177 seconds and 503 at about 199 seconds. Do not lengthen this threshold to hide missed invocations; it exposes missed ticks without repairing the timer.
+
+Apply `WORKER_DISPATCH_MODE=netlify` to **all contexts** on this dedicated test site. Promoting a preview retains its preview environment; a production-only setting left activity-triggered wakeups disabled. Deployment `6a9d9172257afbb08f032d34` corrects that context mismatch, and authenticated browsing now records a dispatch reservation followed by a fresh worker heartbeat. This does not qualify unattended recurrence.
+
+An [optional Cloudflare scheduler](CLOUDFLARE_SCHEDULER.md) is prepared locally. It is not activated and is not part of the verified test topology. It needs approval for the added service/secret storage, confirmed Free-plan availability, and actual unattended-execution qualification.
 
 The workflow uses the repository secret `JITM_TEST_WORKER_SECRET` and an optional expiry variable `JITM_TEST_EXPIRES_AT`. With no expiry variable, the worker continues running. A configured expiry must be a valid future date; expired or invalid values prevent invocation. The claimed database's original deadline has been removed from both the site and this workflow. Disable the **Private test worker** workflow when testing ends.
 

@@ -31,6 +31,14 @@ Set `NODE_ENV=production`, `PILOT_MODE=false`, `DEMO_MODE=false`, and `AUTH_REQU
 
 Web Push is enabled only when `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, and `WEB_PUSH_VAPID_SUBJECT` are all present. Generate one VAPID key pair per environment. Automatic SMS delivery remains off for every account unless Twilio credentials are present and the owner explicitly enables it. Email delivery similarly requires Resend and owner opt-in.
 
+Each phone opts in under **Settings → Notifications → Push reminders → Turn on**. On iPhone or iPad 16.4+, first use Safari's **Share → Add to Home Screen**, then open that installed app. Android users can enable reminders in a supported browser such as Chrome. Use **Send test notification** to check that the current device receives a server-sent notification; an accepted push request alone does not prove the OS displayed it.
+
+Reminders are bound to the browser's signed-in session. Sign-out, session revocation and expiry stop that device's delivery. Renewing the same account's current session preserves its opt-in; replacing it with another account requires that account to choose **Turn on**. The session-ownership migration leaves existing subscriptions unbound because their original browser session cannot be inferred safely; those devices need a fresh opt-in. The browser's push permission may remain granted while application reminders are off.
+
+Queued pushes verify the current account and active subscription before showing application notification text. If the account or connection cannot be confirmed, the application suppresses that text. Browser-generated fallback notifications and OS behavior after delivery still require physical-device qualification. Notification tests in automation use simulated browser APIs and mocked providers; they do not qualify receipt on an actual phone.
+
+The worker groups newly due follow-ups into a notification for each subscribed device. Delivery receipts track the follow-up's scheduled occurrence, so later follow-ups can notify on the same day without repeating earlier reminders. Quiet hours defer alerts until the next allowed worker pass. Expired subscriptions are removed, and temporary failures have bounded retries. The free test deployment checks in the background; delivery is not an exact-minute alarm and can be delayed by the scheduler or device.
+
 ## Deploy order
 
 1. Take or verify a restorable database backup.

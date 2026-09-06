@@ -33,7 +33,7 @@ export async function updateNotificationPreferencesAction(formData: FormData): P
 
 export async function updateAutomationPreferencesAction(formData: FormData): Promise<void> {
   const { workspace, user, impersonation } = await requireWorkspace();
-  const path = "/settings/notifications";
+  const path = "/settings/sending";
   if (impersonation) redirect(`${path}?error=${encodeURIComponent("View-only sessions cannot change automatic sending.")}`);
   const enabled = formData.get("automationEnabled") === "on";
   const emailEnabled = enabled && formData.get("automationEmailEnabled") === "on";
@@ -69,7 +69,7 @@ export async function updateAutomationPreferencesAction(formData: FormData): Pro
         action: enabled ? "automation.enabled" : "automation.disabled",
         entityType: "AutomationPreference",
         entityId: workspace.id,
-        source: "settings.notifications",
+        source: "settings.sending",
         metadata: { emailEnabled, smsEnabled, reviewWindowMinutes }
       }
     });

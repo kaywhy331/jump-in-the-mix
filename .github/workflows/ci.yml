@@ -18,7 +18,8 @@ jobs:
     timeout-minutes: 40
     env:
       APP_URL: http://127.0.0.1:3000
-      DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_test?schema=public
+      # Fixture suites require an explicitly named, loopback-only test database.
+      DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_design_ci?schema=public
       DATA_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
       BACKUP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
       AUTH_RATE_LIMIT_SECRET: ci-auth-rate-limit-secret
@@ -35,13 +36,13 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: jitm_test
+          POSTGRES_DB: jitm_design_ci
           POSTGRES_USER: jitm
           POSTGRES_PASSWORD: jitm
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U jitm -d jitm_test"
+          --health-cmd "pg_isready -U jitm -d jitm_design_ci"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -105,6 +106,8 @@ jobs:
         run: |
           set -o pipefail
           npm run typecheck 2>&1 | tee typecheck.log
+      - name: Check optional scheduler types and package without deployment
+        run: npm run scheduler:check
       - name: Upload TypeScript diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
@@ -113,6 +116,9 @@ jobs:
           path: typecheck.log
           retention-days: 7
       - name: Unit and integration tests
+        env:
+          RECOVERY_TEST_DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_design_ci?schema=public
+          OPS_ALERT_WEBHOOK_URL: ""
         shell: bash
         run: |
           set -o pipefail
@@ -124,6 +130,15 @@ jobs:
           name: test-diagnostics
           path: test.log
           retention-days: 7
+      - name: Generate isolated browser-test push keys
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import webPush from "web-push";
+          const keys = webPush.generateVAPIDKeys();
+          fs.appendFileSync(process.env.GITHUB_ENV, `WEB_PUSH_VAPID_PUBLIC_KEY=${keys.publicKey}\nWEB_PUSH_VAPID_PRIVATE_KEY=${keys.privateKey}\n`);
+          NODE
       - name: Production build
         shell: bash
         run: |

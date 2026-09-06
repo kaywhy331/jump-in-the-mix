@@ -1,23 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { workerRequestAuthorized } from "../src/lib/worker-request";
-import { handler as tick } from "../netlify/functions/jump-worker-tick";
+import { handler as tick } from "../netlify/functions/jump-worker-schedule";
 
 const mocks = vi.hoisted(() => ({
   heartbeat: vi.fn(),
   findJob: vi.fn(),
   updateJob: vi.fn(),
-  generate: vi.fn()
+  generate: vi.fn(),
+  dispatch: vi.fn()
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
   workerHeartbeat: { upsert: mocks.heartbeat },
   job: { findFirst: mocks.findJob, updateMany: mocks.updateJob },
   workspacePreference: { findMany: vi.fn().mockResolvedValue([]) }
 } }));
+vi.mock("@/lib/journey", () => ({ runJourneyMaintenance: vi.fn() }));
+vi.mock("@/lib/calendar", () => ({ runCalendarSync: vi.fn() }));
 vi.mock("@/lib/jump-engine", () => ({ generateJumps: mocks.generate }));
 vi.mock("@/lib/automatic-delivery", () => ({ runAutomaticDeliveries: vi.fn() }));
 vi.mock("@/lib/notification-delivery", () => ({ runScheduledNotifications: vi.fn() }));
 vi.mock("@/lib/operational-retention", () => ({ cleanupOperationalData: vi.fn() }));
 vi.mock("@/lib/contact-import-jobs", () => ({ CONTACT_IMPORT_JOB_TASK: "contact-import", runContactImportBatch: vi.fn() }));
+vi.mock("@/lib/worker-dispatch", () => ({ dispatchWorkerPass: mocks.dispatch }));
 
 import { runWorkerPass } from "../src/worker/index";
 import background from "../netlify/functions/jump-worker-background";
@@ -51,6 +55,14 @@ describe("Netlify background worker", () => {
     await background(new Request(endpoint, { method: "POST" }));
     expect(mocks.heartbeat).not.toHaveBeenCalled();
     expect(mocks.findJob).not.toHaveBeenCalled();
+    expect(mocks.dispatch).not.toHaveBeenCalled();
+  });
+
+  it("checks for backlog continuation only after an authorized pass completes", async () => {
+    vi.stubEnv("NETLIFY_WORKER_SECRET", secret);
+    await background(new Request(endpoint, { method: "POST", headers: { authorization: `Bearer ${secret}` } }));
+    expect(mocks.heartbeat).toHaveBeenCalled();
+    expect(mocks.dispatch).toHaveBeenCalledExactlyOnceWith({ queuedOnly: true });
   });
 
   it("finishes a bounded pass using the existing job lease", async () => {

@@ -19,6 +19,9 @@ async function assertApplicationPage(page: Page, path: string) {
   const response = await page.goto(path);
   expect(response, `${path} should return a document response`).not.toBeNull();
   expect(response!.status(), `${path} should return a successful document response`).toBeLessThan(400);
+  await expect.poll(() => page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--surface").trim()
+  ), { message: `${path} should load the deployed application styles` }).not.toBe("");
   await expect(page.locator("h1").first()).toBeVisible();
   await expect(page.locator("body")).not.toContainText(/Internal Server Error|Application error|not-ready/i);
 }
@@ -36,7 +39,7 @@ test.describe("production-like staging smoke", () => {
     expect(await worker.json()).toMatchObject({ status: "ready" });
 
     await signIn(page);
-    for (const path of ["/jumps", "/contacts", "/mixes", "/templates", "/help", "/account"]) {
+    for (const path of ["/jumps", "/contacts", "/mixes", "/templates", "/journey", "/settings/journey", "/calendar", "/settings/connections", "/help", "/account"]) {
       await assertApplicationPage(page, path);
     }
   });

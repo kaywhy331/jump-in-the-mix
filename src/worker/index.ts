@@ -1,3 +1,5 @@
+import { runJourneyMaintenance } from "@/lib/journey";
+import { runCalendarSync } from "@/lib/calendar";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { runAutomaticDeliveries } from "@/lib/automatic-delivery";
@@ -218,10 +220,12 @@ async function runDueWorkspaceReconciliations(now = new Date()): Promise<void> {
 async function runMaintenanceIfDue(state: MaintenanceState): Promise<void> {
   const now = Date.now();
   if (now - state.automaticDelivery >= notificationIntervalMs) {
+    try { await runJourneyMaintenance({ now: new Date(now), limit: 25 }); } catch (error) { console.error("Customer journey pass failed", error); }
     try { await runAutomaticDeliveries(workerId, new Date(now)); } catch (error) { console.error("Automatic delivery pass failed", error); }
     state.automaticDelivery = Date.now();
   }
   if (now - state.jumpReconciliation >= maintenanceIntervalMs) {
+    try { await runCalendarSync(new Date(now)); } catch (error) { console.error("Calendar refresh pass failed", error); }
     try { await runDueWorkspaceReconciliations(new Date(now)); } catch (error) { console.error("Periodic follow-up preparation failed", error); }
     state.jumpReconciliation = Date.now();
   }

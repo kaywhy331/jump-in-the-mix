@@ -10,7 +10,8 @@ import { Sheet } from "@/components/Sheet";
 import { archiveContactAction } from "@/lib/actions";
 import { applyJumpToContactsAction, bulkArchiveContactsAction, bulkRemoveGroupAction } from "@/lib/bulk-contact-actions";
 import { createContactsCsv, type ExportContact } from "@/lib/contact-export";
-import { restoreContactListScroll, saveContactListState } from "@/lib/contact-list-state";
+import { restoreContactListScroll, saveContactListState as rememberContactList } from "@/lib/contact-list-state";
+import { useBrowserScope } from "@/components/BrowserAccountBoundary";
 import { assignSelectedContactsToActiveGroupAction, createContactGroupAction, deleteContactGroupAction, saveActiveGroupsAction } from "@/lib/group-actions";
 
 export type ContactBulkDto = ExportContact & {
@@ -55,6 +56,8 @@ export function ContactsBulkWorkspace({
   intent?: "important-date" | "one-time-jump" | "log-note";
 }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const scope = useBrowserScope();
+  const saveContactListState = () => { if (scope) rememberContactList(scope); };
   const [selectionMode, setSelectionMode] = useState(intent === "one-time-jump");
   const [messageChannel, setMessageChannel] = useState("SMS");
   const [sendWhen, setSendWhen] = useState("now");
@@ -66,7 +69,7 @@ export function ContactsBulkWorkspace({
   const allSelected = contacts.length > 0 && selected.size === contacts.length;
   const activeFilterCount = [groupFilter, priorityFilter, permissionFilter].filter(Boolean).length;
 
-  useEffect(() => { restoreContactListScroll(); }, [groupFilter, intent, permissionFilter, priorityFilter, query]);
+  useEffect(() => { if (scope) restoreContactListScroll(scope); }, [scope, groupFilter, intent, permissionFilter, priorityFilter, query]);
 
   const toggleContact = (contactId: string) => setSelected((current) => {
     const next = new Set(current);
@@ -107,6 +110,8 @@ export function ContactsBulkWorkspace({
           <Link className="button primary mobile-header-action" href="/contacts/new"><AppIcon name="add" /><span className="mobile-action-label">Add</span></Link>
           <Sheet trigger={<button className="button mobile-header-action" type="button" aria-label="More contact tools"><AppIcon name="more" /><span className="mobile-action-label">More</span></button>} title="Contact tools">
             <nav className="contact-tools-links">
+              <Link href="/journey">Customer journey</Link>
+              <Link href="/settings/connections">Lead connections</Link>
               <Link href="/contacts/import" onClick={saveContactListState}>Import contacts</Link>
               <Link href="/contacts/custom-fields" onClick={saveContactListState}>Custom fields</Link>
               <Link href="/contacts/duplicates">Find duplicates</Link>
@@ -176,13 +181,13 @@ export function ContactsBulkWorkspace({
 
       {selectedIds.length > 0 && <aside className="bulk-contact-bar" aria-label="Actions for selected contacts">
         <div className="bulk-selection-count"><strong>{selectedIds.length}</strong><span>selected</span><button type="button" className="text-button" onClick={() => setSelected(new Set())}>Clear</button>{contacts.length > 1 && <button type="button" className="text-button" onClick={toggleAll}>{allSelected ? "Deselect all" : "Select all"}</button>}</div>
-        <Sheet trigger={<button className="button bulk-action-button" type="button"><AppIcon name="people" /><span className="bulk-action-label">Tags</span></button>} title="Update tags">
+        <Sheet trigger={<button className="button bulk-action-button" type="button" aria-label="Tags"><AppIcon name="people" /><span className="bulk-action-label">Tags</span></button>} title="Update tags">
           {groups.length ? <>
             {activeTags.length ? <form action={assignSelectedContactsToActiveGroupAction} className="form-stack">{contactIdsInputs(selectedIds)}<label className="field"><span>Add tag</span><select name="groupId" required>{activeTags.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><button className="button primary" type="submit">Add tag</button></form> : <p>No tags are available.</p>}
             <form action={bulkRemoveGroupAction} className="form-stack">{contactIdsInputs(selectedIds)}<label className="field"><span>Remove tag</span><select name="groupId" required>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><button className="button" type="submit">Remove tag</button></form>
           </> : <p>Add a tag first.</p>}
         </Sheet>
-        <Sheet initiallyOpen={intent === "one-time-jump"} trigger={<button className="button primary bulk-action-button" type="button"><AppIcon name="message" /><span className="bulk-action-label">Message</span></button>} title={`Message ${selectedIds.length} ${selectedIds.length === 1 ? "person" : "people"}`} description="Choose how, write the message, and say when it should appear on Today.">
+        <Sheet initiallyOpen={intent === "one-time-jump"} trigger={<button className="button primary bulk-action-button" type="button" aria-label="Message"><AppIcon name="message" /><span className="bulk-action-label">Message</span></button>} title={`Message ${selectedIds.length} ${selectedIds.length === 1 ? "person" : "people"}`} description="Choose how, write the message, and say when it should appear on Today.">
           {selectedDoNotContact.length > 0 && <div className="notice error">Remove {selectedDoNotContact.map((contact) => contact.displayName).join(", ")} because “Do not contact” is on.</div>}
           <form action={applyJumpToContactsAction} className="form-stack">
             {contactIdsInputs(selectedIds)}
@@ -196,7 +201,7 @@ export function ContactsBulkWorkspace({
             <button className="button primary" type="submit" disabled={selectedDoNotContact.length > 0}>Schedule message</button>
           </form>
         </Sheet>
-        <button className="button bulk-action-button" type="button" onClick={exportSelected}><AppIcon name="import" className="export-icon" /><span className="bulk-action-label">Export CSV</span></button>
+        <button className="button bulk-action-button" type="button" aria-label="Export CSV" onClick={exportSelected}><AppIcon name="import" className="export-icon" /><span className="bulk-action-label">Export CSV</span></button>
         <ConfirmDialog trigger={`Archive ${selectedIds.length}…`} title={`Archive ${selectedIds.length} selected contact${selectedIds.length === 1 ? "" : "s"}?`} description="Future follow-ups will be removed. Completed history stays available." danger><form action={bulkArchiveContactsAction}>{contactIdsInputs(selectedIds)}<button className="button danger" type="submit"><AppIcon name="archive" />Archive</button></form></ConfirmDialog>
       </aside>}
     </>

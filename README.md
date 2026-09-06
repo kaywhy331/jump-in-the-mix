@@ -10,11 +10,16 @@ The primary product is a hosted free beta. A Docker-based, single-owner edition 
 - Contacts: live search, notes and timeline, saved dates, archive/restore, and duplicate review
 - Plans: vertical ready-made plans and a simple custom-plan builder
 - Quick Add and resumable CSV/VCF imports
+- Configurable customer journeys with milestone rules, manual overrides, and pauses
+- Meetings, time blocks, and iCalendar import/export/subscriptions
+- Hosted lead forms and authenticated intake connections for external tools
 - Business profile, scheduling preferences, digests, Web Push, sessions, spreadsheet/JSON export, and account deletion
 - Optional, review-window-protected email/SMS delivery and review/referral requests
 - PostgreSQL-backed persistence, a background worker, health checks, and encrypted backup/restore tooling
 
 The free beta does not include billing, paid tiers, teams, Google Contacts sync, Stripe, an AI plan wizard, or signup-reward referrals.
+
+See [Customer journeys, calendars, and lead connections](docs/CUSTOMER_JOURNEY_AND_CONNECTIONS.md) for setup, supported formats, and provider limitations. Current verification and remaining release requirements are tracked in [Product quality gates](docs/PRODUCT_QUALITY_GATES.md).
 
 ## Hosted deployment
 

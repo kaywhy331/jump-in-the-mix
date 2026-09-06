@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { endAdminImpersonationGrant, resolveAdminImpersonationGrant } from "@/lib/impersonation";
 import { getRequestMetadata } from "@/lib/request-context";
+import { wakeWorkerAfterResponse } from "@/lib/worker-dispatch-after";
 
 export function hashSessionToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
@@ -23,16 +24,34 @@ export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + env.sessionDays * 24 * 60 * 60 * 1000);
   const metadata = await getRequestMetadata();
+  const store = await cookies();
+  const previousToken = store.get(env.cookieName)?.value;
 
-  const session = await prisma.session.create({
-    data: {
-      userId,
-      tokenHash: hashSessionToken(token),
-      expiresAt,
-      ipAddress: metadata.ipAddress,
-      userAgent: metadata.userAgent,
-      lastSeenAt: new Date()
+  const session = await prisma.$transaction(async tx => {
+    // Replace only this browser's previous session. The lock also orders a
+    // concurrent device opt-in against account replacement.
+    const previousHash = previousToken ? hashSessionToken(previousToken) : null;
+    if (previousHash) await tx.$queryRaw`SELECT id FROM "Session" WHERE "tokenHash" = ${previousHash} FOR UPDATE`;
+    const previous = previousHash ? await tx.session.findUnique({ where: { tokenHash: previousHash } }) : null;
+    const created = await tx.session.create({
+      data: {
+        userId,
+        tokenHash: hashSessionToken(token),
+        expiresAt,
+        ipAddress: metadata.ipAddress,
+        userAgent: metadata.userAgent,
+        lastSeenAt: new Date()
+      }
+    });
+    if (previous) {
+      if (previous.userId === userId) {
+        await tx.pushSubscription.updateMany({ where: { sessionId: previous.id, userId }, data: { sessionId: created.id } });
+      }
+      // Other-account subscriptions become unbound through the foreign key.
+      await tx.adminMfaSession.deleteMany({ where: { sessionId: previous.id } });
+      await tx.session.delete({ where: { id: previous.id } });
     }
+    return created;
   });
 
   const excessSessions = await prisma.session.findMany({
@@ -49,7 +68,6 @@ export async function createSession(userId: string): Promise<string> {
     ]);
   }
 
-  const store = await cookies();
   store.delete(env.impersonationCookieName);
   store.set(env.cookieName, token, {
     httpOnly: true,
@@ -187,6 +205,7 @@ export async function requireWorkspace() {
   const membership = session.user.memberships[0];
   if (!membership) redirect("/register");
   const workspace = membership.workspace;
+  if (!session.impersonation) wakeWorkerAfterResponse(workspace.id);
   return {
     session,
     actorUser: session.authUser,

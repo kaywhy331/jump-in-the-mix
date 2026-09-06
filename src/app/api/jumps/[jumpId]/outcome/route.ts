@@ -1,3 +1,4 @@
+import { applyJourneyEvent } from "@/lib/journey";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { timezoneForUser } from "@/lib/display-preferences";
@@ -182,6 +183,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
         if (updated.count !== 1 || !COMPLETE_OUTCOMES.includes(outcome)) throw new Error("This follow-up is no longer pending.");
         nextStatus = "DONE";
       }
+
+      if (outcome === "CONNECTED") await applyJourneyEvent(tx, { workspaceId: membership.workspaceId, contactId: jump.contactId, eventKey: `call:${jump.id}:${requestId}`, eventType: "CONVERSATION_STARTED", source: "Connected call", actorUserId: session.user.id });
 
       let jumpDateId: string | null = null;
       if (nextLogicalDate && nextCommitmentAt && nextMinutes !== null) {

@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { decryptFile, sha256File } from "./lib/backup-archive.mjs";
 import {
   assertDatabaseEmpty,
+  assertBackupManifest,
   collectDatabaseSnapshot,
   commandVersion,
   compareSnapshots,
@@ -26,9 +27,7 @@ function argument(name) {
 async function loadManifest(path) {
   const raw = await readFile(path, "utf8");
   const manifest = JSON.parse(raw);
-  if (manifest?.manifestVersion !== 1 || !manifest?.archive?.sha256 || !manifest?.source) {
-    throw new Error("Backup manifest is missing required version, checksum, or source snapshot fields.");
-  }
+  assertBackupManifest(manifest);
   return manifest;
 }
 
@@ -47,6 +46,9 @@ async function main() {
 
   const manifestFile = resolve(argument("--manifest") ?? `${archivePath}.manifest.json`);
   const manifest = await loadManifest(manifestFile);
+  if (target.schema !== manifest.source.schema) {
+    throw new Error("Restore target schema must match the backup source schema. Use that schema in a separate empty database.");
+  }
   const checksum = await sha256File(archivePath);
   if (checksum !== manifest.archive.sha256) {
     throw new Error("Encrypted archive checksum does not match its manifest.");
@@ -82,6 +84,7 @@ async function main() {
     await runCommand("psql", [
       "-d",
       target.database,
+      "--single-transaction",
       "--set",
       "ON_ERROR_STOP=1",
       "--file",
@@ -104,6 +107,7 @@ async function main() {
       psqlVersion,
       compatibilitySettingsRemoved: transactionTimeoutRemoved ? ["transaction_timeout=0"] : [],
       restoredExtensions: manifest.source.requiredExtensions ?? ["pg_trgm"],
+      contentVerified: Boolean(manifest.source.tableDigests),
       manifestVerified: true
     }, null, 2));
   } finally {

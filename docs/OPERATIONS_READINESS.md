@@ -8,24 +8,32 @@
 
 Alert independently on all three. A live web process with an unhealthy worker does not satisfy the product promise.
 
+The dedicated Netlify test site uses a 180-second worker threshold, verified with a ready response at about 177 seconds and a not-ready response at about 199 seconds. Its dispatch setting must cover preview deployments as well as production, because promoting a preview retains that environment. Activity-triggered wakeup now passes the hosted check; recurring unattended processing remains a separate qualification. See [Netlify deployment](NETLIFY_DEPLOYMENT.md#publishing-a-separately-built-test-package).
+
 ## Encrypted backup and restore
 
-Configure a dedicated `BACKUP_ENCRYPTION_KEY`; never reuse `DATA_ENCRYPTION_KEY`. `npm run db:backup` creates an authenticated encrypted archive plus manifest with checksum, PostgreSQL version, applied migrations, table inventory, and critical row counts. Copy both to durable encrypted storage.
+Configure a dedicated `BACKUP_ENCRYPTION_KEY`; never reuse `DATA_ENCRYPTION_KEY`. `npm run db:backup` creates an authenticated encrypted archive plus a version-two manifest with checksum, PostgreSQL version, applied migrations, and every base table in the selected schema. Each table has a row count and an order-independent SHA-256 content digest, including migration history. Newly added tables need no manual verification list. Keep both files private and copy both to durable encrypted storage.
 
-Production in-place restore is blocked. Set `RESTORE_DATABASE_URL` to a separate empty database, then run:
+The manifest and `pg_dump` share one exported, read-only PostgreSQL snapshot. Normal application writes may continue during backup; avoid schema migrations until capture completes. Contents are hashed inside PostgreSQL, and verification transfers only hashes and counts. SHA-256 of sorted JSONB row hashes is identified as `sha256-jsonb-sorted-v1`; it verifies restored row values without depending on physical row order.
+
+Production in-place restore is blocked. Set `RESTORE_DATABASE_URL` to a separate empty database with the same schema name as the source, then run:
 
 ```bash
 npm run db:restore -- --input /secure/pre-release.jitm-backup.enc
 npm run db:smoke-restored
 ```
 
-CI/local rehearsal creates and removes its own temporary target:
+Restore applies the SQL in one transaction, then checks table inventory, every recorded count and digest, migrations and extensions. The smoke check discovers all declared foreign keys, including composite keys, nullable keys and references into other schemas. Version-one archives remain readable with their original count-based checks; they cannot prove content equality. Reusing an existing archive or decrypted-output filename fails without deleting that existing file.
+
+CI/local rehearsal creates and removes its own temporary target **on the source server**. Use it only where temporary databases are authorized. To qualify a hosted source without creating hosted fixtures, take its backup separately, provision an empty loopback database, and use the restore/smoke commands above against that local target.
 
 ```bash
 npm run db:rehearse-restore
 ```
 
-Pause application and worker writes for the final pre-release backup. Keep the archive from before the dormant-feature retirement migration until the release is fully qualified; it may contain sensitive data that no longer has a table in the current schema.
+For the recovery regression suite, set `RECOVERY_TEST_DATABASE_URL` to a loopback PostgreSQL instance whose role can create databases, then run `npx vitest run tests/backup-database.integration.test.mjs`. The suite owns and removes unique databases; it rejects remote hosts. It requires `pg_dump`, `pg_restore` and `psql` on PATH. Set `OPS_ALERT_WEBHOOK_URL=''` during local verification to suppress external alerts. CI enables this suite against its PostgreSQL service.
+
+Keep the archive from before the dormant-feature retirement migration until the release is fully qualified; it may contain sensitive data that no longer has a table in the current schema.
 
 ## Staging and release
 

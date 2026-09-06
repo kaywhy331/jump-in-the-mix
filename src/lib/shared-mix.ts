@@ -1,3 +1,4 @@
+import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
 import type { Channel, MixTriggerMode } from "@/generated/prisma/client";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
 
@@ -9,16 +10,14 @@ export const MIX_TEMPLATE_CATEGORIES = [
   "Past clients",
   "Reviews & referrals",
   "Reconnect",
+  "Discovery",
+  "Decision support",
+  "Buyer education",
   "Neighborhood",
   "Other"
 ] as const;
 
-export const MIX_TEMPLATE_INDUSTRIES = [
-  "Home services",
-  "Real estate",
-  "Insurance & finance",
-  "Other"
-] as const;
+export const MIX_TEMPLATE_INDUSTRIES = ["Any business", ...BUSINESS_TYPES] as const;
 
 export type SharedMixStep = {
   name: string;

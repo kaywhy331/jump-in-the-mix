@@ -47,7 +47,7 @@ test("Plan and ready-made plan filters stay focused", async ({ page }, testInfo)
   await expect(page).toHaveURL(/\/mixes\?q=Estimate&status=ACTIVE$/);
 
   await page.goto("/templates");
-  await expect(page.locator(".template-filter-bar")).toHaveAttribute("data-live-filter", "true");
+  await expect(page.locator(".plan-library-filters")).toHaveAttribute("data-live-filter", "true");
   await page.getByLabel("Search ready-made plans").fill("review");
   await expect(page).toHaveURL(/\/templates\?q=review/i);
   await expect(page.locator(".mix-template-card").first()).toBeVisible();
