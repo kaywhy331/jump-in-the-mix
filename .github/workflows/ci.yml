@@ -63,7 +63,19 @@ jobs:
       - name: Audit production dependencies
         run: npm run security:audit
       - name: Install PostgreSQL client tools
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Browser checks use Playwright's pinned Chromium. The runner's unused
+          # Chrome repository has returned inconsistent signed index/package
+          # hashes and must not block Ubuntu dependencies or Playwright's apt step.
+          for apt_source in /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources; do
+            if [[ -f "$apt_source" ]]; then
+              sudo mv -- "$apt_source" "$apt_source.disabled"
+            fi
+          done
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
       - name: Verify committed existing-MVP baseline SQL
         shell: bash
         run: |
