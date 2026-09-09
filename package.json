@@ -18,6 +18,7 @@
     "db:generate": "prisma generate && node scripts/generate-schema-release.mjs",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:catalog": "tsx scripts/seed-application-catalog.ts",
     "db:seed:e2e-admin": "tsx scripts/seed-e2e-admin.ts",
     "admin:bootstrap": "tsx scripts/bootstrap-admin-owner.ts",
     "db:setup": "npm run db:push && npm run db:seed",

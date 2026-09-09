@@ -1,44 +1,17 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
 import { generateJumps } from "../src/lib/jump-engine";
-import { READY_MADE_PLANS } from "../src/lib/vertical-plan-library";
-import { publishReadyMadePlans } from "../src/lib/publish-plan-library";
-import { installSystemMixBaseline } from "../src/lib/system-mix-store";
+import { installApplicationCatalog } from "../src/lib/install-application-catalog";
 
 const demoMode = (process.env.DEMO_MODE ?? "true").toLowerCase() === "true";
 const demoEmail = process.env.DEMO_USER_EMAIL ?? "demo@jumpinthemix.local";
 const demoPassword = process.env.DEMO_USER_PASSWORD ?? "JumpInTheMix123!";
-
-const systemDateTypes = [
-  ["system_birthday", "Birthday", "birthday"],
-  ["system_anniversary", "Anniversary", "anniversary"],
-  ["system_follow_up", "Follow-up", "follow-up"],
-  ["system_renewal", "Renewal", "renewal"],
-  ["system_appointment", "Appointment", "appointment"],
-  ["system_event", "Event", "event"],
-  ["system_referral", "Referral", "referral"],
-  ["system_closed_deal", "Closed Deal", "closed-deal"]
-] as const;
 
 function atNoon(offsetDays: number): Date {
   const date = new Date();
   date.setHours(12, 0, 0, 0);
   date.setDate(date.getDate() + offsetDays);
   return date;
-}
-
-async function seedSystemData() {
-  await installSystemMixBaseline();
-  for (const [id, name, slug] of systemDateTypes) {
-    await prisma.dateType.upsert({
-      where: { scopeKey_slug: { scopeKey: "system", slug } },
-      create: { id, scopeKey: "system", name, slug, isSystem: true, isActive: true },
-      update: { name, isSystem: true, isActive: true }
-    });
-  }
-
-  // Catalog retirement is a one-time audited migration, never a seed overwrite.
-  await publishReadyMadePlans(READY_MADE_PLANS);
 }
 
 async function seedDemoWorkspace() {
@@ -179,7 +152,7 @@ async function seedDemoWorkspace() {
 }
 
 async function main() {
-  await seedSystemData();
+  await installApplicationCatalog();
   if (demoMode) await seedDemoWorkspace();
   console.log("Seed complete.");
   if (demoMode) console.log(`Demo login: ${demoEmail} / ${demoPassword}`);

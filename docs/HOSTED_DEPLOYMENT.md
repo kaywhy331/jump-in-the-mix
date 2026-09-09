@@ -56,7 +56,7 @@ The worker groups newly due follow-ups into a notification for each subscribed d
 
 1. Take or verify a restorable database backup.
 2. Build one immutable revision from the intended commit.
-3. Run `npm run db:deploy` once as the release/pre-deploy command.
+3. Run `npm run db:deploy && npm run db:seed:catalog` once as the release/pre-deploy command. The catalog command checks the installed release and recovery hold, then installs missing built-in date types and reviewed ready-made plans. It creates no accounts or customer data, even if demo mode is accidentally enabled. Repeat deployment preserves existing date-type settings, library drafts, withdrawn publications and System Mix revisions. Use `admin:bootstrap` for the actual first Owner as described in [Staff access](STAFF_ACCESS.md).
 4. Start the prepared web package with `node --max-semi-space-size=8 .next/standalone/server.js` and the configured listener environment.
 5. Start exactly one worker with `npm run worker`; scale only after validating lease behavior under load.
 6. Require `/api/health/live`, `/api/health/ready`, and `/api/health/worker` to return HTTP 200.
