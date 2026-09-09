@@ -79,7 +79,7 @@ A restore requires an adjacent manifest and a separately configured, empty, isol
 
 The operator owns backup retention and must test restoration. Local encrypted files are not offsite backups.
 
-For a full archive with matching encrypted recovery evidence, use `npm run db:backup-recovery`. The [complete recovery bundle runbook](docs/RECOVERY_BUNDLES.md) covers its three files, verified restoration, and the reviewed command for taking an available source offline at a known cutoff. Target reopening remains a separate unfinished recovery gate.
+For a full archive with matching encrypted recovery evidence, use `npm run db:backup-recovery`. The [complete recovery bundle runbook](docs/RECOVERY_BUNDLES.md) covers its three files, verified restoration, and the reviewed command for taking an available source offline at a known cutoff. The [guarded reopening command](docs/RECOVERY_REOPENING.md) restores fresh Owner access, invalidates old integration credentials and rebuilds safe background work before releasing the target hold.
 
 ## Development and validation
 

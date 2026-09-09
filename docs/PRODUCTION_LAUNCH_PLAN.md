@@ -1,7 +1,8 @@
 # Production structure and launch preparation
 
-**Updated:** September 8, 2026  
-**Status:** Anticipated structure; preparation only. Production provisioning, paid service activation, DNS changes, and public launch are deferred until the remaining decisions and launch work are finalized.
+**Updated:** September 9, 2026
+
+**Status:** Deployment is now the active user-requested objective. The earlier preparation-only deferral is superseded. Render account access, sender/support and public operator details, and the remaining hosted qualification are outstanding; no production deployment or DNS cutover has occurred.
 
 Launch decision: a public waitlist released automatically every 7 days in waves of up to 10 (5 FIFO + 5 random), with additional manual administrator invitations, plus five personal referral invitations per member through the System Mix. Both paths grant free accounts without payment details. Keep operating costs low and increase capacity as usage demonstrates a need. Stripe is deferred until there is a decision to charge.
 
