@@ -1,0 +1,37 @@
+model SystemMixConfig {
+  id               String @id @default("referral")
+  publishedVersion Int @default(1)
+  draftVersion     Int @default(1)
+  controlRevision  Int @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  revisions        SystemMixRevision[]
+  releases         SystemMixRelease[]
+}
+
+model SystemMixRevision {
+  id          String @id @default(cuid())
+  systemMixId String @default("referral")
+  version     Int
+  subject     String
+  body        String
+  actorUserId String?
+  reason      String
+  createdAt   DateTime @default(now())
+  systemMix   SystemMixConfig @relation(fields: [systemMixId], references: [id], onDelete: Cascade)
+  @@unique([systemMixId, version])
+}
+
+model SystemMixRelease {
+  id              String @id @default(cuid())
+  systemMixId     String @default("referral")
+  version         Int
+  action          String
+  controlRevision Int
+  actorUserId     String?
+  reason          String
+  createdAt       DateTime @default(now())
+  systemMix       SystemMixConfig @relation(fields: [systemMixId], references: [id], onDelete: Cascade)
+  @@unique([systemMixId, controlRevision])
+  @@index([systemMixId, version])
+}

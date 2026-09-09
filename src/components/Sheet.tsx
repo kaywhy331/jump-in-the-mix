@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 
 export function Sheet({
@@ -23,12 +23,20 @@ export function Sheet({
   const triggerRef = useRef<HTMLSpanElement>(null);
   const titleId = useId();
   const descriptionId = useId();
+  const [mounted, setMounted] = useState(initiallyOpen);
 
   useEffect(() => {
-    if (initiallyOpen && !dialogRef.current?.open) dialogRef.current?.showModal();
+    if (initiallyOpen) {
+      setMounted(true);
+      if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
+    }
   }, [initiallyOpen]);
+  useLayoutEffect(() => {
+    if (mounted && !dialogRef.current?.open) dialogRef.current?.showModal();
+  }, [mounted]);
 
   const open = () => {
+    if (!mounted) { setMounted(true); return; }
     if (!dialogRef.current?.open) dialogRef.current?.showModal();
   };
   const close = () => dialogRef.current?.close();
@@ -39,7 +47,9 @@ export function Sheet({
   return (
     <>
       <span ref={triggerRef} className="sheet-trigger" onClick={open}>{trigger}</span>
-      <dialog
+      {/* A list can contain hundreds of closed sheets. Mount on first use,
+          then retain the contents so closing never discards an unsaved draft. */}
+      {mounted && <dialog
         ref={dialogRef}
         className={`sheet ${className}`.trim()}
         aria-labelledby={titleId}
@@ -57,7 +67,7 @@ export function Sheet({
           </header>
           <div className="sheet-body">{children}</div>
         </div>
-      </dialog>
+      </dialog>}
     </>
   );
 }

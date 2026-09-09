@@ -1,8 +1,6 @@
 import { env } from "@/lib/env";
 import {
   escapeHtml,
-  sendTransactionalEmail,
-  type EmailDeliveryResult,
   type TransactionalEmail
 } from "@/lib/transactional-email";
 
@@ -85,15 +83,4 @@ export function buildSupportReplyEmail(input: {
   </body>
 </html>`;
   return { to: input.to, subject, text, html };
-}
-
-export async function sendSupportReplyNotification(input: {
-  to: string;
-  recipientName: string;
-  ticketId: string;
-  reference: string;
-  title: string;
-  responseBody: string;
-}): Promise<EmailDeliveryResult> {
-  return sendTransactionalEmail(buildSupportReplyEmail(input));
 }

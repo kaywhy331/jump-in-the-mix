@@ -1,0 +1,93 @@
+/* The logo's speech outline belongs to messages and a few welcoming moments. */
+:root {
+  --conversation-stroke: #273044;
+  --conversation-shadow: #dcd6f6;
+}
+
+.speech-bubble {
+  --bubble-fill: var(--surface);
+  position: relative;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border: 2px solid var(--conversation-stroke);
+  border-radius: 22px 24px 22px 8px;
+  background: var(--bubble-fill);
+  color: var(--ink);
+  box-shadow: 3px 4px 0 var(--conversation-shadow);
+  overflow-wrap: anywhere;
+}
+
+.speech-bubble::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  inset-inline-start: 26px;
+  width: 18px;
+  height: 18px;
+  border-right: 2px solid var(--conversation-stroke);
+  border-bottom: 2px solid var(--conversation-stroke);
+  background: var(--bubble-fill);
+  /* Drop the left edge almost vertically and open the right edge outward. */
+  transform: skewX(-40deg) rotate(45deg);
+  box-shadow: 3px 3px 0 var(--conversation-shadow);
+  pointer-events: none;
+}
+
+.speech-bubble--soft { --bubble-fill: var(--brand-soft); }
+
+/* Large preview windows pair the shared speech tail with an offset frame. */
+.public-page .conversation-panel {
+  border: 2px solid var(--conversation-stroke);
+  border-radius: 28px 28px 28px 10px;
+  box-shadow: 6px 6px 0 var(--conversation-shadow);
+}
+
+.public-page .demo-message-preview { margin-bottom: 8px; }
+.relationship-example.speech-bubble { padding: 12px 16px; font-size: .9375rem; line-height: 1.55; }
+.public-page .public-control.speech-bubble {
+  display: flex;
+  border: 2px solid var(--conversation-stroke);
+  border-radius: 28px 28px 28px 10px;
+  background: var(--bubble-fill);
+  margin-bottom: 40px;
+}
+.public-control.speech-bubble::after { inset-inline-start: 42px; }
+.registration-intro .registration-control-note.speech-bubble { padding: 16px; border-top: 2px solid var(--conversation-stroke); color: var(--ink); }
+
+/* Keep writing controls and notes at their familiar size, with room for the tail. */
+.speech-bubble--compose { padding: 0; margin-bottom: 12px; }
+.speech-bubble--compose textarea { display: block; width: 100%; border: 0; border-radius: 19px 21px 19px 5px; background: var(--bubble-fill); color: var(--ink); }
+.speech-bubble--compose:focus-within { outline: 3px solid var(--focus); outline-offset: 3px; }
+.speech-bubble--compose textarea:focus { outline: none; box-shadow: none; }
+.shared-mix-message.speech-bubble { margin-bottom: 14px; }
+.empty-state p.speech-bubble { margin: 12px 0 28px; color: var(--ink); }
+.onboarding-preview.speech-bubble { display: grid; margin-bottom: 14px; color: var(--ink); }
+
+/* Call notes are a small reminder panel, separate from the messages you send. */
+.conversation-note {
+  padding: 14px 16px;
+  border: 2px solid var(--conversation-stroke);
+  border-radius: 18px 18px 18px 6px;
+  background: var(--surface);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .relationship-example.speech-bubble { margin-bottom: 14px; justify-self: start; }
+}
+@media (max-width: 600px) {
+  .public-page .conversation-panel, .public-page .public-control.speech-bubble { border-radius: 22px 22px 22px 8px; box-shadow: 4px 4px 0 var(--conversation-shadow); }
+  .speech-bubble { padding: 12px 14px; }
+  .speech-bubble--compose { padding: 0; }
+}
+@media (prefers-color-scheme: dark) {
+  :root { --conversation-stroke: #b8c0d2; --conversation-shadow: #41385f; }
+}
+@media (forced-colors: active) {
+  :root { --conversation-stroke: CanvasText; --conversation-shadow: Canvas; }
+  .speech-bubble { --bubble-fill: Canvas; }
+}

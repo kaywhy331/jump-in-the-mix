@@ -9,6 +9,7 @@ import { formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { createSupportTicketAction } from "@/lib/support-actions";
 import { SUPPORT_CATEGORIES, supportCategoryLabel, supportStatusLabel } from "@/lib/support-content";
+import { SUPPORT_RETENTION_NOTICE } from "@/lib/data-retention-policy";
 
 export const metadata: Metadata = { title: "Help" };
 
@@ -60,7 +61,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
     <div className="page help-page">
       <header className="page-header">
         <div><h1>Help</h1><p>Find a quick answer or send a private message to the support team.</p></div>
-        <div className="page-actions"><Link className="button" href="/account#support">My conversations</Link></div>
+        <div className="page-actions"><Link className="button" href="/account/tickets">My conversations</Link></div>
       </header>
 
       {query.error && <Notice type="error">{query.error}</Notice>}
@@ -72,6 +73,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
         <section className="card support-contact-card">
           <div className="card-header"><div><h2>Message support</h2><p>Tell us what you were trying to do and what happened.</p></div></div>
           <form action={createSupportTicketAction} className="form-stack">
+            <p>{SUPPORT_RETENTION_NOTICE}</p>
             <label className="field"><span className="field-label">Topic</span><select name="category" defaultValue="GENERAL" disabled={Boolean(impersonation)} required>{SUPPORT_CATEGORIES.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
             <label className="field"><span className="field-label">Short title</span><input name="title" minLength={5} maxLength={160} placeholder="Example: An imported tag is missing" disabled={Boolean(impersonation)} required /></label>
             <label className="field"><span className="field-label">What happened?</span><textarea name="body" minLength={10} maxLength={5000} rows={8} placeholder="What did you expect, what happened instead, and which page were you on? Do not include passwords or customer information." disabled={Boolean(impersonation)} required /></label>
@@ -91,7 +93,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
             ))}
             {!recentTickets.length && <div className="support-inline-empty"><strong>No conversations yet.</strong><span>Messages you send to support will appear here.</span></div>}
           </div>
-          <Link className="button full-width" href="/account#support">View all conversations</Link>
+          <Link className="button full-width" href="/account/tickets">View all conversations</Link>
         </aside>
       </section>
     </div>

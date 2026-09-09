@@ -1,25 +1,15 @@
+import { lockLibrary, readPublishedLibrary } from "@/lib/library-store";
 import { randomUUID } from "node:crypto";
 import type {
   MixTriggerMode,
-  Prisma,
-  SharedMixStatus
+  Prisma
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
-  MIX_TEMPLATE_CATEGORIES,
-  MIX_TEMPLATE_INDUSTRIES,
   normalizeSharedMixSteps,
   type SharedMixStep
 } from "@/lib/shared-mix";
 import { slugify } from "@/lib/slug";
-
-export type TemplateMetadata = {
-  title: string;
-  description: string;
-  category: string;
-  industry: string;
-  framework: string | null;
-};
 
 export type MixSnapshot = {
   mixId: string;
@@ -39,19 +29,6 @@ function clean(value: string | null | undefined, maxLength: number): string {
   return (value ?? "").trim().slice(0, maxLength);
 }
 
-function validateMetadata(input: TemplateMetadata): TemplateMetadata {
-  const title = clean(input.title, 160);
-  const description = clean(input.description, 1200);
-  const category = clean(input.category, 120);
-  const industry = clean(input.industry, 120);
-  const framework = clean(input.framework, 160) || null;
-  if (!title) throw new Error("Give the ready-made plan a title.");
-  if (description.length < 20) throw new Error("Describe when this plan is useful in at least 20 characters.");
-  if (!(MIX_TEMPLATE_CATEGORIES as readonly string[]).includes(category)) throw new Error("Choose a supported plan category.");
-  if (!(MIX_TEMPLATE_INDUSTRIES as readonly string[]).includes(industry)) throw new Error("Choose a supported industry.");
-  return { title, description, category, industry, framework };
-}
-
 export async function snapshotWorkspaceMix(workspaceId: string, mixId: string): Promise<MixSnapshot> {
   const mix = await prisma.mix.findFirst({
     where: { id: mixId, workspaceId, status: { not: "ARCHIVED" } },
@@ -64,8 +41,8 @@ export async function snapshotWorkspaceMix(workspaceId: string, mixId: string): 
       }
     }
   });
-  if (!mix) throw new Error("Plan not found.");
-  if (!mix.steps.length) throw new Error("Add at least one follow-up before publishing this plan.");
+  if (!mix) throw new Error("Mix not found.");
+  if (!mix.steps.length) throw new Error("Add at least one follow-up before publishing this mix.");
 
   const steps: SharedMixStep[] = mix.steps.map((item, index) => ({
     name: item.stepVersion.stepTemplate.name || `Follow-up #${index + 1}`,
@@ -105,7 +82,7 @@ async function resolveImportedDateType(
   if (triggerMode !== "DATE_TRIGGERED") return null;
   const name = clean(dateTypeName, 120);
   const slug = slugify(dateTypeSlug || name);
-  if (!name || !slug) throw new Error("This date-based plan does not identify the date that starts it.");
+  if (!name || !slug) throw new Error("This date-based mix does not identify the date that starts it.");
   const existing = await tx.dateType.findFirst({
     where: {
       slug,
@@ -114,7 +91,7 @@ async function resolveImportedDateType(
     orderBy: { isSystem: "desc" }
   });
   if (existing) {
-    if (!existing.isActive) throw new Error(`Turn on the ${existing.name} date before adding this plan.`);
+    if (!existing.isActive) throw new Error(`Turn on the ${existing.name} date before adding this mix.`);
     return existing.id;
   }
 
@@ -129,13 +106,12 @@ export async function importSharedMixIntoWorkspace(input: {
   actorUserId: string;
   sharedMixId: string;
 }): Promise<{ mixId: string; importNumber: number }> {
-  const workspace = await prisma.workspace.findUnique({ where: { id: input.workspaceId }, select: { id: true } });
+  const workspace = await prisma.workspace.findFirst({ where: { id: input.workspaceId, ownerId: input.actorUserId }, select: { id: true } });
   if (!workspace) throw new Error("Business account not found.");
 
   return prisma.$transaction(async (tx) => {
-    const shared = await tx.sharedMix.findFirst({ where: { id: input.sharedMixId, status: "APPROVED" } });
-    if (!shared) throw new Error("This ready-made plan is not currently available.");
-    const metadata = await tx.sharedMixMetadata.findUnique({ where: { sharedMixId: shared.id } });
+    await lockLibrary(tx);
+    const { shared, metadata } = await readPublishedLibrary(tx, input.sharedMixId);
     const steps = normalizeSharedMixSteps(shared.steps);
     const triggerMode = metadata?.triggerMode ?? "MANUAL_START";
     const dateTypeId = await resolveImportedDateType(
@@ -226,135 +202,4 @@ export async function importSharedMixIntoWorkspace(input: {
     });
     return { mixId: mix.id, importNumber: priorImports + 1 };
   });
-}
-
-export async function createOrRefreshPlatformSharedMix(input: {
-  sourceWorkspaceId: string;
-  actorUserId: string;
-  sourceMixId: string;
-  sharedMixId?: string | null;
-  metadata: TemplateMetadata;
-}): Promise<string> {
-  const metadata = validateMetadata(input.metadata);
-  const snapshot = await snapshotWorkspaceMix(input.sourceWorkspaceId, input.sourceMixId);
-  const existing = input.sharedMixId
-    ? await prisma.sharedMix.findUnique({ where: { id: input.sharedMixId } })
-    : null;
-
-  return prisma.$transaction(async (tx) => {
-    const baseData = {
-      title: metadata.title,
-      description: metadata.description,
-      category: metadata.category,
-      industry: metadata.industry,
-      framework: metadata.framework,
-      durationDays: snapshot.durationDays,
-      steps: snapshot.steps as unknown as Prisma.InputJsonValue,
-      status: "APPROVED" as SharedMixStatus
-    };
-    const template = existing
-      ? await tx.sharedMix.update({ where: { id: existing.id }, data: baseData })
-      : await tx.sharedMix.create({ data: baseData });
-    const metadataRow = await tx.sharedMixMetadata.upsert({
-      where: { sharedMixId: template.id },
-      create: {
-        sharedMixId: template.id,
-        sourceMixId: input.sourceMixId,
-        triggerMode: snapshot.triggerMode,
-        dateTypeName: snapshot.dateTypeName,
-        dateTypeSlug: snapshot.dateTypeSlug,
-        publishedAt: new Date()
-      },
-      update: {
-        sourceMixId: input.sourceMixId,
-        triggerMode: snapshot.triggerMode,
-        dateTypeName: snapshot.dateTypeName,
-        dateTypeSlug: snapshot.dateTypeSlug,
-        publishedAt: new Date(),
-        version: { increment: 1 }
-      }
-    });
-    await tx.auditLog.create({
-      data: {
-        workspaceId: input.sourceWorkspaceId,
-        actorType: "ADMIN",
-        actorUserId: input.actorUserId,
-        action: existing ? "shared-mix.platform.refresh" : "shared-mix.platform.create",
-        entityType: "SharedMix",
-        entityId: template.id,
-        source: "admin.templates",
-        metadata: { sourceMixId: input.sourceMixId, version: metadataRow.version }
-      }
-    });
-    return template.id;
-  });
-}
-
-export async function updateSharedMixAsAdmin(input: {
-  actorUserId: string;
-  auditWorkspaceId: string;
-  sharedMixId: string;
-  metadata: TemplateMetadata;
-  status: SharedMixStatus;
-  triggerMode: MixTriggerMode;
-  dateTypeName: string | null;
-  dateTypeSlug: string | null;
-  steps: SharedMixStep[];
-  featured: boolean;
-}): Promise<void> {
-  const metadata = validateMetadata(input.metadata);
-  const steps = normalizeSharedMixSteps(input.steps);
-  const allowedStatuses: SharedMixStatus[] = ["APPROVED", "UNPUBLISHED"];
-  if (!allowedStatuses.includes(input.status)) throw new Error("Choose whether this plan is published or hidden.");
-  if (input.triggerMode === "DATE_TRIGGERED" && (!input.dateTypeName || !input.dateTypeSlug)) {
-    throw new Error("Date-based plans must identify the date that starts them.");
-  }
-  const shared = await prisma.sharedMix.findUnique({ where: { id: input.sharedMixId } });
-  if (!shared) throw new Error("Ready-made plan not found.");
-  await prisma.$transaction([
-    prisma.sharedMix.update({
-      where: { id: input.sharedMixId },
-      data: {
-        title: metadata.title,
-        description: metadata.description,
-        category: metadata.category,
-        industry: metadata.industry,
-        framework: metadata.framework,
-        status: input.status,
-        durationDays: Math.max(...steps.map((item) => Math.abs(item.dayOffset)), 0),
-        steps: steps as unknown as Prisma.InputJsonValue
-      }
-    }),
-    prisma.sharedMixMetadata.upsert({
-      where: { sharedMixId: input.sharedMixId },
-      create: {
-        sharedMixId: input.sharedMixId,
-        triggerMode: input.triggerMode,
-        dateTypeName: input.triggerMode === "DATE_TRIGGERED" ? clean(input.dateTypeName, 120) : null,
-        dateTypeSlug: input.triggerMode === "DATE_TRIGGERED" ? slugify(input.dateTypeSlug || input.dateTypeName || "") : null,
-        featuredAt: input.featured ? new Date() : null,
-        publishedAt: input.status === "APPROVED" ? new Date() : null
-      },
-      update: {
-        triggerMode: input.triggerMode,
-        dateTypeName: input.triggerMode === "DATE_TRIGGERED" ? clean(input.dateTypeName, 120) : null,
-        dateTypeSlug: input.triggerMode === "DATE_TRIGGERED" ? slugify(input.dateTypeSlug || input.dateTypeName || "") : null,
-        featuredAt: input.featured ? new Date() : null,
-        publishedAt: input.status === "APPROVED" ? new Date() : undefined,
-        version: { increment: 1 }
-      }
-    }),
-    prisma.auditLog.create({
-      data: {
-        workspaceId: input.auditWorkspaceId,
-        actorType: "ADMIN",
-        actorUserId: input.actorUserId,
-        action: "shared-mix.curate",
-        entityType: "SharedMix",
-        entityId: input.sharedMixId,
-        source: "admin.templates",
-        metadata: { status: input.status, featured: input.featured }
-      }
-    })
-  ]);
 }

@@ -1,3 +1,4 @@
+import { accountHome } from "@/lib/account-home";
 import { redirect } from "next/navigation";
 import { createBusinessAccount, nameFromEmail } from "@/lib/account-provisioning";
 import { createSession } from "@/lib/auth";
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
       return { userId: user.id, destination: user.memberships[0]?.workspace.profile?.onboardingDone ? "/jumps" : "/onboarding" };
     }, { isolationLevel: "Serializable" });
     await createSession(result.userId);
-    redirect(result.destination);
+    redirect(await accountHome(result.userId, result.destination));
   } catch (error) {
     if (error && typeof error === "object" && "digest" in error) throw error;
     const message = error instanceof Error ? error.message : "The sign-in link could not be used.";

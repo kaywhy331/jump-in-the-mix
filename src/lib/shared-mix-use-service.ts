@@ -1,6 +1,7 @@
 import type { MixStatus, MixTriggerMode, Prisma } from "@/generated/prisma/client";
 import { parseBroadcastScheduleInput } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
+import { lockLibrary, readPublishedLibrary } from "@/lib/library-store";
 import { normalizeSharedMixSteps } from "@/lib/shared-mix";
 import { slugify } from "@/lib/slug";
 
@@ -18,13 +19,13 @@ async function resolveDateType(
   if (triggerMode !== "DATE_TRIGGERED") return null;
   const name = clean(nameValue, 120);
   const slug = slugify(slugValue || name);
-  if (!name || !slug) throw new Error("This plan does not identify its saved date type.");
+  if (!name || !slug) throw new Error("This mix does not identify its saved date type.");
   const existing = await tx.dateType.findFirst({
     where: { slug, OR: [{ workspaceId, isSystem: false }, { workspaceId: null, isSystem: true }] },
     orderBy: { isSystem: "desc" }
   });
   if (existing) {
-    if (!existing.isActive) throw new Error(`Turn on the ${existing.name} date type before using this plan.`);
+    if (!existing.isActive) throw new Error(`Turn on the ${existing.name} date type before using this mix.`);
     return existing.id;
   }
   return (await tx.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name, slug, isSystem: false, isActive: true } })).id;
@@ -34,6 +35,7 @@ export async function useSharedMixTemplate(input: {
   workspaceId: string;
   actorUserId: string;
   sharedMixId: string;
+  expectedVersion: number;
   requestId: string;
   name: string;
   status: Extract<MixStatus, "DRAFT" | "ACTIVE">;
@@ -46,39 +48,35 @@ export async function useSharedMixTemplate(input: {
   const requestId = clean(input.requestId, 120);
   if (!/^[a-zA-Z0-9_-]{8,120}$/.test(requestId)) throw new Error("The template setup request is invalid. Reload and try again.");
   const importKey = `${input.workspaceId}:${input.sharedMixId}:setup:${requestId}`;
-  const existing = await prisma.sharedMixImport.findUnique({ where: { importKey }, select: { mixId: true } });
-  if (existing?.mixId) return { mixId: existing.mixId, repeated: true };
+  return prisma.$transaction(async tx => {
+    await lockLibrary(tx);
+    const workspace = await tx.workspace.findFirst({ where: { id: input.workspaceId, ownerId: input.actorUserId }, select: { id: true } });
+    if (!workspace) throw new Error("This workspace is unavailable.");
+    const existing = await tx.sharedMixImport.findUnique({ where: { importKey }, select: { mixId: true } });
+    if (existing?.mixId) return { mixId: existing.mixId, repeated: true };
+    const { shared, metadata } = await readPublishedLibrary(tx, input.sharedMixId, input.expectedVersion);
+    const steps = normalizeSharedMixSteps(shared.steps);
+    const name = clean(input.name, 160) || shared.title;
+    const triggerMode = metadata?.triggerMode ?? "MANUAL_START";
+    const groupIds = [...new Set(input.groupIds.filter(Boolean))];
+    if (!input.assignAllContacts && !groupIds.length) throw new Error("Choose everyone or at least one tag.");
+    if (groupIds.length) {
+      const [groupCount, inactiveCount] = await Promise.all([
+        tx.group.count({ where: { workspaceId: input.workspaceId, id: { in: groupIds } } }),
+        tx.contactGroupState.count({ where: { workspaceId: input.workspaceId, groupId: { in: groupIds }, isActive: false } })
+      ]);
+      if (groupCount !== groupIds.length || inactiveCount > 0) throw new Error("Choose only active tags.");
+    }
+    const contactIds = input.assignAllContacts
+      ? (await tx.contact.findMany({ where: { workspaceId: input.workspaceId, archivedAt: null }, select: { id: true } })).map((contact) => contact.id)
+      : [];
+    const broadcast = triggerMode === "BROADCAST"
+      ? parseBroadcastScheduleInput(clean(input.broadcastDate, 10), clean(input.broadcastTime, 5), clean(input.broadcastTimezone, 120))
+      : null;
+    const mixId = crypto.randomUUID();
+    const now = new Date();
 
-  const [workspace, shared, metadata] = await Promise.all([
-    prisma.workspace.findUnique({ where: { id: input.workspaceId }, select: { id: true } }),
-    prisma.sharedMix.findFirst({ where: { id: input.sharedMixId, status: "APPROVED" } }),
-    prisma.sharedMixMetadata.findUnique({ where: { sharedMixId: input.sharedMixId } })
-  ]);
-  if (!workspace || !shared) throw new Error("This ready-made plan is not currently available.");
-  const steps = normalizeSharedMixSteps(shared.steps);
-  const name = clean(input.name, 160) || shared.title;
-  const triggerMode = metadata?.triggerMode ?? "MANUAL_START";
-  const groupIds = [...new Set(input.groupIds.filter(Boolean))];
-  if (!input.assignAllContacts && !groupIds.length) throw new Error("Choose everyone or at least one tag.");
-  if (groupIds.length) {
-    const [groupCount, inactiveCount] = await Promise.all([
-      prisma.group.count({ where: { workspaceId: input.workspaceId, id: { in: groupIds } } }),
-      prisma.contactGroupState.count({ where: { workspaceId: input.workspaceId, groupId: { in: groupIds }, isActive: false } })
-    ]);
-    if (groupCount !== groupIds.length || inactiveCount > 0) throw new Error("Choose only active tags.");
-  }
-  const contactIds = input.assignAllContacts
-    ? (await prisma.contact.findMany({ where: { workspaceId: input.workspaceId, archivedAt: null }, select: { id: true } })).map((contact) => contact.id)
-    : [];
-  const broadcast = triggerMode === "BROADCAST"
-    ? parseBroadcastScheduleInput(clean(input.broadcastDate, 10), clean(input.broadcastTime, 5), clean(input.broadcastTimezone, 120))
-    : null;
-  const mixId = crypto.randomUUID();
-  const now = new Date();
 
-  await prisma.$transaction(async (tx) => {
-    const duplicate = await tx.sharedMixImport.findUnique({ where: { importKey }, select: { mixId: true } });
-    if (duplicate?.mixId) return;
     const dateTypeId = await resolveDateType(tx, input.workspaceId, triggerMode, metadata?.dateTypeName ?? null, metadata?.dateTypeSlug ?? null);
     await tx.mix.create({
       data: {
@@ -139,7 +137,6 @@ export async function useSharedMixTemplate(input: {
       }
     });
     if (input.status === "ACTIVE") await tx.job.create({ data: { workspaceId: input.workspaceId, task: "generate-jumps", payload: { mixId } } });
-  });
-  const resolved = await prisma.sharedMixImport.findUnique({ where: { importKey }, select: { mixId: true } });
-  return { mixId: resolved?.mixId ?? mixId, repeated: Boolean(resolved?.mixId && resolved.mixId !== mixId) };
+    return { mixId, repeated: false };
+  }, { timeout: 20_000 });
 }

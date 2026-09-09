@@ -87,7 +87,12 @@ export function splitContactName(input: string | null | undefined): { firstName:
   };
 }
 
-export function inferQuickAddCapture(input: string, now = new Date()): QuickAddInterpretation {
+export function inferQuickAddCapture(input: string, now = new Date(), timezone?: string): QuickAddInterpretation {
+  if (timezone) {
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, year: "numeric", month: "numeric", day: "numeric" }).formatToParts(now);
+    const number = (type: string) => Number(parts.find(part => part.type === type)?.value);
+    now = new Date(number("year"), number("month") - 1, number("day"), 12);
+  }
   const original = input.trim();
   const weekday = "(?:sun(?:day)?|mon(?:day)?|tue(?:s|sday)?|wed(?:nesday)?|thu(?:r|rs|rsday)?|fri(?:day)?|sat(?:urday)?)";
   const month = "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";

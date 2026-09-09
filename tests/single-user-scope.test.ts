@@ -1,8 +1,9 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NextRequest } from "next/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { proxy as productBoundary } from "../src/proxy";
+vi.mock("@/lib/recovery-hold", () => ({ databaseRecoveryStatus: async () => "clear" }));
 
 const read = (path: string) => readFileSync(path, "utf8");
 
@@ -55,11 +56,11 @@ describe("phone-first small-business product boundary", () => {
 
   it("exposes the required navigation and global Quick Add", () => {
     const nav = read("src/components/Nav.tsx");
-    for (const label of ["Today", "Contacts", "Plans", "More"]) expect(nav).toContain(`label: "${label}"`);
+    for (const label of ["Today", "Contacts", "Mixes", "More"]) expect(nav).toContain(`label: "${label}"`);
     expect(nav).not.toContain('label: "Templates"');
     expect(nav).toContain("QuickAddButton mobile");
     expect(read("src/components/AppShell.tsx")).toContain("<QuickAddButton />");
-    expect(read("src/components/AppShell.tsx")).toContain("<QuickAddDialog />");
+    expect(read("src/components/AppShell.tsx")).toMatch(/<QuickAddDialog\b/);
   });
 
   it("has no compiled route for retired product areas", () => {
@@ -84,9 +85,9 @@ describe("phone-first small-business product boundary", () => {
     expect(proxy).not.toContain("isBlockedProductRoute");
   });
 
-  it("still returns a normal not-found response for removed routes", () => {
+  it("still returns a normal not-found response for removed routes", async () => {
     for (const path of ["/plans", "/billing", "/api/billing/checkout", "/api/integrations/google/status", "/mixes/wizard", "/r/example"]) {
-      expect(productBoundary(new NextRequest(`http://localhost${path}`)).status).not.toBe(403);
+      expect((await productBoundary(new NextRequest(`http://localhost${path}`))).status).not.toBe(403);
     }
   });
 

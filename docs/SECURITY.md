@@ -6,13 +6,15 @@ Passwords use bcrypt with work factor 12 and a 12-character minimum. Unknown-acc
 
 Session tokens are random and stored only as SHA-256 hashes. Cookies are HTTP-only, `SameSite=Strict`, and Secure on public production origins. Sessions expire after at most 14 days by default, are capped per user, and can be inspected or revoked. Password changes rotate the current session and close other sessions; password reset closes all sessions. Email verification, password reset, sign-in, registration, and authenticated mutations are database-rate-limited.
 
-Hosted production refuses readiness without HTTPS, mandatory email verification, verified transactional email configuration, and configured Google and Apple sign-in. The loopback Docker edition may omit email and provides an operator-only password reset command.
+Hosted production refuses readiness without HTTPS, mandatory email verification and staff MFA, and complete transactional email configuration. Google and Apple are optional; partial credentials are refused when either is enabled. Configuration checks do not prove actual inbox delivery. The loopback Docker edition may omit email and provides an operator-only password reset command.
 
 ## Browser boundary
 
 Unsafe browser requests must be same-origin or come from an explicitly allowed origin. Fetch Metadata is a secondary signal. Apple’s signed callback and separately verified provider webhooks are the only scoped exceptions. Next.js Server Actions use the same origin allowlist and a one-megabyte body limit.
 
 Responses set a nonce-based Content Security Policy, HSTS on production, MIME sniffing and framing protections, a strict referrer policy, restrictive Permissions Policy, COOP/CORP, and cross-domain-policy denial. Administrator support views are centrally limited to safe methods until explicitly ended.
+
+Private test deployments keep application routes behind their access gate. Their fixed `/robots.txt` response is available to safe unauthenticated requests and disallows all crawling without exposing configuration. Public sitemap and crawler rules list only configured public documents. Crawler directives provide discovery guidance; account and private-site authentication enforce access.
 
 ## Tenant and administrator isolation
 
@@ -37,3 +39,7 @@ Review/referral links use random expiring tokens. Public responses are schema-va
 Keep PostgreSQL private, enable managed backups and point-in-time recovery, patch dependencies and base images, alert on readiness/worker failure and authentication abuse, and rehearse restoration. Do not rotate the data-encryption key without a re-encryption plan.
 
 See [Hosted deployment](HOSTED_DEPLOYMENT.md), [Operations readiness](OPERATIONS_READINESS.md), and [Admin MFA](ADMIN_MFA.md).
+
+## Reviewed synthetic history findings
+
+`.gitleaksignore` contains five exact commit/path/rule/line fingerprints. Two are the public, base64-encoded synthetic webhook fixture used by the isolated CI browser tests; its decoded text identifies it as test material, and it is not a provider credential. One is a migration-name string in the rehearsal inventory that the generic API-key rule misclassified. Two older commits contain the public RFC 6238 test-vector secret in an MFA unit test; decoding it produces the standard `12345678901234567890` input. No file, credential pattern, provider rule or later commit is excluded. The full-history scanner remains enabled with redacted output. Investigate new findings individually rather than broadening these exceptions.

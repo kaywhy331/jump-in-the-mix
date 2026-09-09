@@ -11,7 +11,7 @@ describe("hosted deployment boundary", () => {
     expect(blueprint).toContain("fromDatabase:");
     expect(blueprint).toContain('value: "false"');
     expect(blueprint).toContain("healthCheckPath: /api/health/ready");
-    expect(blueprint).toContain("preDeployCommand: npm run db:deploy");
+    expect(blueprint).toContain("preDeployCommand: npm run db:deploy && npm run db:seed:catalog");
   });
 
   it("retains build-time Prisma and runtime worker tooling on the host", () => {

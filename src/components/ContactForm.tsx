@@ -125,7 +125,19 @@ export function ContactForm({
   };
 
   return (
-    <form action={mode === "create" ? createContactAction : updateContactAction} className="contact-editor">
+    <form action={mode === "create" ? createContactAction : updateContactAction} className="contact-editor" onFocusCapture={(event) => {
+      const control = event.target;
+      if (!(control instanceof HTMLElement) || control.closest(".sticky-form-actions")) return;
+      // Pointer-focused buttons and disclosures must stay put until activation.
+      if (!control.matches(":focus-visible")) return;
+      const bounds = control.getBoundingClientRect();
+      const overlays = document.querySelectorAll(".sticky-form-actions, .mobile-nav, .mobile-app-header");
+      const obscured = Array.from(overlays).some((overlay) => {
+        const rect = overlay.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && bounds.left < rect.right && bounds.right > rect.left && bounds.top < rect.bottom && bounds.bottom > rect.top;
+      });
+      if (obscured) control.scrollIntoView({ block: "center", behavior: "instant" });
+    }}>
       {contact?.id && <input type="hidden" name="contactId" value={contact.id} />}
 
       <section className="card contact-editor-section contact-quick-form">
@@ -150,13 +162,13 @@ export function ContactForm({
         <div className="card-header"><div><h2>First follow-up</h2><p>Choose when you want this person to appear on Today.</p></div></div>
         <label className="checkbox-card onboarding-default">
           <input type="checkbox" name="scheduleFollowUp" checked={scheduleFollowUp} onChange={(event) => setScheduleFollowUp(event.target.checked)} />
-          <span><strong>Schedule a follow-up now</strong><small>Start a matching plan if one is available.</small></span>
+          <span><strong>Schedule a follow-up now</strong><small>Start a matching mix if one is available.</small></span>
         </label>
         {scheduleFollowUp && <div className="form-grid contact-first-follow-up-fields">
           <input type="hidden" name="followUpDateTypeId" value={followUp.dateTypeId} />
           <div className="field"><label htmlFor="followUpDate">Follow-up date</label><input id="followUpDate" name="followUpDate" type="date" defaultValue={followUp.defaultDate ?? ""} required /></div>
           <div className="field"><label htmlFor="followUpReason">Reason</label><input id="followUpReason" name="followUpReason" defaultValue={followUp.defaultReason ?? "Follow up"} placeholder="Proposal follow-up" /></div>
-          <div className="field full"><label htmlFor="followUpMixId">Plan</label>{followUp.mixes.length ? <select id="followUpMixId" name="followUpMixId" defaultValue={followUp.mixes[0]?.id ?? ""}><option value="">Just save the date</option>{followUp.mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select> : <><input id="followUpMixId" name="followUpMixId" type="hidden" value="" /><small>You can add a plan later.</small></>}</div>
+          <div className="field full"><label htmlFor="followUpMixId">Mix</label>{followUp.mixes.length ? <select id="followUpMixId" name="followUpMixId" defaultValue={followUp.mixes[0]?.id ?? ""}><option value="">Just save the date</option>{followUp.mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select> : <><input id="followUpMixId" name="followUpMixId" type="hidden" value="" /><small>You can add a mix later.</small></>}</div>
         </div>}
       </section>}
 
@@ -175,7 +187,7 @@ export function ContactForm({
       </section>}
 
       {mode === "edit" && <section className="card contact-editor-section">
-        <div className="card-header"><div><h2>Phone numbers</h2><p>Numbers are normalized before saving.</p></div><button type="button" className="button small" onClick={() => setPhones((current) => [...current, { value: "", label: "" }])}>+ Add phone</button></div>
+        <div className="card-header"><div><h2>Phone numbers</h2><p>Choose the best number to reach this person.</p></div><button type="button" className="button small" onClick={() => setPhones((current) => [...current, { value: "", label: "" }])}>+ Add phone</button></div>
         <div className="repeatable-list">
           {phones.map((item, index) => (
             <div className="repeatable-row" key={`phone-${index}`}>
@@ -188,10 +200,10 @@ export function ContactForm({
         </div>
       </section>}
 
-      <details className="contact-more-details" open={mode === "edit" ? true : undefined}><summary>{mode === "create" ? "More details" : "Addresses and custom fields"}</summary>
+      <details className="contact-more-details"><summary>{mode === "create" ? "More details" : "Addresses, tags, and notes"}</summary>
       {mode === "create" && <section className="card contact-editor-section"><div className="card-header"><div><h2>Company</h2><p>Optional.</p></div></div><label className="field"><span>Company</span><input id="company" name="company" defaultValue={contact?.company ?? ""} /></label></section>}
       <section className="card contact-editor-section">
-        <div className="card-header"><div><h2>Addresses</h2><p>Choose the primary address available to placeholders.</p></div><button type="button" className="button small" onClick={() => setAddresses((current) => [...current, { label: "", street1: "", street2: "", city: "", state: "", postalCode: "", country: "" }])}>+ Add address</button></div>
+        <div className="card-header"><div><h2>Addresses</h2><p>Save an address for visits, deliveries, or prepared messages.</p></div><button type="button" className="button small" onClick={() => setAddresses((current) => [...current, { label: "", street1: "", street2: "", city: "", state: "", postalCode: "", country: "" }])}>+ Add address</button></div>
         <div className="repeatable-list">
           {addresses.map((item, index) => (
             <fieldset className="address-row" key={`address-${index}`}>
@@ -200,13 +212,13 @@ export function ContactForm({
               {!item.id && <input type="hidden" name="addressId" value="" />}
               <label className="primary-choice"><input type="radio" name="addressPrimaryIndex" value={index} checked={primaryAddress === index} onChange={() => setPrimaryAddress(index)} /><span>Primary address</span></label>
               <div className="form-grid">
-                <div className="field"><label>Label</label><input name="addressLabel" value={item.label} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, label: event.target.value } : row))} placeholder="Home or office" /></div>
-                <div className="field"><label>Country</label><input name="addressCountry" value={item.country} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, country: event.target.value } : row))} placeholder="US" /></div>
-                <div className="field full"><label>Street</label><input name="addressStreet1" value={item.street1} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, street1: event.target.value } : row))} /></div>
-                <div className="field full"><label>Street line 2</label><input name="addressStreet2" value={item.street2} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, street2: event.target.value } : row))} /></div>
-                <div className="field"><label>City</label><input name="addressCity" value={item.city} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, city: event.target.value } : row))} /></div>
-                <div className="field"><label>State / region</label><input name="addressState" value={item.state} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, state: event.target.value } : row))} /></div>
-                <div className="field"><label>Postal code</label><input name="addressPostalCode" inputMode="numeric" value={item.postalCode} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, postalCode: event.target.value } : row))} /></div>
+                <div className="field"><label htmlFor={`addressLabel-${index}`}>Label</label><input id={`addressLabel-${index}`} name="addressLabel" value={item.label} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, label: event.target.value } : row))} placeholder="Home or office" /></div>
+                <div className="field"><label htmlFor={`addressCountry-${index}`}>Country</label><input id={`addressCountry-${index}`} name="addressCountry" value={item.country} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, country: event.target.value } : row))} placeholder="US" /></div>
+                <div className="field full"><label htmlFor={`addressStreet1-${index}`}>Street</label><input id={`addressStreet1-${index}`} name="addressStreet1" value={item.street1} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, street1: event.target.value } : row))} /></div>
+                <div className="field full"><label htmlFor={`addressStreet2-${index}`}>Street line 2</label><input id={`addressStreet2-${index}`} name="addressStreet2" value={item.street2} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, street2: event.target.value } : row))} /></div>
+                <div className="field"><label htmlFor={`addressCity-${index}`}>City</label><input id={`addressCity-${index}`} name="addressCity" value={item.city} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, city: event.target.value } : row))} /></div>
+                <div className="field"><label htmlFor={`addressState-${index}`}>State / region</label><input id={`addressState-${index}`} name="addressState" value={item.state} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, state: event.target.value } : row))} /></div>
+                <div className="field"><label htmlFor={`addressPostalCode-${index}`}>Postal code</label><input id={`addressPostalCode-${index}`} name="addressPostalCode" inputMode="numeric" value={item.postalCode} onChange={(event) => setAddresses((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, postalCode: event.target.value } : row))} /></div>
               </div>
               <button type="button" className="button small danger" onClick={() => removeAddress(index)}>Remove address</button>
             </fieldset>
@@ -230,7 +242,7 @@ export function ContactForm({
           );
         })}</div> : <p className="muted-copy">No tags have been created yet. You can add them from the Contacts page.</p>}
         <div className="form-grid notes-grid">
-          <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Notes</label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="How you met, preferences, background, or details worth remembering." /><small>A plan can use a note only when you deliberately add its note placeholder.</small></div>
+          <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Notes</label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="How you met, preferences, background, or details worth remembering." /><small>A mix can use a note only when you deliberately add its note placeholder.</small></div>
           <div className="field full"><label htmlFor="privateNotes">Private note</label><textarea id="privateNotes" name="privateNotes" defaultValue={contact?.privateNotes ?? ""} placeholder="Sensitive context, commitments, or details for your eyes only." /><small>Private notes never appear in texts, emails, or WhatsApp messages.</small></div>
         </div>
       </section>}

@@ -1,0 +1,48 @@
+// One independent monitor owns a short lease; a worker cannot certify its own health.
+model OperationsMonitor {
+  id           String @id @default("primary")
+  leaseId      String?
+  leaseUntil   DateTime?
+  startedAt    DateTime?
+  observedAt   DateTime?
+  lastError    String?
+}
+
+// Fixed check codes and aggregate numeric evidence only. Acknowledgment is not recovery.
+model OperationsCheck {
+  code             String @id
+  state            String
+  episode          Int @default(0)
+  revision         Int @default(1)
+  evidence         Json
+  openedAt         DateTime?
+  resolvedAt       DateTime?
+  observedAt       DateTime
+  changedAt        DateTime
+  acknowledgedAt   DateTime?
+  acknowledgedBy   String?
+  nextReminderAt   DateTime?
+  notices          OperationsNotice[]
+}
+
+model OperationsNotice {
+  id            String @id
+  code          String
+  check         OperationsCheck @relation(fields: [code], references: [code], onDelete: Cascade)
+  episode       Int
+  kind          String
+  state         String
+  evidence      Json
+  observedAt    DateTime
+  status        String @default("QUEUED")
+  attempts      Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  leaseId       String?
+  lockedAt      DateTime?
+  acceptedAt    DateTime?
+  lastError     String?
+  createdAt     DateTime @default(now())
+
+  @@index([status, nextAttemptAt])
+  @@index([code, episode])
+}

@@ -1,8 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import styles from "@/components/JumpWorkflow.module.css";
+import { useBrowserScope } from "@/components/BrowserAccountBoundary";
+import { clearOpenedJump, readOpenedJump, validOpenedJump, type OpenedJumpDetail } from "@/lib/opened-jump-state";
+export type { OpenedJumpDetail } from "@/lib/opened-jump-state";
 
 type Outcome =
   | "COMPLETED"
@@ -23,27 +27,22 @@ type OutcomeResponse = {
   error?: string;
 };
 
-export type OpenedJumpDetail = {
-  jumpId: string;
-  contactName: string;
-  channel: string;
-  openedAt: number;
-};
-
 type JumpStateDetail = {
   jumpId: string;
   status: OutcomeResponse["status"];
 };
-
-const SESSION_KEY = "jitm:opened-jump";
-const SESSION_MAX_AGE_MS = 2 * 60 * 60 * 1000;
 
 function requestId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function dispatchJumpState(detail: JumpStateDetail): void {
-  window.dispatchEvent(new CustomEvent<JumpStateDetail>("jitm:jump-state", { detail }));
+  // Refresh observers must see the committed Undo control before their queued
+  // checks run. An async outcome event otherwise leaves a gap before React
+  // paints, allowing an early read to become stale during the Undo window.
+  flushSync(() => {
+    window.dispatchEvent(new CustomEvent<JumpStateDetail>("jitm:jump-state", { detail }));
+  });
 }
 
 async function saveOutcome(
@@ -65,16 +64,25 @@ async function saveOutcome(
 export function JumpWorkflowCard({
   jumpId,
   contactName,
+  revision,
   children
 }: {
   jumpId: string;
   contactName: string;
+  revision: string;
   children: ReactNode;
 }) {
   const [state, setState] = useState<"ACTIVE" | "DONE" | "SKIPPED" | "HIDDEN">("ACTIVE");
   const [undoing, setUndoing] = useState(false);
   const [error, setError] = useState("");
   const hideTimer = useRef<number | null>(null);
+  const latestRevision = useRef(revision), outcomeRevision = useRef(revision);
+  useLayoutEffect(() => { latestRevision.current = revision; }, [revision]);
+  useEffect(() => {
+    // A fresh server read may show completion, or a later reopening by someone
+    // else. Accept it after Undo without remounting untouched form controls.
+    if (state === "HIDDEN" && revision !== outcomeRevision.current) setState("ACTIVE");
+  }, [revision, state]);
 
   useEffect(() => {
     const onState = (event: Event) => {
@@ -85,6 +93,7 @@ export function JumpWorkflowCard({
         setState("ACTIVE");
         return;
       }
+      outcomeRevision.current = latestRevision.current;
       setState(detail.status);
       hideTimer.current = window.setTimeout(() => setState("HIDDEN"), 10_000);
     };
@@ -96,12 +105,14 @@ export function JumpWorkflowCard({
   }, [jumpId]);
 
   const undo = async () => {
+    if (hideTimer.current) window.clearTimeout(hideTimer.current);
     setUndoing(true);
     setError("");
     try {
       await saveOutcome(jumpId, "REOPENED");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The follow-up could not be reopened.");
+      hideTimer.current = window.setTimeout(() => setState("HIDDEN"), 10_000);
     } finally {
       setUndoing(false);
     }
@@ -110,11 +121,11 @@ export function JumpWorkflowCard({
   if (state === "HIDDEN") return null;
   if (state !== "ACTIVE") {
     return (
-      <div className={styles.cardWrapper} data-jump-workflow={jumpId}>
+      <div className={styles.cardWrapper} data-jump-workflow={jumpId} data-follow-up-undo="true">
         <div className={styles.completedPlaceholder} role="status">
           <span>
             <strong>{state === "SKIPPED" ? "Follow-up skipped" : "Follow-up completed"}</strong>
-            <small>{contactName} · the next follow-up is ready</small>
+            <small>{contactName} · you can undo this for a moment</small>
           </span>
           <button className="button small" type="button" onClick={undo} disabled={undoing}>{undoing ? "Restoring…" : "Undo"}</button>
         </div>
@@ -163,27 +174,10 @@ export function JumpOutcomeButton({
   );
 }
 
-function readOpenedJump(): OpenedJumpDetail | null {
-  try {
-    const raw = window.sessionStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    const value = JSON.parse(raw) as Partial<OpenedJumpDetail>;
-    if (!value.jumpId || !value.contactName || !value.channel || !value.openedAt) return null;
-    if (Date.now() - value.openedAt > SESSION_MAX_AGE_MS) {
-      window.sessionStorage.removeItem(SESSION_KEY);
-      return null;
-    }
-    return value as OpenedJumpDetail;
-  } catch {
-    return null;
-  }
-}
-
-function clearOpenedJump(): void {
-  try { window.sessionStorage.removeItem(SESSION_KEY); } catch { /* Storage may be blocked. */ }
-}
-
 export function JumpReturnTray() {
+  const scope = useBrowserScope();
+  const opened = useRef<OpenedJumpDetail | null>(null);
+  const revealTimer = useRef<number | undefined>(undefined);
   const [session, setSession] = useState<OpenedJumpDetail | null>(null);
   const [visible, setVisible] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -195,27 +189,30 @@ export function JumpReturnTray() {
   const [nextTime, setNextTime] = useState("10:00");
 
   useEffect(() => {
+    if (!scope) return;
     const revealStored = () => {
-      const stored = readOpenedJump();
+      const stored = readOpenedJump(scope) ?? (validOpenedJump(opened.current, scope) ? opened.current : null);
       if (!stored) return;
+      opened.current = stored;
       setSession(stored);
       setVisible(true);
     };
     const onOpened = (event: Event) => {
       const detail = (event as CustomEvent<OpenedJumpDetail>).detail;
-      if (!detail) return;
+      if (!validOpenedJump(detail, scope)) return;
+      opened.current = detail;
       setSession(detail);
       setVisible(false);
-      window.setTimeout(() => {
-        const stored = readOpenedJump();
-        if (stored?.jumpId === detail.jumpId) setVisible(true);
-      }, 900);
+      window.clearTimeout(revealTimer.current);
+      revealTimer.current = window.setTimeout(() => setVisible(true), 900);
     };
     const onVisibility = () => { if (document.visibilityState === "visible") revealStored(); };
     const onState = (event: Event) => {
       const detail = (event as CustomEvent<JumpStateDetail>).detail;
-      if (detail && session?.jumpId === detail.jumpId && detail.status !== "PENDING") {
-        clearOpenedJump();
+      if (detail && opened.current?.jumpId === detail.jumpId && detail.status !== "PENDING") {
+        clearOpenedJump(scope);
+        opened.current = null;
+        window.clearTimeout(revealTimer.current);
         setVisible(false);
       }
     };
@@ -224,13 +221,15 @@ export function JumpReturnTray() {
     window.addEventListener("focus", revealStored);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("jitm:jump-state", onState);
+    revealStored();
     return () => {
+      window.clearTimeout(revealTimer.current);
       window.removeEventListener("jitm:jump-opened", onOpened);
       window.removeEventListener("focus", revealStored);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("jitm:jump-state", onState);
     };
-  }, [session?.jumpId]);
+  }, [scope]);
 
   const isCall = session?.channel === "PHONE_CALL" || session?.channel === "VOICEMAIL";
   const quickOutcomes = useMemo<Array<{ value: Outcome; label: string }>>(() => isCall
@@ -246,7 +245,9 @@ export function JumpReturnTray() {
       ], [isCall]);
 
   const close = () => {
-    clearOpenedJump();
+    opened.current = null;
+    window.clearTimeout(revealTimer.current);
+    if (scope) clearOpenedJump(scope);
     setVisible(false);
     setError("");
   };
@@ -262,7 +263,9 @@ export function JumpReturnTray() {
         nextDate: nextDate || undefined,
         nextTime: nextDate ? nextTime : undefined
       } : {});
-      clearOpenedJump();
+      if (scope) clearOpenedJump(scope);
+      opened.current = null;
+      window.clearTimeout(revealTimer.current);
       setVisible(false);
       setNote("");
       setNextDate("");

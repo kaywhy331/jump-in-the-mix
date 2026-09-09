@@ -1,11 +1,20 @@
+import { runJourneyMaintenance } from "@/lib/journey";
+import { runCalendarSync } from "@/lib/calendar";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { runAutomaticDeliveries } from "@/lib/automatic-delivery";
 import { CONTACT_IMPORT_JOB_TASK, runContactImportBatch } from "@/lib/contact-import-jobs";
 import { generateJumps } from "@/lib/jump-engine";
+import { deliverSupportEmails } from "@/lib/support-email-delivery";
 import { runScheduledNotifications } from "@/lib/notification-delivery";
 import { cleanupOperationalData } from "@/lib/operational-retention";
 import { prisma } from "@/lib/prisma";
+import { requireDatabaseRelease, waitForDatabaseRelease } from "@/lib/database-release";
+import { runDueWaitlistWave } from "@/lib/waitlist";
+import { deliverWaitlistInvitations } from "@/lib/waitlist-delivery";
+import { runReportExport } from "@/lib/report-exports";
+import { queueDailyReports, runReportSnapshot, markReportJobFailed } from "@/lib/report-snapshots";
+import { REPORT_EXPORT_TASK, REPORT_SNAPSHOT_TASK } from "@/lib/report-storage-policy";
 
 const workerId = `worker-${randomUUID().slice(0, 8)}`;
 const workerStartedAt = new Date();
@@ -16,6 +25,7 @@ const maintenanceIntervalMs = 5 * 60_000;
 const notificationIntervalMs = 60_000;
 const maximumRetryDelayMs = 6 * 60 * 60_000;
 let stopping = false;
+let databaseReady = false;
 let heartbeatTimer: NodeJS.Timeout | null = null;
 let heartbeatChain: Promise<void> = Promise.resolve();
 
@@ -78,26 +88,33 @@ async function claimJob() {
     where: {
       completedAt: null,
       failedAt: null,
+      task: { notIn: [REPORT_EXPORT_TASK, REPORT_SNAPSHOT_TASK] },
       runAt: { lte: now },
       OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }]
     },
     orderBy: [{ runAt: "asc" }, { createdAt: "asc" }]
+  }) ?? await prisma.job.findFirst({
+    where: { completedAt: null, failedAt: null, task: { in: [REPORT_EXPORT_TASK, REPORT_SNAPSHOT_TASK] }, runAt: { lte: now }, OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }] },
+    orderBy: [{ runAt: "asc" }, { createdAt: "asc" }]
   });
   if (!candidate) return null;
 
+  const exhausted = candidate.attempts >= candidate.maxAttempts;
   const leaseId = `${workerId}:${randomUUID()}`;
   const claimed = await prisma.job.updateMany({
     where: {
       id: candidate.id,
+      attempts: candidate.attempts,
+      maxAttempts: candidate.maxAttempts,
       completedAt: null,
       failedAt: null,
       runAt: { lte: now },
       OR: [{ lockedAt: null }, { lockedAt: { lt: staleBefore } }]
     },
-    data: { lockedAt: now, lockedBy: leaseId, attempts: { increment: 1 } }
+    data: { lockedAt: now, lockedBy: leaseId, ...(exhausted ? {} : { attempts: { increment: 1 } }) }
   });
   return claimed.count
-    ? { ...candidate, attempts: candidate.attempts + 1, lockedAt: now, lockedBy: leaseId }
+    ? { ...candidate, attempts: candidate.attempts + (exhausted ? 0 : 1), lockedAt: now, lockedBy: leaseId, exhausted }
     : null;
 }
 
@@ -109,6 +126,15 @@ function retryDelayMs(attempts: number): number {
 }
 
 async function executeJob(job: ClaimedJob): Promise<void> {
+  if (job.task === REPORT_EXPORT_TASK || job.task === REPORT_SNAPSHOT_TASK) {
+    const payload = job.payload as { exportId?: unknown; snapshotId?: unknown };
+    const id = job.task === REPORT_EXPORT_TASK ? payload?.exportId : payload?.snapshotId;
+    if (typeof id !== "string" || id.length > 100) throw new PermanentJobError("Report job is missing its identifier.");
+    const lease = { jobId: job.id, leaseId: job.lockedBy };
+    if (job.task === REPORT_EXPORT_TASK) await runReportExport(id, lease);
+    else await runReportSnapshot(id, lease);
+    return;
+  }
   if (job.task === "generate-jumps") {
     const payload = job.payload as { contactId?: string; mixId?: string };
     await generateJumps({ workspaceId: job.workspaceId ?? undefined, contactId: payload.contactId, mixId: payload.mixId });
@@ -116,8 +142,8 @@ async function executeJob(job: ClaimedJob): Promise<void> {
   }
   if (job.task === CONTACT_IMPORT_JOB_TASK) {
     const payload = job.payload as { batchId?: string };
-    if (!payload.batchId) throw new PermanentJobError("Contact import job is missing its batch identifier.");
-    await runContactImportBatch(payload.batchId);
+    if (typeof payload?.batchId !== "string" || !payload.batchId || payload.batchId.length > 100) throw new PermanentJobError("Contact import job is missing its batch identifier.");
+    await runContactImportBatch(payload.batchId, { jobId: job.id, leaseId: job.lockedBy });
     return;
   }
   throw new PermanentJobError(`Unsupported worker task: ${job.task}`);
@@ -140,6 +166,7 @@ async function processJob(job: ClaimedJob) {
   renewal.unref();
 
   try {
+    if (job.exhausted) throw new PermanentJobError("The attempt limit was reached before completion was recorded. Review the saved result before retrying.");
     await executeJob(job);
     if (leaseLost) throw new Error("The job lease was lost before completion could be recorded.");
     const completed = await prisma.job.updateMany({
@@ -149,30 +176,38 @@ async function processJob(job: ClaimedJob) {
     if (completed.count !== 1) throw new Error("The job lease was lost before completion could be recorded.");
     await queueHeartbeat(new Date()).catch((error) => console.error("Worker heartbeat failed", error));
   } catch (error) {
-    const message = safeJobError(error);
+    // Prisma errors may embed an imported row. Keep customer-facing batch
+    // status and durable job errors free of contact contents and connection data.
+    const message = job.task === CONTACT_IMPORT_JOB_TASK && !(error instanceof PermanentJobError)
+      ? "Import processing was interrupted. Saved rows will be reused on retry."
+      : safeJobError(error);
     const permanent = error instanceof PermanentJobError;
     const shouldFail = permanent || job.attempts >= job.maxAttempts;
-    const updated = await prisma.job.updateMany({
-      where: { id: job.id, lockedBy: leaseId, completedAt: null, failedAt: null },
-      data: {
-        lastError: message,
-        lockedAt: null,
-        lockedBy: null,
-        failedAt: shouldFail ? new Date() : null,
-        runAt: shouldFail ? job.runAt : new Date(Date.now() + retryDelayMs(job.attempts))
+    const updated = await prisma.$transaction(async tx => {
+      const changed = await tx.job.updateMany({
+        where: { id: job.id, lockedBy: leaseId, completedAt: null, failedAt: null },
+        data: {
+          lastError: message, lockedAt: null, lockedBy: null,
+          failedAt: shouldFail ? new Date() : null,
+          runAt: shouldFail ? job.runAt : new Date(Date.now() + retryDelayMs(job.attempts))
+        }
+      });
+      if (changed.count === 1 && shouldFail && job.task === CONTACT_IMPORT_JOB_TASK) {
+        const payload = job.payload as { batchId?: string };
+        if (typeof payload?.batchId === "string" && job.workspaceId) {
+          await tx.contactImportBatch.updateMany({
+            where: { id: payload.batchId, workspaceId: job.workspaceId, canceledAt: null, status: { in: ["QUEUED", "RUNNING", "FAILED"] } },
+            data: { status: "FAILED", completedAt: new Date(), errorSummary: message }
+          });
+        }
       }
+      return changed;
     });
-    if (shouldFail && job.task === CONTACT_IMPORT_JOB_TASK) {
-      const payload = job.payload as { batchId?: string };
-      if (payload.batchId) {
-        await prisma.contactImportBatch.updateMany({
-          where: { id: payload.batchId, status: { in: ["QUEUED", "RUNNING"] } },
-          data: { status: "FAILED", failedCount: { increment: 1 }, completedAt: new Date(), errorSummary: message }
-        }).catch(() => undefined);
-      }
-    }
     if (updated.count !== 1) {
       console.error(`[${workerId}] Job ${job.id} failed after its lease was lost: ${message}`);
+    }
+    if (updated.count === 1 && shouldFail && [REPORT_EXPORT_TASK, REPORT_SNAPSHOT_TASK].includes(job.task)) {
+      await markReportJobFailed(job.id).catch(() => console.error("Report failure status could not be recorded."));
     }
     await queueHeartbeat().catch((heartbeatError) => console.error("Worker heartbeat failed", heartbeatError));
   } finally {
@@ -218,24 +253,33 @@ async function runDueWorkspaceReconciliations(now = new Date()): Promise<void> {
 async function runMaintenanceIfDue(state: MaintenanceState): Promise<void> {
   const now = Date.now();
   if (now - state.automaticDelivery >= notificationIntervalMs) {
+    try { await runJourneyMaintenance({ now: new Date(now), limit: 25 }); } catch (error) { console.error("Customer journey pass failed", error); }
     try { await runAutomaticDeliveries(workerId, new Date(now)); } catch (error) { console.error("Automatic delivery pass failed", error); }
     state.automaticDelivery = Date.now();
   }
   if (now - state.jumpReconciliation >= maintenanceIntervalMs) {
+    try { await runCalendarSync(new Date(now)); } catch (error) { console.error("Calendar refresh pass failed", error); }
     try { await runDueWorkspaceReconciliations(new Date(now)); } catch (error) { console.error("Periodic follow-up preparation failed", error); }
     state.jumpReconciliation = Date.now();
   }
   if (now - state.notifications >= notificationIntervalMs) {
+    try { await runDueWaitlistWave(new Date(now)); } catch { console.error("Waitlist wave pass failed; the schedule will retry."); }
+    try { await deliverWaitlistInvitations(new Date()); } catch { console.error("Waitlist delivery pass failed; queued invitations will retry."); }
+    try { await deliverSupportEmails(); } catch { console.error("Support email pass failed; check the saved notification queue."); }
     try { await runScheduledNotifications(workerId, new Date(now)); } catch (error) { console.error("Scheduled notification pass failed", error); }
     state.notifications = Date.now();
   }
   if (now - state.retentionCleanup >= maintenanceIntervalMs) {
-    try { await cleanupOperationalData(); } catch (error) { console.error("Operational retention cleanup failed", error); }
+    try { await queueDailyReports(); } catch { console.error("Daily report scheduling failed; the worker will retry."); }
+    try { await cleanupOperationalData(); } catch { console.error("Operational retention cleanup failed; inspect the retention checkpoint and retry."); }
     state.retentionCleanup = Date.now();
   }
 }
 
 async function main() {
+  const ready = await waitForDatabaseRelease({ stopping: () => stopping, onWait: status => console.error(`Worker is waiting for database release verification (${status}).`) });
+  if (!ready) { await prisma.$disconnect(); return; }
+  databaseReady = true;
   console.log(`[${workerId}] Jump worker started.`);
   await prisma.workerHeartbeat.deleteMany({
     where: { lastSeenAt: { lt: new Date(Date.now() - 30 * 24 * 60 * 60_000) } }
@@ -252,7 +296,9 @@ async function main() {
     notifications: 0,
     retentionCleanup: 0
   };
+  let nextReleaseCheck = 0;
   while (!stopping) {
+    if (Date.now() >= nextReleaseCheck) { await requireDatabaseRelease(); nextReleaseCheck = Date.now() + 30_000; }
     await runMaintenanceIfDue(maintenance);
     const job = await claimJob();
     if (job) {
@@ -270,6 +316,7 @@ async function main() {
 // Background invocations reuse the same durable claims as the persistent worker.
 // Leave time before the platform's 15-minute limit for the last job to finish.
 export async function runWorkerPass({ budgetMs = 8 * 60_000, maxJobs = 25 } = {}): Promise<number> {
+  await requireDatabaseRelease();
   const deadline = Date.now() + budgetMs;
   await queueHeartbeat();
   const timer = setInterval(() => {
@@ -299,7 +346,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.error(error);
     if (heartbeatTimer) clearInterval(heartbeatTimer);
     await heartbeatChain.catch(() => undefined);
-    await markWorkerStopped().catch(() => undefined);
+    if (databaseReady) await markWorkerStopped().catch(() => undefined);
     await prisma.$disconnect().catch(() => undefined);
     process.exit(1);
   });

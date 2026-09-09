@@ -1,5 +1,7 @@
 "use server";
 
+import { applyJourneyEvent } from "@/lib/journey";
+
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import {
@@ -95,7 +97,7 @@ async function initialFollowUpPayload(workspaceId: string, formData: FormData): 
     },
     select: { id: true }
   });
-  if (!mix) throw new Error("The selected follow-up plan is no longer active or does not match this saved date.");
+  if (!mix) throw new Error("The selected follow-up mix is no longer active or does not match this saved date.");
   return { dateTypeId: dateType.id, dateValue, reason, mixId: mix.id };
 }
 
@@ -161,6 +163,7 @@ export async function createContactAction(formData: FormData): Promise<void> {
   }
 
   const contact = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR NO KEY UPDATE`;
     const created = await tx.contact.create({
       data: {
         workspaceId: workspace.id,
@@ -220,6 +223,7 @@ export async function createContactAction(formData: FormData): Promise<void> {
         }
       }
     });
+    await applyJourneyEvent(tx, { workspaceId: workspace.id, contactId: created.id, eventKey: `contact-created:${created.id}`, eventType: "CONTACT_RECEIVED", source: "Contact added", actorUserId: user.id });
     return created;
   });
   await queueContactReconciliation(workspace.id, contact.id);

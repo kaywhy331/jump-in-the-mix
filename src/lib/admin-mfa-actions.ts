@@ -41,6 +41,7 @@ async function auditAdminMfa(input: {
   action: string;
   method?: string;
 }): Promise<void> {
+  await prisma.platformAuditEvent.create({ data: { actorUserId: input.userId, action: input.action, entityType: "AdminMfaCredential", entityId: input.userId, afterData: input.method ? { method: input.method } : undefined } });
   if (!input.workspaceId) return;
   await prisma.auditLog.create({
     data: {

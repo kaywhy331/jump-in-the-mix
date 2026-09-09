@@ -14,12 +14,13 @@ function SubmitSupportResponseButton() {
   );
 }
 
-export function SupportReplyComposer({ ticketId }: { ticketId: string }) {
+export function SupportReplyComposer({ ticketId, requestKey }: { ticketId: string; requestKey: string }) {
   const [body, setBody] = useState("");
 
   return (
     <form action={adminReplyToSupportTicketAction} className="form-stack support-reply-composer">
       <input type="hidden" name="ticketId" value={ticketId} />
+      <input type="hidden" name="requestKey" value={requestKey} />
       <label className="field">
         <span className="field-label">Response template</span>
         <select
@@ -39,6 +40,7 @@ export function SupportReplyComposer({ ticketId }: { ticketId: string }) {
         <span className="field-label">Jump in the Mix Response</span>
         <textarea
           name="body"
+          aria-describedby={`support-reply-help-${ticketId}`}
           value={body}
           onChange={(event) => setBody(event.target.value)}
           minLength={2}
@@ -47,8 +49,8 @@ export function SupportReplyComposer({ ticketId }: { ticketId: string }) {
           placeholder="Write a clear response with the next action the customer should take…"
           required
         />
-        <small>The response is saved to the ticket first. Email delivery is recorded separately and can be retried.</small>
       </label>
+      <small id={`support-reply-help-${ticketId}`}>Your response appears in the customer’s ticket immediately. An email notification is queued separately.</small>
       <div className="form-actions"><SubmitSupportResponseButton /></div>
     </form>
   );

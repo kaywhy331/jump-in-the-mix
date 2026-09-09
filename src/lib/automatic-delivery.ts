@@ -111,10 +111,11 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
         id: true,
         name: true,
         ownerId: true,
+        owner: { select: { suspendedAt: true } },
         profile: { select: { company: true } }
       }
     });
-    if (!workspace) continue;
+    if (!workspace?.owner || workspace.owner.suspendedAt) continue;
     const [display, scheduling] = await Promise.all([
       prisma.userPreference.findUnique({ where: { userId: workspace.ownerId } }),
       prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })
@@ -177,7 +178,7 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
         if (!prepared) throw new Error("The prepared message is empty or cannot be sent automatically.");
         const currentPreference = await prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id } });
         const channelStillEnabled = channel === "EMAIL" ? currentPreference?.emailEnabled : currentPreference?.smsEnabled;
-        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING" }, select: { id: true } });
+        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", workspace: { owner: { suspendedAt: null } } }, select: { id: true } });
         if (!currentPreference?.enabled || !channelStillEnabled || !currentJump) {
           await prisma.automatedDelivery.updateMany({ where: { id: deliveryId, lockedBy: workerId, status: "PROCESSING" }, data: { status: "CANCELED", lockedAt: null, lockedBy: null } });
           continue;

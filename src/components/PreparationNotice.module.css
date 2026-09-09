@@ -1,0 +1,5 @@
+.notice { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; }
+.notice > div:first-child { flex: 1 1 260px; min-width: 0; }
+.notice p { margin: 4px 0 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.notice .actions button, .notice .actions a { min-height: 44px; }

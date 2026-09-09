@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000";
+const capture = process.env.PLAYWRIGHT_CAPTURE !== "off";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -19,9 +20,9 @@ export default defineConfig({
     : [["list"], ["html", { outputFolder: "playwright-report", open: "never" }]],
   use: {
     baseURL,
-    trace: "retain-on-failure",
-    screenshot: "only-on-failure",
-    video: "retain-on-failure"
+    trace: capture ? "retain-on-failure" : "off",
+    screenshot: capture ? "only-on-failure" : "off",
+    video: capture ? "retain-on-failure" : "off"
   },
   projects: [
     {

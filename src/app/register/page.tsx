@@ -1,41 +1,47 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
-import { SocialSignInOptions } from "@/components/SocialSignInOptions";
-import { registerAction, requestMagicLinkAction } from "@/lib/auth-actions";
+import { registerAction } from "@/lib/auth-actions";
+import { hashAuthToken } from "@/lib/auth-tokens";
+import { env } from "@/lib/env";
 import { pilotRegistrationOpen } from "@/lib/pilot-registration";
-import { appleSignInConfigured, googleSignInConfigured } from "@/lib/social-auth";
-import { transactionalEmailConfigured } from "@/lib/transactional-email";
+import { prisma } from "@/lib/prisma";
+import { validAccessToken } from "@/lib/referral-access";
+import { getAdmissionPolicy } from "@/lib/admission";
+import { PublicTrustLinks } from "@/components/PublicTrustLinks";
 
-export const metadata: Metadata = { title: "Create account" };
+export const metadata: Metadata = { title: "Your invitation", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
 
-export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const [params, registrationOpen] = await Promise.all([searchParams, pilotRegistrationOpen()]);
-  if (!registrationOpen) {
-    return <main className="auth-page"><section className="auth-card"><div><p className="eyebrow">Jump in the Mix</p><h1>Owner setup is complete</h1><p>This private installation already has an owner account. New account creation is disabled.</p></div><Link className="button primary" href="/login">Sign in</Link></section></main>;
-  }
-  return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <div><p className="eyebrow">Jump in the Mix</p><h1>Get your follow-ups working for you</h1><p>Create your business account, then prepare the first customer follow-up in about three minutes.</p></div>
-        {params.error && <Notice type="error">{params.error}</Notice>}
-        <SocialSignInOptions google={googleSignInConfigured()} apple={appleSignInConfigured()} />
-        {transactionalEmailConfigured() && <>
-          <form action={requestMagicLinkAction} className="form-stack">
-            <label className="field"><span>Work email</span><input name="email" type="email" inputMode="email" autoComplete="email" maxLength={254} required /></label>
-            <button className="button" type="submit">Create account with an email link</button>
-          </form>
-          <div className="auth-divider"><span>or create a password</span></div>
-        </>}
-        <form action={registerAction} className="form-stack">
-          <label className="field"><span>Your name</span><input name="name" autoComplete="name" maxLength={120} required /></label>
-          <label className="field"><span>Work email</span><input name="email" type="email" inputMode="email" autoComplete="email" maxLength={254} required /></label>
-          <label className="field"><span>Password</span><input name="password" type="password" autoComplete="new-password" minLength={12} maxLength={72} required /><small>Use at least 12 characters.</small></label>
-          <button className="button primary" type="submit">Continue to business setup</button>
-        </form>
-        <p>Already have an account? <Link href="/login">Sign in</Link>.</p>
-      </section>
-    </main>
-  );
+export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ error?: string; invite?: string }> }) {
+  const params = await searchParams;
+  const token = params.invite ?? "";
+  const pilotOpen = env.pilotMode && await pilotRegistrationOpen();
+  const invite = !env.pilotMode && validAccessToken(token)
+    ? await prisma.referralAccessInvite.findFirst({ where: { tokenHash: hashAuthToken(token), acceptedAt: null, revokedAt: null }, select: { id: true } })
+    : null;
+  const paused = Boolean(invite) && (await getAdmissionPolicy()).redemptionPaused;
+  return <main className="auth-shell"><section className="auth-card">
+    <Logo />
+    {!pilotOpen && !invite ? <>
+      <div><p className="eyebrow">Free · Through your network</p><h1>{token ? "This invitation is unavailable" : "An invitation from someone you know"}</h1>
+      <p>{token ? "This link is invalid, revoked, or already used. If you already created your account, sign in below." : "Jump in the Mix grows through personal connections. Each member has five invitations to share with contacts through the Jump in the Mix System Mix. Ask someone in your network to invite you."}</p></div>
+      <Link className="button primary" href="/waitlist">Join the waitlist</Link>
+      <p>Have a unique invitation link? Open it to create your free account.</p><Link className="button" href="/login">Sign in</Link>
+    </> : paused ? <>
+      <h1>Account creation is temporarily paused</h1><p>Your invitation has not been used. Please open this same link again later.</p><Link className="button" href="/login">Sign in to an existing account</Link>
+    </> : <>
+      <div><p className="eyebrow">{pilotOpen ? "Private owner setup" : "You’re invited"}</p><h1>Create your free account</h1><p>{pilotOpen ? "Set up the owner account for this private installation." : "Use the email address your invitation was sent to. Once verified, you’ll have five personal invitations of your own."}</p></div>
+      {params.error && <Notice type="error">{params.error}</Notice>}
+      <form action={registerAction} className="form-stack">
+        {invite && <input type="hidden" name="invite" value={token} />}
+        <label className="field"><span>Your name</span><input name="name" autoComplete="name" maxLength={120} required /></label>
+        <label className="field"><span>Email</span><input name="email" type="email" autoComplete="email" maxLength={254} required /></label>
+        <label className="field"><span>Password</span><input name="password" type="password" autoComplete="new-password" minLength={12} maxLength={72} required /><small>Use at least 12 characters.</small></label>
+        <button className="button primary" type="submit">Create free account</button>
+      </form><p>Already have an account? <Link href="/login">Sign in</Link>.</p>
+    </>}
+    <PublicTrustLinks />
+  </section></main>;
 }

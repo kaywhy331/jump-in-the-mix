@@ -38,7 +38,7 @@ export default async function ContactCustomFieldsPage({ searchParams }: { search
       {params.error && <Notice type="error">{params.error}</Notice>}
       <header className="page-header">
         <div><h1>Custom contact fields</h1><p>Add customer details you can reuse in prepared messages.</p></div>
-        <div className="page-actions"><Link className="button" href="/contacts">Contacts</Link><Link className="button" href="/mixes">Plans</Link></div>
+        <div className="page-actions"><Link className="button" href="/contacts">Contacts</Link><Link className="button" href="/mixes">Mixes</Link></div>
       </header>
 
       <section className="card">

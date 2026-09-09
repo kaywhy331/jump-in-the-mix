@@ -15,7 +15,7 @@ describe("installable phone experience", () => {
   it("registers an offline shell and handles push notification taps", () => {
     const worker = read("public/sw.js");
     const prompt = read("src/components/PwaInstallPrompt.tsx");
-    expect(prompt).toContain('navigator.serviceWorker.register("/sw.js")');
+    expect(read("src/components/PwaRegistration.tsx")).toContain('navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" })');
     expect(prompt).toContain('window.addEventListener("jitm:jump-state"');
     expect(worker).toContain('self.addEventListener("fetch"');
     expect(worker).toContain('self.addEventListener("push"');

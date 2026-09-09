@@ -36,8 +36,8 @@ describe("Help and support boundaries", () => {
 
   it("requires platform administrator access for the support queue and controls", () => {
     for (const path of [
-      "src/app/(app)/admin/support/page.tsx",
-      "src/app/(app)/admin/support/[ticketId]/page.tsx",
+      "src/app/(staff)/admin/support/page.tsx",
+      "src/app/(staff)/admin/support/[ticketId]/page.tsx",
       "src/lib/support-admin-actions.ts"
     ]) {
       expect(read(path), `${path} must require a platform administrator`).toContain("requirePlatformAdmin(");
@@ -51,7 +51,7 @@ describe("Help and support boundaries", () => {
 
   it("uses the required response label, timestamps, and delivery diagnostics", () => {
     const userThread = read("src/app/(app)/account/tickets/[ticketId]/page.tsx");
-    const adminThread = read("src/app/(app)/admin/support/[ticketId]/page.tsx");
+    const adminThread = read("src/app/(staff)/admin/support/[ticketId]/page.tsx");
     const email = read("src/lib/support-email.ts");
     expect(userThread).toContain("Jump in the Mix Response");
     expect(userThread).toContain("formatDateTime(message.createdAt, displayPreferences)");
@@ -62,13 +62,12 @@ describe("Help and support boundaries", () => {
     expect(email).toContain("/account/tickets/");
   });
 
-  it("persists the administrator response before attempting email delivery", () => {
+  it("saves replies and notifications together and leaves sending to the worker", () => {
     const actions = read("src/lib/support-admin-actions.ts");
-    const saveIndex = actions.indexOf("adminReplyToSupportTicketRecord");
-    const emailIndex = actions.indexOf("deliverAdminReplyEmail", saveIndex);
-    expect(saveIndex).toBeGreaterThan(-1);
-    expect(emailIndex).toBeGreaterThan(saveIndex);
-    expect(actions).toContain('status: "FAILED"');
-    expect(actions).toContain('status: result.delivered ? "SENT" : "PREVIEWED"');
+    const service = read("src/lib/support-service.ts");
+    expect(actions).not.toContain("sendTransactionalEmail");
+    expect(actions).not.toContain("sendSupportReplyNotification");
+    expect(service).toContain("queueSupportReplyEmail(tx, ticket, message");
+    expect(read("src/worker/index.ts")).toContain("await deliverSupportEmails()");
   });
 });

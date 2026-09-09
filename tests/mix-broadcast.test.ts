@@ -18,8 +18,8 @@ describe("fixed-date broadcast schedules", () => {
   });
 
   it("rejects normalized or impossible dates instead of silently shifting them", () => {
-    expect(() => parseBroadcastScheduleInput("2026-02-30", "10:00", "UTC")).toThrow("valid plan start date");
-    expect(() => parseBroadcastScheduleInput("12/31/2026", "10:00", "UTC")).toThrow("valid plan start date");
+    expect(() => parseBroadcastScheduleInput("2026-02-30", "10:00", "UTC")).toThrow("valid mix start date");
+    expect(() => parseBroadcastScheduleInput("12/31/2026", "10:00", "UTC")).toThrow("valid mix start date");
   });
 
   it("validates times and timezones", () => {
@@ -28,8 +28,8 @@ describe("fixed-date broadcast schedules", () => {
     expect(parseTimeInput("24:00")).toBeNull();
     expect(isValidTimezone("America/New_York")).toBe(true);
     expect(isValidTimezone("Not/A_Timezone")).toBe(false);
-    expect(() => parseBroadcastScheduleInput("2026-12-31", "24:00", "UTC")).toThrow("valid plan start time");
-    expect(() => parseBroadcastScheduleInput("2026-12-31", "10:00", "Not/A_Timezone")).toThrow("valid plan timezone");
+    expect(() => parseBroadcastScheduleInput("2026-12-31", "24:00", "UTC")).toThrow("valid mix start time");
+    expect(() => parseBroadcastScheduleInput("2026-12-31", "10:00", "Not/A_Timezone")).toThrow("valid mix timezone");
   });
 
   it("formats persisted schedules for date and time inputs", () => {

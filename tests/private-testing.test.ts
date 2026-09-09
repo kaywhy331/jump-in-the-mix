@@ -1,3 +1,4 @@
+vi.mock("@/lib/recovery-hold", () => ({ databaseRecoveryStatus: async () => "clear" }));
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { productionConfigurationIssues, sessionCookieSecure } from "../src/lib/env";
@@ -17,6 +18,7 @@ const testEnvironment: NodeJS.ProcessEnv = {
   PRIVATE_TEST_MODE: "true",
   PRIVATE_TEST_USERNAME: "tester",
   PRIVATE_TEST_PASSWORD: "s".repeat(40),
+  PILOT_MODE: "false",
   AUTH_REQUIRE_EMAIL_VERIFICATION: "false"
 };
 const authorization = `Basic ${Buffer.from(`tester:${testEnvironment.PRIVATE_TEST_PASSWORD}`).toString("base64")}`;
@@ -37,8 +39,8 @@ describe("private test deployments", () => {
     const publicIssues = productionConfigurationIssues({ ...testEnvironment, PRIVATE_TEST_MODE: "false" });
     expect(publicIssues).toContain("AUTH_REQUIRE_EMAIL_VERIFICATION must be true for hosted production");
     expect(publicIssues).toContain("RESEND_API_KEY is required for hosted production");
-    expect(publicIssues).toContain("Google sign-in credentials are required for hosted production");
-    expect(publicIssues).toContain("Apple sign-in credentials are required for hosted production");
+    expect(publicIssues).not.toContain("Google sign-in credentials are required for hosted production");
+    expect(publicIssues).not.toContain("Apple sign-in credentials are required for hosted production");
     expect(productionConfigurationIssues({ ...testEnvironment, AUTH_GOOGLE_CLIENT_ID: "partial" })).toContain("Google sign-in credentials are required for hosted production");
     expect(productionConfigurationIssues({ ...testEnvironment, AUTH_REQUIRE_EMAIL_VERIFICATION: "true" })).toContain("RESEND_API_KEY is required for hosted production");
   });
@@ -59,31 +61,43 @@ describe("private test deployments", () => {
     expect(privateTestRequestAuthorized(new Headers({ authorization: authorization.slice(0, -1) + "x" }), testEnvironment)).toBe(false);
   });
 
-  it("challenges page, API, OAuth, and Server Action requests before application work", () => {
+  it("challenges page, API, OAuth, and Server Action requests before application work", async () => {
     configure();
     for (const path of ["/", "/register", "/api/health/ready", "/api/auth/oauth/google/start", "/_next/data/build/login.json"]) {
-      const response = proxy(new NextRequest(new URL(path, testEnvironment.APP_URL)));
+      const response = await proxy(new NextRequest(new URL(path, testEnvironment.APP_URL)));
       expect(response.status).toBe(401);
       expect(response.headers.get("www-authenticate")).toContain("Basic");
       expect(response.headers.get("cache-control")).toContain("no-store");
     }
-    const action = proxy(new NextRequest(new URL("/register", testEnvironment.APP_URL), { method: "POST", headers: { origin: testEnvironment.APP_URL! } }));
+    const action = await proxy(new NextRequest(new URL("/register", testEnvironment.APP_URL), { method: "POST", headers: { origin: testEnvironment.APP_URL! } }));
     expect(action.status).toBe(401);
-    const allowed = proxy(new NextRequest(new URL("/login", testEnvironment.APP_URL), { headers: { authorization } }));
+    const allowed = await proxy(new NextRequest(new URL("/login", testEnvironment.APP_URL), { headers: { authorization } }));
     expect(allowed.status).toBe(200);
     expect(allowed.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     vi.stubEnv("PRIVATE_TEST_PASSWORD", "");
-    expect(proxy(new NextRequest(new URL("/login", testEnvironment.APP_URL), { headers: { authorization } })).status).toBe(503);
+    expect((await proxy(new NextRequest(new URL("/login", testEnvironment.APP_URL), { headers: { authorization } }))).status).toBe(503);
   });
 
-  it("allows only the authenticated background handoff to omit the site password", () => {
+  it("allows only the authenticated background handoff to omit the site password", async () => {
     configure();
     const secret = "worker-secret".repeat(4);
     vi.stubEnv("NETLIFY_WORKER_SECRET", secret);
     const headers = { authorization: `Bearer ${secret}`, origin: testEnvironment.APP_URL! };
-    expect(proxy(new NextRequest(new URL("/.netlify/functions/jump-worker-background", testEnvironment.APP_URL), { method: "POST", headers })).status).toBe(200);
-    expect(proxy(new NextRequest(new URL("/register", testEnvironment.APP_URL), { method: "POST", headers })).status).toBe(401);
-    expect(proxy(new NextRequest(new URL("/.netlify/functions/jump-worker-background", testEnvironment.APP_URL), { headers })).status).toBe(401);
+    expect((await proxy(new NextRequest(new URL("/.netlify/functions/jump-worker-background", testEnvironment.APP_URL), { method: "POST", headers }))).status).toBe(200);
+    expect((await proxy(new NextRequest(new URL("/register", testEnvironment.APP_URL), { method: "POST", headers }))).status).toBe(401);
+    expect((await proxy(new NextRequest(new URL("/.netlify/functions/jump-worker-background", testEnvironment.APP_URL), { headers }))).status).toBe(401);
+  });
+
+  it("publishes only fixed deny-all crawler rules without private-site credentials", async () => {
+    configure();
+    const address = new URL("/robots.txt", testEnvironment.APP_URL);
+    const response = await proxy(new NextRequest(address));
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("User-agent: *\nDisallow: /\n");
+    expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    expect(response.headers.get("www-authenticate")).toBeNull();
+    expect((await proxy(new NextRequest(address, { method: "POST" }))).status).toBe(401);
+    expect((await proxy(new NextRequest(new URL("/sitemap.xml", testEnvironment.APP_URL)))).status).toBe(401);
   });
 
   it("enforces the same access password inside authentication actions", async () => {

@@ -1,31 +1,9 @@
-import type { Channel, MixTriggerMode } from "@/generated/prisma/client";
+import type { ReadyMadePlan } from "@/lib/plan-library-types";
+import { SALES_PLANS } from "@/lib/sales-plan-library";
+import { RELATIONSHIP_MIXES } from "@/lib/relationship-mix-library";
+export type { ReadyMadePlan, ReadyMadePlanStep } from "@/lib/plan-library-types";
 
-export type ReadyMadePlanStep = {
-  name: string;
-  channel: Channel;
-  dayOffset: number;
-  sendTimeMinutes: number;
-  subject?: string;
-  body?: string;
-  script?: string;
-};
-
-export type ReadyMadePlan = {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  industry: "Home services" | "Real estate" | "Insurance & finance" | "Other";
-  framework: "Ready-made";
-  triggerMode: MixTriggerMode;
-  dateTypeName: string | null;
-  dateTypeSlug: string | null;
-  durationDays: number;
-  featured: boolean;
-  steps: ReadyMadePlanStep[];
-};
-
-export const READY_MADE_PLANS: ReadyMadePlan[] = [
+const VERTICAL_PLANS: ReadyMadePlan[] = [
   {
     id: "plan_home_job_done",
     title: "Job done: thank-you, review, and referral",
@@ -250,6 +228,8 @@ export const READY_MADE_PLANS: ReadyMadePlan[] = [
   }
 ];
 
+export const READY_MADE_PLANS: ReadyMadePlan[] = [...VERTICAL_PLANS, ...SALES_PLANS, ...RELATIONSHIP_MIXES];
+
 export function starterPlanForBusinessType(businessType: string | null | undefined): ReadyMadePlan {
   const normalized = businessType?.toLowerCase() ?? "";
   const industry = normalized.includes("home") || /plumb|hvac|electric|trade/.test(normalized)
@@ -259,10 +239,25 @@ export function starterPlanForBusinessType(businessType: string | null | undefin
       : /insurance|finance/.test(normalized)
         ? "Insurance & finance"
         : "Other";
-  return READY_MADE_PLANS.find((plan) => plan.industry === industry && plan.featured) ?? READY_MADE_PLANS.at(-1)!;
+  return READY_MADE_PLANS.find((plan) => plan.industry === industry && plan.featured) ?? READY_MADE_PLANS.find((plan) => plan.id === "plan_generic_reconnect")!;
 }
 
 export function starterPlanForOnboarding(businessType: string | null | undefined, reason: string): ReadyMadePlan {
+  const relationshipStarters: Record<string, { id: string; category: string; body: string }> = {
+    "Check in with a friend": { id: "personal_check_in", category: "Personal connections", body: "Hi {{First Name}}, you crossed my mind and I wanted to check in. How have you been? {{SMS Signature}}" },
+    "Reconnect personally": { id: "personal_reconnect", category: "Personal connections", body: "Hi {{First Name}}, it’s been a while! I’d love to catch up when you have a moment. How are things? {{SMS Signature}}" },
+    "Follow up after an introduction": { id: "network_introduction", category: "Networking", body: "Hi {{First Name}}, I’m glad we connected. I’d love to continue our conversation when you have a moment. {{SMS Signature}}" },
+    "Explore a partnership": { id: "network_partnership", category: "Networking", body: "Hi {{First Name}}, I’d love to compare notes and explore ways we could work together. Are you open to a conversation? {{SMS Signature}}" }
+  };
+  if (Object.hasOwn(relationshipStarters, reason)) {
+    const starter = relationshipStarters[reason];
+    return {
+      id: starter.id, title: reason, description: "One thoughtful message to review and send on your chosen date.",
+      category: starter.category, industry: "Other", framework: "Ready-made", triggerMode: "DATE_TRIGGERED",
+      dateTypeName: "Follow-up", dateTypeSlug: "follow-up", durationDays: 1, featured: false,
+      steps: [{ name: reason, channel: "SMS", dayOffset: 0, sendTimeMinutes: 600, body: starter.body }]
+    };
+  }
   const plansByReason: Record<string, string> = {
     "Follow up about an estimate": "plan_home_estimate",
     "Check in after the job": "plan_home_job_done",

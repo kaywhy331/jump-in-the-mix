@@ -13,7 +13,7 @@
     gap: 12px;
     margin: 0 -16px 4px;
     padding: 6px 16px;
-    background: white;
+    background: var(--surface);
     border-bottom: 1px solid var(--line);
     flex-wrap: wrap;
   }
@@ -42,12 +42,6 @@
   .mobile-header-action svg { display: block; width: 22px; height: 22px; }
   .mobile-action-label { font-size: 0; }
 
-  .mobile-nav { height: calc(66px + env(safe-area-inset-bottom)); }
-  .mobile-nav .app-nav { height: 66px; }
-  .mobile-nav .nav-link { min-height: 58px; padding: 7px 2px 5px; font-size: .68rem; }
-  .mobile-nav .nav-quick-add { width: 52px; min-width: 52px; height: 52px; min-height: 52px; justify-self: center; margin: -8px auto 0; box-shadow: 0 8px 22px rgba(71,54,210,.25); }
-  .mobile-nav .nav-quick-add svg { width: 27px; height: 27px; }
-
   /* Shared mobile filter trigger */
   .filter-trigger { min-width: 48px; height: 48px; gap: 7px; padding: 0 12px; }
   .filter-trigger svg { width: 19px; height: 19px; }
@@ -66,7 +60,7 @@
     gap: 8px;
     align-items: center;
     padding: 10px 0 10px 10px;
-    background: white;
+    background: var(--surface);
   }
   .jump-task-card::before { inset: 10px auto; width: 2px; }
   .jump-details { min-width: 0; }
@@ -97,7 +91,7 @@
   .today-insights { margin-top: 8px; }
 
   /* Contacts */
-  .contact-list { background: white; }
+  .contact-list { background: var(--surface); }
   .contact-select-row,
   .contact-select-row.selection-mode { min-height: 70px; grid-template-columns: minmax(0, 1fr) 44px; gap: 6px; align-items: center; padding: 7px 0; }
   .contact-select-row.selection-mode { grid-template-columns: 44px minmax(0, 1fr) 44px; }
@@ -110,7 +104,7 @@
   .mix-row-menu > summary { border: 0; background: transparent; }
 
   /* Mixes */
-  .mix-list { background: white; }
+  .mix-list { background: var(--surface); }
   .mix-card { position: relative; min-height: 76px; display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: center; padding: 9px 0; }
   .mix-card .card-header { min-width: 0; min-height: 54px; display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 6px; align-items: center; }
   .mix-card .card-header > div:first-child { min-width: 0; }
@@ -123,7 +117,7 @@
 
   /* More */
   .more-page .settings-hub-grid { background: transparent; }
-  .more-page .settings-hub-card { padding: 0 4px; background: white; }
+  .more-page .settings-hub-card { padding: 0 4px; background: var(--surface); }
   .more-page .more-section-label { margin: 14px 0 6px 2px; }
   .more-page .more-sign-out { margin-top: 18px; }
   .more-page .more-sign-out .button { min-height: 44px; padding: 0; border: 0; background: transparent; color: var(--muted); }

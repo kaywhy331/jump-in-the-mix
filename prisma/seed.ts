@@ -1,97 +1,17 @@
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
 import { generateJumps } from "../src/lib/jump-engine";
-import { READY_MADE_PLANS } from "../src/lib/vertical-plan-library";
+import { installApplicationCatalog } from "../src/lib/install-application-catalog";
 
 const demoMode = (process.env.DEMO_MODE ?? "true").toLowerCase() === "true";
 const demoEmail = process.env.DEMO_USER_EMAIL ?? "demo@jumpinthemix.local";
 const demoPassword = process.env.DEMO_USER_PASSWORD ?? "JumpInTheMix123!";
-
-const systemDateTypes = [
-  ["system_birthday", "Birthday", "birthday"],
-  ["system_anniversary", "Anniversary", "anniversary"],
-  ["system_follow_up", "Follow-up", "follow-up"],
-  ["system_renewal", "Renewal", "renewal"],
-  ["system_appointment", "Appointment", "appointment"],
-  ["system_event", "Event", "event"],
-  ["system_referral", "Referral", "referral"],
-  ["system_closed_deal", "Closed Deal", "closed-deal"]
-] as const;
 
 function atNoon(offsetDays: number): Date {
   const date = new Date();
   date.setHours(12, 0, 0, 0);
   date.setDate(date.getDate() + offsetDays);
   return date;
-}
-
-async function seedSystemData() {
-  for (const [id, name, slug] of systemDateTypes) {
-    await prisma.dateType.upsert({
-      where: { scopeKey_slug: { scopeKey: "system", slug } },
-      create: { id, scopeKey: "system", name, slug, isSystem: true, isActive: true },
-      update: { name, isSystem: true, isActive: true }
-    });
-  }
-
-  // These ids shipped before the product moved to trade-specific ready-made plans.
-  // Keep the retirement list so an upgrade cannot surface stale consulting copy.
-  const retiredConsultingTemplateIds = [
-    "shared_new_lead",
-    "shared_referral",
-    "shared_client_onboarding",
-    "shared_renewal_checkin"
-  ];
-
-  await prisma.sharedMix.updateMany({
-    where: { id: { in: retiredConsultingTemplateIds } },
-    data: { status: "UNPUBLISHED" }
-  });
-
-  for (const item of READY_MADE_PLANS) {
-    await prisma.sharedMix.upsert({
-      where: { id: item.id },
-      create: {
-        id: item.id,
-        title: item.title,
-        description: item.description,
-        category: item.category,
-        industry: item.industry,
-        framework: item.framework,
-        durationDays: item.durationDays,
-        steps: item.steps,
-        status: "APPROVED"
-      },
-      update: {
-        title: item.title,
-        description: item.description,
-        category: item.category,
-        industry: item.industry,
-        framework: item.framework,
-        durationDays: item.durationDays,
-        steps: item.steps,
-        status: "APPROVED"
-      }
-    });
-    await prisma.sharedMixMetadata.upsert({
-      where: { sharedMixId: item.id },
-      create: {
-        sharedMixId: item.id,
-        triggerMode: item.triggerMode,
-        dateTypeName: item.dateTypeName,
-        dateTypeSlug: item.dateTypeSlug,
-        featuredAt: item.featured ? new Date() : null,
-        publishedAt: new Date()
-      },
-      update: {
-        triggerMode: item.triggerMode,
-        dateTypeName: item.dateTypeName,
-        dateTypeSlug: item.dateTypeSlug,
-        featuredAt: item.featured ? new Date() : null,
-        publishedAt: new Date()
-      }
-    });
-  }
 }
 
 async function seedDemoWorkspace() {
@@ -232,7 +152,7 @@ async function seedDemoWorkspace() {
 }
 
 async function main() {
-  await seedSystemData();
+  await installApplicationCatalog();
   if (demoMode) await seedDemoWorkspace();
   console.log("Seed complete.");
   if (demoMode) console.log(`Demo login: ${demoEmail} / ${demoPassword}`);

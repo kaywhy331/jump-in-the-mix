@@ -16,6 +16,7 @@ export function AppShell({
   userName: string;
   displayPreferences: DisplayFormatPreferences;
   impersonation: {
+    reference: string;
     targetName: string;
     targetEmail: string;
     reason: string;
@@ -51,7 +52,7 @@ export function AppShell({
                 <nav className="sheet-link-list" aria-label="Profile and settings">
                   <Link className="button" href="/account">My Account</Link>
                   <Link className="button" href="/settings">Settings</Link>
-                  <Link className="button" href="/templates">Ready-made plans</Link>
+                  <Link className="button" href="/templates">Ready-made mixes</Link>
                   <Link className="button" href="/help">Help</Link>
                 </nav>
                 <form action={logoutAction}><button className="button danger" type="submit">Sign out</button></form>
@@ -71,14 +72,14 @@ export function AppShell({
           <div>
             <strong>View-only support session</strong>
             <span>Viewing {impersonation.targetName} ({impersonation.targetEmail}) · ends at {expiresLabel}</span>
-            <small>Reason: {impersonation.reason}. Editing, deleting, imports, actions, and other browser mutations are blocked.</small>
+            <small>Case {impersonation.reference}. Reason: {impersonation.reason}. Editing, deleting, imports, actions, and other browser mutations are blocked.</small>
           </div>
           {endImpersonationForm}
         </section>
       )}
       <main className="app-main">{children}</main>
       <div className="mobile-nav"><Nav /></div>
-      {!impersonation && <QuickAddDialog />}
+      {!impersonation && <QuickAddDialog timezone={displayPreferences.timeZone} />}
     </div>
   );
 }

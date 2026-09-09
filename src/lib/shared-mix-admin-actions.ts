@@ -1,112 +1,54 @@
 "use server";
 
-import type { MixTriggerMode, SharedMixStatus } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { requirePlatformAdmin } from "@/lib/auth";
-import { normalizeSharedMixChannel, type SharedMixStep } from "@/lib/shared-mix";
-import { createOrRefreshPlatformSharedMix, updateSharedMixAsAdmin } from "@/lib/shared-mix-service";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { saveLibraryDraft, releaseLibraryVersion } from "@/lib/library-admin";
+import { LibraryError, validateLibraryContent } from "@/lib/library-content";
+import { SharedMixContentError } from "@/lib/shared-mix";
 
-function value(formData: FormData, key: string): string {
-  return String(formData.get(key) ?? "").trim();
+const value = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
+function fail(path: string, error: unknown): never {
+  if (error instanceof LibraryError && error.needsMfa) redirect(`/account/admin-mfa?verify=1&returnTo=${encodeURIComponent(path)}`);
+  if (error instanceof Error && "digest" in error) throw error;
+  const message = error instanceof LibraryError || error instanceof SharedMixContentError ? error.message.slice(0, 500) : "The library change could not be saved. Please try again later.";
+  redirect(`${path}?error=${encodeURIComponent(message)}`);
 }
 
-function values(formData: FormData, key: string): string[] {
-  return formData.getAll(key).map((item) => String(item));
-}
-
-function fail(path: string, message: string): never {
-  redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
-}
-
-async function adminContext() {
-  const { user } = await requirePlatformAdmin();
-  const membership = user.memberships[0];
-  if (!membership) fail("/admin/templates", "A platform administrator workspace is required for audited template changes.");
-  return { user, workspaceId: membership.workspaceId };
-}
-
-export async function createPlatformSharedMixAction(formData: FormData): Promise<void> {
-  const { user, workspaceId } = await adminContext();
-  const sourceMixId = value(formData, "sourceMixId");
-  if (!sourceMixId) fail("/admin/templates", "Choose one of your business plans as the source.");
+export async function saveSharedMixAdminAction(data: FormData): Promise<void> {
+  const { user, session } = await requirePlatformAdmin("mixes.edit");
+  const id = value(data, "sharedMixId");
+  const path = id ? `/admin/templates/${encodeURIComponent(id)}/edit` : "/admin/templates/new";
+  const rate = await consumeRateLimit({ scope: "library.draft", identifiers: [user.id], limit: 30, windowMs: 15 * 60_000 });
+  if (!rate.allowed) fail(path, new LibraryError("Too many draft saves. Try again later."));
+  let result;
   try {
-    const sharedMixId = await createOrRefreshPlatformSharedMix({
-      sourceWorkspaceId: workspaceId,
-      actorUserId: user.id,
-      sourceMixId,
-      metadata: {
-        title: value(formData, "title"),
-        description: value(formData, "description"),
-        category: value(formData, "category"),
-        industry: value(formData, "industry"),
-        framework: value(formData, "framework") || null
-      }
-    });
-    redirect(`/admin/templates/${sharedMixId}/edit?created=1`);
-  } catch (error) {
-    fail("/admin/templates", error instanceof Error ? error.message : "The ready-made plan could not be created.");
-  }
+    const rows = (key: string) => data.getAll(key).map(String);
+    const names = rows("stepName"), channels = rows("stepChannel"), offsets = rows("stepDayOffset"), times = rows("stepSendTimeMinutes"), subjects = rows("stepSubject"), bodies = rows("stepBody"), scripts = rows("stepScript");
+    const optout = new Set(rows("stepOptOut")), longSms = new Set(rows("stepLongSms"));
+    if ([channels, offsets, times, subjects, bodies, scripts].some(row => row.length !== names.length)) throw new LibraryError("A beat is incomplete. Reload the editor and try again.");
+    const nullable = (text: string | undefined) => text?.trim() || null;
+    const content = validateLibraryContent({ title: value(data, "title"), description: value(data, "description"), category: value(data, "category"), industry: value(data, "industry"), framework: nullable(value(data, "framework")),
+      triggerMode: value(data, "triggerMode"), dateTypeName: nullable(value(data, "dateTypeName")), dateTypeSlug: nullable(value(data, "dateTypeSlug")), featured: data.get("featured") === "on",
+      steps: names.map((name, i) => ({ name, channel: channels[i], dayOffset: offsets[i]?.trim() ? Number(offsets[i]) : NaN,
+        sendTimeMinutes: times[i]?.trim() ? Number(times[i]) : null, subject: nullable(subjects[i]), body: nullable(bodies[i]), script: nullable(scripts[i]), includeOptOut: optout.has(String(i)), longSms: longSms.has(String(i)) })) });
+    result = await saveLibraryDraft({ actorUserId: user.id, actorSessionId: session.id, sharedMixId: id || undefined, expectedRevision: Number(value(data, "revision")), content, reason: value(data, "reason") });
+  } catch (error) { fail(path, error); }
+  revalidatePath("/admin/templates");
+  redirect(`/admin/templates/${result.id}/edit?saved=${result.version}`);
 }
 
-export async function saveSharedMixAdminAction(formData: FormData): Promise<void> {
-  const { user, workspaceId } = await adminContext();
-  const sharedMixId = value(formData, "sharedMixId");
-  const path = sharedMixId ? `/admin/templates/${sharedMixId}/edit` : "/admin/templates";
-  if (!sharedMixId) fail("/admin/templates", "Choose a ready-made plan.");
-
-  const names = values(formData, "stepName");
-  const channels = values(formData, "stepChannel");
-  const offsets = values(formData, "stepDayOffset");
-  const times = values(formData, "stepSendTimeMinutes");
-  const subjects = values(formData, "stepSubject");
-  const bodies = values(formData, "stepBody");
-  const scripts = values(formData, "stepScript");
-  if (!names.length) fail(path, "Keep at least one follow-up in the plan.");
-
-  const steps: SharedMixStep[] = names.map((name, index) => {
-    const channel = normalizeSharedMixChannel(channels[index]);
-    if (!channel) fail(path, `Follow-up #${index + 1} does not use a supported channel.`);
-    const offset = Number(offsets[index]);
-    const parsedTime = Number(times[index]);
-    const body = (bodies[index] ?? "").trim() || null;
-    return {
-      name: name.trim(),
-      channel,
-      dayOffset: Number.isInteger(offset) ? offset : 0,
-      sendTimeMinutes: Number.isInteger(parsedTime) && parsedTime >= 0 && parsedTime <= 1439 ? parsedTime : null,
-      subject: (subjects[index] ?? "").trim() || null,
-      body,
-      script: (scripts[index] ?? "").trim() || null,
-      longSms: channel === "SMS" && (body?.length ?? 0) > 160,
-      includeOptOut: false
-    };
-  });
-
-  const triggerMode = value(formData, "triggerMode") as MixTriggerMode;
-  const allowedTriggers: MixTriggerMode[] = ["DATE_TRIGGERED", "MANUAL_START", "BROADCAST"];
-  if (!allowedTriggers.includes(triggerMode)) fail(path, "Choose a valid plan start mode.");
-  const status = value(formData, "status") as SharedMixStatus;
+export async function releaseSharedMixAction(data: FormData): Promise<void> {
+  const { user, session } = await requirePlatformAdmin(["mixes.edit", "mixes.publish"]);
+  const id = value(data, "sharedMixId"), path = `/admin/templates/${encodeURIComponent(id)}/edit`;
+  const rate = await consumeRateLimit({ scope: "library.release", identifiers: [user.id], limit: 10, windowMs: 15 * 60_000 });
+  if (!rate.allowed) fail(path, new LibraryError("Too many publication attempts. Try again later."));
+  let result;
   try {
-    await updateSharedMixAsAdmin({
-      actorUserId: user.id,
-      auditWorkspaceId: workspaceId,
-      sharedMixId,
-      metadata: {
-        title: value(formData, "title"),
-        description: value(formData, "description"),
-        category: value(formData, "category"),
-        industry: value(formData, "industry"),
-        framework: value(formData, "framework") || null
-      },
-      status,
-      triggerMode,
-      dateTypeName: value(formData, "dateTypeName") || null,
-      dateTypeSlug: value(formData, "dateTypeSlug") || null,
-      steps,
-      featured: formData.get("featured") === "on"
-    });
-    redirect(`${path}?saved=1`);
-  } catch (error) {
-    fail(path, error instanceof Error ? error.message : "The ready-made plan could not be saved.");
-  }
+    result = await releaseLibraryVersion({ actorUserId: user.id, actorSessionId: session.id, sharedMixId: id, expectedRevision: Number(value(data, "revision")), version: Number(value(data, "version")),
+      operation: value(data, "operation") as "publish" | "rollback" | "unpublish", reason: value(data, "reason"), password: String(data.get("currentPassword") ?? "") });
+  } catch (error) { fail(path, error); }
+  revalidatePath("/admin/templates", "layout"); revalidatePath("/templates", "layout");
+  redirect(`${path}?released=${result.revision}`);
 }

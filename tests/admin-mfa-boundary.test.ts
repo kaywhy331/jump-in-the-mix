@@ -16,7 +16,7 @@ describe("administrator MFA boundaries", () => {
 
   it("keeps enrollment role-only while requiring password confirmation and rate limits", () => {
     const actions = read("src/lib/admin-mfa-actions.ts");
-    const page = read("src/app/(app)/account/admin-mfa/page.tsx");
+    const page = read("src/app/(staff)/account/admin-mfa/page.tsx");
     expect(actions).toContain("requirePlatformAdminIdentity");
     expect(actions).toContain("bcrypt.compare(currentPassword");
     expect(actions).toContain("auth.admin-mfa.enable");

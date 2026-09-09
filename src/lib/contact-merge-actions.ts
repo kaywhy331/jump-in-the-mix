@@ -72,6 +72,7 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
   const archivedAt = new Date();
 
   await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR NO KEY UPDATE`;
     await tx.contact.update({
       where: { id: survivor.id },
       data: {
@@ -115,6 +116,18 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
 
     await tx.jumpDate.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id } });
     await tx.contactActivity.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id } });
+    await tx.calendarEntry.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id, version: { increment: 1 } } });
+    await tx.intakeIdentity.updateMany({ where: { contactId: source.id, connection: { workspaceId: workspace.id } }, data: { contactId: survivor.id } });
+    await tx.intakeReceipt.updateMany({ where: { contactId: source.id, connection: { workspaceId: workspace.id } }, data: { contactId: survivor.id } });
+    await tx.journeyEvent.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id } });
+    const [survivorJourney, sourceJourney] = await Promise.all([tx.contactJourney.findUnique({ where: { contactId: survivor.id } }), tx.contactJourney.findUnique({ where: { contactId: source.id } })]);
+    if (sourceJourney) {
+      if (!survivorJourney) await tx.contactJourney.update({ where: { contactId: source.id }, data: { contactId: survivor.id, version: { increment: 1 } } });
+      else {
+        if (sourceJourney.managedAssignmentId) await tx.mixAssignment.updateMany({ where: { id: sourceJourney.managedAssignmentId, workspaceId: workspace.id }, data: { isActive: false } });
+        await tx.contactJourney.delete({ where: { contactId: source.id } });
+      }
+    }
     await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId: source.id, status: { in: ["DONE", "SKIPPED"] } }, data: { contactId: survivor.id } });
     await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId: source.id, status: "PENDING" }, data: { status: "CANCELED", completionMethod: "contact_merged", completedAt: null } });
 

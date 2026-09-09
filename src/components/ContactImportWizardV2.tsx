@@ -358,7 +358,7 @@ export function ContactImportWizardV2({
             <strong>{busy ? "Analyzing file…" : "Choose a CSV or VCF file"}</strong>
             <small>Up to 5,000 rows and 10 MB. You may leave after the import is queued.</small>
           </label>
-          <div className="import-privacy-note"><strong>Your data stays in your personal data space.</strong><span>Exact duplicates are matched by normalized email or phone. Fuzzy suggestions always require review.</span></div>
+          <div className="import-privacy-note"><strong>Only your account can access the contacts you import.</strong><span>We check for matching email addresses and phone numbers. You decide what to do with possible duplicates.</span></div>
         </section>
       )}
 
@@ -403,7 +403,7 @@ export function ContactImportWizardV2({
 
       {stage === "RESULTS" && batch && (
         <section className="card import-stage" aria-live="polite">
-          <div className="import-stage-heading"><div><h2>{terminal(batch.status) ? "Import results" : "Import is running"}</h2><p>{batch.sourceFileName || "Contact import"} · created {batchDate(batch.createdAt)}. You may close this page; the worker will continue.</p></div><span className={`status-pill ${batch.status === "COMPLETED" ? "done" : ""}`}>{batch.status.toLowerCase()}</span></div>
+          <div className="import-stage-heading"><div><h2>{terminal(batch.status) ? "Import results" : "Import is running"}</h2><p>{batch.sourceFileName || "Contact import"} · created {batchDate(batch.createdAt)}.{!terminal(batch.status) && " You may close this page; the import will continue."}</p></div><span className={`status-pill ${batch.status === "COMPLETED" ? "done" : ""}`}>{batch.status.toLowerCase()}</span></div>
           <progress max={100} value={batch.progress} />
           <p><strong>{batch.processedRows.toLocaleString()} of {batch.totalRows.toLocaleString()}</strong> rows processed · {batch.progress}%</p>
           <div className="import-summary-grid result"><div><strong>{batch.createdCount}</strong><span>Created</span></div><div><strong>{batch.mergedCount + batch.replacedCount}</strong><span>Updated</span></div><div><strong>{batch.skippedCount}</strong><span>Skipped</span></div><div className={batch.failedCount ? "failed" : ""}><strong>{batch.failedCount}</strong><span>Failed</span></div></div>

@@ -4,17 +4,17 @@ import { MIX_TEMPLATE_CATEGORIES, MIX_TEMPLATE_INDUSTRIES } from "@/lib/shared-m
 
 export const PLATFORM_SETTING_DEFINITIONS = {
   "mix.categories": {
-    category: "Plans",
-    label: "Plan categories",
-    description: "Reviewed categories used to organize plans and help customers find a useful starting point.",
+    category: "Mixes",
+    label: "Mix categories",
+    description: "Reviewed categories used to organize mixes and help customers find a useful starting point.",
     kind: "string-list",
     isPublic: true,
     defaultValue: [...MIX_TEMPLATE_CATEGORIES]
   },
   "mix.industries": {
-    category: "Plans",
+    category: "Mixes",
     label: "Industries",
-    description: "Reviewed business-type filters available in the ready-made plan library.",
+    description: "Reviewed business-type filters available in the ready-made mix library.",
     kind: "string-list",
     isPublic: true,
     defaultValue: [...MIX_TEMPLATE_INDUSTRIES]

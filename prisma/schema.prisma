@@ -75,11 +75,19 @@ enum AuthProvider {
 }
 
 model User {
+  assignedSupportTickets SupportTicket[] @relation("SupportAssignee")
+  reportExports ReportExport[]
+  staffMembership StaffMembership?
+  referralInvitesIssued Int @default(0)
+  sentAccessInvites ReferralAccessInvite[] @relation("AccessInviter")
+  acceptedAccessInvite ReferralAccessInvite? @relation("AccessRecipient")
   id              String            @id @default(cuid())
   email           String            @unique
   passwordHash    String?
   name            String
   emailVerifiedAt DateTime?
+  suspendedAt     DateTime?
+  accessRevision  Int               @default(0)
   isPlatformAdmin Boolean           @default(false)
   sessions        Session[]
   authIdentities  AuthIdentity[]
@@ -91,6 +99,9 @@ model User {
 }
 
 model Session {
+  supportViews AdminImpersonation[]
+  reportExports ReportExport[]
+  pushSubscriptions PushSubscription[]
   id         String   @id @default(cuid())
   userId     String
   tokenHash  String   @unique
@@ -106,18 +117,28 @@ model Session {
 }
 
 model VerificationToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   email     String
-  tokenHash String   @unique
+  tokenHash String    @unique
   purpose   String
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([email, purpose])
 }
 
 model Workspace {
+  accessInvites ReferralAccessInvite[]
+  journeyPreference      JourneyPreference?
+  journeyStages          JourneyStage[]
+  journeyRules           JourneyRule[]
+  contactJourneys        ContactJourney[]
+  journeyEvents          JourneyEvent[]
+  intakeConnections      IntakeConnection[]
+  calendarPreference     CalendarPreference?
+  calendarConnections    CalendarConnection[]
+  calendarEntries        CalendarEntry[]
   id                     String                         @id @default(cuid())
   name                   String
   slug                   String                         @unique
@@ -156,63 +177,69 @@ model WorkspaceMember {
 }
 
 model WorkspaceProfile {
-  workspaceId     String    @id
-  industry        String?
-  primaryGoal     String?
-  company         String?
-  website         String?
-  phone           String?
-  street          String?
-  city            String?
-  state           String?
-  postalCode      String?
-  mailingAddress  String?
-  product1        String?
-  product2        String?
-  product3        String?
-  product4        String?
-  product5        String?
-  myCustom1       String?
-  myCustom2       String?
-  myCustom3       String?
-  products        Json?
-  senderDetails   Json?
-  smsSignature    String?
-  emailSignature  String?
-  reviewUrl       String?
-  onboardingStep  Int       @default(0)
-  onboardingDone  Boolean   @default(false)
-  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  workspaceId    String    @id
+  industry       String?
+  primaryGoal    String?
+  company        String?
+  website        String?
+  phone          String?
+  street         String?
+  city           String?
+  state          String?
+  postalCode     String?
+  mailingAddress String?
+  product1       String?
+  product2       String?
+  product3       String?
+  product4       String?
+  product5       String?
+  myCustom1      String?
+  myCustom2      String?
+  myCustom3      String?
+  products       Json?
+  senderDetails  Json?
+  smsSignature   String?
+  emailSignature String?
+  reviewUrl      String?
+  onboardingStep Int       @default(0)
+  onboardingDone Boolean   @default(false)
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model Contact {
-  id                    String                    @id @default(cuid())
-  workspaceId           String
-  firstName             String?
-  lastName              String?
-  displayName           String
-  company               String?
-  publicNotes           String?
-  privateNotes          String?
-  source                ContactSource             @default(MANUAL)
-  referredByContactId   String?
-  archivedAt            DateTime?
-  workspace             Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  referredBy            Contact?                  @relation("ContactReferrals", fields: [referredByContactId], references: [id], onDelete: SetNull)
-  referrals             Contact[]                 @relation("ContactReferrals")
-  emails                ContactEmail[]
-  phones                ContactPhone[]
-  addresses             ContactAddress[]
-  groupMemberships      ContactGroupMembership[]
-  jumpDates             JumpDate[]
-  mixAssignments        MixAssignment[]
-  jumps                 Jump[]
-  customFieldValues     ContactCustomFieldValue[]
-  relationshipState     ContactRelationshipState?
-  createdAt             DateTime                  @default(now())
-  updatedAt             DateTime                  @updatedAt
+  accessInvites ReferralAccessInvite[]
+  journey             ContactJourney?
+  journeyEvents       JourneyEvent[]
+  intakeReceipts      IntakeReceipt[]
+  intakeIdentities    IntakeIdentity[]
+  calendarEntries     CalendarEntry[]
+  id                  String                    @id @default(cuid())
+  workspaceId         String
+  firstName           String?
+  lastName            String?
+  displayName         String
+  company             String?
+  publicNotes         String?
+  privateNotes        String?
+  source              ContactSource             @default(MANUAL)
+  referredByContactId String?
+  archivedAt          DateTime?
+  workspace           Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  referredBy          Contact?                  @relation("ContactReferrals", fields: [referredByContactId], references: [id], onDelete: SetNull)
+  referrals           Contact[]                 @relation("ContactReferrals")
+  emails              ContactEmail[]
+  phones              ContactPhone[]
+  addresses           ContactAddress[]
+  groupMemberships    ContactGroupMembership[]
+  jumpDates           JumpDate[]
+  mixAssignments      MixAssignment[]
+  jumps               Jump[]
+  customFieldValues   ContactCustomFieldValue[]
+  relationshipState   ContactRelationshipState?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
 
   @@index([workspaceId, displayName])
   @@index([workspaceId, company])
@@ -229,8 +256,8 @@ model ContactEmail {
   contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
 
-  @@index([normalized])
   @@unique([contactId, normalized])
+  @@index([normalized])
 }
 
 model ContactPhone {
@@ -243,8 +270,8 @@ model ContactPhone {
   contact    Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
 
-  @@index([normalized])
   @@unique([contactId, normalized])
+  @@index([normalized])
 }
 
 model ContactAddress {
@@ -329,8 +356,8 @@ model DateType {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
-  @@index([workspaceId, isActive])
   @@unique([scopeKey, slug])
+  @@index([workspaceId, isActive])
 }
 
 model JumpDate {
@@ -375,24 +402,25 @@ model StepTemplate {
 }
 
 model StepVersion {
-  id            String       @id @default(cuid())
+  id             String       @id @default(cuid())
   stepTemplateId String
-  version       Int
-  subject       String?
-  body          String?
-  script        String?
-  longSms       Boolean      @default(false)
-  includeOptOut Boolean      @default(false)
-  stepTemplate  StepTemplate @relation(fields: [stepTemplateId], references: [id], onDelete: Cascade)
-  mixSteps      MixStep[]
-  jumps         Jump[]
-  createdAt     DateTime     @default(now())
+  version        Int
+  subject        String?
+  body           String?
+  script         String?
+  longSms        Boolean      @default(false)
+  includeOptOut  Boolean      @default(false)
+  stepTemplate   StepTemplate @relation(fields: [stepTemplateId], references: [id], onDelete: Cascade)
+  mixSteps       MixStep[]
+  jumps          Jump[]
+  createdAt      DateTime     @default(now())
 
   @@unique([stepTemplateId, version])
 }
 
 model Mix {
-  id                        String         @id @default(cuid())
+  journeyStages             JourneyStage[]
+  id                        String          @id @default(cuid())
   workspaceId               String
   name                      String
   description               String?
@@ -401,17 +429,17 @@ model Mix {
   industry                  String?
   triggerMode               MixTriggerMode
   dateTypeId                String?
-  status                    MixStatus      @default(DRAFT)
+  status                    MixStatus       @default(DRAFT)
   durationDays              Int?
-  includeFutureGroupMembers Boolean        @default(false)
-  source                    String         @default("USER")
-  workspace                 Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  dateType                  DateType?      @relation(fields: [dateTypeId], references: [id], onDelete: SetNull)
+  includeFutureGroupMembers Boolean         @default(false)
+  source                    String          @default("USER")
+  workspace                 Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  dateType                  DateType?       @relation(fields: [dateTypeId], references: [id], onDelete: SetNull)
   steps                     MixStep[]
   assignments               MixAssignment[]
   jumps                     Jump[]
-  createdAt                 DateTime       @default(now())
-  updatedAt                 DateTime       @updatedAt
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
 
   @@index([workspaceId, status])
   @@index([workspaceId, dateTypeId])
@@ -458,7 +486,7 @@ model MixAssignment {
 }
 
 model Jump {
-  id               String     @id @default(cuid())
+  id               String                 @id @default(cuid())
   workspaceId      String
   contactId        String
   jumpDateId       String?
@@ -466,28 +494,31 @@ model Jump {
   mixStepId        String
   stepVersionId    String
   scheduledAt      DateTime
-  status           JumpStatus @default(PENDING)
+  status           JumpStatus             @default(PENDING)
   reason           String
   templateSnapshot Json
   renderedSnapshot Json
   completedAt      DateTime?
   completionMethod String?
-  uniquenessKey    String     @unique
-  workspace        Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  contact          Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  jumpDate         JumpDate?  @relation(fields: [jumpDateId], references: [id], onDelete: SetNull)
-  mix              Mix        @relation(fields: [mixId], references: [id], onDelete: Cascade)
-  mixStep          MixStep    @relation(fields: [mixStepId], references: [id], onDelete: Cascade)
-  stepVersion      StepVersion @relation(fields: [stepVersionId], references: [id], onDelete: Restrict)
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  uniquenessKey    String                 @unique
+  workspace        Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact          Contact                @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  jumpDate         JumpDate?              @relation(fields: [jumpDateId], references: [id], onDelete: SetNull)
+  mix              Mix                    @relation(fields: [mixId], references: [id], onDelete: Cascade)
+  mixStep          MixStep                @relation(fields: [mixStepId], references: [id], onDelete: Cascade)
+  stepVersion      StepVersion            @relation(fields: [stepVersionId], references: [id], onDelete: Restrict)
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  pushDeliveries   FollowUpPushDelivery[]
 
   @@index([workspaceId, scheduledAt, status])
   @@index([contactId, scheduledAt])
 }
 
 model SharedMix {
-  id           String          @id @default(cuid())
+  revisions    SharedMixRevision[]
+  releases     SharedMixRelease[]
+  id           String            @id @default(cuid())
   title        String
   description  String
   category     String
@@ -495,11 +526,11 @@ model SharedMix {
   framework    String?
   durationDays Int
   steps        Json
-  status       SharedMixStatus @default(APPROVED)
-  importCount  Int             @default(0)
+  status       SharedMixStatus   @default(APPROVED)
+  importCount  Int               @default(0)
   imports      SharedMixImport[]
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 
   @@index([status, category])
   @@index([industry])
@@ -532,6 +563,8 @@ model IdempotencyKey {
 }
 
 model Job {
+  reportExport ReportExport?
+  reportSnapshot ReportDailySnapshot?
   id          String     @id @default(cuid())
   workspaceId String?
   task        String
@@ -583,4 +616,152 @@ model AccountDeletionAudit {
 
   @@index([subjectHash, createdAt])
   @@index([status, createdAt])
+}
+
+// Issued invitations consume a lifetime slot even if revoked or the contact is deleted.
+model ReferralAccessInvite {
+  id              String    @id @default(cuid())
+  inviterUserId   String?
+  workspaceId     String?
+  contactId       String?
+  recipientEmail  String
+  lastSentAt      DateTime?
+  tokenHash       String    @unique
+  tokenCiphertext String
+  tokenPurgedAt   DateTime?
+  acceptedUserId  String?   @unique
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  source          AccessInviteSource @default(REFERRAL)
+  systemMixVersion Int?
+  waveId          String?
+  wave            WaitlistWave? @relation(fields: [waveId], references: [id], onDelete: SetNull)
+  delivery        WaitlistDelivery?
+  inviter         User?     @relation("AccessInviter", fields: [inviterUserId], references: [id], onDelete: Cascade)
+  recipient       User?     @relation("AccessRecipient", fields: [acceptedUserId], references: [id], onDelete: SetNull)
+  workspace       Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact         Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([inviterUserId, contactId])
+  @@index([workspaceId, createdAt])
+  @@index([recipientEmail, acceptedAt, revokedAt])
+  @@index([tokenPurgedAt, createdAt])
+}
+
+enum AccessInviteSource {
+  REFERRAL
+  WAITLIST_FIFO
+  WAITLIST_RANDOM
+  WAITLIST_MANUAL
+}
+
+enum WaitlistStatus {
+  WAITING
+  ACCESS_GRANTED
+  JOINED
+  WITHDRAWN
+  SUPPRESSED
+}
+
+model WaitlistEntry {
+  id              String @id @default(cuid())
+  email           String @unique
+  status          WaitlistStatus @default(WAITING)
+  verifiedAt      DateTime?
+  accessGrantedAt DateTime?
+  joinedAt        DateTime?
+  withdrawnAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, verifiedAt, createdAt])
+}
+
+enum EmailSuppressionReason {
+  INVITATION_OPTOUT
+  HARD_BOUNCE
+  COMPLAINT
+  PROVIDER_SUPPRESSION
+}
+
+// Recipient preferences survive removal from the queue and cannot be overridden by a sender.
+model EmailSuppression {
+  id        String @id @default(cuid())
+  email     String
+  reason    EmailSuppressionReason
+  createdAt DateTime @default(now())
+  revision Int @default(1)
+  lastTriggeredAt DateTime?
+  clearedAt DateTime?
+
+  @@unique([email, reason])
+  @@index([clearedAt, createdAt])
+}
+
+// Singleton schedule. Restarts never reset the seven-day clock.
+model WaitlistSchedule {
+  id        String @id @default("default")
+  nextRunAt DateTime
+  paused    Boolean @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+model WaitlistWave {
+  id           String @id @default(cuid())
+  scheduledFor DateTime @unique
+  fifoCount    Int @default(0)
+  randomCount  Int @default(0)
+  createdAt    DateTime @default(now())
+  invites      ReferralAccessInvite[]
+}
+
+enum WaitlistDeliveryStatus {
+  QUEUED
+  SENDING
+  SENT
+  REVIEW
+  CANCELED
+}
+
+// Durable email outbox; frozen encrypted content keeps provider retries identical.
+model WaitlistDelivery {
+  id                String @id @default(cuid())
+  inviteId          String? @unique
+  invite            ReferralAccessInvite? @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  staffInvitationId String? @unique
+  staffInvitation   StaffInvitation? @relation(fields: [staffInvitationId], references: [id], onDelete: Cascade)
+  messageCiphertext String
+  payloadPurgedAt   DateTime?
+  status            WaitlistDeliveryStatus @default(QUEUED)
+  generation        Int @default(1)
+  generationStartedAt DateTime @default(now())
+  history           InvitationDeliveryHistory[]
+  attempts          Int @default(0)
+  firstAttemptAt    DateTime?
+  nextAttemptAt     DateTime @default(now())
+  leaseId           String?
+  lockedAt          DateTime?
+  providerId        String?
+  emailMessageId    String? @unique
+  emailMessage      EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+  lastError         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([payloadPurgedAt, updatedAt])
+}
+
+// Platform records intentionally survive customer/workspace deletion. No tokens or email bodies.
+model WaitlistAudit {
+  id          String @id @default(cuid())
+  actorUserId String?
+  action      String
+  entryId     String?
+  inviteId    String?
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
 }

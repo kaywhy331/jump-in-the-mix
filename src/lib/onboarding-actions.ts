@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { splitContactName } from "@/lib/quick-add-capture";
 import { ensureStarterMix } from "@/lib/starter-mix";
 import { buildEmailInputs, buildPhoneInputs } from "@/lib/contact-input";
+import { onboardingUse } from "@/lib/onboarding-options";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -33,33 +34,37 @@ function welcomePath(firstContact: string | null): string {
 
 export async function completeOnboardingAction(formData: FormData): Promise<void> {
   const { workspace, user } = await requireWorkspace();
-  const businessType = value(formData, "businessType") || "Other";
-  const businessName = value(formData, "businessName");
+  const use = onboardingUse(value(formData, "useCase") || "business");
+  if (!use) fail("/onboarding", "Choose how you want to use Jump in the Mix.");
+  const path = `/onboarding?useCase=${use.id}`;
+  const businessType = use.id === "business" ? value(formData, "businessType") || "Other" : null;
+  const businessName = use.id === "personal" ? "" : value(formData, "businessName").slice(0, 200);
   const smsSignature = value(formData, "smsSignature") || user.name;
   const contactName = value(formData, "contactName");
   const { firstName, lastName } = splitContactName(contactName);
   const contactEmail = value(formData, "contactEmail").toLowerCase();
   const contactPhone = value(formData, "contactPhone");
-  const reason = value(formData, "reason") || "Follow up";
+  const reason = value(formData, "reason") || use.reasons[0];
+  if (!(use.reasons as readonly string[]).includes(reason)) fail(path, "Choose a follow-up that fits your selected use.");
   const followUpDate = value(formData, "followUpDate");
   const timezone = value(formData, "timezone");
   const displayName = [firstName, lastName].filter(Boolean).join(" ");
-  if (!businessName) fail("/onboarding", "Add your business name.");
-  if (!displayName || !followUpDate) fail("/onboarding", "Add a person and choose when you want to follow up.");
-  if (!isValidTimezone(timezone)) fail("/onboarding", "Choose a valid timezone before creating the first follow-up.");
+  if (use.id === "business" && !businessName) fail(path, "Add your business name.");
+  if (!displayName || !followUpDate) fail(path, "Add a person and choose when you want to follow up.");
+  if (!isValidTimezone(timezone)) fail(path, "Choose a valid timezone before creating the first follow-up.");
   let emails;
   let phones;
   try {
     emails = buildEmailInputs(contactEmail ? [contactEmail] : [], ["Email"]);
     phones = buildPhoneInputs(contactPhone ? [contactPhone] : [], ["Mobile"]);
   } catch (error) {
-    fail("/onboarding", error instanceof Error ? error.message : "Check the contact details and try again.");
+    fail(path, error instanceof Error ? error.message : "Check the contact details and try again.");
   }
   const dateValue = new Date(`${followUpDate}T12:00:00Z`);
-  if (Number.isNaN(dateValue.getTime())) fail("/onboarding", "Choose a valid follow-up date.");
+  if (Number.isNaN(dateValue.getTime())) fail(path, "Choose a valid follow-up date.");
 
   const followUpType = await prisma.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true } });
-  if (!followUpType) fail("/onboarding", "The follow-up date type is unavailable. Run setup again.");
+  if (!followUpType) fail(path, "The follow-up date type is unavailable. Run setup again.");
   const starterMix = await ensureStarterMix(workspace.id, businessType, reason);
   const contactId = randomUUID();
   await prisma.$transaction(async (tx) => {
@@ -99,10 +104,10 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
     });
     await tx.workspaceProfile.upsert({
       where: { workspaceId: workspace.id },
-      create: { workspaceId: workspace.id, company: businessName, industry: businessType, smsSignature, emailSignature: user.name, primaryGoal: reason, onboardingStep: 5, onboardingDone: true },
-      update: { company: businessName, industry: businessType, smsSignature, emailSignature: user.name, primaryGoal: reason, onboardingStep: 5, onboardingDone: true }
+      create: { workspaceId: workspace.id, company: businessName || null, industry: businessType, smsSignature, emailSignature: user.name, primaryGoal: reason, onboardingStep: 5, onboardingDone: true },
+      update: { company: businessName || null, industry: businessType, smsSignature, emailSignature: user.name, primaryGoal: reason, onboardingStep: 5, onboardingDone: true }
     });
-    await tx.workspace.update({ where: { id: workspace.id }, data: { name: businessName } });
+    await tx.workspace.update({ where: { id: workspace.id }, data: { name: businessName || `${user.name}'s connections` } });
     await tx.userPreference.upsert({ where: { userId: user.id }, create: { userId: user.id, timezone }, update: { timezone } });
   });
   await generateJumps({ workspaceId: workspace.id, contactId, mixId: starterMix.id });
@@ -111,6 +116,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
 
 export async function skipOnboardingAction(formData: FormData): Promise<void> {
   const { workspace, user } = await requireWorkspace();
+  const use = onboardingUse(value(formData, "useCase") || "business");
   const submittedTimezone = value(formData, "timezone");
   const existingTimezone = (await prisma.userPreference.findUnique({ where: { userId: user.id } }))?.timezone ?? "UTC";
   const timezone = isValidTimezone(submittedTimezone)
@@ -120,11 +126,11 @@ export async function skipOnboardingAction(formData: FormData): Promise<void> {
       : "UTC";
   await prisma.workspaceProfile.upsert({
     where: { workspaceId: workspace.id },
-    create: { workspaceId: workspace.id, company: workspace.name, smsSignature: user.name, emailSignature: user.name, onboardingStep: 5, onboardingDone: true },
+    create: { workspaceId: workspace.id, company: use?.id === "business" ? workspace.name : null, smsSignature: user.name, emailSignature: user.name, onboardingStep: 5, onboardingDone: true },
     update: { smsSignature: workspace.profile?.smsSignature ?? user.name, emailSignature: workspace.profile?.emailSignature ?? user.name, onboardingStep: 5, onboardingDone: true }
   });
   await prisma.userPreference.upsert({ where: { userId: user.id }, create: { userId: user.id, timezone }, update: { timezone } });
-  await ensureStarterMix(workspace.id);
+  await ensureStarterMix(workspace.id, null, use && use.id !== "business" ? use.reasons[0] : undefined);
   await queueJumpReconciliation(workspace.id);
   redirect(welcomePath(null));
 }

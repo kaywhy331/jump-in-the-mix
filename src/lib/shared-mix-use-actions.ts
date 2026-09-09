@@ -20,7 +20,7 @@ function fail(sharedMixId: string, message: string): never {
 export async function useSharedMixTemplateAction(formData: FormData): Promise<void> {
   const { workspace, user, impersonation } = await requireWorkspace();
   const sharedMixId = value(formData, "sharedMixId", 100);
-  if (!sharedMixId) redirect("/templates?error=Choose%20a%20ready-made%20plan.");
+  if (!sharedMixId) redirect("/templates?error=Choose%20a%20ready-made%20mix.");
   if (impersonation) fail(sharedMixId, "Administrator support sessions are view-only.");
   const status = value(formData, "status", 20) === "ACTIVE" ? "ACTIVE" : "DRAFT";
   const workspaceTimezone = await timezoneForUser(user.id);
@@ -30,6 +30,7 @@ export async function useSharedMixTemplateAction(formData: FormData): Promise<vo
       workspaceId: workspace.id,
       actorUserId: user.id,
       sharedMixId,
+      expectedVersion: Number(value(formData, "expectedVersion", 12)),
       requestId: value(formData, "requestId", 120),
       name: value(formData, "name", 160),
       status,
@@ -40,7 +41,7 @@ export async function useSharedMixTemplateAction(formData: FormData): Promise<vo
       broadcastTimezone: value(formData, "broadcastTimezone", 120) || workspaceTimezone
     });
   } catch (error) {
-    fail(sharedMixId, error instanceof Error ? error.message : "The ready-made plan could not be used.");
+    fail(sharedMixId, error instanceof Error ? error.message : "The ready-made mix could not be used.");
   }
   redirect(`/mixes/${result.mixId}/edit?imported=1${status === "ACTIVE" ? "&activated=1" : ""}`);
 }

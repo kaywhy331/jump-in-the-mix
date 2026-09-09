@@ -2,28 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const items = [
-  ["Overview", "/admin"],
-  ["Users", "/admin/users"],
-  ["Support", "/admin/support"],
-  ["Ready-made plans", "/admin/templates"],
-  ["Operations", "/admin/operations"],
-  ["Audit", "/admin/audit"],
-  ["System Settings", "/admin/settings"]
-] as const;
+import { ADMIN_AREAS, type AdminPermission } from "@/lib/admin-permissions";
 
 function isActive(pathname: string, href: string): boolean {
   return href === "/admin" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function AdminNav({ current }: { current?: string }) {
+export function AdminNav({ permissions }: { permissions: AdminPermission[] }) {
   const pathname = usePathname();
-  const activePath = current ?? pathname;
   return (
     <nav className="admin-nav" aria-label="Administration">
-      {items.map(([label, href]) => (
-        <Link className={isActive(activePath, href) ? "active" : ""} href={href} key={href}>
+      {ADMIN_AREAS.filter(item => permissions.includes(item.permission)).map(({ label, href }) => (
+        <Link className={isActive(pathname, href) ? "active" : ""} href={href} key={href}>
           {label}
         </Link>
       ))}

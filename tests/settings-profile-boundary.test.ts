@@ -8,8 +8,8 @@ describe("settings and profile design boundaries", () => {
     const schema = read("prisma/schema.prisma");
     const migration = read("prisma/migrations/20260719173000_repeatable_workspace_profile/migration.sql");
 
-    expect(schema).toContain("products        Json?");
-    expect(schema).toContain("senderDetails   Json?");
+    expect(schema).toMatch(/\bproducts\s+Json\?/);
+    expect(schema).toMatch(/\bsenderDetails\s+Json\?/);
     expect(migration).toContain('ADD COLUMN "products" JSONB');
     expect(migration).toContain('ADD COLUMN "senderDetails" JSONB');
     expect(migration).not.toMatch(/DROP\s+(COLUMN|TABLE)/i);

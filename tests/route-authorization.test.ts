@@ -13,15 +13,16 @@ describe("server-enforced route authorization matrix", () => {
 
   it("requires platform-admin authorization for every covered admin page", () => {
     for (const path of [
-      "src/app/(app)/admin/page.tsx",
-      "src/app/(app)/admin/users/page.tsx",
-      "src/app/(app)/admin/support/page.tsx",
-      "src/app/(app)/admin/support/[ticketId]/page.tsx",
-      "src/app/(app)/admin/templates/page.tsx",
-      "src/app/(app)/admin/templates/[sharedMixId]/edit/page.tsx",
-      "src/app/(app)/admin/operations/page.tsx",
-      "src/app/(app)/admin/audit/page.tsx",
-      "src/app/(app)/admin/settings/page.tsx"
+      "src/app/(staff)/admin/page.tsx",
+      "src/app/(staff)/admin/users/page.tsx",
+      "src/app/(staff)/admin/support/page.tsx",
+      "src/app/(staff)/admin/support/[ticketId]/page.tsx",
+      "src/app/(staff)/admin/templates/page.tsx",
+      "src/app/(staff)/admin/system-mix/page.tsx",
+      "src/app/(staff)/admin/templates/[sharedMixId]/edit/page.tsx",
+      "src/app/(staff)/admin/operations/page.tsx",
+      "src/app/(staff)/admin/audit/page.tsx",
+      "src/app/(staff)/admin/settings/page.tsx"
     ]) {
       expect(read(path), `${path} must require a platform administrator`).toContain("requirePlatformAdmin(");
     }
@@ -31,10 +32,11 @@ describe("server-enforced route authorization matrix", () => {
     const startRoute = read("src/app/api/admin/impersonation/start/route.ts");
     const service = read("src/lib/impersonation.ts");
     expect(startRoute).toContain("requirePlatformAdmin(");
-    expect(startRoute).toContain("targetUserId");
-    expect(startRoute).toContain("workspaceId");
+    expect(startRoute).toContain("ticketId");
+    expect(startRoute).toContain("actorSessionId: session.id");
+    expect(startRoute).not.toMatch(/formData\.get\(["'](?:targetUserId|workspaceId)/);
     expect(startRoute).not.toMatch(/formData\.get\(["']actorUserId/);
-    expect(service).toContain("isPlatformAdmin");
+    expect(service).toContain("assertSupportActor(tx, input, true)");
     expect(service).toContain("workspaceMember.findFirst");
     expect(service).toContain("admin.impersonation.start");
     expect(service).toContain("admin.impersonation.end");
@@ -65,6 +67,8 @@ describe("server-enforced route authorization matrix", () => {
     expect(auth).toContain("const authUser = session.user");
     expect(auth).toContain("user: impersonation.targetUser");
     expect(auth).toContain("actorUser: session.authUser");
-    expect(auth).toContain("session.impersonation || !session.authUser.isPlatformAdmin");
+    expect(auth).toContain("session.impersonation || !session.authUser.emailVerifiedAt");
+    expect(auth).toContain('staff?.status !== "ACTIVE"');
+    expect(auth).toContain("hasAdminPermission(identity.staff, p)");
   });
 });

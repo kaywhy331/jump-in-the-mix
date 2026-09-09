@@ -5,6 +5,7 @@ import { ContactSavedViewsBar } from "@/components/ContactSavedViewsBar";
 import { ContactsBulkWorkspace, type ContactBulkDto } from "@/components/ContactsBulkWorkspace";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
+import { contactFollowUpSummary } from "@/lib/contact-follow-up-summary";
 import { formatDateTime } from "@/lib/format";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { mergeGroupActivity } from "@/lib/group-activity";
@@ -166,18 +167,10 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates);
   const activeByGroupId = new Map(groups.map((group) => [group.id, group.isActive]));
-  const contactJumps = contacts.length ? await prisma.jump.findMany({
-    where: { workspaceId: workspace.id, contactId: { in: contacts.map((contact) => contact.id) }, status: { not: "CANCELED" } },
-    select: { contactId: true, scheduledAt: true, completedAt: true, status: true },
-    orderBy: [{ contactId: "asc" }, { scheduledAt: "asc" }]
-  }) : [];
-  const jumpsByContact = new Map<string, typeof contactJumps>();
-  for (const jump of contactJumps) jumpsByContact.set(jump.contactId, [...(jumpsByContact.get(jump.contactId) ?? []), jump]);
+  const summaries = await contactFollowUpSummary(workspace.id, contacts.map(contact => contact.id));
 
   const contactDtos: ContactBulkDto[] = contacts.map((contact) => {
-    const state = jumpsByContact.get(contact.id) ?? [];
-    const last = [...state].filter((jump) => jump.completedAt).sort((a, b) => b.completedAt!.getTime() - a.completedAt!.getTime())[0];
-    const next = state.find((jump) => jump.status === "PENDING");
+    const summary = summaries.get(contact.id);
     const custom = new Map(contact.customFieldValues.map((item) => [item.definition.key, item.value]));
     return {
       id: contact.id,
@@ -212,9 +205,9 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         date: dateValue(item.dateValue),
         recurrence: item.recurrence.toLowerCase()
       })),
-      lastInteraction: last?.completedAt ? formatDateTime(last.completedAt, displayPreferences) : null,
-      nextJump: next ? formatDateTime(next.scheduledAt, displayPreferences) : null,
-      nextJumpOverdue: Boolean(next && next.scheduledAt < new Date()),
+      lastInteraction: summary?.lastInteraction ? formatDateTime(summary.lastInteraction, displayPreferences) : null,
+      nextJump: summary?.nextJump ? formatDateTime(summary.nextJump, displayPreferences) : null,
+      nextJumpOverdue: Boolean(summary?.nextJump && summary.nextJump < new Date()),
       relationshipType: custom.get("relationship-type") ?? custom.get("relationship") ?? null,
       preferredChannel: contact.relationshipState?.preferredChannel ?? custom.get("preferred-channel") ?? null,
       priority: contact.relationshipState?.priority ?? custom.get("priority") ?? "NORMAL",

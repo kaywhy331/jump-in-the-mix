@@ -4,6 +4,8 @@ node_modules/
 deno.lock
 src/generated/prisma/
 .env*
+.dev.vars*
+.wrangler/
 !.env.example
 coverage/
 *.log
@@ -31,3 +33,9 @@ screenshots/
 traces/
 videos/
 tmp/
+
+.operations/
+
+# Release metadata is rebuilt from Prisma schema and migration SQL.
+/src/generated/schema-release.ts
+/src/generated/schema-release.ts.*.tmp

@@ -77,8 +77,9 @@ test("follow-up outcomes complete in place and appear on the Contact timeline", 
     await expect.poll(async () => (await prisma.jump.findUniqueOrThrow({ where: { id: jumpId } })).status).toBe("PENDING");
 
     await page.evaluate(({ jumpId: id, contactName }) => {
-      const detail = { jumpId: id, contactName, channel: "PHONE_CALL", openedAt: Date.now() };
-      sessionStorage.setItem("jitm:opened-jump", JSON.stringify(detail));
+      const scope = document.querySelector<HTMLElement>("[data-browser-scope]")!.dataset.browserScope!;
+      const detail = { scope, jumpId: id, contactName, channel: "PHONE_CALL", openedAt: Date.now() };
+      sessionStorage.setItem(`jitm:private:${scope}:opened-jump`, JSON.stringify(detail));
       window.dispatchEvent(new CustomEvent("jitm:jump-opened", { detail }));
     }, { jumpId, contactName: displayName });
     await expect(page.getByText(`How did the follow-up with ${displayName} go?`)).toBeVisible();

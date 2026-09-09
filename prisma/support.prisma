@@ -42,6 +42,10 @@ enum SupportEmailStatus {
 
 model SupportTicket {
   id               String                @id @default(cuid())
+  assignedToUserId String?
+  assignmentRevision Int @default(0)
+  assignedTo User? @relation("SupportAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  supportViews AdminImpersonation[]
   reference        String                @unique
   workspaceId      String
   requesterUserId  String
@@ -60,6 +64,8 @@ model SupportTicket {
   @@index([workspaceId, requesterUserId, lastActivityAt])
   @@index([status, priority, lastActivityAt])
   @@index([category, status])
+  @@index([assignedToUserId, status])
+  @@index([status, lastActivityAt])
 }
 
 model SupportTicketMessage {
@@ -68,6 +74,8 @@ model SupportTicketMessage {
   authorUserId    String
   authorType      SupportMessageAuthorType
   body            String
+  requestKey      String?                  @unique
+  emailDeliveries SupportEmailDelivery[]
   emailStatus     SupportEmailStatus       @default(NOT_REQUESTED)
   emailProviderId String?
   emailError      String?
@@ -78,4 +86,38 @@ model SupportTicketMessage {
   @@index([ticketId, createdAt])
   @@index([authorUserId, createdAt])
   @@index([emailStatus, createdAt])
+}
+
+enum SupportEmailDeliveryStatus {
+  QUEUED
+  SENDING
+  SENT
+  REVIEW
+  CANCELED
+}
+
+model SupportEmailDelivery {
+  id                String @id @default(cuid())
+  messageId         String
+  message           SupportTicketMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  generation        Int @default(1)
+  status            SupportEmailDeliveryStatus @default(QUEUED)
+  messageCiphertext String
+  emailMessageId    String @unique
+  issuerUserId      String
+  issuerRevision    Int?
+  attempts          Int @default(0)
+  firstAttemptAt    DateTime?
+  availableAt       DateTime @default(now())
+  leaseId           String?
+  leaseUntil        DateTime?
+  providerId        String?
+  acceptedAt        DateTime?
+  lastError         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([messageId, generation])
+  @@index([status, availableAt])
+  @@index([status, leaseUntil])
 }

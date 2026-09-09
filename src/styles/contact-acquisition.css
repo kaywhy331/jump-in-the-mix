@@ -32,7 +32,11 @@ button.settings-hub-card.device-contact-picker:disabled { cursor: progress; opac
 .quick-add-review small { color: var(--muted); }
 
 .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.voice-note-control { display: inline-flex; align-items: center; gap: 8px; }
+.voice-note-control { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 340px; }
+.voice-note-control > small { flex-basis: 100%; font-size: .78rem; line-height: 1.4; }
+.today-briefing { margin-block: 12px; }
+.today-briefing > summary { cursor: pointer; min-height: 44px; align-content: center; }
+.today-briefing > small { display: block; margin-top: 8px; }
 .voice-note-button { min-width: 48px; min-height: 48px; }
 .voice-note-button > span:first-child { color: #c44157; font-size: .72rem; }
 .voice-note-error { color: #a72f42; max-width: 220px; }

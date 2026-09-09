@@ -1,3 +1,4 @@
+import { PublicTrustLinks } from "@/components/PublicTrustLinks";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
@@ -34,7 +35,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         {params.reset && <Notice type="success">Your password was reset. Sign in with the new password.</Notice>}
         {params.verified && <Notice type="success">Your email is verified. You can sign in securely.</Notice>}
         {params.signedOutEverywhere && <Notice type="success">All sessions were signed out.</Notice>}
-        {params.magicSent && <Notice type="success">Check your inbox for a secure sign-in link. It expires in 15 minutes.</Notice>}
+        {params.magicSent && <Notice type="success">If you have an account, check your inbox for a sign-in link. It expires in 15 minutes.</Notice>}
         {params.devToken && process.env.NODE_ENV !== "production" && <Notice type="info"><Link href={`/api/auth/magic?token=${encodeURIComponent(params.devToken)}`}>Open the development sign-in link</Link>.</Notice>}
         {params.error && <Notice type="error">{params.error}</Notice>}
         {env.demoMode && (
@@ -64,7 +65,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <button className="button" type="submit">Email sign-in link</button>
           </form>
         </>}
-        <div className="auth-footer">{registrationOpen ? <>New here? <Link href="/register"><strong>Create the owner account</strong></Link></> : <>Owner setup is complete.</>}</div>
+        <div className="auth-footer">{registrationOpen ? <>New here? <Link href="/waitlist"><strong>Join the waitlist</strong></Link></> : <>Owner setup is complete.</>}</div>
+        <PublicTrustLinks />
       </section>
     </main>
   );

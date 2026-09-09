@@ -1,0 +1,25 @@
+[Unit]
+Description=Jump in the Mix independent operations monitor
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=jitm-operations
+Group=jitm-operations
+WorkingDirectory=/opt/jump-in-the-mix
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/jump-in-the-mix/operations.env
+ExecStart=/usr/bin/env npm run ops:watch
+Restart=always
+RestartSec=30
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/jump-in-the-mix-operations
+
+[Install]
+WantedBy=multi-user.target

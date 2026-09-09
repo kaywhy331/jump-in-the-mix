@@ -1,0 +1,172 @@
+enum JourneyEventType {
+  CONTACT_RECEIVED
+  CONVERSATION_STARTED
+  MEETING_SCHEDULED
+  SALE_CONFIRMED
+  WORK_COMPLETED
+  PLAN_COMPLETED
+  TIME_IN_STAGE
+  MANUAL
+}
+
+model JourneyPreference {
+  workspaceId String    @id
+  enabled     Boolean   @default(true)
+  enabledAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model JourneyStage {
+  id            String           @id @default(cuid())
+  workspaceId   String
+  name          String
+  position      Int
+  isActive      Boolean          @default(true)
+  planId        String?
+  workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan          Mix?             @relation(fields: [planId], references: [id], onDelete: SetNull)
+  contacts      ContactJourney[]
+  outgoingRules JourneyRule[]    @relation("RuleFromStage")
+  incomingRules JourneyRule[]    @relation("RuleToStage")
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, position])
+}
+
+model JourneyRule {
+  id          String           @id @default(cuid())
+  workspaceId String
+  fromStageId String
+  toStageId   String
+  eventType   JourneyEventType
+  afterDays   Int?
+  enabled     Boolean          @default(true)
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fromStage   JourneyStage     @relation("RuleFromStage", fields: [fromStageId], references: [id], onDelete: Cascade)
+  toStage     JourneyStage     @relation("RuleToStage", fields: [toStageId], references: [id], onDelete: Cascade)
+
+  @@unique([fromStageId, eventType])
+  @@index([workspaceId, enabled])
+}
+
+model ContactJourney {
+  contactId           String       @id
+  workspaceId         String
+  stageId             String
+  lastCheckedAt       DateTime     @default(now())
+  stageSince          DateTime     @default(now())
+  automatic           Boolean      @default(true)
+  managedAssignmentId String?
+  version             Int          @default(1)
+  contact             Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  workspace           Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  stage               JourneyStage @relation(fields: [stageId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, stageId, stageSince])
+  @@index([automatic, lastCheckedAt])
+}
+
+model JourneyEvent {
+  id               String           @id @default(cuid())
+  workspaceId      String
+  contactId        String
+  eventKey         String
+  eventType        JourneyEventType
+  source           String
+  resultingStageId String?
+  occurredAt       DateTime         @default(now())
+  contact          Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, eventKey])
+  @@index([contactId, occurredAt])
+}
+
+model IntakeConnection {
+  id             String           @id @default(cuid())
+  workspaceId    String
+  name           String
+  kind           String
+  tokenHash      String           @unique
+  tokenEncrypted String
+  enabled        Boolean          @default(true)
+  createdAt      DateTime         @default(now())
+  workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  receipts       IntakeReceipt[]
+  identities     IntakeIdentity[]
+
+  @@index([workspaceId, createdAt])
+}
+
+model IntakeReceipt {
+  id           String           @id @default(cuid())
+  connectionId String
+  eventKey     String
+  payloadHash  String
+  status       String
+  contactId    String?
+  payload      Json
+  createdAt    DateTime         @default(now())
+  connection   IntakeConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  contact      Contact?         @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([connectionId, eventKey])
+  @@index([connectionId, status, createdAt])
+}
+
+model IntakeIdentity {
+  connectionId String
+  externalId   String
+  contactId    String
+  connection   IntakeConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  contact      Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([connectionId, externalId])
+}
+
+model CalendarPreference {
+  workspaceId    String    @id
+  tokenHash      String    @unique
+  tokenEncrypted String
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model CalendarConnection {
+  id           String          @id @default(cuid())
+  workspaceId  String
+  name         String
+  urlEncrypted String?
+  enabled      Boolean         @default(true)
+  lastAttemptAt DateTime?
+  lastSyncedAt DateTime?
+  lastError    String?
+  createdAt    DateTime        @default(now())
+  workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  entries      CalendarEntry[]
+
+  @@index([workspaceId, enabled])
+}
+
+model CalendarEntry {
+  id           String              @id @default(cuid())
+  workspaceId  String
+  contactId    String?
+  connectionId String?
+  externalUid  String?
+  title        String
+  kind         String
+  startsAt     DateTime
+  endsAt       DateTime
+  timezone     String
+  version      Int                 @default(1)
+  updatedAt    DateTime            @updatedAt
+  canceledAt   DateTime?
+  createdAt    DateTime            @default(now())
+  workspace    Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact      Contact?            @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  connection   CalendarConnection? @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, externalUid])
+  @@index([workspaceId, startsAt, endsAt])
+  @@index([contactId, startsAt])
+}

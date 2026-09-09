@@ -1,0 +1,49 @@
+model ReportExport {
+  id                String @id @default(cuid())
+  actorUserId       String
+  actorSessionId    String
+  requestKey        String
+  fromDay           DateTime @db.Date
+  throughDay        DateTime @db.Date
+  status            String @default("QUEUED")
+  jobId             String? @unique
+  contentCiphertext String?
+  generatedAt       DateTime?
+  byteCount         Int?
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  actor             User @relation(fields: [actorUserId], references: [id], onDelete: Cascade)
+  session           Session @relation(fields: [actorSessionId], references: [id], onDelete: Cascade)
+  job               Job? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  @@unique([actorSessionId, requestKey])
+  @@index([expiresAt])
+  @@index([actorUserId, createdAt])
+  @@index([status, createdAt])
+}
+
+model ReportDailySnapshot {
+  id            String @id @default(cuid())
+  day           DateTime @db.Date
+  definitionKey String
+  status        String @default("QUEUED")
+  jobId         String? @unique
+  payload       Json?
+  observedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  job           Job? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  @@unique([day, definitionKey])
+}
+
+model ReportSchedule {
+  id            String @id @default("daily")
+  definitionKey String
+  nextRunAt     DateTime
+}
+
+model ReportStorageObservation {
+  day           DateTime @id @db.Date
+  observedAt    DateTime
+  databaseBytes BigInt
+}

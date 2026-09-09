@@ -1,3 +1,4 @@
+import { ContactJourneyPanel } from "@/components/ContactJourneyPanel";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,6 +8,7 @@ import { ContactRelationshipStatePanel } from "@/components/ContactRelationshipS
 import { ContactTimeline } from "@/components/ContactTimeline";
 import { ContactsBackLink } from "@/components/ContactsBackLink";
 import { Notice } from "@/components/Notice";
+import { PreparationNotice } from "@/components/PreparationNotice";
 import { ReviewRequestButton } from "@/components/ReviewRequestButton";
 import { Sheet } from "@/components/Sheet";
 import { requireWorkspace } from "@/lib/auth";
@@ -19,6 +21,7 @@ import { createImportantDateAction, deactivateImportantDateAction, updateImporta
 import { formatDateInput } from "@/lib/mix-broadcast";
 import { resumeMixForContactAction, stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
+import { readPreparationStatus } from "@/lib/preparation";
 
 export const metadata: Metadata = { title: "Contact details" };
 
@@ -35,7 +38,8 @@ function addressText(address: { street1: string | null; street2: string | null; 
 }
 
 export default async function ContactDetailPage({ params, searchParams }: { params: Promise<{ contactId: string }>; searchParams: Promise<SearchParams> }) {
-  const [{ contactId }, query, { workspace, user }] = await Promise.all([params, searchParams, requireWorkspace()]);
+  const [{ contactId }, query, { workspace, user, impersonation }] = await Promise.all([params, searchParams, requireWorkspace()]);
+  const preparation = await readPreparationStatus(workspace.id, contactId);
   const [contact, dateTypes, plans, stops, groupStates, relationshipState, mergeHistory, nextFollowUp] = await Promise.all([
     prisma.contact.findFirst({
       where: { id: contactId, workspaceId: workspace.id, archivedAt: null },
@@ -79,12 +83,12 @@ export default async function ContactDetailPage({ params, searchParams }: { para
       {!query.created && query.dateCreated && <Notice type="success">Date added.</Notice>}
       {query.dateUpdated && <Notice type="success">Date updated.</Notice>}
       {query.dateDeleted && <Notice type="success">Date removed.</Notice>}
-      {!query.created && query.mixAssigned && <Notice type="success">Plan started.</Notice>}
-      {query.mixRemoved && <Notice type="success">Plan removed.</Notice>}
-      {query.mixStopped && <Notice type="success">Plan stopped.</Notice>}
-      {query.mixResumed && <Notice type="success">Plan resumed.</Notice>}
-      {query.mixStopError && <Notice type="error">Plan could not be stopped.</Notice>}
-      {query.mixResumeError && <Notice type="error">Plan could not be resumed.</Notice>}
+      {!query.created && query.mixAssigned && <Notice type="success">Mix started.</Notice>}
+      {query.mixRemoved && <Notice type="success">Mix removed.</Notice>}
+      {query.mixStopped && <Notice type="success">Mix stopped.</Notice>}
+      {query.mixResumed && <Notice type="success">Mix resumed.</Notice>}
+      {query.mixStopError && <Notice type="error">Mix could not be stopped.</Notice>}
+      {query.mixResumeError && <Notice type="error">Mix could not be resumed.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
       {state.doNotContact && <Notice type="info">Do not contact is on.</Notice>}
 
@@ -104,8 +108,9 @@ export default async function ContactDetailPage({ params, searchParams }: { para
       </nav>}
 
       <section className="contact-next-line" aria-label="Next follow-up">
-        {nextFollowUp ? <><span>Next</span><strong>{nextFollowUp.reason}</strong><time>{formatDateTime(nextFollowUp.scheduledAt, displayPreferences)}</time><Link href="/jumps">Open Today</Link></> : <><span>Next</span><strong>Nothing scheduled</strong><Link href="#add-date">Add a date</Link></>}
+        {nextFollowUp ? <><span>Next</span><strong>{nextFollowUp.reason}</strong><time>{formatDateTime(nextFollowUp.scheduledAt, displayPreferences)}</time><Link href="/jumps">Open Today</Link></> : preparation.state !== "ready" ? <><span>Next</span><strong>Awaiting follow-up preparation</strong></> : <><span>Next</span><strong>Nothing scheduled</strong><Link href="#add-date">Add a date</Link></>}
       </section>
+      <PreparationNotice key={contact.id} initial={preparation} contactId={contact.id} canRetry={!impersonation} />
 
       {contact.groupMemberships.length > 0 && <div className="contact-group-strip" aria-label="Tags">{contact.groupMemberships.map(({ group }) => {
         const isActive = activeByGroupId.get(group.id) !== false;
@@ -120,7 +125,8 @@ export default async function ContactDetailPage({ params, searchParams }: { para
         </section>
 
         <section className="card contact-priority-card">
-          <div className="card-header"><div><h2>Relationship</h2><p>Changes save when tapped.</p></div></div>
+          <div className="card-header"><div><h2>Relationship</h2><p>Stages, priorities, and preferences.</p></div></div>
+          <ContactJourneyPanel workspaceId={workspace.id} contactId={contact.id} />
           <ContactRelationshipStatePanel contactId={contact.id} state={state} />
         </section>
 
@@ -131,7 +137,7 @@ export default async function ContactDetailPage({ params, searchParams }: { para
       </div>
 
       <details className="card contact-detail-more">
-        <summary><span><strong>More</strong><small>Dates, plans, contact details, and custom fields</small></span><AppIcon name="chevronDown" /></summary>
+        <summary><span><strong>More</strong><small>Dates, mixes, contact details, and custom fields</small></span><AppIcon name="chevronDown" /></summary>
         <div className="contact-more-sections">
           <section>
             <div className="card-header"><div><h2>Contact details</h2><p>Primary details appear first.</p></div><Link className="button small" href={`/contacts/${contact.id}/edit`}>Edit</Link></div>
@@ -143,27 +149,27 @@ export default async function ContactDetailPage({ params, searchParams }: { para
           </section>
 
           <section>
-            <div className="card-header"><div><h2>Dates</h2><p>Moments that can start a follow-up plan.</p></div></div>
+            <div className="card-header"><div><h2>Dates</h2><p>Moments that can start a follow-up mix.</p></div></div>
             {contact.jumpDates.length ? <div className="important-date-list">{contact.jumpDates.map((item) => <article className="important-date-row" key={item.id}>
               <div className="important-date-summary"><h3>{item.dateType.name}</h3><div className="jump-meta"><span>{item.dateValue ? formatDate(item.dateValue, displayPreferences) : `${item.month}/${item.day}`}</span><span>{item.recurrence.toLowerCase()}</span>{item.label && <span>{item.label}</span>}</div></div>
               <div className="important-date-actions">
                 <Sheet trigger={<button className="button small" type="button">Edit</button>} title={`Edit ${item.dateType.name}`} description={`Update this saved date for ${contact.displayName}.`}>
-                  <form action={updateImportantDateAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} />{!item.dateValue && <input type="hidden" name="monthDayOnly" value="1" />}<label className="field"><span>Type</span><select name="dateTypeId" defaultValue={item.dateTypeId} required>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>{item.dateValue ? <label className="field"><span>Date</span><input name="dateValue" type="date" defaultValue={formatDateInput(item.dateValue)} required /></label> : <><label className="field"><span>Month</span><select name="month" defaultValue={item.month ?? ""} required><option value="">Choose month</option>{MONTHS.map((month, index) => <option value={index + 1} key={month}>{month}</option>)}</select></label><label className="field"><span>Day</span><input name="day" type="number" min={1} max={31} defaultValue={item.day ?? ""} inputMode="numeric" required /></label></>}<label className="field"><span>Repeat</span><select name="recurrence" defaultValue={item.recurrence}><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label><label className="field"><span>Note</span><input name="label" defaultValue={item.label ?? ""} /></label><button className="button primary" type="submit">Save date</button></form>
+                  <form action={updateImportantDateAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} />{!item.dateValue && <input type="hidden" name="monthDayOnly" value="1" />}<label className="field"><span>Type</span><select name="dateTypeId" defaultValue={item.dateTypeId} required>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>{item.dateValue ? <label className="field"><span>Date</span><input name="dateValue" type="date" defaultValue={formatDateInput(item.dateValue)} required /></label> : <><label className="field"><span>Month</span><select name="month" defaultValue={item.month ?? ""} required><option value="">Choose month</option>{MONTHS.map((month, index) => <option value={index + 1} key={month}>{month}</option>)}</select></label><label className="field"><span>Day</span><input name="day" type="number" min={1} max={31} defaultValue={item.day ?? ""} inputMode="numeric" required /></label></>}<label className="field"><span>Loop · repeat this date</span><select name="recurrence" defaultValue={item.recurrence}><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label><label className="field"><span>Note</span><input name="label" defaultValue={item.label ?? ""} /></label><button className="button primary" type="submit">Save date</button></form>
                 </Sheet>
                 <ConfirmDialog trigger={<AppIcon name="trash" />} triggerAriaLabel={`Remove ${item.dateType.name}`} triggerClassName="icon-button compact danger" title={`Remove ${item.dateType.name}?`} description="Future follow-ups tied to this date will be removed." danger><form action={deactivateImportantDateAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} /><button className="button danger" type="submit">Remove date</button></form></ConfirmDialog>
               </div>
             </article>)}</div> : <p className="muted-copy">No dates saved yet.</p>}
-            <form id="add-date" action={createImportantDateAction} className="form-grid contact-add-date"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>What date?</span><select name="dateTypeId" required defaultValue={followUpType?.id}>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label><label className="field"><span>When?</span><input name="dateValue" type="date" required /></label><label className="field"><span>Repeat</span><select name="recurrence"><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label><label className="field"><span>Note</span><input name="label" placeholder="Estimate follow-up" /></label><label className="checkbox-card field full"><input type="checkbox" name="autoAssignRecommended" defaultChecked /><span><strong>Start a matching plan</strong><small>Uses your first active plan for this kind of date.</small></span></label><button className="button primary" type="submit">Add date</button></form>
+            <form id="add-date" action={createImportantDateAction} className="form-grid contact-add-date"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>What date?</span><select name="dateTypeId" required defaultValue={followUpType?.id}>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label><label className="field"><span>When?</span><input name="dateValue" type="date" required /></label><label className="field"><span>Loop · repeat this date</span><select name="recurrence"><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label><label className="field"><span>Note</span><input name="label" placeholder="Estimate follow-up" /></label><label className="checkbox-card field full"><input type="checkbox" name="autoAssignRecommended" defaultChecked /><span><strong>Start a matching mix</strong><small>Uses your first active mix for this kind of date.</small></span></label><button className="button primary" type="submit">Add date</button></form>
           </section>
 
           <section>
-            <div className="card-header"><div><h2>Plans</h2><p>Follow-up sequences assigned to this person.</p></div></div>
-            {plans.length ? <form action={assignMixToContactAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>Choose a plan</span><select name="mixId">{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label><button className="button primary" type="submit" disabled={state.doNotContact}>Start plan</button></form> : <p className="muted-copy">Create a plan first.</p>}
+            <div className="card-header"><div><h2>Mixes</h2><p>Keep this connection in the mix with a series of thoughtful beats.</p></div></div>
+            {plans.length ? <form action={assignMixToContactAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>Choose a mix</span><select name="mixId">{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label><button className="button primary" type="submit" disabled={state.doNotContact}>Add to a mix</button></form> : <p className="muted-copy">Create a mix first.</p>}
             {contact.mixAssignments.length > 0 && <div className="assigned-mix-list">{contact.mixAssignments.map((assignment) => {
               const stop = stopByMixId.get(assignment.mix.id);
-              return <div className="assigned-mix-row" key={assignment.id}><div><Link href={`/mixes/${assignment.mix.id}/edit`}>{assignment.mix.name}</Link>{stop && <small className="stopped-mix-label">Stopped</small>}</div><div className="assigned-mix-actions">{stop ? <form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small primary" type="submit">Resume</button></form> : <ConfirmDialog trigger="Stop…" title={`Stop ${assignment.mix.name}?`} description="Future follow-ups from this plan will be removed."><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small danger" type="submit">Stop plan</button></form></ConfirmDialog>}<ConfirmDialog trigger="Remove…" title={`Remove ${assignment.mix.name}?`} description="Completed history stays available." danger><form action={removeMixAssignmentAction}><input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Remove</button></form></ConfirmDialog></div></div>;
+              return <div className="assigned-mix-row" key={assignment.id}><div><Link href={`/mixes/${assignment.mix.id}/edit`}>{assignment.mix.name}</Link>{stop && <small className="stopped-mix-label">Stopped</small>}</div><div className="assigned-mix-actions">{stop ? <form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small primary" type="submit">Resume</button></form> : <ConfirmDialog trigger="Stop…" title={`Stop ${assignment.mix.name}?`} description="Future follow-ups from this mix will be removed."><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small danger" type="submit">Stop mix</button></form></ConfirmDialog>}<ConfirmDialog trigger="Remove…" title={`Remove ${assignment.mix.name}?`} description="Completed history stays available." danger><form action={removeMixAssignmentAction}><input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Remove</button></form></ConfirmDialog></div></div>;
             })}</div>}
-            {additionalStoppedPlans.length > 0 && <div className="stopped-mix-section"><h3>Other stopped plans</h3>{additionalStoppedPlans.map((plan) => <div className="assigned-mix-row" key={plan.id}><span>{plan.name}</span><form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={plan.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small" type="submit">Resume</button></form></div>)}</div>}
+            {additionalStoppedPlans.length > 0 && <div className="stopped-mix-section"><h3>Other stopped mixes</h3>{additionalStoppedPlans.map((plan) => <div className="assigned-mix-row" key={plan.id}><span>{plan.name}</span><form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={plan.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small" type="submit">Resume</button></form></div>)}</div>}
           </section>
 
           {contact.customFieldValues.length > 0 && <section><div className="card-header"><div><h2>Custom fields</h2></div><Link className="button small" href="/contacts/custom-fields">Manage</Link></div><div className="contact-method-sections">{contact.customFieldValues.map((item) => <div className="contact-method-row" key={item.id}><span>{item.value}</span><small>{item.definition.name} · {customFieldPlaceholder(item.definition.key)}</small></div>)}</div></section>}

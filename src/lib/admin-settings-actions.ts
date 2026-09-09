@@ -42,7 +42,7 @@ function revalidateSettingConsumers(): void {
 }
 
 export async function savePlatformSettingAction(formData: FormData): Promise<void> {
-  const { user } = await requirePlatformAdmin();
+  const { user } = await requirePlatformAdmin("settings.manage");
   const key = settingKey(value(formData, "key"));
   const definition = PLATFORM_SETTING_DEFINITIONS[key];
   const nextValue = validatePlatformSettingValue(
@@ -73,6 +73,7 @@ export async function savePlatformSettingAction(formData: FormData): Promise<voi
         updatedByUserId: user.id
       }
     });
+    await tx.platformAuditEvent.create({ data: { actorUserId: user.id, action: "platform-setting.change", entityType: "PlatformSetting", entityId: key } });
     if (auditWorkspaceId) {
       await tx.auditLog.create({
         data: {
@@ -93,7 +94,7 @@ export async function savePlatformSettingAction(formData: FormData): Promise<voi
 }
 
 export async function resetPlatformSettingAction(formData: FormData): Promise<void> {
-  const { user } = await requirePlatformAdmin();
+  const { user } = await requirePlatformAdmin("settings.manage");
   const key = settingKey(value(formData, "key"));
   const auditWorkspaceId = user.memberships[0]?.workspaceId ?? null;
 
@@ -101,6 +102,7 @@ export async function resetPlatformSettingAction(formData: FormData): Promise<vo
     const existing = await tx.platformSetting.findUnique({ where: { key } });
     if (!existing) return;
     await tx.platformSetting.delete({ where: { key } });
+    await tx.platformAuditEvent.create({ data: { actorUserId: user.id, action: "platform-setting.change", entityType: "PlatformSetting", entityId: key } });
     if (auditWorkspaceId) {
       await tx.auditLog.create({
         data: {

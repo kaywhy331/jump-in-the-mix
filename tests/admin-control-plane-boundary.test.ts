@@ -6,26 +6,28 @@ const read = (path: string) => readFileSync(path, "utf8");
 describe("administration and observability boundaries", () => {
   it("requires platform-administrator access on every new control-plane page", () => {
     for (const path of [
-      "src/app/(app)/admin/page.tsx",
-      "src/app/(app)/admin/operations/page.tsx",
-      "src/app/(app)/admin/audit/page.tsx",
-      "src/app/(app)/admin/settings/page.tsx"
+      "src/app/(staff)/admin/page.tsx",
+      "src/app/(staff)/admin/operations/page.tsx",
+      "src/app/(staff)/admin/audit/page.tsx",
+      "src/app/(staff)/admin/settings/page.tsx"
     ]) {
-      expect(read(path)).toContain("requirePlatformAdmin()");
+      expect(read(path)).toMatch(/requirePlatformAdmin\("(?:dashboard.read|operations.read|audit.read|settings.manage)"\)/);
     }
   });
 
-  it("allows retry only for failed jobs and records the real administrator", () => {
+  it("delegates retries with the authenticated administrator and session", () => {
     const actions = read("src/lib/admin-operations-actions.ts");
-    expect(actions).toContain("if (!job.failedAt && !job.lastError)");
-    expect(actions).toContain('action: "admin.job.retry"');
-    expect(actions).toContain("actorUserId: user.id");
-    expect(actions).not.toContain("deleteMany({ where: { task:");
+    const service = read("src/lib/admin-job-retry.ts");
+    expect(actions).toContain('requirePlatformAdmin("jobs.retry")');
+    expect(actions).toContain("await retryFailedJob({ actorUserId: user.id, actorSessionId: session.id");
+    expect(service).toContain('action: "admin.job.retry"');
+    expect(service).toContain("actorUserId: input.actorUserId");
+    expect(service).not.toContain("deleteMany({ where: { task:");
   });
 
   it("does not render provider credentials in operations or audit views", () => {
-    const operations = read("src/app/(app)/admin/operations/page.tsx");
-    const audit = read("src/app/(app)/admin/audit/page.tsx");
+    const operations = read("src/app/(staff)/admin/operations/page.tsx");
+    const audit = read("src/app/(staff)/admin/audit/page.tsx");
     for (const secretName of ["credentialsCiphertext", "refreshToken", "accessToken", "STRIPE_SECRET_KEY", "GOOGLE_CLIENT_SECRET"]) {
       expect(operations).not.toContain(secretName);
       expect(audit).not.toContain(secretName);
@@ -37,7 +39,7 @@ describe("administration and observability boundaries", () => {
     const actions = read("src/lib/admin-settings-actions.ts");
     expect(service).toContain("PLATFORM_SETTING_DEFINITIONS");
     expect(service).toContain("validatePlatformSettingValue");
-    expect(actions).toContain("requirePlatformAdmin()");
+    expect(actions).toMatch(/requirePlatformAdmin\("(?:dashboard.read|operations.read|audit.read|settings.manage)"\)/);
     expect(actions).toContain('action: "admin.platform-setting.update"');
     expect(actions).toContain('action: "admin.platform-setting.reset"');
   });

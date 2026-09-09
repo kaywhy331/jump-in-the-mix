@@ -2,7 +2,8 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
-import type { OpenedJumpDetail } from "@/components/JumpWorkflow";
+import { useBrowserScope } from "@/components/BrowserAccountBoundary";
+import { rememberOpenedJump } from "@/lib/opened-jump-state";
 
 type JumpActionType = "OPENED" | "COPIED" | "COMPOSED" | "CALLED" | "VOICEMAIL_STARTED";
 
@@ -14,11 +15,6 @@ async function recordAction(jumpId: string, action: JumpActionType): Promise<voi
     keepalive: true
   });
   if (!response.ok) throw new Error("The follow-up action could not be recorded.");
-}
-
-function rememberOpenedJump(detail: OpenedJumpDetail): void {
-  try { window.sessionStorage.setItem("jitm:opened-jump", JSON.stringify(detail)); } catch { /* Storage can be disabled. */ }
-  window.dispatchEvent(new CustomEvent<OpenedJumpDetail>("jitm:jump-opened", { detail }));
 }
 
 export function JumpActionLink({
@@ -44,6 +40,7 @@ export function JumpActionLink({
   channel: string;
   children: ReactNode;
 }) {
+  const scope = useBrowserScope();
   return (
     <a
       href={href}
@@ -53,8 +50,7 @@ export function JumpActionLink({
       aria-label={ariaLabel}
       title={title}
       onClick={() => {
-        const detail: OpenedJumpDetail = { jumpId, contactName, channel, openedAt: Date.now() };
-        rememberOpenedJump(detail);
+        if (scope) rememberOpenedJump({ scope, jumpId, contactName, channel, openedAt: Date.now() });
         void recordAction(jumpId, action).catch(() => undefined);
       }}
     >

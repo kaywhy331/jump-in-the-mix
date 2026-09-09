@@ -99,7 +99,7 @@ export async function deleteCustomDateTypeAction(formData: FormData): Promise<vo
     prisma.mix.count({ where: { workspaceId: workspace.id, dateTypeId: dateType.id, status: { not: "ARCHIVED" } } })
   ]);
   if (jumpDateCount || mixCount) {
-    fail(`This type is still used by ${jumpDateCount} saved date${jumpDateCount === 1 ? "" : "s"} and ${mixCount} plan${mixCount === 1 ? "" : "s"}. Turn it off instead of deleting it.`);
+    fail(`This type is still used by ${jumpDateCount} saved date${jumpDateCount === 1 ? "" : "s"} and ${mixCount} mix${mixCount === 1 ? "" : "s"}. Turn it off instead of deleting it.`);
   }
   await prisma.dateType.delete({ where: { id: dateType.id } });
   redirect("/settings/jump-date-types?deleted=1");

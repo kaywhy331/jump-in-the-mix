@@ -4,7 +4,9 @@ import { prisma } from "@/lib/prisma";
 export const AUTH_TOKEN_PURPOSES = {
   verifyEmail: "verify_email",
   resetPassword: "reset_password",
-  magicLogin: "magic_login"
+  magicLogin: "magic_login",
+  waitlist: "waitlist",
+  invitationOptout: "invitation_optout"
 } as const;
 
 export type AuthTokenPurpose = typeof AUTH_TOKEN_PURPOSES[keyof typeof AUTH_TOKEN_PURPOSES];

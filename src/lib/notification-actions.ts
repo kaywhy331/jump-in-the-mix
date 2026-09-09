@@ -4,36 +4,41 @@ import { redirect } from "next/navigation";
 import { automaticEmailConfigured, automaticSmsConfigured } from "@/lib/automatic-delivery";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { lockAccess } from "@/lib/access-lock";
 
 export async function updateNotificationPreferencesAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { workspace, user, session, impersonation } = await requireWorkspace();
   if (impersonation) redirect("/settings/notifications?error=View-only%20sessions%20cannot%20change%20notifications.");
   const digestHour = Number(formData.get("digestHour"));
   if (!Number.isInteger(digestHour) || digestHour < 0 || digestHour > 23) {
     redirect("/settings/notifications?error=Choose%20a%20valid%20digest%20time.");
   }
-  await prisma.notificationPreference.upsert({
-    where: { workspaceId: workspace.id },
-    create: {
-      workspaceId: workspace.id,
-      userId: user.id,
-      emailDigestEnabled: formData.get("emailDigestEnabled") === "on",
-      weeklyReportEnabled: formData.get("weeklyReportEnabled") === "on",
-      digestHour
-    },
-    update: {
-      userId: user.id,
-      emailDigestEnabled: formData.get("emailDigestEnabled") === "on",
-      weeklyReportEnabled: formData.get("weeklyReportEnabled") === "on",
-      digestHour
-    }
+  await prisma.$transaction(async tx => {
+    await lockAccess(tx);
+    if (!await tx.session.findFirst({ where: { id: session.id, userId: user.id, expiresAt: { gt: new Date() }, user: { suspendedAt: null } } })) redirect("/login");
+    await tx.notificationPreference.upsert({
+      where: { workspaceId: workspace.id },
+      create: {
+        workspaceId: workspace.id,
+        userId: user.id,
+        emailDigestEnabled: formData.get("emailDigestEnabled") === "on",
+        weeklyReportEnabled: formData.get("weeklyReportEnabled") === "on",
+        digestHour
+      },
+      update: {
+        userId: user.id,
+        emailDigestEnabled: formData.get("emailDigestEnabled") === "on",
+        weeklyReportEnabled: formData.get("weeklyReportEnabled") === "on",
+        digestHour
+      }
+    });
   });
   redirect("/settings/notifications?saved=1");
 }
 
 export async function updateAutomationPreferencesAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
-  const path = "/settings/notifications";
+  const { workspace, user, session, impersonation } = await requireWorkspace();
+  const path = "/settings/sending";
   if (impersonation) redirect(`${path}?error=${encodeURIComponent("View-only sessions cannot change automatic sending.")}`);
   const enabled = formData.get("automationEnabled") === "on";
   const emailEnabled = enabled && formData.get("automationEmailEnabled") === "on";
@@ -56,6 +61,8 @@ export async function updateAutomationPreferencesAction(formData: FormData): Pro
   }
 
   await prisma.$transaction(async (tx) => {
+    await lockAccess(tx);
+    if (!await tx.session.findFirst({ where: { id: session.id, userId: user.id, expiresAt: { gt: new Date() }, user: { suspendedAt: null } } })) redirect("/login");
     await tx.automationPreference.upsert({
       where: { workspaceId: workspace.id },
       create: { workspaceId: workspace.id, enabled, emailEnabled, smsEnabled, reviewWindowMinutes },
@@ -69,7 +76,7 @@ export async function updateAutomationPreferencesAction(formData: FormData): Pro
         action: enabled ? "automation.enabled" : "automation.disabled",
         entityType: "AutomationPreference",
         entityId: workspace.id,
-        source: "settings.notifications",
+        source: "settings.sending",
         metadata: { emailEnabled, smsEnabled, reviewWindowMinutes }
       }
     });

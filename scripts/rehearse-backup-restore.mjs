@@ -11,6 +11,7 @@ import {
   quoteIdentifier,
   runCommand
 } from "./lib/postgres-ops.mjs";
+import { operationsSourceHash, writeOperationsReceipt, privateJson } from "./lib/operations-artifacts.mjs";
 import { sendOpsAlert } from "./lib/ops-alert.mjs";
 
 async function main() {
@@ -31,7 +32,7 @@ async function main() {
   await admin.connect();
   try {
     await admin.query(`CREATE DATABASE ${quoteIdentifier(targetDatabase)} TEMPLATE template0`);
-    await runCommand(process.execPath, ["scripts/backup-database.mjs", "--output", archivePath, "--retention-days", "0"]);
+    await runCommand(process.execPath, ["scripts/backup-database.mjs", "--output", archivePath, "--retention-days", "0"], { env: { OPS_BACKUP_RECEIPT_FILE: "" } });
     await runCommand(process.execPath, [
       "scripts/restore-database.mjs",
       "--input",
@@ -40,6 +41,9 @@ async function main() {
     await runCommand(process.execPath, [
       "scripts/smoke-restored-database.mjs"
     ], { env: { RESTORE_DATABASE_URL: targetUrl } });
+
+    const manifest = await privateJson(`${archivePath}.manifest.json`);
+    await writeOperationsReceipt(process.env.OPS_RESTORE_RECEIPT_FILE, { version: 1, kind: "restore", completedAt: new Date().toISOString(), sourceHash: operationsSourceHash(sourceUrl), archiveSha256: manifest.archive.sha256, contentVerified: true, foreignKeysVerified: true });
 
     console.log(JSON.stringify({
       status: "ok",
@@ -63,7 +67,7 @@ main().catch(async (error) => {
   console.error(`Backup/restore rehearsal failed: ${message}`);
   await sendOpsAlert({
     title: "Backup/restore rehearsal failed",
-    summary: message,
+    summary: "The backup and restore rehearsal failed. Review its private runner logs.",
     details: { command: "db:rehearse-restore" }
   });
   process.exitCode = 1;

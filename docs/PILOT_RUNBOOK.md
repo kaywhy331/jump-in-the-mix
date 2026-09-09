@@ -72,7 +72,7 @@ Restore never overwrites the live database. Create a separate, empty PostgreSQL 
 npm run pilot:restore -- jump-in-the-mix-TIMESTAMP.jitm-backup.enc --confirm=RESTORE
 ```
 
-The archive and its `.manifest.json` file must both be inside `.backups`. Restore verifies the checksum, decrypts into a temporary directory, refuses an in-place or nonempty target, restores required extensions, and compares the restored database to the manifest. Promoting a restored database is a separate operator-controlled recovery step; test and document that cutover before depending on it.
+The archive and its `.manifest.json` file must both be inside `.backups`. Restore verifies manifest authentication when present and the checksum, decrypts into a temporary directory, refuses an in-place or nonempty target, restores required extensions, and compares the restored database to the manifest. Stop other target clients before restoring. The target remains under an application recovery hold, including after a successful verification. Post-backup privacy/access reconciliation and a guarded release command remain unfinished; do not manually clear the hold. Follow [restore recovery](RESTORE_RECOVERY.md) before depending on recovery or attempting cutover.
 
 ## Upgrade
 

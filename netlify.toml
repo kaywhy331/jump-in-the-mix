@@ -11,5 +11,5 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-[functions."jump-worker-tick"]
+[functions."jump-worker-schedule"]
   schedule = "* * * * *"

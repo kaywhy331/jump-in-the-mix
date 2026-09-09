@@ -43,6 +43,10 @@ model AuthOAuthState {
 
 model AdminImpersonation {
   id           String   @id @default(cuid())
+  ticketId     String?
+  actorSessionId String?
+  ticket SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  actorSession Session? @relation(fields: [actorSessionId], references: [id], onDelete: SetNull)
   tokenHash    String   @unique
   actorUserId  String
   targetUserId String
@@ -56,6 +60,8 @@ model AdminImpersonation {
   @@index([actorUserId, expiresAt])
   @@index([targetUserId, workspaceId, expiresAt])
   @@index([workspaceId, endedAt])
+  @@index([ticketId, endedAt])
+  @@index([actorSessionId])
 }
 
 model AdminMfaCredential {

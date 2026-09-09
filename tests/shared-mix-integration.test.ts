@@ -1,12 +1,13 @@
+import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "../src/lib/prisma";
 import {
-  createOrRefreshPlatformSharedMix,
   importSharedMixIntoWorkspace,
-  snapshotWorkspaceMix,
-  updateSharedMixAsAdmin
+  snapshotWorkspaceMix
 } from "../src/lib/shared-mix-service";
+
+import { saveLibraryDraft, releaseLibraryVersion } from "../src/lib/library-admin";
 
 describe.sequential("ready-made plan service", () => {
   const suffix = randomUUID().replaceAll("-", "");
@@ -14,10 +15,14 @@ describe.sequential("ready-made plan service", () => {
 
   beforeAll(async () => {
     const [curator, customer] = await Promise.all([
-      prisma.user.create({ data: { email: `plan-curator-${suffix}@example.com`, name: "Plan Curator", passwordHash: "test-only" } }),
+      prisma.user.create({ data: { email: `plan-curator-${suffix}@example.com`, name: "Plan Curator", passwordHash: await bcrypt.hash("Library fixture password!", 4), emailVerifiedAt: new Date(), staffMembership: { create: { role: "EDITOR", grants: ["mixes.publish"] } } } }),
       prisma.user.create({ data: { email: `plan-customer-${suffix}@example.com`, name: "Plan Customer", passwordHash: "test-only" } })
     ]);
     Object.assign(ids, { curator: curator.id, customer: customer.id });
+    const session = await prisma.session.create({ data: { userId: curator.id, tokenHash: randomUUID(), expiresAt: new Date(Date.now() + 3600_000) } });
+    ids.session = session.id;
+    await prisma.adminMfaSession.create({ data: { userId: curator.id, sessionId: session.id, expiresAt: session.expiresAt } });
+
     const [sourceWorkspace, customerWorkspace] = await Promise.all([
       prisma.workspace.create({ data: { name: "Curator Business", slug: `plan-curator-${suffix}`, ownerId: curator.id, profile: { create: {} } } }),
       prisma.workspace.create({ data: { name: "Customer Business", slug: `plan-customer-${suffix}`, ownerId: customer.id, profile: { create: {} } } })
@@ -60,7 +65,7 @@ describe.sequential("ready-made plan service", () => {
     await prisma.mixStep.create({
       data: { mixId: plan.id, stepVersionId: message.versions[0]!.id, dayOffset: -7, sortOrder: 1 }
     });
-  });
+  }, 30_000);
 
   afterAll(async () => {
     if (ids.sharedMix) {
@@ -70,6 +75,8 @@ describe.sequential("ready-made plan service", () => {
       await prisma.sharedMix.deleteMany({ where: { id: ids.sharedMix } });
     }
     await prisma.workspace.deleteMany({ where: { id: { in: [ids.sourceWorkspace, ids.customerWorkspace].filter(Boolean) } } });
+    await prisma.adminMfaSession.deleteMany({ where: { userId: ids.curator } });
+    await prisma.platformAuditEvent.deleteMany({ where: { actorUserId: ids.curator } });
     await prisma.user.deleteMany({ where: { id: { in: [ids.curator, ids.customer].filter(Boolean) } } });
   });
 
@@ -82,46 +89,22 @@ describe.sequential("ready-made plan service", () => {
       steps: [expect.objectContaining({ channel: "EMAIL", dayOffset: -7 })]
     });
     expect(JSON.stringify(snapshot)).not.toContain(ids.sourceWorkspace);
-    await expect(snapshotWorkspaceMix(ids.customerWorkspace, ids.plan)).rejects.toThrow("Plan not found");
+    await expect(snapshotWorkspaceMix(ids.customerWorkspace, ids.plan)).rejects.toThrow("Mix not found");
   });
 
-  it("creates and updates a curated plan", async () => {
-    ids.sharedMix = await createOrRefreshPlatformSharedMix({
-      sourceWorkspaceId: ids.sourceWorkspace,
-      actorUserId: ids.curator,
-      sourceMixId: ids.plan,
-      metadata: {
-        title: "Annual Policy Review",
-        description: "A warm reminder before an annual policy review meeting.",
-        category: "Current clients",
-        industry: "Insurance & finance",
-        framework: null
-      }
-    });
-    const shared = await prisma.sharedMix.findUniqueOrThrow({ where: { id: ids.sharedMix } });
-    const metadata = await prisma.sharedMixMetadata.findUniqueOrThrow({ where: { sharedMixId: ids.sharedMix } });
-    expect(shared.status).toBe("APPROVED");
-    expect(metadata).toMatchObject({ sourceMixId: ids.plan, version: 1, triggerMode: "DATE_TRIGGERED" });
-
-    await updateSharedMixAsAdmin({
-      actorUserId: ids.curator,
-      auditWorkspaceId: ids.sourceWorkspace,
-      sharedMixId: shared.id,
-      metadata: {
-        title: shared.title,
-        description: shared.description,
-        category: shared.category,
-        industry: shared.industry!,
-        framework: shared.framework
-      },
-      status: "APPROVED",
-      triggerMode: metadata.triggerMode,
-      dateTypeName: metadata.dateTypeName,
-      dateTypeSlug: metadata.dateTypeSlug,
-      steps: JSON.parse(JSON.stringify(shared.steps)),
-      featured: true
-    });
-    expect(await prisma.sharedMixMetadata.findUnique({ where: { sharedMixId: shared.id } })).toMatchObject({ version: 2, featuredAt: expect.any(Date) });
+  it("creates a draft and separately publishes reviewed versions", async () => {
+    const snapshot = await snapshotWorkspaceMix(ids.sourceWorkspace, ids.plan);
+    const actor = { actorUserId: ids.curator, actorSessionId: ids.session, reason: "Review the annual policy reminder" };
+    const content = { title: "Annual Policy Review", description: "A warm reminder before an annual policy review meeting.", category: "Current clients", industry: "Insurance & finance", framework: null,
+      triggerMode: snapshot.triggerMode, dateTypeName: snapshot.dateTypeName, dateTypeSlug: snapshot.dateTypeSlug, steps: snapshot.steps, featured: false };
+    const draft = await saveLibraryDraft({ ...actor, expectedRevision: 0, content }); ids.sharedMix = draft.id;
+    expect((await prisma.sharedMix.findUniqueOrThrow({ where: { id: draft.id } })).status).toBe("UNPUBLISHED");
+    await releaseLibraryVersion({ ...actor, sharedMixId: draft.id, expectedRevision: 1, version: 1, operation: "publish", password: "Library fixture password!" });
+    expect(await prisma.sharedMixMetadata.findUnique({ where: { sharedMixId: draft.id } })).toMatchObject({ version: 1, triggerMode: "DATE_TRIGGERED" });
+    await saveLibraryDraft({ ...actor, sharedMixId: draft.id, expectedRevision: 2, content: { ...content, featured: true } });
+    expect(await prisma.sharedMixMetadata.findUnique({ where: { sharedMixId: draft.id } })).toMatchObject({ version: 1, draftVersion: 2, featuredAt: null });
+    await releaseLibraryVersion({ ...actor, sharedMixId: draft.id, expectedRevision: 3, version: 2, operation: "publish", password: "Library fixture password!" });
+    expect(await prisma.sharedMixMetadata.findUnique({ where: { sharedMixId: draft.id } })).toMatchObject({ version: 2, featuredAt: expect.any(Date) });
   });
 
   it("imports an independent draft and records repeated use", async () => {

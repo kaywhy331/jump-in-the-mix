@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
 import { readContactListState } from "@/lib/contact-list-state";
+import { useBrowserScope } from "@/components/BrowserAccountBoundary";
 
 export function ContactsBackLink({
   className,
@@ -15,9 +16,10 @@ export function ContactsBackLink({
   children: ReactNode;
 }) {
   const router = useRouter();
+  const scope = useBrowserScope();
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
-    const state = readContactListState();
+    const state = scope ? readContactListState(scope) : null;
     if (!state) return;
     event.preventDefault();
     router.push(state.href, { scroll: false });

@@ -191,8 +191,6 @@
 }
 
 @media (max-width: 900px) {
-  .mobile-nav .app-nav { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .mobile-nav .nav-link { min-height: 52px; font-size: .62rem; }
   .support-message { max-width: 94%; }
   .support-ticket-row { grid-template-columns: 1fr; }
   .support-ticket-row > .status-pill { justify-self: start; }
@@ -213,5 +211,4 @@
   .support-message header { display: grid; gap: 2px; }
   .support-definition-list > div { grid-template-columns: 1fr; gap: 3px; }
   .admin-support-stats { grid-template-columns: 1fr 1fr; }
-  .mobile-nav .nav-link span:last-child { font-size: .56rem; }
 }

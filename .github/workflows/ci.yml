@@ -18,7 +18,8 @@ jobs:
     timeout-minutes: 40
     env:
       APP_URL: http://127.0.0.1:3000
-      DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_test?schema=public
+      # Fixture suites require an explicitly named, loopback-only test database.
+      DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_design_ci?schema=public
       DATA_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
       BACKUP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
       AUTH_RATE_LIMIT_SECRET: ci-auth-rate-limit-secret
@@ -27,6 +28,9 @@ jobs:
       AUTH_ADMIN_MFA_MAX_AGE_MINUTES: "720"
       WORKER_HEARTBEAT_STALE_SECONDS: "90"
       DEMO_MODE: "false"
+      PUBLIC_OPERATOR_NAME: Synthetic CI operator
+      PUBLIC_SUPPORT_EMAIL: support@example.test
+      PUBLIC_BACKUP_RETENTION_NOTICE: Synthetic fixture backups expire after 30 days. This is test configuration and does not describe a live customer service.
       E2E_USER_EMAIL: demo@jumpinthemix.local
       E2E_USER_PASSWORD: JumpInTheMix123!
       E2E_ADMIN_EMAIL: admin-e2e@jumpinthemix.local
@@ -35,13 +39,13 @@ jobs:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_DB: jitm_test
+          POSTGRES_DB: jitm_design_ci
           POSTGRES_USER: jitm
           POSTGRES_PASSWORD: jitm
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U jitm -d jitm_test"
+          --health-cmd "pg_isready -U jitm -d jitm_design_ci"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -59,7 +63,19 @@ jobs:
       - name: Audit production dependencies
         run: npm run security:audit
       - name: Install PostgreSQL client tools
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Browser checks use Playwright's pinned Chromium. The runner's unused
+          # Chrome repository has returned inconsistent signed index/package
+          # hashes and must not block Ubuntu dependencies or Playwright's apt step.
+          for apt_source in /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources; do
+            if [[ -f "$apt_source" ]]; then
+              sudo mv -- "$apt_source" "$apt_source.disabled"
+            fi
+          done
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
       - name: Verify committed existing-MVP baseline SQL
         shell: bash
         run: |
@@ -100,11 +116,15 @@ jobs:
           retention-days: 7
       - name: Deploy committed migrations to the test database
         run: npm run db:deploy
+      - name: Verify the database matches the application release
+        run: npm run db:verify-release
       - name: TypeScript semantic validation
         shell: bash
         run: |
           set -o pipefail
           npm run typecheck 2>&1 | tee typecheck.log
+      - name: Check optional scheduler types and package without deployment
+        run: npm run scheduler:check
       - name: Upload TypeScript diagnostics
         if: failure()
         uses: actions/upload-artifact@v4
@@ -113,6 +133,12 @@ jobs:
           path: typecheck.log
           retention-days: 7
       - name: Unit and integration tests
+        env:
+          RECOVERY_TEST_DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_design_ci?schema=public
+          OPS_ALERT_WEBHOOK_URL: ""
+          RUN_PUSH_DATABASE_TESTS: "true"
+          RUN_PLAN_DATABASE_TESTS: "true"
+          RUN_WORKER_UNATTENDED_TESTS: "true"
         shell: bash
         run: |
           set -o pipefail
@@ -124,6 +150,15 @@ jobs:
           name: test-diagnostics
           path: test.log
           retention-days: 7
+      - name: Generate isolated browser-test push keys
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import webPush from "web-push";
+          const keys = webPush.generateVAPIDKeys();
+          fs.appendFileSync(process.env.GITHUB_ENV, `WEB_PUSH_VAPID_PUBLIC_KEY=${keys.publicKey}\nWEB_PUSH_VAPID_PRIVATE_KEY=${keys.privateKey}\n`);
+          NODE
       - name: Production build
         shell: bash
         run: |
@@ -165,9 +200,34 @@ jobs:
           mkdir -p .next/standalone/.next
           cp -R public .next/standalone/public
           cp -R .next/static .next/standalone/.next/static
+      - name: Qualify restored-database isolation on the packaged server
+        env:
+          RUN_RECOVERY_WEB_TESTS: "true"
+        run: npx vitest run tests/recovery-hold-runtime.integration.test.mjs
+      - name: Qualify authenticated pages with isolated load fixtures
+        env:
+          LOAD_FIXTURE_ACCOUNTS: "2"
+          LOAD_FIXTURE_CONTACTS: "100"
+          LOAD_FIXTURE_HISTORY: "2"
+          LOAD_FIXTURE_MIXES: "10"
+          LOAD_SMOKE_CONCURRENCY: "3"
+          LOAD_SMOKE_DURATION_SECONDS: "15"
+          LOAD_SMOKE_MAX_REQUESTS: "120"
+          LOAD_SMOKE_MAX_P95_MS: "3000"
+          LOAD_FIXTURE_REPORT_FILE: customer-load-report.json
+        run: npm run load:qualify
+      - name: Upload authenticated load report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: authenticated-load-report
+          path: customer-load-report.json
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Browser-driven end-to-end tests
         env:
           PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
+          PUBLIC_TRUST_E2E: "1"
         shell: bash
         run: |
           set -o pipefail
@@ -179,6 +239,60 @@ jobs:
           name: browser-e2e-diagnostics
           path: |
             e2e.log
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Staff onboarding, library, admission and voice capture with required MFA
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
+          STAFF_ONBOARDING_E2E: "1"
+          ADMISSION_E2E: "1"
+          LIBRARY_E2E: "1"
+          SYSTEM_MIX_E2E: "1"
+          REPORTS_E2E: "1"
+          SUPPORT_CASES_E2E: "1"
+          EMAIL_RECOVERY_E2E: "1"
+          OPS_ALERTS_E2E: "1"
+          DATA_RETENTION_E2E: "1"
+          SUPPORT_EMAIL_E2E: "1"
+          VOICE_E2E: "1"
+          AUTH_REQUIRE_ADMIN_MFA: "true"
+          PLAYWRIGHT_CAPTURE: "off"
+          RESEND_API_KEY: local-test-placeholder
+          RESEND_WEBHOOK_SECRET: whsec_bG9jYWwtZW1haWwtd2ViaG9vay10ZXN0LXNlY3JldA==
+          EMAIL_FROM: test@example.test
+          NETLIFY_WORKER_SECRET: ""
+          WORKER_DISPATCH_MODE: ""
+        shell: bash
+        run: |
+          set -o pipefail
+          npx playwright test e2e/staff-onboarding.spec.ts e2e/voice-capture.spec.ts e2e/admission-controls.spec.ts e2e/library-administration.spec.ts e2e/system-mix-administration.spec.ts e2e/admin-reports.spec.ts e2e/support-cases.spec.ts e2e/email-recovery.spec.ts e2e/operational-alerts.spec.ts e2e/data-retention.spec.ts e2e/support-email.spec.ts --project desktop-chromium 2>&1 | tee staff-onboarding-e2e.log
+      - name: Staff and waitlist browser flows with isolated fixtures
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
+          STAFF_E2E: "1"
+          WAITLIST_E2E: "1"
+          # These fixture accounts skip MFA only in this separate test process.
+          # The main browser suite and staff request integration suite enforce MFA.
+          AUTH_REQUIRE_ADMIN_MFA: "false"
+          RESEND_API_KEY: local-test-placeholder
+          RESEND_WEBHOOK_SECRET: whsec_bG9jYWwtZW1haWwtd2ViaG9vay10ZXN0LXNlY3JldA==
+          EMAIL_FROM: test@example.test
+          NETLIFY_WORKER_SECRET: ""
+          WORKER_DISPATCH_MODE: ""
+        shell: bash
+        run: |
+          set -o pipefail
+          npx playwright test e2e/staff-permissions.spec.ts e2e/waitlist-admin.spec.ts e2e/email-operations.spec.ts e2e/user-administration.spec.ts --project desktop-chromium 2>&1 | tee staff-waitlist-e2e.log
+      - name: Upload staff and waitlist diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: staff-waitlist-diagnostics
+          path: |
+            staff-waitlist-e2e.log
+            staff-onboarding-e2e.log
             playwright-report
             test-results
           if-no-files-found: ignore

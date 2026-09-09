@@ -47,6 +47,29 @@ describe("encrypted backup archive", () => {
     await expect(readFile(files.restored)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it("preserves an existing archive when its output filename is reused", async () => {
+    const files = await fixture();
+    const key = randomBytes(32).toString("hex");
+    await writeFile(files.source, "first recoverable backup");
+    await encryptFile(files.source, files.archive, key);
+    const original = await readFile(files.archive);
+    await writeFile(files.source, "later data");
+    await expect(encryptFile(files.source, files.archive, key)).rejects.toMatchObject({ code: "EEXIST" });
+    expect(await readFile(files.archive)).toEqual(original);
+    await decryptFile(files.archive, files.restored, key);
+    expect(await readFile(files.restored, "utf8")).toBe("first recoverable backup");
+  });
+
+  it("preserves an existing restore output when exclusive creation fails", async () => {
+    const files = await fixture();
+    const key = randomBytes(32).toString("hex");
+    await writeFile(files.source, "encrypted data");
+    await encryptFile(files.source, files.archive, key);
+    await writeFile(files.restored, "do not delete this existing dump");
+    await expect(decryptFile(files.archive, files.restored, key)).rejects.toThrow(/EEXIST/u);
+    expect(await readFile(files.restored, "utf8")).toBe("do not delete this existing dump");
+  });
+
   it("accepts only dedicated 32-byte key material", () => {
     expect(parseBackupKey("00".repeat(32))).toHaveLength(32);
     expect(parseBackupKey(randomBytes(32).toString("base64"))).toHaveLength(32);

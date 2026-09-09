@@ -22,11 +22,11 @@ export async function importSharedMixAction(formData: FormData): Promise<void> {
   const returnTo = templatesReturnTo(formData);
   if (impersonation) fail(returnTo, "Administrator support sessions are view-only.");
   const sharedMixId = value(formData, "sharedMixId");
-  if (!sharedMixId) fail(returnTo, "Choose a ready-made plan.");
+  if (!sharedMixId) fail(returnTo, "Choose a ready-made mix.");
   try {
     const result = await importSharedMixIntoWorkspace({ workspaceId: workspace.id, actorUserId: user.id, sharedMixId });
     redirect(`/mixes/${result.mixId}/edit?imported=${result.importNumber}`);
   } catch (error) {
-    fail(returnTo, error instanceof Error ? error.message : "The ready-made plan could not be added.");
+    fail(returnTo, error instanceof Error ? error.message : "The ready-made mix could not be added.");
   }
 }

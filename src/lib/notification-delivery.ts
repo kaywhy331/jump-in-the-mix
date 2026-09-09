@@ -1,6 +1,7 @@
-import webPush from "web-push";
 import type { NotificationDeliveryKind } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
+import { sendFollowUpPush } from "@/lib/follow-up-push";
+import { DEFAULT_PERSONAL_SCHEDULING } from "@/lib/personal-scheduling";
 import { formatDateTime } from "@/lib/format";
 import {
   addLogicalDays,
@@ -213,6 +214,10 @@ async function sendDigest(input: {
       await finishDelivery(deliveryId, input.workerId, { skipped: true });
       return true;
     }
+    if (!await emailSummaryStillEnabled(input.workspaceId, input.userId, "emailDigestEnabled")) {
+      await finishDelivery(deliveryId, input.workerId, { skipped: true });
+      return true;
+    }
     const message = digestMessage({ ...input, due: due.items, overdueCount: due.overdueCount });
     const result = await sendTransactionalEmail({
       to: input.email,
@@ -280,6 +285,10 @@ async function sendWeeklyReport(input: {
     ];
     const text = [`Hi ${input.ownerName},`, "", `Here’s last week at ${input.company}:`, ...lines.map((line) => `• ${line}`), "", `Open Today: ${env.appUrl.replace(/\/$/, "")}/jumps`].join("\n");
     const html = `<p>Hi ${escapeHtml(input.ownerName)},</p><p>Here’s last week at ${escapeHtml(input.company)}:</p><ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul><p><a href="${escapeHtml(env.appUrl.replace(/\/$/, "") + "/jumps")}">Open Today</a></p>`;
+    if (!await emailSummaryStillEnabled(input.workspaceId, input.userId, "weeklyReportEnabled")) {
+      await finishDelivery(deliveryId, input.workerId, { skipped: true });
+      return true;
+    }
     const result = await sendTransactionalEmail({ to: input.email, subject: `Your week at ${input.company}`, text, html, idempotencyKey: `weekly-report:${input.workspaceId}:${input.localDate}` });
     await finishDelivery(deliveryId, input.workerId, { providerId: result.providerId });
     return true;
@@ -290,57 +299,9 @@ async function sendWeeklyReport(input: {
   }
 }
 
-function pushExpired(error: unknown): boolean {
-  const status = error && typeof error === "object" && "statusCode" in error ? Number(error.statusCode) : 0;
-  return status === 404 || status === 410;
-}
-
-async function sendDuePush(input: {
-  workspaceId: string;
-  userId: string;
-  localDate: string;
-  now: Date;
-  workerId: string;
-}): Promise<boolean> {
-  const due = await prisma.jump.count({ where: { workspaceId: input.workspaceId, status: "PENDING", scheduledAt: { lte: input.now } } });
-  if (!due) return false;
-  const deliveryId = await claimDelivery({ ...input, kind: "DUE_PUSH" });
-  if (!deliveryId) return false;
-  try {
-    if (!env.vapidPublicKey || !env.vapidPrivateKey) {
-      await finishDelivery(deliveryId, input.workerId, { skipped: true });
-      return true;
-    }
-    const subscriptions = await prisma.pushSubscription.findMany({ where: { workspaceId: input.workspaceId, userId: input.userId } });
-    if (!subscriptions.length) {
-      await prisma.notificationPreference.updateMany({ where: { workspaceId: input.workspaceId, userId: input.userId }, data: { pushEnabled: false } });
-      await finishDelivery(deliveryId, input.workerId, { skipped: true });
-      return true;
-    }
-    webPush.setVapidDetails(env.vapidSubject, env.vapidPublicKey, env.vapidPrivateKey);
-    const body = due === 1 ? "1 follow-up is ready." : `${due} follow-ups are ready.`;
-    const payload = JSON.stringify({ title: "Your follow-ups are ready", body, url: "/jumps", tag: `jitm-due-${input.localDate}` });
-    let delivered = 0;
-    let transientFailure: unknown = null;
-    for (const subscription of subscriptions) {
-      try {
-        await webPush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload, { TTL: 60 * 60, urgency: "normal" });
-        delivered += 1;
-        await prisma.pushSubscription.updateMany({ where: { id: subscription.id }, data: { lastUsedAt: input.now } });
-      } catch (error) {
-        if (pushExpired(error)) await prisma.pushSubscription.deleteMany({ where: { id: subscription.id } });
-        else transientFailure = error;
-      }
-    }
-    if (!delivered && transientFailure) throw transientFailure;
-    if (!delivered) await prisma.notificationPreference.updateMany({ where: { workspaceId: input.workspaceId, userId: input.userId }, data: { pushEnabled: false } });
-    await finishDelivery(deliveryId, input.workerId, { skipped: !delivered, providerId: delivered ? `web-push:${delivered}` : null });
-    return true;
-  } catch (error) {
-    await failDelivery(deliveryId, input.workerId, error);
-    console.error(`Push delivery failed for workspace ${input.workspaceId}`, safeError(error));
-    return false;
-  }
+async function emailSummaryStillEnabled(workspaceId: string, userId: string, preference: "emailDigestEnabled" | "weeklyReportEnabled") {
+  const owner = await prisma.workspace.findFirst({ where: { id: workspaceId, ownerId: userId, owner: { suspendedAt: null } }, select: { id: true } });
+  return Boolean(owner && await prisma.notificationPreference.findFirst({ where: { workspaceId, userId, [preference]: true }, select: { id: true } }));
 }
 
 export async function runScheduledNotifications(workerId: string, now = new Date()): Promise<{ attempted: number }> {
@@ -351,7 +312,7 @@ export async function runScheduledNotifications(workerId: string, now = new Date
   const workspaceIds = notificationPreferences.map((item) => item.workspaceId);
   const userIds = notificationPreferences.map((item) => item.userId);
   const [workspaces, userPreferences, schedulingPreferences] = await Promise.all([
-    prisma.workspace.findMany({ where: { id: { in: workspaceIds } }, select: { id: true, name: true, owner: { select: { id: true, name: true, email: true } }, profile: { select: { company: true } } } }),
+    prisma.workspace.findMany({ where: { id: { in: workspaceIds }, owner: { suspendedAt: null } }, select: { id: true, name: true, owner: { select: { id: true, name: true, email: true } }, profile: { select: { company: true } } } }),
     prisma.userPreference.findMany({ where: { userId: { in: userIds } } }),
     prisma.workspacePreference.findMany({ where: { workspaceId: { in: workspaceIds } } })
   ]);
@@ -362,7 +323,7 @@ export async function runScheduledNotifications(workerId: string, now = new Date
 
   for (const preference of notificationPreferences) {
     const workspace = workspaceById.get(preference.workspaceId);
-    if (!workspace) continue;
+    if (!workspace?.owner || workspace.owner.id !== preference.userId) continue;
     const display = displayByUser.get(preference.userId);
     const timeZone = isValidTimezone(display?.timezone ?? "") ? display!.timezone : "UTC";
     let clock: NotificationClock;
@@ -380,11 +341,11 @@ export async function runScheduledNotifications(workerId: string, now = new Date
     if (preference.weeklyReportEnabled && weeklyReportIsDue(clock, preference.digestHour)) {
       if (await sendWeeklyReport({ ...common, start: zonedDateTimeToUtc(addLogicalDays(logicalToday, -7), 0, effectiveDisplay.timeZone) })) attempted += 1;
     }
-    const scheduling = schedulingByWorkspace.get(workspace.id);
+    const scheduling = schedulingByWorkspace.get(workspace.id) ?? DEFAULT_PERSONAL_SCHEDULING;
     const localMinutes = clock.hour * 60 + clock.minute;
-    const quiet = scheduling ? isQuietTime(localMinutes, scheduling.quietHoursStart, scheduling.quietHoursEnd) : false;
+    const quiet = isQuietTime(localMinutes, scheduling.quietHoursStart, scheduling.quietHoursEnd);
     if (preference.pushEnabled && !quiet) {
-      if (await sendDuePush({ workspaceId: workspace.id, userId: preference.userId, localDate: common.localDate, now, workerId })) attempted += 1;
+      attempted += await sendFollowUpPush({ workspaceId: workspace.id, userId: preference.userId, now });
     }
   }
   return { attempted };

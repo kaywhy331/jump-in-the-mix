@@ -1,6 +1,7 @@
 "use server";
 
 import bcrypt from "bcryptjs";
+import { accountHome } from "@/lib/account-home";
 import { redirect } from "next/navigation";
 import { createSession, destroyAllSessionsForUser, destroyOtherSessions, destroySession, requireSession, requireWorkspace, rotateSession } from "@/lib/auth";
 import { AUTH_TOKEN_PURPOSES, findUsableAuthToken, hashAuthToken, issueAuthToken } from "@/lib/auth-tokens";
@@ -11,8 +12,10 @@ import { PilotRegistrationClosedError, registrationAllowed } from "@/lib/pilot-r
 import { prisma } from "@/lib/prisma";
 import { clearRateLimit, consumeRateLimit, releaseRateLimitAttempt } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
-import { slugify } from "@/lib/slug";
+import { createBusinessAccount } from "@/lib/account-provisioning";
+import { AccessInviteError, validAccessToken } from "@/lib/referral-access";
 import { transactionalEmailConfigured } from "@/lib/transactional-email";
+import { lockAccess } from "@/lib/access-lock";
 
 const DUMMY_PASSWORD_HASH = "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
@@ -59,7 +62,10 @@ export async function registerAction(formData: FormData): Promise<void> {
   const name = value(formData, "name");
   const email = normalizedEmail(value(formData, "email"));
   const password = value(formData, "password");
-  const path = "/register";
+  const accessToken = value(formData, "invite");
+  const path = accessToken ? `/register?invite=${encodeURIComponent(accessToken)}` : "/register";
+  const mustVerify = !env.pilotMode || env.requireEmailVerification;
+  if (!env.pilotMode && !validAccessToken(accessToken)) fail("/register", "Open the unique invitation link sent to your email to create an account.");
 
   await enforceRateLimit(path, { scope: "auth.register.ip", identifiers: [metadata.ipAddress], limit: 8, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 });
   await enforceRateLimit(path, { scope: "auth.register.email", identifiers: [email], limit: 3, windowMs: 24 * 60 * 60 * 1000, blockMs: 24 * 60 * 60 * 1000 });
@@ -67,7 +73,7 @@ export async function registerAction(formData: FormData): Promise<void> {
   if (!name || name.length > 120 || !validEmail(email)) fail(path, "Enter your name and a valid email.");
   const passwordError = passwordValidationError(password);
   if (passwordError) fail(path, passwordError);
-  if (env.requireEmailVerification && process.env.NODE_ENV === "production" && !transactionalEmailConfigured()) {
+  if (mustVerify && process.env.NODE_ENV === "production" && !transactionalEmailConfigured()) {
     fail(path, "Account verification is temporarily unavailable. Please contact support.");
   }
 
@@ -81,39 +87,10 @@ export async function registerAction(formData: FormData): Promise<void> {
       if (!registrationAllowed(env.pilotMode, await tx.user.count())) {
         throw new PilotRegistrationClosedError();
       }
-      const created = await tx.user.create({
-        data: {
-          email,
-          name,
-          passwordHash,
-          emailVerifiedAt: env.requireEmailVerification ? null : new Date()
-        },
-        select: { id: true, email: true, name: true }
-      });
-      const workspaceSlug = `${slugify(name) || "personal"}-${created.id.slice(-7)}`;
-      const createdWorkspace = await tx.workspace.create({
-        data: {
-          name: `${name}'s business`,
-          slug: workspaceSlug,
-          ownerId: created.id,
-          members: { create: { userId: created.id, role: "OWNER" } },
-          profile: { create: {} },
-          groups: {
-            create: [
-              { name: "Leads", description: "People who may become customers." },
-              { name: "Clients", description: "Active customer relationships." },
-              { name: "Referrals", description: "People introduced by your network." }
-            ]
-          }
-        },
-        select: { id: true }
-      });
-      await tx.userPreference.create({ data: { userId: created.id, timezone: "UTC" } });
-      await tx.workspacePreference.create({ data: { workspaceId: createdWorkspace.id } });
-      await tx.notificationPreference.create({ data: { workspaceId: createdWorkspace.id, userId: created.id } });
-      return created;
+      return createBusinessAccount(tx, { email, name, passwordHash, emailVerifiedAt: mustVerify ? null : new Date(), accessToken });
     }, { isolationLevel: "Serializable" });
   } catch (error) {
+    if (error instanceof AccessInviteError) fail(path, error.message);
     if (error instanceof PilotRegistrationClosedError) {
       fail("/login", "Owner setup is complete. Sign in with the owner account.");
     }
@@ -122,12 +99,13 @@ export async function registerAction(formData: FormData): Promise<void> {
     if (env.pilotMode && code === "P2034" && (await prisma.user.count()) > 0) {
       fail("/login", "Owner setup is complete. Sign in with the owner account.");
     }
+    if (code === "P2034") fail(path, "Another access request was processed at the same time. Please try again.");
     throw error;
   }
 
   await clearRateLimit("auth.register.email", [email]);
 
-  if (env.requireEmailVerification) {
+  if (mustVerify) {
     const delivery = await deliverVerification(user.email, user.name);
     const params = new URLSearchParams({ email: user.email, sent: "1" });
     if (delivery.devToken) params.set("devToken", delivery.devToken);
@@ -151,8 +129,9 @@ export async function loginAction(formData: FormData): Promise<void> {
   const user = validEmail(email) ? await prisma.user.findUnique({ where: { email } }) : null;
   const matches = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH).catch(() => false);
   if (!user || !matches) fail(path, "The email or password is incorrect.");
+  if (user.suspendedAt) fail(path, "Account access is paused. Contact support for help.");
 
-  if (env.requireEmailVerification && !user.emailVerifiedAt) {
+  if ((env.requireEmailVerification || !env.pilotMode) && !user.emailVerifiedAt) {
     redirect(`/verify-email/pending?email=${encodeURIComponent(user.email)}`);
   }
 
@@ -165,7 +144,7 @@ export async function loginAction(formData: FormData): Promise<void> {
     where: { userId: user.id },
     include: { workspace: { include: { profile: true } } }
   });
-  redirect(membership?.workspace.profile?.onboardingDone ? "/jumps" : "/onboarding");
+  redirect(await accountHome(user.id, membership?.workspace.profile?.onboardingDone ? "/jumps" : "/onboarding"));
 }
 
 export async function requestMagicLinkAction(formData: FormData): Promise<void> {
@@ -176,6 +155,14 @@ export async function requestMagicLinkAction(formData: FormData): Promise<void> 
   await enforceRateLimit(path, { scope: "auth.magic.email", identifiers: [email], limit: 5, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 });
   if (!validEmail(email)) fail(path, "Enter a valid email address.");
   if (!transactionalEmailConfigured()) fail(path, "Email sign-in is not configured on this server. Use your password instead.");
+  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true, suspendedAt: true } });
+  if (existing?.suspendedAt) redirect("/login?magicSent=1");
+  if (!existing) {
+    const allowed = env.pilotMode
+      ? await prisma.user.count() === 0
+      : false;
+    if (!allowed) redirect("/login?magicSent=1");
+  }
   const token = await issueAuthToken(email, AUTH_TOKEN_PURPOSES.magicLogin, 15 * 60_000);
   try {
     await sendMagicLoginEmail(email, token);
@@ -200,7 +187,7 @@ export async function demoLoginAction(): Promise<void> {
 
 export async function logoutAction(): Promise<void> {
   await destroySession();
-  redirect("/");
+  redirect("/signed-out");
 }
 
 export async function resendVerificationAction(formData: FormData): Promise<void> {
@@ -278,6 +265,7 @@ export async function resetPasswordAction(formData: FormData): Promise<void> {
   const passwordHash = await bcrypt.hash(password, 12);
   const now = new Date();
   await prisma.$transaction(async (tx) => {
+    await lockAccess(tx);
     const claim = await tx.verificationToken.updateMany({
       where: { id: tokenRecord.id, tokenHash: hashAuthToken(token), usedAt: null, expiresAt: { gt: now } },
       data: { usedAt: now }
@@ -339,5 +327,5 @@ export async function signOutEverywhereAction(): Promise<void> {
   const session = await requireSession();
   await destroyAllSessionsForUser(session.userId);
   await destroySession();
-  redirect("/login?signedOutEverywhere=1");
+  redirect("/signed-out?everywhere=1");
 }

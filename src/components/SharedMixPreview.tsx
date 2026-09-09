@@ -12,7 +12,7 @@ function sharedMixChannelIcon(channel: SharedMixStep["channel"]): AppIconName {
 }
 
 function dayLabel(offset: number): string {
-  if (offset === 0) return "Trigger day";
+  if (offset === 0) return "Cue day";
   return offset > 0 ? `${offset} day${offset === 1 ? "" : "s"} after` : `${Math.abs(offset)} day${offset === -1 ? "" : "s"} before`;
 }
 
@@ -41,7 +41,7 @@ export function SharedMixPreview({
         const time = formatSharedMixTime(step.sendTimeMinutes);
         return (
           <article className="shared-mix-step" key={`${index}-${step.name}`}>
-            <span className="shared-mix-step-number">Follow-up {index + 1}</span>
+            <span className="shared-mix-step-number">Beat {index + 1}</span>
             <span className="shared-mix-channel-icon"><AppIcon name={sharedMixChannelIcon(step.channel)} /></span>
             <span className="shared-mix-step-copy">
               <strong>{step.name}</strong>
@@ -58,11 +58,11 @@ export function SharedMixPreview({
       {steps.map((step, index) => (
         <article className="shared-mix-content-card" key={`${index}-${step.name}-content`}>
           <div className="section-label">
-            <h4>Follow-up {index + 1} · {step.name}</h4>
+            <h4>Beat {index + 1} · {step.name}</h4>
             <span>{sharedMixChannelLabel(step.channel)}</span>
           </div>
           {step.subject && <p><strong>Subject:</strong> {step.subject}</p>}
-          <p className="shared-mix-message">{contentForStep(step)}</p>
+          <p className={`shared-mix-message ${step.channel === "PHONE_CALL" || step.channel === "VOICEMAIL" ? "conversation-note" : "speech-bubble"}`}>{contentForStep(step)}</p>
         </article>
       ))}
     </div>
@@ -71,10 +71,10 @@ export function SharedMixPreview({
   return (
     <div className="shared-mix-preview">
       <div className="shared-mix-trigger-summary">
-        <span><strong>Starts</strong>{triggerMode === "DATE_TRIGGERED" ? "from a date" : triggerMode === "MANUAL_START" ? "when you choose" : "on one date"}</span>
+        <span><strong>Cue · starts</strong>{triggerMode === "DATE_TRIGGERED" ? "from a date" : triggerMode === "MANUAL_START" ? "when you choose" : "on one date"}</span>
         {dateTypeName && <span><strong>Starts from</strong>{dateTypeName}</span>}
-        <span><strong>Length</strong>{durationDays} day{durationDays === 1 ? "" : "s"}</span>
-        <span><strong>Follow-ups</strong>{steps.length}</span>
+        <span><strong>Tempo · span</strong>{durationDays} day{durationDays === 1 ? "" : "s"}</span>
+        <span><strong>Beats</strong>{steps.length}</span>
       </div>
       {summary}
       {expanded ? details : (

@@ -10,11 +10,18 @@ The primary product is a hosted free beta. A Docker-based, single-owner edition 
 - Contacts: live search, notes and timeline, saved dates, archive/restore, and duplicate review
 - Plans: vertical ready-made plans and a simple custom-plan builder
 - Quick Add and resumable CSV/VCF imports
+- Configurable customer journeys with milestone rules, manual overrides, and pauses
+- Meetings, time blocks, and iCalendar import/export/subscriptions
+- Hosted lead forms and authenticated intake connections for external tools
 - Business profile, scheduling preferences, digests, Web Push, sessions, spreadsheet/JSON export, and account deletion
 - Optional, review-window-protected email/SMS delivery and review/referral requests
 - PostgreSQL-backed persistence, a background worker, health checks, and encrypted backup/restore tooling
 
 The free beta does not include billing, paid tiers, teams, Google Contacts sync, Stripe, an AI plan wizard, or signup-reward referrals.
+
+Stripe is planned for future payments. The anticipated Route 53/Render production structure, separate private testing environment, and open launch decisions are recorded in [Production structure and launch preparation](docs/PRODUCTION_LAUNCH_PLAN.md). Payment timing remains undecided. Production deployment is the active objective; current verification and external access requirements are tracked in [Product completion](docs/PRODUCT_COMPLETION.md).
+
+See [Customer journeys, calendars, and lead connections](docs/CUSTOMER_JOURNEY_AND_CONNECTIONS.md) for setup, supported formats, and provider limitations. Current verification and remaining release requirements are tracked in [Product quality gates](docs/PRODUCT_QUALITY_GATES.md).
 
 ## Hosted deployment
 
@@ -22,7 +29,7 @@ For Netlify, use [docs/NETLIFY_DEPLOYMENT.md](docs/NETLIFY_DEPLOYMENT.md), which
 
 The hosted topology is one web service, one worker service, and PostgreSQL. The checked-in deployment blueprint provisions that topology and runs committed migrations before the web release. See [docs/HOSTED_DEPLOYMENT.md](docs/HOSTED_DEPLOYMENT.md) for required secrets, DNS/provider setup, rollback, and smoke checks.
 
-Hosted production requires HTTPS, verified transactional email, strong unique secrets, and provider credentials for each enabled sign-in or delivery option. `PILOT_MODE` and `DEMO_MODE` must both be false.
+Hosted production requires HTTPS, verified transactional email, strong unique secrets, provider credentials for each enabled sign-in or delivery option, and the actual operator/support/backup details used by the [public notices](docs/PUBLIC_POLICY_DRAFT.md). `PILOT_MODE` and `DEMO_MODE` must both be false.
 
 ## Self-hosted requirements
 
@@ -68,9 +75,11 @@ npm run pilot:restore -- backup-file.jitm-backup.enc --confirm=RESTORE
 npm run pilot:upgrade
 ```
 
-A restore requires an adjacent manifest and a separately configured, empty `RESTORE_DATABASE_URL`; in-place restore is blocked. An upgrade creates an encrypted backup before rebuilding or migrating. See [the pilot runbook](docs/PILOT_RUNBOOK.md) before operating real relationship data.
+A restore requires an adjacent manifest and a separately configured, empty, isolated `RESTORE_DATABASE_URL`; in-place restore is blocked. It leaves the target under an application recovery hold. Post-backup privacy/access reconciliation and a guarded release command remain required before reopening; see [restore recovery](docs/RESTORE_RECOVERY.md). An upgrade creates an encrypted backup before rebuilding or migrating. See [the pilot runbook](docs/PILOT_RUNBOOK.md) before operating real relationship data.
 
 The operator owns backup retention and must test restoration. Local encrypted files are not offsite backups.
+
+For a full archive with matching encrypted recovery evidence, use `npm run db:backup-recovery`. The [complete recovery bundle runbook](docs/RECOVERY_BUNDLES.md) covers its three files, verified restoration, and the reviewed command for taking an available source offline at a known cutoff. The [guarded reopening command](docs/RECOVERY_REOPENING.md) restores fresh Owner access, invalidates old integration credentials and rebuilds safe background work before releasing the target hold.
 
 ## Development and validation
 

@@ -4,15 +4,10 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 
 function cityLabel(zone: string): string {
-  const city = zone.split("/").at(-1)?.replaceAll("_", " ") ?? zone;
-  try {
-    const abbreviation = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "short" })
-      .formatToParts(new Date()).find((part) => part.type === "timeZoneName")?.value;
-    return abbreviation ? `${city} (${abbreviation})` : city;
-  } catch {
-    return city;
-  }
+  return zone === "UTC" ? "Coordinated Universal Time (UTC)" : zone.split("/").slice(1).join(" / ").replaceAll("_", " ") || zone;
 }
+
+const INITIAL_ZONES = ["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "Europe/London", "Asia/Tokyo", "Australia/Sydney"];
 
 export function TimezonePicker({
   defaultValue,
@@ -31,9 +26,9 @@ export function TimezonePicker({
   const [query, setQuery] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
-  const zones = useMemo(() => typeof Intl.supportedValuesOf === "function"
-    ? Intl.supportedValuesOf("timeZone")
-    : ["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles"], []);
+  // ICU lists and abbreviations differ between the server and browsers.
+  // The first render is deterministic; discover the browser's full list after hydration.
+  const [zones, setZones] = useState(INITIAL_ZONES);
   const visibleZones = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const sorted = [...zones].sort((left, right) => cityLabel(left).localeCompare(cityLabel(right)));
@@ -46,6 +41,7 @@ export function TimezonePicker({
   };
 
   useEffect(() => {
+    if (typeof Intl.supportedValuesOf === "function") setZones(["UTC", ...Intl.supportedValuesOf("timeZone")]);
     if (!confirmDetection) return;
     const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (detected) setValue(detected);

@@ -28,6 +28,8 @@ async function main() {
     }
   });
 
+  await prisma.staffMembership.upsert({ where: { userId: user.id }, create: { userId: user.id, role: "OWNER", grants: ["support.view_customer"] }, update: { role: "OWNER", status: "ACTIVE", grants: ["support.view_customer"], denies: [] } });
+
   await prisma.workspaceMember.upsert({
     where: { workspaceId_userId: { workspaceId, userId: user.id } },
     create: { id: "e2e_admin_membership", workspaceId, userId: user.id, role: "OWNER" },

@@ -96,6 +96,18 @@ export function GlobalLiveSearch() {
   }, [router]);
 
   useEffect(() => {
+    // A link such as “Clear filters” changes the URL without remounting an
+    // uncontrolled form. Keep its controls in sync, preserving in-progress typing.
+    document.querySelectorAll<HTMLFormElement>(FILTER_FORM_SELECTOR).forEach((form) => {
+      if (!shouldEnhance(form) || new URL(form.action, window.location.href).pathname !== pathname) return;
+      form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input[name="q"], select[name]').forEach((control) => {
+        if (control === document.activeElement) return;
+        const value = searchParams.get(control.name) ?? "";
+        control.value = control instanceof HTMLSelectElement && !Array.from(control.options).some(option => option.value === value)
+          ? control.options[0]?.value ?? ""
+          : value;
+      });
+    });
     document.querySelectorAll<HTMLFormElement>('[data-live-pending="true"]').forEach((form) => {
       delete form.dataset.livePending;
     });

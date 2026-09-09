@@ -1,3 +1,4 @@
+import { accountHome } from "@/lib/account-home";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT, type JWTPayload } from "jose";
 import type { AuthProvider, Prisma } from "@/generated/prisma/client";
@@ -186,7 +187,7 @@ export async function completeSocialAuthorization(input: {
     if (code !== "P2002" && code !== "P2034") throw error;
     account = await findOrCreateSocialUser(input.provider, profile);
   }
-  return { userId: account.userId, returnTo: safeOAuthReturnTo(state.returnTo) ?? (account.onboardingDone ? "/jumps" : "/onboarding") };
+  return { userId: account.userId, returnTo: safeOAuthReturnTo(state.returnTo) ?? await accountHome(account.userId, account.onboardingDone ? "/jumps" : "/onboarding") };
 }
 
 export type SocialAuthTransaction = Prisma.TransactionClient;

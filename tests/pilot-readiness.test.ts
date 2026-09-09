@@ -31,6 +31,13 @@ describe("single-user pilot packaging", () => {
     expect(issues).toContain("DEMO_MODE must be false");
   });
 
+  it("requires administrator MFA on a public hosted release", () => {
+    const hosted = { ...securePilotEnvironment, PILOT_MODE: "false", APP_URL: "https://app.example.test" };
+    expect(productionConfigurationIssues({ ...hosted, AUTH_REQUIRE_ADMIN_MFA: "false" })).toContain("AUTH_REQUIRE_ADMIN_MFA must be true for hosted production");
+    expect(productionConfigurationIssues(hosted)).not.toContain("AUTH_REQUIRE_ADMIN_MFA must be true for hosted production");
+    expect(productionConfigurationIssues({ ...hosted, AUTH_REQUIRE_ADMIN_MFA: "true" })).not.toContain("AUTH_REQUIRE_ADMIN_MFA must be true for hosted production");
+  });
+
   it("allows exactly the first account in pilot mode without changing development registration", () => {
     expect(registrationAllowed(true, 0)).toBe(true);
     expect(registrationAllowed(true, 1)).toBe(false);
@@ -67,6 +74,6 @@ describe("single-user pilot packaging", () => {
   it("keeps database-backed tests bounded and ignores local evidence artifacts", () => {
     const config = readFileSync("vitest.config.ts", "utf8");
     expect(config).toContain('".artifacts/**"');
-    expect(config).toContain("maxWorkers: 4");
+    expect(config).toContain("fileParallelism: false");
   });
 });
