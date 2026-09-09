@@ -24,7 +24,7 @@ function authenticate(value, purpose, key) {
 }
 async function connect(url) {
   const client = new Client({ connectionString: postgresCliUrl(url), connectionTimeoutMillis: 5000, statement_timeout: 15_000, application_name: "jitm-recovery-source-cutoff" });
-  client.on("error", () => undefined); await client.connect(); return client;
+  client.on("error", () => undefined); await client.connect().catch(async error => { await client.end().catch(() => undefined); throw error; }); return client;
 }
 async function database(client, sourceUrl) {
   const result = await client.query(`SELECT d.oid,d.datname,d.datallowconn,d.datistemplate,d.xmin::text AS "catalogVersion",pg_snapshot_xmax(pg_current_snapshot())::text AS "observedXid",

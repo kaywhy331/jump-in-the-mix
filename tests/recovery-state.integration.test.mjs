@@ -178,8 +178,9 @@ describe.skipIf(!baseUrl).sequential("authenticated recovery state and held-targ
   });
   it("uses read-only credentials and refuses row-security filtering", async () => {
     const role = `recovery_reader_${suffix}`;
-    await admin.query(`CREATE ROLE ${quoteIdentifier(role)} LOGIN`);
-    const readerUrl = new URL(sourceUrl); readerUrl.username = role; readerUrl.password = "";
+    const password = randomBytes(24).toString("hex");
+    await admin.query(`CREATE ROLE ${quoteIdentifier(role)} LOGIN PASSWORD '${password}'`);
+    const readerUrl = new URL(sourceUrl); readerUrl.username = role; readerUrl.password = password;
     try {
       await source.query(`GRANT USAGE ON SCHEMA public TO ${quoteIdentifier(role)}; GRANT SELECT ON ALL TABLES IN SCHEMA public TO ${quoteIdentifier(role)}`);
       const read = await captureRecoveryState(readerUrl.href); expect(read.tables).toEqual(current.tables);

@@ -88,6 +88,18 @@ describe("private test deployments", () => {
     expect((await proxy(new NextRequest(new URL("/.netlify/functions/jump-worker-background", testEnvironment.APP_URL), { headers }))).status).toBe(401);
   });
 
+  it("publishes only fixed deny-all crawler rules without private-site credentials", async () => {
+    configure();
+    const address = new URL("/robots.txt", testEnvironment.APP_URL);
+    const response = await proxy(new NextRequest(address));
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("User-agent: *\nDisallow: /\n");
+    expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+    expect(response.headers.get("www-authenticate")).toBeNull();
+    expect((await proxy(new NextRequest(address, { method: "POST" }))).status).toBe(401);
+    expect((await proxy(new NextRequest(new URL("/sitemap.xml", testEnvironment.APP_URL)))).status).toBe(401);
+  });
+
   it("enforces the same access password inside authentication actions", async () => {
     configure();
     requestHeaders.mockResolvedValue(new Headers());

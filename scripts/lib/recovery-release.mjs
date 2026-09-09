@@ -30,7 +30,7 @@ function configuration(source, targetUrl, key) {
   assert(productionConfigurationIssues(environment).length === 0 && (source.AUTH_REQUIRE_ADMIN_MFA ?? "true").toLowerCase() === "true", "The intended runtime configuration must pass production checks and require staff MFA.");
   // Bind the entire supplied runtime configuration subset, including provider
   // credentials, without publishing secrets or permitting offline guesses.
-  const names = Object.keys(source).filter(name => /^(APP_URL|PILOT_MODE|DEMO_MODE|AUTH_|DATA_ENCRYPTION_KEY|RESEND_|EMAIL_|PRIVATE_TEST_|TWILIO_|WEB_PUSH_|WORKER_|NETLIFY_WORKER_|REPORT_)/.test(name)).sort();
+  const names = Object.keys(source).filter(name => /^(APP_URL|PILOT_MODE|DEMO_MODE|AUTH_|DATA_ENCRYPTION_KEY|RESEND_|EMAIL_|PRIVATE_TEST_|TWILIO_|WEB_PUSH_|WORKER_|NETLIFY_WORKER_|REPORT_|PUBLIC_)/.test(name)).sort();
   const digest = createHmac("sha256", parseBackupKey(key)).update("jitm.recovery-runtime").update(JSON.stringify(names.map(name => [name, source[name]]))).digest("hex");
   return { digest, origin: new URL(source.APP_URL).origin, encryptionKey: source.DATA_ENCRYPTION_KEY, authSecret: source.AUTH_RATE_LIMIT_SECRET?.trim() || source.DATA_ENCRYPTION_KEY?.trim() };
 }
@@ -59,7 +59,7 @@ async function withTarget(sourceUrl, targetUrl, sourceReceipt, options, work) {
   assert(!sameDatabase(sourceUrl, targetUrl), "Recovery requires separate source and target databases.");
   await verifySourceCutoff(sourceUrl, sourceReceipt, { key, signal });
   const client = new Client({ connectionString: postgresCliUrl(targetUrl), connectionTimeoutMillis: 5000, statement_timeout: 15_000, application_name: "jitm-recovery-release" });
-  client.on("error", () => undefined); await client.connect();
+  client.on("error", () => undefined); await client.connect().catch(async error => { await client.end().catch(() => undefined); throw error; });
   try {
     await client.query("BEGIN"); await client.query("SELECT pg_advisory_xact_lock(814733,7)");
     const database = (await client.query("SELECT d.oid, d.datdba=r.oid OR r.rolsuper AS allowed FROM pg_database d CROSS JOIN pg_roles r WHERE d.datname=current_database() AND r.rolname=current_user")).rows[0];

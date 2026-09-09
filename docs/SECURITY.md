@@ -14,6 +14,8 @@ Unsafe browser requests must be same-origin or come from an explicitly allowed o
 
 Responses set a nonce-based Content Security Policy, HSTS on production, MIME sniffing and framing protections, a strict referrer policy, restrictive Permissions Policy, COOP/CORP, and cross-domain-policy denial. Administrator support views are centrally limited to safe methods until explicitly ended.
 
+Private test deployments keep application routes behind their access gate. Their fixed `/robots.txt` response is available to safe unauthenticated requests and disallows all crawling without exposing configuration. Public sitemap and crawler rules list only configured public documents. Crawler directives provide discovery guidance; account and private-site authentication enforce access.
+
 ## Tenant and administrator isolation
 
 `workspaceId` comes from the authenticated session, never trusted browser input. Routes, actions, imports, exports, worker tasks, notifications, review requests, and support access scope every query to it. Integration tests maintain two independent businesses to catch cross-tenant reads and writes.

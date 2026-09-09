@@ -5,6 +5,7 @@ import { Logo } from "@/components/Logo";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { ProductDemo } from "@/components/ProductDemo";
 import { env } from "@/lib/env";
+import { PublicTrustLinks } from "@/components/PublicTrustLinks";
 
 const description = "Keep your contacts, thoughtful follow-ups, and next steps in one simple daily list. Build relationships that matter to you and your business.";
 
@@ -89,6 +90,6 @@ export default function HomePage() {
       <section id="waitlist" className="section" aria-labelledby="waitlist-title"><div className="section-heading"><span className="eyebrow">Free · By invitation</span><h2 id="waitlist-title">Get in the mix.</h2><p>Join our waitlist. Every 7 days, we invite up to 10 people: 5 in signup order and 5 at random. Confirm your email to be eligible. Waves may pause while we make room.</p></div><WaitlistForm /></section>
       <section className="section public-control speech-bubble speech-bubble--soft" aria-labelledby="closing-title"><div className="section-heading"><span className="eyebrow">Simple on purpose</span><h2 id="closing-title">Keep good connections in the mix.</h2><p>Start with one person you’ve been meaning to contact. Keep their details, your next step, and the words you want to say together.</p><p>Join the free-account waitlist. We’ll ask you to confirm your email, then send your personal access link when you’re selected.</p></div><div className="public-closing-action"><Link className="button primary" href="/waitlist">Join the waitlist</Link><span>Your people. Your words. Your pace.</span></div></section>
     </main>
-    <footer className="public-footer"><Logo /><p>A little follow-through goes a long way.</p><nav aria-label="Footer navigation"><a href="#questions">Questions</a><a href="#your-data">Your data</a><Link href="/login">Sign in</Link></nav></footer>
+    <footer className="public-footer"><Logo /><p>A little follow-through goes a long way.</p><nav aria-label="Footer navigation"><a href="#questions">Questions</a><a href="#your-data">Your data</a><Link href="/login">Sign in</Link></nav><PublicTrustLinks /></footer>
   </div>;
 }

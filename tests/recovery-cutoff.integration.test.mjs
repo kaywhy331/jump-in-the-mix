@@ -120,6 +120,18 @@ describe.skipIf(!baseUrl).sequential("reviewed source finalization", () => {
     vi.restoreAllMocks(); expect(await allowed()).toBe(true); expect(await marker()).toBeNull();
   });
 
+  it("closes failed SCRAM authentication attempts without leaving the operator CLI running", async () => {
+    const bad = new URL(sourceUrl); bad.password = randomBytes(24).toString("hex");
+    // Trust-only local servers cannot exercise a rejected password.
+    const probe = new Client({ connectionString: postgresCliUrl(bad.href), connectionTimeoutMillis: 2000 });
+    let rejected = false;
+    try { await probe.connect(); } catch { rejected = true; } finally { await probe.end(); }
+    if (!rejected) return;
+    await expect(prepareSourceCutoff(bad.href, state, manifest, options)).rejects.toThrow("password authentication failed");
+    await expect(cli("scripts/finalize-recovery-source.mjs", ["--input", archive, "--output", join(directory, "bad-auth-plan.json")], { DATABASE_URL: bad.href })).rejects.toThrow("Source finalization did not finish");
+    expect(await allowed()).toBe(true); expect(await marker()).toBeNull();
+  }, 15_000);
+
   it("refuses changed content and connected clients without closing the source", async () => {
     const writer = await connect();
     await expect(apply()).rejects.toThrow("other source clients");
@@ -215,9 +227,10 @@ describe.skipIf(!baseUrl).sequential("reviewed source finalization", () => {
 
   it("refuses a non-owner and even a disabled replication subscription", async () => {
     const role = `jitm_cutoff_reader_${suffix}`;
-    await admin.query(`CREATE ROLE ${quoteIdentifier(role)} LOGIN`);
+    const password = randomBytes(24).toString("hex");
+    await admin.query(`CREATE ROLE ${quoteIdentifier(role)} LOGIN PASSWORD '${password}'`);
     try {
-      const url = new URL(sourceUrl); url.username = role; url.password = "";
+      const url = new URL(sourceUrl); url.username = role; url.password = password;
       await expect(prepareSourceCutoff(url.toString(), state, manifest, options)).rejects.toThrow("database owner");
     } finally { await admin.query(`DROP ROLE ${quoteIdentifier(role)}`); }
     const client = await connect();

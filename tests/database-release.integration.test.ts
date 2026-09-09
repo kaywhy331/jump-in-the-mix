@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { spawn, execFile, type ChildProcess } from "node:child_process";
 import { promisify } from "node:util";
 import { Client } from "pg";
@@ -67,10 +67,11 @@ describe.skipIf(!local).sequential("release schema checks and worker startup on 
   });
   it("keeps a restored database held despite a session override, including for a restricted runtime role", async () => {
     const role = `recovery_${randomUUID().replaceAll("-", "")}`;
-    await admin.query(`CREATE ROLE "${role}" LOGIN`);
+    const password = randomBytes(24).toString("hex");
+    await admin.query(`CREATE ROLE "${role}" LOGIN PASSWORD '${password}'`);
     restore.push(() => sql.query(`ALTER DATABASE "${database}" RESET jitm.recovery_hold`));
     await sql.query(`ALTER DATABASE "${database}" SET jitm.recovery_hold TO 'held'`);
-    const restrictedUrl = new URL(url); restrictedUrl.username = role; restrictedUrl.password = "";
+    const restrictedUrl = new URL(url); restrictedUrl.username = role; restrictedUrl.password = password;
     const limited = new Client({ connectionString: restrictedUrl.href }); await limited.connect();
     const restricted = new PrismaClient({ adapter: new PrismaPg({ connectionString: restrictedUrl.href }), log: [] });
     try {
@@ -118,8 +119,9 @@ describe.skipIf(!local).sequential("release schema checks and worker startup on 
   it("rejects unsafe schema identifiers before making a query", async () => { await expect(checkDatabaseRelease(db, { schema: 'public";DROP SCHEMA public' })).rejects.toThrow("Invalid database schema"); expect((await inspect()).status).toBe("ready"); });
   it("returns a bounded, content-free unavailable state for an unreadable database", async () => {
     const role = `release_${randomUUID().replaceAll("-", "")}`;
-    await admin.query(`CREATE ROLE "${role}" LOGIN`);
-    const restrictedUrl = new URL(url); restrictedUrl.username = role; restrictedUrl.password = "";
+    const password = randomBytes(24).toString("hex");
+    await admin.query(`CREATE ROLE "${role}" LOGIN PASSWORD '${password}'`);
+    const restrictedUrl = new URL(url); restrictedUrl.username = role; restrictedUrl.password = password;
     const restricted = new PrismaClient({ adapter: new PrismaPg({ connectionString: restrictedUrl.href }), log: [] });
     try { expect(await checkDatabaseRelease(restricted, { requireHistory: true })).toMatchObject({ status: "unavailable", missing: 0, mismatched: 0 }); }
     finally { await restricted.$disconnect(); await admin.query(`DROP ROLE "${role}"`); }

@@ -9,6 +9,7 @@ import { pilotRegistrationOpen } from "@/lib/pilot-registration";
 import { prisma } from "@/lib/prisma";
 import { validAccessToken } from "@/lib/referral-access";
 import { getAdmissionPolicy } from "@/lib/admission";
+import { PublicTrustLinks } from "@/components/PublicTrustLinks";
 
 export const metadata: Metadata = { title: "Your invitation", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
@@ -41,5 +42,6 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
         <button className="button primary" type="submit">Create free account</button>
       </form><p>Already have an account? <Link href="/login">Sign in</Link>.</p>
     </>}
+    <PublicTrustLinks />
   </section></main>;
 }

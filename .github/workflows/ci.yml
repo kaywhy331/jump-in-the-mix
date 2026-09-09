@@ -28,6 +28,9 @@ jobs:
       AUTH_ADMIN_MFA_MAX_AGE_MINUTES: "720"
       WORKER_HEARTBEAT_STALE_SECONDS: "90"
       DEMO_MODE: "false"
+      PUBLIC_OPERATOR_NAME: Synthetic CI operator
+      PUBLIC_SUPPORT_EMAIL: support@example.test
+      PUBLIC_BACKUP_RETENTION_NOTICE: Synthetic fixture backups expire after 30 days. This is test configuration and does not describe a live customer service.
       E2E_USER_EMAIL: demo@jumpinthemix.local
       E2E_USER_PASSWORD: JumpInTheMix123!
       E2E_ADMIN_EMAIL: admin-e2e@jumpinthemix.local
@@ -212,6 +215,7 @@ jobs:
       - name: Browser-driven end-to-end tests
         env:
           PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
+          PUBLIC_TRUST_E2E: "1"
         shell: bash
         run: |
           set -o pipefail

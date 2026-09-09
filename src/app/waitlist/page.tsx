@@ -4,6 +4,7 @@ import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { getAdmissionPolicy } from "@/lib/admission";
+import { PublicTrustLinks } from "@/components/PublicTrustLinks";
 
 export const metadata: Metadata = { title: "Join the waitlist" };
 
@@ -22,5 +23,6 @@ export default async function WaitlistPage({ searchParams }: { searchParams: Pro
     <p>Have an invitation? Open the unique link in your email. Already a member? <Link href="/login">Sign in</Link>.</p>
     <p><Link href="/waitlist/leave">Leave the waitlist or stop invitation emails</Link>.</p>
     <Link href="/">Back to home</Link>
+    <PublicTrustLinks />
   </section></main>;
 }

@@ -1,4 +1,5 @@
 import { privateTestConfigurationIssues, privateTestEnabled } from "@/lib/private-test";
+import { publicTrustConfigurationIssues } from "@/lib/public-trust";
 
 const DEFAULT_COOKIE = "jitm_session";
 const DEFAULT_IMPERSONATION_COOKIE = "jitm_impersonation";
@@ -128,6 +129,7 @@ export function productionConfigurationIssues(source: NodeJS.ProcessEnv = proces
 
   if ((source.DEMO_MODE ?? "false").toLowerCase() === "true") issues.push("DEMO_MODE must be false");
   if (!enabled(source.PILOT_MODE)) {
+    if (!privateTest) issues.push(...publicTrustConfigurationIssues(source));
     if (!privateTest && !enabled(source.AUTH_REQUIRE_ADMIN_MFA ?? "true")) issues.push("AUTH_REQUIRE_ADMIN_MFA must be true for hosted production");
     if (!privateTest && !source.RESEND_WEBHOOK_SECRET?.trim()) issues.push("RESEND_WEBHOOK_SECRET is required for hosted production");
     if (!privateTest && !enabled(source.AUTH_REQUIRE_EMAIL_VERIFICATION)) issues.push("AUTH_REQUIRE_EMAIL_VERIFICATION must be true for hosted production");

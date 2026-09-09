@@ -87,7 +87,7 @@ export async function captureRecoveryState(databaseUrl, { targetHold = null, sig
   if (identity.schema !== "public") throw new Error("Recovery state currently requires the public application schema.");
   const client = new Client({ connectionString: postgresCliUrl(databaseUrl), connectionTimeoutMillis: 5000, statement_timeout: 15_000, application_name: "jitm-recovery-state" });
   client.on("error", () => undefined);
-  await client.connect();
+  await client.connect().catch(async error => { await client.end().catch(() => undefined); throw error; });
   try {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
     return await captureRecoveryStateInTransaction(client, databaseUrl, { targetHold, signal });

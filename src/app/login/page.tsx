@@ -1,3 +1,4 @@
+import { PublicTrustLinks } from "@/components/PublicTrustLinks";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
@@ -65,6 +66,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </form>
         </>}
         <div className="auth-footer">{registrationOpen ? <>New here? <Link href="/waitlist"><strong>Join the waitlist</strong></Link></> : <>Owner setup is complete.</>}</div>
+        <PublicTrustLinks />
       </section>
     </main>
   );

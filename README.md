@@ -19,7 +19,7 @@ The primary product is a hosted free beta. A Docker-based, single-owner edition 
 
 The free beta does not include billing, paid tiers, teams, Google Contacts sync, Stripe, an AI plan wizard, or signup-reward referrals.
 
-Stripe is planned for future payments. The anticipated Route 53/Render production structure, separate private testing environment, and open launch decisions are recorded in [Production structure and launch preparation](docs/PRODUCTION_LAUNCH_PLAN.md). Pricing and payment timing remain undecided; production setup and public launch are deferred while the remaining work is finalized.
+Stripe is planned for future payments. The anticipated Route 53/Render production structure, separate private testing environment, and open launch decisions are recorded in [Production structure and launch preparation](docs/PRODUCTION_LAUNCH_PLAN.md). Payment timing remains undecided. Production deployment is the active objective; current verification and external access requirements are tracked in [Product completion](docs/PRODUCT_COMPLETION.md).
 
 See [Customer journeys, calendars, and lead connections](docs/CUSTOMER_JOURNEY_AND_CONNECTIONS.md) for setup, supported formats, and provider limitations. Current verification and remaining release requirements are tracked in [Product quality gates](docs/PRODUCT_QUALITY_GATES.md).
 
@@ -29,7 +29,7 @@ For Netlify, use [docs/NETLIFY_DEPLOYMENT.md](docs/NETLIFY_DEPLOYMENT.md), which
 
 The hosted topology is one web service, one worker service, and PostgreSQL. The checked-in deployment blueprint provisions that topology and runs committed migrations before the web release. See [docs/HOSTED_DEPLOYMENT.md](docs/HOSTED_DEPLOYMENT.md) for required secrets, DNS/provider setup, rollback, and smoke checks.
 
-Hosted production requires HTTPS, verified transactional email, strong unique secrets, and provider credentials for each enabled sign-in or delivery option. `PILOT_MODE` and `DEMO_MODE` must both be false.
+Hosted production requires HTTPS, verified transactional email, strong unique secrets, provider credentials for each enabled sign-in or delivery option, and the actual operator/support/backup details used by the [public notices](docs/PUBLIC_POLICY_DRAFT.md). `PILOT_MODE` and `DEMO_MODE` must both be false.
 
 ## Self-hosted requirements
 

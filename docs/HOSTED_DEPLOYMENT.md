@@ -12,7 +12,7 @@ The hosted edition runs as three independently supervised resources:
 
 [`render.yaml`](../render.yaml) is the checked-in Render Blueprint for this topology. The contract is provider-neutral: another host is suitable when it can run a persistent Node web process, a persistent Node worker, a pre-release migration command, and managed PostgreSQL.
 
-The Blueprint uses current compute identifiers, explicitly selects PostgreSQL 16 and 5 GB of database storage, and pins the locally tested Node 22.22.0 runtime. It prompts for origin/sender secrets on the web service and references those exact values from the worker. Render ignores `sync: false` entries in environment groups, so only fixed values and generated shared application keys live in that group. Optional SMS/push/OAuth credentials are configured there only when enabled. Automatic deploys are off: deploy both services at the same reviewed commit and coordinate migrations with the old worker. The file passed the current [Render Blueprint schema](https://render.com/schema/render.yaml.json) on September 9; account/API validation and hosted execution remain pending. See [Render's specification](https://render.com/docs/blueprint-spec) for secret prompts and current plan identifiers.
+The Blueprint uses current compute identifiers, explicitly selects PostgreSQL 16 and 5 GB of database storage, and pins Node 22.23.2, the latest Node 22 security release in the [official release index](https://nodejs.org/dist/index.json) checked September 9. GitHub CI and container builds use the maintained Node 22 line; final local qualification also uses 22.23.2. It prompts for origin, sender and public operator configuration on the web service and references those exact values from the worker. Render ignores `sync: false` entries in environment groups, so only fixed values and generated shared application keys live in that group. Optional SMS/push/OAuth credentials are configured there only when enabled. Automatic deploys are off: deploy both services at the same reviewed commit and coordinate migrations with the old worker. The file passed the current [Render Blueprint schema](https://render.com/schema/render.yaml.json) on September 9; account/API validation and hosted execution remain pending. See [Render's specification](https://render.com/docs/blueprint-spec) for secret prompts and current plan identifiers.
 
 ## Before the first deploy
 
@@ -29,12 +29,16 @@ Configure these required values in the hosting secret manager:
 | `RESEND_API_KEY` | Verified transactional-email credential |
 | `RESEND_WEBHOOK_SECRET` | Signing secret for the Resend endpoint at `/api/webhooks/resend` |
 | `EMAIL_FROM` | Sender on a verified domain |
+| `EMAIL_REPLY_TO` | Monitored reply mailbox |
+| `PUBLIC_OPERATOR_NAME` | Actual service operator, displayed in the public notices |
+| `PUBLIC_SUPPORT_EMAIL` | Monitored public account/privacy support mailbox |
+| `PUBLIC_BACKUP_RETENTION_NOTICE` | Actual backup expiry and deletion handling; see [Public notices](PUBLIC_POLICY_DRAFT.md) |
 | `AUTH_GOOGLE_CLIENT_ID`, `AUTH_GOOGLE_CLIENT_SECRET` | Optional: complete Google sign-in credentials if enabled |
 | `AUTH_APPLE_CLIENT_ID`, `AUTH_APPLE_TEAM_ID`, `AUTH_APPLE_KEY_ID`, `AUTH_APPLE_PRIVATE_KEY` | Optional: complete Apple sign-in credentials if enabled |
 
 The planned launch combines a public waitlist released in administrator waves with five personal referrals per member. Shared grants, automatic waves, recipient withdrawal, the shared invitation outbox, and granular staff permissions are now implemented locally. Complete the remaining launch qualification before activating them; see [the full infrastructure plan](ADMIN_OPERATIONS_INFRASTRUCTURE_PLAN.md). Configure Resend and `DATA_ENCRYPTION_KEY`, apply reviewed migrations, and use an existing verified owner for the release rehearsal. Google and Apple may remain unset. The [launch plan](PRODUCTION_LAUNCH_PLAN.md) retains the approximately $22/month core starter setup and free-tier limitations.
 
-Set `NODE_ENV=production`, `PILOT_MODE=false`, `DEMO_MODE=false`, `AUTH_REQUIRE_EMAIL_VERIFICATION=true`, and `AUTH_REQUIRE_ADMIN_MFA=true`. The readiness endpoint intentionally returns HTTP 503 if hosted production is missing any required recovery or sign-in configuration.
+Set `NODE_ENV=production`, `PILOT_MODE=false`, `DEMO_MODE=false`, `AUTH_REQUIRE_EMAIL_VERIFICATION=true`, and `AUTH_REQUIRE_ADMIN_MFA=true`. The readiness endpoint intentionally returns HTTP 503 if hosted production is missing any required recovery, sign-in or public operator configuration.
 
 Web Push is enabled only when `WEB_PUSH_VAPID_PUBLIC_KEY`, `WEB_PUSH_VAPID_PRIVATE_KEY`, and `WEB_PUSH_VAPID_SUBJECT` are all present. Generate one VAPID key pair per environment. Automatic SMS delivery remains off for every account unless Twilio credentials are present and the owner explicitly enables it. Automatic follow-up email similarly requires Resend and owner opt-in. Daily digests and weekly reports start off for new preferences; existing members keep their saved settings. Transactional access/verification messages follow their specific user requests. All outgoing application email shares the limits and account reserve described in [Email operations](EMAIL_OPERATIONS.md).
 

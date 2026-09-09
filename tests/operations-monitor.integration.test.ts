@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { Client } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
@@ -43,10 +43,11 @@ it.skipIf(!local)("the independent monitor works with column-level grants and ca
   const admin = new Client({ connectionString: process.env.DATABASE_URL }); await admin.connect();
   let restricted: Client | undefined;
   try {
-    await admin.query(`CREATE ROLE "${role}" LOGIN`);
+    const password = randomBytes(24).toString("hex");
+    await admin.query(`CREATE ROLE "${role}" LOGIN PASSWORD '${password}'`);
     const sql = (await readFile("infra/operations/monitor-grants.sql", "utf8")).replaceAll(':"monitor_role"', `"${role}"`).replaceAll(':"app_schema"', '"public"');
     await admin.query(sql);
-    const url = new URL(process.env.DATABASE_URL!); url.username = role; url.password = "";
+    const url = new URL(process.env.DATABASE_URL!); url.username = role; url.password = password;
     restricted = new Client({ connectionString: url.href }); await restricted.connect();
     for (const sql of ['SELECT email FROM "User"', 'SELECT "messageCiphertext" FROM "WaitlistDelivery"', 'SELECT body FROM \"SupportTicketMessage\"', 'SELECT \"messageCiphertext\" FROM \"SupportEmailDelivery\"', 'SELECT payload FROM "Job"', 'SELECT key FROM "AuthRateLimit"']) await expect(restricted.query(sql)).rejects.toMatchObject({ code: "42501" });
     await expect(restricted.query(`INSERT INTO "PlatformAuditEvent" (id,"actorUserId",action,"entityType") VALUES ('forbidden-actor', $1,'ops.forged','OperationsCheck')`, [f.user.id])).rejects.toMatchObject({ code: "42501" });

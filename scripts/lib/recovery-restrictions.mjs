@@ -65,7 +65,7 @@ export async function prepareRestrictionPlan(databaseUrl, current, manifest, key
   signal?.throwIfAborted();
   const client = new Client({ connectionString: postgresCliUrl(databaseUrl), connectionTimeoutMillis: 5000, statement_timeout: 5000 });
   client.on("error", () => undefined);
-  await client.connect(); let hold;
+  await client.connect().catch(async error => { await client.end().catch(() => undefined); throw error; }); let hold;
   try { await requireRecoveryRelease(client); hold = await readRecoveryHold(client); } finally { await client.end(); }
   assert(hold, "The target must remain held.");
   const restored = await captureRecoveryState(databaseUrl, { targetHold: hold, signal });
@@ -77,7 +77,7 @@ export async function applyRestrictionPlan(databaseUrl, current, manifest, plan,
   verifyPlan(plan, key);
   assert(typeof operator === "string" && operator.trim().length >= 2 && operator.length <= 100 && typeof reason === "string" && reason.trim().length >= 8 && reason.length <= 500, "Record the recovery operator and a concise reason.");
   const client = new Client({ connectionString: postgresCliUrl(databaseUrl), connectionTimeoutMillis: 5000, statement_timeout: 15_000, application_name: "jitm-recovery-restrictions" });
-  client.on("error", () => undefined); await client.connect();
+  client.on("error", () => undefined); await client.connect().catch(async error => { await client.end().catch(() => undefined); throw error; });
   try {
     await client.query("BEGIN"); await client.query("SELECT pg_advisory_xact_lock(814733,7)");
     const owned = (await client.query("SELECT d.datdba=r.oid OR r.rolsuper AS allowed FROM pg_database d CROSS JOIN pg_roles r WHERE d.datname=current_database() AND r.rolname=current_user")).rows[0]?.allowed;

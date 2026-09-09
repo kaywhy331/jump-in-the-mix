@@ -40,7 +40,7 @@ export async function targetRecoveryCutoff(sourceUrl, targetUrl, sourceReceipt, 
   await verifySourceCutoff(sourceUrl, sourceReceipt, { key, signal });
   if (!verifyOnly) assert(typeof operator === "string" && operator.trim().length >= 2 && operator.length <= 100 && typeof reason === "string" && reason.trim().length >= 8 && reason.length <= 500, "Record the target recovery operator and reason.");
   const client = new Client({ connectionString: postgresCliUrl(targetUrl), connectionTimeoutMillis: 5000, statement_timeout: 15_000, application_name: "jitm-recovery-target-cutoff" });
-  client.on("error", () => undefined); await client.connect();
+  client.on("error", () => undefined); await client.connect().catch(async error => { await client.end().catch(() => undefined); throw error; });
   try {
     await client.query("BEGIN"); await client.query("SELECT pg_advisory_xact_lock(814733,7)");
     const owned = (await client.query("SELECT d.datdba=r.oid OR r.rolsuper AS allowed FROM pg_database d CROSS JOIN pg_roles r WHERE d.datname=current_database() AND r.rolname=current_user")).rows[0]?.allowed;

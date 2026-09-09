@@ -106,6 +106,11 @@ function applySecurityHeaders(response: NextResponse, nonce: string): NextRespon
 export async function proxy(request: NextRequest) {
   const nonce = randomBytes(16).toString("base64");
   if (privateTestEnabled()) {
+    // Crawlers treat a 401 robots response as missing rules. This fixed public
+    // response reveals no test configuration and leaves all app access gated.
+    if (request.nextUrl.pathname === "/robots.txt" && SAFE_METHODS.has(request.method.toUpperCase())) {
+      return applySecurityHeaders(new NextResponse("User-agent: *\nDisallow: /\n", { headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow" } }), nonce);
+    }
     const workerHandoff = request.nextUrl.pathname === "/.netlify/functions/jump-worker-background"
       && workerRequestAuthorized(request, process.env.NETLIFY_WORKER_SECRET);
     if (!workerHandoff && !privateTestRequestAuthorized(request.headers)) {
