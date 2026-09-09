@@ -1,12 +1,15 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type {
   Prisma,
-  SupportEmailStatus,
   SupportTicketCategory,
   SupportTicketPriority,
   SupportTicketStatus
 } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { lockStaff } from "@/lib/staff-access";
+import { assertSupportActor, lockSupportTicket } from "@/lib/support-case-access";
+
+import { queueSupportReplyEmail } from "@/lib/support-email-delivery";
 
 export class SupportTicketError extends Error {
   constructor(message: string) {
@@ -25,6 +28,7 @@ async function requesterTicket(
   tx: Prisma.TransactionClient,
   input: { ticketId: string; workspaceId: string; requesterUserId: string }
 ) {
+  await lockSupportTicket(tx, input.ticketId);
   const ticket = await tx.supportTicket.findFirst({
     where: {
       id: input.ticketId,
@@ -191,12 +195,22 @@ export async function reopenSupportTicketRecord(input: {
 export async function adminReplyToSupportTicketRecord(input: {
   ticketId: string;
   adminUserId: string;
+  actorSessionId: string;
+  requestKey: string;
   body: string;
 }) {
+  if (!/^[a-f0-9-]{36}$/i.test(input.requestKey) || input.body.trim().length < 2 || input.body.length > 5000) throw new SupportTicketError("Reload the reply form and write a response of 2–5000 characters.");
+  const requestKey = createHash("sha256").update(JSON.stringify([input.adminUserId, input.ticketId, input.requestKey])).digest("hex");
   const now = new Date();
   return prisma.$transaction(async (tx) => {
-    const ticket = await tx.supportTicket.findUnique({ where: { id: input.ticketId } });
-    if (!ticket) throw new SupportTicketError("Support ticket not found.");
+    await lockStaff(tx);
+    await assertSupportActor(tx, { actorUserId: input.adminUserId, actorSessionId: input.actorSessionId });
+    const ticket = await lockSupportTicket(tx, input.ticketId);
+    const previous = await tx.supportTicketMessage.findUnique({ where: { requestKey } });
+    if (previous) {
+      if (previous.body !== input.body) throw new SupportTicketError("This reply was already saved with different text. Reload before adding another response.");
+      return { ticket, message: previous };
+    }
     if (ticket.status === "CLOSED") {
       throw new SupportTicketError("Reopen this ticket before adding another response.");
     }
@@ -205,10 +219,13 @@ export async function adminReplyToSupportTicketRecord(input: {
         ticketId: ticket.id,
         authorUserId: input.adminUserId,
         authorType: "ADMIN",
+        requestKey,
         body: input.body,
         emailStatus: "PENDING"
       }
     });
+    await queueSupportReplyEmail(tx, ticket, message, input.adminUserId);
+    const savedMessage = await tx.supportTicketMessage.findUniqueOrThrow({ where: { id: message.id } });
     const updatedTicket = await tx.supportTicket.update({
       where: { id: ticket.id },
       data: {
@@ -231,19 +248,21 @@ export async function adminReplyToSupportTicketRecord(input: {
         metadata: { reference: ticket.reference, messageId: message.id }
       }
     });
-    return { ticket: updatedTicket, message };
+    return { ticket: updatedTicket, message: savedMessage };
   });
 }
 
 export async function updateSupportTicketTriage(input: {
   ticketId: string;
   adminUserId: string;
+  actorSessionId: string;
   category: SupportTicketCategory;
   priority: SupportTicketPriority;
 }) {
   return prisma.$transaction(async (tx) => {
-    const ticket = await tx.supportTicket.findUnique({ where: { id: input.ticketId } });
-    if (!ticket) throw new SupportTicketError("Support ticket not found.");
+    await lockStaff(tx);
+    await assertSupportActor(tx, { actorUserId: input.adminUserId, actorSessionId: input.actorSessionId });
+    const ticket = await lockSupportTicket(tx, input.ticketId);
     const updated = await tx.supportTicket.update({
       where: { id: ticket.id },
       data: { category: input.category, priority: input.priority }
@@ -273,13 +292,17 @@ export async function updateSupportTicketTriage(input: {
 export async function updateSupportTicketStatus(input: {
   ticketId: string;
   adminUserId: string;
+  actorSessionId: string;
   status: SupportTicketStatus;
 }) {
   const now = new Date();
   return prisma.$transaction(async (tx) => {
-    const ticket = await tx.supportTicket.findUnique({ where: { id: input.ticketId } });
-    if (!ticket) throw new SupportTicketError("Support ticket not found.");
+    await lockStaff(tx);
+    await assertSupportActor(tx, { actorUserId: input.adminUserId, actorSessionId: input.actorSessionId });
+    const ticket = await lockSupportTicket(tx, input.ticketId);
     const resolving = input.status === "RESOLVED" || input.status === "CLOSED";
+    const ended = resolving ? await tx.adminImpersonation.updateMany({ where: { ticketId: ticket.id, endedAt: null }, data: { endedAt: now } }) : { count: 0 };
+    await tx.platformAuditEvent.create({ data: { actorUserId: input.adminUserId, action: "support.case.status", entityType: "SupportTicket", entityId: ticket.id, beforeData: { status: ticket.status }, afterData: { status: input.status, endedViews: ended.count } } });
     const updated = await tx.supportTicket.update({
       where: { id: ticket.id },
       data: {
@@ -303,22 +326,5 @@ export async function updateSupportTicketStatus(input: {
       }
     });
     return updated;
-  });
-}
-
-export async function updateSupportMessageEmailStatus(input: {
-  messageId: string;
-  status: SupportEmailStatus;
-  providerId?: string | null;
-  error?: string | null;
-}) {
-  return prisma.supportTicketMessage.update({
-    where: { id: input.messageId },
-    data: {
-      emailStatus: input.status,
-      emailProviderId: input.providerId ?? null,
-      emailError: input.error?.slice(0, 2000) ?? null,
-      emailSentAt: input.status === "SENT" ? new Date() : null
-    }
   });
 }

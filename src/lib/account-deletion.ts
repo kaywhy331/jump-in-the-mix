@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { lockStaff } from "@/lib/staff-access";
 
 export type AccountDeletionResult = {
   deleted: boolean;
@@ -31,6 +32,16 @@ export async function deleteAccountData(
   });
 
   await prisma.$transaction(async (tx) => {
+    await lockStaff(tx);
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(814733, 1)`;
+    const pendingStaff = await tx.staffInvitation.findMany({ where: { issuerUserId: userId, acceptedAt: null, revokedAt: null }, select: { id: true } });
+    await tx.staffInvitation.updateMany({ where: { id: { in: pendingStaff.map(row => row.id) } }, data: { revokedAt: new Date() } });
+    await tx.waitlistDelivery.updateMany({ where: { staffInvitationId: { in: pendingStaff.map(row => row.id) }, status: { in: ["QUEUED", "SENDING", "REVIEW"] } }, data: { status: "CANCELED", lockedAt: null, leaseId: null } });
+    await tx.staffInvitation.deleteMany({ where: { email: user.email } });
+    const staff = await tx.staffMembership.findUnique({ where: { userId } });
+    if (staff?.role === "OWNER" && staff.status === "ACTIVE" && await tx.staffMembership.count({ where: { role: "OWNER", status: "ACTIVE" } }) <= 1) {
+      throw new Error("Add another active owner before deleting your account.");
+    }
     await tx.adminImpersonation.deleteMany({
       where: {
         OR: [
@@ -43,6 +54,7 @@ export async function deleteAccountData(
     await tx.adminMfaSession.deleteMany({ where: { userId } });
     await tx.adminMfaCredential.deleteMany({ where: { userId } });
     await tx.verificationToken.deleteMany({ where: { email: user.email } });
+    await tx.waitlistEntry.deleteMany({ where: { email: user.email } });
     await tx.platformSetting.updateMany({ where: { updatedByUserId: userId }, data: { updatedByUserId: null } });
     await tx.supportTicketMessage.deleteMany({ where: { authorUserId: userId } });
     await tx.supportTicket.deleteMany({

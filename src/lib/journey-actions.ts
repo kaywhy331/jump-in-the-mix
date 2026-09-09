@@ -51,7 +51,7 @@ export async function saveJourneyStageAction(data: FormData) {
       if (!name || name.length > 60) throw new Error("Use a stage name between 1 and 60 characters.");
       if (stages.some(item => item.name.toLowerCase() === name.toLowerCase() && item.id !== id)) throw new Error("Give each stage a different name.");
       if (!id && stages.length >= 20) throw new Error("A journey can have up to 20 stages.");
-      if (planId && !await tx.mix.findFirst({ where: { id: planId, workspaceId: workspace.id, status: "ACTIVE", triggerMode: "MANUAL_START", source: { not: "ONE_TIME" } } })) throw new Error("Choose an active plan that starts for each person.");
+      if (planId && !await tx.mix.findFirst({ where: { id: planId, workspaceId: workspace.id, status: "ACTIVE", triggerMode: "MANUAL_START", source: { not: "ONE_TIME" } } })) throw new Error("Choose an active mix that starts for each person.");
       if (stage) await tx.journeyStage.update({ where: { id }, data: { name, planId, isActive: true } });
       else await tx.journeyStage.create({ data: { workspaceId: workspace.id, name, planId, position: Math.max(-1, ...stages.map(item => item.position)) + 1 } });
     });

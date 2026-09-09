@@ -6,8 +6,8 @@ const userPassword = process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!";
 
 async function signIn(page: Page) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(userEmail);
-  await page.getByLabel("Password").fill(userPassword);
+  await page.getByLabel("Email", { exact: true }).fill(userEmail);
+  await page.getByLabel("Password", { exact: true }).fill(userPassword);
   await Promise.all([page.waitForURL(/\/(jumps|onboarding)(\?|$)/), page.getByRole("button", { name: "Sign in" }).click()]);
 }
 
@@ -25,22 +25,22 @@ test("a plan can be written inline without creating a prerequisite message templ
   try {
     await signIn(page);
     await page.goto("/mixes/new?custom=1");
-    await page.getByLabel("Plan name").fill(name);
-    await page.getByLabel("When should it start?").selectOption("MANUAL_START");
-    const dayOffset = page.getByLabel("Days after start");
+    await page.getByLabel("Mix name").fill(name);
+    await page.getByLabel("Cue · when should it start?").selectOption("MANUAL_START");
+    const dayOffset = page.getByLabel("Tempo · days after start");
     await expect(dayOffset).toHaveAttribute("min", "0");
     await dayOffset.fill("0");
-    await page.getByLabel("How?").selectOption("EMAIL");
+    await page.getByRole("combobox", { name: "Channel", exact: true }).selectOption("EMAIL");
     await page.getByLabel("Subject").fill("A renewal question for {{First Name}}");
     await page.getByLabel("Message").fill("Hi {{First Name}}, is there anything you would like to review before renewal?");
-    await page.getByRole("button", { name: "Create plan" }).click();
+    await page.getByRole("button", { name: "Create a mix" }).click();
     await page.waitForURL(/\/mixes\/[^/]+\/edit\?created=manual/);
     const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId: "demo_workspace", name }, include: { steps: { include: { stepVersion: { include: { stepTemplate: true } } } } } });
     mixId = mix.id;
     expect(mix.status).toBe("DRAFT");
     expect(mix.steps).toHaveLength(1);
     expect(mix.steps[0]?.stepVersion.stepTemplate.isActive).toBe(false);
-    await expect(page.getByText("Plan created. Future follow-ups are updating.")).toBeVisible();
+    await expect(page.getByText("Mix created. Future follow-ups are updating.")).toBeVisible();
   } finally {
     if (mixId) await removeMix(mixId);
   }
@@ -70,10 +70,10 @@ test("an approved template uses one setup screen and explicit audience", async (
   try {
     await signIn(page);
     await page.goto(`/templates/${sharedId}/use`);
-    await expect(page.getByRole("heading", { name: "Set up your plan" })).toBeVisible();
-    await page.getByLabel("Plan name").fill(mixName);
+    await expect(page.getByRole("heading", { name: "Set up your mix" })).toBeVisible();
+    await page.getByLabel("Mix name").fill(mixName);
     await page.getByLabel("Everyone").check();
-    await page.getByRole("button", { name: "Create plan" }).click();
+    await page.getByRole("button", { name: "Create my remix" }).click();
     await page.waitForURL(/\/mixes\/[^/]+\/edit\?imported=1/);
     const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId: "demo_workspace", name: mixName } });
     mixId = mix.id;
@@ -81,6 +81,9 @@ test("an approved template uses one setup screen and explicit audience", async (
     expect(await prisma.sharedMixImport.count({ where: { workspaceId: "demo_workspace", sharedMixId: sharedId, mixId } })).toBe(1);
   } finally {
     if (mixId) await removeMix(mixId);
+    const imports = await prisma.sharedMixImport.findMany({ where: { sharedMixId: sharedId }, select: { id: true } });
+    await prisma.sharedMixImportMetadata.deleteMany({ where: { importId: { in: imports.map(row => row.id) } } });
+    await prisma.sharedMixMetadata.deleteMany({ where: { sharedMixId: sharedId } });
     await prisma.sharedMix.deleteMany({ where: { id: sharedId } });
   }
 });

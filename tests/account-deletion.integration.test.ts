@@ -26,6 +26,10 @@ async function seedDeletionGraph() {
     }
   });
   const stage = await prisma.journeyStage.create({ data: { workspaceId, name: "Deletion stage", position: 0 } });
+  await prisma.contactGroupState.create({ data: { groupId: `delete-legacy-group-${suffix}`, workspaceId } });
+  await prisma.jumpActionEvent.create({ data: { workspaceId, jumpId: `delete-legacy-jump-${suffix}`, actorUserId: userId, action: "OPENED", metadata: { privateNote: "Erase this history" } } });
+  await prisma.mixBroadcastSchedule.create({ data: { workspaceId, mixId: `delete-legacy-mix-${suffix}`, localDate: new Date(), timeMinutes: 600, timezone: "UTC" } });
+  await prisma.mixStop.create({ data: { workspaceId, mixId: `delete-legacy-mix-${suffix}`, contactId: `delete-contact-${suffix}`, reason: "Erase this reason" } });
   await prisma.journeyPreference.create({ data: { workspaceId } });
   await prisma.contactJourney.create({ data: { workspaceId, contactId: `delete-contact-${suffix}`, stageId: stage.id } });
   await prisma.journeyEvent.create({ data: { workspaceId, contactId: `delete-contact-${suffix}`, eventKey: "delete-event", eventType: "CONTACT_RECEIVED", source: "Deletion test" } });
@@ -94,6 +98,7 @@ describe("account deletion", () => {
     await expect(prisma.workspace.count({ where: { id: workspaceId } })).resolves.toBe(0);
     await expect(prisma.contact.count({ where: { workspaceId } })).resolves.toBe(0);
     await expect(prisma.job.count({ where: { workspaceId } })).resolves.toBe(0);
+    expect(await Promise.all([prisma.contactGroupState.count({ where: { workspaceId } }), prisma.jumpActionEvent.count({ where: { workspaceId } }), prisma.mixBroadcastSchedule.count({ where: { workspaceId } }), prisma.mixStop.count({ where: { workspaceId } })])).toEqual([0, 0, 0, 0]);
     const journeyAndConnectionCounts = await Promise.all([
       prisma.journeyPreference.count({ where: { workspaceId } }), prisma.journeyStage.count({ where: { workspaceId } }),
       prisma.contactJourney.count({ where: { workspaceId } }), prisma.journeyEvent.count({ where: { workspaceId } }),

@@ -55,7 +55,7 @@ test("saved stages and existing rules explain their actual effect before editing
   await expect(form.getByRole("combobox", { name: "Move to", exact: true })).toHaveValue(stages[1].id);
   await expect(form.locator(".journey-rule-preview")).toContainText("Discovery follow-up");
   await form.getByRole("combobox", { name: "Move to", exact: true }).selectOption(stages[3].id);
-  await expect(form.locator(".journey-rule-preview")).toContainText("No automatic plan starts on entry");
+  await expect(form.locator(".journey-rule-preview")).toContainText("No automatic mix starts on entry");
   await save(form);
   await expect(page.getByText("Journey settings saved.", { exact: true })).toBeVisible();
   await expect(page.locator(`#stage-${stages[0].id}`)).toHaveAttribute("open", "");
@@ -159,7 +159,7 @@ test("contact rules distinguish business pauses, individual pauses and milestone
   await expect(panel).toContainText("paused for this person");
   await open(panel.getByText("Stage and automation", { exact: true }));
   await expect(panel.getByRole("button", { name: "Resume transitions for this person", exact: true })).toBeVisible();
-  await expect(panel).toContainText("keeps this person’s current plans running");
+  await expect(panel).toContainText("keeps this person’s current mixes running");
 });
 
 test("expanded rule editing remains accessible across widths, themes and keyboard input", async ({ page }) => {

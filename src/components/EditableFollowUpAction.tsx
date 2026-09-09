@@ -70,8 +70,8 @@ export function EditableFollowUpAction({
     <div className="editable-follow-up" data-follow-up-draft={subjectDraft !== null || contentDraft !== null}>
       {channel === "EMAIL" && <label className="field"><span>Subject</span><input disabled={!ready} value={subject} onChange={(event) => setSubject(event.target.value)} /></label>}
       {(channel === "SMS" || channel === "EMAIL" || channel === "WHATSAPP") ? (
-        <label className="field"><span>Edit before sending</span><textarea disabled={!ready} value={content} onChange={(event) => setContent(event.target.value)} rows={5} /></label>
-      ) : <div className="prepared-call-notes"><small>Call notes</small><p>{content}</p></div>}
+        <label className="field"><span>Fine-tune before sending</span><span className="speech-bubble speech-bubble--compose"><textarea disabled={!ready} value={content} onChange={(event) => setContent(event.target.value)} rows={5} /></span></label>
+      ) : <div className="prepared-call-notes conversation-note"><small>Call notes</small><p>{content}</p></div>}
       {longSms && <p className="notice warning compact" role="status">This text is over 900 characters and may be cut off by some phones. Copy it instead, or shorten it.</p>}
       <div className="editable-follow-up-actions">
         {url ? <JumpActionLink

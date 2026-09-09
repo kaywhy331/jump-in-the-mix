@@ -43,11 +43,11 @@ function validateInlineAction(formData: FormData, index: number, path: string): 
   if (!name) fail(path, `Give action #${index + 1} an internal name.`);
   if (!CHANNELS.includes(channel)) fail(path, `Choose a valid channel for action #${index + 1}.`);
   if (channel === "EMAIL" && (!subject || !body)) fail(path, `Email action #${index + 1} requires a subject and message.`);
-  if (["SMS", "WHATSAPP"].includes(channel) && !body) fail(path, `Action #${index + 1} requires a prepared message.`);
-  if (["PHONE_CALL", "VOICEMAIL"].includes(channel) && !script) fail(path, `Action #${index + 1} requires call or voicemail notes.`);
+  if (["SMS", "WHATSAPP"].includes(channel) && !body) fail(path, `Beat ${index + 1} requires a prepared message.`);
+  if (["PHONE_CALL", "VOICEMAIL"].includes(channel) && !script) fail(path, `Beat ${index + 1} requires call or voicemail notes.`);
   const content = [subject, body, script].filter(Boolean).join("\n");
   const unknown = findUnknownPlaceholders(content);
-  if (unknown.length) fail(path, `Action #${index + 1} uses unsupported placeholders: ${unknown.join(", ")}`);
+  if (unknown.length) fail(path, `Beat ${index + 1} uses unsupported placeholders: ${unknown.join(", ")}`);
   if (channel !== "PHONE_CALL" && containsPrivateNotesPlaceholder(content)) {
     fail(path, `Private notes may only be inserted into phone-call follow-up #${index + 1}.`);
   }
@@ -77,10 +77,10 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   const allowedStatuses: MixStatus[] = ["DRAFT", "ACTIVE", "PAUSED"];
 
   if (impersonation) fail(path, "Administrator support sessions are view-only.");
-  if (!name) fail(path, "Give the plan a name.");
-  if (!allowedTriggers.includes(triggerMode)) fail(path, "Choose a valid trigger mode.");
+  if (!name) fail(path, "Give the mix a name.");
+  if (!allowedTriggers.includes(triggerMode)) fail(path, "Choose a valid cue.");
   if (!allowedStatuses.includes(status)) fail(path, "Choose Draft, Active, or Paused.");
-  if (status === "ACTIVE" && value(formData, "activationConfirmed", 4) !== "1") fail(path, "Review who gets the plan before turning it on.");
+  if (status === "ACTIVE" && value(formData, "activationConfirmed", 4) !== "1") fail(path, "Review who gets the mix before turning it on.");
 
   if (triggerMode === "DATE_TRIGGERED") {
     const dateType = await prisma.dateType.findFirst({
@@ -107,23 +107,23 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   const offsets = values(formData, "dayOffset");
   const sendTimes = values(formData, "sendTimeMinutes");
   const stepCount = offsets.length;
-  if (!stepCount || stepCount > 50) fail(path, "Add between one and fifty follow-ups to the plan.");
-  if ([mixStepIds, sendTimes].some((items) => items.length !== stepCount)) fail(path, "The follow-up sequence is incomplete. Reload and try again.");
+  if (!stepCount || stepCount > 50) fail(path, "Add between one and fifty beats to the mix.");
+  if ([mixStepIds, sendTimes].some((items) => items.length !== stepCount)) fail(path, "The beat sequence is incomplete. Reload and try again.");
 
   const parsedOffsets = offsets.map((raw, index) => {
     const parsed = Number(raw);
     if (!Number.isInteger(parsed) || parsed < -MAX_STEP_OFFSET_DAYS || parsed > MAX_STEP_OFFSET_DAYS) {
-      fail(path, `Action #${index + 1} must be between -${MAX_STEP_OFFSET_DAYS} and ${MAX_STEP_OFFSET_DAYS} days.`);
+      fail(path, `Beat ${index + 1} must be between -${MAX_STEP_OFFSET_DAYS} and ${MAX_STEP_OFFSET_DAYS} days.`);
     }
     return parsed;
   });
   if (triggerMode === "MANUAL_START" && parsedOffsets.some((offset) => offset < 0)) {
-    fail(path, "A manually started plan cannot schedule a follow-up before its start date.");
+    fail(path, "A manually started mix cannot schedule a follow-up before its start date.");
   }
   const parsedSendTimes = sendTimes.map((raw, index) => {
     if (!raw) return null;
     const parsed = Number(raw);
-    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 1439) fail(path, `Action #${index + 1} has an invalid local time.`);
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 1439) fail(path, `Beat ${index + 1} has an invalid local time.`);
     return parsed;
   });
   const inlineActions = offsets.map((_, index) => validateInlineAction(formData, index, path));
@@ -137,7 +137,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
           }
         })
       : Promise.resolve(null));
-  if (mixIdRaw && !existingMix) fail("/mixes", "Plan not found.");
+  if (mixIdRaw && !existingMix) fail("/mixes", "Mix not found.");
 
   const groupIds = [...new Set(values(formData, "groupIds").filter(Boolean))];
   if (groupIds.length) {
@@ -148,11 +148,11 @@ export async function saveMixAction(formData: FormData): Promise<void> {
     if (availableGroups.length !== groupIds.length) fail(path, "One or more selected tags are unavailable.");
     const existingGroupIds = new Set((existingMix?.assignments ?? []).flatMap((assignment) => assignment.groupId ? [assignment.groupId] : []));
     const unavailableNewGroup = mergeGroupActivity(availableGroups, groupStates).some((group) => !group.isActive && !existingGroupIds.has(group.id));
-    if (unavailableNewGroup) fail(path, "Hidden tags cannot be added to a plan.");
+    if (unavailableNewGroup) fail(path, "Hidden tags cannot be added to a mix.");
   }
   const assignAllContacts = formData.get("assignAllContacts") === "on";
-  if (status === "ACTIVE" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the plan.");
-  if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) fail(path, "Choose who gets the plan.");
+  if (status === "ACTIVE" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the mix.");
+  if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) fail(path, "Choose who gets the mix.");
 
   const allContactIds = assignAllContacts
     ? (await prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true } })).map((contact) => contact.id)
@@ -263,7 +263,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
       await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });
     });
   } catch (error) {
-    fail(path, error instanceof Error ? error.message : "The plan could not be saved.");
+    fail(path, error instanceof Error ? error.message : "The mix could not be saved.");
   }
 
   redirect(`/mixes/${mixId}/edit?${existingMix ? "updated" : "created"}=manual`);

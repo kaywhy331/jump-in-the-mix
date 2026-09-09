@@ -1,0 +1,9 @@
+// Only timing and aggregate counts; no customer identifiers or payloads.
+model DataRetentionState {
+  id          String @id @default("primary")
+  completedAt DateTime?
+  failedAt    DateTime?
+  counts      Json?
+  lastError   String?
+  updatedAt   DateTime @updatedAt
+}

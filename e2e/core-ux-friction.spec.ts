@@ -39,7 +39,7 @@ test("Quick Add carries recognized fields into Contact and follow-up creation", 
   const dialog = page.getByRole("dialog", { name: "Quick Add" });
   await dialog.getByLabel("What do you want to remember?").fill("Follow up with Jordan Lee next Monday about the proposal");
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
-  await dialog.getByRole("link", { name: "Continue with Contact" }).click();
+  await dialog.getByRole("button", { name: "Continue with Contact" }).click();
 
   await expect(page).toHaveURL(/\/contacts\/new\?/);
   await expect(page.getByLabel("First name")).toHaveValue("Jordan");
@@ -60,7 +60,7 @@ test("Quick Add carries a recognized phone without folding it into the Contact n
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(dialog.getByText("Sam", { exact: true })).toBeVisible();
   await expect(dialog.getByText("626-555-0100", { exact: true })).toBeVisible();
-  await dialog.getByRole("link", { name: "Continue with Contact" }).click();
+  await dialog.getByRole("button", { name: "Continue with Contact" }).click();
 
   await expect(page).toHaveURL(/\/contacts\/new\?/);
   await expect(page.getByLabel("First name")).toHaveValue("Sam");

@@ -49,14 +49,14 @@ test("single user can complete the primary discovery and support journey", async
   await expect(page.getByRole("heading", { name: "Add a contact" })).toBeVisible();
 
   await page.goto("/templates");
-  await expect(page.getByRole("heading", { name: "Ready-made plans" })).toBeVisible();
-  await page.getByRole("searchbox", { name: "Search ready-made plans" }).fill("Estimate sent");
+  await expect(page.getByRole("heading", { name: "Ready-made mixes" })).toBeVisible();
+  await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill("Estimate sent");
   await expect(page.getByText("Estimate sent: gentle follow-up", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Build my own" })).toHaveAttribute("href", "/mixes/new?custom=1");
+  await expect(page.getByRole("link", { name: "Create a mix" })).toHaveAttribute("href", "/mixes/new?custom=1");
 
   await page.goto("/mixes/new?custom=1");
-  await expect(page.getByRole("heading", { name: "Build a custom plan" })).toBeVisible();
-  await expect(page.getByLabel("Plan name")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create a mix" })).toBeVisible();
+  await expect(page.getByLabel("Mix name")).toBeVisible();
 
   const ticketTitle = `E2E browser support ticket ${testInfo.project.name}`;
   await page.goto("/help");
@@ -139,7 +139,7 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
 
   await signIn(page, email, password);
   await expect(page).toHaveURL(/\/onboarding/);
-  await expect(page.getByRole("heading", { name: "Never let a good customer go quiet" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Jump in the mix." })).toBeVisible();
   await page.getByLabel("Business name").fill("Browser Test Plumbing");
   await page.getByLabel("Name", { exact: true }).fill("Jordan First Win");
   await page.getByLabel("Email optional").fill("jordan-first-win@example.com");
@@ -159,7 +159,7 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   const firstFollowUp = page.locator(".jump-task-card:visible").filter({ hasText: "Jordan First Win" }).first();
   await expect(firstFollowUp).toBeVisible();
   await firstFollowUp.getByRole("button", { name: "Review message for Jordan First Win" }).click();
-  const preparedMessage = firstFollowUp.getByLabel("Edit before sending");
+  const preparedMessage = firstFollowUp.getByLabel("Fine-tune before sending");
   await expect(preparedMessage).toBeVisible();
   const renderedBody = await preparedMessage.inputValue();
   expect(renderedBody).not.toContain("{{");
@@ -282,16 +282,14 @@ test.describe("stateful administrator security journey", () => {
     await page.getByRole("link", { name: "Support", exact: true }).first().click();
     await expect(page.getByRole("heading", { name: "Admin · Support" })).toBeVisible();
 
-    await page.goto("/admin/users");
-    const targetCard = page.locator(".admin-user-card").filter({ hasText: userEmail });
-    await targetCard.getByRole("button", { name: "View account…" }).click();
-    const supportView = page.getByRole("dialog", { name: /View Demo Owner’s account/ });
-    await supportView.getByLabel("Support reason").fill("E2E verification of the centrally enforced view-only mutation boundary.");
-    await Promise.all([
-      page.waitForURL(/\/jumps\?impersonating=1/),
-      supportView.getByRole("button", { name: "Start 30-minute view-only session" }).click()
-    ]);
-    await expect(page.getByText("View-only support session", { exact: true }).first()).toBeVisible();
+    const customer = await prisma.user.findUniqueOrThrow({ where: { email: userEmail } });
+    const handler = await prisma.user.findUniqueOrThrow({ where: { email: adminEmail } });
+    const membership = await prisma.workspaceMember.findFirstOrThrow({ where: { userId: customer.id } });
+    const ticket = await prisma.supportTicket.create({ data: { reference: `CORE-${Date.now()}`, title: "Investigate follow-up queue", category: "JUMPS", workspaceId: membership.workspaceId, requesterUserId: customer.id, assignedToUserId: handler.id } });
+    await page.goto(`/admin/support/${ticket.id}`);
+    await page.getByRole("textbox", { name: "Support reason", exact: true }).fill("E2E verification of the centrally enforced view-only mutation boundary.");
+    await page.getByRole("button", { name: "Start view-only session" }).click();
+    await expect(page.locator(".impersonation-banner")).toContainText("view-only");
 
     const blockedMutation = await page.evaluate(async () => {
       const response = await fetch("/api/contacts/quick-add", {
@@ -305,9 +303,10 @@ test.describe("stateful administrator security journey", () => {
     expect(blockedMutation.body).toContain("view-only");
 
     await Promise.all([
-      page.waitForURL(/\/admin\/users\?impersonationEnded=1/),
+      page.waitForURL(/\/admin\/support\?impersonationEnded=1/),
       page.getByRole("button", { name: "End view-only session" }).first().click()
     ]);
     await expect(page.getByText("The view-only support session has ended.")).toBeVisible();
+    await prisma.supportTicket.delete({ where: { id: ticket.id } });
   });
 });

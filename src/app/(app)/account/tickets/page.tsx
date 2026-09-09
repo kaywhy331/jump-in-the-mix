@@ -8,6 +8,7 @@ import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { supportStatusLabel } from "@/lib/support-content";
+import { SUPPORT_RETENTION_NOTICE } from "@/lib/data-retention-policy";
 
 export const metadata: Metadata = { title: "Support conversations" };
 const PAGE_SIZE = 15;
@@ -24,6 +25,7 @@ export default async function SupportConversationsPage({ searchParams }: { searc
 
   return <div className="page conversations-page">
     <header className="page-header"><div><h1>Support conversations</h1><p>Your questions, replies, and next steps in one place.</p></div><Link className="button primary" href="/help#contact-support">New conversation</Link></header>
+    <p>{SUPPORT_RETENTION_NOTICE}</p>
     {tickets.length ? <div className="support-ticket-list">{tickets.map(ticket => <Link className="support-ticket-row card" href={`/account/tickets/${ticket.id}`} key={ticket.id}>
       <div><strong>{ticket.title}</strong><small>{ticket._count.messages} messages · Updated {formatDateTime(ticket.lastActivityAt, preferences)}</small></div>
       <span className={`status-pill ${ticket.status === "RESOLVED" ? "done" : ""}`}>{supportStatusLabel(ticket.status)}</span>

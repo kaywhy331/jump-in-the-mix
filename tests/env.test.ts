@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { productionConfigurationIssues, resolveAuthRateLimitSecret } from "../src/lib/env";
 
 describe("environment fallbacks", () => {
+  it("does not bypass production configuration checks when CI is set", () => {
+    const issues = productionConfigurationIssues({ NODE_ENV: "production", CI: "true" });
+    expect(issues).toContain("DATABASE_URL is required");
+    expect(issues).toContain("AUTH_RATE_LIMIT_SECRET must be a unique secret of at least 32 characters");
+    expect(issues).toContain("RESEND_API_KEY is required for hosted production");
+    expect(productionConfigurationIssues({ NODE_ENV: "development", CI: "true" })).toEqual([]);
+  });
+
   it("uses the data-encryption key when the explicit rate-limit secret is blank", () => {
     expect(resolveAuthRateLimitSecret({
       AUTH_RATE_LIMIT_SECRET: "   ",

@@ -110,27 +110,62 @@ test("desktop personal account and settings cards share a common top edge", asyn
   expect(Math.abs(firstSetting!.y - secondSetting!.y)).toBeLessThanOrEqual(1);
 });
 
-test("mobile navigation and actions stay inside the viewport", async ({ page }, testInfo) => {
+test("mobile navigation fills the footer with five evenly spaced controls", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile geometry is checked once.");
   await signIn(page);
   await page.goto("/jumps");
 
-  const links = page.locator(".mobile-nav a.nav-link:visible");
-  await expect(links).toHaveCount(4);
-  await expect(page.locator(".mobile-nav .nav-quick-add:visible")).toHaveCount(1);
-  const viewport = page.viewportSize();
-  expect(viewport).not.toBeNull();
-  const firstLinkBox = await links.first().boundingBox();
-  expect(firstLinkBox).not.toBeNull();
-  for (let index = 0; index < await links.count(); index += 1) {
-    const box = await links.nth(index).boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.x).toBeGreaterThanOrEqual(0);
-    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width + 1);
-    expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height + 1);
-    expect(Math.abs(box!.y - firstLinkBox!.y)).toBeLessThanOrEqual(1);
+  for (const width of [320, 390, 430, 767, 768, 844, 900]) {
+    const height = width === 844 ? 390 : 844;
+    await page.setViewportSize({ width, height });
+    const footer = page.locator(".mobile-nav");
+    const controls = footer.locator("a.nav-link:visible, button.nav-quick-add:visible");
+    await expect(controls).toHaveCount(5);
+    const footerBox = (await footer.boundingBox())!;
+    expect(Math.abs(footerBox.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(footerBox.width - width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(footerBox.y + footerBox.height - height)).toBeLessThanOrEqual(1);
+    for (let index = 0; index < 5; index += 1) {
+      const box = (await controls.nth(index).boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(Math.abs(box.x + box.width / 2 - width * (index + 0.5) / 5)).toBeLessThanOrEqual(1);
+      expect(box.y).toBeGreaterThanOrEqual(footerBox.y);
+      expect(box.y + box.height).toBeLessThanOrEqual(height);
+    }
+    await expectNoHorizontalOverflow(page);
   }
-  await expectNoHorizontalOverflow(page);
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    for (const { width, height, side, bottom } of [
+      { width: 390, height: 844, side: 0, bottom: 34 },
+      { width: 844, height: 390, side: 44, bottom: 21 }
+    ]) {
+      await page.setViewportSize({ width, height });
+      await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { left: side, right: side, bottom } });
+      const footer = (await page.locator(".mobile-nav").boundingBox())!;
+      expect(footer.height).toBe(67 + bottom);
+      const controls = page.locator(".mobile-nav a.nav-link, .mobile-nav button.nav-quick-add");
+      for (let index = 0; index < 5; index += 1) {
+        const box = (await controls.nth(index).boundingBox())!;
+        expect(box.x).toBeGreaterThanOrEqual(side);
+        expect(box.x + box.width).toBeLessThanOrEqual(width - side);
+        expect(box.y + box.height).toBeLessThanOrEqual(height - bottom);
+        expect(Math.abs(box.x + box.width / 2 - (side + (width - side * 2) * (index + 0.5) / 5))).toBeLessThanOrEqual(1);
+      }
+    }
+  } finally {
+    await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: {} });
+    await cdp.detach();
+  }
+  await page.locator(".mobile-nav .nav-quick-add").click();
+  await expect(page.getByRole("dialog", { name: "Quick Add", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".mobile-nav .nav-quick-add")).toBeFocused();
+
+  await page.setViewportSize({ width: 901, height: 900 });
+  await expect(page.locator(".mobile-nav")).toBeHidden();
+  await expect(page.locator(".sidebar")).toBeVisible();
 });
 
 test("meaningful text remains readable on phone-sized screens", async ({ page }, testInfo) => {
@@ -162,7 +197,7 @@ test("mobile text actions stay readable instead of collapsing into blank control
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile header geometry is checked once.");
   await signIn(page);
   await page.goto("/templates");
-  for (const label of ["My plans", "Build my own"]) {
+  for (const label of ["My mixes", "Create a mix"]) {
     const action = page.getByRole("link", { name: label, exact: true });
     await expect(action).toBeVisible();
     const box = await action.boundingBox();
@@ -182,7 +217,7 @@ test("global Quick Add previews natural-language capture before continuing", asy
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(dialog.getByText("Confirm this interpretation")).toBeVisible();
   await expect(dialog.getByText("Jordan", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("link", { name: "Continue with Contact" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Continue with Contact" })).toBeVisible();
   page.once("dialog", (confirmation) => confirmation.accept());
   await dialog.getByRole("button", { name: "Close Quick Add" }).click();
   await expect(dialog).toBeHidden();
@@ -214,9 +249,9 @@ test("public single-user product story remains focused and responsive", async ({
   for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Good work deserves a follow-up." })).toBeVisible();
-    await expect(page.getByText("Made for owner-operated businesses. Ready on your phone.", { exact: true })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Start free" })).toHaveAttribute("href", "/register");
+    await expect(page.getByRole("heading", { name: "Know who to follow up with. And what to say." })).toBeVisible();
+    await expect(page.getByRole("list", { name: "Made for your relationships" })).toContainText("BusinessPersonalYour network");
+    await expect(page.locator(".hero-actions").getByRole("link", { name: "Join the waitlist" })).toHaveAttribute("href", "/waitlist");
     await expect(page.locator("main")).not.toContainText(/\b(?:pricing|billing|subscription|upgrade|downgrade|team|organization|stripe|google contacts|ai provider)\b/i);
     await expectNoHorizontalOverflow(page);
   }

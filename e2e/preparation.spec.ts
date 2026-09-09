@@ -154,7 +154,7 @@ test("Today refreshes untouched messages and waits for drafts before reordering"
     await prisma.stepVersion.update({ where: { id: versionId }, data: { body: "Original prepared text" } });
     await complete(); await queued();
     await page.goto("/jumps");
-    const message = page.getByRole("textbox", { name: "Edit before sending", exact: true });
+    const message = page.getByRole("textbox", { name: "Fine-tune before sending", exact: true });
     await expect(message).toHaveValue("Original prepared text");
     if (edited) {
       await message.fill("My personal unsent draft");
@@ -177,7 +177,7 @@ test("Today refreshes untouched messages and waits for drafts before reordering"
       await page.getByRole("button", { name: "Discard edits" }).click();
       await expect(notice).toContainText("Follow-up list updated");
       await expect(page.locator(".next-follow-up")).toContainText("Earlier sample");
-      await expect(page.getByRole("textbox", { name: "Edit before sending", exact: true })).toHaveValue("Updated prepared text");
+      await expect(page.getByRole("textbox", { name: "Fine-tune before sending", exact: true })).toHaveValue("Updated prepared text");
     }
   }
 });

@@ -31,9 +31,9 @@ model NotificationPreference {
   id                  String   @id @default(cuid())
   workspaceId         String   @unique
   userId              String
-  emailDigestEnabled  Boolean  @default(true)
+  emailDigestEnabled  Boolean  @default(false)
   pushEnabled         Boolean  @default(false)
-  weeklyReportEnabled Boolean  @default(true)
+  weeklyReportEnabled Boolean  @default(false)
   digestHour          Int      @default(7)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt

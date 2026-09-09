@@ -8,7 +8,7 @@ import { QuickAddButton } from "@/components/QuickAdd";
 const links = [
   { href: "/jumps", label: "Today", icon: "today", kind: "primary" },
   { href: "/contacts", label: "Contacts", icon: "contacts", kind: "primary" },
-  { href: "/mixes", label: "Plans", icon: "mixes", kind: "primary" },
+  { href: "/mixes", label: "Mixes", icon: "mixes", kind: "primary" },
   { href: "/more", label: "More", icon: "more", kind: "primary" }
 ] as const;
 

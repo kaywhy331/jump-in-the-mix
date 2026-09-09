@@ -75,11 +75,19 @@ enum AuthProvider {
 }
 
 model User {
+  assignedSupportTickets SupportTicket[] @relation("SupportAssignee")
+  reportExports ReportExport[]
+  staffMembership StaffMembership?
+  referralInvitesIssued Int @default(0)
+  sentAccessInvites ReferralAccessInvite[] @relation("AccessInviter")
+  acceptedAccessInvite ReferralAccessInvite? @relation("AccessRecipient")
   id              String            @id @default(cuid())
   email           String            @unique
   passwordHash    String?
   name            String
   emailVerifiedAt DateTime?
+  suspendedAt     DateTime?
+  accessRevision  Int               @default(0)
   isPlatformAdmin Boolean           @default(false)
   sessions        Session[]
   authIdentities  AuthIdentity[]
@@ -91,6 +99,8 @@ model User {
 }
 
 model Session {
+  supportViews AdminImpersonation[]
+  reportExports ReportExport[]
   pushSubscriptions PushSubscription[]
   id         String   @id @default(cuid())
   userId     String
@@ -119,6 +129,7 @@ model VerificationToken {
 }
 
 model Workspace {
+  accessInvites ReferralAccessInvite[]
   journeyPreference      JourneyPreference?
   journeyStages          JourneyStage[]
   journeyRules           JourneyRule[]
@@ -198,6 +209,7 @@ model WorkspaceProfile {
 }
 
 model Contact {
+  accessInvites ReferralAccessInvite[]
   journey             ContactJourney?
   journeyEvents       JourneyEvent[]
   intakeReceipts      IntakeReceipt[]
@@ -504,6 +516,8 @@ model Jump {
 }
 
 model SharedMix {
+  revisions    SharedMixRevision[]
+  releases     SharedMixRelease[]
   id           String            @id @default(cuid())
   title        String
   description  String
@@ -549,6 +563,8 @@ model IdempotencyKey {
 }
 
 model Job {
+  reportExport ReportExport?
+  reportSnapshot ReportDailySnapshot?
   id          String     @id @default(cuid())
   workspaceId String?
   task        String
@@ -600,4 +616,152 @@ model AccountDeletionAudit {
 
   @@index([subjectHash, createdAt])
   @@index([status, createdAt])
+}
+
+// Issued invitations consume a lifetime slot even if revoked or the contact is deleted.
+model ReferralAccessInvite {
+  id              String    @id @default(cuid())
+  inviterUserId   String?
+  workspaceId     String?
+  contactId       String?
+  recipientEmail  String
+  lastSentAt      DateTime?
+  tokenHash       String    @unique
+  tokenCiphertext String
+  tokenPurgedAt   DateTime?
+  acceptedUserId  String?   @unique
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  source          AccessInviteSource @default(REFERRAL)
+  systemMixVersion Int?
+  waveId          String?
+  wave            WaitlistWave? @relation(fields: [waveId], references: [id], onDelete: SetNull)
+  delivery        WaitlistDelivery?
+  inviter         User?     @relation("AccessInviter", fields: [inviterUserId], references: [id], onDelete: Cascade)
+  recipient       User?     @relation("AccessRecipient", fields: [acceptedUserId], references: [id], onDelete: SetNull)
+  workspace       Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact         Contact?  @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@unique([inviterUserId, contactId])
+  @@index([workspaceId, createdAt])
+  @@index([recipientEmail, acceptedAt, revokedAt])
+  @@index([tokenPurgedAt, createdAt])
+}
+
+enum AccessInviteSource {
+  REFERRAL
+  WAITLIST_FIFO
+  WAITLIST_RANDOM
+  WAITLIST_MANUAL
+}
+
+enum WaitlistStatus {
+  WAITING
+  ACCESS_GRANTED
+  JOINED
+  WITHDRAWN
+  SUPPRESSED
+}
+
+model WaitlistEntry {
+  id              String @id @default(cuid())
+  email           String @unique
+  status          WaitlistStatus @default(WAITING)
+  verifiedAt      DateTime?
+  accessGrantedAt DateTime?
+  joinedAt        DateTime?
+  withdrawnAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, verifiedAt, createdAt])
+}
+
+enum EmailSuppressionReason {
+  INVITATION_OPTOUT
+  HARD_BOUNCE
+  COMPLAINT
+  PROVIDER_SUPPRESSION
+}
+
+// Recipient preferences survive removal from the queue and cannot be overridden by a sender.
+model EmailSuppression {
+  id        String @id @default(cuid())
+  email     String
+  reason    EmailSuppressionReason
+  createdAt DateTime @default(now())
+  revision Int @default(1)
+  lastTriggeredAt DateTime?
+  clearedAt DateTime?
+
+  @@unique([email, reason])
+  @@index([clearedAt, createdAt])
+}
+
+// Singleton schedule. Restarts never reset the seven-day clock.
+model WaitlistSchedule {
+  id        String @id @default("default")
+  nextRunAt DateTime
+  paused    Boolean @default(false)
+  updatedAt DateTime @updatedAt
+}
+
+model WaitlistWave {
+  id           String @id @default(cuid())
+  scheduledFor DateTime @unique
+  fifoCount    Int @default(0)
+  randomCount  Int @default(0)
+  createdAt    DateTime @default(now())
+  invites      ReferralAccessInvite[]
+}
+
+enum WaitlistDeliveryStatus {
+  QUEUED
+  SENDING
+  SENT
+  REVIEW
+  CANCELED
+}
+
+// Durable email outbox; frozen encrypted content keeps provider retries identical.
+model WaitlistDelivery {
+  id                String @id @default(cuid())
+  inviteId          String? @unique
+  invite            ReferralAccessInvite? @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  staffInvitationId String? @unique
+  staffInvitation   StaffInvitation? @relation(fields: [staffInvitationId], references: [id], onDelete: Cascade)
+  messageCiphertext String
+  payloadPurgedAt   DateTime?
+  status            WaitlistDeliveryStatus @default(QUEUED)
+  generation        Int @default(1)
+  generationStartedAt DateTime @default(now())
+  history           InvitationDeliveryHistory[]
+  attempts          Int @default(0)
+  firstAttemptAt    DateTime?
+  nextAttemptAt     DateTime @default(now())
+  leaseId           String?
+  lockedAt          DateTime?
+  providerId        String?
+  emailMessageId    String? @unique
+  emailMessage      EmailMessage? @relation(fields: [emailMessageId], references: [id], onDelete: SetNull)
+  lastError         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([payloadPurgedAt, updatedAt])
+}
+
+// Platform records intentionally survive customer/workspace deletion. No tokens or email bodies.
+model WaitlistAudit {
+  id          String @id @default(cuid())
+  actorUserId String?
+  action      String
+  entryId     String?
+  inviteId    String?
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
 }

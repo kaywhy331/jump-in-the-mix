@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
-import { ContactForm } from "@/components/ContactForm";
+import { NewContactForm } from "@/components/NewContactForm";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
 import { mergeGroupActivity } from "@/lib/group-activity";
-import { splitContactName } from "@/lib/quick-add-capture";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Add contact" };
@@ -11,16 +10,8 @@ export const metadata: Metadata = { title: "Add contact" };
 type SearchParams = {
   error?: string;
   quickAddFallback?: string;
-  capture?: string;
-  name?: string;
-  phone?: string;
-  followUpDate?: string;
-  reason?: string;
+  draft?: string;
 };
-
-function safeDate(value: string | undefined): string | undefined {
-  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined;
-}
 
 export default async function NewContactPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [query, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
@@ -44,30 +35,20 @@ export default async function NewContactPage({ searchParams }: { searchParams: P
       })
     : [];
   const groups = mergeGroupActivity(rawGroups, groupStates);
-  const capture = query.capture?.slice(0, 2000);
-  const name = splitContactName(query.name?.slice(0, 240));
-  const phone = query.phone?.slice(0, 80).trim();
-  const contact = capture || name.firstName || name.lastName || phone
-    ? { firstName: name.firstName, lastName: name.lastName, publicNotes: capture, phones: phone ? [{ phone, label: "Mobile", isPrimary: true }] : undefined }
-    : undefined;
 
   return (
     <div className="page">
       <header className="page-header"><div><h1>Add a contact</h1><p>Add the essentials now, then schedule the first follow-up without returning to the Contacts list.</p></div></header>
       {query.error && <Notice type="error">{query.error}</Notice>}
       {query.quickAddFallback && <Notice type="info">Your browser does not expose the native Contact Picker. Use this compact form instead; supported browsers also offer optional voice dictation for Public Notes.</Notice>}
-      {capture && <Notice type="info">We carried over the details that Quick Add recognized. Review them before saving.</Notice>}
-      <ContactForm
-        mode="create"
-        contact={contact}
+      <NewContactForm
+        draftId={query.draft?.slice(0, 100)}
         groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, isActive: group.isActive }))}
         customFields={customFields.map((field) => ({ id: field.id, name: field.name, key: field.key }))}
         followUp={followUpType ? {
           dateTypeId: followUpType.id,
           dateTypeName: followUpType.name,
           mixes: matchingMixes,
-          defaultDate: safeDate(query.followUpDate),
-          defaultReason: query.reason?.slice(0, 240) || "Follow up"
         } : null}
       />
     </div>

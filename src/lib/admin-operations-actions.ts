@@ -1,50 +1,21 @@
 "use server";
-
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requirePlatformAdmin } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-
-function value(formData: FormData, key: string): string {
-  return String(formData.get(key) ?? "").trim();
-}
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { JobRetryError, retryFailedJob } from "@/lib/admin-job-retry";
 
 export async function retryFailedJobAction(formData: FormData): Promise<void> {
-  const { user } = await requirePlatformAdmin();
-  const jobId = value(formData, "jobId");
-  if (!jobId) throw new Error("Job ID is required.");
-
-  const job = await prisma.job.findUnique({ where: { id: jobId } });
-  if (!job) throw new Error("The background job no longer exists.");
-  if (!job.failedAt && !job.lastError) throw new Error("Only failed jobs can be retried from this control.");
-
-  await prisma.$transaction(async (tx) => {
-    await tx.job.update({
-      where: { id: job.id },
-      data: {
-        runAt: new Date(),
-        attempts: 0,
-        lockedAt: null,
-        lockedBy: null,
-        completedAt: null,
-        failedAt: null,
-        lastError: null
-      }
-    });
-    if (job.workspaceId) {
-      await tx.auditLog.create({
-        data: {
-          workspaceId: job.workspaceId,
-          actorType: "ADMIN",
-          actorUserId: user.id,
-          action: "admin.job.retry",
-          entityType: "Job",
-          entityId: job.id,
-          source: "admin.operations",
-          metadata: { task: job.task, previousAttempts: job.attempts }
-        }
-      });
-    }
-  });
-  revalidatePath("/admin");
-  revalidatePath("/admin/operations");
+  const { user, session } = await requirePlatformAdmin("jobs.retry");
+  let task: string;
+  try {
+    if (!(await consumeRateLimit({ scope: "admin.job-retry", identifiers: [user.id], limit: 20, windowMs: 5 * 60_000 })).allowed) throw new JobRetryError("Too many retries. Please wait five minutes.");
+    const job = await retryFailedJob({ actorUserId: user.id, actorSessionId: session.id, jobId: String(formData.get("jobId") ?? ""), expectedFailedAt: String(formData.get("failedAt") ?? "") });
+    task = job.task;
+  } catch (error) {
+    if (error instanceof Error && "digest" in error) throw error;
+    redirect(`/admin/operations?error=${encodeURIComponent(error instanceof JobRetryError ? error.message : "The job could not be retried. Reload Operations.")}`);
+  }
+  revalidatePath("/admin"); revalidatePath("/admin/operations"); revalidatePath("/admin/reports/exports"); revalidatePath("/admin/reports/history");
+  redirect(`/admin/operations?status=pending&task=${encodeURIComponent(task)}&retried=1`);
 }

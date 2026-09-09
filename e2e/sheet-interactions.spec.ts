@@ -53,7 +53,7 @@ test("message drafts, snooze fields, nested confirmation and focus survive closi
   await review.focus(); await page.keyboard.press("Enter");
   const message = page.getByRole("dialog", { name: "Message Sheet person 2", exact: true });
   await expect(message).toBeVisible();
-  const draft = message.getByRole("textbox", { name: "Edit before sending", exact: true });
+  const draft = message.getByRole("textbox", { name: "Fine-tune before sending", exact: true });
   await draft.fill("Keep this unsent estimate draft.");
   for (const colorScheme of ["light", "dark"] as const) { await setTheme(page, colorScheme); await audit(page); }
   await closeSheet(page); await expect(review).toBeFocused();
@@ -65,7 +65,7 @@ test("message drafts, snooze fields, nested confirmation and focus survive closi
   const options = page.getByRole("dialog", { name: "Follow up with Sheet person 2", exact: true });
   const date = options.getByLabel("Choose a day", { exact: true });
   const chosen = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10); await date.fill(chosen);
-  const stop = options.getByRole("button", { name: "Stop plan…", exact: true }); await stop.click();
+  const stop = options.getByRole("button", { name: "Stop mix…", exact: true }); await stop.click();
   const confirmation = page.getByRole("dialog", { name: "Stop Sheet plan for Sheet person 2?", exact: true });
   await expect(confirmation).toBeVisible(); await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(stop).toBeFocused(); await expect(options).toBeVisible();

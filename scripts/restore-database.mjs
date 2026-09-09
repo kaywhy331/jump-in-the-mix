@@ -16,6 +16,11 @@ import {
   sameDatabase
 } from "./lib/postgres-ops.mjs";
 import { sendOpsAlert } from "./lib/ops-alert.mjs";
+import { beginRecoveryHold, recordRecoveryVerification } from "./lib/recovery-hold.mjs";
+import { verifyBackupManifestAuthentication } from "./lib/backup-manifest.mjs";
+import { privateJson } from "./lib/operations-artifacts.mjs";
+import { readBackupRecoveryState } from "./lib/recovery-bundle.mjs";
+import { captureRecoveryState, recoveryStateDigest, recoveryTargetDigest } from "./lib/recovery-state.mjs";
 
 function argument(name) {
   const direct = process.argv.find((item) => item.startsWith(`${name}=`));
@@ -25,8 +30,7 @@ function argument(name) {
 }
 
 async function loadManifest(path) {
-  const raw = await readFile(path, "utf8");
-  const manifest = JSON.parse(raw);
+  const manifest = await privateJson(path);
   assertBackupManifest(manifest);
   return manifest;
 }
@@ -46,6 +50,7 @@ async function main() {
 
   const manifestFile = resolve(argument("--manifest") ?? `${archivePath}.manifest.json`);
   const manifest = await loadManifest(manifestFile);
+  const manifestAuthenticated = verifyBackupManifestAuthentication(manifest);
   if (target.schema !== manifest.source.schema) {
     throw new Error("Restore target schema must match the backup source schema. Use that schema in a separate empty database.");
   }
@@ -53,6 +58,9 @@ async function main() {
   if (checksum !== manifest.archive.sha256) {
     throw new Error("Encrypted archive checksum does not match its manifest.");
   }
+  // When present, the signed sidecar is mandatory and verified before touching
+  // the target. A plain legacy archive remains supported without this proof.
+  const recoveryState = Object.hasOwn(manifest, "recoveryState") ? await readBackupRecoveryState(archivePath, manifest) : null;
 
   await assertDatabaseEmpty(targetUrl);
   const temporaryDirectory = await mkdtemp(join(tmpdir(), "jitm-restore-"));
@@ -64,6 +72,9 @@ async function main() {
       commandVersion("psql")
     ]);
     await decryptFile(archivePath, rawDumpPath);
+    // The hold lives in database metadata outside the restored application
+    // schema. Restore/verification failures leave it in place.
+    const recovery = await beginRecoveryHold(targetUrl, { archiveSha256: checksum, sourceHash: manifestAuthenticated ? manifest.source.operationsSourceHash ?? null : null, requireNoOtherClients: true });
     await runCommand("pg_restore", [
       "--clean",
       "--if-exists",
@@ -96,9 +107,18 @@ async function main() {
     if (differences.length) {
       throw new Error(`Restored database did not match the backup manifest: ${differences.join("; ")}`);
     }
+    let recoverySnapshot;
+    if (recoveryState) {
+      const actual = await captureRecoveryState(targetUrl, { targetHold: recovery });
+      if (recoveryTargetDigest(actual) !== recoveryTargetDigest(recoveryState)) throw new Error("Restored rows and schema do not match the bundled recovery evidence. Keep the target held.");
+      recoverySnapshot = { version: 1, stateId: recoveryState.id, stateDigest: recoveryStateDigest(recoveryState), sourceCapturedAt: recoveryState.capturedAt, schemaHash: recoveryState.schemaHash, targetDigest: recoveryTargetDigest(actual) };
+    }
+    await recordRecoveryVerification(targetUrl, recovery, { manifestAuthenticated, contentVerified: Boolean(manifest.source.tableDigests), recoverySnapshot });
 
     console.log(JSON.stringify({
       status: "ok",
+      recovery: "held",
+      recoveryId: recovery.id,
       targetDatabase: target.database,
       targetSchema: target.schema,
       tableCount: restored.tableCount,
@@ -108,7 +128,9 @@ async function main() {
       compatibilitySettingsRemoved: transactionTimeoutRemoved ? ["transaction_timeout=0"] : [],
       restoredExtensions: manifest.source.requiredExtensions ?? ["pg_trgm"],
       contentVerified: Boolean(manifest.source.tableDigests),
-      manifestVerified: true
+      manifestVerified: true,
+      manifestAuthenticated,
+      ...(recoverySnapshot ? { recoverySnapshotVerified: true, stateId: recoverySnapshot.stateId, sourceCapturedAt: recoverySnapshot.sourceCapturedAt, applicationReady: false, continuousCoverage: false } : {})
     }, null, 2));
   } finally {
     await rm(temporaryDirectory, { recursive: true, force: true });
@@ -120,7 +142,7 @@ main().catch(async (error) => {
   console.error(`Restore failed: ${message}`);
   await sendOpsAlert({
     title: "Database restore failed",
-    summary: message,
+    summary: "The isolated restore command failed. Review its private runner logs.",
     details: { command: "db:restore" }
   });
   process.exitCode = 1;

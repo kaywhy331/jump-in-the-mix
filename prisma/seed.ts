@@ -3,6 +3,7 @@ import { prisma } from "../src/lib/prisma";
 import { generateJumps } from "../src/lib/jump-engine";
 import { READY_MADE_PLANS } from "../src/lib/vertical-plan-library";
 import { publishReadyMadePlans } from "../src/lib/publish-plan-library";
+import { installSystemMixBaseline } from "../src/lib/system-mix-store";
 
 const demoMode = (process.env.DEMO_MODE ?? "true").toLowerCase() === "true";
 const demoEmail = process.env.DEMO_USER_EMAIL ?? "demo@jumpinthemix.local";
@@ -27,6 +28,7 @@ function atNoon(offsetDays: number): Date {
 }
 
 async function seedSystemData() {
+  await installSystemMixBaseline();
   for (const [id, name, slug] of systemDateTypes) {
     await prisma.dateType.upsert({
       where: { scopeKey_slug: { scopeKey: "system", slug } },
@@ -35,20 +37,7 @@ async function seedSystemData() {
     });
   }
 
-  // These ids shipped before the product moved to trade-specific ready-made plans.
-  // Keep the retirement list so an upgrade cannot surface stale consulting copy.
-  const retiredConsultingTemplateIds = [
-    "shared_new_lead",
-    "shared_referral",
-    "shared_client_onboarding",
-    "shared_renewal_checkin"
-  ];
-
-  await prisma.sharedMix.updateMany({
-    where: { id: { in: retiredConsultingTemplateIds } },
-    data: { status: "UNPUBLISHED" }
-  });
-
+  // Catalog retirement is a one-time audited migration, never a seed overwrite.
   await publishReadyMadePlans(READY_MADE_PLANS);
 }
 

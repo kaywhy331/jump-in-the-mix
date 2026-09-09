@@ -1,0 +1,12 @@
+// Private singleton. Zero ceilings require an operator to configure launch access.
+model AdmissionPolicy {
+  id                  String   @id @default("default")
+  accountCeiling      Int      @default(0)
+  outstandingCeiling  Int      @default(0)
+  collectionPaused    Boolean  @default(false)
+  grantsPaused        Boolean  @default(false)
+  referralsPaused     Boolean  @default(false)
+  redemptionPaused    Boolean  @default(false)
+  revision            Int      @default(0)
+  updatedAt           DateTime @updatedAt
+}

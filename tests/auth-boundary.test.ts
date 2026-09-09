@@ -12,14 +12,15 @@ describe("authentication request boundary", () => {
     expect(register).toContain("pilotRegistrationOpen");
     expect(login).toContain("requestMagicLinkAction");
     expect(login).toContain("SocialSignInOptions");
-    expect(register).toContain("SocialSignInOptions");
-    expect(register).not.toMatch(/referral|planIntent/i);
+    expect(register).toContain("validAccessToken");
+    expect(register).toContain("referralAccessInvite");
+    expect(register).not.toContain("requestInviteAction");
     expect(shell).toContain('from "@/lib/auth-actions"');
   });
 
   it("rejects untrusted browser mutation origins while keeping webhook routes available", () => {
     const proxy = readFileSync("src/proxy.ts", "utf8");
-    expect(proxy).toContain("export function proxy");
+    expect(proxy).toMatch(/export\s+(?:async\s+)?function\s+proxy\(/);
     expect(proxy).toContain('request.headers.get("origin")');
     expect(proxy).toContain('request.headers.get("sec-fetch-site")');
     expect(proxy).toContain('/api/webhooks/');

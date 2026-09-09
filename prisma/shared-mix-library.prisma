@@ -5,6 +5,8 @@ model SharedMixMetadata {
   dateTypeName String?
   dateTypeSlug String?
   version      Int            @default(1)
+  draftVersion Int            @default(1)
+  controlRevision Int         @default(0)
   featuredAt   DateTime?
   publishedAt  DateTime?
   createdAt    DateTime        @default(now())
@@ -17,4 +19,32 @@ model SharedMixImportMetadata {
   importId         String   @id
   sharedMixVersion Int      @default(1)
   createdAt        DateTime @default(now())
+}
+
+model SharedMixRevision {
+  id           String   @id @default(cuid())
+  sharedMixId  String
+  version      Int
+  snapshot     Json
+  actorUserId  String?
+  reason       String
+  createdAt    DateTime @default(now())
+  sharedMix    SharedMix @relation(fields: [sharedMixId], references: [id], onDelete: Cascade)
+
+  @@unique([sharedMixId, version])
+}
+
+model SharedMixRelease {
+  id              String @id @default(cuid())
+  sharedMixId     String
+  version         Int
+  action          String
+  controlRevision Int
+  actorUserId     String?
+  reason          String
+  createdAt       DateTime @default(now())
+  sharedMix       SharedMix @relation(fields: [sharedMixId], references: [id], onDelete: Cascade)
+
+  @@unique([sharedMixId, controlRevision])
+  @@index([sharedMixId, version])
 }

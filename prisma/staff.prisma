@@ -1,0 +1,70 @@
+enum StaffRole {
+  OWNER
+  OPERATOR
+  GROWTH
+  EDITOR
+  SUPPORT
+  ANALYST
+}
+
+enum StaffStatus {
+  ACTIVE
+  DISABLED
+}
+
+model StaffMembership {
+  id        String @id @default(cuid())
+  userId    String @unique
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      StaffRole
+  status    StaffStatus @default(ACTIVE)
+  grants    String[] @default([])
+  denies    String[] @default([])
+  revision  Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, role])
+}
+
+// Frozen permission offer for a new staff-only account. Acceptance still requires MFA.
+model StaffInvitation {
+  id               String @id @default(cuid())
+  email            String
+  role             StaffRole
+  grants           String[] @default([])
+  denies           String[] @default([])
+  issuerUserId     String
+  issuerRevision   Int
+  tokenHash        String @unique
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedUserId   String?
+  revokedAt        DateTime?
+  lastSentAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  delivery         WaitlistDelivery?
+
+  @@index([email, createdAt])
+  @@index([issuerUserId, acceptedAt])
+  @@index([expiresAt])
+}
+
+// Deliberately independent of user/workspace cascades. Never store credentials or message bodies.
+model PlatformAuditEvent {
+  id          String @id @default(cuid())
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  outcome     String @default("ALLOWED")
+  reason      String?
+  beforeData  Json?
+  afterData   Json?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([entityType, entityId])
+}

@@ -42,14 +42,14 @@ export function parseBroadcastScheduleInput(dateValue: string, timeValue: string
   const dateInput = dateValue.trim();
   const timeInput = timeValue.trim();
   const timezone = timezoneValue.trim();
-  if (!DATE_INPUT.test(dateInput)) throw new Error("Choose a valid plan start date.");
+  if (!DATE_INPUT.test(dateInput)) throw new Error("Choose a valid mix start date.");
   const localDate = new Date(`${dateInput}T12:00:00.000Z`);
   if (Number.isNaN(localDate.getTime()) || localDate.toISOString().slice(0, 10) !== dateInput) {
-    throw new Error("Choose a valid plan start date.");
+    throw new Error("Choose a valid mix start date.");
   }
   const timeMinutes = parseTimeInput(timeInput);
-  if (timeMinutes === null) throw new Error("Choose a valid plan start time.");
-  if (!isValidTimezone(timezone)) throw new Error("Choose a valid plan timezone.");
+  if (timeMinutes === null) throw new Error("Choose a valid mix start time.");
+  if (!isValidTimezone(timezone)) throw new Error("Choose a valid mix timezone.");
   return { localDate, dateInput, timeMinutes, timeInput, timezone };
 }
 
@@ -60,7 +60,7 @@ export async function saveMixBroadcastSchedule(
   schedule: BroadcastScheduleInput
 ): Promise<void> {
   const mix = await findWorkspaceMix(db, workspaceId, mixId);
-  if (!mix) throw new WorkspaceScopeError("Plan");
+  if (!mix) throw new WorkspaceScopeError("Mix");
   await db.mixBroadcastSchedule.upsert({
     where: { mixId: mix.id },
     create: {

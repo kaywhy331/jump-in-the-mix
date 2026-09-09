@@ -21,7 +21,7 @@ export async function assignMixToContactAction(formData: FormData): Promise<void
     prisma.mix.findFirst({ where: { id: mixId, workspaceId: workspace.id, status: "ACTIVE" }, select: { id: true, triggerMode: true } }),
     prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, select: { id: true } })
   ]);
-  if (!mix || !contact) fail(contactId, "Choose an active plan.");
+  if (!mix || !contact) fail(contactId, "Choose an active mix.");
 
   const assignmentKey = `${workspace.id}:${mix.id}:${contact.id}`;
   await prisma.$transaction(async (tx) => {
@@ -63,7 +63,7 @@ export async function removeMixAssignmentAction(formData: FormData): Promise<voi
     where: { id: assignmentId, workspaceId: workspace.id, contactId },
     select: { id: true, mixId: true }
   });
-  if (!assignment) fail(contactId, "Plan assignment not found.");
+  if (!assignment) fail(contactId, "Mix assignment not found.");
 
   await prisma.$transaction([
     prisma.mixAssignment.update({ where: { id: assignment.id }, data: { isActive: false } }),

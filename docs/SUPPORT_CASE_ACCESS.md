@@ -1,0 +1,35 @@
+# Support cases and customer access
+
+Support starts at **Admin → Support**. The queue shows ticket metadata, the requester, assignment, and message counts. Private message bodies are loaded only when a staff member opens an individual case; that read is audited. Staff with `support.manage` share the conversation queue so they can triage and hand work over. Assignment limits access to the customer's workspace; it does not hide a support conversation from other authorized support staff.
+
+## Operator workflow
+
+1. Open the customer's ticket and review the conversation. Use the reply, priority, category and status controls as needed.
+2. Choose an active handler under **Assignment**, explain the handoff, and save. A changed assignment invalidates stale assignment forms and ends existing customer views for that case.
+3. If investigation requires private workspace content, the assigned handler also needs the separately granted `support.view_customer` permission. No role receives that permission by default. Keep `AUTH_REQUIRE_ADMIN_MFA=true` for hosted operation.
+4. On the active ticket, write a specific support reason and select **Start view-only session**. The server derives the requester and workspace from the case. The browser cannot select an unrelated customer.
+5. End the view to return to the support queue. Resolve or close the ticket when finished. Both actions end its active customer views; reopening does not revive an old view.
+
+The banner identifies the customer, case reference, reason and expiry. A view lasts up to `AUTH_IMPERSONATION_MINUTES` (30 by default) and belongs to the exact staff session that opened it. Starting another view ends that staff member's previous views. Copying the view cookie into another sign-in grants no access. Expired or invalid cookies can be cleared with the existing recovery control.
+
+## Boundaries and audit
+
+Creation and every server-side resolution recheck verified/unsuspended staff identity, a live matching session, `support.manage`, `support.view_customer`, enabled MFA and current-session MFA when required, active assignment, case state and requester membership. Legacy grants without a proven case/session fail closed. Customer suspension, membership removal, session expiry/deletion or staff permission changes prevent further access.
+
+A view covers the requester's one case workspace, including private contacts, notes and mix content needed to investigate. It is read-only: the centralized request boundary rejects unsafe methods except ending the view, and sensitive account/export/actions retain their own checks. A request already authorized before a revocation may finish; subsequent server requests revalidate. Ending access cannot erase content already displayed in a browser.
+
+Platform audit events record assignment with a reason and before/after revision, case state changes, conversation reads, view start/end, and customer page/API reads. Start events also retain the original actor and workspace audit record. Read receipts contain case, staff session, optional grant, and bounded resource metadata. They exclude message bodies, contact notes, search queries, raw URLs, access tokens, and credentials. Ticket links disable prefetching so queue browsing does not load conversations. Support-view responses use `private, no-store` and an origin-only referrer policy that strips paths and search terms while allowing the native end-view form to pass the origin check. An ended view can also be cleared from invitation pages whose own no-referrer metadata makes the native form’s Origin opaque: only that exit endpoint accepts `Origin: null` with the browser’s `Sec-Fetch-Site: same-origin`. Cross-site, same-site and foreign-origin attempts remain rejected. The proxy replaces internal request/path headers; repeated server component reads within one HTTP request produce one receipt per case/view. A failed audit write fails the private read rather than returning unrecorded data. Read receipts describe server access, including prefetches, not proof a human read the screen.
+
+Assignment, view creation/resolution and admin ticket actions use the staff lock followed by a ticket row lock. This orders permission changes, reassignment and closure without granting access from stale form state. Ticket replies, triage, status changes and email retry claims recheck staff/session/MFA inside their save transaction. Support actions and view starts also have per-actor request limits. Support responses still use the existing email delivery mechanism; its broader outbox/recovery qualification remains separate work.
+
+## Upgrade and verification
+
+Apply `20260909060000_support_case_scope` before starting the matching web build. It preserves tickets/messages, adds nullable assignment/case/session relationships, and ends all pre-upgrade support views because their scope cannot be proven. Staff must assign a case and start a new view after the upgrade. Deploy matching code; old code cannot supply the new service contract. No additional service or paid infrastructure is required.
+
+The migration rehearsal checks preserved private threads and ended legacy views on an isolated populated schema before exercising the historical core rollback, which drops its original impersonation table. Fresh-schema migration checks cover the complete current schema. For a live recovery use the documented database backup/restore procedure, not an old core rollback script.
+
+`tests/admin-impersonation.test.ts` covers races, scope, session/MFA/permission changes, target membership, expiry, audit deduplication and privacy, and current authority for ticket mutations. The support lifecycle and staff-access suites cover existing behavior. `e2e/support-cases.spec.ts` verifies real assignment/start/end forms, stale/cross-session denial, private-read receipts, no-store headers, mutation rejection, MFA/permission gates, and phone/desktop DOM accessibility in both themes. It requires an isolated `jitm_design_*` database, `SUPPORT_CASES_E2E=1`, `AUTH_REQUIRE_ADMIN_MFA=true`, and the documented packaged-server browser environment; capture remains off.
+
+Unusual-access alerts and inactive support-data retention are implemented locally; see [Operational alerts](OPERATIONAL_ALERTS.md) and [Data retention](DATA_RETENTION.md). Resolved/closed cases expire after 180 inactive days, with pending email, recent changes/messages and active views protected. Customer-approved repairs and public policy qualification remain separate launch work. This feature permits investigation; it does not add a general database editor or customer mutation bypass.
+
+Support reply notifications now use the existing worker with an encrypted outbox, stable retry keys, receipt recovery, and explicit reviewed replacements. See [Support email operations](SUPPORT_EMAIL_OPERATIONS.md). The capture-free packaged browser suite is `SUPPORT_EMAIL_E2E=1` with `e2e/support-email.spec.ts`; run it with administrator MFA and matching sender/encryption configuration in runner and server.

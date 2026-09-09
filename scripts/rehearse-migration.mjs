@@ -30,7 +30,29 @@ const requiredMigrations = [
   productPlatformMigration,
   hostedAuthMigration,
   automaticDeliveryMigration,
-  dormantFeatureRetirementMigration
+  dormantFeatureRetirementMigration,
+  "20260908000000_referral_access_invites",
+  "20260908120000_waitlist_waves",
+  "20260908160000_staff_permissions",
+  "20260908200000_invitation_preferences",
+  "20260908230000_email_delivery_controls",
+  "20260908233000_optional_email_preferences",
+  "20260909000000_account_access_controls",
+  "20260909010000_staff_invitations",
+  "20260909020000_admission_controls",
+  "20260909030000_library_revisions",
+  "20260909031000_catalog_retirement_history",
+  "20260909040000_system_mix_releases",
+  "20260909050000_report_storage",
+  "20260909051000_report_storage_observations",
+  "20260909060000_support_case_scope",
+  "20260909070000_email_suppression_review",
+  "20260909080000_invitation_delivery_generations",
+  "20260909090000_operational_alerts",
+  "20260909100000_private_data_retention",
+  "20260909110000_support_email_outbox",
+  "20260909120000_import_crash_recovery",
+  "20260909130000_workspace_history_erasure"
 ];
 const suffix = randomUUID().replaceAll("-", "").slice(0, 12);
 const schemaName = `jitm_rehearsal_${suffix}`;
@@ -134,6 +156,11 @@ async function seedLegacyDatabase(client) {
     [now]
   );
   await client.query(
+    `INSERT INTO "User" ("id", "email", "passwordHash", "name", "emailVerifiedAt", "isPlatformAdmin", "createdAt", "updatedAt")
+     VALUES ('legacy-admin', 'legacy-admin@example.test', 'test-only', 'Legacy Admin', $1, true, $1, $1)`,
+    [now]
+  );
+  await client.query(
     `INSERT INTO "Workspace" ("id", "name", "slug", "ownerId", "planTier", "subscriptionStatus", "cancelAtPeriodEnd", "createdAt", "updatedAt")
      VALUES ('legacy-workspace', 'Legacy Workspace', 'legacy-workspace', 'legacy-user', 'PLUS', 'ACTIVE', false, $1, $1)`,
     [now]
@@ -220,14 +247,16 @@ async function assertForwardState(client) {
     "ReviewRequest",
     "AuthIdentity",
     "AuthOAuthState",
-    "AutomatedDelivery"
+    "AutomatedDelivery",
+    "ReferralAccessInvite", "WaitlistEntry", "WaitlistWave", "WaitlistSchedule", "WaitlistDelivery", "WaitlistAudit",
+    "StaffMembership", "StaffInvitation", "AdmissionPolicy", "SharedMixRevision", "SharedMixRelease", "SystemMixConfig", "SystemMixRevision", "SystemMixRelease", "PlatformAuditEvent", "EmailSuppression", "EmailMessage", "EmailSendAttempt", "EmailProviderEvent", "InvitationDeliveryHistory", "OperationsMonitor", "OperationsCheck", "OperationsNotice"
   ]) {
     if (!(await tableExists(client, table))) throw new Error(`Expected migrated table ${table}.`);
   }
   for (const table of retiredTables) {
     if (await tableExists(client, table)) throw new Error(`Retired table ${table} still exists.`);
   }
-  for (const [table, column] of [["Contact", "privateNotes"], ["MixStep", "isActive"], ["MixStep", "updatedAt"]]) {
+  for (const [table, column] of [["Contact", "privateNotes"], ["MixStep", "isActive"], ["MixStep", "updatedAt"], ["User", "suspendedAt"], ["User", "accessRevision"]]) {
     if (!(await columnExists(client, table, column))) throw new Error(`Expected migrated column ${table}.${column}.`);
   }
   if (!(await columnIsNullable(client, "User", "passwordHash"))) throw new Error("Hosted passwordless accounts require nullable User.passwordHash.");
@@ -246,6 +275,22 @@ async function assertForwardState(client) {
   for (const column of ["publisherWorkspaceId", "publisherMixId", "isPlatform", "voteCount", "reviewState", "reviewedAt", "reviewedByUserId", "moderationNote"]) {
     if (await columnExists(client, "SharedMixMetadata", column)) throw new Error(`Retired SharedMixMetadata.${column} still exists.`);
   }
+
+  const admission = await client.query(`SELECT "accountCeiling", "outstandingCeiling", "redemptionPaused", "collectionPaused" FROM "AdmissionPolicy" WHERE id = 'default'`);
+  if (admission.rowCount !== 1 || admission.rows[0].accountCeiling !== 0 || admission.rows[0].outstandingCeiling !== 0 || admission.rows[0].redemptionPaused || admission.rows[0].collectionPaused) {
+    throw new Error("Admission upgrade must default closed to new grants while preserving collection and issued links.");
+  }
+  const preservedLibrary = await client.query(`SELECT s.id FROM "SharedMix" s JOIN "SharedMixMetadata" m ON m."sharedMixId" = s.id LEFT JOIN "SharedMixRevision" r ON r."sharedMixId" = s.id AND r.version = m."draftVersion" WHERE r.id IS NULL OR r.snapshot->'steps' IS DISTINCT FROM s.steps::jsonb`);
+  if (preservedLibrary.rowCount) throw new Error("Library migration lost the current content snapshot.");
+  const staff = await client.query(`SELECT "role"::text, "status"::text, "grants", "denies" FROM "StaffMembership" WHERE "userId" = 'legacy-admin'`);
+  if (staff.rows[0]?.role !== "OPERATOR" || staff.rows[0]?.status !== "ACTIVE" || staff.rows[0]?.grants.length || staff.rows[0]?.denies.length) {
+    throw new Error("Legacy administrator must migrate to Operator with no additional permissions.");
+  }
+  if ((await client.query(`SELECT 1 FROM "StaffMembership" WHERE "userId" = 'legacy-user' OR "role" = 'OWNER'`)).rowCount) {
+    throw new Error("Migration inferred staff or Owner access.");
+  }
+  if (!(await columnExists(client, "WaitlistEntry", "withdrawnAt"))) throw new Error("Waitlist withdrawal timestamp is missing.");
+  if (!(await columnIsNullable(client, "ReferralAccessInvite", "inviterUserId"))) throw new Error("Platform grants must not consume a member's invitation allowance.");
 
   const contact = await client.query(`SELECT "displayName", "publicNotes", "privateNotes", "source"::text AS "source" FROM "Contact" WHERE "id" = 'legacy-contact'`);
   if (contact.rows[0]?.displayName !== "Jordan Legacy" || contact.rows[0]?.publicNotes !== "Preserve this note" || contact.rows[0]?.privateNotes !== null || contact.rows[0]?.source !== "MANUAL") {
@@ -359,7 +404,9 @@ async function assertGreenfieldState(client) {
     "ReviewRequest",
     "AuthIdentity",
     "AuthOAuthState",
-    "AutomatedDelivery"
+    "AutomatedDelivery",
+    "ReferralAccessInvite", "WaitlistEntry", "WaitlistWave", "WaitlistSchedule", "WaitlistDelivery", "WaitlistAudit",
+    "StaffMembership", "StaffInvitation", "AdmissionPolicy", "SharedMixRevision", "SharedMixRelease", "SystemMixConfig", "SystemMixRevision", "SystemMixRelease", "PlatformAuditEvent", "EmailSuppression", "EmailMessage", "EmailSendAttempt", "EmailProviderEvent", "InvitationDeliveryHistory", "OperationsMonitor", "OperationsCheck", "OperationsNotice"
   ]) {
     if (!(await tableExists(client, table, greenfieldSchemaName))) {
       throw new Error(`Greenfield migration did not create ${table}.`);
@@ -391,6 +438,221 @@ async function assertGreenfieldState(client) {
   assertRequiredMigrations(names, "Greenfield deployment");
 }
 
+async function rehearseSystemMixUpgrade(client) {
+  // Disposable schema only: reconstruct the immediately preceding schema and
+  // prove an already-prepared invitation survives this additive upgrade.
+  await client.query(`SET search_path TO "${schemaName}"`);
+  await client.query("BEGIN");
+  try {
+    await client.query('DROP TABLE "SystemMixRelease", "SystemMixRevision", "SystemMixConfig"');
+    await client.query('ALTER TABLE "ReferralAccessInvite" DROP COLUMN "systemMixVersion"');
+    await client.query(`INSERT INTO "ReferralAccessInvite" (id, "recipientEmail", "tokenHash", "tokenCiphertext") VALUES ('system-upgrade-invite', 'migration@example.test', 'migration-token-hash', 'preserved-token-ciphertext')`);
+    await client.query(`INSERT INTO "WaitlistDelivery" (id, "inviteId", "messageCiphertext", "updatedAt") VALUES ('system-upgrade-delivery', 'system-upgrade-invite', 'preserved-frozen-payload', CURRENT_TIMESTAMP)`);
+    await client.query(readFileSync("prisma/migrations/20260909040000_system_mix_releases/migration.sql", "utf8"));
+    const result = await client.query(`SELECT i."systemMixVersion", i."tokenCiphertext", d."messageCiphertext", d.status::text FROM "ReferralAccessInvite" i JOIN "WaitlistDelivery" d ON d."inviteId" = i.id WHERE i.id = 'system-upgrade-invite'`);
+    const row = result.rows[0];
+    if (!row || row.systemMixVersion !== null || row.tokenCiphertext !== "preserved-token-ciphertext" || row.messageCiphertext !== "preserved-frozen-payload" || row.status !== "QUEUED") throw new Error("System Mix upgrade changed a previously frozen invitation.");
+    const baseline = await client.query(`SELECT r.subject, c."publishedVersion" FROM "SystemMixConfig" c JOIN "SystemMixRevision" r ON r."systemMixId" = c.id AND r.version = c."publishedVersion" WHERE c.id = 'referral'`);
+    if (baseline.rows[0]?.publishedVersion !== 1 || baseline.rows[0]?.subject !== "{{Sender Name}} invited you to Jump in the Mix") throw new Error("System Mix migration did not install the existing wording baseline.");
+    await client.query(`DELETE FROM "ReferralAccessInvite" WHERE id = 'system-upgrade-invite'`);
+    await client.query("COMMIT");
+    console.log("System Mix upgrade preserved an existing frozen invitation and its access token.");
+  } catch (error) { await client.query("ROLLBACK"); throw error; }
+}
+
+async function rehearseReportStorageUpgrade(client) {
+  await client.query(`SET search_path TO "${schemaName}"`);
+  await client.query("BEGIN");
+  try {
+    const baseline = await client.query(`SELECT (SELECT count(*) FROM "User") AS users, (SELECT count(*) FROM "Contact") AS contacts, (SELECT count(*) FROM "Jump") AS jumps`);
+    await client.query('DROP TABLE "ReportExport", "ReportDailySnapshot", "ReportSchedule"');
+    await client.query(readFileSync("prisma/migrations/20260909050000_report_storage/migration.sql", "utf8"));
+    const after = await client.query(`SELECT (SELECT count(*) FROM "User") AS users, (SELECT count(*) FROM "Contact") AS contacts, (SELECT count(*) FROM "Jump") AS jumps`);
+    if (JSON.stringify(baseline.rows) !== JSON.stringify(after.rows)) throw new Error("Report storage migration changed customer row counts.");
+    await client.query(`INSERT INTO "Session" (id,"userId","tokenHash","expiresAt") VALUES ('report-session','legacy-user','report-session-token',CURRENT_TIMESTAMP+interval '1 day')`);
+    await client.query(`INSERT INTO "ReportExport" (id,"actorUserId","actorSessionId","requestKey","fromDay","throughDay","expiresAt","updatedAt") VALUES ('report-export','legacy-user','report-session','request','2026-01-01','2026-01-31',CURRENT_TIMESTAMP+interval '1 day',CURRENT_TIMESTAMP)`);
+    await client.query("SAVEPOINT invalid_report");
+    try {
+      await client.query(`UPDATE "ReportExport" SET status='READY' WHERE id='report-export'`);
+      throw new Error("Database accepted a ready report without encrypted content.");
+    } catch (error) { if (error.code !== "23514") throw error; await client.query("ROLLBACK TO SAVEPOINT invalid_report"); }
+    await client.query(`DELETE FROM "Session" WHERE id='report-session'`);
+    if ((await client.query(`SELECT id FROM "ReportExport" WHERE id='report-export'`)).rowCount) throw new Error("Deleting a session retained its report content.");
+    await client.query("ROLLBACK");
+    console.log("Report storage upgrade preserved customer rows and enforced ready-state/session-cascade constraints.");
+  } catch (error) { await client.query("ROLLBACK"); throw error; }
+}
+
+async function rehearseSupportCaseUpgrade(client) {
+  await client.query(`SET search_path TO "${schemaName}"`);
+  await client.query("BEGIN");
+  try {
+    await client.query('ALTER TABLE "AdminImpersonation" DROP COLUMN "ticketId", DROP COLUMN "actorSessionId"');
+    await client.query('ALTER TABLE "SupportTicket" DROP COLUMN "assignedToUserId", DROP COLUMN "assignmentRevision"');
+    await client.query(`INSERT INTO "SupportTicket" (id, reference, "workspaceId", "requesterUserId", title, category, "updatedAt") VALUES ('case-upgrade', 'CASE-UPGRADE', 'legacy-workspace', 'legacy-user', 'Existing request', 'GENERAL', CURRENT_TIMESTAMP)`);
+    await client.query(`INSERT INTO "SupportTicketMessage" (id,"ticketId","authorUserId","authorType",body) VALUES ('case-message','case-upgrade','legacy-user','USER','Preserve this private conversation')`);
+    await client.query(`INSERT INTO "AdminImpersonation" (id,"tokenHash","actorUserId","targetUserId","workspaceId",reason,"expiresAt") VALUES ('case-old-view','case-old-hash','legacy-user','legacy-user','legacy-workspace','Existing view without a proven case',CURRENT_TIMESTAMP+interval '1 hour')`);
+    await client.query(readFileSync("prisma/migrations/20260909060000_support_case_scope/migration.sql", "utf8"));
+    const view = (await client.query(`SELECT "endedAt", "ticketId", "actorSessionId" FROM "AdminImpersonation" WHERE id='case-old-view'`)).rows[0];
+    const ticket = (await client.query(`SELECT "assignedToUserId", "assignmentRevision", m.body FROM "SupportTicket" t JOIN "SupportTicketMessage" m ON m."ticketId"=t.id WHERE t.id='case-upgrade'`)).rows[0];
+    if (!view.endedAt || view.ticketId !== null || view.actorSessionId !== null || ticket.assignedToUserId !== null || ticket.assignmentRevision !== 0 || ticket.body !== 'Preserve this private conversation') throw new Error("Support upgrade failed to preserve the thread or invalidate unscoped access.");
+    await client.query("ROLLBACK");
+    console.log("Support case upgrade preserved private threads and ended legacy unscoped views.");
+  } catch (error) { await client.query("ROLLBACK"); throw error; }
+}
+
+async function rehearseSuppressionReviewUpgrade(client) {
+  await client.query(`SET search_path TO "${schemaName}"`);
+  await client.query("BEGIN");
+  try {
+    await client.query('ALTER TABLE "EmailSuppression" DROP COLUMN revision, DROP COLUMN "lastTriggeredAt", DROP COLUMN "clearedAt"');
+    await client.query(`INSERT INTO "EmailSuppression" (id,email,reason) VALUES ('suppression-upgrade','suppression-upgrade@example.test','HARD_BOUNCE'), ('optout-upgrade','optout-upgrade@example.test','INVITATION_OPTOUT')`);
+    await client.query(readFileSync("prisma/migrations/20260909070000_email_suppression_review/migration.sql", "utf8"));
+    const row = (await client.query(`SELECT reason::text,revision,"clearedAt","lastTriggeredAt" FROM "EmailSuppression" WHERE id='suppression-upgrade'`)).rows[0];
+    if (row.reason !== 'HARD_BOUNCE' || row.revision !== 1 || row.clearedAt !== null || row.lastTriggeredAt !== null) throw new Error("Suppression upgrade changed an existing recipient block.");
+    await client.query("SAVEPOINT invalid_clearance");
+    try {
+      await client.query(`UPDATE "EmailSuppression" SET "clearedAt"=CURRENT_TIMESTAMP WHERE id='optout-upgrade'`);
+      throw new Error("Database accepted an administrator clearance of recipient opt-out.");
+    } catch (error) { if (error.code !== "23514") throw error; await client.query("ROLLBACK TO SAVEPOINT invalid_clearance"); }
+    await client.query("ROLLBACK");
+    console.log("Suppression review upgrade preserved active blocks and prevents clearing recipient opt-out.");
+  } catch (error) { await client.query("ROLLBACK"); throw error; }
+}
+
+async function rehearseInvitationGenerationUpgrade(client) {
+  await client.query(`SET search_path TO "${schemaName}"`);
+  await client.query("BEGIN");
+  try {
+    await client.query('DROP TABLE "InvitationDeliveryHistory"');
+    await client.query('ALTER TABLE "WaitlistDelivery" DROP COLUMN generation, DROP COLUMN "generationStartedAt"');
+    await client.query(`INSERT INTO "ReferralAccessInvite" (id,"recipientEmail","tokenHash","tokenCiphertext") VALUES ('repeat-upgrade-invite','repeat-upgrade@example.test','repeat-upgrade-hash','preserved-grant-ciphertext')`);
+    await client.query(`INSERT INTO "WaitlistDelivery" (id,"inviteId","messageCiphertext",status,attempts,"firstAttemptAt","createdAt","updatedAt") VALUES ('repeat-upgrade-delivery','repeat-upgrade-invite','preserved-message-ciphertext','REVIEW',8,'2026-09-01','2026-08-31','2026-09-03')`);
+    const original = (await client.query(`SELECT "firstAttemptAt" FROM "WaitlistDelivery" WHERE id='repeat-upgrade-delivery'`)).rows[0];
+    await client.query(readFileSync("prisma/migrations/20260909080000_invitation_delivery_generations/migration.sql", "utf8"));
+    const row = (await client.query(`SELECT generation,"generationStartedAt","createdAt",status::text,attempts,"messageCiphertext","firstAttemptAt" FROM "WaitlistDelivery" WHERE id='repeat-upgrade-delivery'`)).rows[0];
+    if (row.generation !== 1 || row.generationStartedAt.getTime() !== row.createdAt.getTime() || row.status !== 'REVIEW' || row.attempts !== 8 || row.messageCiphertext !== 'preserved-message-ciphertext' || row.firstAttemptAt.getTime() !== original.firstAttemptAt.getTime()) throw new Error("Invitation generation upgrade changed original delivery evidence.");
+    await client.query("SAVEPOINT invalid_generation");
+    try {
+      await client.query(`UPDATE "WaitlistDelivery" SET generation=0 WHERE id='repeat-upgrade-delivery'`);
+      throw new Error("Database accepted an invalid delivery generation.");
+    } catch (error) { if (error.code !== "23514") throw error; await client.query("ROLLBACK TO SAVEPOINT invalid_generation"); }
+    await client.query("ROLLBACK");
+    console.log("Invitation generation upgrade preserved frozen content, original clocks and review state.");
+  } catch (error) { await client.query("ROLLBACK"); throw error; }
+}
+
+async function rehearseSupportEmailUpgrade(client) {
+  await client.query("BEGIN");
+  try {
+    await client.query('DROP TABLE "SupportEmailDelivery"');
+    await client.query('DROP TYPE "SupportEmailDeliveryStatus"');
+    await client.query('ALTER TABLE "SupportTicketMessage" DROP COLUMN "requestKey"');
+    const ticket = (await client.query('SELECT id FROM "SupportTicket" LIMIT 1')).rows[0].id;
+    for (const status of ['PENDING', 'FAILED', 'PREVIEWED', 'SENT']) {
+      await client.query(`INSERT INTO "SupportTicketMessage" (id,"ticketId","authorUserId","authorType",body,"emailStatus","emailProviderId") VALUES ($1,$2,'legacy-admin','ADMIN','Preserved private reply',$3,'preserved-provider')`, ['support-upgrade-' + status, ticket, status]);
+    }
+    await client.query(readFileSync("prisma/migrations/20260909110000_support_email_outbox/migration.sql", "utf8"));
+    const rows = (await client.query(`SELECT d.status::text, d."messageCiphertext", d."leaseId", m.body, m."emailProviderId" FROM "SupportEmailDelivery" d JOIN "SupportTicketMessage" m ON m.id=d."messageId" WHERE m.id LIKE 'support-upgrade-%'`)).rows;
+    if (rows.length !== 3 || rows.some(row => row.status !== 'REVIEW' || row.messageCiphertext !== '' || row.leaseId || row.body !== 'Preserved private reply' || row.emailProviderId !== 'preserved-provider')) throw new Error("Support upgrade replayed or changed a legacy notification.");
+    for (const statement of [
+      `UPDATE "SupportEmailDelivery" SET status='QUEUED' WHERE "messageId"='support-upgrade-PENDING'`,
+      `UPDATE "SupportEmailDelivery" SET status='SENDING', "messageCiphertext"='frozen' WHERE "messageId"='support-upgrade-PENDING'`,
+      `UPDATE "SupportEmailDelivery" SET generation=0 WHERE "messageId"='support-upgrade-PENDING'`
+    ]) {
+      await client.query("SAVEPOINT invalid_support_delivery");
+      try { await client.query(statement); throw new Error("Database accepted an invalid support delivery."); }
+      catch (error) { if (error.code !== "23514") throw error; await client.query("ROLLBACK TO SAVEPOINT invalid_support_delivery"); }
+    }
+    console.log("Support notification upgrade preserved conversation and provider facts, held legacy sends for review, and enforced lease/content invariants.");
+  } finally { await client.query("ROLLBACK"); }
+}
+
+async function rehearsePrivateRetentionUpgrade(client) {
+  await client.query("BEGIN");
+  try {
+    await client.query('DROP TABLE "DataRetentionState"');
+    await client.query('ALTER TABLE "EmailMessage" DROP CONSTRAINT "EmailMessage_retired_details_check", DROP COLUMN "detailsRetiredAt", ALTER COLUMN "recipientHash" SET NOT NULL');
+    await client.query('ALTER TABLE "EmailProviderEvent" DROP CONSTRAINT "EmailProviderEvent_retired_details_check", DROP COLUMN "detailsRetiredAt"');
+    await client.query('ALTER TABLE "WaitlistDelivery" DROP CONSTRAINT "WaitlistDelivery_purged_payload_check", DROP COLUMN "payloadPurgedAt"');
+    await client.query('ALTER TABLE "ReferralAccessInvite" DROP CONSTRAINT "ReferralAccessInvite_purged_token_check", DROP COLUMN "tokenPurgedAt"');
+    await client.query('DROP INDEX "SupportTicket_status_lastActivityAt_idx"');
+    await client.query(`INSERT INTO "ReferralAccessInvite" (id,"recipientEmail","tokenHash","tokenCiphertext") VALUES ('retention-upgrade-invite','retention-upgrade@example.test','retention-upgrade-hash','preserved-token')`);
+    await client.query(`INSERT INTO "EmailMessage" (id,"recipientHash","payloadHash",category,"firstAttemptAt","createdAt") VALUES ('retention-upgrade-message','preserved-recipient-hash','preserved-payload-hash','INVITATION','2020-01-01','2020-01-01')`);
+    await client.query(`INSERT INTO "WaitlistDelivery" (id,"inviteId","emailMessageId","messageCiphertext",status,attempts,generation,"firstAttemptAt","updatedAt") VALUES ('retention-upgrade-delivery','retention-upgrade-invite','retention-upgrade-message','preserved-private-message','REVIEW',8,2,'2020-01-01',CURRENT_TIMESTAMP)`);
+    await client.query(`INSERT INTO "EmailProviderEvent" (id,type,"providerId","recipientHashes","occurredAt") VALUES ('retention-upgrade-event','email.delivered','preserved-provider-id',ARRAY['preserved-recipient-hash'],'2020-01-02')`);
+    const originalAttempt = (await client.query(`SELECT "firstAttemptAt" FROM "EmailMessage" WHERE id='retention-upgrade-message'`)).rows[0].firstAttemptAt;
+    await client.query(readFileSync("prisma/migrations/20260909100000_private_data_retention/migration.sql", "utf8"));
+    const message = (await client.query(`SELECT "recipientHash","payloadHash","detailsRetiredAt","firstAttemptAt" FROM "EmailMessage" WHERE id='retention-upgrade-message'`)).rows[0];
+    const delivery = (await client.query(`SELECT "messageCiphertext","payloadPurgedAt",status::text,attempts,generation FROM "WaitlistDelivery" WHERE id='retention-upgrade-delivery'`)).rows[0];
+    if (message.recipientHash !== 'preserved-recipient-hash' || message.payloadHash !== 'preserved-payload-hash' || message.detailsRetiredAt || message.firstAttemptAt.getTime() !== originalAttempt.getTime() || delivery.messageCiphertext !== 'preserved-private-message' || delivery.payloadPurgedAt || delivery.status !== 'REVIEW' || delivery.attempts !== 8 || delivery.generation !== 2) throw new Error("Retention migration altered existing private content, delivery evidence or retry clocks.");
+    if ((await client.query('SELECT count(*)::int AS count FROM "DataRetentionState"')).rows[0].count !== 0) throw new Error("Retention migration fabricated a successful cleanup checkpoint.");
+    for (const statement of [
+      `UPDATE "EmailMessage" SET "detailsRetiredAt"=CURRENT_TIMESTAMP WHERE id='retention-upgrade-message'`,
+      `UPDATE "EmailProviderEvent" SET "detailsRetiredAt"=CURRENT_TIMESTAMP WHERE id='retention-upgrade-event'`,
+      `UPDATE "WaitlistDelivery" SET "payloadPurgedAt"=CURRENT_TIMESTAMP WHERE id='retention-upgrade-delivery'`,
+      `UPDATE "ReferralAccessInvite" SET "tokenPurgedAt"=CURRENT_TIMESTAMP WHERE id='retention-upgrade-invite'`
+    ]) {
+      await client.query("SAVEPOINT invalid_retention");
+      try { await client.query(statement); throw new Error("Database accepted an inconsistent retention marker."); }
+      catch (error) { if (error.code !== "23514") throw error; await client.query("ROLLBACK TO SAVEPOINT invalid_retention"); }
+    }
+    console.log("Private retention upgrade preserved frozen content and retry clocks, seeded no success, and rejected inconsistent tombstones.");
+  } finally { await client.query("ROLLBACK"); }
+}
+
+async function rehearseOperationalAlertsUpgrade(client) {
+  await client.query(`SET search_path TO "${schemaName}"`);
+  await client.query("BEGIN");
+  try {
+    await client.query('DROP TABLE "OperationsNotice", "OperationsCheck", "OperationsMonitor"');
+    await client.query(`INSERT INTO "ReferralAccessInvite" (id,"recipientEmail","tokenHash","tokenCiphertext") VALUES ('ops-upgrade-invite','ops-upgrade@example.test','ops-upgrade-hash','preserved-access-ciphertext')`);
+    await client.query(`INSERT INTO "WaitlistDelivery" (id,"inviteId","messageCiphertext",status,attempts,generation,"updatedAt") VALUES ('ops-upgrade-delivery','ops-upgrade-invite','preserved-invitation','REVIEW',8,2,CURRENT_TIMESTAMP)`);
+    await client.query(readFileSync("prisma/migrations/20260909090000_operational_alerts/migration.sql", "utf8"));
+    const row = (await client.query(`SELECT generation,status::text,attempts,"messageCiphertext" FROM "WaitlistDelivery" WHERE id='ops-upgrade-delivery'`)).rows[0];
+    const count = (await client.query('SELECT count(*)::int AS count FROM "OperationsCheck"')).rows[0].count;
+    if (count !== 0 || row.generation !== 2 || row.status !== 'REVIEW' || row.attempts !== 8 || row.messageCiphertext !== 'preserved-invitation') throw new Error("Operational alerts upgrade changed an invitation or fabricated health evidence.");
+    await client.query("SAVEPOINT invalid_ops_state");
+    try {
+      await client.query(`INSERT INTO "OperationsCheck" (code,state,evidence,"observedAt","changedAt") VALUES ('test','UNVERIFIED_SUCCESS','{}',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`);
+      throw new Error("Database accepted an unsupported operational state.");
+    } catch (error) { if (error.code !== "23514") throw error; await client.query("ROLLBACK TO SAVEPOINT invalid_ops_state"); }
+    await client.query("ROLLBACK");
+    console.log("Operational alerts upgrade preserved invitations and requires actual health observations.");
+  } catch (error) { await client.query("ROLLBACK"); throw error; }
+}
+
+async function rehearseWorkspaceErasureUpgrade(client) {
+  await client.query(`SET search_path TO "${schemaName}"`);
+  await client.query("BEGIN");
+  const tables = ["ContactGroupState", "JumpActionEvent", "MixBroadcastSchedule", "MixStop"];
+  try {
+    for (const table of tables) await client.query(`ALTER TABLE "${table}" DROP CONSTRAINT "${table}_workspaceId_fkey"`);
+    await client.query(`INSERT INTO "Workspace" (id,name,slug,"ownerId","updatedAt") VALUES ('erasure-workspace','Erasure fixture','erasure-fixture','legacy-user',now())`);
+    for (const workspace of ['erasure-workspace', 'already-deleted-workspace']) {
+      await client.query('INSERT INTO "ContactGroupState" ("groupId","workspaceId","updatedAt") VALUES ($1,$2,now())', [`erasure-group-${workspace}`, workspace]);
+      await client.query(`INSERT INTO "JumpActionEvent" (id,"workspaceId","jumpId",action,metadata) VALUES ($1,$2,$3,'OPENED','{"note":"Preserve valid fixture"}')`, [`erasure-event-${workspace}`, workspace, `jump-${workspace}`]);
+      await client.query('INSERT INTO "MixBroadcastSchedule" (id,"workspaceId","mixId","localDate","timeMinutes",timezone,"updatedAt") VALUES ($1,$2,$3,now(),600,$4,now())', [`erasure-broadcast-${workspace}`, workspace, `mix-${workspace}`, 'UTC']);
+      await client.query('INSERT INTO "MixStop" (id,"workspaceId","mixId","contactId",reason,"updatedAt") VALUES ($1,$2,$3,$4,$5,now())', [`erasure-stop-${workspace}`, workspace, `mix-${workspace}`, `contact-${workspace}`, 'Preserve valid fixture']);
+    }
+    const sql = readFileSync('prisma/migrations/20260909130000_workspace_history_erasure/migration.sql', 'utf8').replace(/^BEGIN;|^COMMIT;/gm, '');
+    await client.query(sql);
+    for (const table of tables) {
+      const result = await client.query(`SELECT "workspaceId" FROM "${table}" WHERE "workspaceId" IN ('erasure-workspace','already-deleted-workspace')`);
+      if (result.rows.length !== 1 || result.rows[0].workspaceId !== 'erasure-workspace') throw new Error('Workspace erasure upgrade did not preserve the owned fixture and remove its orphan.');
+    }
+    await client.query(`DELETE FROM "Workspace" WHERE id='erasure-workspace'`);
+    for (const table of tables) if ((await client.query(`SELECT 1 FROM "${table}" WHERE "workspaceId"='erasure-workspace'`)).rowCount) throw new Error('Workspace deletion left legacy history behind.');
+    await client.query('SAVEPOINT late_erasure_write');
+    try {
+      await client.query(`INSERT INTO "ContactGroupState" ("groupId","workspaceId","updatedAt") VALUES ('late-erasure-write','erasure-workspace',now())`);
+      throw new Error('A late write recreated erased workspace history.');
+    } catch (error) { if (error.code !== '23503') throw error; await client.query('ROLLBACK TO SAVEPOINT late_erasure_write'); }
+    await client.query('ROLLBACK');
+    console.log('Workspace erasure upgrade preserved owned history, removed only orphaned history, cascaded deletion and rejected a late write.');
+  } catch (error) { await client.query('ROLLBACK'); throw error; }
+}
+
 const databaseUrl = databaseUrlForSchema(schemaName);
 const admin = new Client({ connectionString: pgConnectionUrl() });
 
@@ -405,23 +667,37 @@ try {
   runPrisma(["migrate", "resolve", "--applied", baselineMigration], databaseUrl);
   runPrisma(["migrate", "deploy"], databaseUrl);
   await assertForwardState(admin);
+  await rehearseWorkspaceErasureUpgrade(admin);
+  // Exercise the current upgrade before the historical core rollback drops its
+  // original impersonation table. Later migration records survive that rehearsal.
+  await rehearseSupportEmailUpgrade(admin);
+  await rehearsePrivateRetentionUpgrade(admin);
+  await rehearseSupportCaseUpgrade(admin);
 
   await admin.query(`SET search_path TO "${schemaName}"`);
   await admin.query(readFileSync(rollbackPath, "utf8"));
   await assertRollbackState(admin);
+  // The historical rollback drops three workflow tables. Rewind the dependent
+  // erasure migration too, in this disposable schema only, before rebuilding.
+  await admin.query('ALTER TABLE "ContactGroupState" DROP CONSTRAINT "ContactGroupState_workspaceId_fkey"');
 
   // Isolated rehearsal only: retain the applied baseline and remove the core
   // forward record so that guarded migration can be exercised a second time.
   // Later independent migrations remain applied and their data must survive.
   await admin.query(
-    `DELETE FROM "${schemaName}"."_prisma_migrations" WHERE "migration_name" = $1`,
-    [forwardMigration]
+    `DELETE FROM "${schemaName}"."_prisma_migrations" WHERE "migration_name" IN ($1,$2)`,
+    [forwardMigration, "20260909130000_workspace_history_erasure"]
   );
   runPrisma(["migrate", "deploy"], databaseUrl);
   await assertForwardState(admin);
 
   // Clean database path proves the committed baseline and every forward
   // migration can provision the complete application without db push.
+  await rehearseSystemMixUpgrade(admin);
+  await rehearseReportStorageUpgrade(admin);
+  await rehearseSuppressionReviewUpgrade(admin);
+  await rehearseInvitationGenerationUpgrade(admin);
+  await rehearseOperationalAlertsUpgrade(admin);
   await admin.query(`CREATE SCHEMA "${greenfieldSchemaName}"`);
   runPrisma(["migrate", "deploy"], databaseUrlForSchema(greenfieldSchemaName));
   await assertGreenfieldState(admin);

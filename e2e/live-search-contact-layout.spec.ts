@@ -39,16 +39,16 @@ test("Plan and ready-made plan filters stay focused", async ({ page }, testInfo)
 
   await page.goto("/mixes");
   await expect(page.locator(".mix-filter-bar")).toHaveAttribute("data-live-filter", "true");
-  await page.locator('input[aria-label="Search plans"]:visible').fill("Estimate");
+  await page.locator('input[aria-label="Search mixes"]:visible').fill("Estimate");
   await expect(page).toHaveURL(/\/mixes\?q=Estimate$/);
   await expect(page.locator(".mix-row")).toHaveCount(1);
   await page.getByRole("button", { name: /^Filter/ }).click();
-  await page.getByLabel("Filter plans by status").selectOption("ACTIVE");
+  await page.getByLabel("Filter mixes by status").selectOption("ACTIVE");
   await expect(page).toHaveURL(/\/mixes\?q=Estimate&status=ACTIVE$/);
 
   await page.goto("/templates");
   await expect(page.locator(".plan-library-filters")).toHaveAttribute("data-live-filter", "true");
-  await page.getByLabel("Search ready-made plans").fill("review");
+  await page.getByLabel("Search ready-made mixes").fill("review");
   await expect(page).toHaveURL(/\/templates\?q=review/i);
   await expect(page.locator(".mix-template-card").first()).toBeVisible();
 });
@@ -81,5 +81,5 @@ test("Contact details use a fixed phone-first layout", async ({ page }, testInfo
   await page.locator(".contact-detail-more > summary").click();
   await expect(page.getByRole("heading", { name: "Contact details" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Dates" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Plans" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Mixes" })).toBeVisible();
 });

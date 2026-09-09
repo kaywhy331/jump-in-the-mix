@@ -214,6 +214,10 @@ async function sendDigest(input: {
       await finishDelivery(deliveryId, input.workerId, { skipped: true });
       return true;
     }
+    if (!await emailSummaryStillEnabled(input.workspaceId, input.userId, "emailDigestEnabled")) {
+      await finishDelivery(deliveryId, input.workerId, { skipped: true });
+      return true;
+    }
     const message = digestMessage({ ...input, due: due.items, overdueCount: due.overdueCount });
     const result = await sendTransactionalEmail({
       to: input.email,
@@ -281,6 +285,10 @@ async function sendWeeklyReport(input: {
     ];
     const text = [`Hi ${input.ownerName},`, "", `Here’s last week at ${input.company}:`, ...lines.map((line) => `• ${line}`), "", `Open Today: ${env.appUrl.replace(/\/$/, "")}/jumps`].join("\n");
     const html = `<p>Hi ${escapeHtml(input.ownerName)},</p><p>Here’s last week at ${escapeHtml(input.company)}:</p><ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul><p><a href="${escapeHtml(env.appUrl.replace(/\/$/, "") + "/jumps")}">Open Today</a></p>`;
+    if (!await emailSummaryStillEnabled(input.workspaceId, input.userId, "weeklyReportEnabled")) {
+      await finishDelivery(deliveryId, input.workerId, { skipped: true });
+      return true;
+    }
     const result = await sendTransactionalEmail({ to: input.email, subject: `Your week at ${input.company}`, text, html, idempotencyKey: `weekly-report:${input.workspaceId}:${input.localDate}` });
     await finishDelivery(deliveryId, input.workerId, { providerId: result.providerId });
     return true;
@@ -291,6 +299,11 @@ async function sendWeeklyReport(input: {
   }
 }
 
+async function emailSummaryStillEnabled(workspaceId: string, userId: string, preference: "emailDigestEnabled" | "weeklyReportEnabled") {
+  const owner = await prisma.workspace.findFirst({ where: { id: workspaceId, ownerId: userId, owner: { suspendedAt: null } }, select: { id: true } });
+  return Boolean(owner && await prisma.notificationPreference.findFirst({ where: { workspaceId, userId, [preference]: true }, select: { id: true } }));
+}
+
 export async function runScheduledNotifications(workerId: string, now = new Date()): Promise<{ attempted: number }> {
   const notificationPreferences = await prisma.notificationPreference.findMany({
     where: { OR: [{ emailDigestEnabled: true }, { pushEnabled: true }, { weeklyReportEnabled: true }] }
@@ -299,7 +312,7 @@ export async function runScheduledNotifications(workerId: string, now = new Date
   const workspaceIds = notificationPreferences.map((item) => item.workspaceId);
   const userIds = notificationPreferences.map((item) => item.userId);
   const [workspaces, userPreferences, schedulingPreferences] = await Promise.all([
-    prisma.workspace.findMany({ where: { id: { in: workspaceIds } }, select: { id: true, name: true, owner: { select: { id: true, name: true, email: true } }, profile: { select: { company: true } } } }),
+    prisma.workspace.findMany({ where: { id: { in: workspaceIds }, owner: { suspendedAt: null } }, select: { id: true, name: true, owner: { select: { id: true, name: true, email: true } }, profile: { select: { company: true } } } }),
     prisma.userPreference.findMany({ where: { userId: { in: userIds } } }),
     prisma.workspacePreference.findMany({ where: { workspaceId: { in: workspaceIds } } })
   ]);
@@ -310,7 +323,7 @@ export async function runScheduledNotifications(workerId: string, now = new Date
 
   for (const preference of notificationPreferences) {
     const workspace = workspaceById.get(preference.workspaceId);
-    if (!workspace) continue;
+    if (!workspace?.owner || workspace.owner.id !== preference.userId) continue;
     const display = displayByUser.get(preference.userId);
     const timeZone = isValidTimezone(display?.timezone ?? "") ? display!.timezone : "UTC";
     let clock: NotificationClock;

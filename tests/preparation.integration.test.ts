@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { readPreparationStatus, retryPreparation } from "@/lib/preparation";
 import { cleanupOperationalData } from "@/lib/operational-retention";
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 describe.skipIf(!local)("follow-up preparation", () => {
@@ -86,11 +86,19 @@ describe.skipIf(!local)("follow-up preparation", () => {
     const success = await job({ createdAt: ago(41*day), completedAt: ago(40*day) });
     const unrelated = await job({ task: "unrelated", completedAt: ago(40*day) });
     const expired = await job({ completedAt: ago(91*day) });
-    // This cleanup is permitted only on the isolated local fixture database.
-    await cleanupOperationalData(new Date());
-    expect(await prisma.job.findUnique({ where: { id: success.id } })).not.toBeNull();
-    expect(await prisma.job.findUnique({ where: { id: unrelated.id } })).toBeNull();
-    expect(await prisma.job.findUnique({ where: { id: expired.id } })).toBeNull();
-    expect((await readPreparationStatus(workspaceId)).state).toBe("ready");
+    const retention = await prisma.dataRetentionState.findUnique({ where: { id: "primary" } });
+    const auditIds = (await prisma.platformAuditEvent.findMany({ where: { action: "privacy.retention.complete" }, select: { id: true } })).map(row => row.id);
+    try {
+      // This cleanup is permitted only on the isolated local fixture database.
+      await cleanupOperationalData(new Date());
+      expect(await prisma.job.findUnique({ where: { id: success.id } })).not.toBeNull();
+      expect(await prisma.job.findUnique({ where: { id: unrelated.id } })).toBeNull();
+      expect(await prisma.job.findUnique({ where: { id: expired.id } })).toBeNull();
+      expect((await readPreparationStatus(workspaceId)).state).toBe("ready");
+    } finally {
+      await prisma.dataRetentionState.deleteMany({ where: { id: "primary" } });
+      if (retention) await prisma.dataRetentionState.create({ data: { ...retention, counts: retention.counts ?? Prisma.DbNull } });
+      await prisma.platformAuditEvent.deleteMany({ where: { action: "privacy.retention.complete", id: { notIn: auditIds } } });
+    }
   });
 });

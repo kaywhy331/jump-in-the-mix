@@ -1,13 +1,21 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { privateTestConfigurationIssues, privateTestEnabled, privateTestRequestAuthorized } from "@/lib/private-test";
 import { workerRequestAuthorized } from "@/lib/worker-request";
+import { databaseRecoveryStatus } from "@/lib/recovery-hold";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const IMPERSONATION_COOKIE = process.env.AUTH_IMPERSONATION_COOKIE_NAME ?? "jitm_impersonation";
 const IMPERSONATION_END_PATH = "/api/admin/impersonation/end";
 const isProduction = process.env.NODE_ENV === "production";
+const RECOVERY_PUBLIC_PATHS = new Set([
+  "/api/health/live", "/api/health/ready", "/sw.js", "/favicon.ico", "/favicon.png",
+  "/brand-logo.png", "/relationship-preview.svg", "/relationship-preview.png", "/icon-source.svg",
+  "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png", "/apple-touch-icon.png",
+  "/product-proof/today.png", "/product-proof/contacts.png", "/product-proof/mixes.png",
+  "/product-proof/mobile-jump.png", "/product-proof/quick-add.png"
+]);
 
 function configuredOrigins(): Set<string> {
   const values = [process.env.APP_URL, ...(process.env.AUTH_ALLOWED_ORIGINS ?? "").split(",")]
@@ -41,6 +49,10 @@ function mutationAllowed(request: NextRequest): boolean {
     && origin === "https://appleid.apple.com"
   ) return true;
   const fetchSite = request.headers.get("sec-fetch-site");
+  // Invitation pages intentionally use a no-referrer meta policy. A native
+  // recovery form there has an opaque Origin; require the browser's explicit
+  // same-origin provenance, and allow only ending this browser's support view.
+  if (request.method.toUpperCase() === "POST" && request.nextUrl.pathname === IMPERSONATION_END_PATH && origin === "null" && fetchSite === "same-origin") return true;
   if (!origin) {
     if (fetchSite === "same-origin" || fetchSite === "same-site" || fetchSite === "none") return true;
     return !isProduction && !fetchSite;
@@ -91,7 +103,7 @@ function applySecurityHeaders(response: NextResponse, nonce: string): NextRespon
   return response;
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const nonce = randomBytes(16).toString("base64");
   if (privateTestEnabled()) {
     const workerHandoff = request.nextUrl.pathname === "/.netlify/functions/jump-worker-background"
@@ -106,6 +118,17 @@ export function proxy(request: NextRequest) {
           ...(!unavailable ? { "WWW-Authenticate": 'Basic realm="Jump in the Mix private testing", charset="UTF-8"' } : {})
         }
       });
+      return applySecurityHeaders(response, nonce);
+    }
+  }
+  if (!SAFE_METHODS.has(request.method.toUpperCase()) || !RECOVERY_PUBLIC_PATHS.has(request.nextUrl.pathname)) {
+    const recovery = await databaseRecoveryStatus();
+    if (recovery !== "clear") {
+      const message = "Jump in the Mix is temporarily unavailable. Please try again later.";
+      const headers = { "Cache-Control": "private, no-store", "Retry-After": "60", "X-Robots-Tag": "noindex, nofollow" };
+      const response = request.nextUrl.pathname.startsWith("/api/")
+        ? NextResponse.json({ error: message }, { status: 503, headers })
+        : new NextResponse(message, { status: 503, headers });
       return applySecurityHeaders(response, nonce);
     }
   }
@@ -124,16 +147,30 @@ export function proxy(request: NextRequest) {
   }
 
   const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-jitm-request-id", randomUUID());
+  requestHeaders.set("x-jitm-support-path", request.nextUrl.pathname);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", contentSecurityPolicy(nonce));
   const response = applySecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), nonce);
+
+  if (request.nextUrl.pathname === "/register" || request.nextUrl.pathname.startsWith("/waitlist") || request.nextUrl.pathname.startsWith("/staff/accept")) {
+    response.headers.set("Referrer-Policy", "no-referrer");
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
   if (privateTestEnabled()) {
     response.headers.set("Cache-Control", "private, no-store");
     response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
+  if (request.cookies.get(IMPERSONATION_COOKIE)?.value) {
+    response.headers.set("Cache-Control", "private, no-store");
+    // Native POST forms need a non-opaque Origin to pass the CSRF boundary.
+    // Strip paths/search terms while retaining the origin for ending the view.
+    response.headers.set("Referrer-Policy", "strict-origin");
   }
   return response;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"]
+  matcher: ["/((?!_next/static|_next/image).*)"]
 };

@@ -42,6 +42,14 @@ function commaSeparated(value: string | undefined): string[] {
     .filter(Boolean);
 }
 
+function emailLimit(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= 1_000_000 ? parsed : fallback;
+}
+
+const emailDailyLimit = emailLimit(process.env.EMAIL_DAILY_LIMIT, 90);
+const emailMonthlyLimit = emailLimit(process.env.EMAIL_MONTHLY_LIMIT, 2700);
+
 export const env = {
   appUrl,
   cookieName: process.env.AUTH_COOKIE_NAME ?? DEFAULT_COOKIE,
@@ -62,6 +70,12 @@ export const env = {
   dataEncryptionKey: process.env.DATA_ENCRYPTION_KEY ?? "",
   allowedOrigins: commaSeparated(process.env.AUTH_ALLOWED_ORIGINS),
   resendApiKey: process.env.RESEND_API_KEY ?? "",
+  resendRecoveryApiKey: process.env.RESEND_RECOVERY_API_KEY ?? "",
+  resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET ?? "",
+  emailDailyLimit,
+  emailMonthlyLimit,
+  emailDailyAuthReserve: Math.min(emailDailyLimit, emailLimit(process.env.EMAIL_DAILY_AUTH_RESERVE, 20)),
+  emailMonthlyAuthReserve: Math.min(emailMonthlyLimit, emailLimit(process.env.EMAIL_MONTHLY_AUTH_RESERVE, 300)),
   emailFrom: process.env.EMAIL_FROM ?? "",
   emailReplyTo: process.env.EMAIL_REPLY_TO ?? "",
   authGoogleClientId: process.env.AUTH_GOOGLE_CLIENT_ID ?? "",
@@ -84,7 +98,7 @@ export const env = {
 };
 
 export function productionConfigurationIssues(source: NodeJS.ProcessEnv = process.env): string[] {
-  if ((source.NODE_ENV ?? "development") !== "production" || source.CI === "true") return [];
+  if ((source.NODE_ENV ?? "development") !== "production") return [];
   const issues: string[] = [];
   const privateTest = privateTestEnabled(source);
   issues.push(...privateTestConfigurationIssues(source));
@@ -114,17 +128,24 @@ export function productionConfigurationIssues(source: NodeJS.ProcessEnv = proces
 
   if ((source.DEMO_MODE ?? "false").toLowerCase() === "true") issues.push("DEMO_MODE must be false");
   if (!enabled(source.PILOT_MODE)) {
+    if (!privateTest && !enabled(source.AUTH_REQUIRE_ADMIN_MFA ?? "true")) issues.push("AUTH_REQUIRE_ADMIN_MFA must be true for hosted production");
+    if (!privateTest && !source.RESEND_WEBHOOK_SECRET?.trim()) issues.push("RESEND_WEBHOOK_SECRET is required for hosted production");
     if (!privateTest && !enabled(source.AUTH_REQUIRE_EMAIL_VERIFICATION)) issues.push("AUTH_REQUIRE_EMAIL_VERIFICATION must be true for hosted production");
     if (!privateTest || enabled(source.AUTH_REQUIRE_EMAIL_VERIFICATION) || source.RESEND_API_KEY || source.EMAIL_FROM) {
       if (!source.RESEND_API_KEY?.trim()) issues.push("RESEND_API_KEY is required for hosted production");
       if (!source.EMAIL_FROM?.trim()) issues.push("EMAIL_FROM is required for hosted production");
     }
-    if (!privateTest || source.AUTH_GOOGLE_CLIENT_ID || source.AUTH_GOOGLE_CLIENT_SECRET) {
+    if (source.AUTH_GOOGLE_CLIENT_ID || source.AUTH_GOOGLE_CLIENT_SECRET) {
       if (!source.AUTH_GOOGLE_CLIENT_ID?.trim() || !source.AUTH_GOOGLE_CLIENT_SECRET?.trim()) issues.push("Google sign-in credentials are required for hosted production");
     }
-    if (!privateTest || source.AUTH_APPLE_CLIENT_ID || source.AUTH_APPLE_TEAM_ID || source.AUTH_APPLE_KEY_ID || source.AUTH_APPLE_PRIVATE_KEY) {
+    if (source.AUTH_APPLE_CLIENT_ID || source.AUTH_APPLE_TEAM_ID || source.AUTH_APPLE_KEY_ID || source.AUTH_APPLE_PRIVATE_KEY) {
       if (!source.AUTH_APPLE_CLIENT_ID?.trim() || !source.AUTH_APPLE_TEAM_ID?.trim() || !source.AUTH_APPLE_KEY_ID?.trim() || !source.AUTH_APPLE_PRIVATE_KEY?.trim()) issues.push("Apple sign-in credentials are required for hosted production");
     }
   }
+  for (const name of ["EMAIL_DAILY_LIMIT", "EMAIL_MONTHLY_LIMIT", "EMAIL_DAILY_AUTH_RESERVE", "EMAIL_MONTHLY_AUTH_RESERVE"] as const) {
+    if (source[name] !== undefined && (!Number.isSafeInteger(Number(source[name])) || Number(source[name]) < 1 || Number(source[name]) > 1_000_000)) issues.push(`${name} must be an integer from 1 to 1000000`);
+  }
+  if (Number(source.EMAIL_DAILY_AUTH_RESERVE ?? 20) >= Number(source.EMAIL_DAILY_LIMIT ?? 90)) issues.push("EMAIL_DAILY_AUTH_RESERVE must be smaller than EMAIL_DAILY_LIMIT");
+  if (Number(source.EMAIL_MONTHLY_AUTH_RESERVE ?? 300) >= Number(source.EMAIL_MONTHLY_LIMIT ?? 2700)) issues.push("EMAIL_MONTHLY_AUTH_RESERVE must be smaller than EMAIL_MONTHLY_LIMIT");
   return issues;
 }

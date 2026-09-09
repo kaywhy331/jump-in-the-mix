@@ -54,7 +54,8 @@ export async function sha256File(path) {
   return hash.digest("hex");
 }
 
-export async function encryptFile(inputPath, outputPath, keyValue = process.env.BACKUP_ENCRYPTION_KEY) {
+export async function encryptFile(inputPath, outputPath, keyValue = process.env.BACKUP_ENCRYPTION_KEY, { signal } = {}) {
+  signal?.throwIfAborted();
   const key = Buffer.isBuffer(keyValue) ? keyValue : parseBackupKey(keyValue);
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
@@ -66,7 +67,8 @@ export async function encryptFile(inputPath, outputPath, keyValue = process.env.
     const output = await open(outputPath, "wx", 0o600);
     ownsOutput = true;
     try { await output.writeFile(header); } finally { await output.close(); }
-    await pipeline(createReadStream(inputPath), cipher, createWriteStream(outputPath, { flags: "a" }));
+    await pipeline(createReadStream(inputPath), cipher, createWriteStream(outputPath, { flags: "a" }), { signal });
+    signal?.throwIfAborted();
     await appendFile(outputPath, cipher.getAuthTag());
     return {
       version: VERSION,

@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { supportReadContext } from "@/lib/support-read-audit";
 import { redirect } from "next/navigation";
 import {
   adminMfaCredentialStatus,
@@ -11,6 +12,8 @@ import { env } from "@/lib/env";
 import { endAdminImpersonationGrant, resolveAdminImpersonationGrant } from "@/lib/impersonation";
 import { getRequestMetadata } from "@/lib/request-context";
 import { wakeWorkerAfterResponse } from "@/lib/worker-dispatch-after";
+import { effectiveAdminPermissions, hasAdminPermission, type AdminPermission } from "@/lib/admin-permissions";
+import { lockAccess } from "@/lib/access-lock";
 
 export function hashSessionToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
@@ -28,6 +31,9 @@ export async function createSession(userId: string): Promise<string> {
   const previousToken = store.get(env.cookieName)?.value;
 
   const session = await prisma.$transaction(async tx => {
+    await lockAccess(tx);
+    const account = await tx.user.findUnique({ where: { id: userId }, select: { suspendedAt: true } });
+    if (!account || account.suspendedAt) redirect("/login?error=Account+access+is+unavailable.+Contact+support+for+help.");
     // Replace only this browser's previous session. The lock also orders a
     // concurrent device opt-in against account replacement.
     const previousHash = previousToken ? hashSessionToken(previousToken) : null;
@@ -150,7 +156,7 @@ export async function getCurrentSession() {
     }
   });
 
-  if (!session || session.expiresAt <= new Date()) {
+  if (!session || !session.user || session.user.suspendedAt || session.expiresAt <= new Date()) {
     if (session) {
       await prisma.$transaction([
         prisma.adminMfaSession.deleteMany({ where: { sessionId: session.id } }),
@@ -169,8 +175,8 @@ export async function getCurrentSession() {
 
   const authUser = session.user;
   const impersonationToken = store.get(env.impersonationCookieName)?.value;
-  if (impersonationToken && authUser.isPlatformAdmin) {
-    const impersonation = await resolveAdminImpersonationGrant(impersonationToken, authUser.id);
+  if (impersonationToken && (!env.requireAdminMfa || await adminMfaSessionIsVerified(session.id, authUser.id))) {
+    const impersonation = await resolveAdminImpersonationGrant(impersonationToken, authUser.id, session.id, supportReadContext(await headers()));
     if (impersonation) {
       return {
         ...session,
@@ -181,6 +187,8 @@ export async function getCurrentSession() {
           actorUserId: impersonation.actorUserId,
           targetUserId: impersonation.targetUserId,
           workspaceId: impersonation.workspaceId,
+          ticketId: impersonation.ticketId,
+          reference: impersonation.reference,
           reason: impersonation.reason,
           expiresAt: impersonation.expiresAt
         }
@@ -199,7 +207,7 @@ export async function requireSession() {
 
 export async function requireWorkspace() {
   const session = await requireSession();
-  if (!session.impersonation && env.requireEmailVerification && !session.user.emailVerifiedAt) {
+  if (!session.impersonation && (env.requireEmailVerification || !env.pilotMode) && !session.user.emailVerifiedAt) {
     redirect(verificationPath(session.user.email));
   }
   const membership = session.user.memberships[0];
@@ -218,11 +226,12 @@ export async function requireWorkspace() {
 
 export async function requirePlatformAdminIdentity() {
   const session = await requireSession();
-  if (session.impersonation || !session.authUser.isPlatformAdmin) redirect("/jumps");
-  return { session, user: session.authUser };
+  const staff = await prisma.staffMembership.findUnique({ where: { userId: session.authUser.id } });
+  if (session.impersonation || !session.authUser.emailVerifiedAt || staff?.status !== "ACTIVE") redirect("/jumps");
+  return { session, user: session.authUser, staff, permissions: effectiveAdminPermissions(staff) };
 }
 
-export async function requirePlatformAdmin() {
+export async function requirePlatformAdmin(permission?: AdminPermission | AdminPermission[]) {
   const identity = await requirePlatformAdminIdentity();
   if (env.requireAdminMfa) {
     const [credential, verified] = await Promise.all([
@@ -231,6 +240,12 @@ export async function requirePlatformAdmin() {
     ]);
     if (!credential.enabledAt) redirect("/account/admin-mfa?setup=1&returnTo=%2Fadmin");
     if (!verified) redirect("/account/admin-mfa?verify=1&returnTo=%2Fadmin");
+  }
+  const required = permission ? (Array.isArray(permission) ? permission : [permission]) : [];
+  const denied = required.find(p => !hasAdminPermission(identity.staff, p));
+  if (denied) {
+    await prisma.platformAuditEvent.create({ data: { actorUserId: identity.user.id, action: "permission.denied", entityType: "AdminPermission", entityId: denied, outcome: "DENIED" } });
+    redirect("/admin/access-denied");
   }
   return identity;
 }

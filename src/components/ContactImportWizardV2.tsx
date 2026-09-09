@@ -403,7 +403,7 @@ export function ContactImportWizardV2({
 
       {stage === "RESULTS" && batch && (
         <section className="card import-stage" aria-live="polite">
-          <div className="import-stage-heading"><div><h2>{terminal(batch.status) ? "Import results" : "Import is running"}</h2><p>{batch.sourceFileName || "Contact import"} · created {batchDate(batch.createdAt)}. You may close this page; the worker will continue.</p></div><span className={`status-pill ${batch.status === "COMPLETED" ? "done" : ""}`}>{batch.status.toLowerCase()}</span></div>
+          <div className="import-stage-heading"><div><h2>{terminal(batch.status) ? "Import results" : "Import is running"}</h2><p>{batch.sourceFileName || "Contact import"} · created {batchDate(batch.createdAt)}.{!terminal(batch.status) && " You may close this page; the import will continue."}</p></div><span className={`status-pill ${batch.status === "COMPLETED" ? "done" : ""}`}>{batch.status.toLowerCase()}</span></div>
           <progress max={100} value={batch.progress} />
           <p><strong>{batch.processedRows.toLocaleString()} of {batch.totalRows.toLocaleString()}</strong> rows processed · {batch.progress}%</p>
           <div className="import-summary-grid result"><div><strong>{batch.createdCount}</strong><span>Created</span></div><div><strong>{batch.mergedCount + batch.replacedCount}</strong><span>Updated</span></div><div><strong>{batch.skippedCount}</strong><span>Skipped</span></div><div className={batch.failedCount ? "failed" : ""}><strong>{batch.failedCount}</strong><span>Failed</span></div></div>

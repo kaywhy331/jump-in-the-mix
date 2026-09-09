@@ -1,3 +1,4 @@
+import { ContactImportInputError, contactImportFailure } from "@/lib/contact-import-errors";
 import { NextResponse } from "next/server";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { z } from "zod";
@@ -109,7 +110,7 @@ async function assertActiveGroupReferences(workspaceId: string, items: CommitIte
   if (!requestedIds.length) return;
   const activeIds = await activeGroupIdsForWorkspace(workspaceId, requestedIds);
   if (activeIds.length !== requestedIds.length) {
-    throw new Error("One or more selected tags are hidden. Choose an active tag from Contacts before importing.");
+    throw new ContactImportInputError("One or more selected tags are hidden. Choose an active tag from Contacts before importing.");
   }
 }
 
@@ -195,9 +196,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ results });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "The Contact import could not be processed." },
-      { status: 400 }
-    );
+    const failure = contactImportFailure(error);
+    return NextResponse.json({ error: failure.error }, { status: failure.status });
   }
 }

@@ -1,4 +1,4 @@
-const CACHE = "jitm-public-v2";
+const CACHE = "jitm-public-v4";
 const PUBLIC_ICONS = new Set(["/icon-192.png", "/icon-512.png", "/apple-touch-icon.png", "/favicon.png"]);
 
 // Self-contained: no saved account HTML, scripts, fonts, or connection needed.

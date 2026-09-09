@@ -6,14 +6,14 @@ import { requireWorkspace } from "@/lib/auth";
 export const metadata: Metadata = { title: "Settings" };
 
 const destinations: Array<{ href: string; title: string; description: string; icon: AppIconName }> = [
-  { href: "/settings/journey", title: "Customer journey", description: "Your stages, automatic transitions, and stage plans.", icon: "people" },
+  { href: "/settings/journey", title: "Customer journey", description: "Your stages, automatic transitions, and stage mixes.", icon: "people" },
   { href: "/settings/connections", title: "Lead connections", description: "Forms and connections that bring people into your business.", icon: "import" },
   { href: "/calendar", title: "Calendar & time blocks", description: "Meetings, availability, and calendar connections.", icon: "calendar" },
   { href: "/settings/business", title: "My business", description: "Business name, services, contact details, and message signatures.", icon: "edit" },
   { href: "/account/preferences", title: "Personal preferences", description: "Display name, timezone, follow-up time, quiet hours, and weekends.", icon: "settings" },
   { href: "/settings/notifications", title: "Notifications", description: "Morning email, weekly report, and push reminders.", icon: "alert" },
   { href: "/settings/sending", title: "Sending to customers", description: "Review each message or choose optional automatic sending.", icon: "message" },
-  { href: "/settings/jump-date-types", title: "Date types", description: "Manage the dates that can start a follow-up plan.", icon: "calendar" },
+  { href: "/settings/jump-date-types", title: "Date types", description: "Manage the dates that can start a follow-up mix.", icon: "calendar" },
   { href: "/account?section=security", title: "Password & sessions", description: "Change your password and review active devices.", icon: "security" },
   { href: "/account?section=privacy", title: "Data & privacy", description: "Export your personal data or delete your account.", icon: "privacy" }
 ];

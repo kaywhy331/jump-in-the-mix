@@ -97,7 +97,7 @@ async function initialFollowUpPayload(workspaceId: string, formData: FormData): 
     },
     select: { id: true }
   });
-  if (!mix) throw new Error("The selected follow-up plan is no longer active or does not match this saved date.");
+  if (!mix) throw new Error("The selected follow-up mix is no longer active or does not match this saved date.");
   return { dateTypeId: dateType.id, dateValue, reason, mixId: mix.id };
 }
 

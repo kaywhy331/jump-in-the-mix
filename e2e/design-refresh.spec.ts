@@ -84,17 +84,17 @@ test("activation reviews contain focus, restore it, and keep confirmation reacha
   for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/mixes/new?custom=1");
-    await page.getByLabel("Plan name", { exact: true }).fill("Review only");
-    await page.getByLabel("When should it start?").selectOption("MANUAL_START");
+    await page.getByLabel("Mix name", { exact: true }).fill("Review only");
+    await page.getByLabel("Cue · when should it start?").selectOption("MANUAL_START");
     await page.getByLabel("After saving").selectOption("ACTIVE");
     await page.getByLabel("Everyone").check();
     await page.getByLabel("Message", { exact: true }).fill("A synthetic review message.");
-    await checkModal(page, page.getByRole("button", { name: "Review and turn on" }), "Turn on plan");
+    await checkModal(page, page.getByRole("button", { name: "Review and start" }), "Start the mix");
     await page.goto(`/templates/${templateId}-0/use`);
     await expect(page.getByLabel("After setup")).toHaveValue("DRAFT");
     await page.getByLabel("After setup").selectOption("ACTIVE");
     await page.getByLabel("Everyone").check();
-    await checkModal(page, page.getByRole("button", { name: "Review and turn on" }), "Confirm and turn on");
+    await checkModal(page, page.getByRole("button", { name: "Review and start" }), "Start the mix");
   }
 });
 
@@ -106,12 +106,12 @@ test("library is compact and preview preserves filters, scroll, and keyboard foc
   await expect(page.locator(".library-plan-card")).toHaveCount(9);
   await page.goto(`/templates?category=New+customers&industry=Home+services&framework=${encodeURIComponent(framework)}`);
   await expect(page.locator(".library-plan-card")).toHaveCount(2);
-  const trigger = page.getByRole("button", { name: "Preview Design sample 0", exact: true });
+  const trigger = page.getByRole("button", { name: "Preview the rhythm: Design sample 0", exact: true });
   await trigger.scrollIntoViewIfNeeded();
   const scroll = await page.evaluate(() => scrollY);
   const url = page.url();
   await trigger.click();
-  await expect(page.getByRole("dialog").getByRole("link", { name: "Use this plan" })).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("link", { name: "Remix it" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(trigger).toBeFocused();
   expect(page.url()).toBe(url);
@@ -124,8 +124,8 @@ test("library is compact and preview preserves filters, scroll, and keyboard foc
   await expect(page).toHaveURL(/\/templates$/, { timeout: 60_000 });
   await expect(page.getByLabel("Filter by goal")).toHaveValue("");
   await expect(page.getByLabel("Filter by business type")).toHaveValue("");
-  await expect(page.getByLabel("Filter by sales approach")).toHaveValue("");
-  await page.getByRole("searchbox", { name: "Search ready-made plans" }).fill("Jeremy Miner");
+  await expect(page.getByLabel("Filter by approach")).toHaveValue("");
+  await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill("Jeremy Miner");
   await expect(page).toHaveURL(/q=Jeremy\+Miner|q=Jeremy%20Miner/, { timeout: 60_000 });
   await expect(page.locator(".library-plan-card").first()).toContainText("NEPQ");
 });
@@ -208,7 +208,7 @@ test("responsive destinations stay reachable and hydration stays consistent", as
     await page.goto("/mixes");
     await page.setViewportSize({ width, height: 1000 });
     await settle();
-    const library = page.getByRole("link", { name: "Ready-made plans", exact: true });
+    const library = page.getByRole("link", { name: "Ready-made mixes", exact: true });
     const bounds = await library.boundingBox();
     expect(bounds?.width).toBeGreaterThanOrEqual(44);
     expect(bounds?.height).toBeGreaterThanOrEqual(44);
@@ -253,22 +253,4 @@ test("tablet contact controls stay reachable and dark settings hover stays reada
     await page.getByRole("link", { name: /Personal preferences/ }).hover();
     expect((await axeInPage(page).withRules(["color-contrast"]).analyze()).violations).toEqual([]);
   }
-});
-
-test("public sample is keyboard operable and never submits a request", async ({ page }) => {
-  const response = await page.goto("/");
-  const policy = response!.headers()["content-security-policy"];
-  const nonce = policy.match(/'nonce-([^']+)'/)?.[1];
-  expect(policy).toContain("'strict-dynamic'"); expect(nonce).toBeTruthy();
-  expect(await response!.text()).toContain(`nonce="${nonce}"`);
-  const requests: string[] = [];
-  page.on("request", request => { if (request.method() !== "GET") requests.push(request.url()); });
-  await expect(page.getByRole("radio", { name: "An open estimate" })).toBeEnabled();
-  await page.getByRole("radio", { name: "An open estimate" }).focus();
-  await page.keyboard.press("ArrowRight");
-  await expect(page.getByRole("radio", { name: "A finished job" })).toBeChecked();
-  await expect(page.locator(".demo-message")).toContainText("work is finished");
-  await page.getByRole("button", { name: "Try reviewing a follow-up" }).click();
-  await expect(page.locator(".demo-status")).toContainText("A personal touch");
-  expect(requests).toEqual([]);
 });

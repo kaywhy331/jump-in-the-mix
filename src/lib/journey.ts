@@ -91,7 +91,7 @@ export async function applyJourneyEvent(tx: Tx, input: JourneyEventInput) {
   if (target && changed) {
     const managedAssignmentId = await changeManagedPlan(tx, input, current?.managedAssignmentId ?? null, target.planId, now);
     await tx.contactJourney.upsert({ where: { contactId: input.contactId }, create: { workspaceId: input.workspaceId, contactId: input.contactId, stageId: target.id, stageSince: now, managedAssignmentId }, update: { stageId: target.id, stageSince: now, lastCheckedAt: now, managedAssignmentId, version: { increment: 1 } } });
-    await tx.contactActivity.create({ data: { workspaceId: input.workspaceId, contactId: input.contactId, actorUserId: input.actorUserId, kind: "SYSTEM", visibility: "WORKSPACE", summary: `${current ? `${current.stage.name} → ` : "Joined "}${target.name}. ${journeyEventLabel(input.eventType)}${input.eventType === "MANUAL" ? " by you" : ` · ${input.source}`}.${managedAssignmentId ? " The stage’s follow-up plan is assigned." : ""}`, metadata: { eventType: input.eventType, previousStageId: current?.stageId ?? null, stageId: target.id, source: input.source } } });
+    await tx.contactActivity.create({ data: { workspaceId: input.workspaceId, contactId: input.contactId, actorUserId: input.actorUserId, kind: "SYSTEM", visibility: "WORKSPACE", summary: `${current ? `${current.stage.name} → ` : "Joined "}${target.name}. ${journeyEventLabel(input.eventType)}${input.eventType === "MANUAL" ? " by you" : ` · ${input.source}`}.${managedAssignmentId ? " The stage’s follow-up mix is assigned." : ""}`, metadata: { eventType: input.eventType, previousStageId: current?.stageId ?? null, stageId: target.id, source: input.source } } });
   }
   // A worker may have selected this person just before a pause or rule edit.
   // Leave a no-op retryable so resume and a later due time still work.
@@ -128,7 +128,7 @@ export async function runJourneyMaintenance({ now = new Date(), limit = 25 }: { 
     }
     if (!eventType) continue;
     try {
-      const result = await recordJourneyEvent({ workspaceId: person.workspaceId, contactId: person.contactId, eventType, eventKey: `journey:${person.contactId}:${person.version}:${eventType}`, expectedVersion: person.version, maintenance: true, source: eventType === "TIME_IN_STAGE" ? "Time in stage" : "Follow-up plan", now });
+      const result = await recordJourneyEvent({ workspaceId: person.workspaceId, contactId: person.contactId, eventType, eventKey: `journey:${person.contactId}:${person.version}:${eventType}`, expectedVersion: person.version, maintenance: true, source: eventType === "TIME_IN_STAGE" ? "Time in stage" : "Follow-up mix", now });
       if (result.changed) advanced++;
     } catch (error) {
       if (!(error instanceof Error && error.message.includes("stage changed"))) throw error;

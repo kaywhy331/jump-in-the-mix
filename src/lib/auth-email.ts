@@ -1,3 +1,4 @@
+import { hashAuthToken } from "@/lib/auth-tokens";
 import { env } from "@/lib/env";
 import { escapeHtml, sendTransactionalEmail } from "@/lib/transactional-email";
 
@@ -27,7 +28,7 @@ export async function sendVerificationEmail(email: string, name: string, token: 
     url,
     `This link expires in ${env.emailVerificationHours} hours and can be used once.`
   );
-  await sendTransactionalEmail({ to: email, subject: "Verify your Jump in the Mix email", ...message });
+  await sendTransactionalEmail({ category: "AUTH", to: email, subject: "Verify your Jump in the Mix email", ...message, idempotencyKey: `verify-email:${hashAuthToken(token)}` });
 }
 
 export async function sendPasswordResetEmail(email: string, name: string, token: string): Promise<void> {
@@ -39,7 +40,7 @@ export async function sendPasswordResetEmail(email: string, name: string, token:
     url,
     `This link expires in ${env.passwordResetMinutes} minutes and can be used once.`
   );
-  await sendTransactionalEmail({ to: email, subject: "Reset your Jump in the Mix password", ...message });
+  await sendTransactionalEmail({ category: "AUTH", to: email, subject: "Reset your Jump in the Mix password", ...message, idempotencyKey: `reset-password:${hashAuthToken(token)}` });
 }
 
 export async function sendPasswordChangedEmail(email: string, name: string): Promise<void> {
@@ -51,7 +52,7 @@ export async function sendPasswordChangedEmail(email: string, name: string): Pro
     accountUrl,
     "For your protection, other active sessions may have been signed out."
   );
-  await sendTransactionalEmail({ to: email, subject: "Your Jump in the Mix password changed", ...message });
+  await sendTransactionalEmail({ category: "AUTH", to: email, subject: "Your Jump in the Mix password changed", ...message });
 }
 
 export async function sendMagicLoginEmail(email: string, token: string): Promise<void> {
@@ -63,5 +64,5 @@ export async function sendMagicLoginEmail(email: string, token: string): Promise
     url,
     "This link expires in 15 minutes and can be used once."
   );
-  await sendTransactionalEmail({ to: email, subject: "Sign in to Jump in the Mix", ...message, idempotencyKey: `magic-login:${token.slice(0, 24)}` });
+  await sendTransactionalEmail({ category: "AUTH", to: email, subject: "Sign in to Jump in the Mix", ...message, idempotencyKey: `magic-login:${hashAuthToken(token)}` });
 }

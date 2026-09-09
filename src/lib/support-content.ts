@@ -3,9 +3,9 @@ export const SUPPORT_CATEGORIES = [
   { value: "ACCOUNT", label: "Account and access" },
   { value: "CONTACTS", label: "Customers and tags" },
   { value: "JUMPS", label: "Today and follow-ups" },
-  { value: "MIXES", label: "Plans and scheduling" },
+  { value: "MIXES", label: "Mixes and scheduling" },
   { value: "JUMP_DATES", label: "Saved dates" },
-  { value: "TEMPLATES", label: "Ready-made plans" },
+  { value: "TEMPLATES", label: "Ready-made mixes" },
   { value: "IMPORTS_SYNC", label: "Contact imports" },
   { value: "PRIVACY_SECURITY", label: "Privacy and security" },
   { value: "BUG", label: "Something is not working" },
@@ -23,8 +23,8 @@ export const SUPPORT_STATUSES = [
 ] as const;
 export const SUPPORT_EMAIL_STATUSES = [
   { value: "NOT_REQUESTED", label: "No email requested" }, { value: "PENDING", label: "Email pending" },
-  { value: "SENT", label: "Email sent" }, { value: "PREVIEWED", label: "Development preview" },
-  { value: "FAILED", label: "Email failed" }
+  { value: "SENT", label: "Accepted by email provider" }, { value: "PREVIEWED", label: "Email not sent (development)" },
+  { value: "FAILED", label: "Email needs review" }
 ] as const;
 
 export type SupportCategoryValue = (typeof SUPPORT_CATEGORIES)[number]["value"];
@@ -34,16 +34,18 @@ export type SupportEmailStatusValue = (typeof SUPPORT_EMAIL_STATUSES)[number]["v
 export type SupportFaqItem = { category: string; question: string; answer: string; keywords: string[] };
 
 export const SUPPORT_FAQS: SupportFaqItem[] = [
-  { category: "Getting started", question: "What are Today, plans, and follow-ups?", answer: "Today is your short work list. A plan is a reusable series of texts, calls, or emails. Each item that becomes due is a follow-up you can review, edit, and complete.", keywords: ["today", "plan", "sequence", "message", "call"] },
-  { category: "Today", question: "Why is a follow-up not on Today?", answer: "Check that the person is active, the plan is on, its saved date matches the plan, and the person or their tag is included. A stopped plan will not create more follow-ups for that person.", keywords: ["missing", "schedule", "stopped", "tag"] },
+  { category: "Getting started", question: "What are Mixes, Beats, and Tempo?", answer: "A mix is a follow-up campaign: a series of messages and reminders for keeping in touch. Each step is a beat. Tempo is the timing of those beats. Today brings your due follow-ups together so you can fine-tune a message and record what happened.", keywords: ["today", "mix", "mixes", "plan", "campaign", "beat", "step", "tempo", "timing"] },
+  { category: "Mixes", question: "What does Remix it do?", answer: "Remix it makes your own editable copy of a ready-made mix. Fine-tune the beats and tempo to fit the relationship. The original template stays the same. Save a draft to review everything before starting.", keywords: ["remix", "duplicate", "copy", "template", "personalize"] },
+  { category: "Saved dates", question: "What are a cue and a loop?", answer: "A cue is what starts a mix: a saved date, a manual start, or a fixed date. A loop repeats a saved date monthly or yearly. It only repeats outreach when an active mix is connected to that date; a finished mix does not restart itself. The mix is finished. The connection keeps going.", keywords: ["cue", "trigger", "loop", "repeat", "recurring"] },
+  { category: "Today", question: "Why is a follow-up not on Today?", answer: "Check that the person is active, the mix is on, its saved date matches the mix, and the person or their tag is included. A stopped mix will not create more follow-ups for that person.", keywords: ["missing", "schedule", "stopped", "tag"] },
   { category: "Today", question: "Does opening a text, email, or call mark it done?", answer: "No. Opening or copying records what you started, but you mark the follow-up done after you finish. You can undo a mistaken completion or skip something you no longer need.", keywords: ["done", "copied", "skip", "undo"] },
   { category: "Contacts", question: "How are possible duplicate contacts found?", answer: "The app checks exact email first and exact phone second. Imports hold uncertain matches for your review instead of silently combining people. A confirmed merge keeps primary contact details and unique history.", keywords: ["duplicate", "merge", "email", "phone"] },
   { category: "Contacts", question: "Which email or phone number does a follow-up use?", answer: "A person can have several labeled contact methods. The primary value is used for prepared messages and one-tap actions. Change it from Edit contact.", keywords: ["primary", "email", "phone", "address"] },
-  { category: "Saved dates", question: "How do birthdays, job dates, and renewals work?", answer: "Save a meaningful date on a person and choose what it represents. A plan can start from that date. Repeating dates stay on the correct calendar day in your timezone.", keywords: ["birthday", "anniversary", "renewal", "timezone"] },
-  { category: "Plans", question: "Can I build a plan from scratch?", answer: "Yes. Choose when it starts, who it applies to, and add each text, call, or email with the number of days to wait. Extra timing controls stay under Advanced.", keywords: ["custom", "message", "timing", "tag"] },
-  { category: "Plans", question: "What happens when I choose a ready-made plan?", answer: "The app makes your own editable copy. You choose who gets it and whether to turn it on now. Your contacts, notes, and completed history are never added to the shared starting plan.", keywords: ["ready-made", "copy", "draft", "turn on"] },
+  { category: "Saved dates", question: "How do birthdays, job dates, and renewals work?", answer: "Save a meaningful date on a person and choose what it represents. A mix can start from that date. Repeating dates stay on the correct calendar day in your timezone.", keywords: ["birthday", "anniversary", "renewal", "timezone"] },
+  { category: "Mixes", question: "Can I build a mix from scratch?", answer: "Yes. Choose Create a mix, set its cue, and add a beat for each text, call, or email. Set the tempo with the days before or after the start. More tempo settings lets you choose a specific time. Give the conversation room to breathe.", keywords: ["custom", "message", "timing", "tag"] },
+  { category: "Mixes", question: "What happens when I choose a ready-made mix?", answer: "The app makes your own editable copy. You choose who gets it and whether to turn it on now. Your contacts, notes, and completed history are never added to the shared starting mix.", keywords: ["ready-made", "copy", "draft", "turn on"] },
   { category: "Imports", question: "How do CSV and VCF imports protect my data?", answer: "Files are read in your browser, then reviewed rows are sent in small signed-in batches. Exact and possible duplicates are shown before changes are made, and an approved import can finish after you close the browser.", keywords: ["csv", "vcf", "duplicate", "import"] },
-  { category: "Privacy and security", question: "How can I control my data?", answer: "My Account lets you download a spreadsheet or complete JSON copy, review active sessions, change your password, and permanently delete the account. Private notes are never inserted into prepared messages.", keywords: ["privacy", "export", "delete", "sessions", "private"] },
+  { category: "Privacy and security", question: "How can I control my data?", answer: "My Account lets you download a spreadsheet or complete JSON copy, review active sessions, change your password, and permanently delete the account. Private notes stay out of text messages and emails.", keywords: ["privacy", "export", "delete", "sessions", "private"] },
   { category: "Troubleshooting", question: "What should I include when reporting a problem?", answer: "Say what you expected, what happened instead, the page you were using, and the approximate time. Never include passwords, private keys, customer information, or provider tokens.", keywords: ["bug", "problem", "report", "troubleshooting"] }
 ];
 

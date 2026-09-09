@@ -15,6 +15,7 @@ import {
   supportStatusLabel
 } from "@/lib/support-content";
 import { getRequesterSupportTicket } from "@/lib/support-service";
+import { SUPPORT_RETENTION_NOTICE } from "@/lib/data-retention-policy";
 
 export const metadata: Metadata = { title: "Support ticket" };
 
@@ -64,6 +65,7 @@ export default async function SupportTicketPage({
       {query.replied && <Notice type="success">Your reply was added to the ticket.</Notice>}
       {query.reopened && <Notice type="success">The ticket was reopened and returned to the support queue.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
+      <p>{SUPPORT_RETENTION_NOTICE}</p>
       {impersonation && <Notice type="info">This is a view-only administrator support session. Ticket replies and status changes are unavailable.</Notice>}
 
       <section className="support-ticket-layout">

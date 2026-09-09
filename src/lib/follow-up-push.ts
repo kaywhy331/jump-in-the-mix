@@ -43,7 +43,7 @@ export async function sendDevicePush(subscription: PushSubscription, payload: { 
   // Recheck the exact binding immediately before handing off to a provider.
   if (!subscription.sessionId || !await prisma.pushSubscription.count({ where: {
     id: subscription.id, workspaceId: subscription.workspaceId, userId: subscription.userId,
-    sessionId: subscription.sessionId, session: { userId: subscription.userId, expiresAt: { gt: new Date() } }
+    sessionId: subscription.sessionId, session: { userId: subscription.userId, user: { suspendedAt: null }, expiresAt: { gt: new Date() } }
   } })) return false;
   const scope = browserScope({ authUser: { id: subscription.userId }, user: { id: subscription.userId, memberships: [{ workspaceId: subscription.workspaceId }] }, impersonation: null });
   webPush.setVapidDetails(env.vapidSubject, env.vapidPublicKey, env.vapidPrivateKey);

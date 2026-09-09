@@ -1,0 +1,75 @@
+enum EmailCategory {
+  AUTH
+  ACCESS_CONFIRMATION
+  INVITATION
+  PRODUCT
+}
+
+// Hashes identify the message/recipient; this ledger never stores content or secret URLs.
+model EmailMessage {
+  id               String @id
+  recipientHash    String?
+  detailsRetiredAt DateTime?
+  payloadHash      String
+  category         EmailCategory
+  firstAttemptAt   DateTime
+  acceptedAt       DateTime?
+  providerId       String? @unique
+  deliveredAt      DateTime?
+  delayedAt        DateTime?
+  bouncedAt        DateTime?
+  complainedAt     DateTime?
+  suppressedAt     DateTime?
+  failedAt         DateTime?
+  createdAt        DateTime @default(now())
+  attempts         EmailSendAttempt[]
+  invitation       WaitlistDelivery?
+
+  @@index([createdAt])
+  @@index([recipientHash])
+  @@index([detailsRetiredAt, createdAt])
+}
+
+// Count each outbound API attempt conservatively, including uncertain retries.
+model EmailSendAttempt {
+  id           String @id @default(cuid())
+  messageId    String
+  message      EmailMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  category     EmailCategory
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt, category])
+}
+
+// Persist only the fields needed for deduplication and out-of-order event reconciliation.
+model EmailProviderEvent {
+  id              String @id
+  type            String
+  providerId      String?
+  recipientHashes String[]
+  occurredAt      DateTime
+  receivedAt      DateTime @default(now())
+  detailsRetiredAt DateTime?
+
+  @@index([providerId, occurredAt])
+  @@index([receivedAt])
+  @@index([detailsRetiredAt, receivedAt])
+}
+
+// An operator-approved repeat archives the old generation, without copying secret content.
+// The ledger ID remains usable even if a receipt arrives after this archive is written.
+model InvitationDeliveryHistory {
+  id                  String @id @default(cuid())
+  deliveryId          String
+  delivery            WaitlistDelivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  generation          Int
+  emailMessageId      String @unique
+  status              WaitlistDeliveryStatus
+  attempts            Int
+  firstAttemptAt      DateTime?
+  generationStartedAt DateTime
+  providerId          String?
+  archivedAt          DateTime @default(now())
+
+  @@unique([deliveryId, generation])
+}

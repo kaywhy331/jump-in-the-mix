@@ -16,7 +16,7 @@ main().catch(async (error) => {
   console.error(`Staging smoke failed: ${message}`);
   await sendOpsAlert({
     title: "Production-like staging smoke failed",
-    summary: message,
+    summary: "The staging smoke checks failed. Review the restricted CI result.",
     details: { command: "smoke:staging", target: process.env.STAGING_BASE_URL ?? null }
   });
   process.exitCode = 1;

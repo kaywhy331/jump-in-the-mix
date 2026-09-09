@@ -15,7 +15,7 @@ const { prisma: database } = await vi.importActual<typeof import("../src/lib/pri
 describe.skipIf(process.env.RUN_PLAN_DATABASE_TESTS !== "true" && process.env.CI !== "true")("ready-made plan publishing and use", () => {
   afterAll(async () => database.$disconnect());
 
-  it("publishes idempotently, imports as a draft, and preserves the customer's copy after a library revision", async () => {
+  it("publishes idempotently, imports as a draft, and does not overwrite either library originals or customer copies on reseeding", async () => {
     const rollback = new Error("ROLLBACK_PLAN_LIBRARY_FIXTURES");
     await expect(database.$transaction(async tx => {
       state.tx = tx;
@@ -30,7 +30,7 @@ describe.skipIf(process.env.RUN_PLAN_DATABASE_TESTS !== "true" && process.env.CI
       const workspace = await tx.workspace.create({ data: { ownerId: user.id, name: "Plan test", slug: `plan-${suffix}`, profile: { create: { company: "Sample Services", smsSignature: "Alex", emailSignature: "Alex Morgan" } } } });
       await tx.userPreference.create({ data: { userId: user.id, timezone: "America/Los_Angeles" } });
       await tx.contact.create({ data: { workspaceId: workspace.id, displayName: "Jordan Lee", firstName: "Jordan", lastName: "Lee" } });
-      const setup = { workspaceId: workspace.id, actorUserId: user.id, sharedMixId: plan.id, requestId: `test-${suffix}`, name: plan.title, status: "DRAFT" as const, assignAllContacts: true, groupIds: [] };
+      const setup = { workspaceId: workspace.id, actorUserId: user.id, sharedMixId: plan.id, expectedVersion: 1, requestId: `test-${suffix}`, name: plan.title, status: "DRAFT" as const, assignAllContacts: true, groupIds: [] };
       const imported = await useSharedMixTemplate(setup);
       const copied = await tx.mix.findUniqueOrThrow({ where: { id: imported.mixId }, include: { steps: { include: { stepVersion: true } } } });
       expect(copied.status).toBe("DRAFT");
@@ -41,8 +41,8 @@ describe.skipIf(process.env.RUN_PLAN_DATABASE_TESTS !== "true" && process.env.CI
       expect(await tx.sharedMixImport.count({ where: { workspaceId: workspace.id } })).toBe(1);
 
       const revised = { ...plan, description: "Revised library description", steps: plan.steps.map((step, index) => index === 0 ? { ...step, body: "Hi {{First Name}}, a revised question. {{SMS Signature}}" } : step) };
-      expect(await publishReadyMadePlans([revised])).toEqual({ created: 0, updated: 1, unchanged: 0 });
-      expect((await tx.sharedMixMetadata.findUniqueOrThrow({ where: { sharedMixId: plan.id } })).version).toBe(2);
+      expect(await publishReadyMadePlans([revised])).toEqual({ created: 0, updated: 0, unchanged: 1 });
+      expect((await tx.sharedMixMetadata.findUniqueOrThrow({ where: { sharedMixId: plan.id } })).version).toBe(1);
       const preserved = await tx.mix.findUniqueOrThrow({ where: { id: copied.id }, include: { steps: { include: { stepVersion: true } } } });
       expect(preserved.description).toBe(plan.description);
       expect(preserved.steps.map(step => step.stepVersion.body)).toEqual(copied.steps.map(step => step.stepVersion.body));

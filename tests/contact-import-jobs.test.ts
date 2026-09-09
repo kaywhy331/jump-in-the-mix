@@ -51,12 +51,15 @@ describe.sequential("Contact import jobs", () => {
     expect(queued.status).toBe("QUEUED");
     expect(await prisma.job.count({ where: { workspaceId: workspace.id, task: "contact-import" } })).toBe(1);
 
-    await runContactImportBatch(queued.id);
+    const job = await prisma.job.findFirstOrThrow({ where: { workspaceId: workspace.id, task: "contact-import" } });
+    const lease = { jobId: job.id, leaseId: `test-worker:${suffix}` };
+    await prisma.job.update({ where: { id: job.id }, data: { lockedBy: lease.leaseId, lockedAt: new Date(), attempts: 1 } });
+    await runContactImportBatch(queued.id, lease);
     const completed = await getContactImportBatch(workspace.id, queued.id);
     expect(completed).toMatchObject({ status: "COMPLETED", processedRows: 1, createdCount: 1, failedCount: 0 });
     expect(await prisma.contact.count({ where: { workspaceId: workspace.id, displayName: "Import Tester" } })).toBe(1);
 
-    await runContactImportBatch(queued.id);
+    await runContactImportBatch(queued.id, lease);
     expect(await prisma.contact.count({ where: { workspaceId: workspace.id, displayName: "Import Tester" } })).toBe(1);
   });
 });

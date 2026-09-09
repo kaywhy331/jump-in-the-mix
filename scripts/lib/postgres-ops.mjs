@@ -99,12 +99,14 @@ export function normalizePgRestoreSql(sql, { schema = "public", requiredExtensio
 }
 
 export async function runCommand(command, args, options = {}) {
+  options.signal?.throwIfAborted();
   return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: options.capture ? ["ignore", "pipe", "pipe"] : "inherit",
       env: { ...process.env, PGCONNECT_TIMEOUT: "15", ...(options.env ?? {}) },
       cwd: options.cwd ?? process.cwd(),
-      shell: false
+      shell: false,
+      signal: options.signal
     });
     let stdout = "";
     let stderr = "";
@@ -112,8 +114,13 @@ export async function runCommand(command, args, options = {}) {
       child.stdout?.on("data", (chunk) => { stdout += chunk.toString(); });
       child.stderr?.on("data", (chunk) => { stderr += chunk.toString(); });
     }
-    child.on("error", reject);
-    child.on("exit", (code) => {
+    let failure;
+    child.on("error", error => { failure = error; });
+    // Wait for process/stdio closure after cancellation before callers remove
+    // private dump files or close the exporting snapshot transaction.
+    child.on("close", (code) => {
+      if (failure) { reject(failure); return; }
+      if (options.signal?.aborted) { reject(options.signal.reason); return; }
       if (code === 0) {
         resolve({ stdout, stderr });
       } else {
@@ -177,7 +184,7 @@ export async function verifyForeignKeys(client, schema) {
   return checks;
 }
 
-async function tableContent(client, schema, table) {
+async function tableContent(client, schema, table, signal) {
   // Hash rows in PostgreSQL so contact details and credentials never leave the
   // database during verification. A cursor bounds memory for large tables.
   await client.query(`DECLARE jitm_backup_rows NO SCROLL CURSOR FOR
@@ -189,6 +196,7 @@ async function tableContent(client, schema, table) {
   let count = 0n;
   try {
     while (true) {
+      signal?.throwIfAborted();
       const batch = await client.query("FETCH FORWARD 1000 FROM jitm_backup_rows");
       if (!batch.rows.length) break;
       for (const row of batch.rows) digest.update(`${row.row_hash}\n`);
@@ -198,7 +206,7 @@ async function tableContent(client, schema, table) {
   return { count: count.toString(), sha256: digest.digest("hex") };
 }
 
-async function snapshotInTransaction(client, identity, capturedAt) {
+async function snapshotInTransaction(client, identity, capturedAt, signal) {
   const versionResult = await client.query("SHOW server_version");
   const extensionResult = await client.query("SELECT extname FROM pg_extension WHERE extname <> 'plpgsql' ORDER BY extname");
   const inventory = await client.query(
@@ -208,7 +216,8 @@ async function snapshotInTransaction(client, identity, capturedAt) {
   const tableNames = inventory.rows.map(row => row.table_name);
   const tableCounts = Object.create(null), tableDigests = Object.create(null);
   for (const table of tableNames) {
-    const content = await tableContent(client, identity.schema, table);
+    signal?.throwIfAborted();
+    const content = await tableContent(client, identity.schema, table, signal);
     tableCounts[table] = content.count;
     tableDigests[table] = content.sha256;
   }
@@ -233,9 +242,11 @@ async function snapshotInTransaction(client, identity, capturedAt) {
 
 /** Keep the exported read-only transaction open until pg_dump has consumed it.
  * Normal application writes may continue; metadata and archive share one view. */
-export async function withDatabaseSnapshot(databaseUrl, consume) {
+export async function withDatabaseSnapshot(databaseUrl, consume, { signal, statementTimeout } = {}) {
+  signal?.throwIfAborted();
   const identity = databaseIdentity(databaseUrl);
-  const client = new Client({ connectionString: postgresCliUrl(databaseUrl) });
+  const client = new Client({ connectionString: postgresCliUrl(databaseUrl), connectionTimeoutMillis: 5000, ...(statementTimeout ? { statement_timeout: statementTimeout } : {}) });
+  client.on("error", () => undefined);
   await client.connect();
   try {
     await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
@@ -245,8 +256,9 @@ export async function withDatabaseSnapshot(databaseUrl, consume) {
     await client.query("SET LOCAL extra_float_digits = 3");
     await client.query("SET LOCAL bytea_output = 'hex'");
     const exported = await client.query("SELECT pg_export_snapshot() AS id, transaction_timestamp() AS captured_at");
-    const snapshot = await snapshotInTransaction(client, identity, exported.rows[0].captured_at.toISOString());
-    return await consume({ snapshot, snapshotId: exported.rows[0].id });
+    const snapshot = await snapshotInTransaction(client, identity, exported.rows[0].captured_at.toISOString(), signal);
+    signal?.throwIfAborted();
+    return await consume({ client, snapshot, snapshotId: exported.rows[0].id });
   } finally {
     await client.query("ROLLBACK").catch(() => undefined);
     await client.end();

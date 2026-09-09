@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+vi.mock("@/lib/env", async original => { const mod = await original<typeof import("../src/lib/env")>(); return { ...mod, env: { ...mod.env, emailFrom: "support@example.test" } }; });
 import { prisma } from "../src/lib/prisma";
 import {
   adminReplyToSupportTicketRecord,
@@ -7,7 +8,6 @@ import {
   getRequesterSupportTicket,
   reopenSupportTicketRecord,
   replyToSupportTicketRecord,
-  updateSupportMessageEmailStatus,
   updateSupportTicketStatus,
   updateSupportTicketTriage
 } from "../src/lib/support-service";
@@ -18,10 +18,13 @@ describe.sequential("support ticket lifecycle and workspace isolation", () => {
 
   beforeAll(async () => {
     const [userA, userB, admin] = await Promise.all([
-      prisma.user.create({ data: { email: `support-a-${suffix}@example.com`, name: "Support User A", passwordHash: "test-only" } }),
+      prisma.user.create({ data: { email: `support-a-${suffix}@example.com`, name: "Support User A", emailVerifiedAt: new Date(), passwordHash: "test-only" } }),
       prisma.user.create({ data: { email: `support-b-${suffix}@example.com`, name: "Support User B", passwordHash: "test-only" } }),
-      prisma.user.create({ data: { email: `support-admin-${suffix}@example.com`, name: "Support Admin", passwordHash: "test-only", isPlatformAdmin: true } })
+      prisma.user.create({ data: { email: `support-admin-${suffix}@example.com`, name: "Support Admin", passwordHash: "test-only", isPlatformAdmin: true, emailVerifiedAt: new Date(), staffMembership: { create: { role: "SUPPORT" } } } })
     ]);
+    ids.session = (await prisma.session.create({ data: { userId: admin.id, tokenHash: randomUUID(), expiresAt: new Date(Date.now() + 3600_000) } })).id;
+    await prisma.adminMfaCredential.create({ data: { userId: admin.id, secretCiphertext: "test-only-support-credential", enabledAt: new Date() } });
+    await prisma.adminMfaSession.create({ data: { userId: admin.id, sessionId: ids.session, expiresAt: new Date(Date.now() + 3600_000) } });
     const [workspaceA, workspaceB] = await Promise.all([
       prisma.workspace.create({
         data: {
@@ -57,6 +60,7 @@ describe.sequential("support ticket lifecycle and workspace isolation", () => {
       await prisma.supportTicket.deleteMany({ where: { workspaceId: { in: workspaceIds } } });
       await prisma.workspace.deleteMany({ where: { id: { in: workspaceIds } } });
     }
+    await prisma.platformAuditEvent.deleteMany({ where: { actorUserId: ids.admin } });
     const userIds = [ids.userA, ids.userB, ids.admin].filter(Boolean);
     if (userIds.length) await prisma.user.deleteMany({ where: { id: { in: userIds } } });
   });
@@ -113,6 +117,8 @@ describe.sequential("support ticket lifecycle and workspace isolation", () => {
     const adminReply = await adminReplyToSupportTicketRecord({
       ticketId: ids.ticket,
       adminUserId: ids.admin,
+      actorSessionId: ids.session,
+      requestKey: randomUUID(),
       body: "We reviewed the workspace configuration. Please reopen the Mix and confirm its Target Jump Date Type."
     });
     expect(adminReply.message).toMatchObject({ authorType: "ADMIN", emailStatus: "PENDING" });
@@ -121,17 +127,14 @@ describe.sequential("support ticket lifecycle and workspace isolation", () => {
     await updateSupportTicketTriage({
       ticketId: ids.ticket,
       adminUserId: ids.admin,
+      actorSessionId: ids.session,
       category: "MIXES",
       priority: "HIGH"
-    });
-    await updateSupportMessageEmailStatus({
-      messageId: adminReply.message.id,
-      status: "SENT",
-      providerId: "email-test-123"
     });
     await updateSupportTicketStatus({
       ticketId: ids.ticket,
       adminUserId: ids.admin,
+      actorSessionId: ids.session,
       status: "RESOLVED"
     });
     expect(await prisma.supportTicket.findUniqueOrThrow({ where: { id: ids.ticket } })).toMatchObject({

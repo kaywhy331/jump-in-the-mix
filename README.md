@@ -19,6 +19,8 @@ The primary product is a hosted free beta. A Docker-based, single-owner edition 
 
 The free beta does not include billing, paid tiers, teams, Google Contacts sync, Stripe, an AI plan wizard, or signup-reward referrals.
 
+Stripe is planned for future payments. The anticipated Route 53/Render production structure, separate private testing environment, and open launch decisions are recorded in [Production structure and launch preparation](docs/PRODUCTION_LAUNCH_PLAN.md). Pricing and payment timing remain undecided; production setup and public launch are deferred while the remaining work is finalized.
+
 See [Customer journeys, calendars, and lead connections](docs/CUSTOMER_JOURNEY_AND_CONNECTIONS.md) for setup, supported formats, and provider limitations. Current verification and remaining release requirements are tracked in [Product quality gates](docs/PRODUCT_QUALITY_GATES.md).
 
 ## Hosted deployment
@@ -73,9 +75,11 @@ npm run pilot:restore -- backup-file.jitm-backup.enc --confirm=RESTORE
 npm run pilot:upgrade
 ```
 
-A restore requires an adjacent manifest and a separately configured, empty `RESTORE_DATABASE_URL`; in-place restore is blocked. An upgrade creates an encrypted backup before rebuilding or migrating. See [the pilot runbook](docs/PILOT_RUNBOOK.md) before operating real relationship data.
+A restore requires an adjacent manifest and a separately configured, empty, isolated `RESTORE_DATABASE_URL`; in-place restore is blocked. It leaves the target under an application recovery hold. Post-backup privacy/access reconciliation and a guarded release command remain required before reopening; see [restore recovery](docs/RESTORE_RECOVERY.md). An upgrade creates an encrypted backup before rebuilding or migrating. See [the pilot runbook](docs/PILOT_RUNBOOK.md) before operating real relationship data.
 
 The operator owns backup retention and must test restoration. Local encrypted files are not offsite backups.
+
+For a full archive with matching encrypted recovery evidence, use `npm run db:backup-recovery`. The [complete recovery bundle runbook](docs/RECOVERY_BUNDLES.md) covers its three files, verified restoration, and the reviewed command for taking an available source offline at a known cutoff. Target reopening remains a separate unfinished recovery gate.
 
 ## Development and validation
 

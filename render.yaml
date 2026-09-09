@@ -2,7 +2,9 @@ databases:
   - name: jump-in-the-mix-postgres
     databaseName: jump_in_the_mix
     user: jump_in_the_mix
-    plan: basic-256mb
+    plan: 0.1c-256mb
+    diskSizeGB: 5
+    postgresMajorVersion: "16"
     ipAllowList: []
 
 envVarGroups:
@@ -10,6 +12,8 @@ envVarGroups:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_VERSION
+        value: "22.22.0"
       - key: PILOT_MODE
         value: "false"
       - key: DEMO_MODE
@@ -24,51 +28,40 @@ envVarGroups:
         generateValue: true
       - key: DATA_ENCRYPTION_KEY
         generateValue: true
-      - key: APP_URL
-        sync: false
-      - key: RESEND_API_KEY
-        sync: false
-      - key: EMAIL_FROM
-        sync: false
-      - key: EMAIL_REPLY_TO
-        sync: false
-      - key: AUTH_GOOGLE_CLIENT_ID
-        sync: false
-      - key: AUTH_GOOGLE_CLIENT_SECRET
-        sync: false
-      - key: AUTH_APPLE_CLIENT_ID
-        sync: false
-      - key: AUTH_APPLE_TEAM_ID
-        sync: false
-      - key: AUTH_APPLE_KEY_ID
-        sync: false
-      - key: AUTH_APPLE_PRIVATE_KEY
-        sync: false
-      - key: WEB_PUSH_VAPID_PUBLIC_KEY
-        sync: false
-      - key: WEB_PUSH_VAPID_PRIVATE_KEY
-        sync: false
-      - key: WEB_PUSH_VAPID_SUBJECT
-        sync: false
-      - key: TWILIO_ACCOUNT_SID
-        sync: false
-      - key: TWILIO_AUTH_TOKEN
-        sync: false
-      - key: TWILIO_FROM_NUMBER
-        sync: false
+      - key: EMAIL_DAILY_LIMIT
+        value: "90"
+      - key: EMAIL_MONTHLY_LIMIT
+        value: "2700"
+      - key: EMAIL_DAILY_AUTH_RESERVE
+        value: "20"
+      - key: EMAIL_MONTHLY_AUTH_RESERVE
+        value: "300"
+      # Add complete optional push, SMS or OAuth credentials to this shared
+      # group only when enabling that integration. sync:false is ignored here.
 
 services:
   - type: web
     name: jump-in-the-mix-web
     runtime: node
-    plan: starter
+    plan: 0.5c-512mb
     buildCommand: npm ci --include=dev --no-audit --no-fund && npm run db:generate && npm run build
     preDeployCommand: npm run db:deploy
     startCommand: npm run start
     healthCheckPath: /api/health/ready
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: off
     envVars:
       - fromGroup: jump-in-the-mix-hosted
+      # Render prompts for these values on initial Blueprint creation.
+      - key: APP_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: EMAIL_REPLY_TO
+        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: jump-in-the-mix-postgres
@@ -77,12 +70,37 @@ services:
   - type: worker
     name: jump-in-the-mix-worker
     runtime: node
-    plan: starter
+    plan: 0.5c-512mb
     buildCommand: npm ci --include=dev --no-audit --no-fund && npm run db:generate
     startCommand: npm run worker
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: off
     envVars:
       - fromGroup: jump-in-the-mix-hosted
+      - key: APP_URL
+        fromService:
+          type: web
+          name: jump-in-the-mix-web
+          envVarKey: APP_URL
+      - key: RESEND_API_KEY
+        fromService:
+          type: web
+          name: jump-in-the-mix-web
+          envVarKey: RESEND_API_KEY
+      - key: RESEND_WEBHOOK_SECRET
+        fromService:
+          type: web
+          name: jump-in-the-mix-web
+          envVarKey: RESEND_WEBHOOK_SECRET
+      - key: EMAIL_FROM
+        fromService:
+          type: web
+          name: jump-in-the-mix-web
+          envVarKey: EMAIL_FROM
+      - key: EMAIL_REPLY_TO
+        fromService:
+          type: web
+          name: jump-in-the-mix-web
+          envVarKey: EMAIL_REPLY_TO
       - key: DATABASE_URL
         fromDatabase:
           name: jump-in-the-mix-postgres

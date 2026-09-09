@@ -22,7 +22,7 @@ export async function createStarterMixAction(): Promise<void> {
   try {
     mixId = (await ensureStarterMix(workspace.id)).id;
   } catch (error) {
-    fail(error instanceof Error ? error.message : "The starter plan could not be created.");
+    fail(error instanceof Error ? error.message : "The starter mix could not be created.");
   }
   await prisma.$transaction([
     prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } }),

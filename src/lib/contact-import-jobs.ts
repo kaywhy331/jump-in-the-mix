@@ -1,7 +1,11 @@
+import { ContactImportInputError } from "@/lib/contact-import-errors";
 import type { ContactImportBatchStatus, Prisma } from "@/generated/prisma/client";
 import { commitContactImportBatch, type ImportCommitItem } from "@/lib/contact-import-service";
 import type { ImportCommitResult } from "@/lib/contact-import-types";
 import { prisma } from "@/lib/prisma";
+import { lockAccess } from "@/lib/access-lock";
+import { importResults as resultArray, importCounts as counts } from "@/lib/contact-import-state";
+import { lockImportJob, lockRunningImport, type ImportJobLease } from "@/lib/contact-import-lease";
 import { timezoneForUser } from "@/lib/display-preferences";
 
 export const CONTACT_IMPORT_JOB_TASK = "contact-import";
@@ -37,22 +41,6 @@ function inputJson(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
-function resultArray(value: Prisma.JsonValue | null | undefined): ImportCommitResult[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-    const object = item as Record<string, unknown>;
-    if (typeof object.rowId !== "string" || typeof object.sourceRow !== "number" || typeof object.status !== "string" || typeof object.message !== "string") return [];
-    return [{
-      rowId: object.rowId,
-      sourceRow: object.sourceRow,
-      status: object.status as ImportCommitResult["status"],
-      contactId: typeof object.contactId === "string" ? object.contactId : null,
-      message: object.message
-    }];
-  });
-}
-
 function payloadValue(value: Prisma.JsonValue): ContactImportBatchPayload {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("The Contact import batch payload is invalid.");
   const object = value as Record<string, unknown>;
@@ -60,16 +48,6 @@ function payloadValue(value: Prisma.JsonValue): ContactImportBatchPayload {
   return {
     items: object.items as unknown as ImportCommitItem[],
     initialResults: resultArray(object.initialResults as Prisma.JsonValue)
-  };
-}
-
-function counts(results: ImportCommitResult[]) {
-  return {
-    createdCount: results.filter((item) => item.status === "CREATED").length,
-    mergedCount: results.filter((item) => item.status === "MERGED").length,
-    replacedCount: results.filter((item) => item.status === "REPLACED").length,
-    skippedCount: results.filter((item) => item.status === "SKIPPED").length,
-    failedCount: results.filter((item) => item.status === "FAILED").length
   };
 }
 
@@ -109,19 +87,21 @@ export async function queueContactImportBatch(input: {
   items: ImportCommitItem[];
   initialResults?: ImportCommitResult[];
 }): Promise<ContactImportBatchView> {
-  if (!/^[a-zA-Z0-9_-]{8,120}$/.test(input.importId)) throw new Error("The import identifier is invalid.");
+  if (!/^[a-zA-Z0-9_-]{8,120}$/.test(input.importId)) throw new ContactImportInputError("The import identifier is invalid.");
   const initialResults = input.initialResults ?? [];
   const totalRows = input.items.length + initialResults.length;
-  if (!totalRows) throw new Error("Add at least one Contact row to the import.");
-  if (totalRows > MAX_IMPORT_ROWS) throw new Error(`Import no more than ${MAX_IMPORT_ROWS.toLocaleString()} rows at a time.`);
+  if (!totalRows) throw new ContactImportInputError("Add at least one Contact row to the import.");
+  if (totalRows > MAX_IMPORT_ROWS) throw new ContactImportInputError(`Import no more than ${MAX_IMPORT_ROWS.toLocaleString()} rows at a time.`);
 
-  const existing = await prisma.contactImportBatch.findUnique({
-    where: { workspaceId_importId: { workspaceId: input.workspaceId, importId: input.importId } }
-  });
-  if (existing) return batchView(existing);
+  const rowIds = [...input.items.map(item => item.record.rowId), ...initialResults.map(item => item.rowId)];
+  if (rowIds.some(id => typeof id !== "string" || !id || id.length > 160) || new Set(rowIds).size !== totalRows || input.items.some(item => item.resolution.rowId !== item.record.rowId)) throw new ContactImportInputError("Each import row needs its own matching identifier.");
 
   const initialCounts = counts(initialResults);
   const created = await prisma.$transaction(async (tx) => {
+    await lockAccess(tx);
+    if (!await tx.workspace.findFirst({ where: { id: input.workspaceId, ownerId: input.actorUserId, owner: { suspendedAt: null } }, select: { id: true } })) throw new ContactImportInputError("This account cannot import contacts right now.");
+    const existing = await tx.contactImportBatch.findUnique({ where: { workspaceId_importId: { workspaceId: input.workspaceId, importId: input.importId } } });
+    if (existing) return existing;
     const batch = await tx.contactImportBatch.create({
       data: {
         workspaceId: input.workspaceId,
@@ -178,9 +158,19 @@ export async function listRecentContactImportBatches(workspaceId: string, take =
 export async function cancelContactImportBatch(workspaceId: string, batchId: string): Promise<boolean> {
   const now = new Date();
   const result = await prisma.$transaction(async (tx) => {
+    await lockAccess(tx);
+    await tx.$queryRaw`SELECT id FROM "Job" WHERE "workspaceId"=${workspaceId} AND task='contact-import' AND payload->>'batchId'=${batchId} AND "completedAt" IS NULL ORDER BY id FOR UPDATE`;
+    const batch = await tx.contactImportBatch.findFirst({ where: { id: batchId, workspaceId, status: { in: ["QUEUED", "RUNNING"] } } });
+    if (!batch) return false;
+    // A stopped chunk may contain committed rows not yet in the progress report.
+    const rowKeys = payloadValue(batch.payload).items.map(item => `contact-import:${batch.importId}:${item.record.rowId}`);
+    const receipts = await tx.idempotencyKey.findMany({ where: { workspaceId, key: { in: rowKeys } }, select: { response: true } });
+    const saved = new Map(resultArray(batch.results).map(item => [item.rowId, item]));
+    for (const receipt of receipts) for (const result of resultArray([receipt.response])) if (!saved.has(result.rowId)) saved.set(result.rowId, result);
+    const results = [...saved.values()];
     const canceled = await tx.contactImportBatch.updateMany({
       where: { id: batchId, workspaceId, status: { in: ["QUEUED", "RUNNING"] } },
-      data: { status: "CANCELED", canceledAt: now, completedAt: now, errorSummary: "Canceled by user." }
+      data: { status: "CANCELED", canceledAt: now, completedAt: now, errorSummary: "Canceled by user.", results: inputJson(results), processedRows: results.length, ...counts(results) }
     });
     if (canceled.count) {
       await tx.job.updateMany({
@@ -193,88 +183,58 @@ export async function cancelContactImportBatch(workspaceId: string, batchId: str
   return result;
 }
 
-export async function runContactImportBatch(batchId: string): Promise<void> {
-  const batch = await prisma.contactImportBatch.findUnique({ where: { id: batchId } });
-  if (!batch) throw new Error("The Contact import batch no longer exists.");
-  if (["COMPLETED", "PARTIAL", "CANCELED"].includes(batch.status)) return;
-
+export async function runContactImportBatch(batchId: string, lease: ImportJobLease): Promise<void> {
+  const initial = await prisma.contactImportBatch.findUnique({ where: { id: batchId }, select: { workspaceId: true } });
+  if (!initial) throw new Error("The Contact import batch no longer exists.");
+  const workspaceId = initial.workspaceId;
+  const batch = await prisma.$transaction(async tx => {
+    await lockAccess(tx);
+    await lockImportJob(tx, batchId, lease, workspaceId);
+    await tx.$queryRaw`SELECT id FROM "ContactImportBatch" WHERE id=${batchId} AND "workspaceId"=${workspaceId} FOR UPDATE`;
+    const current = await tx.contactImportBatch.findUniqueOrThrow({ where: { id: batchId } });
+    if (["COMPLETED", "PARTIAL", "CANCELED"].includes(current.status) || current.canceledAt) return null;
+    if (!current.actorUserId || !await tx.workspace.findFirst({ where: { id: workspaceId, ownerId: current.actorUserId, owner: { suspendedAt: null } }, select: { id: true } })) throw new Error("The import account is unavailable. Restore access before retrying.");
+    await tx.contactImportBatch.update({ where: { id: batchId }, data: { status: "RUNNING", startedAt: current.startedAt ?? new Date(), completedAt: null, errorSummary: null } });
+    return current;
+  });
+  if (!batch) return;
   const payload = payloadValue(batch.payload);
-  const workspace = await prisma.workspace.findUnique({
-    where: { id: batch.workspaceId },
-    include: { profile: true }
-  });
-  if (!workspace) throw new Error("The Contact import workspace no longer exists.");
-  const actorUserId = batch.actorUserId;
-  if (!actorUserId) throw new Error("The Contact import no longer has an owning user.");
+  const actorUserId = batch.actorUserId!;
   const timezone = await timezoneForUser(actorUserId);
-
-  await prisma.contactImportBatch.updateMany({
-    where: { id: batch.id, status: { in: ["QUEUED", "RUNNING", "FAILED"] }, canceledAt: null },
-    data: { status: "RUNNING", startedAt: batch.startedAt ?? new Date(), completedAt: null, errorSummary: null }
-  });
-
-  let results = resultArray(batch.results);
-  const processed = new Set(results.map((item) => item.rowId));
-  const pendingItems = payload.items.filter((item) => !processed.has(item.record.rowId));
-
+  const processed = new Set(resultArray(batch.results).map(item => item.rowId));
+  const pendingItems = payload.items.filter(item => !processed.has(item.record.rowId));
   try {
     for (let index = 0; index < pendingItems.length; index += PROCESSING_BATCH_SIZE) {
-      const current = await prisma.contactImportBatch.findUnique({ where: { id: batch.id }, select: { status: true, canceledAt: true } });
-      if (!current || current.status === "CANCELED" || current.canceledAt) return;
-      const chunk = pendingItems.slice(index, index + PROCESSING_BATCH_SIZE);
-      const chunkResults = await commitContactImportBatch({
-        workspaceId: batch.workspaceId,
-        actorUserId,
-        timezone,
-        importId: batch.importId,
-        items: chunk
-      });
-      results = [...results, ...chunkResults];
-      const aggregate = counts(results);
-      await prisma.contactImportBatch.update({
-        where: { id: batch.id },
-        data: {
-          processedRows: results.length,
-          ...aggregate,
-          results: inputJson(results),
-          errorSummary: chunkResults.some((item) => item.status === "FAILED") ? "Some rows need review." : null
-        }
+      const chunkResults = await commitContactImportBatch({ workspaceId, actorUserId, timezone, importId: batch.importId, items: pendingItems.slice(index, index + PROCESSING_BATCH_SIZE), background: { ...lease, batchId } });
+      await prisma.$transaction(async tx => {
+        await lockAccess(tx);
+        await lockImportJob(tx, batchId, lease, workspaceId);
+        await lockRunningImport(tx, batchId, workspaceId);
+        const current = await tx.contactImportBatch.findUniqueOrThrow({ where: { id: batchId }, select: { results: true } });
+        const saved = new Map(resultArray(current.results).map(item => [item.rowId, item]));
+        for (const result of chunkResults) if (!saved.has(result.rowId)) saved.set(result.rowId, result);
+        const results = [...saved.values()];
+        await tx.contactImportBatch.update({ where: { id: batchId }, data: { processedRows: results.length, ...counts(results), results: inputJson(results), errorSummary: results.some(item => item.status === "FAILED") ? "Some rows need review." : null } });
       });
     }
-
-    const aggregate = counts(results);
-    const finalStatus: ContactImportBatchStatus = aggregate.failedCount ? "PARTIAL" : "COMPLETED";
-    const completedAt = new Date();
-    await prisma.$transaction([
-      prisma.contactImportBatch.update({
-        where: { id: batch.id },
-        data: {
-          status: finalStatus,
-          processedRows: results.length,
-          ...aggregate,
-          results: inputJson(results),
-          completedAt,
-          errorSummary: aggregate.failedCount ? `${aggregate.failedCount} row${aggregate.failedCount === 1 ? "" : "s"} could not be imported.` : null
-        }
-      }),
-      prisma.auditLog.create({
-        data: {
-          workspaceId: batch.workspaceId,
-          actorType: "SYSTEM",
-          actorUserId,
-          action: "contact.import.completed",
-          entityType: "ContactImportBatch",
-          entityId: batch.id,
-          source: "worker.contact-import",
-          metadata: { status: finalStatus, totalRows: batch.totalRows, ...aggregate }
-        }
-      })
-    ]);
-  } catch (error) {
-    await prisma.contactImportBatch.updateMany({
-      where: { id: batch.id, status: "RUNNING", canceledAt: null },
-      data: { errorSummary: error instanceof Error ? error.message.slice(0, 1000) : "The import was interrupted." }
+    await prisma.$transaction(async tx => {
+      await lockAccess(tx);
+      await lockImportJob(tx, batchId, lease, workspaceId);
+      await lockRunningImport(tx, batchId, workspaceId);
+      const current = await tx.contactImportBatch.findUniqueOrThrow({ where: { id: batchId }, select: { results: true, totalRows: true } });
+      const results = resultArray(current.results), aggregate = counts(results);
+      if (results.length !== current.totalRows) throw new Error("The saved import results are incomplete. Review the batch before retrying.");
+      const status = aggregate.failedCount ? "PARTIAL" : "COMPLETED";
+      await tx.contactImportBatch.update({ where: { id: batchId }, data: { status, processedRows: results.length, ...aggregate, completedAt: new Date(), errorSummary: aggregate.failedCount ? `${aggregate.failedCount} row${aggregate.failedCount === 1 ? "" : "s"} could not be imported.` : null } });
+      await tx.auditLog.create({ data: { workspaceId, actorType: "SYSTEM", actorUserId, action: "contact.import.completed", entityType: "ContactImportBatch", entityId: batchId, source: "worker.contact-import", metadata: { status, totalRows: current.totalRows, ...aggregate } } });
     });
+  } catch (error) {
+    await prisma.$transaction(async tx => {
+      await lockAccess(tx);
+      await lockImportJob(tx, batchId, lease, workspaceId);
+      await lockRunningImport(tx, batchId, workspaceId);
+      await tx.contactImportBatch.update({ where: { id: batchId }, data: { errorSummary: "Import processing was interrupted. Saved rows will be reused on retry." } });
+    }).catch(() => undefined);
     throw error;
   }
 }

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { encryptFile, sha256File } from "../scripts/lib/backup-archive.mjs";
+import { readRecoveryHold } from "../scripts/lib/recovery-hold.mjs";
 import {
   adminDatabaseUrl, assertDatabaseEmpty, collectDatabaseSnapshot, compareSnapshots,
   databaseUrlWithDatabase, postgresCliEnv, postgresCliUrl, quoteIdentifier,
@@ -30,7 +31,7 @@ describe.skipIf(!baseUrl)("encrypted PostgreSQL recovery", () => {
   function cli(script, args = [], env = {}) {
     return runCommand(process.execPath, [script, ...args], {
       capture: true,
-      env: { DATABASE_URL: sourceUrl, BACKUP_ENCRYPTION_KEY: key, OPS_ALERT_WEBHOOK_URL: "", ...env }
+      env: { DATABASE_URL: sourceUrl, BACKUP_ENCRYPTION_KEY: key, OPS_ALERT_WEBHOOK_URL: "", OPS_BACKUP_RECEIPT_FILE: "", OPS_RESTORE_RECEIPT_FILE: "", ...env }
     });
   }
   beforeAll(async () => {
@@ -116,10 +117,15 @@ describe.skipIf(!baseUrl)("encrypted PostgreSQL recovery", () => {
     const manifest = JSON.parse(await readFile(`${archive}.manifest.json`, "utf8"));
     expect(manifest.manifestVersion).toBe(2);
     expect(manifest.source.captureMethod).toBe("exported-postgres-snapshot");
+    expect(manifest.authentication).toMatchObject({ version: 1, algorithm: "hmac-sha256" });
     await expect(cli("scripts/restore-database.mjs", ["--input", archive], { RESTORE_DATABASE_URL: sourceUrl })).rejects.toThrow(/different database/u);
     const targetUrl = await database();
     await cli("scripts/restore-database.mjs", ["--input", archive], { RESTORE_DATABASE_URL: targetUrl });
     expect(compareSnapshots(manifest.source, await collectDatabaseSnapshot(targetUrl))).toEqual([]);
+    const held = new Client({ connectionString: postgresCliUrl(targetUrl) }); await held.connect();
+    try { expect(await readRecoveryHold(held)).toMatchObject({ archiveSha256: manifest.archive.sha256, sourceHash: manifest.source.operationsSourceHash, manifestAuthenticated: true, contentVerified: true, verifiedAt: expect.any(String) }); }
+    finally { await held.end(); }
+    await expect(cli("scripts/backup-database.mjs", ["--output", join(directory, "held-source.enc")], { DATABASE_URL: targetUrl })).rejects.toThrow("recovery hold");
     expect((await cli("scripts/smoke-restored-database.mjs", [], { RESTORE_DATABASE_URL: targetUrl })).stdout).toContain('"status": "ok"');
     await expect(cli("scripts/restore-database.mjs", ["--input", archive], { RESTORE_DATABASE_URL: targetUrl })).rejects.toThrow(/not empty/u);
     const wrongSchema = new URL(await database()); wrongSchema.searchParams.set("schema", "different");
@@ -127,11 +133,30 @@ describe.skipIf(!baseUrl)("encrypted PostgreSQL recovery", () => {
     await assertDatabaseEmpty(wrongSchema.toString());
   }, 30000);
 
+  it("records backup evidence only after success and qualifies a separate restore before recording its receipt", async () => {
+    const archive = join(directory, `ops-${randomUUID()}.jitm-backup.enc`), backupReceipt = join(directory, `backup-${randomUUID()}.json`), restoreReceipt = join(directory, `restore-${randomUUID()}.json`);
+    await cli("scripts/backup-database.mjs", ["--output", archive, "--retention-days", "0"], { OPS_BACKUP_RECEIPT_FILE: backupReceipt });
+    const backup = JSON.parse(await readFile(backupReceipt, "utf8"));
+    expect(backup).toMatchObject({ version: 1, kind: "backup", archivePath: archive }); expect(backup.sourceHash).toMatch(/^[a-f0-9]{64}$/);
+    const { readOperationsArtifactAges } = await import("../scripts/lib/operations-artifacts.mjs");
+    expect((await readOperationsArtifactAges(sourceUrl, new Date(), { OPS_BACKUP_RECEIPT_FILE: backupReceipt })).backupAgeHours).toBeLessThan(1);
+    const targetUrl = await database();
+    await cli("scripts/qualify-backup.mjs", ["--input", archive], { RESTORE_DATABASE_URL: targetUrl, OPS_RESTORE_RECEIPT_FILE: restoreReceipt });
+    const proof = JSON.parse(await readFile(restoreReceipt, "utf8"));
+    expect(proof).toMatchObject({ kind: "restore", sourceHash: backup.sourceHash, archiveSha256: backup.archiveSha256, contentVerified: true, foreignKeysVerified: true });
+    expect((await readOperationsArtifactAges(sourceUrl, new Date(), { OPS_RESTORE_RECEIPT_FILE: restoreReceipt })).restoreAgeDays).toBeLessThan(1);
+    // The now-populated target cannot be restored again. Preserve the last successful proof.
+    await expect(cli("scripts/qualify-backup.mjs", ["--input", archive], { RESTORE_DATABASE_URL: targetUrl, OPS_RESTORE_RECEIPT_FILE: restoreReceipt })).rejects.toThrow();
+    expect(JSON.parse(await readFile(restoreReceipt, "utf8"))).toEqual(proof);
+    expect((await readOperationsArtifactAges(targetUrl, new Date(), { OPS_BACKUP_RECEIPT_FILE: backupReceipt, OPS_RESTORE_RECEIPT_FILE: restoreReceipt }))).toEqual({ backupAgeHours: null, restoreAgeDays: null });
+  });
+
   it("restores legacy manifests and rejects tampering or a wrong key before writing data", async () => {
     const archive = join(directory, "legacy-source.enc");
     await cli("scripts/backup-database.mjs", ["--output", archive, "--retention-days", "0"]);
     const manifest = JSON.parse(await readFile(`${archive}.manifest.json`, "utf8"));
     const legacy = structuredClone(manifest); legacy.manifestVersion = 1;
+    delete legacy.authentication;
     delete legacy.source.tableDigests; delete legacy.source.tableNames; delete legacy.source.contentHashAlgorithm;
     const legacyPath = join(directory, "legacy.json"); await writeFile(legacyPath, JSON.stringify(legacy));
     const restored = await cli("scripts/restore-database.mjs", ["--input", archive, "--manifest", legacyPath], { RESTORE_DATABASE_URL: await database() });
@@ -147,5 +172,15 @@ describe.skipIf(!baseUrl)("encrypted PostgreSQL recovery", () => {
     const corruptManifest = join(directory, "tampered.json"); await writeFile(corruptManifest, JSON.stringify(manifest));
     await expect(cli("scripts/restore-database.mjs", ["--input", corrupt, "--manifest", corruptManifest], { RESTORE_DATABASE_URL: targetUrl })).rejects.toThrow(/authenticated/u);
     await assertDatabaseEmpty(targetUrl);
+  }, 30000);
+  it("requires other target clients to be stopped before loading restored data", async () => {
+    const archive = join(directory, "target-clients.enc"); await cli("scripts/backup-database.mjs", ["--output", archive]);
+    const targetUrl = await database();
+    const connected = new Client({ connectionString: postgresCliUrl(targetUrl) }); await connected.connect();
+    try {
+      await expect(cli("scripts/restore-database.mjs", ["--input", archive], { RESTORE_DATABASE_URL: targetUrl })).rejects.toThrow("Stop other clients");
+      expect(await readRecoveryHold(connected)).toBeNull(); await assertDatabaseEmpty(targetUrl);
+    } finally { await connected.end(); }
+    await cli("scripts/restore-database.mjs", ["--input", archive], { RESTORE_DATABASE_URL: targetUrl });
   }, 30000);
 });

@@ -14,9 +14,9 @@ export function EmptyState({
 }) {
   return (
     <div className="empty-state">
-      <div className="empty-icon"><AppIcon name="bolt" /></div>
+      <div className="empty-icon"><AppIcon name="message" /></div>
       <h2>{title}</h2>
-      <p>{description}</p>
+      <p className="speech-bubble speech-bubble--soft">{description}</p>
       <Link className="button primary" href={actionHref}>{actionLabel}</Link>
     </div>
   );

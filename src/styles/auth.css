@@ -1,4 +1,37 @@
 /* Authentication feature composition. */
+.registration-page { padding: clamp(16px, 4vw, 56px); }
+.registration-layout { width: min(100%, 1120px); display: grid; justify-items: center; }
+.registration-intro { display: none; }
+.registration-mobile-brand { display: flex; }
+.registration-desktop-brand { display: none; }
+.registration-card { display: grid; gap: 22px; }
+.registration-card h1 { margin-top: 12px; line-height: 1.12; }
+.registration-card p { margin-bottom: 0; color: var(--muted); }
+.registration-card .eyebrow { margin-top: 0; color: var(--brand-dark); }
+.registration-card .form-stack > .button { width: 100%; }
+.registration-card > p a { color: var(--brand-dark); font-weight: 750; }
+.onboarding-top { flex-wrap: wrap; gap: 12px; }
+.first-win-onboarding h1 { overflow-wrap: anywhere; }
+.first-win-onboarding .onboarding-step-card { min-width: 0; }
+
+@media (min-width: 960px) {
+  .registration-mobile-brand { display: none; }
+  .registration-desktop-brand { display: block; }
+  .registration-layout { grid-template-columns: minmax(0, 1fr) minmax(360px, 470px); align-items: center; gap: clamp(40px, 6vw, 88px); }
+  .registration-intro { min-width: 0; display: grid; gap: 32px; }
+  .registration-intro > .logo { justify-self: start; }
+  .registration-intro h2 { margin: 10px 0 18px; font-size: clamp(2.35rem, 3.2vw, 3.2rem); line-height: 1.08; letter-spacing: -.045em; text-wrap: balance; }
+  .registration-intro p { margin: 0; color: var(--muted); }
+  .registration-intro .eyebrow { color: var(--brand-dark); }
+  .registration-use-cases { display: grid; gap: 24px; margin: 0; padding: 0; list-style: none; }
+  .registration-use-cases li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 14px; align-items: start; }
+  .registration-use-cases svg { width: 44px; height: 44px; padding: 11px; border-radius: 12px; color: var(--brand-dark); background: var(--brand-soft); }
+  .registration-use-cases h3 { margin: 0 0 4px; font-size: 1rem; }
+  .registration-use-cases p { font-size: .9375rem; }
+  .registration-intro .registration-control-note { display: flex; align-items: start; gap: 10px; padding-top: 24px; border-top: 1px solid var(--line); font-size: .875rem; }
+  .registration-control-note svg { flex: 0 0 20px; width: 20px; height: 20px; color: var(--brand-dark); }
+}
+
 .auth-inline-actions { display: flex; justify-content: flex-end; margin-top: -4px; font-size: .85rem; }
 .auth-inline-actions a { color: var(--brand-dark); font-weight: 750; }
 .mobile-app-header { display: none; }

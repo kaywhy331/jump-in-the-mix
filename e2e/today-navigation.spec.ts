@@ -102,7 +102,7 @@ test("paging and filters protect closed message drafts until the owner discards 
   await page.setViewportSize({ width: 320, height: 844 }); await visit(page);
   await page.getByRole("button", { name: "Review message for Queue person 002", exact: true }).click();
   const message = page.getByRole("dialog", { name: "Message Queue person 002", exact: true });
-  const draft = message.getByRole("textbox", { name: "Edit before sending", exact: true }); await draft.fill("Keep my unsent customer draft.");
+  const draft = message.getByRole("textbox", { name: "Fine-tune before sending", exact: true }); await draft.fill("Keep my unsent customer draft.");
   await page.keyboard.press("Escape");
   await pager(page).getByRole("link", { name: "Next follow-ups", exact: true }).click();
   const guard = page.getByRole("dialog", { name: "Keep your message edits?", exact: true }); await expect(guard).toBeVisible();
@@ -130,8 +130,8 @@ test("filters reset the page and snooze/stop actions preserve the current filter
   await expect(page).toHaveURL(/snoozed=1/); expect(new URL(page.url()).searchParams.get("after")).toBe(cursor);
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[31]}`);
   await page.getByRole("button", { name: "More options for Queue person 032", exact: true }).click();
-  await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).getByRole("button", { name: "Stop plan…", exact: true }).click();
-  await page.getByRole("dialog", { name: "Stop Navigation fixture plan for Queue person 032?", exact: true }).getByRole("button", { name: "Stop plan", exact: true }).click();
+  await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).getByRole("button", { name: "Stop mix…", exact: true }).click();
+  await page.getByRole("dialog", { name: "Stop Navigation fixture plan for Queue person 032?", exact: true }).getByRole("button", { name: "Stop mix", exact: true }).click();
   await expect(page).toHaveURL(/mixStopped=1/); expect(new URL(page.url()).searchParams.get("after")).toBe(cursor);
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[32]}`);
   await page.getByRole("button", { name: "Filter 3", exact: true }).click();
@@ -214,7 +214,7 @@ test.describe("live outcome updates", () => {
       await expect(undoFor(page, smsIds[0])).toBeVisible(); await page.clock.runFor(10_500); await expect.poll(() => captured).toBe(true);
       await page.getByRole("button", { name: "Review message for Queue person 002", exact: true }).click();
       const dialog = page.getByRole("dialog", { name: "Message Queue person 002", exact: true });
-      const draft = dialog.getByRole("textbox", { name: "Edit before sending", exact: true });
+      const draft = dialog.getByRole("textbox", { name: "Fine-tune before sending", exact: true });
       await draft.fill("A draft created after the refresh started."); await page.keyboard.press("Escape");
       // Next can keep the browser's streaming request open after consuming the
       // response. Wait for fulfillment and the actual buffered-list UI.
@@ -411,7 +411,7 @@ test("native browser zoom preserves Today drafts, filters and history at 200 and
             const review = page.getByRole("button", { name: "Review message for Queue person 002", exact: true });
             await review.focus(); await page.keyboard.press("Enter");
             const message = page.getByRole("dialog", { name: "Message Queue person 002", exact: true });
-            const draft = message.getByRole("textbox", { name: "Edit before sending", exact: true });
+            const draft = message.getByRole("textbox", { name: "Fine-tune before sending", exact: true });
             const original = await draft.inputValue();
             await draft.fill(`Unsent draft at ${zoom * 100}% zoom`); await audit(page);
             await page.keyboard.press("Escape"); await expect(review).toBeFocused();

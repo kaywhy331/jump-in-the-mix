@@ -3,6 +3,7 @@ import { getCurrentSession } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { endAdminImpersonationGrant } from "@/lib/impersonation";
 import { requestPublicUrl } from "@/lib/request-url";
+import { userHasAdminPermission } from "@/lib/staff-access";
 
 export async function POST(request: Request) {
   const session = await getCurrentSession();
@@ -12,12 +13,14 @@ export async function POST(request: Request) {
     .find((item) => item.startsWith(`${env.impersonationCookieName}=`))
     ?.slice(env.impersonationCookieName.length + 1);
 
-  if (rawToken && session?.authUser.isPlatformAdmin) {
-    await endAdminImpersonationGrant(decodeURIComponent(rawToken), session.authUser.id).catch(() => false);
+  let decodedToken = "";
+  try { decodedToken = rawToken ? decodeURIComponent(rawToken) : ""; } catch { /* Still clear an invalid browser cookie. */ }
+  if (decodedToken && session?.authUser) {
+    await endAdminImpersonationGrant(decodedToken, session.authUser.id).catch(() => false);
   }
-
+  const canViewSupport = session && await userHasAdminPermission(session.authUser.id, "support.manage");
   const response = NextResponse.redirect(
-    requestPublicUrl(request, session?.authUser.isPlatformAdmin ? "/admin/users?impersonationEnded=1" : "/login"),
+    requestPublicUrl(request, canViewSupport ? "/admin/support?impersonationEnded=1" : "/login"),
     303
   );
   response.cookies.set(env.impersonationCookieName, "", {

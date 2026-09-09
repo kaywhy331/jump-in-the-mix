@@ -13,7 +13,8 @@ export default defineConfig({
       "e2e/**",
       "node_modules/**"
     ],
-    fileParallelism: true,
-    maxWorkers: 4
+    // Database suites exercise singleton schedules and the global delivery worker.
+    // Run files serially so one suite cannot claim another suite's test email.
+    fileParallelism: false
   }
 });

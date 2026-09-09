@@ -13,6 +13,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
       userName={user.name}
       displayPreferences={displayPreferences}
       impersonation={impersonation ? {
+        reference: impersonation.reference,
         targetName: user.name,
         targetEmail: user.email,
         reason: impersonation.reason,

@@ -24,7 +24,7 @@ export async function activateMixAction(formData: FormData): Promise<void> {
     where: { id: mixId, workspaceId: workspace.id, status: { in: ["DRAFT", "PAUSED"] }, source: { not: "ONE_TIME" } },
     select: { id: true, name: true }
   });
-  if (!mix) fail("Plan not found or already active.");
+  if (!mix) fail("Mix not found or already active.");
   await prisma.$transaction(async tx => {
     await startDraftMix(tx, { workspaceId: workspace.id, mixId: mix.id, now: new Date() });
     await tx.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } });
@@ -51,7 +51,7 @@ export async function pauseMixAction(formData: FormData): Promise<void> {
     where: { id: mixId, workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } },
     select: { id: true }
   });
-  if (!mix) fail("Active plan not found.");
+  if (!mix) fail("Active mix not found.");
   await prisma.$transaction([
     prisma.mix.update({ where: { id: mix.id }, data: { status: "PAUSED" } }),
     prisma.jump.updateMany({
@@ -81,7 +81,7 @@ export async function archiveMixAction(formData: FormData): Promise<void> {
     where: { id: mixId, workspaceId: workspace.id, status: { not: "ARCHIVED" }, source: { not: "ONE_TIME" } },
     select: { id: true }
   });
-  if (!mix) fail("Plan not found.");
+  if (!mix) fail("Mix not found.");
   await prisma.$transaction([
     prisma.mix.update({ where: { id: mix.id }, data: { status: "ARCHIVED" } }),
     prisma.mixAssignment.updateMany({ where: { mixId: mix.id, workspaceId: workspace.id }, data: { isActive: false } }),

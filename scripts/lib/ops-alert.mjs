@@ -1,7 +1,10 @@
+function safeText(value) {
+  return String(value).replace(/(?:https?|postgres(?:ql)?):\/\/[^\s"<>]+/gi, "[redacted]").replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[redacted]").replace(/\bBearer\s+\S+/gi, "Bearer [redacted]").slice(0, 2000);
+}
 function safeDetails(value, depth = 0) {
   if (depth > 4) return "[truncated]";
   if (value === null || value === undefined) return value;
-  if (typeof value === "string") return value.slice(0, 2000);
+  if (typeof value === "string") return safeText(value);
   if (typeof value === "number" || typeof value === "boolean") return value;
   if (Array.isArray(value)) return value.slice(0, 50).map((item) => safeDetails(item, depth + 1));
   if (typeof value === "object") {
@@ -26,20 +29,21 @@ export async function sendOpsAlert({ title, severity = "error", summary, details
     service: "jump-in-the-mix",
     environment: process.env.NODE_ENV ?? "unknown",
     severity,
-    title,
-    summary,
+    title: safeText(title),
+    summary: safeText(summary),
     timestamp: new Date().toISOString(),
     details: safeDetails(details),
-    text: `[${severity.toUpperCase()}] ${title}: ${summary}`
+    text: `[${severity.toUpperCase()}] ${safeText(title)}: ${safeText(summary)}`
   };
 
   try {
     const response = await fetch(webhookUrl, {
-      method: "POST",
+      method: "POST", redirect: "error",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10_000)
     });
+    await response.body?.cancel();
     if (!response.ok) {
       return { delivered: false, reason: `http-${response.status}` };
     }
@@ -47,7 +51,7 @@ export async function sendOpsAlert({ title, severity = "error", summary, details
   } catch (error) {
     return {
       delivered: false,
-      reason: error instanceof Error ? error.message : String(error)
+      reason: "request-failed"
     };
   }
 }

@@ -55,7 +55,7 @@ main().catch(async (error) => {
   console.error(`Restored database smoke test failed: ${message}`);
   await sendOpsAlert({
     title: "Restored database smoke test failed",
-    summary: message,
+    summary: "Restored database verification failed. Review its private runner logs.",
     details: { command: "db:smoke-restored" }
   });
   process.exitCode = 1;

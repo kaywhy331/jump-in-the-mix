@@ -1,31 +1,26 @@
-import { isDeepStrictEqual } from "node:util";
 import { prisma } from "@/lib/prisma";
 import type { ReadyMadePlan } from "@/lib/plan-library-types";
+import { validateLibraryContent } from "@/lib/library-content";
+import { applyLibraryPublication, libraryJson, lockLibrary } from "@/lib/library-store";
+import type { Prisma } from "@/generated/prisma/client";
 import { normalizeSharedMixSteps } from "@/lib/shared-mix";
 
-// Operator/seed entry point: update library originals, never a customer's copy.
+// Install reviewed shipped plans once. Setup must not overwrite a staff draft,
+// republish a hidden mix, or undo an administrator's rollback.
 export async function publishReadyMadePlans(plans: readonly ReadyMadePlan[]) {
   const result = { created: 0, updated: 0, unchanged: 0 };
   for (const plan of plans) {
-    normalizeSharedMixSteps(plan.steps);
     const outcome = await prisma.$transaction(async tx => {
-      const [existing, metadata] = await Promise.all([
-        tx.sharedMix.findUnique({ where: { id: plan.id } }),
-        tx.sharedMixMetadata.findUnique({ where: { sharedMixId: plan.id } })
-      ]);
-      const content = { title: plan.title, description: plan.description, category: plan.category, industry: plan.industry, framework: plan.framework, durationDays: plan.durationDays, steps: plan.steps, status: "APPROVED" as const };
-      const contentChanged = !existing || Object.entries(content).some(([key, value]) => !isDeepStrictEqual(existing[key as keyof typeof existing], value));
-      const metadataChanged = !metadata || metadata.triggerMode !== plan.triggerMode || metadata.dateTypeName !== plan.dateTypeName || metadata.dateTypeSlug !== plan.dateTypeSlug || Boolean(metadata.featuredAt) !== plan.featured;
-      if (!contentChanged && !metadataChanged) return "unchanged" as const;
-      await tx.sharedMix.upsert({ where: { id: plan.id }, create: { id: plan.id, ...content }, update: content });
-      const now = new Date();
-      const details = { triggerMode: plan.triggerMode, dateTypeName: plan.dateTypeName, dateTypeSlug: plan.dateTypeSlug, featuredAt: plan.featured ? metadata?.featuredAt ?? now : null, publishedAt: metadata?.publishedAt ?? now };
-      await tx.sharedMixMetadata.upsert({
-        where: { sharedMixId: plan.id },
-        create: { sharedMixId: plan.id, ...details },
-        update: { ...details, version: { increment: 1 } }
-      });
-      return existing ? "updated" as const : "created" as const;
+      await lockLibrary(tx);
+      if (await tx.sharedMix.findUnique({ where: { id: plan.id }, select: { id: true } })) return "unchanged" as const;
+      const content = validateLibraryContent({ title: plan.title, description: plan.description, category: plan.category, industry: plan.industry,
+        framework: plan.framework, triggerMode: plan.triggerMode, dateTypeName: plan.dateTypeName, dateTypeSlug: plan.dateTypeSlug, featured: plan.featured, steps: normalizeSharedMixSteps(plan.steps) });
+      await tx.sharedMix.create({ data: { id: plan.id, title: content.title, description: content.description, category: content.category, industry: content.industry, framework: content.framework, durationDays: plan.durationDays, steps: content.steps as unknown as Prisma.InputJsonValue, status: "UNPUBLISHED" } });
+      await tx.sharedMixMetadata.create({ data: { sharedMixId: plan.id } });
+      await tx.sharedMixRevision.create({ data: { sharedMixId: plan.id, version: 1, snapshot: libraryJson(content), reason: "Initial installation of reviewed application catalog." } });
+      await applyLibraryPublication(tx, plan.id, 1, content);
+      await tx.sharedMixRelease.create({ data: { sharedMixId: plan.id, version: 1, action: "PUBLISH", controlRevision: 1, reason: "Initial installation of reviewed application catalog." } });
+      return "created" as const;
     });
     result[outcome] += 1;
   }

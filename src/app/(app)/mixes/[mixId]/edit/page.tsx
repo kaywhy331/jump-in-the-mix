@@ -9,7 +9,7 @@ import { getPlatformStringList } from "@/lib/platform-settings";
 import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
 
-export const metadata: Metadata = { title: "Edit plan" };
+export const metadata: Metadata = { title: "Edit mix" };
 
 type SearchParams = { error?: string; created?: string; updated?: string; imported?: string };
 
@@ -57,9 +57,9 @@ export default async function EditMixPage({
   return (
     <div className="page">
       <header className="page-header"><div><h1>Edit {mix.name}</h1><p>Saving updates future follow-ups without rewriting completed history.</p></div></header>
-      {query.created === "manual" && <Notice type="success">Plan created. Future follow-ups are updating.</Notice>}
-      {query.updated && <Notice type="success">Plan updated. Future follow-ups are updating.</Notice>}
-      {query.imported && <Notice type="success">Template setup completed. Review the result or activate it when ready.</Notice>}
+      {query.created === "manual" && <Notice type="success">Mix created. Future follow-ups are updating.</Notice>}
+      {query.updated && <Notice type="success">Mix updated. Future follow-ups are updating.</Notice>}
+      {query.imported && <Notice type="success">Your remix is ready. Fine-tune the beats and tempo, then start it when you’re ready.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
       <MixEditor
         dateTypes={dateTypes.map((item) => ({ id: item.id, name: item.name, isSystem: item.isSystem }))}

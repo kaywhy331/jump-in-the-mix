@@ -42,12 +42,6 @@
   .mobile-header-action svg { display: block; width: 22px; height: 22px; }
   .mobile-action-label { font-size: 0; }
 
-  .mobile-nav { height: calc(66px + env(safe-area-inset-bottom)); }
-  .mobile-nav .app-nav { height: 66px; }
-  .mobile-nav .nav-link { min-height: 58px; padding: 7px 2px 5px; font-size: .68rem; }
-  .mobile-nav .nav-quick-add { width: 52px; min-width: 52px; height: 52px; min-height: 52px; justify-self: center; margin: -8px auto 0; box-shadow: 0 8px 22px rgba(71,54,210,.25); }
-  .mobile-nav .nav-quick-add svg { width: 27px; height: 27px; }
-
   /* Shared mobile filter trigger */
   .filter-trigger { min-width: 48px; height: 48px; gap: 7px; padding: 0 12px; }
   .filter-trigger svg { width: 19px; height: 19px; }

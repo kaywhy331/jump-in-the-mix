@@ -40,7 +40,7 @@ export function SupportFaq() {
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search contacts, plans, imports, privacy…"
+            placeholder="Search contacts, mixes, imports, privacy…"
             autoComplete="off"
           />
         </label>

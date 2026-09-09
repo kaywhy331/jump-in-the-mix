@@ -34,8 +34,8 @@ function worker(options: { unavailableCache?: boolean } = {}) {
 describe("service worker privacy boundary", () => {
   it("migrates legacy app caches without deleting another application's data", async () => {
     const w = worker();
-    await w.caches.open("jitm-shell-v1"); await w.caches.open("other-app"); await w.caches.open("jitm-public-v2");
-    await w.dispatch("activate"); expect(await w.caches.keys()).toEqual(["other-app", "jitm-public-v2"]); expect(w.clients.claim).toHaveBeenCalled();
+    await w.caches.open("jitm-shell-v1"); await w.caches.open("jitm-public-v2"); await w.caches.open("jitm-public-v3"); await w.caches.open("other-app"); await w.caches.open("jitm-public-v4");
+    await w.dispatch("activate"); expect(await w.caches.keys()).toEqual(["other-app", "jitm-public-v4"]); expect(w.clients.claim).toHaveBeenCalled();
   });
   it("never saves private navigation and never serves a legacy cached page", async () => {
     const w = worker();
@@ -61,11 +61,11 @@ describe("service worker privacy boundary", () => {
     for (const headers of [{ "Cache-Control": "private" }, { "Cache-Control": "no-store" }, { Vary: "Cookie" }, { "Content-Type": "text/html" }] as Record<string, string>[]) {
       w.fetch.mockResolvedValueOnce(new Response("private", { headers: { "Content-Type": "text/css", ...headers } }));
       await w.request("/_next/static/sensitive.css");
-      expect(w.stores.get("jitm-public-v2")?.has("https://example.test/_next/static/sensitive.css")).toBe(false);
+      expect(w.stores.get("jitm-public-v4")?.has("https://example.test/_next/static/sensitive.css")).toBe(false);
     }
     const redirect = new Response("redirected", { headers: { "Content-Type": "text/css" } }); Object.defineProperty(redirect, "redirected", { value: true });
     w.fetch.mockResolvedValueOnce(redirect); await w.request("/_next/static/redirect.css");
-    expect(w.stores.get("jitm-public-v2")?.size).toBe(1);
+    expect(w.stores.get("jitm-public-v4")?.size).toBe(1);
   });
   it("works with blocked cache storage and does not hide real server errors", async () => {
     const w = worker({ unavailableCache: true });

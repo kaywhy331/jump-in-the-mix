@@ -25,6 +25,7 @@ EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
 FROM source AS worker
+ENV NODE_ENV=production
 USER node
 CMD ["npm", "run", "worker"]
 

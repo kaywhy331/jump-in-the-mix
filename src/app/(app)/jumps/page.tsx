@@ -9,6 +9,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { JumpActionLink } from "@/components/JumpActionControls";
 import { JumpOutcomeButton, JumpReturnTray, JumpWorkflowCard } from "@/components/JumpWorkflow";
 import { Notice } from "@/components/Notice";
+import { TodayBriefing } from "@/components/TodayBriefing";
+import { todayBriefing } from "@/lib/today-briefing";
 import { PreparationNotice } from "@/components/PreparationNotice";
 import { Sheet } from "@/components/Sheet";
 import { TodayLink, TodayNavigation } from "@/components/TodayNavigation";
@@ -103,12 +105,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   let dateWhere: Prisma.JumpWhereInput = {};
   if (range === "due") {
     dateWhere = status === "done" || status === "skipped"
-      ? { scheduledAt: { gte: startToday, lt: endToday } }
+      ? { completedAt: { gte: startToday, lt: endToday } }
       : status === "pending"
         ? { scheduledAt: { lt: endToday } }
         : { OR: [
             { status: { in: pendingStatuses }, scheduledAt: { lt: endToday } },
-            { status: { in: completedStatuses }, scheduledAt: { gte: startToday, lt: endToday } }
+            { status: { in: completedStatuses }, completedAt: { gte: startToday, lt: endToday } }
           ] };
   } else if (range === "week") dateWhere = { scheduledAt: { gte: startToday, lt: endWeek } };
   else if (range === "month") dateWhere = { scheduledAt: { gte: startToday, lt: endMonth } };
@@ -123,7 +125,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     prisma.jump.count({ where: { AND: [where, { status: "PENDING", scheduledAt: { lt: endToday } }] } }),
     prisma.jump.count({ where: { AND: [where, { status: "PENDING", scheduledAt: { lt: startToday } }] } }),
     prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: pendingStatuses }, scheduledAt: { gte: startToday, lt: endWeek } } }),
-    prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: completedStatuses }, completedAt: { gte: startToday, lt: endToday } } })
+    prisma.jump.count({ where: { workspaceId: workspace.id, status: "DONE", completedAt: { gte: startToday, lt: endToday } } })
   ]);
   const followUps = list.items;
   const viewParams = new URLSearchParams({ range, status, channel });
@@ -201,18 +203,18 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             ) : directCall && url ? (
               <JumpActionLink jumpId={followUp.id} action={actionType(followUpChannel)} href={url} className="button primary jump-channel-action" ariaLabel={`Call ${followUp.contact.displayName}`} title="Call" contactName={followUp.contact.displayName} channel={followUpChannel}><AppIcon name="phone" /><span>Call</span></JumpActionLink>
             ) : (
-              <Sheet trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review message for ${followUp.contact.displayName}`}><AppIcon name={followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Message ${followUp.contact.displayName}`} description="Review or edit this message before opening your phone’s composer.">{editableAction}</Sheet>
+              <Sheet trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review message for ${followUp.contact.displayName}`}><AppIcon name={followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Message ${followUp.contact.displayName}`} description="Make it sound like you. Fine-tune before opening your phone’s composer.">{editableAction}</Sheet>
             ))}
             <div className="jump-completion-actions">
               <JumpOutcomeButton jumpId={followUp.id} outcome={isPending ? "COMPLETED" : "REOPENED"} className={`button small jump-done-action ${isPending ? "" : "done"}`} ariaLabel={isPending ? "Done" : "Undo"}>{isPending ? "Done" : "Undo"}</JumpOutcomeButton>
               {isPending && <Sheet
                 trigger={<button className="button small" type="button" aria-label={`More options for ${followUp.contact.displayName}`}>More</button>}
                 title={`Follow up with ${followUp.contact.displayName}`}
-                description="Move it to a better day, skip it, or stop this plan."
+                description="Move it to a better day, skip it, or stop this mix."
               >
                 <div className="sheet-section"><h3>Snooze</h3><div className="sheet-actions">{[["later-today", "Later today"], ["tomorrow", "Tomorrow"], ["next-monday", "Monday"], ["next-week", "Next week"]].map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value={preset} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div></div>
                 <form action={snoozeJumpAction} className="form-stack"><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value="custom" /><input type="hidden" name="returnTo" value={returnTo} /><label className="field"><span>Choose a day</span><input type="date" name="customDate" min={logicalDateKey(today)} required /></label><small className="muted-copy">Uses your default follow-up time in {timezone}.</small><button className="button" type="submit">Snooze to this day</button></form>
-                <div className="sheet-danger-zone"><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button">Skip this follow-up</JumpOutcomeButton>{followUp.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop plan…" title={`Stop ${followUp.mix.name} for ${followUp.contact.displayName}?`} description="Future follow-ups from this plan will be removed. Completed history stays available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={followUp.mixId} /><input type="hidden" name="contactId" value={followUp.contactId} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button danger" type="submit">Stop plan</button></form></ConfirmDialog>}</div>
+                <div className="sheet-danger-zone"><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button">Skip this follow-up</JumpOutcomeButton>{followUp.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop mix…" title={`Stop ${followUp.mix.name} for ${followUp.contact.displayName}?`} description="Future follow-ups from this mix will be removed. Completed history stays available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={followUp.mixId} /><input type="hidden" name="contactId" value={followUp.contactId} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button danger" type="submit">Stop mix</button></form></ConfirmDialog>}</div>
               </Sheet>}
             </div>
           </div>
@@ -228,11 +230,11 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
       <JumpReturnTray />
-      {params.welcome && <Notice type="success">{welcomeMessage}</Notice>}
+      {params.welcome && <><Notice type="success">{welcomeMessage}</Notice><section className="card"><h2>Try your first networking mix</h2><p>You have five personal invitations. Choose a contact and send them unique access through the Jump in the Mix System Mix.</p><Link className="button primary" href="/mixes/system?welcome=1">Try the System Mix</Link></section></>}
       {params.demo && <Notice type="info">Using local demo data.</Notice>}
-      {params.applied && <Notice type="success">Plan changes saved.</Notice>}
-      {params.mixStopped && <Notice type="success">Plan stopped.</Notice>}
-      {params.mixStopError && <Notice type="error">Plan could not be stopped.</Notice>}
+      {params.applied && <Notice type="success">Mix changes saved.</Notice>}
+      {params.mixStopped && <Notice type="success">Mix stopped.</Notice>}
+      {params.mixStopError && <Notice type="error">Mix could not be stopped.</Notice>}
       {params.snoozed && <Notice type="success">Follow-up snoozed.</Notice>}
       {params.listReset && <Notice type="info">This part of the list changed. You’re back at the first follow-ups.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
@@ -251,8 +253,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
       <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
       <p className="today-week-line"><TodayLink href="/jumps?range=week&status=pending">This week: {dueThisWeekCount} open</TodayLink><span>·</span><TodayLink href="/jumps?range=due&status=done">{completedTodayCount} completed today</TodayLink></p>
+      {!activeFilterCount && <TodayBriefing text={todayBriefing({ attention: attentionCount, overdue: overdueCount, markedDone: completedTodayCount, ready: preparation.state === "ready" })} />}
       {needsAttention.length > 0 && <section aria-labelledby="needs-attention"><div className="section-label urgent"><h2 id="needs-attention">Needs attention</h2><span>{needsAttention.length < attentionCount ? `${needsAttention.length} of ${attentionCount.toLocaleString()}` : needsAttention.length}</span></div><div className="jump-list">{needsAttention.map(renderCard)}</div></section>}
-      {upcoming.length > 0 && <section aria-labelledby="upcoming-follow-ups"><div className="section-label"><h2 id="upcoming-follow-ups">Upcoming</h2><span>{upcoming.length < upcomingCount ? `${upcoming.length} of ${upcomingCount.toLocaleString()}` : upcoming.length}</span></div><div className="jump-list">{upcoming.map(renderCard)}</div></section>}
+      {upcoming.length > 0 && <section aria-labelledby="upcoming-follow-ups"><div className="section-label"><h2 id="upcoming-follow-ups">Up next</h2><span>{upcoming.length < upcomingCount ? `${upcoming.length} of ${upcomingCount.toLocaleString()}` : upcoming.length}</span></div><div className="jump-list">{upcoming.map(renderCard)}</div></section>}
       {completed.length > 0 && <section aria-labelledby="completed-follow-ups"><div className="completed-divider"><span id="completed-follow-ups">Completed</span></div><div className="jump-list">{completed.map(renderCard)}</div></section>}
       {totalCount > 0 && <nav className="pagination-bar today-pagination" aria-label="Follow-up pages">
         <span role="status">Showing {ordered.length} of {totalCount.toLocaleString()} follow-up{totalCount === 1 ? "" : "s"} in this view.</span>
@@ -263,7 +266,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       </nav>}
       {!ordered.length && preparation.state === "ready" && (activeFilterCount
         ? <EmptyState title="No follow-ups match these filters" description="Try clearing the filters to see what needs your attention today." actionHref="/jumps" actionLabel="Clear filters" />
-        : <EmptyState title="Nothing due right now" description="Add a person and choose a follow-up date. We’ll put the next action here." actionHref="/contacts/new" actionLabel="Add a person" />)}
+        : <EmptyState title="Nothing due right now" description="A little hello goes a long way. Add a person and choose a follow-up date; your next action will appear here." actionHref="/contacts/new" actionLabel="Add a person" />)}
     </TodayNavigation>
   );
 }

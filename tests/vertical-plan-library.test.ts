@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { renderJumpSnapshot } from "../src/lib/jump-render";
 import { READY_MADE_PLANS, starterPlanForBusinessType, starterPlanForOnboarding } from "../src/lib/vertical-plan-library";
+import { validateLibraryContent } from "../src/lib/library-content";
+import { normalizeSharedMixSteps } from "../src/lib/shared-mix";
 
 const contact = {
   firstName: "Jordan",
@@ -45,6 +47,14 @@ const onboardingProfile = {
 };
 
 describe("ready-made vertical plans", () => {
+  it("accepts every shipped catalog entry for immutable publication", () => {
+    for (const plan of READY_MADE_PLANS) {
+      expect(() => validateLibraryContent({ title: plan.title, description: plan.description, category: plan.category,
+        industry: plan.industry, framework: plan.framework, triggerMode: plan.triggerMode, dateTypeName: plan.dateTypeName,
+        dateTypeSlug: plan.dateTypeSlug, featured: plan.featured, steps: normalizeSharedMixSteps(plan.steps) }), plan.id).not.toThrow();
+    }
+  });
+
   it("provides a starter for every onboarding business type", () => {
     for (const type of ["Home services", "Real estate", "Insurance & finance", "Other"]) {
       expect(starterPlanForBusinessType(type).industry).toBe(type);
@@ -79,6 +89,23 @@ describe("ready-made vertical plans", () => {
     expect(plan.industry).toBe("Real estate");
     expect(plan.steps[0].body).toContain("has the timing changed");
     expect(plan.steps[0].body).not.toContain("thanks for reaching out");
+  });
+
+  it.each([
+    ["Check in with a friend", "How have you been?"],
+    ["Reconnect personally", "I’d love to catch up"],
+    ["Follow up after an introduction", "I’m glad we connected"],
+    ["Explore a partnership", "explore ways we could work together"]
+  ])("prepares %s without requiring a business identity", (reason, expectedMessage) => {
+    const plan = starterPlanForOnboarding(null, reason);
+    expect(plan.steps).toHaveLength(1);
+    expect(plan.steps[0].dayOffset).toBe(0);
+    const step = plan.steps[0];
+    const rendered = renderJumpSnapshot(step, contact, { ...onboardingProfile, company: null, industry: null }, { name: "Alex Morgan", email: "alex@example.com" }, step.channel);
+    expect(rendered.body).toContain(expectedMessage);
+    expect(rendered.body).toMatch(/Alex$/);
+    expect(rendered.body).not.toMatch(/\{\{|my business|estimate|customer|review|last note/i);
+    expect(rendered.body!.length).toBeLessThanOrEqual(160);
   });
 
   it("renders every seeded message using fields collected during onboarding", () => {
