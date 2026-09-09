@@ -80,3 +80,19 @@ The optimized ten-concurrent-request run also passed all 240 measured requests p
 After adding the per-request database catalog check, the same five-account profile passed 180 measured requests plus 30 first observations. Per-route full-response p95 was 314 ms for Contacts, 326 ms for search, 315 ms for page 2, 370 ms for Mixes, 448 ms for Today and 421 ms for follow-up history. Every route had 30 measured samples; no request or account-isolation check failed. Observed web peak RSS was about 408 MiB. The owned load database, server and session file were removed.
 
 This single local run supports the request-check regression assessment; it does not establish hosted capacity. Its report records build `tre5rXMjkShJfEgmfqnW7`. A subsequent build changes only the recovery-held background-worker error instruction, with no change to the measured request path. Evidence is retained with the recovery-hold checkpoint.
+
+
+## September 9 constrained Node runtime
+
+GitHub CI at `96cdedd` completed 120 requests with no errors and a 111 ms overall p95, but the unconstrained web process peaked at about 554 MiB RSS. That result does not qualify the planned 512 MiB Render instance.
+
+A follow-up used systemd cgroups with a **512 MiB memory limit, no swap and 50% CPU quota** on Node 22.23.2. The meaningful comparison constrained only the packaged web process; the traffic generator and PostgreSQL ran outside its cgroup. The fixture contained five accounts, 5,000 contacts, 125,000 follow-ups and 150 mixes, with five concurrent requests. No out-of-memory or memory-limit event occurred.
+
+| Web runtime | Completed / errors | Overall p95 | Per-route p95 | Cgroup peak memory | Result |
+| --- | --- | --- | --- | --- | --- |
+| Default Node heap settings | 153 / 0 in 60 seconds | 3,473 ms | 3,085–3,553 ms | 275 MiB | Exceeded the existing 3-second route budget |
+| `--max-semi-space-size=8` | 180 / 0 | 1,514 ms | 1,465–1,864 ms | 244 MiB | Passed the existing budget |
+
+Node selected a roughly 259 MiB heap limit in the initial constrained controller probe. Its small default young-generation space is a performance tradeoff on low-memory instances; the [Node CLI documentation](https://github.com/nodejs/node/blob/v22.23.2/doc/api/cli.md#--max-semi-space-sizesize-in-mib) explains the semi-space setting. The Render start command and normal load qualifier now use the measured 8 MiB setting. The qualifier records its web Node options in the report.
+
+These are local observations, not statistically established speedups or Render qualification. The database was not constrained to Render's planned compute size, and physical CPU performance and surrounding workload differ by host. Actual hosted capacity, sustained bursts, worker/database contention and restarts still need qualification before increasing invitation volume. Evidence is under `.artifacts/runtime-sizing/`; the earlier all-processes-limited control is retained separately because it also throttled the traffic generator and cannot isolate web-service capacity.

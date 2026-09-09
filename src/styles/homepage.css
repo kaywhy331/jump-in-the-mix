@@ -149,10 +149,15 @@
   .public-site-nav > .button { min-height: 44px; padding-inline: 8px; font-size: .875rem; }
 }
 @media (max-width: 350px) {
+  .public-page .public-header > .logo { min-width: 44px; }
+  .public-page .public-header > .logo > span:not(.logo-mark) { display: none; }
+  .public-site-nav .public-sign-in { white-space: nowrap; }
+  .public-site-nav > .button { flex-shrink: 0; }
   .public-page .demo-actions { grid-template-columns: 1fr; }
   .public-page .product-demo-heading h2 { font-size: 1.125rem; }
   .public-page .hero-audiences { column-gap: 10px; }
 }
 @media (max-width: 380px) {
-  .public-page .demo-scenarios span { padding-inline: 2px; font-size: .75rem; font-weight: 600; }
+  .public-page .demo-scenarios { gap: 4px; }
+  .public-page .demo-scenarios span { padding-inline: 0; font-size: .75rem; font-weight: 600; white-space: nowrap; }
 }

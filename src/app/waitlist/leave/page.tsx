@@ -27,6 +27,6 @@ export default async function LeaveWaitlistPage({ searchParams }: { searchParams
         <button className="button primary" type="submit">Email me a confirmation link</button>
       </form>
     </>}
-    <Link href="/">Back to home</Link>
+    <div className="auth-footer"><Link className="button" href="/">Back to home</Link></div>
   </section></main>;
 }

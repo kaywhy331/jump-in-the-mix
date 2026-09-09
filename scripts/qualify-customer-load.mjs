@@ -75,7 +75,8 @@ async function main() {
     }
     checkCanceled(); await db.query('ANALYZE');
     await writeFile(accountsPath, JSON.stringify({ origin, accounts }), { mode: 0o600 });
-    web = spawn(process.execPath, [".next/standalone/server.js"], { env, stdio: ["ignore", log.fd, log.fd] });
+    const webNodeOptions = ["--max-semi-space-size=8"];
+    web = spawn(process.execPath, [...webNodeOptions, ".next/standalone/server.js"], { env, stdio: ["ignore", log.fd, log.fd] });
     exited = new Promise(resolveExit => web.once("close", resolveExit));
     web.once("error", error => { void log.write(`Server start failed: ${error.code ?? "unknown"}\n`); });
     let ready = false;
@@ -97,7 +98,7 @@ async function main() {
     const bytes = Number((await db.query('SELECT pg_database_size(current_database()) AS bytes')).rows[0].bytes);
     let peakRssKiB = null;
     try { peakRssKiB = Number((await readFile(`/proc/${web.pid}/status`, 'utf8')).match(/^VmHWM:\s+(\d+)/m)?.[1]) || null; } catch {}
-    const evidence = { buildId, profile, fixtureDatabaseBytes: bytes, serverPeakRssKiB: peakRssKiB, node: process.version, ...result.report };
+    const evidence = { buildId, profile, fixtureDatabaseBytes: bytes, serverPeakRssKiB: peakRssKiB, webNodeOptions, node: process.version, ...result.report };
     await writeFile(join(artifact, 'report.json'), JSON.stringify(evidence, null, 2), { mode: 0o600 });
     if (process.env.LOAD_FIXTURE_REPORT_FILE) await copyFile(join(artifact, 'report.json'), resolve(process.env.LOAD_FIXTURE_REPORT_FILE));
     console.log(JSON.stringify({ report: join(artifact, 'report.json'), profile, fixtureDatabaseBytes: bytes, serverPeakRssKiB: peakRssKiB, passed: evidence.passed, routes: Object.fromEntries(Object.entries(evidence.routes).map(([name, data]) => [name, { completed: data.completed, failed: data.failed, p95Ms: data.latencyMs.p95, bytesP95: data.responseBytes.p95 }])) }, null, 2));

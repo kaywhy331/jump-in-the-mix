@@ -25,7 +25,7 @@ test("homepage keeps signup prominent, navigation spaced, and the first demo com
     expect(geometry.overflow, `${width}px overflow`).toBe(false);
     expect(geometry.spaced, `${width}px navigation spacing`).toBe(true);
     expect(geometry.logoFits, `${width}px logo space`).toBe(true);
-    expect(geometry.headerHeight).toBeLessThan(95);
+    expect(geometry.headerHeight, `${width}px header height`).toBeLessThan(95);
     if ([390, 1024, 1280, 1440].includes(width)) expect(geometry.signupBottom).toBeLessThan(height);
     if (width === 390) {
       expect(geometry.sampleHeight).toBeLessThan(830);

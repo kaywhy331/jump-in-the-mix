@@ -14,6 +14,8 @@ The hosted edition runs as three independently supervised resources:
 
 The Blueprint uses current compute identifiers, explicitly selects PostgreSQL 16 and 5 GB of database storage, and pins Node 22.23.2, the latest Node 22 security release in the [official release index](https://nodejs.org/dist/index.json) checked September 9. GitHub CI and container builds use the maintained Node 22 line; final local qualification also uses 22.23.2. It prompts for origin, sender and public operator configuration on the web service and references those exact values from the worker. Render ignores `sync: false` entries in environment groups, so only fixed values and generated shared application keys live in that group. Optional SMS/push/OAuth credentials are configured there only when enabled. Automatic deploys are off: deploy both services at the same reviewed commit and coordinate migrations with the old worker. The file passed the current [Render Blueprint schema](https://render.com/schema/render.yaml.json) on September 9; account/API validation and hosted execution remain pending. See [Render's specification](https://render.com/docs/blueprint-spec) for secret prompts and current plan identifiers.
 
+The web build copies `public` and `.next/static` into the standalone package and starts it with `node --max-semi-space-size=8 .next/standalone/server.js`; `HOSTNAME=0.0.0.0` and Render's injected port provide the listener. This matches the packaged application used for qualification. The 8 MiB V8 semi-space setting reduces allocation/collection overhead observed under a 512 MiB cgroup; it is not a total process-memory limit. See [constrained runtime evidence](CUSTOMER_LOAD_QUALIFICATION.md#september-9-constrained-node-runtime).
+
 ## Before the first deploy
 
 Create and verify the public domain before accepting customer data. The final origin must use HTTPS and must exactly match `APP_URL`. Add the same origin to `AUTH_ALLOWED_ORIGINS` only when requests pass through another trusted browser origin.
@@ -55,7 +57,7 @@ The worker groups newly due follow-ups into a notification for each subscribed d
 1. Take or verify a restorable database backup.
 2. Build one immutable revision from the intended commit.
 3. Run `npm run db:deploy` once as the release/pre-deploy command.
-4. Start the web service with `npm run start`.
+4. Start the prepared web package with `node --max-semi-space-size=8 .next/standalone/server.js` and the configured listener environment.
 5. Start exactly one worker with `npm run worker`; scale only after validating lease behavior under load.
 6. Require `/api/health/live`, `/api/health/ready`, and `/api/health/worker` to return HTTP 200.
 
