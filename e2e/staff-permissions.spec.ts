@@ -126,10 +126,11 @@ test("operators can retry the same review item only inside its safe delivery win
 
 test("staff console navigation and team controls fit both themes at phone and desktop widths", async ({ page, context }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Explicit viewport matrix.");
-  const { token } = await fixture("OWNER");
+  const { token, user } = await fixture("OWNER");
   await context.addCookies([{ name: "jitm_session", value: token, url: testInfo.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
   await page.goto("/admin/team");
-  await page.getByText("Change role and permissions", { exact: true }).click();
+  const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: user.name ?? user.email, exact: true }) });
+  await panel.getByText("Change role and permissions", { exact: true }).click();
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 390, 1440]) {
     await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
     await page.setViewportSize({ width, height: 900 });
