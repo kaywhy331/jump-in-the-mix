@@ -46,8 +46,7 @@ test("overview highlights missing monitoring, respects roles, and offers a usabl
   await expect(page.getByRole("link", { name: /Monitoring needs a check/ })).toBeVisible();
   await expect(page.locator(".admin-pulse-item")).toHaveCount(3);
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 768, 1440]) {
-    await applyRenderedTheme(page, colorScheme);
-    await page.setViewportSize({ width, height: 1000 });
+    await applyRenderedTheme(page, colorScheme, { width, height: 1000 });
     if (width === 320) {
       await page.getByRole("button", { name: "Menu", exact: true }).click();
       await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Team", exact: true })).toBeVisible();
@@ -94,7 +93,7 @@ test("content search, visibility, ordering and pagination work together without 
   await expect(page.locator(".admin-library-row")).toContainText(`${prefix} 26`);
   await expect(page.getByRole("navigation", { name: "Library pages" })).toContainText("Page 1 of 1");
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 768, 1440]) {
-    await applyRenderedTheme(page, colorScheme); await page.setViewportSize({ width, height: 1000 });
+    await applyRenderedTheme(page, colorScheme, { width, height: 1000 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }

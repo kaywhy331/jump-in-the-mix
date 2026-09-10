@@ -49,6 +49,7 @@ button.settings-hub-card.device-contact-picker:disabled { cursor: progress; opac
   .device-contact-picker { min-height: 72px; }
   .quick-add-result { padding: 10px; }
   .field-label-row { align-items: flex-start; }
-  .voice-note-control { align-items: flex-end; flex-direction: column; }
+  .voice-note-control { align-items: flex-end; flex-direction: column; flex-wrap: nowrap; }
+  .voice-note-control > small { flex-basis: auto; max-width: 100%; }
   .voice-note-error { max-width: 150px; text-align: right; }
 }

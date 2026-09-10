@@ -1,3 +1,4 @@
+import { applyRenderedTheme } from "./theme-fixture";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import AxeBuilder from "@axe-core/playwright";
@@ -70,7 +71,7 @@ test("account controls enforce live permissions and fit phone and desktop screen
     await context.addCookies([{ name: "jitm_session", value: data.tokens[0], url: testInfo.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
     await page.goto(`/admin/users?q=${encodeURIComponent(data.customer.email)}`);
     for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
-      await page.emulateMedia({ colorScheme, reducedMotion: "reduce" }); await page.setViewportSize({ width, height: 900 });
+      await applyRenderedTheme(page, colorScheme, { width, height: 900 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       await page.getByRole("button", { name: "Manage account access…" }).click();
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
