@@ -1,6 +1,23 @@
 # Hosted customer performance qualification
 
-This procedure tests the deployed application with synthetic accounts in a new logical PostgreSQL database. It does not load customer accounts or create a public test service. Local lifecycle tests validate the tooling; only measurements taken on the intended hosted plans can qualify hosted performance. The first hosted baseline below did not meet the response-time budget; hosted performance remains unqualified.
+This procedure tests the deployed application with synthetic accounts in a new logical PostgreSQL database. It does not load customer accounts or create a public test service. Local lifecycle tests validate the tooling; only measurements taken on the intended hosted plans can qualify hosted performance. Both hosted baselines below missed the response-time budget; hosted performance remains unqualified.
+
+## September 10 performance release repeat
+
+PR #50 is live at `840261884697ed60d9df658d8c648a63ab1d5549`, with migration 48 applied. The repeated isolated web job served actual standalone build `oNK6I_Tf7y7N3Y8Bk2FNw`. It used the same five-account profile, six routes, five concurrent requests and 3,000 ms per-route p95 ceiling as the earlier baseline.
+
+| Route | Earlier p95 | Released query changes p95 |
+| --- | ---: | ---: |
+| Contacts | 4,363 ms | 1,612 ms |
+| Contact search | 2,141 ms | 1,543 ms |
+| Contacts, page 2 | 2,224 ms | 1,901 ms |
+| Mixes | 3,014 ms | 1,111 ms |
+| Today | 7,633 ms | 1,424 ms |
+| Completed follow-up history | 6,710 ms | 5,473 ms |
+
+All 30 first observations and 180 measured requests returned the expected isolated pages without errors. Throughput increased from 1.68 to 3.59 requests per second. History remained over budget, so the controller stopped before burst, restart or background-contention qualification. Container peak memory was approximately 421 MiB, with no increased memory-limit events. Production readiness and worker health remained healthy, and the fixture database, role, tunnel and private files were removed.
+
+The route improvements are measured results for this temporary-tunnel workload, not browser timings or an admission-capacity guarantee. A separate local experiment confirmed that the exact completed-history count reads table pages on a freshly populated table, then uses the existing index after PostgreSQL vacuum establishes row visibility. Counting the non-null status column instead did not provide a material reason to change application behavior. The larger database plan is prepared for an owner-approved capacity test; its recurring price is $19/month versus the current $6/month, with a brief database interruption during the change. No compute plan has been changed. See [Render pricing](https://render.com/pricing) and [changing a database compute plan](https://render.com/docs/postgresql-creating-connecting#changing-your-compute-plan).
 
 ## September 10 baseline and query follow-up
 
