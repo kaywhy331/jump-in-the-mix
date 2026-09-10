@@ -60,3 +60,19 @@ jobs:
           docker run --rm --entrypoint pg_dump jump-in-the-mix-backup:ci --version
           docker run --rm --entrypoint aws jump-in-the-mix-backup:ci --version
           docker run --rm --entrypoint node jump-in-the-mix-backup:ci --input-type=module -e 'await import("./scripts/lib/s3-backup-store.mjs"); await import("./scripts/lib/recovery-bundle.mjs");'
+
+  monitor-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Qualify external checker behavior
+        run: python3 -m unittest discover -s tests -p uptime_test.py
+      - name: Build independent monitor image
+        run: docker build --file infra/operations/monitor.Dockerfile --tag jump-in-the-mix-monitor:ci .
+      - name: Verify monitor runtime tools and imports
+        run: |
+          docker run --rm --entrypoint aws jump-in-the-mix-monitor:ci --version
+          docker run --rm -e DATABASE_URL=postgresql://synthetic@127.0.0.1:5432/jitm_design_monitor --entrypoint node jump-in-the-mix-monitor:ci --import tsx --input-type=module -e 'await import("./scripts/check-operations.ts");'
+          test "$(docker run --rm --entrypoint su-exec jump-in-the-mix-monitor:ci node id -u)" = "1000"
+          docker run --rm --entrypoint sh jump-in-the-mix-monitor:ci -c 'mkdir -p /var/data/jitm-operations && chown node:node /var/data/jitm-operations && chmod 700 /var/data/jitm-operations && exec su-exec node test -w /var/data/jitm-operations'

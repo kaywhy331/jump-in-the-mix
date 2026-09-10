@@ -1,0 +1,1 @@
+export function readS3OperationsArtifactAges(databaseUrl: string, now?: Date, env?: Readonly<Record<string, string | undefined>>): Promise<{ backupAgeHours: number | null; restoreAgeDays: number | null }>;

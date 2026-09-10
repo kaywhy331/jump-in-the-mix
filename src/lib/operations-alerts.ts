@@ -3,7 +3,7 @@ import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { lockStaff, staffSessionHasPermissions } from "@/lib/staff-access";
 import { OPERATIONS_CHECKS, OPERATIONS_CODES, OPERATIONS_LEASE_MS, OPERATIONS_REMINDER_MS, OPERATIONS_NOTICE_MAX_AGE_MS, OPERATIONS_NOTICE_ATTEMPTS, severityRank, validateOperationsObservations, type OperationsCode, type OperationsObservation } from "@/lib/operations-policy";
-import { operationsWebhook, postOperationsNotice } from "@/lib/operations-notifications";
+import { operationsDestination, postOperationsNotice } from "@/lib/operations-notifications";
 
 export class OperationsReviewError extends Error {}
 export async function lockOperations(tx: Prisma.TransactionClient) { await tx.$executeRaw`SELECT pg_advisory_xact_lock(814733, 6)`; }
@@ -80,7 +80,7 @@ export async function acknowledgeOperationsCheck(input: { actorUserId: string; a
 }
 
 export async function deliverOperationsNotices(now = new Date(), limit = 5, db: PrismaClient = prisma) {
-  const destination = operationsWebhook();
+  const destination = operationsDestination();
   if (!destination) return { accepted: 0, configured: false };
   let accepted = 0;
   for (let index = 0; index < Math.max(0, Math.min(20, limit)); index++) {
