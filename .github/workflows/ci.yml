@@ -216,6 +216,29 @@ jobs:
           LOAD_SMOKE_MAX_P95_MS: "3000"
           LOAD_FIXTURE_REPORT_FILE: customer-load-report.json
         run: npm run load:qualify
+      - name: Use restricted runtime credentials for customer and staff browser flows
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { randomBytes } from 'node:crypto';
+          import { Client } from 'pg';
+          import { grantRuntimeRole } from './scripts/lib/runtime-database-role.mjs';
+          const url = new URL(process.env.DATABASE_URL);
+          if (!['localhost', '127.0.0.1'].includes(url.hostname) || !url.pathname.startsWith('/jitm_design_')) throw Error('Isolated CI database required');
+          const password = randomBytes(24).toString('hex');
+          const owner = new Client({ connectionString: url.href }); await owner.connect();
+          try {
+            await owner.query(`CREATE ROLE jitm_browser_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD '${password}'`);
+            const proof = await grantRuntimeRole(owner, { role: 'jitm_browser_runtime' });
+            console.log(JSON.stringify(proof));
+          } finally { await owner.end(); }
+          url.username = 'jitm_browser_runtime'; url.password = password;
+          console.log(`::add-mask::${password}`);
+          fs.appendFileSync(process.env.GITHUB_ENV, `DATABASE_URL=${url.href}\n`);
+          NODE
+          # The next steps receive the restricted URL from GITHUB_ENV. This step
+          # retains owner access only until it exits; no role memberships carry it.
       - name: Upload authenticated load report
         if: always()
         uses: actions/upload-artifact@v4

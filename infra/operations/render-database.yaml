@@ -1,0 +1,10 @@
+# Provision this private database before the web/worker Blueprint. Keep the
+# generated owner credential in the operator's migration/recovery environment.
+databases:
+  - name: jump-in-the-mix-postgres
+    databaseName: jump_in_the_mix
+    user: jump_in_the_mix
+    plan: 0.1c-256mb
+    diskSizeGB: 5
+    postgresMajorVersion: "16"
+    ipAllowList: []
