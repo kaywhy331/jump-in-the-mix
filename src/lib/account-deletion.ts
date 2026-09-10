@@ -79,7 +79,10 @@ export async function deleteAccountData(
         metadata: { ownedWorkspaceCount: workspaceIds.length }
       }
     });
-  });
+  // A populated account cascades through thousands of indexed relationships.
+  // Allow that single atomic operation to finish on the small hosted database;
+  // retain a deadline without extending other application transactions.
+  }, { timeout: 30_000 });
 
   return { deleted: true, requestId };
 }
