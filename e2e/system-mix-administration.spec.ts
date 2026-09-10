@@ -1,3 +1,4 @@
+import { applyRenderedTheme } from "./theme-fixture";
 import { randomBytes, createHash, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { expect, test, type Page } from "@playwright/test";
@@ -74,7 +75,7 @@ test("staff publishes reviewed System Mix wording and rolls back without changin
     await preview.getByLabel("Preview data").selectOption("long"); await expect(preview).toContainText("Alexandria Catherine");
     await preview.getByLabel("Preview data").selectOption("blank"); await expect(preview).toContainText("Hi there,");
     for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
-      await page.emulateMedia({ colorScheme, reducedMotion: "reduce" }); await page.setViewportSize({ width, height: 900 });
+      await applyRenderedTheme(page, colorScheme, { width, height: 900 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
     }

@@ -110,6 +110,7 @@
   .admin-navigation-groups { padding: 16px 0 8px; border-top: 1px solid var(--line); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 10px; }
   .admin-sidebar[data-open="false"] .admin-navigation-groups { display: none; }
   .admin-workspace-main > .page { padding: 0 0 24px; overflow-x: visible; }
+  .admin-workspace-main > .page > .page-header { margin-inline: 0; }
   .admin-overview-page > .page-header, .admin-library-page > .page-header { display: grid; }
   .admin-overview-page > .page-header, .admin-library-page > .page-header { padding: 0; border: 0; background: transparent; }
   .admin-updated { max-width: none; text-align: left; }

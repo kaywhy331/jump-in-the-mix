@@ -1,3 +1,4 @@
+import { applyRenderedTheme } from "./theme-fixture";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { expect, test } from "@playwright/test";
@@ -82,8 +83,7 @@ test("invitation revocation checks current permission and cancels the durable em
   await page.goto("/admin/access");
   const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: email, exact: true }) });
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
-    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
-    await page.setViewportSize({ width, height: 900 });
+    await applyRenderedTheme(page, colorScheme, { width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
@@ -132,8 +132,7 @@ test("staff console navigation and team controls fit both themes at phone and de
   const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: user.name ?? user.email, exact: true }) });
   await panel.getByText("Change role and permissions", { exact: true }).click();
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 390, 1440]) {
-    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
-    await page.setViewportSize({ width, height: 900 });
+    await applyRenderedTheme(page, colorScheme, { width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
