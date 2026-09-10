@@ -10,4 +10,4 @@ ENV NODE_ENV=production
 # A newly attached Render disk is root-owned. Prepare only its private state
 # directory, then drop privileges for the continuously supervised process.
 RUN apk add --no-cache su-exec
-CMD ["sh", "-c", "mkdir -p /var/data/jitm-operations && chown node:node /var/data/jitm-operations && chmod 700 /var/data/jitm-operations && exec su-exec node npm run ops:watch"]
+CMD ["sh", "-c", "mkdir -p /var/data/jitm-operations && chown node:node /var/data/jitm-operations && chmod 700 /var/data/jitm-operations && exec su-exec node node --import tsx scripts/check-operations.ts --watch"]
