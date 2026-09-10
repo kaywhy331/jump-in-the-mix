@@ -28,6 +28,7 @@
     "db:rehearse-migration": "node scripts/rehearse-migration.mjs && node scripts/rehearse-admin-control-plane.mjs && node scripts/rehearse-admin-mfa.mjs && node scripts/rehearse-worker-heartbeat.mjs",
     "db:backup": "node scripts/backup-database.mjs",
     "db:backup-recovery": "node scripts/backup-database.mjs --with-recovery-state",
+    "db:backup-s3": "node scripts/backup-to-s3.mjs",
     "db:restore": "node scripts/restore-database.mjs",
     "db:smoke-restored": "node scripts/smoke-restored-database.mjs",
     "db:rehearse-restore": "node scripts/rehearse-backup-restore.mjs",

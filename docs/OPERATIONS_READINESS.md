@@ -13,6 +13,8 @@ The dedicated Netlify test site uses a 180-second worker threshold, verified wit
 
 ## Encrypted backup and restore
 
+For the unattended S3 pipeline, scoped credentials and daily Render job, see [Scheduled encrypted backups](SCHEDULED_BACKUPS.md). The production storage/key recovery rehearsal has passed; scheduling and monitoring qualification are tracked separately from that rehearsal.
+
 Configure a dedicated `BACKUP_ENCRYPTION_KEY`; never reuse `DATA_ENCRYPTION_KEY`. `npm run db:backup` creates an authenticated encrypted archive plus an authenticated version-two manifest with checksum, PostgreSQL version, applied migrations, and every base table in the selected schema. Each table has a row count and an order-independent SHA-256 content digest, including migration history. Newly added tables need no manual verification list. Keep both files private and copy both to durable encrypted storage. Backup refuses a source with an application recovery hold.
 
 The manifest and `pg_dump` share one exported, read-only PostgreSQL snapshot. Normal application writes may continue during backup; avoid schema migrations until capture completes. Contents are hashed inside PostgreSQL, and verification transfers only hashes and counts. SHA-256 of sorted JSONB row hashes is identified as `sha256-jsonb-sorted-v1`; it verifies restored row values without depending on physical row order.
