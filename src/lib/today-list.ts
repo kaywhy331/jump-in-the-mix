@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 export const TODAY_PAGE_SIZE = 30;
 type Cursor = { pending: boolean; scheduledAt: string; id: string };
 type Direction = "after" | "before";
+type GroupFilters = { pending?: Prisma.JumpWhereInput; completed?: Prisma.JumpWhereInput };
 
 export function parseTodayCursor(value: unknown): Cursor | null {
   if (typeof value !== "string" || value.length > 600 || !/^[A-Za-z0-9_-]+$/.test(value)) return null;
@@ -33,14 +34,6 @@ function withinGroup(cursor: Cursor, direction: Direction): Prisma.JumpWhereInpu
   return { OR: [{ scheduledAt: { [comparison]: scheduledAt } }, { scheduledAt, id: { [comparison]: cursor.id } }] };
 }
 
-function beyond(cursor: Cursor, direction: Direction): Prisma.JumpWhereInput {
-  const sameGroup: Prisma.JumpWhereInput = cursor.pending ? { status: "PENDING" } : { status: { in: ["DONE", "SKIPPED"] } };
-  const crossesGroup = direction === "after" ? cursor.pending : !cursor.pending;
-  const otherGroup: Prisma.JumpWhereInput = cursor.pending ? { status: { in: ["DONE", "SKIPPED"] } } : { status: "PENDING" };
-  const same: Prisma.JumpWhereInput = { AND: [sameGroup, withinGroup(cursor, direction)] };
-  return crossesGroup ? { OR: [same, otherGroup] } : same;
-}
-
 const select = {
   id: true, contactId: true, mixId: true, scheduledAt: true, status: true, updatedAt: true, reason: true, renderedSnapshot: true,
   contact: { select: { displayName: true, emails: { select: { email: true, isPrimary: true } }, phones: { select: { phone: true, isPrimary: true } } } },
@@ -50,24 +43,34 @@ const select = {
 
 /** Cursor values describe an ordering position, never a workspace or authority.
  * Open work precedes completed history; both groups sort by time and stable ID.
- * Reading both bounded groups also handles a page spanning their boundary. */
-export async function readTodayPage(workspaceId: string, filters: Prisma.JumpWhereInput, input: { after?: unknown; before?: unknown } = {}) {
+ * Fill from one group before reading the next, including boundary-spanning pages. */
+export async function readTodayPage(workspaceId: string, filters: Prisma.JumpWhereInput, input: { after?: unknown; before?: unknown } = {}, groupFilters: GroupFilters = {}) {
   const after = parseTodayCursor(input.after);
   const before = after ? null : parseTodayCursor(input.before);
   const cursor = after ?? before;
   const direction: Direction = before ? "before" : "after";
   const base: Prisma.JumpWhereInput = { AND: [{ workspaceId }, { status: { in: ["PENDING", "DONE", "SKIPPED"] } }, filters] };
 
+  // These additive constraints expose each branch of a daily date filter to
+  // the planner without replacing workspace or shared filter boundaries.
+  const groupWhere = (pending: boolean): Prisma.JumpWhereInput => ({ AND: [
+    base,
+    pending ? { status: "PENDING" } : { status: { in: ["DONE", "SKIPPED"] } },
+    (pending ? groupFilters.pending : groupFilters.completed) ?? {}
+  ] });
+
   const read = async (position: Cursor | null, order: Direction) => {
     const sort = order === "after" ? "asc" as const : "desc" as const;
-    const groups = await Promise.all([true, false].map(pending => {
-      if (position && pending !== position.pending && (order === "after" ? pending : !pending)) return [];
-      return prisma.jump.findMany({
-        where: { AND: [base, pending ? { status: "PENDING" } : { status: { in: ["DONE", "SKIPPED"] } }, ...(position?.pending === pending ? [withinGroup(position, order)] : [])] },
-        select, orderBy: [{ scheduledAt: sort }, { id: sort }], take: TODAY_PAGE_SIZE
-      });
-    }));
-    const items = (order === "after" ? groups.flat() : [...groups].reverse().flat()).slice(0, TODAY_PAGE_SIZE);
+    const items: Array<Prisma.JumpGetPayload<{ select: typeof select }>> = [];
+    for (const pending of order === "after" ? [true, false] : [false, true]) {
+      if (position && pending !== position.pending && (order === "after" ? pending : !pending)) continue;
+      const remaining = TODAY_PAGE_SIZE - items.length;
+      if (!remaining) break;
+      items.push(...await prisma.jump.findMany({
+        where: { AND: [groupWhere(pending), ...(position?.pending === pending ? [withinGroup(position, order)] : [])] },
+        select, orderBy: [{ scheduledAt: sort }, { id: sort }], take: remaining
+      }));
+    }
     return order === "before" ? items.reverse() : items;
   };
 
@@ -75,9 +78,22 @@ export async function readTodayPage(workspaceId: string, filters: Prisma.JumpWhe
   let reset = false;
   if (!items.length && cursor) { items = await read(null, "after"); reset = items.length > 0; }
   const first = items[0], last = items.at(-1);
+  // Probe each ordering group separately. Combining them with OR can make an
+  // empty first/last-page probe scan all follow-ups on a populated database.
+  const hasBeyond = async (position: Cursor, order: Direction) => {
+    const sort = order === "after" ? "asc" as const : "desc" as const;
+    const same = await prisma.jump.findFirst({
+      where: { AND: [groupWhere(position.pending), withinGroup(position, order)] },
+      select: { id: true }, orderBy: [{ scheduledAt: sort }, { id: sort }]
+    });
+    if (same) return true;
+    const crossesGroup = order === "after" ? position.pending : !position.pending;
+    if (!crossesGroup) return false;
+    return Boolean(await prisma.jump.findFirst({ where: groupWhere(!position.pending), select: { id: true } }));
+  };
   const [previous, next] = first && last ? await Promise.all([
-    prisma.jump.findFirst({ where: { AND: [base, beyond(cursorFor(first), "before")] }, select: { id: true } }),
-    prisma.jump.findFirst({ where: { AND: [base, beyond(cursorFor(last), "after")] }, select: { id: true } })
-  ]) : [null, null];
+    hasBeyond(cursorFor(first), "before"),
+    hasBeyond(cursorFor(last), "after")
+  ]) : [false, false];
   return { items, previous: previous && first ? todayCursor(first) : null, next: next && last ? todayCursor(last) : null, reset };
 }

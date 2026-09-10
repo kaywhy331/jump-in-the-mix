@@ -1,6 +1,27 @@
 # Hosted customer performance qualification
 
-This procedure tests the deployed application with synthetic accounts in a new logical PostgreSQL database. It does not load customer accounts or create a public test service. Local lifecycle tests validate the tooling; only measurements taken on the intended hosted plans can qualify hosted performance. No hosted capacity result is recorded yet.
+This procedure tests the deployed application with synthetic accounts in a new logical PostgreSQL database. It does not load customer accounts or create a public test service. Local lifecycle tests validate the tooling; only measurements taken on the intended hosted plans can qualify hosted performance. The first hosted baseline below did not meet the response-time budget; hosted performance remains unqualified.
+
+## September 10 baseline and query follow-up
+
+Application `405720f207d1de2cb47a0af6ad66e47597fdb891`, standalone build `SLBSaq04Vb-lqzOo4BrTl`, ran in an isolated Render job with observed limits of 0.5 CPU and 512 MiB. The database shared the production PostgreSQL plan (0.1 CPU, 256 MiB) while using separate synthetic rows and a restricted fixture role. The external generator connected through a temporary authenticated Cloudflare tunnel; the gate, tunnel and supervisor shared the web job's resources. These timings include that network path and do not measure the public Render edge or browser rendering.
+
+Batched fixture tooling from PR #49 created the full five-account profile: 5,000 contacts, 125,000 follow-ups and 150 mixes. All 30 first observations and 180 measured requests returned the expected isolated pages without errors. At five concurrent requests, four of the six routes exceeded the unchanged 3,000 ms full-response p95 limit:
+
+| Route | Full-response p95 |
+| --- | ---: |
+| Contacts | 4,363 ms |
+| Contact search | 2,141 ms |
+| Contacts, page 2 | 2,224 ms |
+| Mixes | 3,014 ms |
+| Today | 7,633 ms |
+| Completed follow-up history | 6,710 ms |
+
+The controller stopped after the failing baseline, so burst, restarts and background contention were not run. Web container peak memory was approximately 373 MiB with no new memory-limit events. Production readiness and worker observations remained healthy. The fixture database, role, tunnel and private transferred files were removed; the job finished successfully after reporting the failed performance result.
+
+Local PostgreSQL query profiling then identified two unnecessary reads: fetching completed history even when pending work already filled the page, and a combined pagination probe that scanned all 125,000 rows to establish that no earlier page existed. The candidate reads ordering groups only as needed, probes them separately, retains additive daily date constraints, and adds a completion-date index. Navigation, filters and workspace boundaries remain required regression checks. These local results do not qualify the candidate's hosted performance; repeat the original profile and budgets after release.
+
+A temporary tunnel is an alternative when registered SSH access is unavailable. Use separate Render one-off web and worker jobs from the exact reviewed build. Keep the tunnel target on loopback and enforce an exact synthetic-session allowlist, fixed customer routes and a separate secret for fixed control/import operations. Retain both application and uploaded tooling commits/checksums. The tunnel must expose only synthetic fixture operations, receive no production delivery credentials, and stop with exact-target cleanup. See [Render one-off jobs](https://render.com/docs/one-off-jobs) and [Cloudflare temporary tunnels](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/).
 
 ## Execution boundaries
 

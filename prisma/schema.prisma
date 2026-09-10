@@ -513,6 +513,7 @@ model Jump {
   pushDeliveries   FollowUpPushDelivery[]
 
   @@index([workspaceId, scheduledAt, status])
+  @@index([workspaceId, status, completedAt])
   @@index([contactId, scheduledAt])
   @@index([mixId])
   @@index([mixStepId])

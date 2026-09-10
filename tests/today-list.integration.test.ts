@@ -37,11 +37,11 @@ describe.skipIf(!local)("Today cursor navigation", () => {
     await prisma.jump.createMany({ data: ids.map(id => ({ ...fixture, id, workspaceId, status, scheduledAt, reason: "Fixture follow-up", uniquenessKey: id, templateSnapshot: {}, renderedSnapshot: { body: "Unsent fixture" } })) });
     return ids;
   }
-  async function pages(filters: Prisma.JumpWhereInput = {}) {
+  async function pages(filters: Prisma.JumpWhereInput = {}, groupFilters: Parameters<typeof readTodayPage>[3] = {}) {
     const results: Awaited<ReturnType<typeof readTodayPage>>[] = [];
     let after: string | undefined;
     for (let index = 0; index < 30; index++) {
-      const page = await readTodayPage(workspaceId, filters, { after }); results.push(page);
+      const page = await readTodayPage(workspaceId, filters, { after }, groupFilters); results.push(page);
       expect(page.items.length).toBeLessThanOrEqual(TODAY_PAGE_SIZE);
       if (!page.next) return results;
       after = page.next;
@@ -94,6 +94,34 @@ describe.skipIf(!local)("Today cursor navigation", () => {
     expect((await readTodayPage(workspaceId, { ...filters, stepVersion: { stepTemplate: { channel: "EMAIL" } } })).items).toEqual([]);
     expect((await readTodayPage(foreignId, filters, { after: todayCursor({ id: pending[0], status: "PENDING", scheduledAt: stamp }) })).items.map(item => item.id)).toEqual([foreign.id]);
     expect((await readTodayPage(workspaceId, { workspaceId: foreignId })).items).toEqual([]);
+  });
+
+  it("preserves daily open and completed work across pages with separate date constraints", async () => {
+    const day = 86_400_000, end = new Date(stamp.getTime() + day);
+    const pending = await add(35, "PENDING");
+    const done = await add(40, "DONE", new Date(stamp.getTime() - 3600000));
+    const skipped = await add(3, "SKIPPED", new Date(stamp.getTime() - 1800000));
+    const older = await add(400, "DONE", new Date(stamp.getTime() - day));
+    await add(5, "PENDING", end);
+    await prisma.jump.updateMany({ where: { id: { in: [...done, ...skipped] } }, data: { completedAt: stamp } });
+    await prisma.jump.updateMany({ where: { id: { in: older } }, data: { completedAt: new Date(stamp.getTime() - day) } });
+    const filters: Prisma.JumpWhereInput = { OR: [
+      { status: "PENDING", scheduledAt: { lt: end } },
+      { status: { in: ["DONE", "SKIPPED"] }, completedAt: { gte: stamp, lt: end } }
+    ] };
+    const groupFilters = { pending: { scheduledAt: { lt: end } }, completed: { completedAt: { gte: stamp, lt: end } } };
+    const forward = await pages(filters, groupFilters);
+    expect(forward.flatMap(page => page.items.map(item => item.id))).toEqual([...pending, ...done, ...skipped]);
+    for (let index = forward.length - 1; index > 0; index--) {
+      const previous = await readTodayPage(workspaceId, filters, { before: forward[index].previous }, groupFilters);
+      expect(previous.items.map(item => item.id)).toEqual(forward[index - 1].items.map(item => item.id));
+    }
+    // No completed work in the next day, even though older history is populated.
+    const nextDay = { completedAt: { gte: end, lt: new Date(end.getTime() + day) } };
+    expect((await readTodayPage(workspaceId, { status: "DONE", ...nextDay }, {}, { completed: nextDay })).items).toEqual([]);
+    expect((await readTodayPage(workspaceId, { ...filters, workspaceId: foreignId }, {}, groupFilters)).items).toEqual([]);
+    await prisma.jump.updateMany({ where: { workspaceId }, data: { status: "DONE", completedAt: new Date(stamp.getTime() - day) } });
+    expect(await readTodayPage(workspaceId, filters, {}, groupFilters)).toEqual({ items: [], previous: null, next: null, reset: false });
   });
 
   it("returns to the first surviving work when a formerly reachable page disappears", async () => {
