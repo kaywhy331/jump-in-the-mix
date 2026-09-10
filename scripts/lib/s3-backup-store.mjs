@@ -19,7 +19,7 @@ export function s3BackupConfiguration(env = process.env) {
   return { bucket, region, owner, prefix };
 }
 
-async function awsJson(args, { signal } = {}) {
+export async function awsJson(args, { signal } = {}) {
   // Credentials stay in the AWS credential chain, never command arguments or logs.
   // CLI diagnostics can contain endpoint details; report only the failed operation.
   try {

@@ -1,0 +1,29 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListProductionBackupEvidence",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::jump-in-the-mix-backups-602326733999-us-west-2",
+      "Condition": { "StringEquals": { "s3:prefix": "production/" }, "Bool": { "aws:SecureTransport": "true" } }
+    },
+    {
+      "Sid": "ReadOperationsEvidence",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": [
+        "arn:aws:s3:::jump-in-the-mix-backups-602326733999-us-west-2/production/*",
+        "arn:aws:s3:::jump-in-the-mix-backups-602326733999-us-west-2/operations/restore-receipt.json"
+      ],
+      "Condition": { "Bool": { "aws:SecureTransport": "true" } }
+    },
+    {
+      "Sid": "SendOperatorAlerts",
+      "Effect": "Allow",
+      "Action": "sns:Publish",
+      "Resource": "arn:aws:sns:us-west-2:602326733999:jump-in-the-mix-operations",
+      "Condition": { "Bool": { "aws:SecureTransport": "true" } }
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Jump in the Mix independent HTTP availability and operational email alerts",
+  "Parameters": {
+    "AlertEmail": { "Type": "String", "Description": "Operator-approved alert recipient; must confirm the SNS subscription" },
+    "AppOrigin": { "Type": "String", "Default": "https://jumpinthemix.com", "AllowedValues": ["https://jumpinthemix.com"] }
+  },
+  "Resources": {
+    "Alerts": { "Type": "AWS::SNS::Topic", "Properties": { "TopicName": "jump-in-the-mix-operations" } },
+    "EmailSubscription": {
+      "Type": "AWS::SNS::Subscription",
+      "Properties": { "TopicArn": { "Ref": "Alerts" }, "Protocol": "email", "Endpoint": { "Ref": "AlertEmail" } }
+    },
+    "AlertPolicy": {
+      "Type": "AWS::SNS::TopicPolicy",
+      "Properties": {
+        "Topics": [{ "Ref": "Alerts" }],
+        "PolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [{
+            "Effect": "Allow", "Principal": { "Service": "cloudwatch.amazonaws.com" }, "Action": "sns:Publish", "Resource": { "Ref": "Alerts" },
+            "Condition": { "StringEquals": { "aws:SourceAccount": { "Ref": "AWS::AccountId" } }, "ArnLike": { "aws:SourceArn": { "Fn::Sub": "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:jump-in-the-mix-uptime-*" } } }
+          }]
+        }
+      }
+    },
+    "UptimeLogs": { "Type": "AWS::Logs::LogGroup", "Properties": { "LogGroupName": "/aws/lambda/jump-in-the-mix-uptime", "RetentionInDays": 7 } },
+    "UptimeRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": { "Version": "2012-10-17", "Statement": [{ "Effect": "Allow", "Principal": { "Service": "lambda.amazonaws.com" }, "Action": "sts:AssumeRole" }] },
+        "Policies": [{ "PolicyName": "write-own-status-logs", "PolicyDocument": { "Version": "2012-10-17", "Statement": [{ "Effect": "Allow", "Action": ["logs:CreateLogStream", "logs:PutLogEvents"], "Resource": { "Fn::GetAtt": ["UptimeLogs", "Arn"] } }] } }]
+      }
+    },
+    "Uptime": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "FunctionName": "jump-in-the-mix-uptime", "Runtime": "python3.13", "Handler": "index.handler", "MemorySize": 128, "Timeout": 15,
+        "Role": { "Fn::GetAtt": ["UptimeRole", "Arn"] },
+        "Environment": { "Variables": { "APP_ORIGIN": { "Ref": "AppOrigin" } } },
+        "Code": { "ZipFile": "__UPTIME_SOURCE__" }
+      }
+    },
+    "RetryPolicy": { "Type": "AWS::Lambda::EventInvokeConfig", "Properties": { "FunctionName": { "Ref": "Uptime" }, "Qualifier": "$LATEST", "MaximumRetryAttempts": 0, "MaximumEventAgeInSeconds": 60 } },
+    "Schedule": { "Type": "AWS::Events::Rule", "Properties": { "ScheduleExpression": "rate(5 minutes)", "State": "ENABLED", "Targets": [{ "Id": "health", "Arn": { "Fn::GetAtt": ["Uptime", "Arn"] } }] } },
+    "AllowSchedule": { "Type": "AWS::Lambda::Permission", "Properties": { "Action": "lambda:InvokeFunction", "FunctionName": { "Ref": "Uptime" }, "Principal": "events.amazonaws.com", "SourceArn": { "Fn::GetAtt": ["Schedule", "Arn"] } } },
+    "HealthErrors": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmName": "jump-in-the-mix-uptime-health", "AlarmDescription": "An independent Jump in the Mix HTTP health check failed. Check the status-only Lambda logs and Admin Operations Alerts.",
+        "Namespace": "AWS/Lambda", "MetricName": "Errors", "Dimensions": [{ "Name": "FunctionName", "Value": { "Ref": "Uptime" } }],
+        "Statistic": "Sum", "Period": 300, "EvaluationPeriods": 1, "DatapointsToAlarm": 1, "Threshold": 1, "ComparisonOperator": "GreaterThanOrEqualToThreshold", "TreatMissingData": "notBreaching",
+        "AlarmActions": [{ "Ref": "Alerts" }], "OKActions": [{ "Ref": "Alerts" }]
+      }
+    },
+    "MissingChecks": {
+      "Type": "AWS::CloudWatch::Alarm",
+      "Properties": {
+        "AlarmName": "jump-in-the-mix-uptime-missing", "AlarmDescription": "The independent Jump in the Mix checker has not run for two five-minute periods. Check EventBridge and Lambda availability.",
+        "Namespace": "AWS/Lambda", "MetricName": "Invocations", "Dimensions": [{ "Name": "FunctionName", "Value": { "Ref": "Uptime" } }],
+        "Statistic": "Sum", "Period": 300, "EvaluationPeriods": 2, "DatapointsToAlarm": 2, "Threshold": 1, "ComparisonOperator": "LessThanThreshold", "TreatMissingData": "breaching",
+        "AlarmActions": [{ "Ref": "Alerts" }], "OKActions": [{ "Ref": "Alerts" }]
+      }
+    }
+  },
+  "Outputs": { "AlertsTopicArn": { "Value": { "Ref": "Alerts" } }, "UptimeFunction": { "Value": { "Ref": "Uptime" } } }
+}

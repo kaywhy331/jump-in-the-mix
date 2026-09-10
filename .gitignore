@@ -35,6 +35,8 @@ videos/
 tmp/
 
 .operations/
+__pycache__/
+*.pyc
 
 # Release metadata is rebuilt from Prisma schema and migration SQL.
 /src/generated/schema-release.ts

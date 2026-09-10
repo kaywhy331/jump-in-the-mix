@@ -3,7 +3,7 @@ import { z } from "zod";
 import { mkdir, open, rm, stat } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { privateJson, writeOperationsReceipt } from "./operations-artifacts.mjs";
-import { operationsWebhook, postOperationsNotice } from "../../src/lib/operations-notifications";
+import { operationsDestination, postOperationsNotice } from "../../src/lib/operations-notifications";
 
 const savedState = z.object({ version: z.literal(1), unavailable: z.boolean(), eventId: z.string().uuid(), kind: z.enum(["OPENED", "REMINDER", "RESOLVED"]), attempts: z.number().int().min(0).max(5), nextAttemptAt: z.string().datetime(), openedAt: z.string().datetime(), accepted: z.boolean(), lastReminderAt: z.string().datetime() }).strict();
 // The independent monitor needs a tiny durable local state file when PostgreSQL
@@ -37,7 +37,7 @@ export async function reportMonitorAvailability(available: boolean, statePath: s
     if (newIncident || recovered || reminder) state = { version: 1, unavailable: !available, eventId: randomUUID(), kind: recovered ? "RESOLVED" : reminder ? "REMINDER" : "OPENED", attempts: 0, nextAttemptAt: now.toISOString(), openedAt: newIncident ? now.toISOString() : state!.openedAt, accepted: Boolean(recoveryWithoutNotice), lastReminderAt: now.toISOString() };
     if (state && (newIncident || recovered || reminder)) await persist(state);
     if (!state || state.accepted || state.attempts >= 5 || new Date(state.nextAttemptAt) > now) return { accepted: false };
-    const destination = operationsWebhook();
+    const destination = operationsDestination();
     if (!destination) { await persist(state); return { accepted: false }; }
     state.attempts++; state.nextAttemptAt = new Date(now.getTime() + Math.min(3600, 60 * 2 ** state.attempts) * 1000).toISOString();
     await persist(state); // Reserve before HTTP, including uncertain attempts.

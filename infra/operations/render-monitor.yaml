@@ -1,0 +1,49 @@
+# Deploy only after approving the additional service/disk and alert recipient.
+services:
+  - type: worker
+    name: jump-in-the-mix-monitor
+    runtime: docker
+    region: oregon
+    plan: 0.5c-512mb
+    dockerfilePath: ./infra/operations/monitor.Dockerfile
+    dockerContext: .
+    autoDeployTrigger: off
+    disk:
+      name: operations-state
+      mountPath: /var/data/jitm-operations
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_URL
+        value: https://jumpinthemix.com
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: OPS_ALERT_SNS_TOPIC_ARN
+        sync: false
+      - key: AWS_REGION
+        value: us-west-2
+      - key: BACKUP_S3_BUCKET
+        value: jump-in-the-mix-backups-602326733999-us-west-2
+      - key: BACKUP_S3_ACCOUNT_ID
+        value: "602326733999"
+      - key: BACKUP_S3_PREFIX
+        value: production/
+      - key: OPS_RESTORE_S3_KEY
+        value: operations/restore-receipt.json
+      - key: OPS_MONITOR_STATE_FILE
+        value: /var/data/jitm-operations/monitor-state.json
+      - key: OPS_DATABASE_LIMIT_BYTES
+        value: "5000000000"
+      - key: WORKER_HEARTBEAT_STALE_SECONDS
+        value: "90"
+      - key: EMAIL_DAILY_LIMIT
+        value: "90"
+      - key: EMAIL_MONTHLY_LIMIT
+        value: "2700"
+      - key: EMAIL_DAILY_AUTH_RESERVE
+        value: "20"
+      - key: EMAIL_MONTHLY_AUTH_RESERVE
+        value: "300"

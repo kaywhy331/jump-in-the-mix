@@ -5,8 +5,9 @@ import { pathToFileURL } from "node:url";
 import { acquireOperationsMonitor, deliverOperationsNotices, failOperationsMonitor, saveOperationsObservations } from "../src/lib/operations-alerts";
 import { collectOperationsSignals } from "../src/lib/operations-signals";
 import { operationsPolicy } from "../src/lib/operations-policy";
-import { operationsWebhook } from "../src/lib/operations-notifications";
+import { operationsDestination } from "../src/lib/operations-notifications";
 import { readOperationsArtifactAges } from "./lib/operations-artifacts.mjs";
+import { readS3OperationsArtifactAges } from "./lib/s3-operations-evidence.mjs";
 import { reportMonitorAvailability } from "./lib/operations-fallback";
 
 export async function checkWebReadiness(originValue = process.env.APP_URL): Promise<boolean | null> {
@@ -26,9 +27,9 @@ export async function runOperationsCheck(db: PrismaClient, databaseUrl: string, 
   try {
     lease = await acquireOperationsMonitor(new Date(), db);
     if (!lease) return { status: "busy" };
-    const [webReady, ages] = await Promise.all([checkWebReadiness(), readOperationsArtifactAges(databaseUrl)]);
+    const [webReady, ages] = await Promise.all([checkWebReadiness(), process.env.BACKUP_S3_BUCKET?.trim() ? readS3OperationsArtifactAges(databaseUrl) : readOperationsArtifactAges(databaseUrl)]);
     const observedAt = new Date();
-    const observations = await collectOperationsSignals({ webReady, ...ages, notificationsConfigured: Boolean(operationsWebhook()) }, observedAt, db);
+    const observations = await collectOperationsSignals({ webReady, ...ages, notificationsConfigured: Boolean(operationsDestination()) }, observedAt, db);
     completedAt = new Date();
     await saveOperationsObservations(lease, observations, completedAt, db);
     await reportMonitorAvailability(true, statePath);
