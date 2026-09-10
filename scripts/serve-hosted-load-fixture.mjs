@@ -96,6 +96,7 @@ async function main() {
     phase = 'seed-fixture';
     await db.query("SET TIME ZONE 'UTC'");
     const accounts = await seedCustomerLoadFixture(db, { database, profile: plan.profile, checkCanceled });
+    phase = 'analyze-fixture';
     await db.query('ANALYZE');
     await writeFile(join(output, 'accounts.json'), JSON.stringify({ origin, accounts }), { mode: 0o600, flag: 'wx' });
     await writeFile(join(output, 'worker.json'), JSON.stringify(config), { mode: 0o600, flag: 'wx' });
@@ -114,7 +115,7 @@ async function main() {
       } else emit({ event: 'invalid-command' });
     }
   } catch (error) {
-    emit({ event: 'failed', id: plan.id, phase, code: /^[A-Z0-9]{5}$/.test(error.code ?? '') ? error.code : null });
+    emit({ event: 'failed', id: plan.id, phase, code: /^[A-Z0-9]{5}$/.test(error.code ?? '') ? error.code : null, reason: error.message === 'Query read timeout' ? 'query-timeout' : null });
     throw error;
   } finally {
     clearTimeout(timer); closing = true; input?.close(); abort.abort();

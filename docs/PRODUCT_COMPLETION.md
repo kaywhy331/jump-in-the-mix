@@ -23,6 +23,12 @@ September 9, 2026 deployment baseline: the canonical domain, verified sender, ac
 
 Do not mark the goal complete while any row is incomplete or unverified. Keep exact phase evidence below and in the relevant runbook; do not substitute passing narrow tests for the full launch audit.
 
+## September 10 hosted release and fixture setup checkpoint
+
+- PR #48 passed full remote CI, container and security checks and is deployed to both web and worker at `405720f207d1de2cb47a0af6ad66e47597fdb891`. Migration 47 is applied, all four new indexes are valid, and the restricted runtime role remains ready. Live readiness and worker checks passed after deployment.
+- A temporary authenticated tunnel now connects an external traffic generator to a separate job on the actual web plan. The transport passed a real Render connectivity check and a local application rehearsal covering customer pages, both restart modes, queued imports, worker isolation and cleanup. Registered SSH access is no longer required for this qualification path.
+- The first full hosted profile stopped during synthetic seeding before any customer-route measurements. Its database, role, private files and tunnel were removed, and production readiness remained healthy. Fixture seeding now bounds each indexed follow-up insert to 5,000 rows with cancellation between batches; setup receipts distinguish query timeouts and analysis failures. Actual hosted route, restart and background-contention results remain required.
+
 ## September 9 populated account deletion checkpoint
 
 - Hosted qualification reproduced a transaction timeout when deleting an account with 1,000 contacts, 25,000 follow-ups and 30 mixes. Local cascade profiling identified four missing foreign-key indexes. Migration 47 adds those indexes; the account-deletion transaction gets a dedicated 30-second deadline while preserving atomic erasure, authority locks and last-Owner protection.
