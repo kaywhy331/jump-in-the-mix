@@ -1,0 +1,27 @@
+# Runtime and migration database credentials
+
+The web app and customer worker use a dedicated `jitm_runtime` PostgreSQL login. It has SELECT/INSERT/UPDATE/DELETE on application tables, USAGE/SELECT on sequences and SELECT only on `_prisma_migrations`. It has no database/schema ownership, role membership, schema creation, table truncation, grant options or access to application security-definer functions. Customer authorization still runs in the application; these database grants are a separate boundary against schema or recovery-control changes.
+
+The database owner remains available to the infrastructure operator for migrations and recovery. Do not put its URL, or `MIGRATION_DATABASE_URL`, in the web/worker environment group. Provider administrators still have separate control-plane authority.
+
+## Initial qualification and switch
+
+1. As the database owner, create a new LOGIN with `NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS` and a securely generated password. Keep the password out of command arguments and logs. Do not repurpose an existing broader account or add the runtime role to the owner's role.
+2. With the owner's private connection in `DATABASE_URL`, run `node scripts/configure-runtime-database.mjs --role=jitm_runtime --apply`. This transaction checks the role boundary, grants DML, makes migration history read-only, sets default grants for objects subsequently created by this migration principal and verifies the result. Unexpected PUBLIC/schema permissions or security-definer access require investigation; the script does not silently rewrite shared permissions.
+3. Connect with the new runtime URL and run `node scripts/configure-runtime-database.mjs --role=jitm_runtime`, `npm run db:verify-release` and `npm run db:seed:catalog`. Verification checks the actual current user, so an owner connection cannot supply a misleading runtime receipt. Catalog installation preserves existing staff edits and hidden publications.
+4. Set the Render web pre-deploy command to `node scripts/configure-runtime-database.mjs --role=jitm_runtime && npm run db:verify-release && npm run db:seed:catalog`. Remove automatic owner migrations from this command. The worker's existing release barrier remains required.
+5. Replace only the web/worker environment group's `DATABASE_URL`, then deploy the exact reviewed commit to both services. Verify the active database sessions use `jitm_runtime`, the owner URL is absent from service/shared environment configuration, web/worker health is ready, and the backup's independently scoped credential still works. Do not alter the private database network allowlist.
+
+## Later releases with migrations
+
+Use an isolated one-off job inside Render's private network. Its working directory must contain the exact reviewed release, including its lockfile and migrations; an old live worker's checkout is not sufficient for new migrations. The public repository's commit-specific archive can be downloaded, checked against an independently computed SHA-256 and extracted to an empty temporary job directory. Install the pinned dependencies and generate Prisma before injecting the owner credential. Keep deployment automatic updates off.
+
+Supply `DATABASE_URL` with the runtime connection and `MIGRATION_DATABASE_URL` transiently to that job's process, then run `node scripts/migrate-with-owner.mjs`. The command requires the same database, separate principals and an already restricted runtime role. It runs Prisma with the owner credential, reapplies grants for that migration principal and verifies the installed release using the runtime credential. It emits a credential-free receipt and fails without releasing the new web/worker version. The job's owner credential is not added to shared Render configuration or the long-running service environment. Record the exact commit/archive checksum and job result, then remove the temporary source archive/directory.
+
+After successful migration qualification, deploy the reviewed web/worker commit and verify runtime health. The pre-deploy check refuses missing or mismatched migrations. A failed schema migration requires private operator investigation; do not grant ownership to the app or disable release/recovery checks to make a deployment pass. For an application rollback compatible with the current additive schema, deploy the previous reviewed code while retaining the restricted connection. A database rollback or restore follows the separate recovery runbooks.
+
+## Verification
+
+`tests/runtime-database-role.integration.test.mjs` owns an isolated PostgreSQL database. It checks actual denied SQL, customer DML/locking, catalog installation, future-table/sequence grants, unchanged ACLs after attempted delegation, privilege/definer refusal, owner/runtime migration separation, persistent recovery holds and a real worker's claim/shutdown. CI switches the customer and staff browser suites to the restricted credential after migration/recovery fixtures have completed. Production qualification requires actual role/session/environment receipts; local tests alone do not establish the hosted switch.
+
+References: [PostgreSQL privileges](https://www.postgresql.org/docs/16/ddl-priv.html), [default privileges](https://www.postgresql.org/docs/16/sql-alterdefaultprivileges.html), [Render database credential management](https://render.com/docs/postgresql-credentials). Render-managed replacement owner credentials are not a substitute for the separately scoped runtime role.
