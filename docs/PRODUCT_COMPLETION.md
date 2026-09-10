@@ -23,6 +23,12 @@ September 9, 2026 production baseline: the canonical domain, verified sender, ac
 
 Do not mark the goal complete while any row is incomplete or unverified. Keep exact phase evidence below and in the relevant runbook; do not substitute passing narrow tests for the full launch audit.
 
+## September 9 hosted performance tooling checkpoint
+
+- Hosted qualification now has a private, expiring fixture supervisor and a separate restricted worker launcher. They create only a fresh synthetic database and role, refuse source application privileges and packaged environment files, strip real sender/alert credentials, and report exact-target cleanup. The existing local load command keeps its loopback-only guard and shares the same synthetic seeding helper.
+- All 24 focused plan/lifecycle cases passed locally against PostgreSQL 16 and the production standalone build. The lifecycle cases exercise real authenticated pages, source read/write denial, graceful and forced web restarts, queued imports with the native worker, cancellation cleanup, recovery holds, PUBLIC privilege rejection and preexisting-target preservation. Production build, static checks and script syntax passed.
+- [Hosted customer performance qualification](HOSTED_LOAD_QUALIFICATION.md) specifies separate web/worker instances and an external traffic generator, fixed route budgets, background contention and exact cleanup. Actual hosted measurements remain open pending registered Render SSH access. Local tooling validation does not qualify hosted capacity or finish the product goal.
+
 ## September 9 production admin, recovery and backup checkpoint
 
 - PR #41 deploys the focused admin overview, grouped desktop/mobile navigation and condensed content workspace. Readiness/worker endpoints, protected admin redirect and the served admin styles passed live verification. Forty required-MFA staff journeys and twelve separately isolated legacy staff journeys passed, followed by full remote CI.

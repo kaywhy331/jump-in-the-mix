@@ -216,6 +216,10 @@ jobs:
           LOAD_SMOKE_MAX_P95_MS: "3000"
           LOAD_FIXTURE_REPORT_FILE: customer-load-report.json
         run: npm run load:qualify
+      - name: Rehearse hosted fixture isolation, restarts and background imports locally
+        env:
+          RUN_HOSTED_LOAD_WEB_TESTS: "true"
+        run: npx vitest run tests/hosted-load-fixture.integration.test.mjs
       - name: Use restricted runtime credentials for customer and staff browser flows
         shell: bash
         run: |

@@ -49,6 +49,8 @@ The probe never follows redirects or forwards credentials to a different origin.
 
 ## Reading the evidence
 
+For isolated measurements on the actual hosting plans, follow [Hosted customer performance qualification](HOSTED_LOAD_QUALIFICATION.md). Its temporary fixture supervisor and restricted worker do not relax the local-only guard on `load:qualify`.
+
 - Concurrency is the number of simultaneous requests in a closed-loop probe; each completed request starts another until the duration or request cap is reached. It is not a count of daily active users or a modeled arrival rate.
 - First observations for each account/route are reported separately. They warm application/database caches but do not simulate a sleeping host or database cold start.
 - Latency includes reading and validating the complete response. Header arrival timing is reported separately. A successful header followed by a failed body counts as one failed request. Body buffering is limited to 4 MiB per request and each request has a ten-second timeout.
