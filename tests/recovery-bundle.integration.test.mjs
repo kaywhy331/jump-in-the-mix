@@ -20,7 +20,9 @@ describe.skipIf(!baseUrl).sequential("complete recovery bundles", () => {
   const environment = overrides => ({ ...process.env, DATABASE_URL: sourceUrl, BACKUP_ENCRYPTION_KEY: key, OPS_ALERT_WEBHOOK_URL: "", OPS_BACKUP_RECEIPT_FILE: "", OPS_RESTORE_RECEIPT_FILE: "", ...overrides });
   const cli = (script, args, overrides = {}) => runCommand(process.execPath, [script, ...args], { capture: true, env: environment(overrides) });
   async function database(label) {
-    const name = `jitm_bundle_${suffix}_${label}`; await admin.query(`CREATE DATABASE ${quoteIdentifier(name)} TEMPLATE template0`); owned.push(name); return databaseUrlWithDatabase(baseUrl, name);
+    // Hosted and recovery hosts need not share a database's default collation.
+    const locale = label === "source" ? "LOCALE_PROVIDER icu ICU_LOCALE 'en-US'" : "LOCALE_PROVIDER libc LC_COLLATE 'C' LC_CTYPE 'C'";
+    const name = `jitm_bundle_${suffix}_${label}`; await admin.query(`CREATE DATABASE ${quoteIdentifier(name)} TEMPLATE template0 ENCODING 'UTF8' ${locale}`); owned.push(name); return databaseUrlWithDatabase(baseUrl, name);
   }
   async function inspect(url, work) { const db = new Client({ connectionString: postgresCliUrl(url) }); await db.connect(); try { await db.query("SET TIME ZONE 'UTC'"); return await work(db); } finally { await db.end(); } }
   async function waitFor(path) {
@@ -56,7 +58,7 @@ describe.skipIf(!baseUrl).sequential("complete recovery bundles", () => {
       INSERT INTO "Workspace" (id,name,slug,"ownerId","updatedAt") VALUES ('workspace','Bundle fixture','bundle-fixture','existing',now());
       INSERT INTO "Contact" (id,"workspaceId","displayName","privateNotes","updatedAt") VALUES ('contact','workspace','Old contact name','PRIVATE_NOTE_REMOVED_LATER',now());
       INSERT INTO "EmailMessage" (id,"payloadHash","recipientHash",category,"firstAttemptAt") VALUES ('message',repeat('a',64),repeat('b',64),'INVITATION',now());
-      INSERT INTO "WaitlistEntry" (id,email,status,"updatedAt") VALUES ('waiting','waiting@example.test','WAITING',now());`);
+      INSERT INTO "WaitlistEntry" (id,email,status,"updatedAt") VALUES ('waiting','waiting@example.test','WAITING',now()),('A-b','one@example.test','WAITING',now()),('aB','two@example.test','WAITING',now()),('ab','three@example.test','WAITING',now());`);
     await cli("scripts/backup-database.mjs", ["--output", join(directory, "older.enc"), "--retention-days", "0"]);
     await source.query(`BEGIN;
       DELETE FROM "User" WHERE id='deleted';
@@ -121,11 +123,13 @@ const fs = require('node:fs/promises'), { spawn } = require('node:child_process'
       expect((await db.query('SELECT "displayName","privateNotes" FROM "Contact"')).rows[0]).toEqual({ displayName: "Corrected contact name", privateNotes: null });
       expect((await db.query('SELECT id FROM "User" ORDER BY id')).rows.map(row => row.id)).toEqual(["existing", "new"]);
       expect((await db.query('SELECT "acceptedAt","providerId" FROM "EmailMessage"')).rows[0]).toEqual({ acceptedAt: expect.any(Date), providerId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" });
-      expect((await db.query('SELECT status FROM "WaitlistEntry"')).rows[0].status).toBe("WITHDRAWN");
+      expect((await db.query('SELECT status FROM "WaitlistEntry" WHERE id=\'waiting\'')).rows[0].status).toBe("WITHDRAWN");
       return readRecoveryHold(db);
     });
     expect(hold.recoverySnapshot).toMatchObject({ stateId: state.id, stateDigest: recoveryStateDigest(state), targetDigest: recoveryTargetDigest(state) });
-    expect(recoveryTargetDigest(await captureRecoveryState(targetUrl, { targetHold: hold }))).toBe(recoveryTargetDigest(state));
+    const restoredState = await captureRecoveryState(targetUrl, { targetHold: hold });
+    expect(restoredState.tables.WaitlistEntry.rows.map(row => row.key)).not.toEqual(state.tables.WaitlistEntry.rows.map(row => row.key));
+    expect(recoveryTargetDigest(restoredState)).toBe(recoveryTargetDigest(state));
     const plan = join(directory, "restrictions.json"), receipt = join(directory, "restricted.json");
     const args = ["--state", backupRecoveryStatePath(archive), "--backup-manifest", `${archive}.manifest.json`];
     await cli("scripts/reconcile-recovery-state.mjs", [...args, "--output", plan], { RESTORE_DATABASE_URL: targetUrl });

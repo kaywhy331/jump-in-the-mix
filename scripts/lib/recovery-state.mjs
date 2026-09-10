@@ -46,7 +46,16 @@ function canonical(value) {
 }
 const digest = value => createHash("sha256").update(canonical(value)).digest("hex");
 export const recoveryStateDigest = digest;
-export const recoveryTargetDigest = state => digest({ schemaHash: state.schemaHash, tables: state.tables });
+// Source and target databases may use different text collations. Compare the
+// same row identities independently of their SQL result order, without changing
+// the digest that authenticates an existing encrypted state file.
+export const recoveryTargetDigest = state => digest({
+  schemaHash: state.schemaHash,
+  tables: Object.fromEntries(Object.entries(state.tables).map(([name, table]) => [name, {
+    ...table,
+    rows: [...table.rows].sort((a, b) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0),
+  }])),
+});
 export function recoveryIdentitySql(keys, alias = "t") {
   if (!/^[a-z]+$/.test(alias)) throw new Error("Invalid recovery query alias.");
   const fields = keys.flatMap(name => [`'${name.replaceAll("'", "''")}'`, `${alias}.${quoteIdentifier(name)}::text`]);
@@ -213,6 +222,6 @@ export function compareRecoveryState(current, restored, { hold, manifest, key, n
     }
     changes.missingFromRestore = latest.size; tables[name] = changes;
   }
-  return { version: 1, purpose: "jitm.recovery-review", createdAt: now.toISOString(), recoveryId: hold.id, archiveSha256: hold.archiveSha256, sourceHash: current.sourceHash, stateId: current.id, stateCapturedAt: current.capturedAt, stateDigest: digest(current), targetDigest: digest({ schemaHash: restored.schemaHash, tables: restored.tables }), targetSourceHash: restored.sourceHash,
+  return { version: 1, purpose: "jitm.recovery-review", createdAt: now.toISOString(), recoveryId: hold.id, archiveSha256: hold.archiveSha256, sourceHash: current.sourceHash, stateId: current.id, stateCapturedAt: current.capturedAt, stateDigest: digest(current), targetDigest: recoveryTargetDigest(restored), targetSourceHash: restored.sourceHash,
     applicationReady: false, mutationsApplied: 0, releaseAllowed: false, continuousCoverage: false, tables };
 }

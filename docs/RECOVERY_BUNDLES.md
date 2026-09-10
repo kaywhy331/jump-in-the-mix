@@ -22,6 +22,8 @@ Upload all three files to independently managed private storage and verify retri
 
 Restore with `db:restore` into a separate empty target as described in [Restore recovery](RESTORE_RECOVERY.md). When the manifest declares a sidecar, a missing, symlinked, tampered or substituted sidecar refuses before target writes. After loading, every restored row identity, full-row digest and schema must match the bundled state. The hold records `recoverySnapshot` only after that comparison passes. The target remains held.
 
+Content comparisons order rows by their hashed identity, so different source and target database collations do not reject identical data. The encrypted state's original authentication digest is unchanged. Existing bundles remain readable. Recovery plans and held-target receipts created before this comparison change must be replaced by restoring into a fresh empty target with the current tools and preparing new plans; do not mix tool revisions during a recovery or remove a hold to bypass a stale receipt.
+
 Use the bundled sidecar and manifest with [restriction plan/apply](RECOVERY_RESTRICTIONS.md). A full matching restore followed by restrictions provides a verifiable path for captured contents plus fresh access/sending restrictions. It does not cover writes made after capture. Do not apply an old restriction plan to a newer restore.
 
 ## Finalize an available authoritative source
