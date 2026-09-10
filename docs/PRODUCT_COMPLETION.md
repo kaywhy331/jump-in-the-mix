@@ -2,7 +2,7 @@
 
 Objective: a completed, hardened web app ready for new users and marketing, with conversion copy guided by Joanna Wiebe. This ledger tracks the full objective; a completed phase does not close the goal.
 
-September 9, 2026 production baseline: the canonical domain, verified sender, active Owner, supervised web/worker and redesigned admin workspace are live. The production release is `2cf21213aa920aeb941e340850fb493f7658d713` (PRs #41–42), with full CI and 52 staff browser checks passing. A hosted encrypted backup has been independently restored from S3 using the separately recovered SSM key; a real automatic schedule run also passed. The full objective remains open for monitoring/notification activation, remaining hosted/provider/device qualification and launch decisions. Checkpoints below retain historical evidence and do not override this current baseline.
+September 9, 2026 deployment baseline: the canonical domain, verified sender, active Owner, supervised web/worker and redesigned admin workspace are live. PRs #41–46 also delivered scheduled independent backups, accurate provider notices and separate restricted runtime database credentials. The application and worker have no database ownership or migration credentials; the actual hosted runtime boundary and cleanup checkpoint passed. A hosted encrypted backup has been independently restored from S3 using the separately recovered SSM key, and a real automatic schedule run passed. Render also reports point-in-time recovery available. The full objective remains open for monitoring/notification activation, remaining hosted/provider/device qualification and launch decisions. Checkpoints below are dated evidence; use the actual Render deployment records to identify the currently running commit.
 
 | Requirement | Proof needed | Current state / work remaining |
 | --- | --- | --- |
@@ -22,6 +22,12 @@ September 9, 2026 production baseline: the canonical domain, verified sender, ac
 | Public launch readiness | Verified domain/sender, production secrets, no demo exposure, robots/sitemap/metadata, operational ownership | Canonical domain/TLS, sender, production secrets and Owner are verified; web/worker and the redesigned admin are live. Public launch readiness still needs qualified monitoring/alerts, remaining provider/device evidence and owner admission/launch decisions. |
 
 Do not mark the goal complete while any row is incomplete or unverified. Keep exact phase evidence below and in the relevant runbook; do not substitute passing narrow tests for the full launch audit.
+
+## September 9 populated account deletion checkpoint
+
+- Hosted qualification reproduced a transaction timeout when deleting an account with 1,000 contacts, 25,000 follow-ups and 30 mixes. Local cascade profiling identified four missing foreign-key indexes. Migration 47 adds those indexes; the account-deletion transaction gets a dedicated 30-second deadline while preserving atomic erasure, authority locks and last-Owner protection.
+- The exact candidate source and SQL passed on an isolated database on the actual small Render PostgreSQL plan: two existing deletion cases passed, representative deletion completed in 14,357 ms, the unrelated account survived, source read/write access was denied, and all fixture resources were removed. Local build/static checks, all four migration rehearsals, 25 schema/deletion cases, nine rebuilt deletion/lifecycle cases and 20 staff-access/invitation cases passed. The lifecycle regression now covers populated erasure and waits for actual import completion before asserting its result.
+- Candidate qualification is complete; full remote CI and deployment of this change remain required. See [populated account deletion](DATA_RETENTION.md#populated-account-deletion). Hosted customer load, monitoring, external-provider/device evidence and launch decisions remain open.
 
 ## September 9 hosted performance tooling checkpoint
 

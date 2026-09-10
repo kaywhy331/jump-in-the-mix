@@ -244,6 +244,7 @@ model Contact {
   @@index([workspaceId, displayName])
   @@index([workspaceId, company])
   @@index([workspaceId, archivedAt])
+  @@index([referredByContactId])
 }
 
 model ContactEmail {
@@ -513,6 +514,9 @@ model Jump {
 
   @@index([workspaceId, scheduledAt, status])
   @@index([contactId, scheduledAt])
+  @@index([mixId])
+  @@index([mixStepId])
+  @@index([stepVersionId])
 }
 
 model SharedMix {

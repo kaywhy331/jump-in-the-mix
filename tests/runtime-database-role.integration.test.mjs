@@ -5,6 +5,7 @@ import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { grantRuntimeRole, inspectRuntimeRole } from '../scripts/lib/runtime-database-role.mjs';
 import { quoteIdentifier } from '../scripts/lib/postgres-ops.mjs';
+import { schemaRelease } from '../scripts/generate-schema-release.mjs';
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? '');
 describe.skipIf(!local).sequential('restricted production database credential', () => {
@@ -84,7 +85,7 @@ describe.skipIf(!local).sequential('restricted production database credential', 
     const seeded = await execute(process.execPath, ['--import', 'tsx', 'scripts/seed-application-catalog.ts'], { env: env(), timeout: 30000 });
     expect(seeded.stderr).toBe('');
     expect(JSON.parse(seeded.stdout).plansCreated).toBe(40);
-    expect((await runtime.query('SELECT count(*)::int AS total FROM "_prisma_migrations"')).rows[0].total).toBe(46);
+    expect((await runtime.query('SELECT migration_name AS name,checksum FROM "_prisma_migrations" WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name')).rows).toEqual(schemaRelease().migrations);
   }, 55000);
   it('preserves safe grants for new migration-owned tables and sequences', async () => {
     await owner.query('CREATE TABLE runtime_future (id serial PRIMARY KEY, value text)');

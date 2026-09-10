@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { loadSourceHash, loadDatabaseName, loadRoleName, loadWorkerConfiguration } from '../scripts/lib/hosted-load-plan.mjs';
+import { loadSourceHash, loadDatabaseName, loadRoleName, loadWorkerConfiguration, isolatedLoadEnvironment } from '../scripts/lib/hosted-load-plan.mjs';
 import { quoteIdentifier } from '../scripts/lib/postgres-ops.mjs';
 import { customerRoutes } from '../scripts/lib/load-probe.mjs';
 
@@ -43,10 +43,10 @@ describe.skipIf(!local || process.env.RUN_HOSTED_LOAD_WEB_TESTS !== 'true').sequ
     run.event = (name, after = 0) => until(() => { const event = run.events.slice(after).find(value => value.event === name); if (event) return event; if (run.ended) throw new Error(`Fixture exited before ${name}: ${run.output} ${run.errors}`); }, 90000);
     return run;
   }
-  async function setup() {
+  async function setup(profile = { accounts: 2, contactsPerAccount: 100, historyPerContact: 2, mixesPerAccount: 10, beatsPerMix: 6 }) {
     const portServer = createServer(); await new Promise(resolve => portServer.listen(0, '127.0.0.1', resolve));
     const port = portServer.address().port; await new Promise(resolve => portServer.close(resolve));
-    const plan = { version: 1, id: randomBytes(6).toString('hex'), token: randomBytes(32).toString('hex'), sourceUrl: source.href, sourceHash: loadSourceHash(source.href), port, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), expectedCommit: 'a'.repeat(40), profile: { accounts: 2, contactsPerAccount: 100, historyPerContact: 2, mixesPerAccount: 10, beatsPerMix: 6 } };
+    const plan = { version: 1, id: randomBytes(6).toString('hex'), token: randomBytes(32).toString('hex'), sourceUrl: source.href, sourceHash: loadSourceHash(source.href), port, expiresAt: new Date(Date.now() + 10 * 60_000).toISOString(), expectedCommit: 'a'.repeat(40), profile };
     plans.push(plan);
     const file = join(directory, plan.id + '.json'), output = join(directory, plan.id);
     await writeFile(file, JSON.stringify(plan), { mode: 0o600 });
@@ -95,7 +95,9 @@ describe.skipIf(!local || process.env.RUN_HOSTED_LOAD_WEB_TESTS !== 'true').sequ
     const worker = start(['scripts/run-hosted-load-worker.mjs', join(fixture.output, 'worker.json')]);
     const db = new Client({ connectionString: config.runtimeUrl }); await db.connect();
     try {
-      await until(async () => (await db.query('SELECT count(*)::int AS count FROM "Contact"')).rows[0].count === 250, 45000);
+      // Import rows can commit before the worker records terminal completion.
+      await until(async () => (await db.query('SELECT status FROM "ContactImportBatch"')).rows[0]?.status === 'COMPLETED', 45000);
+      expect((await db.query('SELECT count(*)::int AS count FROM "Contact"')).rows[0].count).toBe(250);
       expect((await db.query('SELECT status FROM "ContactImportBatch"')).rows).toEqual([{ status: 'COMPLETED' }]);
     } finally { await db.end(); }
     worker.child.kill('SIGTERM'); expect((await worker.done).code).toBe(0);
@@ -107,6 +109,51 @@ describe.skipIf(!local || process.env.RUN_HOSTED_LOAD_WEB_TESTS !== 'true').sequ
     expect(run.output + run.errors).not.toContain(fixture.plan.sourceUrl);
     await removed(fixture.plan);
   }, 180000);
+  it('deletes a populated account within the application transaction while preserving another account', async () => {
+    const fixture = await setup({ accounts: 2, contactsPerAccount: 1000, historyPerContact: 24, mixesPerAccount: 30, beatsPerMix: 6 });
+    const run = fixture.start(); await run.event('ready');
+    const config = loadWorkerConfiguration(fixture.plan);
+    const { accounts } = JSON.parse(await readFile(join(fixture.output, 'accounts.json'), 'utf8'));
+    const program = `
+      import assert from 'node:assert/strict';
+      import { deleteAccountData } from './src/lib/account-deletion.ts';
+      import { prisma } from './src/lib/prisma.ts';
+      const [removed, retained] = ${JSON.stringify(accounts.map(account => account.marker))};
+      const counts = async workspaceId => ({
+        contacts: await prisma.contact.count({ where: { workspaceId } }),
+        followups: await prisma.jump.count({ where: { workspaceId } }),
+        mixes: await prisma.mix.count({ where: { workspaceId } })
+      });
+      try {
+        const identity = await prisma.$queryRawUnsafe('SELECT current_database() AS database,current_user AS role');
+        assert.equal(identity[0].database, ${JSON.stringify(loadDatabaseName(fixture.plan.id))});
+        assert.equal(identity[0].role, ${JSON.stringify(loadRoleName(fixture.plan.id))});
+        const expected = { contacts: 1000, followups: 25000, mixes: 30 };
+        assert.deepEqual(await counts(removed), expected);
+        assert.deepEqual(await counts(retained), expected);
+        // Keep deleteAccountData's actual transaction timeout: a successful
+        // commit, complete erasure and tenant preservation are the contract.
+        const result = await deleteAccountData(removed);
+        assert.equal(result.deleted, true);
+        assert.deepEqual(await counts(removed), { contacts: 0, followups: 0, mixes: 0 });
+        assert.equal(await prisma.user.count({ where: { id: removed } }), 0);
+        assert.equal(await prisma.workspace.count({ where: { id: removed } }), 0);
+        assert.equal(await prisma.session.count({ where: { userId: removed } }), 0);
+        assert.equal((await prisma.accountDeletionAudit.findUnique({ where: { requestId: result.requestId } })).status, 'COMPLETED');
+        assert.deepEqual(await counts(retained), expected);
+        assert.equal(await prisma.user.count({ where: { id: retained } }), 1);
+        assert.deepEqual(await deleteAccountData(removed), { deleted: false });
+        console.log('Populated account erasure and unrelated account preservation passed.');
+      } finally { await prisma.$disconnect(); }
+    `;
+    const result = await promisify(execFile)(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', program], {
+      env: isolatedLoadEnvironment(config), timeout: 45000, maxBuffer: 2 * 1024 * 1024
+    });
+    expect(result.stdout).toContain('Populated account erasure and unrelated account preservation passed.');
+    run.child.stdin.write('stop\n'); expect((await run.done).code).toBe(0);
+    expect(run.events.find(event => event.event === 'cleanup')).toMatchObject({ databaseRemoved: true, roleRemoved: true, credentialsRemoved: true });
+    await removed(fixture.plan);
+  }, 120000);
   it('cleans up after controller cancellation', async () => {
     const fixture = await setup(), run = fixture.start(); await run.event('ready');
     run.child.kill('SIGTERM'); expect((await run.done).code).toBe(0);
