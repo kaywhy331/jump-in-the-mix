@@ -1,0 +1,29 @@
+# Independent Blueprint for the existing production database/bucket.
+# Supply the canonical INTERNAL database URL; do not attach the web env group.
+services:
+  - type: cron
+    name: jump-in-the-mix-backup
+    runtime: docker
+    region: oregon
+    plan: 0.5c-512mb
+    schedule: "17 10 * * *"
+    dockerContext: .
+    dockerfilePath: ./infra/operations/backup.Dockerfile
+    autoDeployTrigger: off
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-west-2
+      - key: BACKUP_S3_BUCKET
+        value: jump-in-the-mix-backups-602326733999-us-west-2
+      - key: BACKUP_S3_ACCOUNT_ID
+        value: "602326733999"
+      - key: BACKUP_S3_PREFIX
+        value: production/
