@@ -1,11 +1,6 @@
-databases:
-  - name: jump-in-the-mix-postgres
-    databaseName: jump_in_the_mix
-    user: jump_in_the_mix
-    plan: 0.1c-256mb
-    diskSizeGB: 5
-    postgresMajorVersion: "16"
-    ipAllowList: []
+# Provision PostgreSQL first with infra/operations/render-database.yaml.
+# Supply its qualified jitm_runtime connection, never its owner connection.
+# See docs/RUNTIME_DATABASE_CREDENTIALS.md for bootstrap and release ordering.
 
 envVarGroups:
   - name: jump-in-the-mix-hosted
@@ -45,10 +40,10 @@ services:
     runtime: node
     plan: 0.5c-512mb
     buildCommand: npm ci --include=dev --no-audit --no-fund && npm run db:generate && npm run build && cp -R public .next/standalone/ && cp -R .next/static .next/standalone/.next/
-    preDeployCommand: npm run db:deploy && npm run db:seed:catalog
+    preDeployCommand: node scripts/configure-runtime-database.mjs --role=jitm_runtime && npm run db:verify-release && npm run db:seed:catalog
     startCommand: node --max-semi-space-size=8 .next/standalone/server.js
     healthCheckPath: /api/health/ready
-    autoDeployTrigger: off
+    autoDeployTrigger: "off"
     envVars:
       - fromGroup: jump-in-the-mix-hosted
       - key: HOSTNAME
@@ -71,9 +66,7 @@ services:
       - key: PUBLIC_BACKUP_RETENTION_NOTICE
         sync: false
       - key: DATABASE_URL
-        fromDatabase:
-          name: jump-in-the-mix-postgres
-          property: connectionString
+        sync: false
 
   - type: worker
     name: jump-in-the-mix-worker
@@ -81,7 +74,7 @@ services:
     plan: 0.5c-512mb
     buildCommand: npm ci --include=dev --no-audit --no-fund && npm run db:generate
     startCommand: npm run worker
-    autoDeployTrigger: off
+    autoDeployTrigger: "off"
     envVars:
       - fromGroup: jump-in-the-mix-hosted
       - key: APP_URL
@@ -125,6 +118,7 @@ services:
           name: jump-in-the-mix-web
           envVarKey: PUBLIC_BACKUP_RETENTION_NOTICE
       - key: DATABASE_URL
-        fromDatabase:
-          name: jump-in-the-mix-postgres
-          property: connectionString
+        fromService:
+          type: web
+          name: jump-in-the-mix-web
+          envVarKey: DATABASE_URL
