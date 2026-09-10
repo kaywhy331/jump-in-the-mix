@@ -1,3 +1,4 @@
+import { applyRenderedTheme } from "./theme-fixture";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { expect, test } from "@playwright/test";
@@ -59,7 +60,7 @@ test("Owner invites a teammate, recipient sets up MFA, and selected permissions 
   expect(await page.content()).not.toContain(q.invite.delivery!.messageCiphertext);
   expect(await prisma.user.findUnique({ where: { email } })).toBeNull();
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
-    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" }); await page.setViewportSize({ width, height: 900 });
+    await applyRenderedTheme(page, colorScheme, { width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
@@ -73,7 +74,7 @@ test("Owner invites a teammate, recipient sets up MFA, and selected permissions 
     expect(response!.headers()["cache-control"]).toContain("no-store");
     expect(await prisma.user.findUnique({ where: { email } })).toBeNull();
     for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
-      await recipientPage.emulateMedia({ colorScheme, reducedMotion: "reduce" }); await recipientPage.setViewportSize({ width, height: 900 });
+      await applyRenderedTheme(recipientPage, colorScheme, { width, height: 900 });
       expect(await recipientPage.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       expect((await new AxeBuilder({ page: recipientPage }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
     }

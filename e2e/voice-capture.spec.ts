@@ -1,3 +1,4 @@
+import { applyRenderedTheme } from "./theme-fixture";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
@@ -140,7 +141,7 @@ test("Today speaks only on request with a local voice and stops when its summary
   await expect.poll(() => page.evaluate(() => window.jitmSpeechFixture.canceled)).toBe(2);
   await page.getByText("Today at a glance", { exact: true }).click();
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
-    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" }); await page.setViewportSize({ width, height: 900 });
+    await applyRenderedTheme(page, colorScheme, { width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
@@ -154,15 +155,17 @@ test("voice capture and contact drafts fit phone and desktop layouts in both the
   await page.goto("/jumps"); await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
   const dialog = page.getByRole("dialog", { name: "Quick Add" });
   await dialog.getByLabel("What do you want to remember?").fill("Add Sam sam@example.test about an estimate");
+  await expect(dialog.getByRole("button", { name: "Speak", exact: true })).toBeVisible();
+  await expect(dialog.getByText("Your browser’s speech service may process audio. Review the text before saving.", { exact: true })).toBeVisible();
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
-    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" }); await page.setViewportSize({ width, height: 900 });
+    await applyRenderedTheme(page, colorScheme, { width, height: 900 });
     expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
   await dialog.getByRole("button", { name: "Continue with Contact" }).click();
   await expect(page.getByLabel("First name")).toHaveValue("Sam");
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
-    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" }); await page.setViewportSize({ width, height: 900 });
+    await applyRenderedTheme(page, colorScheme, { width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }

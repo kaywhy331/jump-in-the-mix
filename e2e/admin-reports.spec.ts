@@ -1,3 +1,4 @@
+import { applyRenderedTheme } from "./theme-fixture";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
@@ -89,7 +90,7 @@ test("administrator requests a background export and downloads only within the a
     expect((await other.request.get(path)).status()).toBe(404);
   } finally { await other.close(); }
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
-    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" }); await page.setViewportSize({ width, height: 900 });
+    await applyRenderedTheme(page, colorScheme, { width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
@@ -115,7 +116,7 @@ test("saved daily history shows recorded values, observation times and gated det
   const table = page.getByRole("table", { name: "UTC activity dates and observed values" });
   await expect(table.getByRole("row")).toHaveCount(2); await expect(table).toContainText("READY");
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
-    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" }); await page.setViewportSize({ width, height: 900 });
+    await applyRenderedTheme(page, colorScheme, { width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
@@ -148,7 +149,7 @@ test("analyst sees aggregate cohorts, switches trends and dates, and loses acces
   await page.getByText("Show daily values (31 days)", { exact: true }).click();
   await expect(page.getByRole("table", { name: "Daily totals in UTC" }).getByRole("row")).toHaveCount(32);
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
-    await page.emulateMedia({ colorScheme, reducedMotion: "reduce" }); await page.setViewportSize({ width, height: 900 });
+    await applyRenderedTheme(page, colorScheme, { width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }

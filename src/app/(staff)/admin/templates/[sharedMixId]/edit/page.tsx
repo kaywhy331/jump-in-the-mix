@@ -53,20 +53,21 @@ export default async function AdminEditTemplatePage({ params, searchParams }: {
     {query.saved && <Notice type="success">Draft version {query.saved} saved. Publication is a separate step.</Notice>}
     {query.released && <Notice type="success">Library publication updated.</Notice>}
     {query.error && <Notice type="error">{query.error}</Notice>}
-    <section className="card form-stack"><h2>Release impact</h2><p>This mix has been copied {imports} times across {importedWorkspaces[0]?.count ?? 0} customer workspaces. Publishing, hiding, or rolling back changes future library use. Existing copies, edited messages, assignments, and queued follow-ups stay as they are.</p>
-      <p>Publishing and rollback require a separate permission, your password, a reason, and MFA verification within the last ten minutes. Review the exact saved content below; unsaved edits cannot be published.</p>
-    </section>
-    <section className="card form-stack"><h2>Saved draft preview · version {draftVersion}</h2><p>{state.draft.description}</p><Preview content={state.draft} />
-      {canPublish ? releaseForm("publish", draftVersion, `Publish version ${draftVersion}`) : <Notice type="info">Your role can save drafts. A publisher must review and release them.</Notice>}
-    </section>
-    {shared.status === "APPROVED" && <section className="card form-stack"><h2>Currently published · version {version}</h2><Preview content={state.published} />{canPublish && releaseForm("unpublish", version, "Hide from customer library")}</section>}
-    <details className="card" open><summary>Edit the next draft</summary><LibraryDraftForm key={controlRevision} id={sharedMixId} revision={controlRevision} content={draft} /></details>
-    <section className="card form-stack"><h2>Version history</h2>{revisions.map(row => <details key={row.id}><summary>Version {row.version} · {formatDateTime(row.createdAt, display)} · {releasedVersions.has(row.version) ? "Previously published" : "Draft only"}</summary>
+    <div className="admin-editor-jumps" aria-label="Content workflow"><a href="#library-draft">1. Edit draft</a><a href="#library-review">2. Preview & publish</a><a href="#library-history">Version history</a></div>
+    <details id="library-draft" className="card admin-editor-section admin-editor-disclosure" open={!query.saved && !query.released}><summary><h2>Edit the next draft</h2></summary><LibraryDraftForm key={controlRevision} id={sharedMixId} revision={controlRevision} content={draft} /></details>
+    <details id="library-review" className="card admin-editor-section admin-editor-disclosure" open={Boolean(query.saved || query.released)}><summary><h2>Preview & publish · draft {draftVersion}</h2></summary>
+      <section className="form-stack"><h2>Saved draft preview · version {draftVersion}</h2><p>{state.draft.description}</p><Preview content={state.draft} />
+        <div className="admin-editor-impact"><p>Publishing changes future library copies. The {imports} existing copies across {importedWorkspaces[0]?.count ?? 0} customer workspaces keep their content.</p><p>Only the saved version below is published. Confirm with your password and a reason; MFA must have been verified in the last ten minutes.</p></div>
+        {canPublish ? releaseForm("publish", draftVersion, `Publish version ${draftVersion}`) : <Notice type="info">Your role can save drafts. A publisher must review and release them.</Notice>}
+      </section>
+      {shared.status === "APPROVED" && <details className="admin-editor-disclosure"><summary>Currently published · version {version}</summary><Preview content={state.published} />{canPublish && releaseForm("unpublish", version, "Hide from customer library")}</details>}
+    </details>
+    <section id="library-history" className="card admin-editor-section"><details className="admin-editor-disclosure" open={Boolean(query.historyPage)}><summary><h2>Version history</h2></summary>{revisions.map(row => <details key={row.id}><summary>Version {row.version} · {formatDateTime(row.createdAt, display)} · {releasedVersions.has(row.version) ? "Previously published" : "Draft only"}</summary>
       <p>{row.reason}</p><p>Author: {row.actorUserId ?? "Application catalog or migration"}</p><Preview content={row.snapshot as unknown as LibraryContent} />
       {canPublish && releasedVersions.has(row.version) && (shared.status !== "APPROVED" || row.version !== version) && releaseForm("rollback", row.version, `Roll back to version ${row.version}`)}
     </details>)}
       <nav className="page-actions" aria-label="Version history pages">{historyPage > 1 && <Link href={`?historyPage=${historyPage - 1}`}>Newer versions</Link>}{historyPage * 10 < count && <Link href={`?historyPage=${historyPage + 1}`}>Older versions</Link>}</nav>
-    </section>
-    <section className="card"><h2>Recent publications</h2>{releases.map(row => <p key={row.id}>{formatDateTime(row.createdAt, display)} · {row.action.toLowerCase()} version {row.version} · {row.reason}</p>)}</section>
+      <h3>Recent publications</h3>{releases.length ? releases.map(row => <p key={row.id}>{formatDateTime(row.createdAt, display)} · {row.action.toLowerCase()} version {row.version} · {row.reason}</p>) : <p>No publications yet.</p>}
+    </details></section>
   </div>;
 }
