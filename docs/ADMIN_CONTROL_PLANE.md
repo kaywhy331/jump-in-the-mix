@@ -6,7 +6,9 @@ Each admin route requires an active staff membership, its specific permission, a
 
 ## Navigation
 
-- **Overview** — aggregate user, waitlist, invitation, follow-up, support, and job totals.
+The desktop sidebar groups destinations into Workspace, People, Content, Operations, and Settings. On phones, **Menu** opens the same permission-filtered links; the current section stays visible when the menu is closed. Nested routes highlight their most specific destination.
+
+- **Overview** — three aggregate activity totals, a permission-filtered **Needs attention** queue, quick actions, and compact content/invitation links. Missing or stale independent monitoring remains visible as an attention item; a zero alert count alone never implies current health. Support links open the **Needs a reply** filter, covering new tickets and those waiting on support.
 - **Reports** — bounded UTC cohorts, waitlist conversion/age, invitation sources and time to join, wave outcomes, activation, D7/D30 returns, library version use, daily trends and operational usage. Saved daily reports retain observation times and storage history; background CSV exports expire and require the requesting sign-in. Requires `reports.read`; see [Report definitions and limits](ADMIN_REPORTS.md).
 - **Invitations** — member/platform grant history, revocation, and safe outbox retry with individual permissions.
 - **Waitlist** — confirmed queue, seven-day waves, manual selection, schedule controls, and delivery recovery.

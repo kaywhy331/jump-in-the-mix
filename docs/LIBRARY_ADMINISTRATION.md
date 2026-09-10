@@ -6,6 +6,10 @@ This workflow is implemented locally. Deployment and real-user qualification rem
 
 Open **Admin → Ready-made mixes → Create library draft**. Named staff with `mixes.edit` can write a draft without a customer workspace. Staff who also own customer mixes can copy one into a draft from the library page; another customer's mix cannot be used as that source.
 
+The library uses compact rows with visibility, published version, draft version and copy count. **All mixes**, **Published**, and **Drafts & hidden** tabs preserve the search and sort while resetting pagination. Results are limited to 25 per page; sort by recent update, title or copies. Copying an existing mix and background guidance live under **Library guidance & copying an existing mix**.
+
+The editor opens **Edit the next draft** first. After saving, **Preview & publish** opens for review. **Currently published** and **Version history** expand when needed, keeping the working draft separate from reference material. The publication form retains its password, reason and MFA requirements.
+
 Set the description, category, industry, start rule, and beats. Add, remove, or reorder up to 50 beats. Message placeholders, channel requirements, date rules, content lengths, and exact integer timing are validated on the server. Long-SMS and opt-out settings are preserved explicitly. Private Notes may appear only in phone-call notes.
 
 Enter an audit reason and **Save draft for review**. A new immutable version is created. Published content stays as it was. The saved preview shows original placeholders or invented example data, including long names and missing contact fields. Examples use the application's text renderer and never send a message. Review wording, empty-field behavior, channel, timing, subject, signatures, and opt-out choices.

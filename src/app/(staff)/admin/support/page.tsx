@@ -40,7 +40,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
   const statusValue = params.status ?? "";
   const categoryValue = params.category ?? "";
   const priorityValue = params.priority ?? "";
-  const status: SupportStatusValue | "all" = isSupportStatus(statusValue) ? statusValue : "all";
+  const status: SupportStatusValue | "all" | "attention" = isSupportStatus(statusValue) ? statusValue : statusValue === "attention" ? "attention" : "all";
   const category: SupportCategoryValue | "all" = isSupportCategory(categoryValue) ? categoryValue : "all";
   const priority: SupportPriorityValue | "all" = isSupportPriority(priorityValue) ? priorityValue : "all";
 
@@ -64,7 +64,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
 
   const where: Prisma.SupportTicketWhereInput = {
     ...(params.email === "review" ? { messages: { some: { authorType: "ADMIN", emailStatus: "FAILED" } } } : {}),
-    ...(status !== "all" ? { status } : {}),
+    ...(status === "attention" ? { status: { in: ["OPEN", "WAITING_ON_SUPPORT"] } } : status !== "all" ? { status } : {}),
     ...(category !== "all" ? { category } : {}),
     ...(priority !== "all" ? { priority } : {}),
     ...(query
@@ -143,6 +143,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
           <span className="field-label">Status</span>
           <select name="status" defaultValue={status}>
             <option value="all">All statuses</option>
+            <option value="attention">Needs a reply</option>
             {SUPPORT_STATUSES.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
           </select>
         </label>

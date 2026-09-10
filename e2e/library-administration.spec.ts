@@ -30,7 +30,12 @@ async function createDraft(page: Page, title: string) {
   await expect(page).toHaveURL(/\/admin\/templates\/[a-z0-9]+\/edit\?saved=1$/);
   const id = new URL(page.url()).pathname.split("/")[3]; sharedIds.push(id); return id;
 }
+async function openDraft(page: Page) {
+  const draft = page.locator("#library-draft");
+  if (await draft.getAttribute("open") === null) await draft.locator(":scope > summary").click();
+}
 async function release(page: Page, label: string) {
+  if (label === "Hide from customer library") await page.getByText(/^Currently published · version/).click();
   const form = page.locator("form").filter({ has: page.getByRole("button", { name: label, exact: true }) });
   const revision = Number(await form.locator('input[name="revision"]').inputValue());
   await form.locator('textarea[name="reason"]').fill("Review and release the exact saved content");
@@ -76,6 +81,7 @@ test("staff drafts, previews, publishes and rolls back while customers retain re
     const customerPage = await customerContext.newPage(); customerPage.setDefaultTimeout(20_000);
     await customerPage.goto(`/templates/${id}/use`);
     await expect(customerPage.locator('input[name="expectedVersion"]')).toHaveValue("1");
+    await openDraft(page);
     await page.getByLabel("Title", { exact: true }).fill("Library browser second edition");
     await page.getByRole("textbox", { name: "Message", exact: true }).fill("Second edition prepared message.");
     await page.getByLabel("Reason for draft change").fill("Improve the second edition message");
@@ -92,7 +98,8 @@ test("staff drafts, previews, publishes and rolls back while customers retain re
     await customerPage.getByRole("button", { name: "Create my remix" }).click();
     await expect(customerPage).toHaveURL(/\/mixes\/[a-z0-9-]+\/edit\?imported=1$/);
     const imported = await prisma.mix.findFirstOrThrow({ where: { workspaceId: workspace.id }, include: { steps: { include: { stepVersion: true } } } });
-    const history = page.locator("section").filter({ has: page.getByRole("heading", { name: "Version history", exact: true }) });
+    const history = page.locator("#library-history");
+    await history.locator(":scope > details > summary").click();
     await history.locator("summary").filter({ hasText: /^Version 1 / }).click();
     await release(page, "Roll back to version 1");
     expect((await prisma.sharedMixMetadata.findUniqueOrThrow({ where: { sharedMixId: id } })).version).toBe(1);
@@ -107,10 +114,12 @@ test("editors can save drafts while stale forms and removed publication rights a
   await context.addCookies([{ name: "jitm_session", value: staff.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
   const id = await createDraft(page, "Library permission review");
   await prisma.sharedMixMetadata.update({ where: { sharedMixId: id }, data: { controlRevision: { increment: 1 } } });
+  await openDraft(page);
   await page.getByLabel("Reason for draft change").fill("Attempt save from a stale editor form");
   await page.getByRole("button", { name: "Save draft for review" }).click();
   await expect(page.locator(".notice.error")).toContainText("mix changed");
   expect(await prisma.sharedMixRevision.count({ where: { sharedMixId: id } })).toBe(1);
+  await page.locator("#library-review > summary").click();
   const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Publish version 1", exact: true }) });
   await form.locator('textarea[name="reason"]').fill("Publication denied after permission removal");
   await form.getByLabel("Your administrator password").fill(password);
