@@ -23,6 +23,11 @@ September 9, 2026 deployment baseline: the canonical domain, verified sender, ac
 
 Do not mark the goal complete while any row is incomplete or unverified. Keep exact phase evidence below and in the relevant runbook; do not substitute passing narrow tests for the full launch audit.
 
+## September 10 hosted baseline and Today query follow-up
+
+- Batched synthetic setup completed the full five-account hosted profile. All 180 measured requests and 30 first observations passed page and account-isolation checks, but Contacts, Mixes, Today and completed history exceeded the unchanged three-second p95 ceiling. Source health and exact cleanup passed. Burst, restart and background-contention checks remain unrun; see [the actual baseline](HOSTED_LOAD_QUALIFICATION.md#september-10-baseline-and-query-follow-up).
+- Query profiling found unnecessary completed-history reads and a pagination probe that scanned all 125,000 follow-ups. The candidate fills pages from one ordering group at a time, probes page boundaries separately, preserves explicit daily date constraints and adds migration 48's completion-date index. Local profiling shows the broad pagination scans removed; full candidate release validation and repeated hosted qualification remain required.
+
 ## September 10 hosted release and fixture setup checkpoint
 
 - PR #48 passed full remote CI, container and security checks and is deployed to both web and worker at `405720f207d1de2cb47a0af6ad66e47597fdb891`. Migration 47 is applied, all four new indexes are valid, and the restricted runtime role remains ready. Live readiness and worker checks passed after deployment.

@@ -119,7 +119,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   // Observe preparation first so a just-finished job cannot report ready beside an older list.
   const preparation = await readPreparationStatus(workspace.id);
   const [list, totalCount, pendingCount, attentionCount, overdueCount, dueThisWeekCount, completedTodayCount] = await Promise.all([
-    readTodayPage(workspace.id, where, params),
+    readTodayPage(workspace.id, where, params, range === "due" ? {
+      pending: { scheduledAt: { lt: endToday } },
+      completed: { completedAt: { gte: startToday, lt: endToday } }
+    } : {}),
     prisma.jump.count({ where }),
     prisma.jump.count({ where: { AND: [where, { status: "PENDING" }] } }),
     prisma.jump.count({ where: { AND: [where, { status: "PENDING", scheduledAt: { lt: endToday } }] } }),
