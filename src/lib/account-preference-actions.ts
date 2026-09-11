@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import type { WeekendScheduling } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
+import { APPOINTMENT_BUFFER_CHOICES, normalizeBufferMinutes } from "@/lib/calendar-availability";
 import { parseTimeInput } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
 
@@ -55,14 +56,16 @@ export async function updatePersonalSchedulingAction(formData: FormData): Promis
   const weekendScheduling: WeekendScheduling = ["KEEP", "NEXT_MONDAY", "PREVIOUS_FRIDAY"].includes(weekendRaw)
     ? weekendRaw as WeekendScheduling
     : "KEEP";
+  const appointmentBufferMinutes = normalizeBufferMinutes(value(formData, "appointmentBufferMinutes", 4));
+  if (!(APPOINTMENT_BUFFER_CHOICES as readonly number[]).includes(appointmentBufferMinutes)) fail("Choose one of the listed appointment buffers.");
   await prisma.$transaction(async (tx) => {
     await tx.workspacePreference.upsert({
       where: { workspaceId: workspace.id },
-      create: { workspaceId: workspace.id, defaultFollowUpMinutes, quietHoursStart, quietHoursEnd, weekendScheduling },
-      update: { defaultFollowUpMinutes, quietHoursStart, quietHoursEnd, weekendScheduling }
+      create: { workspaceId: workspace.id, defaultFollowUpMinutes, quietHoursStart, quietHoursEnd, weekendScheduling, appointmentBufferMinutes },
+      update: { defaultFollowUpMinutes, quietHoursStart, quietHoursEnd, weekendScheduling, appointmentBufferMinutes }
     });
     await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: {} } });
-    await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "personal.scheduling.update", entityType: "WorkspacePreference", entityId: workspace.id, source: "account.preferences", metadata: { defaultFollowUpMinutes, quietHoursStart, quietHoursEnd, weekendScheduling } } });
+    await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "personal.scheduling.update", entityType: "WorkspacePreference", entityId: workspace.id, source: "account.preferences", metadata: { defaultFollowUpMinutes, quietHoursStart, quietHoursEnd, weekendScheduling, appointmentBufferMinutes } } });
   });
   redirect("/account/preferences?schedulingSaved=1");
 }

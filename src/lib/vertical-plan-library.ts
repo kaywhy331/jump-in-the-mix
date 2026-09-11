@@ -242,6 +242,17 @@ export function starterPlanForBusinessType(businessType: string | null | undefin
   return READY_MADE_PLANS.find((plan) => plan.industry === industry && plan.featured) ?? READY_MADE_PLANS.find((plan) => plan.id === "plan_generic_reconnect")!;
 }
 
+export function starterPlanForMarketingScenario(scenarioId: string): ReadyMadePlan | null {
+  const plans: Record<string, ReadyMadePlan> = {
+    "real-estate": { id: "marketing_real_estate_later", title: "Reconnect at the agreed time", description: "Return to a possible move at the timing the person requested.", category: "New clients", industry: "Real estate", framework: "Ready-made", triggerMode: "DATE_TRIGGERED", dateTypeName: "Follow-up", dateTypeSlug: "follow-up", durationDays: 0, featured: false, steps: [{ name: "Review the later check-in", channel: "SMS", dayOffset: 0, sendTimeMinutes: 600, body: "Hi {{First Name}}—you asked me to check back about a possible move. Is that still on your mind, or has the timing changed? {{SMS Signature}}" }] },
+    consulting: { id: "marketing_consulting_milestone", title: "Revisit a business milestone", description: "Reconnect around the milestone discussed with a prospective client.", category: "New customers", industry: "Other", framework: "Ready-made", triggerMode: "DATE_TRIGGERED", dateTypeName: "Follow-up", dateTypeSlug: "follow-up", durationDays: 0, featured: false, steps: [{ name: "Review the milestone follow-up", channel: "EMAIL", dayOffset: 0, sendTimeMinutes: 540, subject: "Picking up our conversation", body: "Hi {{First Name}},\n\nWhen we spoke, you wanted to revisit this after your team milestone. Has that timing changed, or would it be useful to pick up the conversation?\n\n{{Email Signature}}" }] },
+    photography: { id: "marketing_photography_inquiry", title: "Clarify an open inquiry", description: "Offer a useful clarification after sharing pricing.", category: "New customers", industry: "Other", framework: "Ready-made", triggerMode: "DATE_TRIGGERED", dateTypeName: "Follow-up", dateTypeSlug: "follow-up", durationDays: 0, featured: false, steps: [{ name: "Review the pricing follow-up", channel: "EMAIL", dayOffset: 0, sendTimeMinutes: 540, subject: "Any questions about the options?", body: "Hi {{First Name}},\n\nWhen we spoke, you were comparing the coverage options. Is there anything I can clarify to help you compare them?\n\n{{Email Signature}}" }] },
+    painting: { id: "marketing_painting_estimate", title: "Follow up on an estimate", description: "Clarify the scope while the estimate is still under consideration.", category: "New customers", industry: "Home services", framework: "Ready-made", triggerMode: "DATE_TRIGGERED", dateTypeName: "Follow-up", dateTypeSlug: "follow-up", durationDays: 0, featured: false, steps: [{ name: "Review the estimate follow-up", channel: "SMS", dayOffset: 0, sendTimeMinutes: 600, body: "Hi {{First Name}}—you mentioned comparing the smaller scope with the full project. Is there anything I can clarify about the two options? {{SMS Signature}}" }] },
+    recruiting: { id: "marketing_recruiting_timing", title: "Reconnect at the candidate’s timing", description: "Respect a candidate's timing and preferred way to reconnect.", category: "Networking", industry: "Other", framework: "Ready-made", triggerMode: "DATE_TRIGGERED", dateTypeName: "Follow-up", dateTypeSlug: "follow-up", durationDays: 0, featured: false, steps: [{ name: "Review the candidate check-in", channel: "EMAIL", dayOffset: 0, sendTimeMinutes: 540, subject: "Is this still a useful time?", body: "Hi {{First Name}},\n\nYou asked me to reconnect after your planning cycle. Is this still a useful time for a conversation, or would you prefer to leave it for later?\n\n{{Email Signature}}" }] }
+  };
+  return plans[scenarioId] ?? null;
+}
+
 export function starterPlanForOnboarding(businessType: string | null | undefined, reason: string): ReadyMadePlan {
   const relationshipStarters: Record<string, { id: string; category: string; body: string }> = {
     "Check in with a friend": { id: "personal_check_in", category: "Personal connections", body: "Hi {{First Name}}, you crossed my mind and I wanted to check in. How have you been? {{SMS Signature}}" },
@@ -260,6 +271,10 @@ export function starterPlanForOnboarding(businessType: string | null | undefined
   }
   const plansByReason: Record<string, string> = {
     "Follow up about an estimate": "plan_home_estimate",
+    "Follow up on a quote": "plan_home_estimate",
+    "Follow up on an inquiry": "plan_generic_reconnect",
+    "Reconnect with a lead": "plan_generic_reconnect",
+    "Reconnect with someone": "plan_generic_reconnect",
     "Check in after the job": "plan_home_job_done",
     "Ask for a review": "plan_home_job_done",
     "Reconnect": "plan_generic_reconnect",
@@ -275,7 +290,7 @@ export function starterPlanForOnboarding(businessType: string | null | undefined
   return {
     ...plan,
     industry: businessPlan.industry,
-    ...(reason === "Follow up about an estimate" ? { description: "Check that the estimate arrived, then call five days later to answer questions." } : {}),
+    ...(["Follow up about an estimate", "Follow up on a quote"].includes(reason) ? { description: "Check that the estimate arrived, then call five days later to answer questions." } : {}),
     ...(reviewOnly ? { title: "Review and referral follow-up", description: "Ask for a review, then follow up about referrals." } : {}),
     durationDays: plan.durationDays - firstOffset,
     steps: steps.map((step, index) => ({

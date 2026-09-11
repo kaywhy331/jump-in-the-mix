@@ -63,14 +63,19 @@ test("message drafts, snooze fields, nested confirmation and focus survive closi
   const more = page.getByRole("button", { name: "More options for Sheet person 2", exact: true });
   await more.focus(); await page.keyboard.press("Enter");
   const options = page.getByRole("dialog", { name: "Follow up with Sheet person 2", exact: true });
-  const date = options.getByLabel("Choose a day", { exact: true });
-  const chosen = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10); await date.fill(chosen);
+  const date = options.getByRole("group", { name: "Choose a day", exact: true });
+  const chosen = new Date(Date.now() + 7 * 86_400_000);
+  const chosenLabel = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(chosen);
+  await date.locator(".when-trigger.date").click();
+  if (chosen.getMonth() !== new Date().getMonth()) await date.getByRole("button", { name: "Next month", exact: true }).click();
+  await date.getByRole("button", { name: chosenLabel, exact: true }).click();
+  await expect(date.locator(".when-trigger.date")).toContainText(new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(chosen));
   const stop = options.getByRole("button", { name: "Stop mix…", exact: true }); await stop.click();
   const confirmation = page.getByRole("dialog", { name: "Stop Sheet plan for Sheet person 2?", exact: true });
   await expect(confirmation).toBeVisible(); await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(stop).toBeFocused(); await expect(options).toBeVisible();
   await closeSheet(page); await expect(more).toBeFocused();
-  await page.keyboard.press("Enter"); await expect(date).toHaveValue(chosen); await closeSheet(page);
+  await page.keyboard.press("Enter"); await expect(date.locator('input[name="customDate"]')).toHaveValue(chosen.toISOString().slice(0, 10)); await closeSheet(page);
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   const profile = page.getByRole("button", { name: "Profile", exact: true }); await profile.focus(); await page.keyboard.press("Enter");

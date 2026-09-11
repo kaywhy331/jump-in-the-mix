@@ -20,6 +20,8 @@ model WorkspacePreference {
   quietHoursStart        Int               @default(1200)
   quietHoursEnd          Int               @default(480)
   weekendScheduling      WeekendScheduling @default(KEEP)
+  // Minutes kept free before and after each appointment when checking for conflicts.
+  appointmentBufferMinutes Int             @default(0)
   nextReconcileAt        DateTime          @default(now())
   lastReconciledAt       DateTime?
   createdAt              DateTime          @default(now())

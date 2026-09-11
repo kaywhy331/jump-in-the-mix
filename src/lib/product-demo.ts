@@ -51,6 +51,8 @@ export type DemoStep = {
   channel: "text" | "email" | "phone";
   subject?: string;
   message: string;
+  // A planned beat goes out on a specific date rather than a day offset.
+  planned?: boolean;
 };
 
 export const DEMO_SCENARIOS: { id: string; label: string; description: string; steps: DemoStep[] }[] = [
@@ -68,7 +70,7 @@ export const DEMO_SCENARIOS: { id: string; label: string; description: string; s
       { title: "Quote sent reminder", timing: "Immediate", channel: "text", message: "Hi {{First Name}}, it's {{Your Name}}. I've just emailed your quote over. Have a look when you get a chance, and let me know if you'd like me to explain anything." },
       { title: "Talk through objections", timing: "Day 2", channel: "text", message: "Hi {{First Name}}, {{Your Name}} here. Any questions about the quote? If the price, timing, or work involved isn't quite what you had in mind, let me know. I'm happy to talk it through." },
       { title: "Nudge to schedule", timing: "Day 3", channel: "text", message: "Hi {{First Name}}, it's {{Your Name}}. Would you like me to stop by for an inspection? Let me know a day that works for you and I'll check my schedule. No rush if you're still thinking it over." },
-      { title: "Inspection day call", timing: "Scheduled date", channel: "phone", message: "• Confirm {{First Name}}'s visit time\n• Check address and access\n• Ask about priorities\n• Explain the next step" }
+      { title: "Inspection day call", timing: "Scheduled date", planned: true, channel: "phone", message: "• Confirm {{First Name}}'s visit time\n• Check address and access\n• Ask about priorities\n• Explain the next step" }
     ]
   },
   {

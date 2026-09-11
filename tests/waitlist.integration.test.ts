@@ -72,6 +72,22 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
     expect(await requestWaitlistEntry(email)).toBeNull();
     expect(await prisma.user.count({ where: { email } })).toBe(0);
   });
+  it("carries an allowlisted scenario through waitlist, invitation, and account creation without accepting a later overwrite", async () => {
+    const email = "scenario-continuity@example.test";
+    const oldToken = await requestWaitlistEntry(email, "painting");
+    const token = await requestWaitlistEntry(email, "recruiting");
+    const entry = await prisma.waitlistEntry.findUniqueOrThrow({ where: { email } });
+    expect(entry).toMatchObject({ marketingScenario: "painting", marketingScenarioVersion: 1 });
+    expect(await confirmWaitlistEntry(oldToken!)).toBe(false);
+    expect(await confirmWaitlistEntry(token!)).toBe(true);
+    await inviteSelectedWaitlistEntries([entry.id], "admin", "Scenario test");
+    const invite = await prisma.referralAccessInvite.findFirstOrThrow({ where: { recipientEmail: email } });
+    expect(invite).toMatchObject({ marketingScenario: "painting", marketingScenarioVersion: 1 });
+    const { token: accessToken } = decryptIntegrationCredentials<{ token: string }>(invite.tokenCiphertext);
+    const account = await prisma.$transaction(tx => createBusinessAccount(tx, { email, name: "Scenario member", passwordHash: null, emailVerifiedAt: null, accessToken }));
+    users.push(account.id);
+    expect(await prisma.workspaceMarketingPreference.findUnique({ where: { workspaceId: account.workspaceId } })).toMatchObject({ scenario: "painting", version: 1 });
+  });
   it("rejects expired and invalid confirmation tokens", async () => {
     const token = await requestWaitlistEntry("expired@example.test", new Date(Date.now() - 25 * 60 * 60_000));
     expect(await confirmWaitlistEntry(token!)).toBe(false);

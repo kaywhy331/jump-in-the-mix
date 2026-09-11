@@ -6,10 +6,13 @@ import { TimezonePicker } from "@/components/TimezonePicker";
 import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
 import { completeOnboardingAction, skipOnboardingAction } from "@/lib/onboarding-actions";
 import { ONBOARDING_USES, onboardingUse, type OnboardingUse } from "@/lib/onboarding-options";
+import { marketingScenario } from "@/lib/marketing-scenarios";
 
-export function OnboardingForm({ userName, industry, initialUse, timezone, today }: { userName: string; industry: string | null; initialUse: OnboardingUse; timezone: string; today: string }) {
+export function OnboardingForm({ userName, industry, initialUse, timezone, today, scenarioId }: { userName: string; industry: string | null; initialUse: OnboardingUse; timezone: string; today: string; scenarioId?: string }) {
   const [purpose, setPurpose] = useState<OnboardingUse>(initialUse);
+  const [starterChoice, setStarterChoice] = useState<"suggested" | "choose">(scenarioId ? "suggested" : "choose");
   const use = onboardingUse(purpose)!;
+  const scenario = marketingScenario(scenarioId);
   return <form action={completeOnboardingAction} className="form-stack">
     <fieldset className="onboarding-step-card">
       <legend><span>1</span> Make this fit your life</legend>
@@ -26,12 +29,20 @@ export function OnboardingForm({ userName, industry, initialUse, timezone, today
       </div>
     </fieldset>
     <fieldset className="onboarding-step-card">
-      <legend><span>3</span> Add your first person</legend>
+      <legend><span>3</span> Choose a starting point</legend>
+      <div className="form-stack">
+        {scenario && purpose === "business" && <label className="checkbox-card"><input type="radio" name="starterChoice" value="suggested" checked={starterChoice === "suggested"} onChange={() => setStarterChoice("suggested")} /><span><strong>Use “{scenario.starterTitle}”</strong><small> Based on the fictional example you tried. You’ll review it before sending.</small></span></label>}
+        <label className="checkbox-card"><input type="radio" name="starterChoice" value="choose" checked={starterChoice === "choose"} onChange={() => setStarterChoice("choose")} /><span>Choose a different follow-up</span></label>
+        {(starterChoice === "choose" || !scenario || purpose !== "business") && <label className="field"><span>What do you want to do?</span><select key={purpose} name="reason" defaultValue={use.reasons[0]}>{use.reasons.map(reason => <option key={reason}>{reason}</option>)}</select></label>}
+      </div>
+    </fieldset>
+    <fieldset className="onboarding-step-card">
+      <legend><span>4</span> Add your first person</legend>
       <div className="form-grid">
         <div className="field full"><label htmlFor="contactName">Name</label><input id="contactName" name="contactName" autoComplete="name" placeholder="Jordan Lee" required /></div>
         <div className="field"><label htmlFor="contactPhone">Phone <small>recommended</small></label><input id="contactPhone" name="contactPhone" inputMode="tel" autoComplete="tel" placeholder="(555) 555-0123" /></div>
         <div className="field"><label htmlFor="contactEmail">Email <small>optional</small></label><input id="contactEmail" name="contactEmail" type="email" inputMode="email" autoComplete="email" /></div>
-        <label className="field"><span>What should you remember?</span><select key={purpose} name="reason" defaultValue={use.reasons[0]}>{use.reasons.map(reason => <option key={reason}>{reason}</option>)}</select></label>
+        <label className="field full"><span>What should you remember?</span><textarea name="privateContext" maxLength={1000} rows={3} placeholder="What did you discuss, and what timing or promise matters?" /></label>
         <div className="field"><label htmlFor="followUpDate">Follow up on</label><LocalDateInput id="followUpDate" name="followUpDate" initialValue={today} /></div>
         <div className="field full"><label htmlFor="timezone">Your timezone</label><TimezonePicker defaultValue={timezone} confirmDetection /></div>
       </div>

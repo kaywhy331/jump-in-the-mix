@@ -8,7 +8,9 @@
 .public-skip-link:focus { transform: none; }
 .public-page #main-content:focus { outline: none; }
 .public-page :is(#sample, #features, #how-it-works, #questions, #your-data) { scroll-margin-top: 24px; }
-.public-page .hero { min-height: 0; align-items: start; grid-template-columns: 1fr 1fr; gap: 48px; padding-block: 42px 64px; }
+/* Wider public canvas, and the demo gets the larger hero column so the panel is broader and shorter. */
+.public-page .public-header, .public-page .hero, .public-page .section, .public-page .public-footer { max-width: 1340px; }
+.public-page .hero { min-height: 0; align-items: start; grid-template-columns: .86fr 1.14fr; gap: 56px; padding-block: 42px 64px; }
 .public-page .hero-copy { padding-top: 16px; min-width: 0; }
 .public-page .hero h1 { margin: 20px 0; font-size: clamp(2.5rem, 4.55vw, 3.75rem); line-height: 1.08; letter-spacing: -.055em; overflow-wrap: break-word; }
 .public-page .hero h1 em { display: block; }
@@ -18,6 +20,8 @@
 .hero-audiences { display: flex; flex-wrap: wrap; gap: 12px 20px; list-style: none; padding: 0; margin: 26px 0 0; color: var(--muted); font-size: .875rem; }
 .hero-audiences li { display: flex; align-items: center; gap: 6px; }
 .hero-audiences svg { width: 17px; height: 17px; color: var(--brand-dark); }
+.hero-audiences a { color: var(--ink); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.hero-audiences a:hover { color: var(--brand-dark); }
 .public-page .hero-note { margin-top: 12px; font-size: .8125rem !important; }
 .public-page .section { padding-block: 64px; }
 .public-page .section-heading .eyebrow { margin-bottom: 18px; }
@@ -25,7 +29,7 @@
 .public-page .section-heading > p { max-width: 55ch; line-height: 1.65; }
 
 /* The first message is immediate; editors and the full plan are disclosures. */
-.public-page .product-demo { --demo-shadow-offset: 6px; padding: 22px; border-radius: 22px; width: 100%; max-width: 620px; scroll-margin-top: 20px; transition: box-shadow 240ms ease; }
+.public-page .product-demo { --demo-shadow-offset: 6px; padding: 22px 24px; border-radius: 22px; width: 100%; max-width: 760px; scroll-margin-top: 20px; transition: box-shadow 240ms ease; }
 .public-page .product-demo.demo-highlighted { box-shadow: var(--demo-shadow-offset) var(--demo-shadow-offset) 0 var(--conversation-shadow), 0 0 0 5px color-mix(in srgb, var(--brand) 25%, transparent), 0 0 38px color-mix(in srgb, var(--brand) 48%, transparent); }
 .public-page .product-demo-heading { gap: 12px; margin-bottom: 16px; }
 .public-page .product-demo-heading h2 { font-size: 1.375rem; margin: 0; line-height: 1.25; }
@@ -56,8 +60,14 @@
 .demo-message-preview .demo-subject { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--line); font-size: .875rem; }
 .public-page .demo-notes-editor summary { padding-block: 10px; font-size: .875rem; color: var(--brand-dark); }
 .public-page .demo-notes-editor .field { margin-top: 10px; }
-.public-page .demo-actions { display: grid; grid-template-columns: 1.15fr 1fr; }
+/* One line: the channel action stretches, everything else keeps its size. The channel action
+   never shrinks below a 44px target. */
+.public-page .demo-actions { display: flex; flex-wrap: nowrap; align-items: stretch; gap: 6px; }
+.public-page .demo-actions .button.primary { flex: 1 1 auto; min-width: 44px; justify-content: center; }
+.public-page .demo-actions .button.primary > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.public-page .demo-actions .button:not(.primary) { flex: 0 0 auto; }
 .public-page .demo-actions .button { min-width: 0; padding-inline: 8px; font-size: .875rem; }
+.public-page .demo-actions .demo-check { min-width: 48px; }
 .public-page .demo-actions svg { width: 18px; height: 18px; }
 .public-page .demo-help { margin-top: 12px; font-size: .8125rem; line-height: 1.5; }
 .public-page .demo-plan-overview { margin-top: 12px; }
@@ -94,6 +104,8 @@
 .today-preview li small, .today-preview figcaption { color: var(--muted); font-size: .8125rem; }
 .today-preview > .button { margin-top: 20px; width: 100%; }
 .public-page .public-questions { display: grid; grid-template-columns: .85fr 1.15fr; gap: 64px; border-top: 1px solid var(--line); }
+.public-page .public-questions.standalone { border-top: 0; }
+.public-page .public-questions .section-heading a { color: var(--brand-dark); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 .public-page .public-faq details { padding: 0; }
 .public-page .public-faq summary { min-height: 56px; padding: 16px 4px; line-height: 1.5; }
 .public-page .public-faq p { margin: 0; padding: 0 4px 20px; color: var(--muted); line-height: 1.65; }
@@ -148,12 +160,31 @@
   .public-site-nav .public-sign-in { min-width: 44px; }
   .public-site-nav > .button { min-height: 44px; padding-inline: 8px; font-size: .875rem; }
 }
+/* Phones: the secondary actions go icon-only (their names stay on the buttons) so the channel
+   action keeps a readable label. Below 430px its icon gives way to the words, wrapped to two
+   lines at most. Below 370px five 44px targets no longer fit one line, so the channel action
+   takes a full line of its own above the four icons rather than clipping or shrinking. */
+@media (max-width: 480px) {
+  .public-page .demo-actions { gap: 4px; }
+  .public-page .demo-actions .button:not(.primary) > span { display: none; }
+  .public-page .demo-actions .button:not(.primary), .public-page .demo-actions .demo-check { min-width: 44px; padding-inline: 6px; }
+  .public-page .demo-actions .button.primary { font-size: .8125rem; padding-inline: 6px; }
+}
+@media (max-width: 430px) {
+  .public-page .demo-actions .button.primary > svg { display: none; }
+  .public-page .demo-actions .button.primary > span { white-space: normal; text-overflow: clip; line-height: 1.15; text-align: center; }
+}
+@media (max-width: 370px) {
+  .public-page .demo-actions { flex-wrap: wrap; }
+  .public-page .demo-actions .button.primary { flex: 1 1 100%; }
+  .public-page .demo-actions .button.primary > svg { display: block; }
+  .public-page .demo-actions .button.primary > span { white-space: nowrap; }
+}
 @media (max-width: 350px) {
   .public-page .public-header > .logo { min-width: 44px; }
   .public-page .public-header > .logo > span:not(.logo-mark) { display: none; }
   .public-site-nav .public-sign-in { white-space: nowrap; }
   .public-site-nav > .button { flex-shrink: 0; }
-  .public-page .demo-actions { grid-template-columns: 1fr; }
   .public-page .product-demo-heading h2 { font-size: 1.125rem; }
   .public-page .hero-audiences { column-gap: 10px; }
 }
@@ -161,3 +192,24 @@
   .public-page .demo-scenarios { gap: 4px; }
   .public-page .demo-scenarios span { padding-inline: 0; font-size: .75rem; font-weight: 600; white-space: nowrap; }
 }
+
+/* "Mixes for:" is the same on every public page; the current page is highlighted. */
+.mixes-for { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 26px 0 0; font-size: .875rem; }
+.mixes-for-label { color: var(--muted); font-weight: 650; }
+.mixes-for ul { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.mixes-for a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-weight: 650; text-decoration: none; }
+.mixes-for a:hover { border-color: var(--brand); color: var(--brand-dark); }
+.mixes-for a[aria-current="page"] { color: var(--brand-dark); border-color: var(--brand); background: var(--brand-soft); }
+.profession-marks .section-heading p { max-width: 52ch; }
+/* Five marks per row wherever they fit; the last row holds "And more". */
+.profession-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 28px 0 0; padding: 0; list-style: none; }
+.profession-grid li { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); font-weight: 650; font-size: .875rem; }
+.profession-grid li > span:last-child { min-width: 0; overflow-wrap: normal; word-break: normal; hyphens: manual; }
+.profession-icon { width: 34px; height: 34px; flex-shrink: 0; display: grid; place-items: center; border-radius: 10px; color: var(--brand-dark); background: var(--brand-soft); }
+.profession-icon svg { width: 20px; height: 20px; }
+.public-footer .public-trust-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; margin-top: 10px; }
+@media (max-width: 600px) { .mixes-for { gap: 6px 8px; font-size: .8125rem; } .mixes-for a { min-height: 34px; padding: 0 10px; } }
+@media (max-width: 900px) { .profession-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; } }
+@media (max-width: 700px) { .profession-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .profession-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 400px) { .profession-grid { grid-template-columns: 1fr; } }

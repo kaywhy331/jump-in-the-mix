@@ -28,4 +28,4 @@ export function publicIndexOrigin(source: PublicTrustEnvironment = process.env):
   } catch { return null; }
 }
 
-export const PUBLIC_DOCUMENT_PATHS = ["/", "/privacy", "/terms", "/contact"] as const;
+export const PUBLIC_DOCUMENT_PATHS = ["/", "/for/real-estate-agents", "/for/consultants", "/for/photographers", "/for/contractors", "/for/independent-recruiters", "/faq", "/privacy", "/terms", "/contact"] as const;

@@ -1,12 +1,14 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { claimAccessInvite } from "@/lib/referral-access";
 import { slugify } from "@/lib/slug";
+import { MARKETING_SCENARIO_VERSION, storedMarketingScenario } from "@/lib/marketing-scenarios";
 
 export async function createBusinessAccount(
   tx: Prisma.TransactionClient,
   input: { email: string; name: string; passwordHash: string | null; emailVerifiedAt: Date | null; accessToken?: string }
 ) {
   const inviteId = await claimAccessInvite(tx, input.accessToken, input.email);
+  const inviteContext = inviteId ? await tx.referralAccessInvite.findUnique({ where: { id: inviteId }, select: { marketingScenario: true, marketingScenarioVersion: true } }) : null;
   const user = await tx.user.create({
     data: {
       email: input.email,
@@ -35,6 +37,8 @@ export async function createBusinessAccount(
     },
     select: { id: true }
   });
+  const scenario = storedMarketingScenario(inviteContext?.marketingScenario, inviteContext?.marketingScenarioVersion);
+  if (scenario) await tx.workspaceMarketingPreference.create({ data: { workspaceId: workspace.id, scenario: scenario.id, version: MARKETING_SCENARIO_VERSION } });
   await tx.userPreference.create({ data: { userId: user.id, timezone: "UTC" } });
   await tx.workspacePreference.create({ data: { workspaceId: workspace.id } });
   await tx.notificationPreference.create({ data: { workspaceId: workspace.id, userId: user.id, emailDigestEnabled: false, weeklyReportEnabled: false } });

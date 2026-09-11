@@ -31,7 +31,6 @@ test("homepage keeps signup prominent, navigation spaced, and the first demo com
       expect(geometry.sampleHeight).toBeLessThan(830);
       expect(geometry.sampleActionTop).toBeLessThan(1350);
     }
-    await expect(page.locator(".demo-plan-overview")).not.toHaveAttribute("open", "");
     await expect(page.locator(".demo-start")).toHaveAttribute("href", "/waitlist");
   }
 });
@@ -47,13 +46,21 @@ test("sample link, signup paths, FAQ, and public accessibility work in both them
     await expect(page).toHaveURL(/#sample$/);
     const sampleTop = await page.locator(".product-demo").evaluate(element => element.getBoundingClientRect().top);
     expect(Math.abs(sampleTop)).toBeLessThan(40);
-    for (const heading of ["Grow your business", "Keep your people close", "Build your network"]) await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+    await expect(page.locator(".public-faq")).toHaveCount(0);
+    expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+    // The questions live on their own page; the header link is hidden on phones, the footer link is not.
+    await page.getByRole("link", { name: "Questions", exact: true }).first().click();
+    await expect(page).toHaveURL(/\/faq$/);
+    await expect(page.getByRole("heading", { level: 1, name: "A little clarity before you start." })).toBeVisible();
     await page.getByText("Will Jump in the Mix be sending messages for me?", { exact: true }).click();
     await expect(page.locator(".public-faq details[open] p")).toHaveText("You review your follow-ups and send them through your own messaging app by default. Automatic sending is optional and needs a connected provider. Personal invitations are emailed through the System Mix after you choose a contact and press Send.");
     await page.getByRole("link", { name: "Your data", exact: true }).click();
+    await expect(page).toHaveURL(/\/faq#your-data$/);
     await page.getByText("How can I control my data?", { exact: true }).click();
     await expect(page.locator("#your-data")).toContainText("Data & privacy");
     expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+    await page.getByRole("link", { name: "Back to home", exact: true }).click();
+    await expect(page).toHaveURL(/\/$/);
     await page.locator(".demo-start").click();
     await expect(page).toHaveURL(/\/waitlist$/);
     await expect(page.getByRole("heading", { name: "Join the waitlist" })).toBeVisible();
@@ -81,9 +88,10 @@ test("conversion hooks distinguish demo handoffs from signup and exclude draft c
     });
   });
   await page.goto("/");
-  await page.getByText("Fine-tune this message", { exact: true }).click();
-  await page.getByLabel("Make it sound like you").fill("Private draft content must never reach analytics");
-  await page.getByRole("link", { name: "Open text app", exact: true }).click();
+  // Demo controls are disabled until hydration; the adapter attaches in the same commit.
+  await expect(page.getByRole("radio", { name: "Lead", exact: true })).toBeEnabled();
+  await page.locator(".demo-beat.open").getByLabel("Message", { exact: true }).fill("Private draft content must never reach analytics");
+  await page.locator(".demo-beat.open").getByRole("link", { name: "Text Message", exact: true }).click();
   await page.locator(".demo-start").click();
   await expect(page).toHaveURL(/\/waitlist$/);
   const events = await page.evaluate(() => (window as Window & { conversionTestEvents?: Record<string, unknown>[] }).conversionTestEvents ?? []);

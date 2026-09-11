@@ -146,6 +146,7 @@ model Workspace {
   owner                  User                           @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   members                WorkspaceMember[]
   profile                WorkspaceProfile?
+  marketingPreference    WorkspaceMarketingPreference?
   contacts               Contact[]
   groups                 Group[]
   dateTypes              DateType[]
@@ -206,6 +207,15 @@ model WorkspaceProfile {
   workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+}
+
+model WorkspaceMarketingPreference {
+  workspaceId String @id
+  scenario String
+  version Int
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Contact {
@@ -640,6 +650,8 @@ model ReferralAccessInvite {
   createdAt       DateTime  @default(now())
   source          AccessInviteSource @default(REFERRAL)
   systemMixVersion Int?
+  marketingScenario String?
+  marketingScenarioVersion Int?
   waveId          String?
   wave            WaitlistWave? @relation(fields: [waveId], references: [id], onDelete: SetNull)
   delivery        WaitlistDelivery?
@@ -677,6 +689,8 @@ model WaitlistEntry {
   accessGrantedAt DateTime?
   joinedAt        DateTime?
   withdrawnAt     DateTime?
+  marketingScenario String?
+  marketingScenarioVersion Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

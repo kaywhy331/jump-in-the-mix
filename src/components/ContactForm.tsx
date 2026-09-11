@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { VoiceNoteButton } from "@/components/VoiceNoteButton";
 import { createContactAction, updateContactAction } from "@/lib/contact-actions";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
+import { WhenField } from "@/components/WhenPicker";
 
 type GroupOption = { id: string; name: string; color: string | null; isActive: boolean };
 type CustomFieldOption = { id: string; name: string; key: string };
@@ -166,7 +167,7 @@ export function ContactForm({
         </label>
         {scheduleFollowUp && <div className="form-grid contact-first-follow-up-fields">
           <input type="hidden" name="followUpDateTypeId" value={followUp.dateTypeId} />
-          <div className="field"><label htmlFor="followUpDate">Follow-up date</label><input id="followUpDate" name="followUpDate" type="date" defaultValue={followUp.defaultDate ?? ""} required /></div>
+          <div className="field"><span className="field-label">Follow-up date</span><WhenField label="Follow-up date" dateName="followUpDate" defaultDate={followUp.defaultDate ?? ""} noPast /></div>
           <div className="field"><label htmlFor="followUpReason">Reason</label><input id="followUpReason" name="followUpReason" defaultValue={followUp.defaultReason ?? "Follow up"} placeholder="Proposal follow-up" /></div>
           <div className="field full"><label htmlFor="followUpMixId">Mix</label>{followUp.mixes.length ? <select id="followUpMixId" name="followUpMixId" defaultValue={followUp.mixes[0]?.id ?? ""}><option value="">Just save the date</option>{followUp.mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select> : <><input id="followUpMixId" name="followUpMixId" type="hidden" value="" /><small>You can add a mix later.</small></>}</div>
         </div>}

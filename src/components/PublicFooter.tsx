@@ -1,0 +1,7 @@
+import Link from "next/link";
+import { Logo } from "@/components/Logo";
+
+// The footer shared by the homepage, the profession pages and the FAQ page.
+export function PublicFooter() {
+  return <footer className="public-footer"><Logo /><p>A little follow-through goes a long way.</p><nav aria-label="Footer navigation"><Link href="/faq">Questions</Link><Link href="/faq#your-data">Your data</Link><Link href="/login">Sign in</Link></nav><nav className="public-trust-links" aria-label="Policies and support"><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/contact">Contact &amp; support</Link></nav></footer>;
+}

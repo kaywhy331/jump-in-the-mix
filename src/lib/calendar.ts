@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { applyJourneyEvent } from "@/lib/journey";
 import { calendarRange } from "@/lib/calendar-time";
+import { conflictMessage, findConflict, normalizeBufferMinutes } from "@/lib/calendar-availability";
 import { parseCalendarFile } from "@/lib/calendar-ical";
 import { fetchCalendarFeed } from "@/lib/calendar-feed-fetch";
 import { decryptIntegrationCredentials } from "@/lib/integration-crypto";
@@ -14,8 +15,14 @@ export async function saveCalendarEntry(input: { workspaceId: string; actorUserI
     const existing = input.id ? await tx.calendarEntry.findFirst({ where: { id: input.id, workspaceId: input.workspaceId, connectionId: null, canceledAt: null } }) : null;
     if (input.id && (!existing || existing.version !== input.version)) throw new Error("This event changed. Refresh the calendar before editing it.");
     if (input.contactId && !await tx.contact.findFirst({ where: { id: input.contactId, workspaceId: input.workspaceId, archivedAt: null } })) throw new Error("Choose a contact in this business.");
-    const conflict = await tx.calendarEntry.findFirst({ where: { workspaceId: input.workspaceId, canceledAt: null, ...(existing ? { id: { not: existing.id } } : {}), startsAt: { lt: input.endsAt }, endsAt: { gt: input.startsAt } }, orderBy: { startsAt: "asc" } });
-    if (conflict && !input.allowOverlap) throw new Error(`This overlaps “${conflict.title}”. Choose another time, or allow an overlap if it is intentional.`);
+    // The buffer from Scheduling defaults keeps travel or prep room around appointments;
+    // time blocks stay back to back. The same rule grays out slots in the picker.
+    const preference = await tx.workspacePreference.findUnique({ where: { workspaceId: input.workspaceId }, select: { appointmentBufferMinutes: true } });
+    const bufferMinutes = input.kind === "BLOCK" ? 0 : normalizeBufferMinutes(preference?.appointmentBufferMinutes);
+    const pad = bufferMinutes * 60_000;
+    const nearby = await tx.calendarEntry.findMany({ where: { workspaceId: input.workspaceId, canceledAt: null, ...(existing ? { id: { not: existing.id } } : {}), startsAt: { lt: new Date(input.endsAt.getTime() + pad) }, endsAt: { gt: new Date(input.startsAt.getTime() - pad) } }, select: { id: true, title: true, kind: true, startsAt: true, endsAt: true }, orderBy: { startsAt: "asc" }, take: 200 });
+    const conflict = findConflict({ kind: input.kind, start: input.startsAt.getTime(), end: input.endsAt.getTime() }, nearby.map(entry => ({ id: entry.id, title: entry.title, kind: entry.kind, start: entry.startsAt.getTime(), end: entry.endsAt.getTime() })), pad);
+    if (conflict && !input.allowOverlap) throw new Error(conflictMessage(conflict, bufferMinutes));
     const data = { title: input.title.trim(), kind: input.kind, contactId: input.contactId || null, startsAt: input.startsAt, endsAt: input.endsAt, timezone: input.timezone };
     const entry = existing ? await tx.calendarEntry.update({ where: { id: existing.id }, data: { ...data, version: { increment: 1 } } }) : await tx.calendarEntry.create({ data: { ...data, workspaceId: input.workspaceId } });
     if (entry.contactId) {

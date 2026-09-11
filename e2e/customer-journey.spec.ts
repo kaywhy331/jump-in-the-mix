@@ -49,13 +49,16 @@ test("owners configure stages, custom triggers, order and individual pauses", as
 test("meeting booking advances the journey, retains invalid form input and exports a calendar", async ({ page }) => {
   await page.goto(`/calendar?contact=${contactId}&date=2026-09-10`);
   const form = page.locator("#schedule-event form").filter({ has: page.locator('input[name="title"]') });
-  await form.getByLabel("Title",{ exact: true }).fill("Discovery with Jordan"); await form.getByLabel("Starts",{ exact: true }).fill("2026-09-10T09:00"); await form.getByLabel("Ends",{ exact: true }).fill("2026-09-10T09:30");
+  const pickStart = async (time: string) => { await form.locator(".when-trigger.time").click(); const sheet = page.getByRole("dialog", { name: "Starts", exact: true }); await sheet.getByRole("button", { name: time, exact: true }).click(); await expect(sheet).toBeHidden(); };
+  await form.getByLabel("Title",{ exact: true }).fill("Discovery with Jordan"); await pickStart("9:00 AM"); await form.getByRole("button", { name: "30 min", exact: true }).click();
+  await expect(form.locator('input[name="startsAt"]')).toHaveValue("2026-09-10T09:00"); await expect(form.locator('input[name="endsAt"]')).toHaveValue("2026-09-10T09:30");
   await submit(page, form.getByRole("button",{ name: "Save event", exact: true })); await expect(page.getByText("Calendar updated.",{ exact: true })).toBeVisible();
   await expect(page.locator(".calendar-event")).toContainText("Discovery with Jordan");
   expect((await prisma.contactJourney.findUniqueOrThrow({ where: { contactId }, include: { stage: true } })).stage.name).toBe("Prospect");
   await form.getByLabel("Title",{ exact: true }).fill("Conflicting block"); await form.getByLabel("Event type").selectOption("BLOCK"); await submit(page, form.getByRole("button",{ name: "Save event", exact: true }));
   await expect(form.getByRole("alert")).toContainText("overlaps"); await expect(form.getByLabel("Title",{ exact: true })).toHaveValue("Conflicting block");
-  await form.getByLabel("Starts",{ exact: true }).fill("2026-09-10T09:30"); await form.getByLabel("Ends",{ exact: true }).fill("2026-09-10T10:00"); await submit(page, form.getByRole("button",{ name: "Save event", exact: true }));
+  await form.locator(".when-trigger.time").click(); await expect(page.getByRole("dialog", { name: "Starts", exact: true }).getByRole("button", { name: /^9:00 AM, taken by Discovery with Jordan/ })).toBeDisabled(); await page.getByRole("dialog", { name: "Starts", exact: true }).getByRole("button", { name: "9:30 AM", exact: true }).click();
+  await expect(form.locator('input[name="endsAt"]')).toHaveValue("2026-09-10T10:00"); await submit(page, form.getByRole("button",{ name: "Save event", exact: true }));
   await expect(page.locator(".calendar-event")).toHaveCount(2);
   // Exercise the browser's authenticated download. Its loopback secure-cookie
   // behavior differs from Playwright's separate API client when CI uses HTTP.

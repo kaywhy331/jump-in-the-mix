@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 
-export type AppIconName = "today" | "contacts" | "add" | "mixes" | "more" | "close" | "calendar" | "bolt" | "import" | "edit" | "external" | "people" | "security" | "privacy" | "archive" | "heart" | "arrowUp" | "arrowDown" | "arrowLeft" | "chevronUp" | "chevronDown" | "trash" | "check" | "refresh" | "email" | "phone" | "message" | "alert" | "circle" | "settings";
+export type AppIconName = "today" | "contacts" | "add" | "mixes" | "more" | "close" | "calendar" | "bolt" | "import" | "edit" | "external" | "people" | "security" | "privacy" | "archive" | "heart" | "arrowUp" | "arrowDown" | "arrowLeft" | "chevronUp" | "chevronDown" | "trash" | "check" | "refresh" | "email" | "phone" | "message" | "alert" | "circle" | "settings" | "clock";
 
 const paths: Record<AppIconName, React.ReactNode> = {
   today: <><path d="M5 12.5 9.2 17 19 7"/><path d="M7 3.8h10a3 3 0 0 1 3 3v10.4a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6.8a3 3 0 0 1 3-3Z"/></>,
@@ -10,6 +10,7 @@ const paths: Record<AppIconName, React.ReactNode> = {
   more: <><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></>,
   close: <path d="m6 6 12 12M18 6 6 18"/>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></>,
+  clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/></>,
   bolt: <path d="m13.5 2-8 12h6l-1 8 8-12h-6l1-8Z"/>,
   import: <><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 20h16"/></>,
   edit: <><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z"/><path d="m13.8 7.2 3 3"/></>,

@@ -29,7 +29,7 @@ function database(initial = 0) {
     referralAccessInvite: {
       count: vi.fn(async () => records.filter(item => !item.acceptedAt && !item.revokedAt).length),
       findFirst: vi.fn(async () => null),
-      findUnique: vi.fn(async ({ where }: any) => records.find(item => item.contactId === where.inviterUserId_contactId.contactId) ?? null),
+      findUnique: vi.fn(async ({ where }: any) => where.id ? records.find(item => item.id === where.id) ?? null : records.find(item => item.contactId === where.inviterUserId_contactId.contactId) ?? null),
       create: vi.fn(async ({ data }: any) => { const record = { id: `invite-${records.length}`, acceptedAt: null, revokedAt: null, ...data }; records.push(record); return record; }),
       updateMany: vi.fn(async ({ where, data }: any) => { const record = records.find(item => item.tokenHash === where.tokenHash && item.recipientEmail === where.recipientEmail && item.acceptedAt === null && item.revokedAt === null); if (!record) return { count: 0 }; Object.assign(record, data); return { count: 1 }; }),
       findUniqueOrThrow: vi.fn(async ({ where }: any) => records.find(item => item.tokenHash === where.tokenHash)),
@@ -38,7 +38,7 @@ function database(initial = 0) {
     systemMixConfig: { findUnique: vi.fn(async () => ({ id: "referral", publishedVersion: 1, draftVersion: 1 })) },
     systemMixRevision: { findUnique: vi.fn(async () => DEFAULT_SYSTEM_MIX) },
     workspace: { findFirst: vi.fn(async ({ where }: any) => where.id === "workspace" && where.ownerId === "owner" ? { id: "workspace" } : null), create: vi.fn(async () => ({ id: "new-workspace" })) },
-    userPreference: { create: vi.fn() }, workspacePreference: { create: vi.fn() }, notificationPreference: { create: vi.fn() },
+    userPreference: { create: vi.fn() }, workspacePreference: { create: vi.fn() }, workspaceMarketingPreference: { create: vi.fn() }, notificationPreference: { create: vi.fn() },
     contactActivity: { create: vi.fn() }
   };
   return { tx: mocks as unknown as Prisma.TransactionClient, mocks, records, issued: () => issued };
@@ -110,6 +110,22 @@ describe("personal access invitations", () => {
     const { token } = decryptIntegrationCredentials<{ token: string }>(invite.tokenCiphertext);
     await createBusinessAccount(db.tx, { email: "contact@example.com", name: "New", passwordHash: null, emailVerifiedAt: null, accessToken: token });
     expect(db.mocks.referralAccessInvite.update).toHaveBeenCalledWith({ where: { id: invite.id }, data: { acceptedUserId: "new-user" } });
+  });
+  it.each([
+    { scenario: "painting", version: 1, restored: true },
+    { scenario: "painting", version: 2, restored: false },
+    { scenario: "painting", version: 0, restored: false },
+    { scenario: "painting", version: null, restored: false },
+    { scenario: "retired", version: 1, restored: false },
+    { scenario: null, version: null, restored: false }
+  ])("creates an account with safe starter fallback for $scenario version $version", async ({ scenario, version, restored }) => {
+    const db = database(); const invite = await allocateAccessInvite(db.tx, input());
+    Object.assign(db.records[0], { marketingScenario: scenario, marketingScenarioVersion: version });
+    const { token } = decryptIntegrationCredentials<{ token: string }>(invite.tokenCiphertext);
+    await createBusinessAccount(db.tx, { email: "contact@example.com", name: "New", passwordHash: null, emailVerifiedAt: null, accessToken: token });
+    expect(db.mocks.user.create).toHaveBeenCalledTimes(1);
+    if (restored) expect(db.mocks.workspaceMarketingPreference.create).toHaveBeenCalledWith({ data: { workspaceId: "new-workspace", scenario: "painting", version: 1 } });
+    else expect(db.mocks.workspaceMarketingPreference.create).not.toHaveBeenCalled();
   });
   it("retains the private pilot's single-owner bootstrap", async () => {
     settings.pilotMode = true; const db = database();

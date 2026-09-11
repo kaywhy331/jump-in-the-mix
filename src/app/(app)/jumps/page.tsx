@@ -7,13 +7,14 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EditableFollowUpAction } from "@/components/EditableFollowUpAction";
 import { EmptyState } from "@/components/EmptyState";
 import { JumpActionLink } from "@/components/JumpActionControls";
-import { JumpOutcomeButton, JumpReturnTray, JumpWorkflowCard } from "@/components/JumpWorkflow";
+import { JumpOutcomeButton, JumpReturnTray, JumpStampEditor, JumpWorkflowCard } from "@/components/JumpWorkflow";
 import { Notice } from "@/components/Notice";
 import { TodayBriefing } from "@/components/TodayBriefing";
 import { todayBriefing } from "@/lib/today-briefing";
 import { PreparationNotice } from "@/components/PreparationNotice";
 import { Sheet } from "@/components/Sheet";
 import { TodayLink, TodayNavigation } from "@/components/TodayNavigation";
+import { WhenField } from "@/components/WhenPicker";
 import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
@@ -196,7 +197,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           <div className="jump-card-main">
             {isNext && <span className="eyebrow">Next up</span>}
             <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span className={followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{dueLabel}</span><span className="channel-pill">{channelLabel(followUpChannel)}</span></div>
-            <div className="jump-meta"><span>{followUp.mix.name}</span><span>{followUp.reason}</span></div>
+            <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}<span>{followUp.mix.name}</span><span>{followUp.reason}</span></div>
             {isNext ? <>{editableAction}{recentEvents.length > 0 && <div className="jump-action-history"><small>Recent activity</small>{recentEvents.map((event) => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt, displayPreferences)}</span>)}</div>}</> : <p className="jump-snippet">{snippet}</p>}
           </div>
 
@@ -209,14 +210,15 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
               <Sheet trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review message for ${followUp.contact.displayName}`}><AppIcon name={followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Message ${followUp.contact.displayName}`} description="Make it sound like you. Fine-tune before opening your phone’s composer.">{editableAction}</Sheet>
             ))}
             <div className="jump-completion-actions">
-              <JumpOutcomeButton jumpId={followUp.id} outcome={isPending ? "COMPLETED" : "REOPENED"} className={`button small jump-done-action ${isPending ? "" : "done"}`} ariaLabel={isPending ? "Done" : "Undo"}>{isPending ? "Done" : "Undo"}</JumpOutcomeButton>
+              <JumpOutcomeButton jumpId={followUp.id} outcome={isPending ? "COMPLETED" : "REOPENED"} className={`button small jump-done-action ${isPending ? "" : "done"}`} ariaLabel={isPending ? "Done" : "Undo"}><AppIcon name="check" /><span>{isPending ? "Done" : "Undo"}</span></JumpOutcomeButton>
+              {isPending && <JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button small jump-skip-action" ariaLabel="Skip"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5.5v9l7-4.5z" /><path d="M14.5 5.5v9" /></svg><span>Skip</span></JumpOutcomeButton>}
               {isPending && <Sheet
                 trigger={<button className="button small" type="button" aria-label={`More options for ${followUp.contact.displayName}`}>More</button>}
                 title={`Follow up with ${followUp.contact.displayName}`}
                 description="Move it to a better day, skip it, or stop this mix."
               >
                 <div className="sheet-section"><h3>Snooze</h3><div className="sheet-actions">{[["later-today", "Later today"], ["tomorrow", "Tomorrow"], ["next-monday", "Monday"], ["next-week", "Next week"]].map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value={preset} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div></div>
-                <form action={snoozeJumpAction} className="form-stack"><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value="custom" /><input type="hidden" name="returnTo" value={returnTo} /><label className="field"><span>Choose a day</span><input type="date" name="customDate" min={logicalDateKey(today)} required /></label><small className="muted-copy">Uses your default follow-up time in {timezone}.</small><button className="button" type="submit">Snooze to this day</button></form>
+                <form action={snoozeJumpAction} className="form-stack"><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value="custom" /><input type="hidden" name="returnTo" value={returnTo} /><div className="field"><span className="field-label">Choose a day</span><WhenField label="Choose a day" variant="inline" dateName="customDate" defaultDate={logicalDateKey(addLogicalDays(today, 1))} minDate={logicalDateKey(today)} quickSelect={false} /></div><small className="muted-copy">Uses your default follow-up time in {timezone}.</small><button className="button" type="submit">Snooze to this day</button></form>
                 <div className="sheet-danger-zone"><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button">Skip this follow-up</JumpOutcomeButton>{followUp.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop mix…" title={`Stop ${followUp.mix.name} for ${followUp.contact.displayName}?`} description="Future follow-ups from this mix will be removed. Completed history stays available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={followUp.mixId} /><input type="hidden" name="contactId" value={followUp.contactId} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button danger" type="submit">Stop mix</button></form></ConfirmDialog>}</div>
               </Sheet>}
             </div>

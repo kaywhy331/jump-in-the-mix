@@ -18,6 +18,7 @@
 .jump-task-card:hover { border-color: #cfc9ff; box-shadow: var(--shadow-sm); transform: translateY(-1px); }
 .jump-task-card:has(.jump-overflow[open]) { z-index: 35; }
 .jump-task-complete::before { background: var(--line); }
+.jump-task-complete .jump-card-heading h3 { color: var(--muted); font-weight: 650; }
 .jump-status-column { display: grid; }
 .jump-status-button { width: 100%; min-height: 72px; border: 0; border-radius: 12px; padding: 8px; background: var(--surface-soft); color: var(--muted); display: grid; place-content: center; gap: 2px; text-align: center; }
 .jump-status-button:hover { background: var(--brand-soft); color: var(--brand-dark); }
@@ -388,3 +389,16 @@
 html[data-browser-locked="true"] body * { visibility: hidden !important; }
 html[data-browser-locked="true"] .browser-account-gate,
 html[data-browser-locked="true"] .browser-account-gate * { visibility: visible !important; }
+
+/* Completion in the app matches the demo: a check that turns green, and a stamp before the beat. */
+.jump-done-action { display: inline-flex; align-items: center; gap: 6px; }
+.jump-done-action svg { width: 18px; height: 18px; flex-shrink: 0; }
+.jump-done-action.done { color: #0d7758; border-color: #7fcfa4; background: #e8f8f1; }
+.jump-stamp { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; color: #0d7758; background: #e8f8f1; font-weight: 750; }
+.jump-stamp svg { width: 14px; height: 14px; }
+button.jump-stamp { border: 1px solid transparent; cursor: pointer; font: inherit; font-size: .8125rem; }
+button.jump-stamp:hover { border-color: currentColor; }
+.jump-stamp-editor { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.jump-stamp-editor input { min-height: 36px; padding: 2px 8px; font-size: .8125rem; }
+.jump-skip-action { display: inline-flex; align-items: center; gap: 6px; }
+.jump-skip-action svg { width: 16px; height: 16px; }

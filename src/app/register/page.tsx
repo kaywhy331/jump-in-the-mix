@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { validAccessToken } from "@/lib/referral-access";
 import { getAdmissionPolicy } from "@/lib/admission";
 import { PublicTrustLinks } from "@/components/PublicTrustLinks";
+import { storedMarketingScenario } from "@/lib/marketing-scenarios";
 
 export const metadata: Metadata = { title: "Your invitation", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
@@ -19,9 +20,10 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
   const token = params.invite ?? "";
   const pilotOpen = env.pilotMode && await pilotRegistrationOpen();
   const invite = !env.pilotMode && validAccessToken(token)
-    ? await prisma.referralAccessInvite.findFirst({ where: { tokenHash: hashAuthToken(token), acceptedAt: null, revokedAt: null }, select: { id: true } })
+    ? await prisma.referralAccessInvite.findFirst({ where: { tokenHash: hashAuthToken(token), acceptedAt: null, revokedAt: null }, select: { id: true, marketingScenario: true, marketingScenarioVersion: true } })
     : null;
   const paused = Boolean(invite) && (await getAdmissionPolicy()).redemptionPaused;
+  const scenario = storedMarketingScenario(invite?.marketingScenario, invite?.marketingScenarioVersion);
   return <main className="auth-shell"><section className="auth-card">
     <Logo />
     {!pilotOpen && !invite ? <>
@@ -32,7 +34,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
     </> : paused ? <>
       <h1>Account creation is temporarily paused</h1><p>Your invitation has not been used. Please open this same link again later.</p><Link className="button" href="/login">Sign in to an existing account</Link>
     </> : <>
-      <div><p className="eyebrow">{pilotOpen ? "Private owner setup" : "You’re invited"}</p><h1>Create your free account</h1><p>{pilotOpen ? "Set up the owner account for this private installation." : "Use the email address your invitation was sent to. Once verified, you’ll have five personal invitations of your own."}</p></div>
+      <div><p className="eyebrow">{pilotOpen ? "Private owner setup" : "You’re invited"}</p><h1>Create your free account</h1><p>{pilotOpen ? "Set up the owner account for this private installation." : "Use the email address your invitation was sent to. After verification, start with one person and review every follow-up before sending."}</p>{scenario && <p>Your {scenario.label.toLowerCase()} starter will be ready to review. You can change it or skip setup.</p>}</div>
       {params.error && <Notice type="error">{params.error}</Notice>}
       <form action={registerAction} className="form-stack">
         {invite && <input type="hidden" name="invite" value={token} />}

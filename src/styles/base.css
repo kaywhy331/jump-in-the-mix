@@ -10,6 +10,7 @@
   --on-brand: #ffffff;
   --brand-dark: #4837ce;
   --brand-soft: #eeecff;
+  --beat-active-bg: #eaf3ff;
   --accent: #18a879;
   --danger: #c6384a;
   --warning: #b36b00;
@@ -78,7 +79,7 @@ img, svg { max-width: 100%; }
 }
 
 .logo { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-weight: 800; letter-spacing: -0.03em; font-size: 1.06rem; }
-.logo-mark { display: block; flex-shrink: 0; width: 42px; height: 42px; overflow: hidden; background: #fff; border-radius: 4px; }
+.logo-mark { display: block; flex-shrink: 0; width: 42px; height: 42px; overflow: hidden; background: transparent; border-radius: 0; }
 .logo-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .public-shell { min-height: 100vh; background: linear-gradient(180deg, #fbfbff, #f4f6fb); }
 .public-header { max-width: 1180px; margin: 0 auto; padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }

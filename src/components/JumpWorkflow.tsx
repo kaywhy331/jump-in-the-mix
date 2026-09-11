@@ -1,4 +1,5 @@
 "use client";
+import { AppIcon } from "@/components/AppIcon";
 
 import type { ReactNode } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -6,6 +7,8 @@ import { flushSync } from "react-dom";
 import styles from "@/components/JumpWorkflow.module.css";
 import { useBrowserScope } from "@/components/BrowserAccountBoundary";
 import { clearOpenedJump, readOpenedJump, validOpenedJump, type OpenedJumpDetail } from "@/lib/opened-jump-state";
+import { WhenPicker } from "@/components/WhenPicker";
+import { addDays, dateKeyOf } from "@/lib/when-picker";
 export type { OpenedJumpDetail } from "@/lib/opened-jump-state";
 
 type Outcome =
@@ -185,8 +188,11 @@ export function JumpReturnTray() {
   const [outcome, setOutcome] = useState<Outcome>("COMPLETED");
   const [note, setNote] = useState("");
   const [visibility, setVisibility] = useState<"WORKSPACE" | "PRIVATE">("WORKSPACE");
-  const [nextDate, setNextDate] = useState("");
+  // Opt in to a next follow-up; once chosen it starts on the usual window, tomorrow at ten.
+  const [scheduleNext, setScheduleNext] = useState(false);
+  const [nextDate, setNextDate] = useState(() => addDays(dateKeyOf(new Date()), 1));
   const [nextTime, setNextTime] = useState("10:00");
+  const wantsNext = scheduleNext || outcome === "RESCHEDULED";
 
   useEffect(() => {
     if (!scope) return;
@@ -260,15 +266,17 @@ export function JumpReturnTray() {
       await saveOutcome(session.jumpId, selected, details ? {
         note,
         visibility,
-        nextDate: nextDate || undefined,
-        nextTime: nextDate ? nextTime : undefined
+        nextDate: wantsNext ? nextDate : undefined,
+        nextTime: wantsNext ? nextTime : undefined
       } : {});
       if (scope) clearOpenedJump(scope);
       opened.current = null;
       window.clearTimeout(revealTimer.current);
       setVisible(false);
       setNote("");
-      setNextDate("");
+      setScheduleNext(false);
+      setNextDate(addDays(dateKeyOf(new Date()), 1));
+      setNextTime("10:00");
       setOutcome("COMPLETED");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The outcome could not be saved.");
@@ -316,14 +324,13 @@ export function JumpReturnTray() {
             <input type="checkbox" checked={visibility === "PRIVATE"} onChange={(event) => setVisibility(event.target.checked ? "PRIVATE" : "WORKSPACE")} />
             <span><strong>Keep private</strong><small>Never insert this note into messages.</small></span>
           </label>
-          <label>
-            <span>Next follow-up date</span>
-            <input type="date" value={nextDate} onChange={(event) => setNextDate(event.target.value)} required={outcome === "RESCHEDULED"} />
+          <label className={`checkbox-card ${styles.fullField}`}>
+            <input type="checkbox" checked={wantsNext} disabled={outcome === "RESCHEDULED"} onChange={(event) => setScheduleNext(event.target.checked)} />
+            <span><strong>Schedule the next follow-up</strong><small>{outcome === "RESCHEDULED" ? "A rescheduled follow-up needs its new date." : "Pick a day and time to see them again on Today."}</small></span>
           </label>
-          <label>
-            <span>Time</span>
-            <input type="time" value={nextTime} onChange={(event) => setNextTime(event.target.value)} disabled={!nextDate} />
-          </label>
+          {wantsNext && <div className={styles.fullField}>
+            <WhenPicker label="Next follow-up" date={nextDate} time={nextTime} noPast onChange={(next) => { setNextDate(next.date); if (next.time) setNextTime(next.time); }} />
+          </div>}
           <div className={styles.formActions}>
             <button className="button primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save outcome"}</button>
           </div>
@@ -332,4 +339,34 @@ export function JumpReturnTray() {
       {error && <p className={styles.error} role="alert">{error}</p>}
     </aside>
   );
+}
+
+// The recorded completion time is a button; clicking it opens a picker so it can be corrected.
+export function JumpStampEditor({ jumpId, completedAt, label }: { jumpId: string; completedAt: string; label: string }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(() => { const d = new Date(completedAt); const pad = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; });
+  const [shown, setShown] = useState(label);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const save = async () => {
+    const next = new Date(value);
+    if (Number.isNaN(next.getTime())) { setError("Choose a valid date and time."); return; }
+    setSaving(true); setError("");
+    try {
+      const response = await fetch(`/api/jumps/${encodeURIComponent(jumpId)}/completed-at`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ completedAt: next.toISOString() }) });
+      const payload = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "The time could not be saved.");
+      setShown(new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(next));
+      setEditing(false);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The time could not be saved.");
+    } finally { setSaving(false); }
+  };
+  if (!editing) return <button type="button" className="jump-stamp" title="Click to change the time" aria-label={`Completed ${shown}. Change the time`} onClick={() => setEditing(true)}><AppIcon name="check" /><span>{shown}</span></button>;
+  return <span className="jump-stamp-editor">
+    <input type="datetime-local" aria-label="Completed time" value={value} onChange={(event) => setValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void save(); } if (event.key === "Escape") setEditing(false); }} />
+    <button className="button small" type="button" onClick={() => void save()} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+    <button className="button small" type="button" onClick={() => setEditing(false)} disabled={saving}>Cancel</button>
+    {error && <small className={styles.error} role="alert">{error}</small>}
+  </span>;
 }

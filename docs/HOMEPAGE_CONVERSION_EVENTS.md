@@ -26,3 +26,5 @@ window.addEventListener("jitm:conversion", ({ detail }) => {
 To complete the activation funnel, connect the selected collector and record successful account creation, first contact creation, and first scheduled follow-up at their actual server-side success boundaries. Do not infer successful account creation from an onboarding page view: returning users can visit it too. An opt-in attribution design and retention policy should be settled with the collector configuration; this adapter deliberately has no cross-page visitor identity of its own.
 
 The homepage tests verify that demo engagement is emitted once, native handoffs are distinct from signup, and edited messages never enter the event payload. The existing demo tests also verify that interactions make no server mutations.
+
+Profession landing pages (`/for/<profession>`) emit the same `relationships-v1` events with an added `route` field holding the profession slug. The `sample_engaged` and `handoff_requested` events there refer to that persona's mixes.

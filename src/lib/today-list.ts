@@ -35,7 +35,7 @@ function withinGroup(cursor: Cursor, direction: Direction): Prisma.JumpWhereInpu
 }
 
 const select = {
-  id: true, contactId: true, mixId: true, scheduledAt: true, status: true, updatedAt: true, reason: true, renderedSnapshot: true,
+  id: true, contactId: true, mixId: true, scheduledAt: true, status: true, updatedAt: true, reason: true, renderedSnapshot: true, completedAt: true,
   contact: { select: { displayName: true, emails: { select: { email: true, isPrimary: true } }, phones: { select: { phone: true, isPrimary: true } } } },
   mix: { select: { name: true, source: true } },
   stepVersion: { select: { stepTemplate: { select: { channel: true } } } }

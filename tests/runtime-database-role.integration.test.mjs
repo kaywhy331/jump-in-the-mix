@@ -39,7 +39,7 @@ describe.skipIf(!local).sequential('restricted production database credential', 
   it('grants application DML and read-only migration evidence without ownership', async () => {
     expect((await inspectRuntimeRole(owner, { role })).ready).toBe(false);
     const proof = await grantRuntimeRole(owner, { role });
-    expect(proof).toMatchObject({ boundary: true, ready: true, tables: { total: 98, readable: 98, writable: 98, elevated: false }, history: { readable: true, writable: false } });
+    expect(proof).toMatchObject({ boundary: true, ready: true, tables: { total: 99, readable: 99, writable: 99, elevated: false }, history: { readable: true, writable: false } });
     expect(await inspectRuntimeRole(runtime, { role })).toEqual(proof);
   });
   it('executes customer reads/writes and transactional worker locking', async () => {

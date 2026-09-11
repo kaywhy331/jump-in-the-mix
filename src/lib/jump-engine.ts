@@ -384,7 +384,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         scheduledAt: true,
         reason: true,
         templateSnapshot: true,
-        renderedSnapshot: true
+        renderedSnapshot: true, completedAt: true
       }
     }));
   }

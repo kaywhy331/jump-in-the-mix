@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { transactionalEmailConfigured } from "@/lib/transactional-email";
 import { queueAccessInvitation } from "@/lib/access-invitation-mail";
 import { AdmissionError, admissionSnapshot, getAdmissionPolicy, issuanceProblem } from "@/lib/admission";
+import { MARKETING_SCENARIO_VERSION, storedMarketingScenario, marketingScenarioId } from "@/lib/marketing-scenarios";
 
 export const WAITLIST_INTERVAL_MS = 7 * 24 * 60 * 60_000;
 export const WAITLIST_BATCH_HALF = 5;
@@ -19,15 +20,19 @@ export function normalizeWaitlistEmail(value: string): string | null {
 }
 
 // Duplicate submissions preserve original queue position. No account is created here.
-export async function requestWaitlistEntry(email: string, now = new Date()): Promise<string | null> {
+export async function requestWaitlistEntry(email: string, scenarioValue?: string | null | Date, requestedAt = new Date()): Promise<string | null> {
+  const now = scenarioValue instanceof Date ? scenarioValue : requestedAt;
+  const scenario = marketingScenarioId(scenarioValue instanceof Date ? null : scenarioValue);
   return prisma.$transaction(async tx => {
     await lockAccess(tx);
     if ((await getAdmissionPolicy(tx)).collectionPaused) throw new AdmissionError("New waitlist requests are paused. Please try again later.");
     if (await tx.user.findUnique({ where: { email }, select: { id: true } }) ||
         await tx.referralAccessInvite.findFirst({ where: { recipientEmail: email, acceptedAt: null, revokedAt: null }, select: { id: true } })) return null;
     if (await tx.emailSuppression.findFirst({ where: { clearedAt: null, email, reason: { not: "INVITATION_OPTOUT" } }, select: { id: true } })) return null;
-    const entry = await tx.waitlistEntry.upsert({ where: { email }, create: { email }, update: {} });
+    const entry = await tx.waitlistEntry.upsert({ where: { email }, create: { email, marketingScenario: scenario, marketingScenarioVersion: scenario ? MARKETING_SCENARIO_VERSION : null }, update: {} });
     if (!(["WITHDRAWN", "SUPPRESSED"] as string[]).includes(entry.status) && (entry.verifiedAt || entry.status !== "WAITING")) return null;
+    // Only a pre-invitation entry reaches this line, so a later choice may still correct it.
+    if (scenario && entry.marketingScenario !== scenario) await tx.waitlistEntry.update({ where: { id: entry.id }, data: { marketingScenario: scenario, marketingScenarioVersion: MARKETING_SCENARIO_VERSION } });
     const token = randomBytes(32).toString("base64url");
     await tx.verificationToken.updateMany({ where: { email, purpose: AUTH_TOKEN_PURPOSES.waitlist, usedAt: null }, data: { usedAt: now } });
     await tx.verificationToken.create({ data: { email, purpose: AUTH_TOKEN_PURPOSES.waitlist, tokenHash: hashAuthToken(token), expiresAt: new Date(now.getTime() + 24 * 60 * 60_000) } });
@@ -66,17 +71,19 @@ async function reconcileWaitlist(tx: Prisma.TransactionClient) {
     WHERE w.status = 'WAITING' AND EXISTS (SELECT 1 FROM "ReferralAccessInvite" i WHERE i."recipientEmail" = w.email AND i."acceptedAt" IS NULL AND i."revokedAt" IS NULL)`;
 }
 
-async function grantWaitlistAccess(tx: Prisma.TransactionClient, entry: { id: string; email: string }, source: AccessInviteSource, now: Date, actorUserId?: string, reason?: string, waveId?: string) {
+async function grantWaitlistAccess(tx: Prisma.TransactionClient, entry: { id: string; email: string; marketingScenario?: string | null; marketingScenarioVersion?: number | null }, source: AccessInviteSource, now: Date, actorUserId?: string, reason?: string, waveId?: string) {
   const token = randomBytes(32).toString("base64url");
-  const invite = await tx.referralAccessInvite.create({ data: { recipientEmail: entry.email, source, waveId, tokenHash: hashAuthToken(token), tokenCiphertext: encryptIntegrationCredentials({ token }) } });
+  const scenarioDetails = storedMarketingScenario(entry.marketingScenario, entry.marketingScenarioVersion);
+  const scenario = scenarioDetails?.id ?? null;
+  const invite = await tx.referralAccessInvite.create({ data: { recipientEmail: entry.email, source, waveId, tokenHash: hashAuthToken(token), tokenCiphertext: encryptIntegrationCredentials({ token }), marketingScenario: scenario, marketingScenarioVersion: scenario ? MARKETING_SCENARIO_VERSION : null } });
   const url = new URL("/register", env.appUrl);
   url.searchParams.set("invite", token);
   await queueAccessInvitation(tx, {
     inviteId: invite.id,
     email: entry.email,
     subject: "Your invitation to Jump in the Mix",
-    text: `You’re invited to create your free Jump in the Mix account.\n\nOpen your personal invitation: ${url.href}\n\nUse the email address this was sent to. Once verified, you’ll have five invitations to share with your contacts through the System Mix.\n\nThis link is just for you and can be used once.`,
-    html: `<p>You’re invited to create your free Jump in the Mix account.</p><p><a href="${url.href}">Create your free account</a></p><p>Use the email address this was sent to. Once verified, you’ll have five invitations to share with your contacts through the System Mix.</p><p>This link is just for you and can be used once.</p>`,
+    text: `You’re invited to create your free Jump in the Mix account.\n\nOpen your personal invitation: ${url.href}\n\nUse the email address this was sent to. After verification, start with one person and review every follow-up before sending.${scenarioDetails ? ` Your ${scenarioDetails.label.toLowerCase()} starter will be ready to review.` : ""}\n\nThis link is just for you and can be used once.`,
+    html: `<p>You’re invited to create your free Jump in the Mix account.</p><p><a href="${url.href}">Create your free account</a></p><p>Use the email address this was sent to. After verification, start with one person and review every follow-up before sending.${scenarioDetails ? ` Your ${scenarioDetails.label.toLowerCase()} starter will be ready to review.` : ""}</p><p>This link is just for you and can be used once.</p>`,
     idempotencyKey: `waitlist-invite-${invite.id}`
   }, now);
   await tx.waitlistEntry.update({ where: { id: entry.id }, data: { status: "ACCESS_GRANTED", accessGrantedAt: now } });
@@ -120,7 +127,7 @@ export async function runDueWaitlistWave(now = new Date()) {
     for (const entry of fifo) await grantWaitlistAccess(tx, entry, "WAITLIST_FIFO", now, undefined, undefined, wave.id);
     // FIFO recipients are already removed from WAITING in this same locked transaction.
     // PostgreSQL samples across the full remaining pool, without loading it into memory.
-    const random = await tx.$queryRaw<Array<{ id: string; email: string }>>`SELECT id, email FROM "WaitlistEntry"
+    const random = await tx.$queryRaw<Array<{ id: string; email: string; marketingScenario: string | null; marketingScenarioVersion: number | null }>>`SELECT id, email, "marketingScenario", "marketingScenarioVersion" FROM "WaitlistEntry"
       WHERE status = 'WAITING' AND "verifiedAt" IS NOT NULL ORDER BY random() LIMIT ${WAITLIST_BATCH_HALF}`;
     for (const entry of random) await grantWaitlistAccess(tx, entry, "WAITLIST_RANDOM", now, undefined, undefined, wave.id);
     await tx.waitlistWave.update({ where: { id: wave.id }, data: { randomCount: random.length } });

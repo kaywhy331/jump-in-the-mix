@@ -15,13 +15,14 @@ type PublicEvent = {
 export function PublicConversionEvents() {
   const pathname = usePathname();
   useEffect(() => {
-    if (pathname !== "/" && pathname !== "/register") return;
+    const profession = pathname.startsWith("/for/") ? pathname.slice(5) : null;
+    if (pathname !== "/" && pathname !== "/register" && !profession) return;
     if (navigator.doNotTrack === "1" || (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl) return;
     let engaged = false;
     const emit = (event: PublicEvent) => window.dispatchEvent(new CustomEvent("jitm:conversion", {
-      detail: { ...event, version: "relationships-v1", viewport: matchMedia("(max-width: 760px)").matches ? "compact" : "wide" }
+      detail: { ...event, version: "relationships-v1", ...(profession ? { route: profession } : {}), viewport: matchMedia("(max-width: 760px)").matches ? "compact" : "wide" }
     }));
-    emit({ name: pathname === "/" ? "homepage_view" : "registration_view" });
+    emit({ name: pathname === "/register" ? "registration_view" : "homepage_view" });
     const engage = () => { if (!engaged) { engaged = true; emit({ name: "sample_engaged", placement: "sample" }); } };
     const click = (event: MouseEvent) => {
       const target = event.target instanceof Element ? event.target : null;

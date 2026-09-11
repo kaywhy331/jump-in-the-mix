@@ -15,7 +15,7 @@ vi.mock("@/lib/waitlist", () => ({
 }));
 vi.mock("@/lib/transactional-email", () => ({ transactionalEmailConfigured: mocks.configured, sendTransactionalEmail: mocks.send, escapeHtml: (v: string) => v }));
 import { inviteWaitlistSelectionAction, retryWaitlistDeliveryAction, setWaitlistScheduleAction } from "../src/lib/waitlist-admin-actions";
-import { confirmWaitlistAction, joinWaitlistAction } from "../src/lib/waitlist-actions";
+import { confirmWaitlistAction, joinWaitlistAction, joinWaitlistFormAction } from "../src/lib/waitlist-actions";
 function form(values: Record<string, string | string[]>) {
   const data = new FormData();
   for (const [key, value] of Object.entries(values)) for (const item of Array.isArray(value) ? value : [value]) data.append(key, item);
@@ -52,6 +52,20 @@ describe("waitlist server action boundaries", () => {
     expect(mocks.request).toHaveBeenCalledWith("person@example.test");
     expect(mocks.send.mock.calls[0][0]).toMatchObject({ to: "person@example.test", text: expect.stringContaining("/waitlist/confirm?token=") });
     expect(mocks.send.mock.calls[0][0].text).not.toContain("/register");
+  });
+  it("passes only an allowlisted scenario into a new request", async () => {
+    mocks.request.mockResolvedValue(null);
+    await expect(joinWaitlistAction(form({ email: "person@example.test", scenario: "painting" }))).rejects.toThrow("submitted=1");
+    expect(mocks.request).toHaveBeenCalledWith("person@example.test", "painting");
+    mocks.request.mockClear();
+    await expect(joinWaitlistAction(form({ email: "person@example.test", scenario: "painting?draft=private" }))).rejects.toThrow("submitted=1");
+    expect(mocks.request).toHaveBeenCalledWith("person@example.test");
+  });
+  it("returns an inline generic receipt and preserves entered email on a recoverable failure", async () => {
+    mocks.request.mockResolvedValue(null);
+    await expect(joinWaitlistFormAction({ status: "idle" }, form({ email: " PERSON@Example.test " }))).resolves.toMatchObject({ status: "submitted", email: "person@example.test" });
+    mocks.request.mockRejectedValueOnce(new Error("provider details must stay private"));
+    await expect(joinWaitlistFormAction({ status: "idle" }, form({ email: "person@example.test" }))).resolves.toEqual({ status: "error", email: "person@example.test", message: "We couldn’t submit that. Your email is still here—please try again." });
   });
   it("uses a generic receipt for an existing account or waitlist entry", async () => {
     mocks.request.mockResolvedValue(null);

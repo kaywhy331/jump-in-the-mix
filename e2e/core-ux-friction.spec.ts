@@ -44,7 +44,7 @@ test("Quick Add carries recognized fields into Contact and follow-up creation", 
   await expect(page).toHaveURL(/\/contacts\/new\?/);
   await expect(page.getByLabel("First name")).toHaveValue("Jordan");
   await expect(page.getByLabel("Last name")).toHaveValue("Lee");
-  await expect(page.getByLabel("Follow-up date")).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
+  await expect(page.locator('input[name="followUpDate"]')).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
   await expect(page.getByLabel("Reason")).toHaveValue("the proposal");
   await expect(page.getByRole("checkbox", { name: /Schedule a follow-up now/ })).toBeChecked();
   await expect(page.getByRole("button", { name: "Save & schedule follow-up" })).toBeVisible();
