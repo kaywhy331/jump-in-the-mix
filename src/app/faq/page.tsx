@@ -27,7 +27,7 @@ export default function FaqPage() {
     </header>
     <main id="main-content" tabIndex={-1}>
       <section className="section public-questions standalone" id="questions" aria-labelledby="questions-title">
-        <div className="section-heading"><span className="eyebrow">Your voice. Your choice.</span><h1 id="questions-title">A little clarity before you start.</h1><p>Thoughtful follow-ups should feel natural. You stay in control of the conversation.</p><p><Link href="/">Back to home</Link></p></div>
+        <div className="section-heading"><h1 id="questions-title">A little clarity before you start.</h1><p>Thoughtful follow-ups should feel natural. You stay in control of the conversation.</p><p><Link href="/">Back to home</Link></p></div>
         <div className="public-faq">
           <details><summary>Will Jump in the Mix be sending messages for me?</summary><p>You review your follow-ups and send them through your own messaging app by default. Automatic sending is optional and needs a connected provider. Personal invitations are emailed through the System Mix after you choose a contact and press Send.</p></details>
           <details id="your-data"><summary>How can I control my data?</summary><p>Keep contact details, notes, and follow-up history together. In Settings, open Data &amp; privacy to export your data or delete your account. Private notes stay out of text messages and emails.</p></details>

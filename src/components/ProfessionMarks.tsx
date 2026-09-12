@@ -23,7 +23,7 @@ export const PROFESSION_MARKS: { label: string; icon: ReactNode }[] = [
 
 export function ProfessionMarks() {
   return <section className="section profession-marks" aria-labelledby="professions-title">
-    <div className="section-heading"><span className="eyebrow">Relationship-driven work</span><h2 id="professions-title">Built for the people who follow up for a living.</h2><p>Whatever you do, the rhythm is the same: a conversation, a next step, and the words to say.</p></div>
+    <div className="section-heading"><h2 id="professions-title">Built for the people who follow up for a living.</h2><p>Whatever you do, the rhythm is the same: a conversation, a next step, and the words to say.</p></div>
     <ul className="profession-grid">{PROFESSION_MARKS.map(mark => <li key={mark.label}><span className="profession-icon">{mark.icon}</span><span>{mark.label}</span></li>)}</ul>
   </section>;
 }

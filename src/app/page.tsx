@@ -39,7 +39,6 @@ export default function HomePage() {
     <main id="main-content" tabIndex={-1}>
       <section className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">
-          <span className="eyebrow">Personal follow-ups, planned</span>
           <h1 id="hero-title">Know who to follow up with. <em>And what to say.</em></h1>
           <p>Keep customers, friends, and new connections in one place. Choose when to reach out, get a message to make your own, and pick up the conversation from your daily list.</p>
           <div className="hero-actions"><Link className="button primary" href="/waitlist">Join the waitlist</Link><a className="button" href="#sample" data-demo-trigger>Try the demo</a></div>

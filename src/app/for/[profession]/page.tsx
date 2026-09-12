@@ -43,7 +43,6 @@ export default async function ProfessionPage({ params }: { params: Promise<{ pro
     <main id="main-content" tabIndex={-1}>
       <section className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">
-          <span className="eyebrow">{persona.eyebrow}</span>
           <h1 id="hero-title">{persona.headline}</h1>
           <p>{persona.supporting}</p>
           <div className="hero-actions"><Link className="button primary" href="/waitlist">Join the waitlist</Link><a className="button" href="#sample" data-demo-trigger>Try the demo</a></div>

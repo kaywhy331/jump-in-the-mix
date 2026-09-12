@@ -12,7 +12,6 @@ export type Persona = {
   label: string;
   noun: string;
   navLabel: string;
-  eyebrow: string;
   headline: string;
   supporting: string;
   demoHeading: string;
@@ -24,7 +23,6 @@ const scenario = (id: MarketingScenarioId) => MARKETING_SCENARIOS.find(item => i
 export const PERSONAS: Persona[] = [
   {
     id: "real-estate", slug: scenario("real-estate").slug, label: "Real estate", navLabel: "Real Estate Agents", noun: "real estate agents",
-    eyebrow: "For independent real estate agents",
     headline: "You had a great conversation. Give it a next step.",
     supporting: "Stay connected with the people behind your business—without making every conversation feel like a campaign. Pick a mix below and make each message sound like you.",
     demoHeading: "Try a real estate mix",
@@ -57,7 +55,6 @@ export const PERSONAS: Persona[] = [
   },
   {
     id: "consulting", slug: scenario("consulting").slug, label: "Consulting", navLabel: "Consultants", noun: "independent consultants",
-    eyebrow: "For independent consultants",
     headline: "Your network shouldn’t go quiet when client work gets busy.",
     supporting: "Keep the context, plan the next step, and prepare a personal follow-up—without turning relationship maintenance into another project.",
     demoHeading: "Try a consulting mix",
@@ -89,7 +86,6 @@ export const PERSONAS: Persona[] = [
   },
   {
     id: "photography", slug: scenario("photography").slug, label: "Photography", navLabel: "Photographers", noun: "independent photographers",
-    eyebrow: "For independent photographers",
     headline: "You sent the pricing. Give the conversation a next step.",
     supporting: "Give your client relationships the same attention you give your work—before someone books, and after the gallery is delivered.",
     demoHeading: "Try a photography mix",
@@ -122,7 +118,6 @@ export const PERSONAS: Persona[] = [
   },
   {
     id: "painting", slug: scenario("painting").slug, label: "Contractors", navLabel: "Contractors", noun: "independent contractors",
-    eyebrow: "For independent contractors",
     headline: "You sent the estimate. Don’t lose track of the conversation.",
     supporting: "Keep the customer's context, your next step, and a message you can make your own together—from the truck, between jobs.",
     demoHeading: "Try a contractor mix",
@@ -156,7 +151,6 @@ export const PERSONAS: Persona[] = [
   },
   {
     id: "recruiting", slug: scenario("recruiting").slug, label: "Recruiting", navLabel: "Recruiters", noun: "independent recruiters",
-    eyebrow: "For independent recruiters",
     headline: "Stay connected with good people—even when there isn’t an open role.",
     supporting: "Personal follow-up for recruiters who build relationships, not just contact lists. Remember what you agreed, and follow through on it.",
     demoHeading: "Try a recruiting mix",
