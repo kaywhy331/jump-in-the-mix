@@ -20,6 +20,7 @@ import {
   shiftWeekend,
   type PersonalSchedulingRule
 } from "@/lib/personal-scheduling";
+import { minutesInTimezone, plannedStepApplies } from "@/lib/planned-step";
 
 const RECONCILIATION_UPDATE_STATUSES: JumpStatus[] = ["PENDING", "CANCELED"];
 const STALE_CANCELLATION_STATUSES: JumpStatus[] = ["PENDING"];
@@ -307,12 +308,31 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       }
 
       for (const trigger of triggers) {
+        let previousScheduledAt: Date | null = null;
         for (const mixStep of assignment.mix.steps) {
-          const originalLogicalDate = addLogicalDays(trigger.logicalDate, mixStep.dayOffset);
-          const scheduledLogicalDate = shiftWeekend(originalLogicalDate, personalRule.weekendScheduling);
-          const requestedMinutes = mixStep.sendTimeMinutes ?? trigger.timeMinutes ?? personalRule.defaultFollowUpMinutes;
-          const sendTimeMinutes = outsideQuietHours(requestedMinutes, personalRule.quietHoursStart, personalRule.quietHoursEnd);
-          const scheduledAt = zonedDateTimeToUtc(scheduledLogicalDate, sendTimeMinutes, trigger.timezone);
+          let originalLogicalDate: LogicalDate;
+          let scheduledLogicalDate: LogicalDate;
+          let sendTimeMinutes: number;
+          let scheduledAt: Date;
+          let occurrenceKey = trigger.occurrenceKey;
+          if (mixStep.plannedAt) {
+            // A planned beat goes out at its instant to everyone who has reached it or passed it by
+            // then; contacts still earlier in the mix wait. Weekend shifts and quiet hours do not
+            // move it, because the time is explicit.
+            if (!plannedStepApplies(previousScheduledAt, mixStep.plannedAt)) { previousScheduledAt = mixStep.plannedAt; continue; }
+            scheduledAt = mixStep.plannedAt;
+            scheduledLogicalDate = logicalDateInTimezone(scheduledAt, trigger.timezone);
+            originalLogicalDate = scheduledLogicalDate;
+            sendTimeMinutes = minutesInTimezone(scheduledAt, trigger.timezone);
+            occurrenceKey = `planned:${mixStep.id}`;
+          } else {
+            originalLogicalDate = addLogicalDays(trigger.logicalDate, mixStep.dayOffset);
+            scheduledLogicalDate = shiftWeekend(originalLogicalDate, personalRule.weekendScheduling);
+            const requestedMinutes = mixStep.sendTimeMinutes ?? trigger.timeMinutes ?? personalRule.defaultFollowUpMinutes;
+            sendTimeMinutes = outsideQuietHours(requestedMinutes, personalRule.quietHoursStart, personalRule.quietHoursEnd);
+            scheduledAt = zonedDateTimeToUtc(scheduledLogicalDate, sendTimeMinutes, trigger.timezone);
+          }
+          previousScheduledAt = scheduledAt;
           if (scheduledAt < horizonStart || scheduledAt > horizonEnd) continue;
 
           const localDateTime = scheduledLocalDateTimeKey(scheduledLogicalDate, sendTimeMinutes);
@@ -321,7 +341,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
             contactId: contact.id,
             mixId: assignment.mixId,
             mixStepId: mixStep.id,
-            occurrenceKey: trigger.occurrenceKey,
+            occurrenceKey,
             scheduledLocalDateTime: localDateTime,
             timezone: trigger.timezone
           });

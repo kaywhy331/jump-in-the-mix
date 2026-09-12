@@ -463,6 +463,8 @@ model MixStep {
   dayOffset       Int
   sortOrder       Int
   sendTimeMinutes Int?
+  // A planned beat goes out at one instant instead of a day offset from the trigger.
+  plannedAt       DateTime?
   isActive        Boolean     @default(true)
   mix             Mix         @relation(fields: [mixId], references: [id], onDelete: Cascade)
   stepVersion     StepVersion @relation(fields: [stepVersionId], references: [id], onDelete: Restrict)

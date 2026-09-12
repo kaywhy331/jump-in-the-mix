@@ -8,6 +8,7 @@ import { formatDateInput, formatTimeInput } from "@/lib/mix-broadcast";
 import { getPlatformStringList } from "@/lib/platform-settings";
 import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
+import { plannedAtInput } from "@/lib/planned-step";
 
 export const metadata: Metadata = { title: "Edit mix" };
 
@@ -96,7 +97,8 @@ export default async function EditMixPage({
             body: step.stepVersion.body,
             script: step.stepVersion.script,
             dayOffset: step.dayOffset,
-            sendTimeMinutes: step.sendTimeMinutes
+            sendTimeMinutes: step.sendTimeMinutes,
+            plannedAt: step.plannedAt ? plannedAtInput(step.plannedAt, timezone) : null
           }))
         }}
       />

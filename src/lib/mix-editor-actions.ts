@@ -10,6 +10,7 @@ import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/
 import { prisma } from "@/lib/prisma";
 import { startDraftMix } from "@/lib/mix-start";
 import { timezoneForUser } from "@/lib/display-preferences";
+import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
 
 const MAX_STEP_OFFSET_DAYS = 365;
 const CHANNELS: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
@@ -106,9 +107,10 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   const mixStepIds = values(formData, "mixStepId");
   const offsets = values(formData, "dayOffset");
   const sendTimes = values(formData, "sendTimeMinutes");
+  const plannedAts = values(formData, "plannedAt");
   const stepCount = offsets.length;
   if (!stepCount || stepCount > 50) fail(path, "Add between one and fifty beats to the mix.");
-  if ([mixStepIds, sendTimes].some((items) => items.length !== stepCount)) fail(path, "The beat sequence is incomplete. Reload and try again.");
+  if ([mixStepIds, sendTimes, plannedAts].some((items) => items.length !== stepCount)) fail(path, "The beat sequence is incomplete. Reload and try again.");
 
   const parsedOffsets = offsets.map((raw, index) => {
     const parsed = Number(raw);
@@ -125,6 +127,16 @@ export async function saveMixAction(formData: FormData): Promise<void> {
     const parsed = Number(raw);
     if (!Number.isInteger(parsed) || parsed < 0 || parsed > 1439) fail(path, `Beat ${index + 1} has an invalid local time.`);
     return parsed;
+  });
+  // A planned beat carries a wall-clock instant in the workspace timezone ("YYYY-MM-DDTHH:mm").
+  const parsedPlannedAts = plannedAts.map((raw, index) => {
+    if (!raw) return null;
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(raw);
+    if (!match) return fail(path, `Beat ${index + 1} has an invalid planned date.`);
+    const [year, month, day, hours, minutes] = match.slice(1).map(Number);
+    const at = zonedDateTimeToUtc({ year, month, day }, hours * 60 + minutes, workspaceTimezone);
+    if (Number.isNaN(at.getTime())) return fail(path, `Beat ${index + 1} has an invalid planned date.`);
+    return at;
   });
   const inlineActions = offsets.map((_, index) => validateInlineAction(formData, index, path));
 
@@ -215,10 +227,10 @@ export async function saveMixAction(formData: FormData): Promise<void> {
         const stepVersionId = version.id;
         if (existingStep && !existingStep.stepVersion.stepTemplate.isActive) replacedInternalTemplateIds.add(existingStep.stepVersion.stepTemplateId);
         if (existingStep) {
-          await tx.mixStep.update({ where: { id: existingStep.id }, data: { stepVersionId, dayOffset: parsedOffsets[index], sendTimeMinutes: parsedSendTimes[index], sortOrder: index + 1, isActive: true } });
+          await tx.mixStep.update({ where: { id: existingStep.id }, data: { stepVersionId, dayOffset: parsedOffsets[index], sendTimeMinutes: parsedSendTimes[index], plannedAt: parsedPlannedAts[index], sortOrder: index + 1, isActive: true } });
           retainedIds.add(existingStep.id);
         } else {
-          const created = await tx.mixStep.create({ data: { mixId, stepVersionId, dayOffset: parsedOffsets[index], sendTimeMinutes: parsedSendTimes[index], sortOrder: index + 1, isActive: true } });
+          const created = await tx.mixStep.create({ data: { mixId, stepVersionId, dayOffset: parsedOffsets[index], sendTimeMinutes: parsedSendTimes[index], plannedAt: parsedPlannedAts[index], sortOrder: index + 1, isActive: true } });
           retainedIds.add(created.id);
         }
       }

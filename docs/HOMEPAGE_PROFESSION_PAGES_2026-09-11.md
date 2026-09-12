@@ -109,7 +109,8 @@ covers that path on the live site.
 - **Planned dates.** Beats that reconnect on an agreed or seasonal date carry a "Planned date"
   picker in the demo and show "Planned <date>" on their header. The scheduling rule for the real
   engine — go out at the planned instant to every contact who has reached that beat or passed it —
-  is implemented and unit-tested in `src/lib/planned-step.ts`, but the engine wiring needs one
-  additive column and the test database's migration owner credential is not available from here.
-  It is parked, ready to apply, in `.artifacts/planned-dates-2026-09-11/`.
+  is implemented and unit-tested in `src/lib/planned-step.ts`. The engine wiring landed on
+  September 12 with the additive migration `20260911160000_mix_step_planned_at`; the editor's
+  "More tempo settings" carries an optional planned date per beat. The test site needs the
+  migration applied before the next deploy (see the readiness hand-off, step 6).
 - **Wider canvas.** The public pages' container grew from 1180px to 1340px, the hero gives the demo the larger column (`.86fr 1.14fr`), and the panel's cap rose from 620px to 760px. At 1440px the demo panel measures 705×750 instead of ~544×814 — broader and shorter. The signed-in app keeps its 1180px page width.
