@@ -221,7 +221,7 @@
     --on-brand: #ffffff;
     --brand-dark: #c7bfff;
     --brand-soft: #2c274d;
-    --beat-active-bg: #1c2740;
+    --beat-active-bg: #221f3d;
     --accent: #4bd6a8;
     --danger: #ff8c9a;
     --warning: #f1b866;
@@ -517,9 +517,10 @@
 .demo-rhythm .demo-scenario-description { margin-bottom: 8px; }
 .demo-beats { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .demo-beat { min-width: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); overflow: hidden; }
-/* The open beat is the one being worked: a light blue frame with a brand border so it reads as
-   the focus next to its neighbors, while its title stays a quiet gray and the beat number carries
-   the accent. Completed beats fade their title the same way. */
+/* The open beat is the one being worked: its frame takes a lighter step of the same tint the
+   selected mix button uses, with a brand border, so it reads as the focus next to its neighbors
+   while its title stays a quiet gray and the beat number carries the accent. Completed beats fade
+   their title the same way. */
 .demo-beat.open { border-color: var(--brand); background: var(--beat-active-bg); box-shadow: 0 0 0 1px var(--brand) inset, 0 8px 22px rgba(93, 76, 242, .16); }
 .demo-beat.done { border-color: #7fcfa4; }
 .demo-beat.open .demo-beat-toggle:hover { background: color-mix(in srgb, var(--brand) 10%, var(--beat-active-bg)); }

@@ -10,7 +10,7 @@
   --on-brand: #ffffff;
   --brand-dark: #4837ce;
   --brand-soft: #eeecff;
-  --beat-active-bg: #eaf3ff;
+  --beat-active-bg: #f5f4ff; /* the mix buttons' brand-soft tint, a step lighter */
   --accent: #18a879;
   --danger: #c6384a;
   --warning: #b36b00;
