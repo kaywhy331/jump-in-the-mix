@@ -108,3 +108,10 @@ RUN_HOSTED_LOAD_WEB_TESTS=true npx vitest run tests/hosted-load-fixture.integrat
 ```
 
 `DATABASE_URL` must point to an owned loopback `jitm_design_` test installation with database/role creation permission. The ordinary unit suite checks plan identities, query overrides, private-file permissions, expiration, fixture bounds and credential stripping. CI runs the lifecycle suite after preparing the standalone package and before switching its browser tests to restricted credentials. These checks establish tool behavior, not hosted performance.
+
+## September 12 follow-up: the completed-history cursor
+
+Local profiling on the documented fixture (five accounts, 5,000 contacts, 125,000 follow-ups) found why the completed-history view stayed over budget. Its cursor predicate, `scheduledAt < X OR (scheduledAt = X AND id < Y)`, is not a B-tree range, so PostgreSQL walked the workspace's whole DONE group as a heap filter on every request: the first-page "previous page" probe alone filtered 20,000 rows and read about 2,590 buffers. `withinGroup` in `src/lib/today-list.ts` now adds the inclusive bound the OR already implies (`scheduledAt >= X` after the cursor, `<= X` before it), so the scan starts at the cursor. Result sets, order and cursors are unchanged; the six database-backed cursor cases in `tests/today-list.integration.test.ts` pass.
+
+Measured locally with `EXPLAIN (ANALYZE, BUFFERS)` on the exact statements Prisma issues: the first-page probe fell from 2,590 buffers to 29, the last-page probe from 2,652 to 3, and a middle-cursor page from 1,416 to 29. An interleaved A/B of the full page's database work at five concurrent workers moved p95 from 443 ms to 152 ms on a fully cached local database. These are local numbers; the hosted workload above must be re-run to confirm the 3,000 ms budget on the 0.1-CPU database. No index change is needed; an optional `("workspaceId", "status", "scheduledAt", "id")` index would make the probes index-only but is not required.
+
