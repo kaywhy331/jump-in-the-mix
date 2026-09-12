@@ -18,6 +18,8 @@ The September 10 staging database contains migration `20260906010000_customer_jo
 
 ## Rollback
 
+September 12 staging publication (second): `6aa58fcb9e2cb90fb3a0a989` at https://jump-in-the-mix-test.netlify.app/ (commits `6bb1399`, `7207d03` and `984ab1c`: header eyebrows removed, Vitest loads the local .env, and the search and conversion strategy applied to the public pages). Prior published artifact: `6aa57261e275bbbe90c7c8da`. No migration; release check 50/0/0; the integrated deploy succeeded first time and live verification passed across 14 routes, now including the follow-up templates hub, the estimate and proposal template pages, the reminders page, the seven-question FAQ, the homepage how-it-works section and structured data, and the boundary note on every profession page.
+
 September 12 staging publication: `6aa57261e275bbbe90c7c8da` at https://jump-in-the-mix-test.netlify.app/ (commit `088948a`: profession marks laid out as two rows of six). Prior published artifact: `6aa4dc33fa3838738477bf8b`. No migration; release check 50/0/0; the integrated deploy succeeded first time and live verification passed, now including a desktop check that the profession grid renders two rows of six with "Coaches & trainers" and "And more" in the sixth column and no clipped label.
 
 September 11 staging publication (third): `6aa4dc33fa3838738477bf8b` at https://jump-in-the-mix-test.netlify.app/ (commit `b93605c`: eyebrow subtitles removed from the public pages). Prior published artifact: `6aa4cd3f2b404d1dac9d9b5f`. No migration; release check 50/0/0; the integrated deploy succeeded first time and live verification passed, now including a check that no eyebrow subtitle remains on `/`, `/faq` or the five profession routes.
