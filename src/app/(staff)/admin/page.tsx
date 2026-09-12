@@ -43,7 +43,7 @@ export default async function AdminPage() {
   ].filter(action => permissions.some(permission => permission === action.permission));
 
   return <div className="page admin-overview-page">
-    <header className="page-header"><div><p className="admin-eyebrow">Your workspace at a glance</p><h1>Admin · Overview</h1><p>The essentials, with a clear next step.</p></div><span className="admin-updated">Updated {formatDateTime(now, display)}</span></header>
+    <header className="page-header"><div><h1>Admin · Overview</h1><p>The essentials, with a clear next step.</p></div><span className="admin-updated">Updated {formatDateTime(now, display)}</span></header>
     <section className="admin-pulse" aria-label="Aggregate activity">
       {[{ label: "Accounts", value: users, note: "Total registered accounts" }, { label: "Follow-ups completed", value: completed, note: "Last 7 days" }, { label: "Confirmed waiting", value: waiting, note: "Verified people on the waitlist" }].map(metric => <div className="admin-pulse-item" key={metric.label}><span>{metric.label}</span><strong>{metric.value.toLocaleString("en-US")}</strong><small>{metric.note}</small></div>)}
     </section>

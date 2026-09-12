@@ -82,7 +82,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
           <Link className="button" href="/templates">Ready-made mixes</Link><Link className="button primary mobile-header-action" href="/mixes/new" aria-label="Create a mix"><AppIcon name="add"/><span className="mobile-action-label">Create a mix</span></Link>
         </div>
       </header>
-      <section className="card" aria-labelledby="system-mix-title"><p className="eyebrow">Your five personal invitations</p><h2 id="system-mix-title">Jump in the Mix System Mix</h2><p>Choose a contact, review your introduction, and send them unique access to a free account.</p><Link className="button primary" href="/mixes/system">Open System Mix</Link></section>
+      <section className="card" aria-labelledby="system-mix-title"><h2 id="system-mix-title">Jump in the Mix System Mix</h2><p>Choose a contact, review your introduction, and send them unique access to a free account.</p><Link className="button primary" href="/mixes/system">Open System Mix</Link></section>
       <div className="mix-filter-row">
         <form className="filter-bar mix-filter-bar" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search mixes" aria-label="Search mixes"/>{status && <input type="hidden" name="status" value={status}/>}<button className="sr-only" type="submit">Search mixes</button></form>
         <Sheet trigger={<button className={status ? "button filter-trigger active" : "button filter-trigger"} type="button"><AppIcon name="settings"/><span>Filter{status ? " 1" : ""}</span></button>} title="Filter mixes" description="Changes apply as soon as you choose them.">

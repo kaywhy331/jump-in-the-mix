@@ -19,7 +19,6 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
     <main className="onboarding-shell">
       <div className="onboarding-top"><Logo /><span className="setup-step">Your first follow-up</span></div>
       <section className="onboarding-card first-win-onboarding">
-        <span className="eyebrow">Start with one person</span>
         <h1>Jump in the mix.</h1>
         <p className="onboarding-intro">Who would you like to reconnect with? A customer, a friend, or someone you just met—start with one person.</p>
         {scenario && <p className="onboarding-intro">You tried the {scenario.label.toLowerCase()} example. Use its starter, choose another, or skip setup.</p>}

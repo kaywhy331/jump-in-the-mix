@@ -27,5 +27,5 @@ export default async function CustomerReviewPage({ params }: { params: Promise<{
   }
   const company = workspace.profile?.company || workspace.name;
   const firstName = contact.firstName?.trim() || contact.displayName.split(/\s+/)[0] || "there";
-  return <main className="review-page"><section className="review-card"><p className="eyebrow">A private check-in from {company}</p><h1>Hi {firstName}, how did we do?</h1><p>Your answer goes directly to {company}. It is not posted publicly.</p><ReviewFeedbackForm token={token} initialStatus={request.status === "READY" ? "OPENED" : request.status} initialRating={request.rating} reviewAvailable={Boolean(workspace.profile?.reviewUrl)} /></section></main>;
+  return <main className="review-page"><section className="review-card"><h1>Hi {firstName}, how did we do?</h1><p>Your answer goes directly to {company}. It is not posted publicly.</p><ReviewFeedbackForm token={token} initialStatus={request.status === "READY" ? "OPENED" : request.status} initialRating={request.rating} reviewAvailable={Boolean(workspace.profile?.reviewUrl)} /></section></main>;
 }

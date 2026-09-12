@@ -32,7 +32,7 @@ export default async function AdminTemplatesPage({ searchParams }: { searchParam
   const href = (next: number, visibility = status) => `/admin/templates?${new URLSearchParams({ ...(q ? { q } : {}), ...(visibility ? { status: visibility } : {}), sort, page: String(next) })}`;
 
   return <div className="page admin-library-page">
-    <header className="page-header"><div><p className="admin-eyebrow">Content library</p><h1>Ready-made mixes</h1><p>Find a mix, refine its content, and review it for publication.</p></div><Link className="button primary" href="/admin/templates/new">Create library draft</Link></header>
+    <header className="page-header"><div><h1>Ready-made mixes</h1><p>Find a mix, refine its content, and review it for publication.</p></div><Link className="button primary" href="/admin/templates/new">Create library draft</Link></header>
     <div className="admin-library-toolbar">
       <nav className="admin-content-tabs" aria-label="Library visibility">
         {[{ label: "All mixes", value: "", count: allCount }, { label: "Published", value: "APPROVED", count: published }, { label: "Drafts & hidden", value: "UNPUBLISHED", count: hidden }].map(tab => <Link key={tab.value} href={href(1, tab.value)} aria-current={status === tab.value ? "page" : undefined}>{tab.label}<span>{tab.count}</span></Link>)}

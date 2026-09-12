@@ -29,7 +29,7 @@ export default async function SystemMixPage({ searchParams }: { searchParams: Pr
     catch (error) { if (!(error instanceof SystemMixError)) throw error; contentProblem = error.message; }
   }
   return <div className="page">
-    <header className="page-header"><div><p className="eyebrow">Built-in networking mix</p><h1>{SYSTEM_MIX_NAME}</h1><p>Make a personal introduction. Share free access with someone already in your circle.</p></div><Link className="button" href="/jumps">Go to Today</Link></header>
+    <header className="page-header"><div><h1>{SYSTEM_MIX_NAME}</h1><p>Make a personal introduction. Share free access with someone already in your circle.</p></div><Link className="button" href="/jumps">Go to Today</Link></header>
     {params.welcome && <Notice type="success">Your setup is ready. Try your first networking mix, or go to Today for your follow-ups.</Notice>}
     {params.queued && <Notice type="success">Your invitation is queued. We’ll email your contact their personal link. You can check its status below.</Notice>}
     {params.sent && <Notice type="success">Your invitation was accepted by our email provider. Your contact can use the unique link in their email to create an account.</Notice>}
