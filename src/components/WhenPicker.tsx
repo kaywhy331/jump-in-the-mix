@@ -33,6 +33,8 @@ export type WhenPickerProps = {
   slotRange?: { startMinutes?: number; endMinutes?: number; stepMinutes?: number };
   hint?: string;
   className?: string;
+  // The user's saved BCP 47 locale; the formatters otherwise use one fixed locale so server and client match.
+  locale?: string;
 };
 
 type View = "date" | "time";
@@ -47,7 +49,7 @@ function monthOf(key: string, fallback: string): { year: number; month: number }
 
 const hasModifier = (event: KeyboardEvent) => event.altKey || event.ctrlKey || event.metaKey;
 
-export function WhenPicker({ label, date, time, onChange, variant = "sheet", dateName, timeName, minDate, noPast, disabled, quickSelect = true, availability, allowOverlap, slotRange, hint, className = "" }: WhenPickerProps) {
+export function WhenPicker({ label, date, time, onChange, variant = "sheet", dateName, timeName, minDate, noPast, disabled, quickSelect = true, availability, allowOverlap, slotRange, hint, className = "", locale }: WhenPickerProps) {
   const uid = useId();
   const withTime = time !== undefined;
   const [open, setOpen] = useState<View | null>(null);
@@ -121,17 +123,17 @@ export function WhenPicker({ label, date, time, onChange, variant = "sheet", dat
     onChange({ date: next, ...(withTime ? { time } : {}) });
     setFocusKey(null);
     if (withTime) {
-      setAnnouncement(`Date set to ${formatDateLong(next)}. Now choose a time.`);
+      setAnnouncement(`Date set to ${formatDateLong(next, locale)}. Now choose a time.`);
       focusOnView.current = true;
       setView("time");
     } else {
-      setAnnouncement(`Date set to ${formatDateLong(next)}.`);
+      setAnnouncement(`Date set to ${formatDateLong(next, locale)}.`);
       finish("date");
     }
   };
   const pickTime = (next: string) => {
     onChange({ date, time: next });
-    setAnnouncement(`Time set to ${formatTimeLabel(next)}${DATE_KEY.test(date) ? ` on ${formatDateLong(date)}` : ""}.`);
+    setAnnouncement(`Time set to ${formatTimeLabel(next, locale)}${DATE_KEY.test(date) ? ` on ${formatDateLong(date, locale)}` : ""}.`);
     finish("time");
   };
 
@@ -160,9 +162,9 @@ export function WhenPicker({ label, date, time, onChange, variant = "sheet", dat
     const next = new Date(Date.UTC(current.year, current.month - 1 + delta, 1));
     return { year: next.getUTCFullYear(), month: next.getUTCMonth() + 1 };
   });
-  const dateLabel = formatDateTrigger(date, today);
-  const timeLabel = withTime ? formatTimeLabel(time) : "";
-  const monthTitle = formatMonthTitle(cursor.year, cursor.month);
+  const dateLabel = formatDateTrigger(date, today, locale);
+  const timeLabel = withTime ? formatTimeLabel(time, locale) : "";
+  const monthTitle = formatMonthTitle(cursor.year, cursor.month, locale);
   const panelId = `${uid}-panel`;
   const hintId = `${uid}-hint`;
   const gridHelpId = `${uid}-grid-help`;
@@ -215,13 +217,13 @@ export function WhenPicker({ label, date, time, onChange, variant = "sheet", dat
         <strong aria-live="polite">{monthTitle}</strong>
         <button type="button" className="when-month-nav" aria-label="Next month" onClick={() => moveMonth(1)}><NextIcon /></button>
       </div>
-      <div className="when-weekdays" aria-hidden="true">{weekdayLabels().map((day, index) => <span key={index}>{day}</span>)}</div>
+      <div className="when-weekdays" aria-hidden="true">{weekdayLabels(locale).map((day, index) => <span key={index}>{day}</span>)}</div>
       <p className="sr-only" id={gridHelpId}>Use the arrow keys to move between days, Home and End for the ends of the week, and Page Up or Page Down to change the month.</p>
       <div className="when-grid" role="group" aria-label={`Days in ${monthTitle}`} aria-describedby={gridHelpId} onKeyDown={onGridKeyDown}>
         {cells.map(cell => <button type="button" key={cell.key} data-key={cell.key} tabIndex={cell.key === dayTabStop ? 0 : -1} className={`when-day${cell.inMonth ? "" : " outside"}${cell.key === today ? " today" : ""}`} aria-label={`${formatDateLong(cell.key)}${cell.key === today ? ", today" : ""}`} aria-pressed={cell.key === date} disabled={isPast(cell.key)} onClick={() => pickDate(cell.key)}>{cell.day}</button>)}
       </div>
     </div> : <div className="when-time-view">
-      <p className="when-time-heading">{DATE_KEY.test(date) ? formatDateLong(date) : "Choose a date first"}</p>
+      <p className="when-time-heading">{DATE_KEY.test(date) ? formatDateLong(date, locale) : "Choose a date first"}</p>
       {availability?.loading && <p className="when-legend" role="status">Checking your calendar…</p>}
       {availability?.error && <p className="when-legend" role="alert">{availability.error}</p>}
       <div className="when-slots" role="group" aria-label="Times" onKeyDown={onSlotsKeyDown}>
@@ -230,7 +232,7 @@ export function WhenPicker({ label, date, time, onChange, variant = "sheet", dat
           const taken = state?.state === "busy", buffered = state?.state === "buffer";
           const detail = taken ? `, taken by ${state?.title}` : buffered ? `, inside the buffer around ${state?.title}` : "";
           return <button type="button" key={slot} data-key={slot} tabIndex={slot === slotTabStop ? 0 : -1} className={`when-slot${taken ? " busy" : ""}${buffered ? " buffer" : ""}`} aria-pressed={slot === time} aria-label={`${formatTimeLabel(slot)}${detail}`} disabled={slotBlocked(slot)} onClick={() => pickTime(slot)}>
-            <span>{formatTimeLabel(slot)}</span>
+            <span>{formatTimeLabel(slot, locale)}</span>
             {(taken || buffered) && <small>{buffered ? `Buffer · ${state?.title}` : state?.title}</small>}
           </button>;
         })}

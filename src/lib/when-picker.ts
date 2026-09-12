@@ -107,22 +107,26 @@ export function timeSlots(range: { startMinutes?: number; endMinutes?: number; s
   return slots;
 }
 
-export function weekdayLabels(locale?: string, weekStartsOn = 0): string[] {
+// Formatting never falls back to the runtime's own locale: the server and the browser can differ,
+// and a differing trigger label is a hydration mismatch. Callers pass the user's saved locale.
+export const DEFAULT_WHEN_LOCALE = "en-US";
+
+export function weekdayLabels(locale: string = DEFAULT_WHEN_LOCALE, weekStartsOn = 0): string[] {
   const format = new Intl.DateTimeFormat(locale, { weekday: "narrow", timeZone: "UTC" });
   // 2026-09-06 is a Sunday.
   return Array.from({ length: 7 }, (_, index) => format.format(new Date(Date.UTC(2026, 8, 6 + ((index + weekStartsOn) % 7), 12))));
 }
 
-export function formatMonthTitle(year: number, month: number, locale?: string): string {
+export function formatMonthTitle(year: number, month: number, locale: string = DEFAULT_WHEN_LOCALE): string {
   return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(Date.UTC(year, month - 1, 1, 12)));
 }
 
-export function formatDateLong(key: DateKey, locale?: string): string {
+export function formatDateLong(key: DateKey, locale: string = DEFAULT_WHEN_LOCALE): string {
   return new Intl.DateTimeFormat(locale, { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }).format(utcNoon(key));
 }
 
 // "Today, Sep 11" · "Tomorrow, Sep 12" · "Tue, Oct 14" · "Tue, Oct 14, 2027" outside the current year.
-export function formatDateTrigger(key: DateKey, today?: DateKey | null, locale?: string): string {
+export function formatDateTrigger(key: DateKey, today?: DateKey | null, locale: string = DEFAULT_WHEN_LOCALE): string {
   if (!parseDateKey(key)) return "Choose a date";
   const sameYear = !today || key.slice(0, 4) === today.slice(0, 4);
   const short = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", timeZone: "UTC", ...(sameYear ? {} : { year: "numeric" }) }).format(utcNoon(key));
@@ -132,7 +136,7 @@ export function formatDateTrigger(key: DateKey, today?: DateKey | null, locale?:
   return `${weekday}, ${short}`;
 }
 
-export function formatTimeLabel(time: TimeKey, locale?: string): string {
+export function formatTimeLabel(time: TimeKey, locale: string = DEFAULT_WHEN_LOCALE): string {
   if (!TIME_KEY.test(time)) return "Choose a time";
   const [hours, minutes] = time.split(":").map(Number);
   return new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 1, hours, minutes)));

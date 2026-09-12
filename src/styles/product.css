@@ -231,6 +231,8 @@
     --shadow-md: 0 14px 38px rgba(0, 0, 0, .36);
     --status-success-bg: #15382f;
     --status-success-ink: #83e2c1;
+    --success-ink: #83e2c1;
+    --success-soft: #15382f;
     --status-danger-bg: #42232b;
     --status-danger-ink: #ffadb7;
   }
@@ -319,7 +321,13 @@
   .contact-select-row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 16px; padding: 14px; }
   .contact-select-row.selection-mode { grid-template-columns: 44px minmax(0, 1fr) auto; }
   .contact-relationship-state { display: none; }
-  .contact-row .table-actions { grid-column: auto; }
+  /* Outside selection mode the row has two children for its two columns; the selection control
+     only appears in selection mode, and the actions collapse to the single menu trigger. */
+  .contact-select-row:not(.selection-mode) .contact-select-control { display: none; }
+  .contact-row .table-actions { grid-column: auto; width: 44px; display: block; }
+  .contact-row .table-actions > .button { display: none; }
+  .contact-row-menu > summary { width: 44px !important; height: 44px; padding: 0; color: transparent; font-size: 0 !important; }
+  .contact-row-menu > summary::after { content: "⋯"; color: var(--ink); font-size: 1.25rem; line-height: 1; }
   .contact-mobile-meta { display: block; color: var(--muted); }
   .mix-card { padding: 16px; gap: 8px; }
   .mix-card .card-header { display: flex; align-items: center; gap: 16px; margin: 0; }

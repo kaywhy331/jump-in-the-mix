@@ -18,7 +18,7 @@ function initialDuration(entry: Entry | undefined): Duration {
   return (DURATIONS as readonly number[]).includes(minutes) ? minutes as Duration : "custom";
 }
 
-export function CalendarEntryForm({ contacts, contactId = "", timezone, date, entry }: { contacts: Array<{ id: string; displayName: string }>; contactId?: string; timezone: string; date: string; entry?: Entry }) {
+export function CalendarEntryForm({ contacts, contactId = "", timezone, date, entry, locale }: { contacts: Array<{ id: string; displayName: string }>; contactId?: string; timezone: string; date: string; entry?: Entry; locale?: string }) {
   const starts = splitLocal(entry?.startsAt ?? "") ?? { date, time: "09:00" };
   const [values, setValues] = useState({ title: entry?.title ?? "", kind: entry?.kind ?? "MEETING", contactId: entry?.contactId ?? contactId, date: starts.date, time: starts.time, duration: initialDuration(entry), customEnd: entry?.endsAt ?? `${date}T09:30`, timezone, allowOverlap: false });
   const [availability, setAvailability] = useState<WhenAvailability | null>(null);
@@ -49,7 +49,7 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
     <label className="field full"><span>Title</span><input name="title" maxLength={160} value={values.title} onChange={event => update("title", event.target.value)} placeholder="For example, Discovery call or Focus time" required /></label>
     <label className="field"><span>Event type</span><select name="kind" value={values.kind} onChange={event => update("kind", event.target.value)}><option value="MEETING">Meeting</option><option value="BLOCK">Time block</option></select></label>
     <label className="field"><span>Contact (optional)</span><select name="contactId" value={values.contactId} onChange={event => update("contactId", event.target.value)}><option value="">No contact</option>{contacts.map(contact => <option value={contact.id} key={contact.id}>{contact.displayName}</option>)}</select></label>
-    <div className="field full"><span className="field-label">Starts</span><WhenPicker label="Starts" date={values.date} time={values.time} availability={availability ?? undefined} allowOverlap={values.allowOverlap} onChange={next => setValues(current => ({ ...current, date: next.date, time: next.time ?? current.time }))} /></div>
+    <div className="field full"><span className="field-label">Starts</span><WhenPicker label="Starts" locale={locale} date={values.date} time={values.time} availability={availability ?? undefined} allowOverlap={values.allowOverlap} onChange={next => setValues(current => ({ ...current, date: next.date, time: next.time ?? current.time }))} /></div>
     <div className="field full when-duration"><span className="field-label">How long</span>
       <div className="when-chips" role="group" aria-label="How long">{DURATIONS.map(minutes => <button type="button" key={minutes} className="when-chip" aria-pressed={values.duration === minutes} onClick={() => update("duration", minutes)}>{formatDurationLabel(minutes)}</button>)}<button type="button" className="when-chip" aria-pressed={values.duration === "custom"} onClick={() => update("duration", "custom")}>Custom end</button></div>
       {values.duration === "custom" ? <label className="when-duration-custom"><span className="sr-only">Ends</span><input type="datetime-local" aria-label="Ends" value={values.customEnd} onChange={event => update("customEnd", event.target.value)} required /></label> : <p className="when-ends-summary">{endSummary}</p>}

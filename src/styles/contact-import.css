@@ -2,13 +2,13 @@
 .import-contacts-page { padding-bottom: 110px; }
 .import-wizard { display: grid; gap: 18px; }
 .import-stepper { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
-.import-stepper li { min-width: 0; min-height: 58px; padding: 8px; border: 1px solid var(--line); border-radius: 13px; background: white; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.import-stepper li { min-width: 0; min-height: 58px; padding: 8px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); color: var(--muted); display: flex; align-items: center; gap: 8px; }
 .import-stepper li > span { width: 30px; height: 30px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: var(--surface-soft); font-size: .76rem; font-weight: 850; }
 .import-stepper li strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: .78rem; }
-.import-stepper li.active { border-color: #9f92ff; color: var(--brand-dark); background: #fbfaff; }
-.import-stepper li.active > span { background: var(--brand); color: white; }
-.import-stepper li.complete { color: #0d7758; }
-.import-stepper li.complete > span { background: #e8f8f1; color: #0d7758; }
+.import-stepper li.active { border-color: var(--brand); color: var(--brand-dark); background: var(--brand-soft); }
+.import-stepper li.active > span { background: var(--brand); color: var(--on-brand); }
+.import-stepper li.complete { color: var(--success-ink); }
+.import-stepper li.complete > span { background: var(--success-soft); color: var(--success-ink); }
 
 .import-stage { display: grid; gap: 18px; padding: 22px; }
 .import-stage-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
@@ -67,7 +67,7 @@
 .import-result-list { display: grid; gap: 7px; }
 .import-result-list > div { display: grid; grid-template-columns: 90px 1fr; gap: 10px; padding: 9px; border-radius: 10px; background: var(--surface-soft); }
 .import-result-list span { color: var(--muted); }
-.contact-import-shortcut { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: white; }
+.contact-import-shortcut { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .contact-import-shortcut span { color: var(--muted); }
 .empty-state.compact { min-height: 160px; }
 
@@ -79,8 +79,10 @@
 
 @media (max-width: 680px) {
   .import-contacts-page { padding-bottom: 126px; }
-  .import-stepper { display: flex; overflow-x: auto; padding-bottom: 3px; }
-  .import-stepper li { min-width: 112px; min-height: 50px; }
+  /* Three steps fit across a phone; a grid wraps rather than scrolling sideways, so there is no scroll region to reach by keyboard. */
+  .import-stepper { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .import-stepper li { min-height: 50px; padding: 6px; gap: 6px; }
+  .import-stepper li strong { white-space: normal; overflow-wrap: anywhere; }
   .import-stage { padding: 16px; }
   .import-stage-heading { display: grid; }
   .import-stage-heading .button { width: 100%; }

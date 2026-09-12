@@ -11,6 +11,8 @@
   --brand-dark: #4837ce;
   --brand-soft: #eeecff;
   --beat-active-bg: #f5f4ff; /* the mix buttons' brand-soft tint, a step lighter */
+  --success-ink: #0d7758;
+  --success-soft: #e8f8f1;
   --accent: #18a879;
   --danger: #c6384a;
   --warning: #b36b00;
