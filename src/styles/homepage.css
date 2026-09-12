@@ -201,15 +201,17 @@
 .mixes-for a:hover { border-color: var(--brand); color: var(--brand-dark); }
 .mixes-for a[aria-current="page"] { color: var(--brand-dark); border-color: var(--brand); background: var(--brand-soft); }
 .profession-marks .section-heading p { max-width: 52ch; }
-/* Five marks per row wherever they fit; the last row holds "And more". */
-.profession-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 28px 0 0; padding: 0; list-style: none; }
+/* Two rows of six on desktop; "Coaches & trainers" ends the first row and "And more" the second. */
+.profession-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin: 28px 0 0; padding: 0; list-style: none; }
 .profession-grid li { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); font-weight: 650; font-size: .875rem; }
 .profession-grid li > span:last-child { min-width: 0; overflow-wrap: normal; word-break: normal; hyphens: manual; }
 .profession-icon { width: 34px; height: 34px; flex-shrink: 0; display: grid; place-items: center; border-radius: 10px; color: var(--brand-dark); background: var(--brand-soft); }
 .profession-icon svg { width: 20px; height: 20px; }
 .public-footer .public-trust-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; margin-top: 10px; }
 @media (max-width: 600px) { .mixes-for { gap: 6px 8px; font-size: .8125rem; } .mixes-for a { min-height: 34px; padding: 0 10px; } }
-@media (max-width: 900px) { .profession-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; } }
+/* Mid-size screens keep the two rows by tightening the tiles; below that the grid drops to four across. */
+@media (max-width: 1200px) { .profession-grid { gap: 8px; } .profession-grid li { gap: 8px; padding: 8px 10px; font-size: .8125rem; } .profession-icon { width: 30px; height: 30px; border-radius: 9px; } .profession-icon svg { width: 18px; height: 18px; } }
+@media (max-width: 1040px) { .profession-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .profession-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .profession-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 400px) { .profession-grid { grid-template-columns: 1fr; } }
