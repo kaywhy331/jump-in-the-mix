@@ -31,7 +31,14 @@ export function todayCursor(item: { id: string; status: string; scheduledAt: Dat
 function withinGroup(cursor: Cursor, direction: Direction): Prisma.JumpWhereInput {
   const comparison = direction === "after" ? "gt" : "lt";
   const scheduledAt = new Date(cursor.scheduledAt);
-  return { OR: [{ scheduledAt: { [comparison]: scheduledAt } }, { scheduledAt, id: { [comparison]: cursor.id } }] };
+  // The OR alone is only a row filter, so an ordered scan walks every record on
+  // the far side of the cursor before it can stop; the empty first/last-page
+  // probe then reads a whole populated history group. The inclusive bound is
+  // implied by the OR and lets the planner start the scan at the cursor.
+  return { AND: [
+    { scheduledAt: { [direction === "after" ? "gte" : "lte"]: scheduledAt } },
+    { OR: [{ scheduledAt: { [comparison]: scheduledAt } }, { scheduledAt, id: { [comparison]: cursor.id } }] }
+  ] };
 }
 
 const select = {
