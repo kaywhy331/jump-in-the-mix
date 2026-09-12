@@ -84,6 +84,10 @@ The follow-up date and time picker added on September 11 is the newest interacti
 - Automated evidence (September 11, local dev server): `e2e/product-demo.spec.ts` now includes the keyboard journey above on desktop and Pixel 7, the 44px target check for the handoff row and the picker's closed, date and time states on Pixel 7, and the 320/390/768/1440 axe scan covering the open date view and time view as well as the closed beat: 20 passed, 2 project-specific skips. `e2e/homepage-conversion.spec.ts` and `e2e/profession-pages.spec.ts`: 11 passed. Unit: `tests/when-picker.test.ts` (keyboard target helpers), `tests/product-demo.test.ts` and `tests/calendar-availability.test.ts`: 25 passed. Typecheck and the production build passed.
 - Still open for P5.2: an actual screen-reader session (VoiceOver, NVDA or TalkBack) over selection, editor, preview, dates, form errors and recovery. The app-side sheet variant of the picker shares this code, but its browser journeys (`customer-journey`, `sheet-interactions`) need the seeded database and were not run here. The demo's recorded-time editor, the onboarding follow-up date and the broadcast date fields still use native inputs.
 
+### September 11 staging publication
+
+Commit `594a1bb` is published to the test site as deploy `6aa4abe3b05d02176f9629c1`; see the [release notes](HOMEPAGE_RELEASE_AND_ROLLBACK_2026-09-10.md#rollback) for the migration, rollback target and live verification receipt.
+
 ### External inputs still needed
 
 - Both Joanna Wiebe files were supplied and reviewed later on September 10. The missing-source dependency is closed; the [copy matrix reconciliation](HOMEPAGE_COPY_AND_CLAIM_MATRIX_2026-09-10.md#supplied-source-reconciliation) records remaining editorial and validation work before final copy acceptance.
