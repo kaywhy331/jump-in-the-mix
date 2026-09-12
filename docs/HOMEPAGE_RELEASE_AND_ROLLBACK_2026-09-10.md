@@ -18,6 +18,8 @@ The September 10 staging database contains migration `20260906010000_customer_jo
 
 ## Rollback
 
+September 12 staging publication: `6aa57261e275bbbe90c7c8da` at https://jump-in-the-mix-test.netlify.app/ (commit `088948a`: profession marks laid out as two rows of six). Prior published artifact: `6aa4dc33fa3838738477bf8b`. No migration; release check 50/0/0; the integrated deploy succeeded first time and live verification passed, now including a desktop check that the profession grid renders two rows of six with "Coaches & trainers" and "And more" in the sixth column and no clipped label.
+
 September 11 staging publication (third): `6aa4dc33fa3838738477bf8b` at https://jump-in-the-mix-test.netlify.app/ (commit `b93605c`: eyebrow subtitles removed from the public pages). Prior published artifact: `6aa4cd3f2b404d1dac9d9b5f`. No migration; release check 50/0/0; the integrated deploy succeeded first time and live verification passed, now including a check that no eyebrow subtitle remains on `/`, `/faq` or the five profession routes.
 
 September 11 staging publication (second): `6aa4cd3f2b404d1dac9d9b5f` at https://jump-in-the-mix-test.netlify.app/ (commit `55428d2`: open-beat frame on the mix buttons' tint). Prior published artifact: `6aa4abe3b05d02176f9629c1`. No migration. Two integrated `netlify deploy` runs were cancelled by the CLI after Netlify's file-upload endpoint answered 422 "no records matched"; the CLI does not retry a 422. The finished build was then published with the guide's two-step form, `netlify deploy --prod --site <test id> --no-build --dir .netlify/static --skip-functions-cache`, on the first attempt, and live verification passed (all routes, 13 assets, readiness 200, the new tint, the picker, the FAQ answers).
