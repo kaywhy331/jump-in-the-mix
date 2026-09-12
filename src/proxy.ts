@@ -11,6 +11,7 @@ const IMPERSONATION_END_PATH = "/api/admin/impersonation/end";
 const isProduction = process.env.NODE_ENV === "production";
 const RECOVERY_PUBLIC_PATHS = new Set([
   "/", "/faq", "/for/real-estate-agents", "/for/consultants", "/for/photographers", "/for/contractors", "/for/independent-recruiters",
+  "/follow-up-templates", "/follow-up-templates/estimate-follow-up", "/follow-up-templates/proposal-follow-up", "/features/follow-up-reminders",
   "/api/health/live", "/api/health/ready", "/api/health/recovery-boundary", "/sw.js", "/favicon.ico", "/favicon.png",
   "/brand-logo.png", "/relationship-preview.svg", "/relationship-preview.png", "/icon-source.svg",
   "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png", "/apple-touch-icon.png",

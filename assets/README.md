@@ -7,6 +7,7 @@ Use these sources for homepage, profession-page, onboarding, copywriting and mar
 | Source | Use |
 | --- | --- |
 | [Homepage UI/UX and conversion blueprint](jump-in-the-mix-homepage-ui-ux-blueprint.md) | Creative concept, five chapters, profession routes, sandbox, access journey and media requirements. |
+| [Brand, search and conversion strategy](Jump_in_the_Mix_Brand_Search_Conversion_Strategy.md) | Search category, brand language, homepage and page briefs, SEO contract, AI-search discoverability and measurement. Proposed strategy; what was applied is recorded in [the September 12 implementation record](../docs/SEARCH_STRATEGY_IMPLEMENTATION_2026-09-12.md). |
 | [Maya — real estate](<ICP - Real Estate Agent - Maya Bennet.md>) | Agreed future timing, dependable personal follow-through, a small daily routine. The filename uses Bennet; the profile spells Bennett. |
 | [Daniel — independent operations consultant](<ICP - Independent Operations Consultant - Daniel Mercer.md>) | Keeping future-client conversations alive during current client delivery. |
 | [Elena — photographer](<ICP - Photographer - Elena Brooks.md>) | Unfinished pricing conversations and appropriate continuity before/after a project. |

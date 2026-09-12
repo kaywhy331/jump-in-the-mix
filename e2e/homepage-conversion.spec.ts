@@ -41,7 +41,7 @@ test("sample link, signup paths, FAQ, and public accessibility work in both them
     await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Know who to follow up with. And what to say." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "You meant to follow up. Then work happened." })).toBeVisible();
     await page.getByRole("link", { name: "Try the demo", exact: false }).click();
     await expect(page).toHaveURL(/#sample$/);
     const sampleTop = await page.locator(".product-demo").evaluate(element => element.getBoundingClientRect().top);
@@ -67,10 +67,10 @@ test("sample link, signup paths, FAQ, and public accessibility work in both them
   }
 });
 
-test("homepage metadata describes the relationship product and exposes a real sharing image", async ({ page, request }) => {
+test("homepage metadata describes the client follow-up app and exposes a real sharing image", async ({ page, request }) => {
   await page.goto("/");
-  await expect(page).toHaveTitle(/Know who to follow up with\. And what to say\./);
-  await expect(page.locator('meta[property="og:description"]')).toHaveAttribute("content", /relationships that matter/);
+  await expect(page).toHaveTitle(/^Client Follow-Up App \| Jump in the Mix$/);
+  await expect(page.locator('meta[property="og:description"]')).toHaveAttribute("content", /client follow-up plans/);
   const image = await request.get("/relationship-preview.png");
   expect(image.status()).toBe(200);
   expect(image.headers()["content-type"]).toContain("image/png");

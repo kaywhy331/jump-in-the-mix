@@ -22,7 +22,7 @@
 .hero-audiences svg { width: 17px; height: 17px; color: var(--brand-dark); }
 .hero-audiences a { color: var(--ink); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 .hero-audiences a:hover { color: var(--brand-dark); }
-.public-page .hero-note { margin-top: 12px; font-size: .8125rem !important; }
+.public-page .hero-note { margin-top: 12px; color: var(--muted); font-size: .8125rem !important; }
 .public-page .section { padding-block: 64px; }
 .public-page .section-heading .eyebrow { margin-bottom: 18px; }
 .public-page .section-heading h2 { font-size: clamp(1.875rem, 3.3vw, 2.625rem); line-height: 1.12; max-width: 23ch; }
@@ -114,6 +114,55 @@
 .public-closing-action { display: grid; justify-items: start; flex-shrink: 0; gap: 14px; }
 .public-closing-action > span { color: var(--muted); font-size: .8125rem; }
 .public-page .public-footer { text-align: left; border-top: 0; }
+/* The tagline keeps a readable width; when the longer link row no longer fits beside it, the row wraps beneath. */
+.public-page .public-footer > p { flex: 1 1 22ch; min-width: 22ch; }
+
+/* How it works: the three steps beside a card that keeps the objection and the plain definition. */
+.public-page .public-workflow { border-top: 1px solid var(--line); }
+.public-page .public-workflow .section-heading { margin-bottom: 28px; }
+.public-definition { padding: 28px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow-md); }
+.public-definition h2 { margin: 0 0 12px; font-size: 1.375rem; line-height: 1.25; letter-spacing: -.03em; }
+.public-definition p { margin: 0 0 14px; color: var(--muted); line-height: 1.65; }
+.public-definition-links { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0; }
+.public-definition-links a, .public-related-links a { color: var(--brand-dark); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+/* Profession marks with a page of their own are links; the tile stays the same size and shape. */
+.profession-grid li > a { display: flex; align-items: center; gap: inherit; width: 100%; color: inherit; text-decoration: none; }
+.profession-grid li:has(> a):hover { border-color: var(--brand); }
+.profession-grid li:has(> a:focus-visible) { outline: 2px solid var(--brand); outline-offset: 2px; }
+.profession-grid li > a:focus-visible { outline: none; }
+/* The boundary note and related links beneath a profession hero. */
+.public-page .public-route-notes { border-top: 1px solid var(--line); padding-block: 40px; }
+.public-page .public-route-notes .section-heading { margin-bottom: 18px; }
+.public-related-links { display: flex; flex-wrap: wrap; gap: 10px 24px; margin: 0; padding: 0; list-style: none; }
+/* Template and feature pages: one readable article with copyable examples. */
+.public-page .public-article { max-width: 880px; }
+.public-article .section-heading { max-width: none; margin-bottom: 28px; }
+.public-article .section-heading h1 { margin: 0 0 12px; font-size: clamp(2.125rem, 3.8vw, 3rem); line-height: 1.1; letter-spacing: -.045em; max-width: 22ch; }
+.public-article-deck { color: var(--brand-dark); font-weight: 650; font-size: 1.125rem; }
+.public-article h2 { margin: 40px 0 12px; font-size: 1.5rem; line-height: 1.25; letter-spacing: -.03em; }
+.public-article h3 { margin: 28px 0 8px; font-size: 1.125rem; line-height: 1.3; }
+.public-article p, .public-article li { line-height: 1.7; }
+.public-article > p, .public-article section > p { margin: 0 0 14px; max-width: 68ch; }
+.public-article ul, .public-article ol { margin: 0 0 14px; padding-left: 22px; }
+.public-article li + li { margin-top: 6px; }
+.template-example { margin: 14px 0 22px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.template-example blockquote { margin: 0; }
+.template-example p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.template-example .template-subject { margin: 0 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-weight: 650; font-size: .9375rem; }
+.template-example-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; }
+.template-example-actions .button { min-height: 40px; font-size: .875rem; }
+.template-example-actions [role="status"] { color: var(--muted); font-size: .8125rem; }
+.public-article-cta { margin-top: 40px; padding: 26px 28px; border-radius: 20px; background: var(--brand-soft); }
+.public-article-cta h2 { margin: 0 0 10px; }
+.public-article-cta p { margin: 0 0 16px; max-width: 60ch; }
+.public-article-cta small { display: block; margin-top: 10px; color: var(--muted); font-size: .8125rem; }
+.public-article-related { margin-top: 36px; }
+.public-article-related h2 { font-size: 1.125rem; margin-bottom: 10px; }
+.public-article-note { color: var(--muted); font-size: .9375rem; }
+.template-hub .relationship-use-cases { margin-top: 8px; }
+.template-hub .relationship-use-cases h3 { margin-top: 16px; }
+.template-hub .relationship-use-cases h3 a { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+.template-hub .relationship-use-cases h3 a:hover { color: var(--brand-dark); }
 .public-page .public-footer nav { flex-wrap: wrap; gap: 12px 24px; }
 
 @media (max-width: 1000px) {
@@ -128,6 +177,8 @@
   .public-site-nav { gap: 12px; }
   .public-site-nav .public-section-link { display: none; }
   .public-page .public-workflow, .public-page .public-questions { grid-template-columns: 1fr; gap: 28px; }
+  .public-definition { padding: 22px; border-radius: 18px; }
+  .public-article-cta { padding: 20px; }
   .public-page .public-questions .section-heading { margin-bottom: 0; }
   .relationship-use-cases { grid-template-columns: 1fr; gap: 28px; }
   .relationship-use-cases article { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px 16px; }

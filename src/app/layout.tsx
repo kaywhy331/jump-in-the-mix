@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     default: "Jump in the Mix",
     template: "%s | Jump in the Mix"
   },
-  description: "A phone-first CRM that keeps small-business follow-ups moving.",
+  description: "A client follow-up app for independent professionals: follow-up plans, message templates, and reminders you review and send yourself.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [{ url: "/favicon.png?v=4", sizes: "32x32", type: "image/png" }],

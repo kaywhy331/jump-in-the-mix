@@ -28,4 +28,6 @@ export function publicIndexOrigin(source: PublicTrustEnvironment = process.env):
   } catch { return null; }
 }
 
-export const PUBLIC_DOCUMENT_PATHS = ["/", "/for/real-estate-agents", "/for/consultants", "/for/photographers", "/for/contractors", "/for/independent-recruiters", "/faq", "/privacy", "/terms", "/contact"] as const;
+// One canonical URL per public intent: the homepage, the profession routes, the template and
+// feature pages, the questions and the policies. Demo states and the waitlist are not listed.
+export const PUBLIC_DOCUMENT_PATHS = ["/", "/for/real-estate-agents", "/for/consultants", "/for/photographers", "/for/contractors", "/for/independent-recruiters", "/follow-up-templates", "/follow-up-templates/estimate-follow-up", "/follow-up-templates/proposal-follow-up", "/features/follow-up-reminders", "/faq", "/privacy", "/terms", "/contact"] as const;

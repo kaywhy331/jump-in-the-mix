@@ -15,6 +15,15 @@ export type Persona = {
   headline: string;
   supporting: string;
   demoHeading: string;
+  // The search strategy's per-route copy: a descriptive page title, a description, the demo call
+  // to value, one brand-support line, the honest boundary, and the template pages this profession
+  // links to (only pages that exist).
+  seoTitle: string;
+  description: string;
+  demoCta: string;
+  supportLine: string;
+  boundary: string;
+  templates: { href: string; label: string }[];
   mixes: PersonaMix[];
 };
 
@@ -23,9 +32,15 @@ const scenario = (id: MarketingScenarioId) => MARKETING_SCENARIOS.find(item => i
 export const PERSONAS: Persona[] = [
   {
     id: "real-estate", slug: scenario("real-estate").slug, label: "Real estate", navLabel: "Real Estate Agents", noun: "real estate agents",
-    headline: "You had a great conversation. Give it a next step.",
-    supporting: "Stay connected with the people behind your business—without making every conversation feel like a campaign. Pick a mix below and make each message sound like you.",
+    headline: "“Not yet” still deserves a next step.",
+    supporting: "Set a plan for the buyers and past clients you mean to check back with, instead of hoping the conversation resurfaces. Choose the timing, review the draft, and keep each message personal.",
     demoHeading: "Try a real estate mix",
+    seoTitle: "Real Estate Follow-Up App",
+    description: "Plan buyer and past-client check-ins without leaving them to memory. Choose the timing, review the draft, and keep each conversation personal.",
+    demoCta: "Try a buyer check-in",
+    supportLine: "Stay in the mix until the timing fits.",
+    boundary: "A follow-up planning tool for the people you already know. It is not an MLS feed, a brokerage CRM, or automatic lead response.",
+    templates: [],
     mixes: [
       {
         id: "not-ready", label: "Not ready yet", description: "A prospect who is interested but not ready · Reconnect at the timing they asked for.",
@@ -55,10 +70,24 @@ export const PERSONAS: Persona[] = [
   },
   {
     id: "consulting", slug: scenario("consulting").slug, label: "Consulting", navLabel: "Consultants", noun: "independent consultants",
-    headline: "Your network shouldn’t go quiet when client work gets busy.",
-    supporting: "Keep the context, plan the next step, and prepare a personal follow-up—without turning relationship maintenance into another project.",
+    headline: "Client work fills the day. Proposal follow-up still needs a place.",
+    supporting: "Give proposals and past-client check-ins a place in your week, with simple plans and messages you can make your own. Nothing goes out until you’ve reviewed it.",
     demoHeading: "Try a consulting mix",
+    seoTitle: "Client Follow-Up App for Consultants",
+    description: "Keep proposal follow-ups and past-client check-ins on a plan while you deliver current work. Review each draft and send it yourself.",
+    demoCta: "Try a proposal follow-up",
+    supportLine: "Keep future work in the mix.",
+    boundary: "Follow-up planning only. It does not manage projects, send invoices, or answer email for you.",
+    templates: [{ href: "/follow-up-templates/proposal-follow-up", label: "Proposal follow-up email templates" }],
     mixes: [
+      {
+        id: "proposal-sent", label: "Proposal sent", description: "A prospect reviewing your proposal · Give the decision a next step, at their pace.",
+        steps: [
+          { title: "Confirm the review date", timing: "Immediate", channel: "email", subject: "Next steps on the proposal", message: "Hi {{First Name}},\n\nThanks for the conversation today—the proposal is attached. You mentioned reviewing it with your colleagues this week, so I'll check in after that rather than before. If a question comes up sooner, just reply.\n\n{{Your Name}}" },
+          { title: "Check in after the review", planned: true, timing: "Agreed date", channel: "email", subject: "Any questions before you decide?", message: "Hi {{First Name}}—you mentioned reviewing the proposal this week. What questions would be useful to work through before you decide? Happy to clarify the scope or the timing." },
+          { title: "Still the right time?", timing: "Day 10 after", channel: "email", subject: "Still the right time?", message: "Hi {{First Name}},\n\nChecking whether the project is still on your calendar. If the timing has changed, no problem at all—just let me know, and I'll check back when it suits you better.\n\n{{Your Name}}" }
+        ]
+      },
       {
         id: "milestone", label: "Revisit a milestone", description: "A prospect who wants to talk again after a business milestone · Reconnect at the right moment.",
         steps: [
@@ -86,9 +115,15 @@ export const PERSONAS: Persona[] = [
   },
   {
     id: "photography", slug: scenario("photography").slug, label: "Photography", navLabel: "Photographers", noun: "independent photographers",
-    headline: "You sent the pricing. Give the conversation a next step.",
-    supporting: "Give your client relationships the same attention you give your work—before someone books, and after the gallery is delivered.",
+    headline: "The inquiry came in. Then the editing took over.",
+    supporting: "Give inquiries and past-client check-ins the same attention you give the work, with a simple plan for the next conversation and a draft you can make your own.",
     demoHeading: "Try a photography mix",
+    seoTitle: "Follow-Up App for Photographers",
+    description: "Plan inquiry follow-ups and past-client check-ins around your work. Start with a message template, make it yours, and send it yourself.",
+    demoCta: "Try an inquiry follow-up",
+    supportLine: "Keep the connection in the mix.",
+    boundary: "Follow-up planning only. It is not a contract, gallery, booking calendar, or billing system.",
+    templates: [],
     mixes: [
       {
         id: "pricing-sent", label: "Pricing sent", description: "An inquiry comparing packages · A useful clarification while they decide.",
@@ -118,9 +153,15 @@ export const PERSONAS: Persona[] = [
   },
   {
     id: "painting", slug: scenario("painting").slug, label: "Contractors", navLabel: "Contractors", noun: "independent contractors",
-    headline: "You sent the estimate. Don’t lose track of the conversation.",
-    supporting: "Keep the customer's context, your next step, and a message you can make your own together—from the truck, between jobs.",
+    headline: "The estimate went out. Don’t let the follow-up disappear.",
+    supporting: "You’re on the job. Your estimate is still waiting on a decision. Put the next check-in on a plan, with a draft ready to review when it’s time.",
     demoHeading: "Try a contractor mix",
+    seoTitle: "Contractor Follow-Up Software",
+    description: "Keep estimate follow-ups from getting buried in the workday. Plan check-ins, review message drafts, and send through your usual text or email app.",
+    demoCta: "Try an estimate follow-up",
+    supportLine: "Stay in the mix, even when you’re on the job.",
+    boundary: "A follow-up planning tool, not an estimating, dispatch, or invoicing system.",
+    templates: [{ href: "/follow-up-templates/estimate-follow-up", label: "Estimate follow-up text templates" }],
     mixes: [
       {
         id: "estimate-sent", label: "Estimate sent", description: "An open estimate · Clarify the scope while they're still deciding.",
@@ -151,9 +192,15 @@ export const PERSONAS: Persona[] = [
   },
   {
     id: "recruiting", slug: scenario("recruiting").slug, label: "Recruiting", navLabel: "Recruiters", noun: "independent recruiters",
-    headline: "Stay connected with good people—even when there isn’t an open role.",
-    supporting: "Personal follow-up for recruiters who build relationships, not just contact lists. Remember what you agreed, and follow through on it.",
+    headline: "No open role. Still a relationship.",
+    supporting: "Put candidate and client check-ins on a plan, so staying in touch doesn’t depend on the next assignment. Review every message before you send it.",
     demoHeading: "Try a recruiting mix",
+    seoTitle: "Recruiter Follow-Up App",
+    description: "Plan candidate and client check-ins between searches. Keep the next touchpoint organized and review each message before you send.",
+    demoCta: "Try a candidate check-in",
+    supportLine: "Keep relationships in the mix between searches.",
+    boundary: "For recruiters keeping in touch with candidates and clients. It is not an ATS, a sourcing tool, a LinkedIn sync, or a resume parser.",
+    templates: [],
     mixes: [
       {
         id: "candidate-timing", label: "Candidate's timing", description: "A candidate who is happy where they are, for now · Reconnect when they asked you to.",

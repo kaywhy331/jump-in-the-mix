@@ -249,7 +249,7 @@ test("public single-user product story remains focused and responsive", async ({
   for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Know who to follow up with. And what to say." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "You meant to follow up. Then work happened." })).toBeVisible();
     await expect(page.locator(".mixes-for a[aria-current='page']")).toHaveText("All");
     await expect(page.locator(".mixes-for a")).toHaveCount(6);
     await expect(page.locator(".hero-actions").getByRole("link", { name: "Join the waitlist" })).toHaveAttribute("href", "/waitlist");
