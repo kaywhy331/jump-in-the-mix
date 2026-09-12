@@ -64,15 +64,19 @@ DATABASE_URL="$(npx netlify env:get DATABASE_URL --site 8fd20ccd-5c35-47e5-99ce-
 
 Then run `node .artifacts/checkpoint-2026-09-11/deploy.mjs deploy` and `verify`. The migration adds one nullable column and is safe to apply before the code lands.
 
-### 7. Manual device qualification
+### 7. Open the pull request so the remote gates run
+
+CI runs only on pull requests and on pushes to `main`, and the repository is public, so opening the pull request is the owner's call. Nothing pushed since September 10 has been through the remote gates, and that run stopped at the hosted-fixture rehearsal before its Lighthouse step. Open a pull request from `codex/production-release-checkpoint` to `main` and read the Lighthouse job in particular: on this four-core machine, with the dev server sharing memory, the homepage and the profession pages scored 0.89 to 0.95 and the median largest contentful paint sat between 2.4 and 2.7 seconds against the 2.5 second budget, all of it render delay after an identical 0.98 second first paint. The clean-runner result decides whether the public pages' render-blocking stylesheet (36 KB, of which about 31 KB is app-only) needs splitting before launch.
+
+### 8. Manual device qualification
 
 All 30 rows in [Manual device qualification](MANUAL_DEVICE_QUALIFICATION.md) are NOT RUN: navigation, native text, email, call and WhatsApp hand-offs on a physical iPhone and Android, VoiceOver, TalkBack, keyboard-only, 200 and 400 percent zoom, safe areas, installed-app account changes, offline drafts and push ownership. Record date, tester, result, OS and browser versions per row. Required before inviting external customers.
 
-### 8. Manual screen-reader session
+### 9. Manual screen-reader session
 
 One VoiceOver, NVDA or TalkBack session over selection, editor, preview, dates, form errors and recovery, recorded in the [implementation acceptance record](HOMEPAGE_IMPLEMENTATION_ACCEPTANCE_2026-09-10.md). Automated checks do not close this gate.
 
-### 9. Participant research
+### 10. Participant research
 
 Five real estate agents and five consultants first, using the [research protocol](HOMEPAGE_RESEARCH_PROTOCOL_2026-09-10.md) and the [session template](HOMEPAGE_RESEARCH_SESSION_TEMPLATE_2026-09-10.md). A group passes when at least four of five identify follow-up software, finish the sandbox within two minutes uncoached, understand nothing was sent, and name a real situation. Recruitment, consent and live contact need a coordinator; none is named yet.
 
