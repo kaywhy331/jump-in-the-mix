@@ -88,8 +88,9 @@ test("follow-up outcomes complete in place and appear on the Contact timeline", 
     const outcomeForm = tray.locator("form");
     await outcomeForm.getByRole("combobox").first().selectOption("NO_ANSWER");
     await outcomeForm.locator("textarea").fill("No answer; try again tomorrow morning.");
-    const nextDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    await outcomeForm.locator('input[type="date"]').fill(nextDate);
+    // The next follow-up uses the shared picker, which starts on tomorrow at ten once switched on.
+    await outcomeForm.getByLabel(/Schedule the next follow-up/).check();
+    await expect(outcomeForm.getByRole("group", { name: "Next follow-up" })).toBeVisible();
     await outcomeForm.getByRole("button", { name: "Save outcome" }).click();
     await expect(workflow.getByText("Follow-up completed")).toBeVisible({ timeout: 30_000 });
     await expect.poll(async () => prisma.contactActivity.count({ where: { jumpId, outcome: "NO_ANSWER" } })).toBe(1);
