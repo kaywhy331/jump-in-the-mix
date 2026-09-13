@@ -13,12 +13,12 @@ Baseline for the inspected code: commit `820d4155044a8a1f560260f7c160154d3840ce0
 | `Jump.baseScheduledAt` | Scheduler | Recomputed every pass and stored beside the effective time (#52) |
 | `Jump.snoozedUntil` | Owner | Never written by the scheduler; the effective due time is the later of base and override (#52) |
 | `Jump.scheduledAt` | Derived | Written by the scheduler and the snooze action with the same rule; writes are guarded on the row as read (#52) |
-| Draft source per family | Owner | The scheduler never writes it; tokens resolve at render from the bound context |
+| Draft source per family | Owner | The scheduler never writes its text; tokens resolve at render from the bound context. When a pass regenerates the same occurrence under a new row, the whole draft rows move to that row (section 6) |
 | Rendered projection | Derived | Refreshed when sources change; frozen only into an attempt |
 | Attempt | History | Created once, never updated except to attach an outcome reference |
 | Hold reason | Its cause | Each reason is cleared only by the event that set it |
 
-Two rules follow from the table. Reconciliation never reads or writes drafts or attempts. An outcome never rewrites a preparation: the outcome route may set the attempt's outcome reference and recorded time, and nothing else on the row.
+Two rules follow from the table. Reconciliation never reads or writes draft text or attempts; the one draft write it performs is the whole-row re-key of section 6, and it never inspects, renders or merges what the rows hold. An outcome never rewrites a preparation: the outcome route may set the attempt's outcome reference and recorded time, and nothing else on the row.
 
 ## 2. Slice 1 entities
 
@@ -106,6 +106,17 @@ On return the tray resolves against the attempt id it opened, not against the ne
 
 Drafts save while editing, debounced, by jump and family with the revision the client last saw. A stale revision is refused and the client reloads the current draft; no silent overwrite across devices. There is no per-keystroke history: the row is overwritten in place, and the only frozen copies are attempts. The card shows the rendered projection and one primary action; editing controls are revealed on demand. Whether that editor is segmented inputs or a token-preserving rich field is decided by device qualification, not by this contract. Historical literal text stays literal, and a removed critical token is recorded as detached so later source changes raise a review notice rather than a guess.
 
+### Draft continuity across regeneration
+
+A draft belongs to a logical occurrence, not to a row id. The scheduler regenerates a row whenever a legacy uniqueness key changes, and #52 settled which regenerations are the same occurrence: a time-only edit (default follow-up time, quiet hours, weekend rule, beat time) yields a new row for the same contact, beat, saved date and original local date, and the snooze is carried onto it. Drafts follow exactly that rule, and nothing looser.
+
+- **Same occurrence.** When a pass creates a row whose occurrence key (contact, beat, saved date, original local date) matches a pending row it is replacing, and the old key is absent from the desired set, the draft rows are re-keyed to the new jump id in the same transaction as the creation, revisions intact. The carried snooze lands on the same row. The owner sees the same text at the same time and keeps editing without noticing.
+- **Different work.** A moved occurrence is new work: the broadcast date changes, a saved date is edited to another day, a manual follow-up is rescheduled, or the beat itself is removed and re-added. Nothing is carried. The old row keeps its drafts and attempts until retention, and the new row starts from the step template. There is no heuristic match on contact and text, and no card ever shows another occurrence's draft.
+- **Held rows.** A pause, archive or do-not-contact hold cancels and later resurrects the same row id, so the draft is simply still there when the row returns.
+- **Attempts are never re-keyed.** An attempt is history of the row it was made against and stays on it. The contact's history shows it either way, and the outcome route resolves the attempt by its own id.
+- **Autosave against a replaced row is refused** because the row is no longer pending. The client reloads and receives the draft on the regenerated row, with the same revision it last saw.
+- **Appointment-anchored occurrences** get a stable identity in Slice 2; until then they follow the legacy rule above.
+
 ## 7. Lifecycle hooks
 
 | Event | Rule |
@@ -113,8 +124,8 @@ Drafts save while editing, debounced, by jump and family with the revision the c
 | Account export | The account export route includes drafts and attempts, with the recipient decrypted for the owner's own export |
 | Account or contact deletion | Cascades through the jump relation, as every other follow-up record does |
 | Contact merge | Attempts follow their jump. Merge already moves done and skipped follow-ups to the survivor and cancels pending ones for regeneration; drafts of cancelled pending follow-ups are removed, attempts on them are kept as history |
-| Reconciliation cancel and resurrect | Drafts stay attached to the jump row, so a paused mix that resumes shows the owner's draft again |
-| Retention | Attempts are history and stay with the follow-up. Drafts are removed 30 days after their follow-up reaches a terminal state. Recipient ciphertext follows section 4. All cleanup runs in bounded batches like the existing retention jobs |
+| Reconciliation cancel and resurrect | Drafts stay attached to the jump row, so a paused mix that resumes shows the owner's draft again. A time-only edit that regenerates the same occurrence moves the draft rows to the new row, as section 6 defines; a moved occurrence carries nothing |
+| Retention | Attempts are history and stay with the follow-up. Drafts are removed 30 days after their follow-up reaches a terminal state, where terminal means done, skipped, or cancelled for a reason that is not an owner hold (paused mix, archived contact, do-not-contact); a stale or replaced row counts from the moment it left the desired set, and a held row's draft waits for the hold to lift. Recipient ciphertext follows section 4. All cleanup runs in bounded batches like the existing retention jobs |
 | Automatic delivery | An approval bound to one draft revision and context version is invalidated when either changes; the existing review window and receipt rules are unchanged |
 
 ## 8. Acceptance mapping
@@ -130,6 +141,8 @@ Drafts save while editing, debounced, by jump and family with the revision the c
 | Outcome after preparation | Only `outcomeActivityId` and `recordedAt` change; a test diffs the row before and after |
 | B20 export, deletion, sign-out, retention | Export includes both tables; deletion cascades; sign-out clears the session list; retention job removes drafts and minimizes recipients |
 | B21 family switch, reload, second device | Drafts per family survive reload; a stale revision is refused |
+| Time-only edit regenerates the occurrence | The regenerated row carries the draft rows and the snooze; the replaced row holds no draft; revisions are unchanged |
+| Occurrence moves | The new row has no draft; the old row keeps its draft and attempts; no send, no copy of text |
 | B23 device handoff | Requires physical devices; not covered by this contract |
 | B24 business updates with drafts present | Reconciliation refreshes the projection only; drafts and attempts are untouched |
 
