@@ -40,6 +40,7 @@ model JumpDraft {
   script        String?
   stepVersionId String
   revision      Int      @default(1)
+  detached      Json?    // { token: value when removed }, see section 6
   updatedAt     DateTime @updatedAt
   createdAt     DateTime @default(now())
   jump          Jump     @relation(fields: [jumpId], references: [id], onDelete: Cascade)
@@ -85,7 +86,7 @@ The attempt id is generated on the client before navigation and travels with the
 
 1. Authorize from the session's workspace. The jump must belong to that workspace, and `contactId` must equal the jump's contact at the time of the write. The recipient must be one of that contact's stored methods, or the explicit ad-hoc value the owner typed, and either way it is stored as written.
 2. Insert with the primary key. The insert is a single statement, so two concurrent requests with the same id cannot both succeed. The loser sees the unique violation and continues at step 3 as a retry.
-3. If a row with that id already exists, compute the payload hash of the incoming immutable fields with sorted keys and compare it to the stored hash. Equal means the retry is acknowledged as already recorded. Different means the request is refused with a payload-mismatch error, the stored row is untouched, and the tray shows the owner that the recorded attempt differs from what it holds. Nothing is ever merged.
+3. If a row with that id already exists, compute the payload hash of the incoming immutable fields with sorted keys and compare it to the stored hash. Equal means the retry is acknowledged as already recorded. Different means the request is refused with a payload-mismatch error, the stored row is untouched, and the tray shows the owner that the recorded attempt differs from what it holds. Nothing is ever merged. This comparison is the whole rule for an existing id: the retry is acknowledged even after the contact's methods or the follow-up's contact have changed, because it records a handoff that already happened. The recipient and contact checks of step 1 apply only to the first creation of an id.
 4. The immutable fields are `jumpId`, `contactId`, `channel`, `family`, recipient, `subject`, `body`, `script`, `draftRevision`, `stepVersionId`, `contextVersions` and `openedAt`. The hash is computed server-side from the validated fields, never trusted from the client.
 5. Payloads are bounded by the same limits the step editor enforces on subject, body and script, and stay well under the browser's keepalive request limit. Oversized or malformed payloads are refused, not truncated.
 6. Retries retry logging only. No path from an attempt ever sends a message or opens a composer.
@@ -104,7 +105,9 @@ On return the tray resolves against the attempt id it opened, not against the ne
 
 ## 6. Draft autosave
 
-Drafts save while editing, debounced, by jump and family with the revision the client last saw. A stale revision is refused and the client reloads the current draft; no silent overwrite across devices. There is no per-keystroke history: the row is overwritten in place, and the only frozen copies are attempts. The card shows the rendered projection and one primary action; editing controls are revealed on demand. Whether that editor is segmented inputs or a token-preserving rich field is decided by device qualification, not by this contract. Historical literal text stays literal, and a removed critical token is recorded as detached so later source changes raise a review notice rather than a guess.
+Drafts save while editing, debounced, by jump and family with the revision the client last saw. A stale revision is refused and the current draft travels back with the refusal. The client keeps the owner's local wording on screen and offers one inline choice between it and the saved version; nothing replaces local edits automatically, and autosave pauses until the owner chooses. A discard is sent with the revision the client saw and takes effect only when the server confirms it: a failed discard leaves the draft where it is and offers a retry, a discard that meets a newer revision offers the same inline choice, and text typed while a discard is in flight is kept as new unsaved wording. There is no per-keystroke history: the row is overwritten in place, and the only frozen copies are attempts. The card shows the rendered projection and one primary action; editing controls are revealed on demand. Whether that editor is segmented inputs or a token-preserving rich field is decided by device qualification, not by this contract.
+
+Historical literal text stays literal. When a save removes a template token from the draft, the draft records that token and the value it resolved to at that moment. When the detail behind a recorded token later changes, the card shows a review notice naming the detail and its old and new values; the literal text is never rewritten and the owner decides what to do. A token the owner puts back is no longer recorded.
 
 ### Draft continuity across regeneration
 
@@ -123,10 +126,10 @@ A draft belongs to a logical occurrence, not to a row id. The scheduler regenera
 | --- | --- |
 | Account export | The account export route includes drafts and attempts, with the recipient decrypted for the owner's own export |
 | Account or contact deletion | Cascades through the jump relation, as every other follow-up record does |
-| Contact merge | Attempts follow their jump. Merge already moves done and skipped follow-ups to the survivor and cancels pending ones for regeneration; drafts of cancelled pending follow-ups are removed, attempts on them are kept as history |
+| Contact merge | Attempts follow their jump as history. Merge moves done and skipped follow-ups to the survivor and cancels the merged person's pending ones for regeneration. The merge never deletes a draft: a draft moves onto the survivor's pending follow-up for the same beat and occurrence when that row already exists and has no draft of that family, otherwise it stays on the cancelled row and the next pass carries it onto the survivor's regenerated row for that occurrence. A draft with no such row stays exportable until retention |
 | Reconciliation cancel and resurrect | Drafts stay attached to the jump row, so a paused mix that resumes shows the owner's draft again. A time-only edit that regenerates the same occurrence moves the draft rows to the new row, as section 6 defines; a moved occurrence carries nothing |
 | Retention | Attempts are history and stay with the follow-up. Drafts are removed 30 days after their follow-up reaches a terminal state, where terminal means done, skipped, or cancelled for a reason that is not an owner hold (paused mix, archived contact, do-not-contact); a stale or replaced row counts from the moment it left the desired set, and a held row's draft waits for the hold to lift. Recipient ciphertext follows section 4. All cleanup runs in bounded batches like the existing retention jobs |
-| Automatic delivery | An approval bound to one draft revision and context version is invalidated when either changes; the existing review window and receipt rules are unchanged |
+| Automatic delivery | A follow-up with a draft is held from automatic delivery and waits on Today for the owner, where the card says so while delivery is switched on. The plan's text is never sent in place of an edit. Binding an approval to one draft revision and context version, invalidated when either changes, is deferred until approvals and attempts share a schema; the existing review window and receipt rules are unchanged |
 
 ## 8. Acceptance mapping
 
@@ -135,12 +138,17 @@ A draft belongs to a logical occurrence, not to a row id. The scheduler regenera
 | B07 last keystroke then handoff | The gesture payload is built from the on-screen draft; a unit test compares the attempt to the rendered field |
 | B08 persistence fails, source changes later | The retry carries the original payload; the stored attempt never re-renders |
 | B09 two contacts opened before outcomes | Two unresolved attempts in the session list resolve independently |
-| B10 repeated logging retry | Same id, same payload, one row, no send |
+| B10 repeated logging retry | Same id, same payload, one row, no send, acknowledged even after the contact's methods changed |
 | Concurrent creation | Two simultaneous inserts with one id produce one row and two acknowledgments |
 | Retry with a changed payload | Refused, stored row untouched, tray informed |
 | Outcome after preparation | Only `outcomeActivityId` and `recordedAt` change; a test diffs the row before and after |
 | B20 export, deletion, sign-out, retention | Export includes both tables; deletion cascades; sign-out clears the session list; retention job removes drafts and minimizes recipients |
-| B21 family switch, reload, second device | Drafts per family survive reload; a stale revision is refused |
+| B21 family switch, reload, second device | Drafts per family survive reload; a stale revision is refused and the current draft returns with the refusal |
+| Revision conflict on a device | Local wording stays on screen; one inline choice between it and the saved version; autosave paused until chosen |
+| Discard fails or meets a newer revision | Draft unchanged on the server; retry or the same inline choice; text typed meanwhile kept |
+| Contact merge with drafts | Draft moves to the survivor's matching pending row or waits on the cancelled row and is carried on regeneration; nothing deleted |
+| Automatic delivery with a draft | Follow-up not claimed; card says it waits for the owner |
+| Removed detail changes later | Draft records the token and its value at removal; the card shows old and new values; no rewrite |
 | Time-only edit regenerates the occurrence | The regenerated row carries the draft rows and the snooze; the replaced row holds no draft; revisions are unchanged |
 | Occurrence moves | The new row has no draft; the old row keeps its draft and attempts; no send, no copy of text |
 | B23 device handoff | Requires physical devices; not covered by this contract |
