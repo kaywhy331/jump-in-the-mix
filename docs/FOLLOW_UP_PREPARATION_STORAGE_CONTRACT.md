@@ -4,13 +4,13 @@
 **Date:** September 13, 2026
 **Scope:** Slice 1 of the context-aware follow-up work (durable drafts and exact handoff attempts), plus the three Slice 2 binding rules that were settled during review. Pricing, customer-facing vocabulary and provider integrations are outside this contract.
 
-Baseline for the inspected code: commit `820d4155044a8a1f560260f7c160154d3840ce0f` on `codex/production-release-checkpoint`, plus pull request #52 (`snoozedUntil`, write guards, generation window). Everything below is source inspection and local design; nothing here has device, test-site or production evidence.
+Baseline for the inspected code: commit `820d4155044a8a1f560260f7c160154d3840ce0f` on `codex/production-release-checkpoint`, plus pull request #52 (`snoozedUntil`, `baseScheduledAt`, write guards, generation window, snooze carry-over). Everything below is source inspection and local design; nothing here has device, test-site or production evidence.
 
 ## 1. Ownership
 
 | Data | Owner | Rule |
 | --- | --- | --- |
-| Base due instant | Scheduler | Recomputed every pass; recorded in the snapshot's scheduling provenance |
+| `Jump.baseScheduledAt` | Scheduler | Recomputed every pass and stored beside the effective time (#52) |
 | `Jump.snoozedUntil` | Owner | Never written by the scheduler; the effective due time is the later of base and override (#52) |
 | `Jump.scheduledAt` | Derived | Written by the scheduler and the snooze action with the same rule; writes are guarded on the row as read (#52) |
 | Draft source per family | Owner | The scheduler never writes it; tokens resolve at render from the bound context |
