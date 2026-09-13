@@ -2,6 +2,7 @@ import {
   addLogicalDays,
   daysInMonth,
   logicalDateInTimezone,
+  logicalDateKey,
   zonedDateTimeToUtc,
   type LogicalDate
 } from "@/lib/jump-schedule";
@@ -166,4 +167,47 @@ export type SnoozeResolution = { ok: true; scheduledAt: Date } | { ok: false; du
 export function resolveSnooze(input: { chosen: Date; baseScheduledAt: Date | null }): SnoozeResolution {
   if (input.baseScheduledAt && input.chosen < input.baseScheduledAt) return { ok: false, dueAt: input.baseScheduledAt };
   return { ok: true, scheduledAt: input.chosen };
+}
+
+export const SNOOZE_PRESET_LABELS: Array<[SnoozePreset, string]> = [
+  ["later-today", "Later today"],
+  ["tomorrow", "Tomorrow"],
+  ["next-monday", "Monday"],
+  ["next-week", "Next week"]
+];
+
+export type SnoozeChoices = { presets: Array<[SnoozePreset, string]>; minDate: string; defaultDate: string };
+
+/**
+ * The presets and custom-day bounds a card may offer: only times after the follow-up's base
+ * instant, so nothing offered is later refused.
+ */
+export function snoozeChoices(input: {
+  now: Date;
+  timezone: string;
+  floor: Date;
+  preferredMinutes?: number;
+  quietHoursStart?: number;
+  quietHoursEnd?: number;
+}): SnoozeChoices {
+  const presets = SNOOZE_PRESET_LABELS.filter(([preset]) => {
+    try {
+      return calculateSnoozeAt({
+        now: input.now,
+        timezone: input.timezone,
+        preset,
+        preferredMinutes: input.preferredMinutes,
+        quietHoursStart: input.quietHoursStart,
+        quietHoursEnd: input.quietHoursEnd
+      }) > input.floor;
+    } catch {
+      return false;
+    }
+  });
+  const today = localDateAndMinutes(input.now, input.timezone).date;
+  const floorDay = localDateAndMinutes(input.floor, input.timezone).date;
+  const minDay = logicalDateKey(floorDay) > logicalDateKey(today) ? floorDay : today;
+  const tomorrow = addLogicalDays(today, 1);
+  const defaultDay = logicalDateKey(minDay) > logicalDateKey(tomorrow) ? minDay : tomorrow;
+  return { presets, minDate: logicalDateKey(minDay), defaultDate: logicalDateKey(defaultDay) };
 }
