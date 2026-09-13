@@ -18,7 +18,11 @@ import { WhenField } from "@/components/WhenPicker";
 import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
+import { projectDraftSource, type DraftValues } from "@/lib/draft-segments";
 import { formatDateTime } from "@/lib/format";
+import { readJumpDrafts } from "@/lib/jump-drafts";
+import { buildJumpReplacementValues } from "@/lib/jump-render";
+import { preparationFamilyForChannel } from "@/lib/preparation-family";
 import { addLogicalDays, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
@@ -30,6 +34,22 @@ import { parseTodayCursor, readTodayPage } from "@/lib/today-list";
 export const metadata: Metadata = { title: "Today" };
 
 type Snapshot = { subject?: string | null; body?: string | null; script?: string | null };
+type TemplateText = { subject: string | null; body: string | null; script: string | null };
+
+/** The token-form text a follow-up was prepared from; null when the row predates stored templates. */
+function templateTextOf(value: Prisma.JsonValue): TemplateText | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const text = (key: "subject" | "body" | "script") => { const item = (value as Record<string, unknown>)[key]; return typeof item === "string" ? item : null; };
+  const template = { subject: text("subject"), body: text("body"), script: text("script") };
+  return template.subject === null && template.body === null && template.script === null ? null : template;
+}
+
+/** Only the tokens the template or draft uses travel to the browser. */
+function pickTokens(values: Record<string, string>, sources: Array<string | null | undefined>): DraftValues {
+  const picked: DraftValues = {};
+  for (const source of sources) for (const token of source?.match(/{{[^}]+}}/g) ?? []) if (Object.hasOwn(values, token)) picked[token] = values[token];
+  return picked;
+}
 type SearchParams = {
   range?: string;
   status?: string;
@@ -133,6 +153,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     prisma.jump.count({ where: { workspaceId: workspace.id, status: "DONE", completedAt: { gte: startToday, lt: endToday } } })
   ]);
   const followUps = list.items;
+  const pendingIds = followUps.filter((followUp) => followUp.status === "PENDING").map((followUp) => followUp.id);
+  const [drafts, owner] = await Promise.all([
+    readJumpDrafts(workspace.id, pendingIds),
+    prisma.user.findUnique({ where: { id: workspace.ownerId }, select: { name: true, email: true } })
+  ]);
+  const profile = workspace.profile;
+  const renderOwner = { name: owner?.name ?? user.name ?? "", email: owner?.email ?? user.email };
   const viewParams = new URLSearchParams({ range, status, channel });
   const firstHref = `/jumps?${viewParams}`;
   if (list.reset) redirect(`${firstHref}&listReset=1`);
@@ -181,9 +208,19 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const phone = followUp.contact.phones.find((item) => item.isPrimary)?.phone ?? followUp.contact.phones[0]?.phone;
     const followUpChannel = followUp.stepVersion.stepTemplate.channel;
     const url = actionUrl(followUpChannel, email, phone, snapshot);
-    const content = snapshot.body ?? snapshot.script ?? snapshot.subject ?? "No message has been prepared yet.";
-    const snippet = content.length > 150 ? `${content.slice(0, 147)}…` : content;
     const isPending = pendingStatuses.includes(followUp.status);
+    // A pending follow-up edits its plan text as a draft; the card shows the draft rendered over the
+    // contact and business details, so an edit made yesterday still reads with today's details.
+    const family = preparationFamilyForChannel(followUpChannel);
+    const template = isPending ? templateTextOf(followUp.templateSnapshot) : null;
+    const draft = template ? drafts.get(followUp.id)?.find((item) => item.family === family) ?? null : null;
+    const draftValues = template
+      ? pickTokens(buildJumpReplacementValues(followUp.contact, profile, renderOwner, followUpChannel), [template.subject, template.body, template.script, draft?.subject, draft?.body, draft?.script])
+      : {};
+    const preparedSubject = draft ? projectDraftSource(draft.subject, draftValues) : snapshot.subject ?? null;
+    const preparedContent = draft ? projectDraftSource(draft.body ?? draft.script, draftValues) : null;
+    const content = preparedContent ?? snapshot.body ?? snapshot.script ?? snapshot.subject ?? "No message has been prepared yet.";
+    const snippet = content.length > 150 ? `${content.slice(0, 147)}…` : content;
     const isNext = followUp.id === nextUp?.id;
     const recentEvents = eventsByFollowUp.get(followUp.id) ?? [];
     const daysOverdue = Math.max(1, Math.floor((startToday.getTime() - followUp.scheduledAt.getTime()) / 86_400_000) + 1);
@@ -202,8 +239,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       channel={followUpChannel}
       email={email ?? null}
       phone={phone ?? null}
-      initialSubject={snapshot.subject}
+      initialSubject={preparedSubject}
       initialContent={content}
+      family={family}
+      template={template}
+      values={draftValues}
+      draft={draft ? { subject: draft.subject, body: draft.body, script: draft.script, revision: draft.revision } : null}
     />;
 
     return (
