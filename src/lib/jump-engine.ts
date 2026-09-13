@@ -2,7 +2,6 @@ import type { JumpStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { renderJumpSnapshot } from "@/lib/jump-render";
 import {
-  baseScheduledAtFromSnapshot,
   addLogicalDays,
   addUtcDays,
   createJumpUniquenessKey,
@@ -56,6 +55,7 @@ type DesiredJump = {
   mixStepId: string;
   stepVersionId: string;
   scheduledAt: Date;
+  baseScheduledAt: Date;
   reason: string;
   templateSnapshot: Prisma.InputJsonValue;
   renderedSnapshot: Prisma.InputJsonValue;
@@ -73,6 +73,7 @@ type ExistingJump = {
   mixStepId: string;
   stepVersionId: string;
   scheduledAt: Date;
+  baseScheduledAt: Date | null;
   snoozedUntil: Date | null;
   updatedAt: Date;
   reason: string;
@@ -120,6 +121,7 @@ function sameDesired(existing: ExistingJump, desired: DesiredJump): boolean {
     && existing.mixStepId === desired.mixStepId
     && existing.stepVersionId === desired.stepVersionId
     && existing.scheduledAt.getTime() === desired.scheduledAt.getTime()
+    && existing.baseScheduledAt?.getTime() === desired.baseScheduledAt.getTime()
     && existing.reason === desired.reason
     && jsonEqual(existing.templateSnapshot, desired.templateSnapshot)
     && jsonEqual(existing.renderedSnapshot, desired.renderedSnapshot);
@@ -146,7 +148,7 @@ function schedulingRule(stored: PersonalSchedulingRule | undefined): PersonalSch
 
 export async function reconcileJumps(filters: ReconciliationFilters = {}): Promise<JumpReconciliationResult> {
   const now = new Date();
-  const [assignments, stops, pendingBounds, snoozedPending] = await Promise.all([
+  const [assignments, stops, pendingBounds] = await Promise.all([
     prisma.mixAssignment.findMany({
       where: {
         isActive: true,
@@ -205,13 +207,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
     }),
     prisma.jump.aggregate({
       where: { ...baseJumpWhere(filters), status: { in: STALE_CANCELLATION_STATUSES } },
-      _min: { scheduledAt: true },
+      _min: { baseScheduledAt: true, scheduledAt: true },
       _max: { scheduledAt: true }
-    }),
-    // Snoozed rows sit at their chosen time; their base occurrence may lie before the window.
-    prisma.jump.findMany({
-      where: { ...baseJumpWhere(filters), status: { in: STALE_CANCELLATION_STATUSES }, snoozedUntil: { not: null } },
-      select: { templateSnapshot: true }
     })
   ]);
 
@@ -220,14 +217,12 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const maximumOffset = offsets.length ? Math.max(...offsets) : 0;
   const defaultStart = startOfUtcDay(addUtcDays(now, -DEFAULT_PAST_DAYS));
   const defaultEnd = endOfUtcDay(addUtcDays(now, DEFAULT_FUTURE_DAYS));
-  // A snooze moves a follow-up's time inside the window while its base occurrence can lie before it.
-  // Reach back to the earliest such base so the occurrence is generated and matched instead of the
-  // snoozed row being treated as stale. Identities are untouched; only the scan window widens.
-  let earliestPending = pendingBounds._min.scheduledAt ?? null;
-  for (const item of snoozedPending) {
-    const base = baseScheduledAtFromSnapshot(item.templateSnapshot);
-    if (base && (!earliestPending || base < earliestPending)) earliestPending = base;
-  }
+  // A snooze moves a follow-up's time inside the window while its base occurrence can lie before it,
+  // so the window reaches back to the earliest base as well as the earliest scheduled time. Identities
+  // are untouched; only the scan window widens.
+  const earliestPending = [pendingBounds._min.baseScheduledAt, pendingBounds._min.scheduledAt]
+    .filter((value): value is Date => value instanceof Date)
+    .sort((left, right) => left.getTime() - right.getTime())[0] ?? null;
   const horizonStart = earliestPending && earliestPending < defaultStart ? startOfUtcDay(earliestPending) : defaultStart;
   const horizonEnd = pendingBounds._max.scheduledAt && pendingBounds._max.scheduledAt > defaultEnd
     ? endOfUtcDay(pendingBounds._max.scheduledAt)
@@ -390,6 +385,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
             mixStepId: mixStep.id,
             stepVersionId: mixStep.stepVersionId,
             scheduledAt,
+            baseScheduledAt: scheduledAt,
             reason: trigger.reason,
             templateSnapshot: {
               subject: mixStep.stepVersion.subject,
@@ -425,6 +421,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         mixStepId: true,
         stepVersionId: true,
         scheduledAt: true,
+        baseScheduledAt: true,
         snoozedUntil: true,
         updatedAt: true,
         reason: true,
@@ -470,6 +467,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         mixStepId: desiredJump.mixStepId,
         stepVersionId: desiredJump.stepVersionId,
         scheduledAt: desiredJump.scheduledAt,
+        baseScheduledAt: desiredJump.baseScheduledAt,
         reason: desiredJump.reason,
         templateSnapshot: desiredJump.templateSnapshot,
         renderedSnapshot: desiredJump.renderedSnapshot,

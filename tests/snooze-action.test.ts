@@ -84,7 +84,7 @@ describe.sequential("the snooze command", () => {
     const before = await prisma.jump.findUniqueOrThrow({ where: { id: ids.upcoming } });
     const destination = await snooze({ jumpId: ids.upcoming, preset: "tomorrow", returnTo: "/jumps" });
     expect(destination.startsWith("/jumps?error=")).toBe(true);
-    expect(decodeURIComponent(destination)).toContain("Snooze can only move it later.");
+    expect(decodeURIComponent(destination)).toContain("Snooze can't move it earlier than that.");
     const after = await prisma.jump.findUniqueOrThrow({ where: { id: ids.upcoming } });
     expect(after.snoozedUntil).toBeNull();
     expect(after.scheduledAt.toISOString()).toBe(before.scheduledAt.toISOString());

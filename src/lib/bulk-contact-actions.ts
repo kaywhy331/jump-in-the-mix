@@ -200,7 +200,7 @@ export async function applyJumpToContactsAction(formData: FormData): Promise<voi
     for (const contact of contacts) {
       const renderedSnapshot = renderJumpSnapshot({ subject: prepared.subject, body: prepared.body, script: prepared.script }, contact, workspace.profile, user, prepared.channel);
       const uniquenessKey = createHash("sha256").update(["one-time", workspace.id, batchId, contact.id, mixStepId].join(":")).digest("hex");
-      await tx.jump.create({ data: { workspaceId: workspace.id, contactId: contact.id, mixId: hiddenMixId, mixStepId, stepVersionId: prepared.versionId, scheduledAt, status: "PENDING", reason: reason || prepared.name, templateSnapshot: { subject: prepared.subject, body: prepared.body, script: prepared.script, channel: prepared.channel, oneTime: true, batchId }, renderedSnapshot, uniquenessKey } });
+      await tx.jump.create({ data: { workspaceId: workspace.id, contactId: contact.id, mixId: hiddenMixId, mixStepId, stepVersionId: prepared.versionId, scheduledAt, baseScheduledAt: scheduledAt, status: "PENDING", reason: reason || prepared.name, templateSnapshot: { subject: prepared.subject, body: prepared.body, script: prepared.script, channel: prepared.channel, oneTime: true, batchId }, renderedSnapshot, uniquenessKey } });
     }
     await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "contacts.apply_jump", entityType: "JumpBatch", entityId: batchId, source: "contacts.bulk", metadata: { contactCount: contacts.length, templateId: prepared.templateId, channel: prepared.channel, mode } } });
   });

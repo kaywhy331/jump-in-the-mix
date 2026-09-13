@@ -5,7 +5,6 @@ import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
-import { baseScheduledAtFromSnapshot } from "@/lib/jump-schedule";
 import { calculateSnoozeAt, resolveSnooze, type SnoozePreset } from "@/lib/snooze-schedule";
 
 function value(formData: FormData, key: string): string {
@@ -50,20 +49,21 @@ export async function snoozeJumpAction(formData: FormData): Promise<void> {
 
   const jump = await prisma.jump.findFirst({
     where: { id: jumpId, workspaceId: workspace.id, status: "PENDING" },
-    select: { scheduledAt: true, snoozedUntil: true, templateSnapshot: true }
+    select: { scheduledAt: true, snoozedUntil: true, baseScheduledAt: true }
   });
   if (!jump) redirect(withParam(returnTo, "error", "This follow-up is no longer available to snooze."));
 
   // A snooze is a not-before time: it may hold a follow-up later but never pull it ahead of the
-  // scheduler's base instant. Without stored provenance, the current time is the base only when
-  // nothing has been snoozed yet.
-  const baseScheduledAt = baseScheduledAtFromSnapshot(jump.templateSnapshot) ?? (jump.snoozedUntil ? null : jump.scheduledAt);
+  // scheduler's base instant. A row written before the base was stored has no snooze yet, so its
+  // current time is its base.
+  const baseScheduledAt = jump.baseScheduledAt ?? (jump.snoozedUntil ? null : jump.scheduledAt);
   const resolution = resolveSnooze({ chosen: scheduledAt, baseScheduledAt });
   if (!resolution.ok) {
-    redirect(withParam(returnTo, "error", `This follow-up is due ${formatDateTime(resolution.dueAt, preferences)}. Snooze can only move it later.`));
+    redirect(withParam(returnTo, "error", `This follow-up is due ${formatDateTime(resolution.dueAt, preferences)}. Snooze can't move it earlier than that.`));
   }
 
-  // Guarded on the snooze just read, so a slower worker pass or a second device cannot overwrite a newer choice.
+  // Guarded on the snooze just read, so a second tab or device that snoozed in the meantime is not
+  // overwritten. The worker guards its own writes on the row as it read it.
   const result = await prisma.jump.updateMany({
     where: { id: jumpId, workspaceId: workspace.id, status: "PENDING", snoozedUntil: jump.snoozedUntil },
     data: { scheduledAt: resolution.scheduledAt, snoozedUntil: resolution.scheduledAt }

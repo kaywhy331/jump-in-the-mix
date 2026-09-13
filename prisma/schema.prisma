@@ -515,6 +515,8 @@ model Jump {
   completionMethod String?
   // User-owned not-before time. Reconciliation never moves a follow-up earlier than it.
   snoozedUntil     DateTime?
+  // Scheduler-owned base instant. scheduledAt is the later of this and snoozedUntil.
+  baseScheduledAt  DateTime?
   uniquenessKey    String                 @unique
   workspace        Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact          Contact                @relation(fields: [contactId], references: [id], onDelete: Cascade)

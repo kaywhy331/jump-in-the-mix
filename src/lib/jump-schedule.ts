@@ -202,24 +202,3 @@ export function createJumpUniquenessKey(input: JumpKeyInput): string {
     ].join(":"), "utf8")
     .digest("hex");
 }
-
-/**
- * Recovers the scheduler's base instant from a follow-up's stored scheduling provenance.
- * Returns null when the snapshot lacks it, so callers fall back instead of guessing.
- */
-export function baseScheduledAtFromSnapshot(snapshot: unknown): Date | null {
-  if (!snapshot || typeof snapshot !== "object") return null;
-  const { localDateTime, timezone } = snapshot as { localDateTime?: unknown; timezone?: unknown };
-  if (typeof localDateTime !== "string" || typeof timezone !== "string") return null;
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(localDateTime);
-  if (!match) return null;
-  try {
-    return zonedDateTimeToUtc(
-      { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) },
-      Number(match[4]) * 60 + Number(match[5]),
-      timezone
-    );
-  } catch {
-    return null;
-  }
-}

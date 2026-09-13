@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { reconcileJumps } from "../src/lib/jump-engine";
-import { baseScheduledAtFromSnapshot, logicalDateFromDate, zonedDateTimeToUtc } from "../src/lib/jump-schedule";
+import { logicalDateFromDate, zonedDateTimeToUtc } from "../src/lib/jump-schedule";
 import { prisma } from "../src/lib/prisma";
 import { resolveSnooze } from "../src/lib/snooze-schedule";
 
@@ -15,14 +15,6 @@ describe("snooze resolution", () => {
     expect(resolveSnooze({ chosen: earlier, baseScheduledAt: base })).toEqual({ ok: false, dueAt: base });
     expect(resolveSnooze({ chosen: later, baseScheduledAt: base })).toEqual({ ok: true, scheduledAt: later });
     expect(resolveSnooze({ chosen: earlier, baseScheduledAt: null })).toEqual({ ok: true, scheduledAt: earlier });
-  });
-
-  it("recovers the base instant from stored scheduling provenance", () => {
-    expect(baseScheduledAtFromSnapshot({ localDateTime: "2026-09-20T10:00", timezone: "America/Los_Angeles" })?.toISOString())
-      .toBe("2026-09-20T17:00:00.000Z");
-    expect(baseScheduledAtFromSnapshot({ body: "Hi" })).toBeNull();
-    expect(baseScheduledAtFromSnapshot({ localDateTime: "not a time", timezone: "UTC" })).toBeNull();
-    expect(baseScheduledAtFromSnapshot(null)).toBeNull();
   });
 });
 
@@ -77,7 +69,7 @@ describe.sequential("snoozed follow-ups survive reconciliation", () => {
     ids.jump = jump.id;
     const base = zonedDateTimeToUtc(logicalDateFromDate(localDate), 600, timezone);
     expect(jump.scheduledAt.toISOString()).toBe(base.toISOString());
-    expect(baseScheduledAtFromSnapshot(jump.templateSnapshot)?.toISOString()).toBe(base.toISOString());
+    expect(jump.baseScheduledAt?.toISOString()).toBe(base.toISOString());
 
     const until = new Date(now.getTime() + 2 * DAY);
     await snooze(jump.id, until);
