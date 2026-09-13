@@ -125,6 +125,24 @@ describe.sequential("snoozed follow-ups survive reconciliation", () => {
     expect(fresh.snoozedUntil).toBeNull();
     expect(fresh.scheduledAt.toISOString()).toBe(zonedDateTimeToUtc(logicalDateFromDate(movedLocalDate), 600, timezone).toISOString());
   });
+
+  it("carries the snooze onto the row regenerated after a time edit", async () => {
+    // Changing only the time keeps the occurrence but changes the legacy key. The old row is
+    // cancelled as stale and the new one inherits the snooze.
+    const before = await pendingJump();
+    const until = new Date(now.getTime() + 9 * DAY);
+    await snooze(before.id, until);
+    await prisma.mixBroadcastSchedule.update({ where: { mixId: ids.mix }, data: { timeMinutes: 690 } });
+    const result = await reconcileJumps({ workspaceId: ids.workspace, mixId: ids.mix });
+    expect(result.created).toBe(1);
+    expect(result.canceled).toBe(1);
+    expect((await prisma.jump.findUniqueOrThrow({ where: { id: before.id } })).status).toBe("CANCELED");
+    const after = await pendingJump();
+    expect(after.id).not.toBe(before.id);
+    expect(after.snoozedUntil?.toISOString()).toBe(until.toISOString());
+    expect(after.scheduledAt.toISOString()).toBe(until.toISOString());
+    expect(after.baseScheduledAt?.toISOString()).toBe(zonedDateTimeToUtc(logicalDateFromDate(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 5, 12))), 690, timezone).toISOString());
+  });
 });
 
 describe.sequential("a long-overdue snoozed follow-up outlives the generation window", () => {

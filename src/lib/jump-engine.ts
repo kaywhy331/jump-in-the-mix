@@ -84,6 +84,16 @@ type ExistingJump = {
   renderedSnapshot: Prisma.JsonValue;
 };
 
+function originalLocalDateOf(snapshot: Prisma.JsonValue | Prisma.InputJsonValue): string | null {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+  const value = (snapshot as { originalLocalDate?: unknown }).originalLocalDate;
+  return typeof value === "string" ? value : null;
+}
+
+function occurrenceCarryKey(contactId: string, mixStepId: string, jumpDateId: string | null, originalLocalDate: string): string {
+  return `${contactId}:${mixStepId}:${jumpDateId ?? ""}:${originalLocalDate}`;
+}
+
 function chunks<T>(items: T[], size = BATCH_SIZE): T[][] {
   const result: T[][] = [];
   for (let index = 0; index < items.length; index += size) result.push(items.slice(index, index + size));
@@ -151,7 +161,7 @@ function schedulingRule(stored: PersonalSchedulingRule | undefined): PersonalSch
 
 export async function reconcileJumps(filters: ReconciliationFilters = {}): Promise<JumpReconciliationResult> {
   const now = new Date();
-  const [assignments, stops, pendingBounds] = await Promise.all([
+  const [assignments, stops, pendingBounds, snoozedPending] = await Promise.all([
     prisma.mixAssignment.findMany({
       where: {
         isActive: true,
@@ -212,8 +222,22 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       where: { AND: [baseJumpWhere(filters), { OR: [{ status: "PENDING" }, { status: "CANCELED", completionMethod: { in: HELD_CANCELLATION_METHODS } }] }] },
       _min: { baseScheduledAt: true, scheduledAt: true },
       _max: { scheduledAt: true }
+    }),
+    // Snoozed pending rows, so a follow-up regenerated for the same occurrence keeps its snooze.
+    prisma.jump.findMany({
+      where: { ...baseJumpWhere(filters), status: "PENDING", snoozedUntil: { not: null } },
+      select: { uniquenessKey: true, contactId: true, mixStepId: true, jumpDateId: true, snoozedUntil: true, templateSnapshot: true }
     })
   ]);
+  // A time edit changes a legacy row's key while its occurrence stays the same. The snooze is
+  // carried onto the regenerated row so a settings save does not drop it. Keys are untouched.
+  const snoozedByOccurrence = new Map<string, { uniquenessKey: string; snoozedUntil: Date }>();
+  for (const item of snoozedPending) {
+    const originalLocalDate = originalLocalDateOf(item.templateSnapshot);
+    if (originalLocalDate && item.snoozedUntil) {
+      snoozedByOccurrence.set(occurrenceCarryKey(item.contactId, item.mixStepId, item.jumpDateId, originalLocalDate), { uniquenessKey: item.uniquenessKey, snoozedUntil: item.snoozedUntil });
+    }
+  }
 
   const offsets = assignments.flatMap((assignment) => assignment.mix.steps.map((step) => step.dayOffset));
   const minimumOffset = offsets.length ? Math.min(...offsets) : 0;
@@ -442,7 +466,14 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   for (const desiredJump of desired.values()) {
     const existing = existingByKey.get(desiredJump.uniquenessKey);
     if (!existing) {
-      creates.push({ ...desiredJump, status: "PENDING" });
+      const originalLocalDate = originalLocalDateOf(desiredJump.templateSnapshot);
+      const carried = originalLocalDate ? snoozedByOccurrence.get(occurrenceCarryKey(desiredJump.contactId, desiredJump.mixStepId, desiredJump.jumpDateId, originalLocalDate)) : undefined;
+      if (carried && !desired.has(carried.uniquenessKey)) {
+        if (carried.snoozedUntil > desiredJump.scheduledAt) desiredJump.scheduledAt = carried.snoozedUntil;
+        creates.push({ ...desiredJump, status: "PENDING", snoozedUntil: carried.snoozedUntil });
+      } else {
+        creates.push({ ...desiredJump, status: "PENDING" });
+      }
       continue;
     }
     if (!canReconcile(existing)) continue;
