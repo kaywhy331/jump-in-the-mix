@@ -121,12 +121,16 @@ export function EditableFollowUpAction({
   const [stopped, setStopped] = useState(false);
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const [busy, setBusy] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   const subject = persists ? projectDraft(subjectSegments) : legacySubject ?? initialSubject ?? "";
   const content = persists ? projectDraft(contentSegments) : legacyContent ?? initialContent;
   const source = useMemo<Source>(() => ({ subject: draftSource(subjectSegments), content: draftSource(contentSegments) }), [subjectSegments, contentSegments]);
   const unsaved = persists ? source.subject !== saved.subject || source.content !== saved.content : legacySubject !== null || legacyContent !== null;
   const hasDraft = persists ? saved.revision !== null || unsaved : unsaved;
+  // The list waits to reorder while the owner is still in a draft, saved or not; leaving the page
+  // is guarded only while keystrokes have not reached the server.
+  const editing = unsaved || (persists && saved.revision !== null && focused);
   const paused = stopped || conflict !== null;
 
   const latest = useRef({ source, saved, unsaved, paused });
@@ -144,6 +148,20 @@ export function EditableFollowUpAction({
     setSubjectSegments(parseDraftSource(next.subject, values));
     setContentSegments(parseDraftSource(next.content, values));
   }, [values]);
+
+  // A server refresh brings new plan text, details or a draft saved elsewhere. An untouched
+  // message follows it; local keystrokes that have not been saved are never replaced.
+  const propsKey = JSON.stringify({ initialSource, values, revision: draft?.revision ?? null });
+  const seenPropsKey = useRef(propsKey);
+  useEffect(() => {
+    if (!persists || seenPropsKey.current === propsKey) return;
+    seenPropsKey.current = propsKey;
+    if (latest.current.unsaved) return;
+    showSegments(initialSource);
+    setSaved({ ...initialSource, revision: draft?.revision ?? null });
+    setConflict(null);
+    if (!stopped) setStatus("idle");
+  }, [draft?.revision, initialSource, persists, propsKey, showSegments, stopped]);
 
   // keepalive only for the flush that must outlive the page; an ordinary save or discard is a
   // plain request the page can observe and retry.
@@ -285,7 +303,14 @@ export function EditableFollowUpAction({
   const theirsText = conflict ? (conflict.theirs ? [conflict.theirs.subject, conflict.theirs[contentKey]].filter(Boolean).join(" · ") : "") : "";
 
   return (
-    <div className="editable-follow-up" data-follow-up-draft={unsaved} data-follow-up-saved={persists && saved.revision !== null}>
+    <div
+      className="editable-follow-up"
+      data-follow-up-draft={unsaved}
+      data-follow-up-editing={editing}
+      data-follow-up-saved={persists && saved.revision !== null}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}
+    >
       {changedDetails.length > 0 && <div className="notice warning compact" role="status" data-follow-up-changed-details>
         {changedDetails.slice(0, 3).map((change) => <p key={change.token}>You wrote over the {change.label} in this message, and it has since changed from “{change.before || "blank"}” to “{change.after || "blank"}”. Check the wording before you send it.</p>)}
       </div>}

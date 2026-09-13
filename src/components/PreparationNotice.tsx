@@ -93,13 +93,13 @@ export function PreparationNotice({ initial, contactId, canRetry = true, deferWh
       startTransition(() => router.refresh());
     };
     const observer = new MutationObserver(update);
-    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-follow-up-draft", "data-follow-up-undo"] });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-follow-up-draft", "data-follow-up-editing", "data-follow-up-undo"] });
     update();
     return () => observer.disconnect();
   }, [deferred, router]);
 
   const returnToDraft = () => {
-    const draft = document.querySelector<HTMLElement>('[data-follow-up-draft="true"]');
+    const draft = document.querySelector<HTMLElement>('[data-follow-up-editing="true"], [data-follow-up-draft="true"]');
     const dialog = draft?.closest("dialog");
     if (dialog && !dialog.open) dialog.showModal();
     draft?.querySelector<HTMLElement>("textarea, input")?.focus();
