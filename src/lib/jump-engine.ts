@@ -216,19 +216,21 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       _min: { baseScheduledAt: true, scheduledAt: true },
       _max: { scheduledAt: true }
     }),
-    // Snoozed pending rows, so a follow-up regenerated for the same occurrence keeps its snooze.
+    // Pending rows carrying owner state, a snooze or a draft, so a follow-up regenerated for the
+    // same occurrence keeps it. Draft text is never read here; only the row's identity is.
     prisma.jump.findMany({
-      where: { ...baseJumpWhere(filters), status: "PENDING", snoozedUntil: { not: null } },
-      select: { uniquenessKey: true, contactId: true, mixStepId: true, jumpDateId: true, snoozedUntil: true, templateSnapshot: true }
+      where: { ...baseJumpWhere(filters), status: "PENDING", OR: [{ snoozedUntil: { not: null } }, { drafts: { some: {} } }] },
+      select: { id: true, uniquenessKey: true, contactId: true, mixStepId: true, jumpDateId: true, snoozedUntil: true, templateSnapshot: true }
     })
   ]);
-  // A time edit changes a legacy row's key while its occurrence stays the same. The snooze is
-  // carried onto the regenerated row so a settings save does not drop it. Keys are untouched.
-  const snoozedByOccurrence = new Map<string, { uniquenessKey: string; snoozedUntil: Date }>();
+  // A time edit changes a legacy row's key while its occurrence stays the same. The snooze and the
+  // drafts are carried onto the regenerated row so a settings save does not drop them. Keys are
+  // untouched, and a moved occurrence carries nothing.
+  const ownedByOccurrence = new Map<string, { id: string; uniquenessKey: string; snoozedUntil: Date | null }>();
   for (const item of snoozedPending) {
     const originalLocalDate = originalLocalDateOf(item.templateSnapshot);
-    if (originalLocalDate && item.snoozedUntil) {
-      snoozedByOccurrence.set(occurrenceCarryKey(item.contactId, item.mixStepId, item.jumpDateId, originalLocalDate), { uniquenessKey: item.uniquenessKey, snoozedUntil: item.snoozedUntil });
+    if (originalLocalDate) {
+      ownedByOccurrence.set(occurrenceCarryKey(item.contactId, item.mixStepId, item.jumpDateId, originalLocalDate), { id: item.id, uniquenessKey: item.uniquenessKey, snoozedUntil: item.snoozedUntil });
     }
   }
 
@@ -455,15 +457,18 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   let created = 0;
   let updated = 0;
   const creates: Prisma.JumpCreateManyInput[] = [];
+  // Draft rows to move from the replaced row to the regenerated one, keyed by the new row's key.
+  const draftCarries = new Map<string, string>();
   const updates: Array<{ existing: ExistingJump; desired: DesiredJump }> = [];
   for (const desiredJump of desired.values()) {
     const existing = existingByKey.get(desiredJump.uniquenessKey);
     if (!existing) {
       const originalLocalDate = originalLocalDateOf(desiredJump.templateSnapshot);
-      const carried = originalLocalDate ? snoozedByOccurrence.get(occurrenceCarryKey(desiredJump.contactId, desiredJump.mixStepId, desiredJump.jumpDateId, originalLocalDate)) : undefined;
+      const carried = originalLocalDate ? ownedByOccurrence.get(occurrenceCarryKey(desiredJump.contactId, desiredJump.mixStepId, desiredJump.jumpDateId, originalLocalDate)) : undefined;
       if (carried && !desired.has(carried.uniquenessKey)) {
-        if (carried.snoozedUntil > desiredJump.scheduledAt) desiredJump.scheduledAt = carried.snoozedUntil;
+        if (carried.snoozedUntil && carried.snoozedUntil > desiredJump.scheduledAt) desiredJump.scheduledAt = carried.snoozedUntil;
         creates.push({ ...desiredJump, status: "PENDING", snoozedUntil: carried.snoozedUntil });
+        draftCarries.set(desiredJump.uniquenessKey, carried.id);
       } else {
         creates.push({ ...desiredJump, status: "PENDING" });
       }
@@ -478,8 +483,29 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   }
 
   for (const batch of chunks(creates)) {
-    const result = await prisma.jump.createMany({ data: batch, skipDuplicates: true });
-    created += result.count;
+    const carries = batch.flatMap((item) => (draftCarries.has(item.uniquenessKey) ? [{ uniquenessKey: item.uniquenessKey, fromJumpId: draftCarries.get(item.uniquenessKey)! }] : []));
+    if (!carries.length) {
+      created += (await prisma.jump.createMany({ data: batch, skipDuplicates: true })).count;
+      continue;
+    }
+    // The regenerated rows and their carried drafts land together. Whole draft rows are re-keyed;
+    // their text is never inspected. The source must still be pending, so a draft on a row the
+    // owner completed after this pass read it stays where it is.
+    created += await prisma.$transaction(async (tx) => {
+      const result = await tx.jump.createMany({ data: batch, skipDuplicates: true });
+      const createdRows = await tx.jump.findMany({ where: { uniquenessKey: { in: carries.map((carry) => carry.uniquenessKey) } }, select: { id: true, uniquenessKey: true } });
+      const idByKey = new Map(createdRows.map((row) => [row.uniquenessKey, row.id]));
+      for (const carry of carries) {
+        const toJumpId = idByKey.get(carry.uniquenessKey);
+        if (!toJumpId || toJumpId === carry.fromJumpId) continue;
+        const occupied = (await tx.jumpDraft.findMany({ where: { jumpId: toJumpId }, select: { family: true } })).map((row) => row.family);
+        await tx.jumpDraft.updateMany({
+          where: { jumpId: carry.fromJumpId, jump: { status: "PENDING" }, ...(occupied.length ? { family: { notIn: occupied } } : {}) },
+          data: { jumpId: toJumpId }
+        });
+      }
+      return result.count;
+    });
   }
   for (const batch of chunks(updates, 100)) {
     const results = await prisma.$transaction(batch.map(({ existing, desired: desiredJump }) => prisma.jump.updateMany({
