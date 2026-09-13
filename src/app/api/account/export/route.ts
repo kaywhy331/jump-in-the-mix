@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { strToU8, zipSync } from "fflate";
 import { requireWorkspace } from "@/lib/auth";
 import { createContactsCsv, createFollowUpsCsv, createTimelineCsv } from "@/lib/contact-export";
+import { decryptAttemptRecipient } from "@/lib/jump-attempts";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -22,6 +23,7 @@ export async function GET(request: Request) {
     mixes,
     jumps,
     followUpDrafts,
+    followUpAttempts,
     imports,
     notificationPreference,
     automationPreference,
@@ -42,6 +44,7 @@ export async function GET(request: Request) {
     prisma.mix.findMany({ where: { workspaceId }, include: { steps: true, assignments: true }, orderBy: { createdAt: "asc" } }),
     prisma.jump.findMany({ where: { workspaceId }, include: { contact: { select: { displayName: true } }, mix: { select: { name: true } }, stepVersion: { include: { stepTemplate: { select: { channel: true } } } } }, orderBy: { scheduledAt: "asc" } }),
     prisma.jumpDraft.findMany({ where: { workspaceId }, orderBy: [{ updatedAt: "asc" }, { jumpId: "asc" }] }),
+    prisma.jumpAttempt.findMany({ where: { workspaceId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
     prisma.contactImportBatch.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
     prisma.notificationPreference.findUnique({ where: { workspaceId } }),
     prisma.automationPreference.findUnique({ where: { workspaceId } }),
@@ -100,6 +103,8 @@ export async function GET(request: Request) {
     mixes,
     jumps,
     followUpDrafts,
+    // The owner's own export shows which address or number each attempt used, decrypted.
+    followUpAttempts: followUpAttempts.map(({ recipientCiphertext, ...attempt }) => ({ ...attempt, recipient: decryptAttemptRecipient(recipientCiphertext) })),
     imports,
     reviewRequests,
     automatedDeliveries,

@@ -7,7 +7,8 @@ export const RETENTION_DAYS = {
   emailAttempts: 400,
   platformAudit: 400,
   expiredVerification: 30,
-  followUpDrafts: 30
+  followUpDrafts: 30,
+  attemptRecipients: 400
 } as const;
 export const RETENTION_BATCH_SIZE = 100;
 export const RETENTION_STALE_MS = 24 * 60 * 60_000;
@@ -18,6 +19,6 @@ export const RETENTION_COUNT_LABELS = {
   unconfirmedWaitlist: "Unconfirmed waitlist requests removed", expiredVerification: "Expired verification records removed",
   supportConversations: "Inactive support conversations removed", supportMessages: "Support messages removed",
   expiredSupportViews: "Expired support views removed", platformAudit: "Old platform audit records removed",
-  followUpDrafts: "Old follow-up drafts removed"
+  followUpDrafts: "Old follow-up drafts removed", attemptRecipients: "Follow-up attempt recipients minimized"
 } as const;
 export const SUPPORT_RETENTION_NOTICE = `Resolved and closed conversations are removed after ${RETENTION_DAYS.completedSupport} days without activity. Open conversations and pending support emails are kept until they are handled.`;

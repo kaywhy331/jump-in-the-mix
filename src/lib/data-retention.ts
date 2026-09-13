@@ -163,7 +163,17 @@ async function retainPreparationData(now: Date, limit: number): Promise<Counts> 
                AND (j."completionMethod" IS NULL OR j."completionMethod" NOT IN ('mix_paused', 'contact_archived', 'do_not_contact')))
         ORDER BY d."updatedAt", d."jumpId", d.family LIMIT ${limit}
       )`;
-    return { followUpDrafts: drafts };
+    // The address or number an attempt used stays recoverable for the owner for 400 days after
+    // the attempt and its recorded outcome, then only the keyed hash remains, as with email details.
+    const recipientCutoff = before(now, RETENTION_DAYS.attemptRecipients);
+    const recipients = await tx.$queryRaw<Array<{ id: string }>>`
+      WITH selected AS (
+        SELECT a.id FROM "JumpAttempt" a WHERE a."recipientRetiredAt" IS NULL
+          AND GREATEST(a."createdAt", COALESCE(a."recordedAt", a."createdAt")) < ${recipientCutoff}
+        ORDER BY a."createdAt", a.id LIMIT ${limit} FOR UPDATE OF a SKIP LOCKED
+      ) UPDATE "JumpAttempt" a SET "recipientCiphertext" = '', "recipientRetiredAt" = ${now}
+        FROM selected WHERE a.id = selected.id RETURNING a.id`;
+    return { followUpDrafts: drafts, attemptRecipients: recipients.length };
   }, { timeout: 20_000 });
 }
 
