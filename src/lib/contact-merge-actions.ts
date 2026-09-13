@@ -130,6 +130,8 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
     }
     await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId: source.id, status: { in: ["DONE", "SKIPPED"] } }, data: { contactId: survivor.id } });
     await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId: source.id, status: "PENDING" }, data: { status: "CANCELED", completionMethod: "contact_merged", completedAt: null } });
+    // Those follow-ups regenerate for the survivor as new work, so their drafts go with them.
+    await tx.jumpDraft.deleteMany({ where: { workspaceId: workspace.id, jump: { contactId: source.id, status: "CANCELED", completionMethod: "contact_merged" } } });
 
     for (const assignment of source.mixAssignments) {
       const key = `${assignment.mixId}:${assignment.mode}`;
