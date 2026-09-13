@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { reconcileJumps } from "../src/lib/jump-engine";
 import { baseScheduledAtFromSnapshot, logicalDateFromDate, zonedDateTimeToUtc } from "../src/lib/jump-schedule";
 import { prisma } from "../src/lib/prisma";
@@ -132,5 +132,60 @@ describe.sequential("snoozed follow-ups survive reconciliation", () => {
     const fresh = await pendingJump();
     expect(fresh.snoozedUntil).toBeNull();
     expect(fresh.scheduledAt.toISOString()).toBe(zonedDateTimeToUtc(logicalDateFromDate(movedLocalDate), 600, timezone).toISOString());
+  });
+});
+
+describe.sequential("a long-overdue snoozed follow-up outlives the generation window", () => {
+  const suffix = randomUUID().replaceAll("-", "");
+  const ids: Record<string, string> = {};
+  const now = new Date();
+  const timezone = "America/Los_Angeles";
+  // The broadcast went out 60 days ago, well before the 45-day default window.
+  const localDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 60, 12));
+
+  beforeAll(async () => {
+    const user = await prisma.user.create({ data: { email: `overdue-${suffix}@example.com`, name: "Overdue Owner", passwordHash: "test-only" } });
+    ids.user = user.id;
+    const workspace = await prisma.workspace.create({ data: { name: "Overdue Workspace", slug: `overdue-${suffix}`, ownerId: user.id, profile: { create: {} } } });
+    ids.workspace = workspace.id;
+    const contact = await prisma.contact.create({ data: { workspaceId: workspace.id, firstName: "Sam", displayName: "Sam" } });
+    const template = await prisma.stepTemplate.create({ data: { workspaceId: workspace.id, name: "Overdue SMS", channel: "SMS" } });
+    const version = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 1, body: "Hi {{First Name}}" } });
+    const mix = await prisma.mix.create({ data: { workspaceId: workspace.id, name: "Overdue Broadcast", triggerMode: "BROADCAST", status: "ACTIVE" } });
+    ids.mix = mix.id;
+    await prisma.mixStep.create({ data: { mixId: mix.id, stepVersionId: version.id, dayOffset: 0, sortOrder: 1 } });
+    await prisma.mixAssignment.create({
+      data: { assignmentKey: `${workspace.id}:${mix.id}:audience:${contact.id}`, workspaceId: workspace.id, mixId: mix.id, contactId: contact.id, mode: "DYNAMIC" }
+    });
+    await prisma.mixBroadcastSchedule.create({ data: { workspaceId: workspace.id, mixId: mix.id, localDate, timeMinutes: 600, timezone } });
+    // Generate it as the worker would have 57 days ago, when the broadcast was three days overdue.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      vi.setSystemTime(new Date(now.getTime() - 57 * DAY));
+      await reconcileJumps({ workspaceId: workspace.id });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  afterAll(async () => {
+    if (ids.workspace) {
+      await prisma.mixBroadcastSchedule.deleteMany({ where: { workspaceId: ids.workspace } });
+      await prisma.workspace.deleteMany({ where: { id: ids.workspace } });
+    }
+    if (ids.user) await prisma.user.deleteMany({ where: { id: ids.user } });
+  });
+
+  it("is kept at its snoozed time instead of being cancelled as stale", async () => {
+    const jump = await prisma.jump.findFirstOrThrow({ where: { workspaceId: ids.workspace, status: "PENDING" } });
+    expect(jump.scheduledAt.toISOString()).toBe(zonedDateTimeToUtc(logicalDateFromDate(localDate), 600, timezone).toISOString());
+    const until = new Date(now.getTime() + 2 * DAY);
+    await prisma.jump.update({ where: { id: jump.id }, data: { scheduledAt: until, snoozedUntil: until } });
+
+    const result = await reconcileJumps({ workspaceId: ids.workspace });
+    const after = await prisma.jump.findUniqueOrThrow({ where: { id: jump.id } });
+    expect(result.canceled).toBe(0);
+    expect(after.status).toBe("PENDING");
+    expect(after.scheduledAt.toISOString()).toBe(until.toISOString());
   });
 });

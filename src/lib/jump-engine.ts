@@ -2,6 +2,7 @@ import type { JumpStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { renderJumpSnapshot } from "@/lib/jump-render";
 import {
+  baseScheduledAtFromSnapshot,
   addLogicalDays,
   addUtcDays,
   createJumpUniquenessKey,
@@ -22,7 +23,6 @@ import {
 } from "@/lib/personal-scheduling";
 import { minutesInTimezone, plannedStepApplies } from "@/lib/planned-step";
 
-const RECONCILIATION_UPDATE_STATUSES: JumpStatus[] = ["PENDING", "CANCELED"];
 const STALE_CANCELLATION_STATUSES: JumpStatus[] = ["PENDING"];
 const RECONCILABLE_CANCELLATION_METHODS = new Set([
   "reconciled",
@@ -74,6 +74,7 @@ type ExistingJump = {
   stepVersionId: string;
   scheduledAt: Date;
   snoozedUntil: Date | null;
+  updatedAt: Date;
   reason: string;
   templateSnapshot: Prisma.JsonValue;
   renderedSnapshot: Prisma.JsonValue;
@@ -145,7 +146,7 @@ function schedulingRule(stored: PersonalSchedulingRule | undefined): PersonalSch
 
 export async function reconcileJumps(filters: ReconciliationFilters = {}): Promise<JumpReconciliationResult> {
   const now = new Date();
-  const [assignments, stops, pendingBounds] = await Promise.all([
+  const [assignments, stops, pendingBounds, snoozedPending] = await Promise.all([
     prisma.mixAssignment.findMany({
       where: {
         isActive: true,
@@ -206,6 +207,11 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       where: { ...baseJumpWhere(filters), status: { in: STALE_CANCELLATION_STATUSES } },
       _min: { scheduledAt: true },
       _max: { scheduledAt: true }
+    }),
+    // Snoozed rows sit at their chosen time; their base occurrence may lie before the window.
+    prisma.jump.findMany({
+      where: { ...baseJumpWhere(filters), status: { in: STALE_CANCELLATION_STATUSES }, snoozedUntil: { not: null } },
+      select: { templateSnapshot: true }
     })
   ]);
 
@@ -214,9 +220,15 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const maximumOffset = offsets.length ? Math.max(...offsets) : 0;
   const defaultStart = startOfUtcDay(addUtcDays(now, -DEFAULT_PAST_DAYS));
   const defaultEnd = endOfUtcDay(addUtcDays(now, DEFAULT_FUTURE_DAYS));
-  const horizonStart = pendingBounds._min.scheduledAt && pendingBounds._min.scheduledAt < defaultStart
-    ? startOfUtcDay(pendingBounds._min.scheduledAt)
-    : defaultStart;
+  // A snooze moves a follow-up's time inside the window while its base occurrence can lie before it.
+  // Reach back to the earliest such base so the occurrence is generated and matched instead of the
+  // snoozed row being treated as stale. Identities are untouched; only the scan window widens.
+  let earliestPending = pendingBounds._min.scheduledAt ?? null;
+  for (const item of snoozedPending) {
+    const base = baseScheduledAtFromSnapshot(item.templateSnapshot);
+    if (base && (!earliestPending || base < earliestPending)) earliestPending = base;
+  }
+  const horizonStart = earliestPending && earliestPending < defaultStart ? startOfUtcDay(earliestPending) : defaultStart;
   const horizonEnd = pendingBounds._max.scheduledAt && pendingBounds._max.scheduledAt > defaultEnd
     ? endOfUtcDay(pendingBounds._max.scheduledAt)
     : defaultEnd;
@@ -414,6 +426,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         stepVersionId: true,
         scheduledAt: true,
         snoozedUntil: true,
+        updatedAt: true,
         reason: true,
         templateSnapshot: true,
         renderedSnapshot: true, completedAt: true
@@ -446,8 +459,9 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   }
   for (const batch of chunks(updates, 100)) {
     const results = await prisma.$transaction(batch.map(({ existing, desired: desiredJump }) => prisma.jump.updateMany({
-      // Guarded on the snooze this pass read, so a newer snooze from the owner is never overwritten.
-      where: { id: existing.id, status: { in: RECONCILIATION_UPDATE_STATUSES }, snoozedUntil: existing.snoozedUntil },
+      // Guarded on the row exactly as this pass read it, so a snooze, stop, pause, completion or
+      // outcome recorded in the meantime is never overwritten. The next pass sees the new state.
+      where: { id: existing.id, status: existing.status, updatedAt: existing.updatedAt },
       data: {
         workspaceId: desiredJump.workspaceId,
         contactId: desiredJump.contactId,
