@@ -180,4 +180,15 @@ describe.sequential("a long-overdue snoozed follow-up outlives the generation wi
     expect(after.status).toBe("PENDING");
     expect(after.scheduledAt.toISOString()).toBe(until.toISOString());
   });
+
+  it("returns from a pause at its snoozed time", async () => {
+    const jump = await prisma.jump.findFirstOrThrow({ where: { workspaceId: ids.workspace, status: "PENDING" } });
+    // The cancellation the pause action writes for a follow-up that is still ahead.
+    await prisma.jump.update({ where: { id: jump.id }, data: { status: "CANCELED", completedAt: new Date(), completionMethod: "mix_paused" } });
+    const result = await reconcileJumps({ workspaceId: ids.workspace });
+    const after = await prisma.jump.findUniqueOrThrow({ where: { id: jump.id } });
+    expect(result.updated).toBe(1);
+    expect(after.status).toBe("PENDING");
+    expect(after.scheduledAt.toISOString()).toBe(after.snoozedUntil?.toISOString());
+  });
 });

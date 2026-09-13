@@ -29,6 +29,9 @@ const RECONCILABLE_CANCELLATION_METHODS = new Set([
   "contact_archived",
   "do_not_contact"
 ]);
+// Owner-initiated holds. Their rows come back when the hold is lifted, so they keep the window open
+// for an old base occurrence the way a pending row does.
+const HELD_CANCELLATION_METHODS = ["mix_paused", "contact_archived", "do_not_contact"];
 const BATCH_SIZE = 500;
 const DEFAULT_PAST_DAYS = 45;
 const DEFAULT_FUTURE_DAYS = 365;
@@ -206,7 +209,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       select: { mixId: true, contactId: true }
     }),
     prisma.jump.aggregate({
-      where: { ...baseJumpWhere(filters), status: { in: STALE_CANCELLATION_STATUSES } },
+      where: { AND: [baseJumpWhere(filters), { OR: [{ status: "PENDING" }, { status: "CANCELED", completionMethod: { in: HELD_CANCELLATION_METHODS } }] }] },
       _min: { baseScheduledAt: true, scheduledAt: true },
       _max: { scheduledAt: true }
     })
