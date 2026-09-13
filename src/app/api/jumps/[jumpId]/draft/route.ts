@@ -52,7 +52,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ jump
   if (!jump) return NextResponse.json({ error: "Follow-up not found." }, { status: 404 });
   const draft = await prisma.jumpDraft.findFirst({
     where: { jumpId, family, workspaceId: auth.workspaceId },
-    select: { family: true, subject: true, body: true, script: true, revision: true, stepVersionId: true, updatedAt: true }
+    select: { family: true, subject: true, body: true, script: true, revision: true, stepVersionId: true, detached: true, updatedAt: true }
   });
   return NextResponse.json({ draft }, { headers: { "Cache-Control": "private, no-store" } });
 }

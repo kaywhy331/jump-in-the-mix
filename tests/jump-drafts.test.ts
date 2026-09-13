@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { reconcileJumps } from "../src/lib/jump-engine";
 import { discardJumpDraft, readJumpDrafts, saveJumpDraft } from "../src/lib/jump-drafts";
+import { detachedChanges } from "../src/lib/preparation-family";
 import { prisma } from "../src/lib/prisma";
 import { createBroadcastFixture, type BroadcastFixture } from "./helpers/broadcast-fixture";
 
@@ -100,6 +101,21 @@ describe.sequential("follow-up drafts", () => {
     expect(await prisma.jumpDraft.count({ where: { jumpId } })).toBe(0);
     expect(await discardJumpDraft({ workspaceId, jumpId, family: "TEXT", revision: 3 })).toEqual({ ok: true });
     expect(await discardJumpDraft({ workspaceId, jumpId, family: "TEXT", revision: null })).toMatchObject({ ok: false, reason: "invalid" });
+  });
+
+  it("records a removed template detail with its value, reports a later change, and forgets a restored token", async () => {
+    const jump = await (async () => { const mixId = await fixture.addBroadcast("Detached broadcast", -1); await reconcileJumps({ workspaceId, mixId }); return prisma.jump.findFirstOrThrow({ where: { workspaceId, mixId, status: "PENDING" } }); })();
+    // The plan body is "Hi {{First Name}}"; writing the name by hand detaches the token.
+    const saved = await saveJumpDraft({ workspaceId, jumpId: jump.id, family: "TEXT", body: "Hi Alex, quick one.", revision: null });
+    expect(saved).toMatchObject({ ok: true, draft: { detached: { "{{First Name}}": "Alex" } } });
+    await prisma.contact.update({ where: { id: fixture.contactId }, data: { firstName: "Alexandra", displayName: "Alexandra" } });
+    const again = await saveJumpDraft({ workspaceId, jumpId: jump.id, family: "TEXT", body: "Hi Alex, quick one!", revision: 1 });
+    // The recorded value is the one at removal, so the change is visible: Alex then, Alexandra now.
+    expect(again).toMatchObject({ ok: true, draft: { detached: { "{{First Name}}": "Alex" } } });
+    expect(detachedChanges((again.ok && again.draft.detached) || null, { "{{First Name}}": "Alexandra" })).toEqual([{ token: "{{First Name}}", label: "first name", before: "Alex", after: "Alexandra" }]);
+    const restored = await saveJumpDraft({ workspaceId, jumpId: jump.id, family: "TEXT", body: "Hi {{First Name}}, quick one!", revision: 2 });
+    expect(restored).toMatchObject({ ok: true, draft: { detached: null } });
+    await prisma.contact.update({ where: { id: fixture.contactId }, data: { firstName: "Alex", displayName: "Alex" } });
   });
 
   it("refuses a draft once the follow-up is no longer pending", async () => {

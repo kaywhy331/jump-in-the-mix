@@ -22,7 +22,7 @@ import { projectDraftSource, type DraftValues } from "@/lib/draft-segments";
 import { formatDateTime } from "@/lib/format";
 import { readJumpDrafts } from "@/lib/jump-drafts";
 import { buildJumpReplacementValues } from "@/lib/jump-render";
-import { preparationFamilyForChannel } from "@/lib/preparation-family";
+import { detachedChanges, preparationFamilyForChannel } from "@/lib/preparation-family";
 import { addLogicalDays, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
@@ -154,10 +154,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   ]);
   const followUps = list.items;
   const pendingIds = followUps.filter((followUp) => followUp.status === "PENDING").map((followUp) => followUp.id);
-  const [drafts, owner] = await Promise.all([
+  const [drafts, owner, automation] = await Promise.all([
     readJumpDrafts(workspace.id, pendingIds),
-    prisma.user.findUnique({ where: { id: workspace.ownerId }, select: { name: true, email: true } })
+    prisma.user.findUnique({ where: { id: workspace.ownerId }, select: { name: true, email: true } }),
+    prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id }, select: { enabled: true, emailEnabled: true, smsEnabled: true } })
   ]);
+  // A drafted follow-up is held from automatic delivery; the card says so only where delivery would otherwise apply.
+  const automaticFor = (followUpChannel: Channel) => Boolean(automation?.enabled && ((followUpChannel === "EMAIL" && automation.emailEnabled) || (followUpChannel === "SMS" && automation.smsEnabled)));
   const profile = workspace.profile;
   const renderOwner = { name: owner?.name ?? user.name ?? "", email: owner?.email ?? user.email };
   const viewParams = new URLSearchParams({ range, status, channel });
@@ -214,9 +217,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const family = preparationFamilyForChannel(followUpChannel);
     const template = isPending ? templateTextOf(followUp.templateSnapshot) : null;
     const draft = template ? drafts.get(followUp.id)?.find((item) => item.family === family) ?? null : null;
-    const draftValues = template
-      ? pickTokens(buildJumpReplacementValues(followUp.contact, profile, renderOwner, followUpChannel), [template.subject, template.body, template.script, draft?.subject, draft?.body, draft?.script])
-      : {};
+    const allValues = template ? buildJumpReplacementValues(followUp.contact, profile, renderOwner, followUpChannel) : {};
+    const draftValues = template ? pickTokens(allValues, [template.subject, template.body, template.script, draft?.subject, draft?.body, draft?.script]) : {};
+    // A detail the owner wrote over by hand has changed since; say so rather than rewriting their words.
+    const changedDetails = draft ? detachedChanges(draft.detached, allValues) : [];
     const preparedSubject = draft ? projectDraftSource(draft.subject, draftValues) : snapshot.subject ?? null;
     const preparedContent = draft ? projectDraftSource(draft.body ?? draft.script, draftValues) : null;
     const content = preparedContent ?? snapshot.body ?? snapshot.script ?? snapshot.subject ?? "No message has been prepared yet.";
@@ -245,6 +249,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       template={template}
       values={draftValues}
       draft={draft ? { subject: draft.subject, body: draft.body, script: draft.script, revision: draft.revision } : null}
+      automaticDelivery={automaticFor(followUpChannel)}
+      changedDetails={changedDetails}
     />;
 
     return (

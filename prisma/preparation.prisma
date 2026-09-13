@@ -20,6 +20,9 @@ model JumpDraft {
   stepVersionId String
   // Optimistic revision: a save carries the revision it last saw and a stale save is refused.
   revision      Int               @default(1)
+  // Template tokens this draft no longer carries, with the value each resolved to when it was
+  // removed, so a later change to that detail raises a review notice instead of a rewrite.
+  detached      Json?
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
   jump          Jump              @relation(fields: [jumpId], references: [id], onDelete: Cascade)
