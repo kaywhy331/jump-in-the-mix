@@ -31,3 +31,36 @@ model JumpDraft {
   @@id([jumpId, family])
   @@index([workspaceId, updatedAt])
 }
+
+// One row per handoff gesture: the exact content, channel and recipient handed to the phone.
+// Created once from a client-generated id; a retry with the same payload is acknowledged, a retry
+// with a different payload is refused, and nothing is ever merged. An outcome may attach its
+// activity reference and recorded time, and changes nothing else on the row. The recipient is
+// stored encrypted beside a normalized hash and minimized after the retention window.
+model JumpAttempt {
+  id                  String            @id
+  workspaceId         String
+  jumpId              String
+  contactId           String
+  channel             Channel
+  family              PreparationFamily
+  recipientCiphertext String
+  recipientHash       String
+  subject             String?
+  body                String?
+  script              String?
+  draftRevision       Int?
+  stepVersionId       String
+  contextVersions     Json
+  payloadHash         String
+  openedAt            DateTime
+  createdAt           DateTime          @default(now())
+  outcomeActivityId   String?
+  recordedAt          DateTime?
+  recipientRetiredAt  DateTime?
+  jump                Jump              @relation(fields: [jumpId], references: [id], onDelete: Cascade)
+  workspace           Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([jumpId, createdAt])
+  @@index([workspaceId, createdAt])
+}

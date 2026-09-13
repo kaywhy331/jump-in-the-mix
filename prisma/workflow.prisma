@@ -35,6 +35,8 @@ model JumpActionEvent {
   action      JumpActionType
   channel     Channel?
   metadata    Json?
+  // The handoff attempt this gesture belongs to, when the page recorded one.
+  attemptId   String?
   occurredAt  DateTime       @default(now())
   createdAt   DateTime       @default(now())
 

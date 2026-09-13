@@ -8,6 +8,7 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata, type RequestMetadata } from "@/lib/request-context";
 
 const ACTIONS: JumpActionType[] = ["OPENED", "COPIED", "COMPOSED", "CALLED", "VOICEMAIL_STARTED"];
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function actionMatchesChannel(action: JumpActionType, channel: Channel): boolean {
   if (action === "CALLED") return channel === "PHONE_CALL";
@@ -47,9 +48,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
   }
 
   const { jumpId } = await params;
-  const payload = await request.json().catch(() => null) as { action?: string } | null;
+  const payload = await request.json().catch(() => null) as { action?: string; attemptId?: unknown } | null;
   const action = payload?.action as JumpActionType | undefined;
   if (!action || !ACTIONS.includes(action)) return NextResponse.json({ error: "Invalid follow-up action." }, { status: 400 });
+  // The attempt request travels separately with keepalive and may land later; only the id's shape is checked here.
+  const attemptId = typeof payload?.attemptId === "string" && UUID_V4.test(payload.attemptId) ? payload.attemptId.toLowerCase() : null;
 
   const jump = await prisma.jump.findFirst({
     where: { id: jumpId, workspaceId: membership.workspaceId, status: "PENDING" },
@@ -66,6 +69,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
       actorUserId: session.user.id,
       action,
       channel,
+      attemptId,
       metadata: privacySafeMetadata(metadata)
     }
   });
