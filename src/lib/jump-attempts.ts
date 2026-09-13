@@ -112,14 +112,28 @@ export function decryptAttemptRecipient(ciphertext: string): string | null {
   try { return decryptIntegrationCredentials<string>(ciphertext); } catch { return null; }
 }
 
+// A retry of an id that already exists records a handoff that already happened: it is judged
+// only against the stored row, never against the contact's methods as they are now.
+async function acknowledgeExisting(workspaceId: string, jumpId: string, id: string, payloadHash: string): Promise<RecordAttemptResult | null> {
+  const existing = await prisma.jumpAttempt.findUnique({ where: { id }, select: { workspaceId: true, jumpId: true, payloadHash: true } });
+  if (!existing) return null;
+  if (existing.workspaceId === workspaceId && existing.jumpId === jumpId && existing.payloadHash === payloadHash) return { ok: true, attemptId: id, duplicate: true };
+  return { ok: false, reason: "mismatch", message: "The recorded attempt differs from what this device holds." };
+}
+
 /**
  * Records an attempt once. The insert is a single statement keyed by the client id, so two
  * concurrent requests cannot both succeed; the loser compares payload hashes and is acknowledged
- * when identical or refused when different. The stored row is never merged or rewritten here,
- * and no path from this function sends anything.
+ * when identical or refused when different. The recipient and contact checks apply only to the
+ * first creation of an id; an authorized retry of an existing id is acknowledged even after the
+ * contact's methods changed. The stored row is never merged or rewritten here, and no path from
+ * this function sends anything.
  */
 export async function recordJumpAttempt(input: { workspaceId: string; jumpId: string; payload: AttemptPayload }): Promise<RecordAttemptResult> {
   const { workspaceId, jumpId, payload } = input;
+  const payloadHash = attemptPayloadHash(jumpId, payload);
+  const acknowledged = await acknowledgeExisting(workspaceId, jumpId, payload.id, payloadHash);
+  if (acknowledged) return acknowledged;
   const jump = await prisma.jump.findFirst({
     where: { id: jumpId, workspaceId },
     select: {
@@ -135,7 +149,6 @@ export async function recordJumpAttempt(input: { workspaceId: string; jumpId: st
   const stored = payload.channel === "EMAIL" ? jump.contact.emails.map((item) => item.normalized) : jump.contact.phones.map((item) => item.normalized);
   if (!stored.includes(normalized)) return { ok: false, reason: "invalid", message: "That address or number isn't saved for this person." };
 
-  const payloadHash = attemptPayloadHash(jumpId, payload);
   try {
     await prisma.jumpAttempt.create({
       data: {
@@ -161,11 +174,8 @@ export async function recordJumpAttempt(input: { workspaceId: string; jumpId: st
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
   }
-  const existing = await prisma.jumpAttempt.findUnique({ where: { id: payload.id }, select: { workspaceId: true, jumpId: true, payloadHash: true } });
-  if (existing && existing.workspaceId === workspaceId && existing.jumpId === jumpId && existing.payloadHash === payloadHash) {
-    return { ok: true, attemptId: payload.id, duplicate: true };
-  }
-  return { ok: false, reason: "mismatch", message: "The recorded attempt differs from what this device holds." };
+  // Lost the race to a concurrent create with the same id.
+  return await acknowledgeExisting(workspaceId, jumpId, payload.id, payloadHash) ?? { ok: false, reason: "mismatch", message: "The recorded attempt differs from what this device holds." };
 }
 
 /** Attaches the outcome reference and time, and nothing else, to an attempt that has none yet. */

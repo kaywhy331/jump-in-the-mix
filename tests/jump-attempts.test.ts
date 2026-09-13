@@ -82,6 +82,26 @@ describe.sequential("follow-up handoff attempts", () => {
     expect(await prisma.jumpAttempt.findUniqueOrThrow({ where: { id: input.id } })).toEqual(before);
   });
 
+  it("acknowledges an identical retry after the contact's number changed, while a first creation still checks the recipient", async () => {
+    const input = payload();
+    await recordJumpAttempt({ workspaceId, jumpId, payload: input });
+    const before = await prisma.jumpAttempt.findUniqueOrThrow({ where: { id: input.id } });
+    // The number the handoff used is replaced afterwards; the recorded handoff still happened.
+    await prisma.contactPhone.updateMany({ where: { contactId: fixture.contactId, normalized: "+15550100200" }, data: { phone: "+15550100999", normalized: "+15550100999" } });
+    try {
+      expect(await recordJumpAttempt({ workspaceId, jumpId, payload: { ...input } })).toEqual({ ok: true, attemptId: input.id, duplicate: true });
+      expect(await recordJumpAttempt({ workspaceId, jumpId, payload: { ...input, body: "changed" } })).toMatchObject({ ok: false, reason: "mismatch" });
+      expect(await recordJumpAttempt({ workspaceId: "someone-else", jumpId, payload: { ...input } })).toMatchObject({ ok: false, reason: "mismatch" });
+      expect(await prisma.jumpAttempt.findUniqueOrThrow({ where: { id: input.id } })).toEqual(before);
+      // A brand-new id with the old number is a first creation and is refused.
+      expect(await recordJumpAttempt({ workspaceId, jumpId, payload: payload() })).toMatchObject({ ok: false, reason: "invalid" });
+      const retried = await post(postAttempt, jumpId, input);
+      expect(await retried.json()).toEqual({ attemptId: input.id, duplicate: true });
+    } finally {
+      await prisma.contactPhone.updateMany({ where: { contactId: fixture.contactId, normalized: "+15550100999" }, data: { phone: RECIPIENT, normalized: "+15550100200" } });
+    }
+  });
+
   it("produces one row and two acknowledgments for concurrent creation with one id", async () => {
     const input = payload();
     const results = await Promise.all([1, 2, 3].map(() => recordJumpAttempt({ workspaceId, jumpId, payload: input })));
