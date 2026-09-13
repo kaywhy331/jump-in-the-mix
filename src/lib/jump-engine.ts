@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import type { JumpStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { renderJumpSnapshot } from "@/lib/jump-render";
@@ -112,18 +113,10 @@ function stopKey(mixId: string, contactId: string): string {
   return `${mixId}:${contactId}`;
 }
 
-// PostgreSQL returns jsonb keys in its own order, so a plain stringify never matched a freshly
-// built snapshot and every pass rewrote every pending follow-up. Compare with sorted keys instead.
-function stableJson(value: unknown): string {
-  return JSON.stringify(value, (_key, item) =>
-    item && typeof item === "object" && !Array.isArray(item)
-      ? Object.fromEntries(Object.keys(item as Record<string, unknown>).sort().map((key) => [key, (item as Record<string, unknown>)[key]]))
-      : item
-  );
-}
-
+// PostgreSQL returns jsonb keys in its own order, so a string comparison never matched a freshly
+// built snapshot and every pass rewrote every pending follow-up. Compare structurally instead.
 function jsonEqual(left: Prisma.JsonValue | Prisma.InputJsonValue, right: Prisma.JsonValue | Prisma.InputJsonValue): boolean {
-  return stableJson(left) === stableJson(right);
+  return isDeepStrictEqual(left, right);
 }
 
 function sameDesired(existing: ExistingJump, desired: DesiredJump): boolean {
