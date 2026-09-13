@@ -73,6 +73,7 @@ type ExistingJump = {
   mixStepId: string;
   stepVersionId: string;
   scheduledAt: Date;
+  snoozedUntil: Date | null;
   reason: string;
   templateSnapshot: Prisma.JsonValue;
   renderedSnapshot: Prisma.JsonValue;
@@ -96,8 +97,18 @@ function stopKey(mixId: string, contactId: string): string {
   return `${mixId}:${contactId}`;
 }
 
+// PostgreSQL returns jsonb keys in its own order, so a plain stringify never matched a freshly
+// built snapshot and every pass rewrote every pending follow-up. Compare with sorted keys instead.
+function stableJson(value: unknown): string {
+  return JSON.stringify(value, (_key, item) =>
+    item && typeof item === "object" && !Array.isArray(item)
+      ? Object.fromEntries(Object.keys(item as Record<string, unknown>).sort().map((key) => [key, (item as Record<string, unknown>)[key]]))
+      : item
+  );
+}
+
 function jsonEqual(left: Prisma.JsonValue | Prisma.InputJsonValue, right: Prisma.JsonValue | Prisma.InputJsonValue): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return stableJson(left) === stableJson(right);
 }
 
 function sameDesired(existing: ExistingJump, desired: DesiredJump): boolean {
@@ -402,6 +413,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         mixStepId: true,
         stepVersionId: true,
         scheduledAt: true,
+        snoozedUntil: true,
         reason: true,
         templateSnapshot: true,
         renderedSnapshot: true, completedAt: true
@@ -421,6 +433,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       continue;
     }
     if (!canReconcile(existing)) continue;
+    // A snooze is user-owned: the follow-up is never moved earlier than the chosen not-before time.
+    if (existing.snoozedUntil && existing.snoozedUntil > desiredJump.scheduledAt) desiredJump.scheduledAt = existing.snoozedUntil;
     const targetStatus: JumpStatus = existing.status === "CANCELED" ? "PENDING" : existing.status;
     if (targetStatus === existing.status && sameDesired(existing, desiredJump)) continue;
     updates.push({ existing, desired: desiredJump });
@@ -432,7 +446,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   }
   for (const batch of chunks(updates, 100)) {
     const results = await prisma.$transaction(batch.map(({ existing, desired: desiredJump }) => prisma.jump.updateMany({
-      where: { id: existing.id, status: { in: RECONCILIATION_UPDATE_STATUSES } },
+      // Guarded on the snooze this pass read, so a newer snooze from the owner is never overwritten.
+      where: { id: existing.id, status: { in: RECONCILIATION_UPDATE_STATUSES }, snoozedUntil: existing.snoozedUntil },
       data: {
         workspaceId: desiredJump.workspaceId,
         contactId: desiredJump.contactId,

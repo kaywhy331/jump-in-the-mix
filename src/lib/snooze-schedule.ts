@@ -156,3 +156,14 @@ export function calculateSnoozeAt(input: SnoozeScheduleInput): Date {
   if (scheduledAt <= input.now) throw new Error("Choose a future date and time.");
   return scheduledAt;
 }
+
+export type SnoozeResolution = { ok: true; scheduledAt: Date } | { ok: false; dueAt: Date };
+
+/**
+ * A snooze is a not-before time. It can hold a follow-up past its base instant but never pull it
+ * ahead of that instant; the base is recalculated by the scheduler and the snooze is kept as a floor.
+ */
+export function resolveSnooze(input: { chosen: Date; baseScheduledAt: Date | null }): SnoozeResolution {
+  if (input.baseScheduledAt && input.chosen < input.baseScheduledAt) return { ok: false, dueAt: input.baseScheduledAt };
+  return { ok: true, scheduledAt: input.chosen };
+}
