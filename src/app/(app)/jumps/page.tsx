@@ -224,6 +224,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const preparedSubject = draft ? projectDraftSource(draft.subject, draftValues) : snapshot.subject ?? null;
     const preparedContent = draft ? projectDraftSource(draft.body ?? draft.script, draftValues) : null;
     const content = preparedContent ?? snapshot.body ?? snapshot.script ?? snapshot.subject ?? "No message has been prepared yet.";
+    const contextVersions = { contactVersion: followUp.contact.updatedAt.toISOString(), businessProfileVersion: profile?.updatedAt.toISOString() ?? "none" };
+    // A direct call from the list records the notes as shown, so the attempt matches the card.
+    const callAttempt = isPending && phone ? { contactId: followUp.contactId, channel: followUpChannel, family, recipient: phone, subject: null, body: null, script: preparedContent ?? snapshot.script ?? null, draftRevision: draft?.revision ?? null, stepVersionId: followUp.stepVersionId, contextVersions } : null;
     const snippet = content.length > 150 ? `${content.slice(0, 147)}…` : content;
     const isNext = followUp.id === nextUp?.id;
     const recentEvents = eventsByFollowUp.get(followUp.id) ?? [];
@@ -249,6 +252,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       template={template}
       values={draftValues}
       draft={draft ? { subject: draft.subject, body: draft.body, script: draft.script, revision: draft.revision } : null}
+      stepVersionId={followUp.stepVersionId}
+      contextVersions={contextVersions}
       automaticDelivery={automaticFor(followUpChannel)}
       changedDetails={changedDetails}
     />;
@@ -267,7 +272,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             {!isNext && (missingMethod ? (
               <Link className="button primary jump-channel-action" href={`/contacts/${followUp.contactId}/edit`} aria-label={`Add ${needsEmail ? "email" : "phone"} for ${followUp.contact.displayName}`}><AppIcon name="add" /><span>Add {needsEmail ? "email" : "phone"}</span></Link>
             ) : directCall && url ? (
-              <JumpActionLink jumpId={followUp.id} action={actionType(followUpChannel)} href={url} className="button primary jump-channel-action" ariaLabel={`Call ${followUp.contact.displayName}`} title="Call" contactName={followUp.contact.displayName} channel={followUpChannel}><AppIcon name="phone" /><span>Call</span></JumpActionLink>
+              <JumpActionLink jumpId={followUp.id} action={actionType(followUpChannel)} href={url} className="button primary jump-channel-action" ariaLabel={`Call ${followUp.contact.displayName}`} title="Call" contactName={followUp.contact.displayName} channel={followUpChannel} attempt={callAttempt}><AppIcon name="phone" /><span>Call</span></JumpActionLink>
             ) : (
               <Sheet trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review message for ${followUp.contact.displayName}`}><AppIcon name={followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Message ${followUp.contact.displayName}`} description="Make it sound like you. Fine-tune before opening your phone’s composer.">{editableAction}</Sheet>
             ))}

@@ -182,3 +182,33 @@ test("says when a detail written over by hand has changed, and when a draft hold
   await prisma.automationPreference.deleteMany({ where: { workspaceId } });
   await prisma.jumpDraft.deleteMany({ where: { jumpId } });
 });
+
+test("records the exact opened text as an attempt and ties the outcome to it", async ({ page }) => {
+  await setName("Alexandra");
+  await prisma.jumpDraft.deleteMany({ where: { jumpId } });
+  await prisma.jumpAttempt.deleteMany({ where: { jumpId } });
+  await visit(page);
+  const text = rendered("Alexandra", "your estimate is ready whenever suits you.");
+  await field(page).fill(text);
+  await expect(editor(page).getByRole("status")).toHaveText("Saved");
+  // Chromium cannot open sms: links, so the page stays put while the same bookkeeping runs as on a phone.
+  await editor(page).getByRole("link", { name: /^Open text for/ }).click();
+  const tray = page.getByLabel(/^Finish follow-up with/).filter({ visible: true });
+  await expect(tray).toBeVisible();
+  // A cold dev server compiles the attempt and action routes on their first hit; allow for it.
+  await expect.poll(() => prisma.jumpAttempt.count({ where: { jumpId } }), { timeout: 45_000 }).toBe(1);
+  const attempt = await prisma.jumpAttempt.findFirstOrThrow({ where: { jumpId } });
+  expect(attempt).toMatchObject({ body: text, channel: "SMS", family: "TEXT", contactId, outcomeActivityId: null });
+  expect(attempt.draftRevision).toBeGreaterThan(0);
+  await expect.poll(async () => (await prisma.jumpActionEvent.findFirst({ where: { jumpId, action: "COMPOSED" }, orderBy: { occurredAt: "desc" } }))?.attemptId, { timeout: 45_000 }).toBe(attempt.id);
+  await audit(page);
+
+  await tray.getByRole("button", { name: "Sent", exact: true }).click();
+  await expect(tray).toBeHidden({ timeout: 45_000 });
+  await expect.poll(async () => (await prisma.jumpAttempt.findUniqueOrThrow({ where: { id: attempt.id } })).outcomeActivityId, { timeout: 45_000 }).not.toBeNull();
+  const linked = await prisma.jumpAttempt.findUniqueOrThrow({ where: { id: attempt.id } });
+  expect(linked).toMatchObject({ body: text, recordedAt: expect.any(Date) });
+  const activity = await prisma.contactActivity.findUniqueOrThrow({ where: { id: linked.outcomeActivityId! } });
+  expect(activity.metadata).toMatchObject({ attemptId: attempt.id, preparationEvidence: "attempt" });
+  expect(await page.evaluate(() => Object.keys(sessionStorage).filter((key) => key.includes("opened-")))).toEqual([]);
+});
