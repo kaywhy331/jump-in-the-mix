@@ -145,20 +145,22 @@ export function EditableFollowUpAction({
     setContentSegments(parseDraftSource(next.content, values));
   }, [values]);
 
-  const request = useCallback((method: "PUT" | "DELETE", body: Record<string, unknown>) => fetch(`/api/jumps/${encodeURIComponent(jumpId)}/draft`, {
+  // keepalive only for the flush that must outlive the page; an ordinary save or discard is a
+  // plain request the page can observe and retry.
+  const request = useCallback((method: "PUT" | "DELETE", body: Record<string, unknown>, keepalive = false) => fetch(`/api/jumps/${encodeURIComponent(jumpId)}/draft`, {
     method,
     headers: { "content-type": "application/json" },
-    keepalive: true,
+    keepalive,
     body: JSON.stringify({ family, ...body })
   }), [family, jumpId]);
 
-  const flush = useCallback(() => runExclusive(async () => {
+  const flush = useCallback((keepalive = false) => runExclusive(async () => {
     if (!persists || latest.current.paused) return;
     const { source: current, saved: base } = latest.current;
     if (current.subject === base.subject && current.content === base.content) return;
     setStatus("saving");
     try {
-      const response = await request("PUT", { subject: family === "EMAIL" ? current.subject : null, [contentKey]: current.content, revision: base.revision });
+      const response = await request("PUT", { subject: family === "EMAIL" ? current.subject : null, [contentKey]: current.content, revision: base.revision }, keepalive);
       const payload = await response.json().catch(() => ({})) as { draft?: SavedDraft | null };
       if (response.ok && payload.draft) {
         setSaved({ ...current, revision: payload.draft.revision });
@@ -190,7 +192,7 @@ export function EditableFollowUpAction({
   // Leaving the page or unmounting sends what is pending; the request outlives the tab.
   useEffect(() => {
     if (!persists) return;
-    const onHide = () => { if (latest.current.unsaved && !latest.current.paused) void flush(); };
+    const onHide = () => { if (latest.current.unsaved && !latest.current.paused) void flush(true); };
     window.addEventListener("pagehide", onHide);
     return () => {
       window.removeEventListener("pagehide", onHide);
