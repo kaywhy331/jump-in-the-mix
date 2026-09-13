@@ -17,6 +17,8 @@ type Conflict = { kind: "save" | "discard"; theirs: SavedDraft | null };
 
 const AUTOSAVE_DELAY_MS = 700;
 const RETRY_DELAY_MS = 4000;
+// How long after the owner last touched a saved draft the list still waits before reordering.
+const RECENT_EDIT_MS = 90_000;
 
 function actionType(channel: string): ActionType {
   if (channel === "PHONE_CALL") return "CALLED";
@@ -122,15 +124,24 @@ export function EditableFollowUpAction({
   const [conflict, setConflict] = useState<Conflict | null>(null);
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [recentlyActive, setRecentlyActive] = useState(false);
+  const idleTimer = useRef<number | undefined>(undefined);
+  const touch = useCallback(() => {
+    setRecentlyActive(true);
+    window.clearTimeout(idleTimer.current);
+    idleTimer.current = window.setTimeout(() => setRecentlyActive(false), RECENT_EDIT_MS);
+  }, []);
 
   const subject = persists ? projectDraft(subjectSegments) : legacySubject ?? initialSubject ?? "";
   const content = persists ? projectDraft(contentSegments) : legacyContent ?? initialContent;
   const source = useMemo<Source>(() => ({ subject: draftSource(subjectSegments), content: draftSource(contentSegments) }), [subjectSegments, contentSegments]);
   const unsaved = persists ? source.subject !== saved.subject || source.content !== saved.content : legacySubject !== null || legacyContent !== null;
   const hasDraft = persists ? saved.revision !== null || unsaved : unsaved;
-  // The list waits to reorder while the owner is still in a draft, saved or not; leaving the page
-  // is guarded only while keystrokes have not reached the server.
-  const editing = unsaved || (persists && saved.revision !== null && focused);
+  // The list waits to reorder while the owner is still in a draft, saved or not: focus within the
+  // editor, or activity in the last minute and a half, since a click on a Today control such as
+  // "Return to draft" moves focus away for a moment. Leaving the page is guarded only while
+  // keystrokes have not reached the server.
+  const editing = unsaved || (persists && saved.revision !== null && (focused || recentlyActive));
   const paused = stopped || conflict !== null;
 
   const latest = useRef({ source, saved, unsaved, paused });
@@ -215,15 +226,18 @@ export function EditableFollowUpAction({
     return () => {
       window.removeEventListener("pagehide", onHide);
       window.clearTimeout(retryTimer.current);
+      window.clearTimeout(idleTimer.current);
       onHide();
     };
   }, [flush, persists]);
 
   const editSubject = (next: string) => {
+    touch();
     if (!persists) { setLegacySubject(next); return; }
     setSubjectSegments((previous) => applyDraftEdit(previous, projectDraft(previous), next));
   };
   const editContent = (next: string) => {
+    touch();
     if (!persists) { setLegacyContent(next); return; }
     setContentSegments((previous) => applyDraftEdit(previous, projectDraft(previous), next));
   };
@@ -308,8 +322,8 @@ export function EditableFollowUpAction({
       data-follow-up-draft={unsaved}
       data-follow-up-editing={editing}
       data-follow-up-saved={persists && saved.revision !== null}
-      onFocusCapture={() => setFocused(true)}
-      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}
+      onFocusCapture={() => { setFocused(true); touch(); }}
+      onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { setFocused(false); touch(); } }}
     >
       {changedDetails.length > 0 && <div className="notice warning compact" role="status" data-follow-up-changed-details>
         {changedDetails.slice(0, 3).map((change) => <p key={change.token}>You wrote over the {change.label} in this message, and it has since changed from “{change.before || "blank"}” to “{change.after || "blank"}”. Check the wording before you send it.</p>)}
