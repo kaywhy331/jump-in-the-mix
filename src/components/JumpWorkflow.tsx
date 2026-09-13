@@ -223,9 +223,11 @@ export function JumpReturnTray() {
     const onVisibility = () => { if (document.visibilityState === "visible") revealStored(); };
     const onState = (event: Event) => {
       const detail = (event as CustomEvent<JumpStateDetail>).detail;
-      if (detail && opened.current?.jumpId === detail.jumpId && detail.status !== "PENDING") {
+      const current = opened.current;
+      // A state event without a follow-up id, or for a follow-up this tray never opened, is not ours.
+      if (detail?.jumpId && current && current.jumpId === detail.jumpId && detail.status !== "PENDING") {
         // Finished from the card instead of the tray; move on to the next unresolved handoff.
-        const next = resolveOpenedJump(scope, { attemptId: opened.current.attemptId, jumpId: detail.jumpId });
+        const next = resolveOpenedJump(scope, { attemptId: current.attemptId, jumpId: detail.jumpId });
         opened.current = next;
         window.clearTimeout(revealTimer.current);
         if (next) setSession(next); else setVisible(false);
