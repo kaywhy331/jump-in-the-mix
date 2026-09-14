@@ -27,6 +27,14 @@ For failures, record sanitized reproduction steps and classify the result as blo
 | Safe-area spacing in portrait and landscape | Physical Android / Chrome | — | — | NOT RUN | Include gesture navigation | — | Unclassified |
 | VoiceOver primary workflows | Physical iPhone / Safari | — | — | NOT RUN | Include rotor, sheets, prepared messages, and outcomes | — | Unclassified |
 | TalkBack primary workflows | Physical Android / Chrome | — | — | NOT RUN | Include sheets, prepared messages, and outcomes | — | Unclassified |
+| Fine-tuned draft persists across reload and renders with current contact details | Physical iPhone / Safari | — | — | NOT RUN | Edit a Today message, reload, rename the contact; expect the edit kept and the name updated | — | Unclassified |
+| Fine-tuned draft persists across reload and renders with current contact details | Physical Android / Chrome | — | — | NOT RUN | Same as above | — | Unclassified |
+| Native SMS handoff records an attempt and the return tray ties the outcome to it | Physical iPhone / Safari | — | — | NOT RUN | Open text, return, tap Sent; expect one JumpAttempt with the opened text and the activity linked | — | Unclassified |
+| Native SMS handoff records an attempt and the return tray ties the outcome to it | Physical Android / Chrome | — | — | NOT RUN | Same as above | — | Unclassified |
+| Draft revision conflict keeps local wording and offers one choice | Physical iPhone / Safari | — | — | NOT RUN | Edit on two devices; expect the inline choice, no silent replacement | — | Unclassified |
+| Draft revision conflict keeps local wording and offers one choice | Physical Android / Chrome | — | — | NOT RUN | Same as above | — | Unclassified |
+| One-save visit with plan, then hold and no-show from the agenda | Physical iPhone / Safari | — | — | NOT RUN | Schedule a meeting with a plan and a new person; expect the anchored reminder on Today; hold and mark no-show | — | Unclassified |
+| One-save visit with plan, then hold and no-show from the agenda | Physical Android / Chrome | — | — | NOT RUN | Same as above | — | Unclassified |
 | Keyboard-only primary workflows | Desktop Chrome | — | — | NOT RUN | Verify focus, dialogs, Escape, reordering | — | Unclassified |
 | Keyboard-only primary workflows | Desktop Firefox | — | — | NOT RUN | Verify focus, dialogs, Escape, reordering | — | Unclassified |
 | Browser zoom at 200% | Desktop Chrome and Firefox | — | — | NOT RUN | Check horizontal scroll and sticky controls | — | Unclassified |
