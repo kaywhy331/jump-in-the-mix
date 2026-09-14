@@ -1,4 +1,5 @@
 import type { Channel, WorkspaceProfile } from "@/generated/prisma/client";
+import { appointmentTokenValues, type AppointmentContext } from "@/lib/appointment-context";
 
 export type JumpRenderContact = {
   firstName: string | null;
@@ -61,7 +62,8 @@ export function buildJumpReplacementValues(
   contact: JumpRenderContact,
   profile: WorkspaceProfile | null,
   owner: JumpRenderOwner,
-  channel: Channel
+  channel: Channel,
+  appointment: AppointmentContext | null = null
 ): Record<string, string> {
   const email = primaryContactEmail(contact);
   const phone = primaryContactPhone(contact);
@@ -135,6 +137,8 @@ export function buildJumpReplacementValues(
   for (const item of contact.customFieldValues ?? []) {
     values[`{{contact.custom.${item.definition.key}}}`] = item.value;
   }
+  // Appointment tokens resolve to empty text on a follow-up that is not bound to a visit.
+  Object.assign(values, appointmentTokenValues(appointment));
   return values;
 }
 
@@ -155,9 +159,10 @@ export function renderJumpSnapshot(
   contact: JumpRenderContact,
   profile: WorkspaceProfile | null,
   owner: JumpRenderOwner,
-  channel: Channel
+  channel: Channel,
+  appointment: AppointmentContext | null = null
 ): JumpRenderedSnapshot {
-  const values = buildJumpReplacementValues(contact, profile, owner, channel);
+  const values = buildJumpReplacementValues(contact, profile, owner, channel, appointment);
   return {
     subject: renderJumpTemplate(template.subject, values),
     body: renderJumpTemplate(template.body, values),

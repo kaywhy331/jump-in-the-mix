@@ -164,6 +164,20 @@ These are contract rules for the next slice. The binding schema itself is not pa
 
 **Evaluated bindings are cleaned up.** Reconciliation records every binding it evaluated successfully, including one that correctly produced no actions, and its stale pass cancels pending rows of those bindings that are absent from the desired set. A binding that failed evaluation is excluded from the stale pass and reported, so a failure never cancels work.
 
+## 9a. Slice 2 binding schema (implemented)
+
+`AppointmentBinding` links one plan enrollment (`MixAssignment`, unique per binding) to one local appointment (`CalendarEntry`) for one contact, with `automaticDelivery` (default off), `heldAt` (an owner hold scoped to this visit), and `lastEvaluatedAt` / `lastEvaluationError`. `Jump.appointmentBindingId` marks every follow-up the binding generates. `CalendarEntry` gains `location`, `link` (https only) and `details`, resolved by the `{{Appointment …}}` / `{{appointment.…}}` tokens, which render empty on an unbound follow-up.
+
+**Stable identity.** An anchored follow-up's uniqueness key is the binding and the beat; neither the scheduled time nor the timezone is part of it. Moving the appointment updates the rows in place, so drafts, snoozes and recorded attempts stay with them; the scheduler's base moves and the snooze rule still applies.
+
+**Anchoring.** Day offsets count from the appointment's local date in the appointment's timezone; a beat without its own time goes out at the appointment's time; weekend and quiet-hour rules apply as elsewhere. The follow-up's reason is the appointment title.
+
+**Scoped holds.** Three reconcilable reasons hold a binding's pending rows: `appointment_held` (owner hold), `appointment_canceled` (the appointment is canceled), `appointment_unresolved` (the binding could not be evaluated: missing appointment, contact mismatch, invalid timezone). Each is set by its cause and cleared only when that cause lifts. Held rows are never treated as stale, and a binding that failed evaluation records the reason.
+
+**Scope.** A binding never reuses an enrollment without appointment scope; two appointments for the same person and plan are two bindings with separate rows, and moving one touches only its own. A bound follow-up is never claimed by automatic delivery unless its binding allows it.
+
+**One-save person resolution.** A visit saved with a new person's name, phone and email reuses a saved person only when those methods point at exactly one person; a saved method is never duplicated. When they point at more than one (the phone at one person and the email at another, or one method shared by two people), nothing is saved and the form asks for one inline choice between those people with everything entered kept in place. The choice is rechecked against the same matches on the next save, and the chosen person's saved methods are left as they are.
+
 ## 10. Out of scope
 
 No pricing, limits or entitlements. No customer-facing vocabulary changes. No provider OAuth, hosted files or paid AI. No changes to saved-date, manual or broadcast identities. Implementation lands in its own pull request after this contract is reviewed.

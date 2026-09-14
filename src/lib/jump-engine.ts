@@ -22,17 +22,25 @@ import {
   type PersonalSchedulingRule
 } from "@/lib/personal-scheduling";
 import { minutesInTimezone, plannedStepApplies } from "@/lib/planned-step";
+import { isValidTimezone } from "@/lib/mix-broadcast";
+import type { AppointmentContext } from "@/lib/appointment-context";
 
 const STALE_CANCELLATION_STATUSES: JumpStatus[] = ["PENDING"];
+// Holds scoped to one appointment binding. Each is cleared only by the event that set it: the
+// owner lifting the hold, the appointment being restored, or its evaluation succeeding again.
+export const APPOINTMENT_HOLD_METHODS = { held: "appointment_held", canceled: "appointment_canceled", unresolved: "appointment_unresolved" } as const;
 const RECONCILABLE_CANCELLATION_METHODS = new Set([
   "reconciled",
   "mix_paused",
   "contact_archived",
-  "do_not_contact"
+  "do_not_contact",
+  ...Object.values(APPOINTMENT_HOLD_METHODS)
 ]);
 // Owner-initiated holds. Their rows come back when the hold is lifted, so they keep the window open
 // for an old base occurrence the way a pending row does.
-const HELD_CANCELLATION_METHODS = ["mix_paused", "contact_archived", "do_not_contact"];
+const HELD_CANCELLATION_METHODS = ["mix_paused", "contact_archived", "do_not_contact", ...Object.values(APPOINTMENT_HOLD_METHODS)];
+// Appointment-anchored rows keep one identity across moves: the time is not part of their key.
+const ANCHORED_KEY_PART = "anchored";
 const BATCH_SIZE = 500;
 const DEFAULT_PAST_DAYS = 45;
 const DEFAULT_FUTURE_DAYS = 365;
@@ -48,6 +56,10 @@ export type JumpReconciliationResult = {
   created: number;
   updated: number;
   canceled: number;
+  /** Follow-ups held for an appointment binding this pass: an owner hold, a canceled appointment, or a binding that could not be evaluated. */
+  held: number;
+  /** Bindings that could not be evaluated; their rows are held, never treated as stale. */
+  failedBindings: number;
 };
 
 type DesiredJump = {
@@ -63,6 +75,7 @@ type DesiredJump = {
   reason: string;
   templateSnapshot: Prisma.InputJsonValue;
   renderedSnapshot: Prisma.InputJsonValue;
+  appointmentBindingId: string | null;
 };
 
 type ExistingJump = {
@@ -83,6 +96,7 @@ type ExistingJump = {
   reason: string;
   templateSnapshot: Prisma.JsonValue;
   renderedSnapshot: Prisma.JsonValue;
+  appointmentBindingId: string | null;
 };
 
 export function originalLocalDateOf(snapshot: Prisma.JsonValue | Prisma.InputJsonValue): string | null {
@@ -128,6 +142,7 @@ function sameDesired(existing: ExistingJump, desired: DesiredJump): boolean {
     && existing.stepVersionId === desired.stepVersionId
     && existing.scheduledAt.getTime() === desired.scheduledAt.getTime()
     && existing.baseScheduledAt?.getTime() === desired.baseScheduledAt.getTime()
+    && existing.appointmentBindingId === desired.appointmentBindingId
     && existing.reason === desired.reason
     && jsonEqual(existing.templateSnapshot, desired.templateSnapshot)
     && jsonEqual(existing.renderedSnapshot, desired.renderedSnapshot);
@@ -200,7 +215,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
             },
             dateType: true
           }
-        }
+        },
+        appointmentBinding: { include: { calendarEntry: true } }
       }
     }),
     prisma.mixStop.findMany({
@@ -304,11 +320,33 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const timezoneByOwnerId = new Map(ownerPreferences.map((preference) => [preference.userId, preference.timezone]));
   const stopped = new Set(stops.map((item) => stopKey(item.mixId, item.contactId)));
   const desired = new Map<string, DesiredJump>();
+  // Appointment bindings this pass evaluated. A hold keeps the binding's pending rows out of the
+  // desired set and cancels them with its own reason, so they return when the reason lifts and are
+  // never mistaken for stale work.
+  const bindingHolds = new Map<string, { method: string; error: string | null }>();
+  const evaluatedBindingIds: string[] = [];
 
   for (const assignment of assignments) {
     if (assignment.groupId && inactiveGroupIds.has(assignment.groupId)) continue;
     const personalRule = schedulingRule(schedulingByDataSpace.get(assignment.workspaceId));
     const workspaceTimezone = timezoneByOwnerId.get(assignment.workspace.ownerId) ?? "UTC";
+    const binding = assignment.appointmentBinding;
+    // A binding evaluates once per pass, before its contact is considered, so a hold applies even
+    // when the contact is filtered out of this pass.
+    let appointment: AppointmentContext | null = null;
+    if (binding) {
+      if (filters.contactId && binding.contactId !== filters.contactId) continue;
+      const entry = binding.calendarEntry;
+      const problem = !entry ? "The appointment no longer exists."
+        : binding.contactId !== entry.contactId ? "The appointment belongs to a different person now."
+        : !isValidTimezone(entry.timezone) ? "The appointment's timezone is not valid."
+        : null;
+      if (problem) { bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.unresolved, error: problem }); continue; }
+      if (binding.heldAt) { bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.held, error: null }); evaluatedBindingIds.push(binding.id); continue; }
+      if (entry.canceledAt) { bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.canceled, error: null }); evaluatedBindingIds.push(binding.id); continue; }
+      evaluatedBindingIds.push(binding.id);
+      appointment = { title: entry.title, startsAt: entry.startsAt, timezone: entry.timezone, location: entry.location, link: entry.link, details: entry.details };
+    }
 
     const contacts = new Map<string, NonNullable<typeof assignment.contact>>();
     if (assignment.contact && !assignment.contact.archivedAt) contacts.set(assignment.contact.id, assignment.contact);
@@ -330,7 +368,19 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         timeMinutes: number | null;
       }[] = [];
 
-      if (assignment.mix.triggerMode === "DATE_TRIGGERED") {
+      if (binding && appointment) {
+        // Anchored to the visit: day offsets count from the appointment's local date, and a beat
+        // with no time of its own goes out at the appointment's time. The occurrence is the
+        // binding itself, so a moved appointment updates these rows in place.
+        triggers.push({
+          logicalDate: logicalDateInTimezone(appointment.startsAt, appointment.timezone),
+          jumpDateId: null,
+          occurrenceKey: `appointment:${binding.id}`,
+          reason: appointment.title,
+          timezone: appointment.timezone,
+          timeMinutes: minutesInTimezone(appointment.startsAt, appointment.timezone)
+        });
+      } else if (assignment.mix.triggerMode === "DATE_TRIGGERED") {
         for (const jumpDate of contact.jumpDates.filter((item) => item.dateTypeId === assignment.mix.dateTypeId)) {
           for (const occurrence of getJumpDateOccurrences(jumpDate, occurrenceStart, occurrenceEnd)) {
             triggers.push({
@@ -399,14 +449,15 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
           if (scheduledAt < horizonStart || scheduledAt > horizonEnd) continue;
 
           const localDateTime = scheduledLocalDateTimeKey(scheduledLogicalDate, sendTimeMinutes);
+          const anchored = Boolean(binding && appointment);
           const uniquenessKey = createJumpUniquenessKey({
             workspaceId: assignment.workspaceId,
             contactId: contact.id,
             mixId: assignment.mixId,
             mixStepId: mixStep.id,
-            occurrenceKey,
-            scheduledLocalDateTime: localDateTime,
-            timezone: trigger.timezone
+            occurrenceKey: anchored ? `appointment:${binding!.id}` : occurrenceKey,
+            scheduledLocalDateTime: anchored ? ANCHORED_KEY_PART : localDateTime,
+            timezone: anchored ? ANCHORED_KEY_PART : trigger.timezone
           });
           const channel = mixStep.stepVersion.stepTemplate.channel;
           const renderedSnapshot = renderJumpSnapshot(
@@ -418,7 +469,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
             contact,
             assignment.workspace.profile,
             assignment.workspace.owner,
-            channel
+            channel,
+            appointment
           );
 
           desired.set(uniquenessKey, {
@@ -442,7 +494,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
               originalLocalDate: logicalDateKey(originalLogicalDate),
               weekendRule: personalRule.weekendScheduling
             },
-            renderedSnapshot
+            renderedSnapshot,
+            appointmentBindingId: anchored ? binding!.id : null
           });
         }
       }
@@ -471,7 +524,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         updatedAt: true,
         reason: true,
         templateSnapshot: true,
-        renderedSnapshot: true, completedAt: true
+        renderedSnapshot: true, completedAt: true,
+        appointmentBindingId: true
       }
     }));
   }
@@ -551,6 +605,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         reason: desiredJump.reason,
         templateSnapshot: desiredJump.templateSnapshot,
         renderedSnapshot: desiredJump.renderedSnapshot,
+        appointmentBindingId: desiredJump.appointmentBindingId,
         status: existing.status === "CANCELED" ? "PENDING" : existing.status,
         completedAt: null,
         completionMethod: null
@@ -559,11 +614,29 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
     updated += results.reduce((sum, result) => sum + result.count, 0);
   }
 
+  // Holds run before the stale pass, so a held binding's rows carry their own reason and a binding
+  // that failed evaluation never has its work treated as stale.
+  let held = 0;
+  const heldBindingIds = [...bindingHolds.keys()];
+  for (const [bindingId, hold] of bindingHolds) {
+    const result = await prisma.jump.updateMany({
+      where: { appointmentBindingId: bindingId, status: { in: STALE_CANCELLATION_STATUSES } },
+      data: { status: "CANCELED", completedAt: null, completionMethod: hold.method }
+    });
+    held += result.count;
+  }
+  const failedBindings = [...bindingHolds.entries()].filter(([, hold]) => hold.method === APPOINTMENT_HOLD_METHODS.unresolved);
+  if (evaluatedBindingIds.length) await prisma.appointmentBinding.updateMany({ where: { id: { in: evaluatedBindingIds } }, data: { lastEvaluatedAt: now, lastEvaluationError: null } });
+  for (const [bindingId, hold] of failedBindings) {
+    await prisma.appointmentBinding.updateMany({ where: { id: bindingId }, data: { lastEvaluatedAt: now, lastEvaluationError: hold.error } });
+  }
+
   const staleCandidates = await prisma.jump.findMany({
     where: {
       ...baseJumpWhere(filters),
       status: { in: STALE_CANCELLATION_STATUSES },
-      scheduledAt: { gte: horizonStart, lte: horizonEnd }
+      scheduledAt: { gte: horizonStart, lte: horizonEnd },
+      ...(heldBindingIds.length ? { OR: [{ appointmentBindingId: null }, { appointmentBindingId: { notIn: heldBindingIds } }] } : {})
     },
     select: { id: true, uniquenessKey: true }
   });
@@ -577,7 +650,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
     canceled += result.count;
   }
 
-  return { desired: desired.size, created, updated, canceled };
+  return { desired: desired.size, created, updated, canceled, held, failedBindings: failedBindings.length };
 }
 
 export async function generateJumps(filters: ReconciliationFilters = {}): Promise<number> {

@@ -157,6 +157,7 @@ model Workspace {
   jumps                  Jump[]
   jumpDrafts             JumpDraft[]
   jumpAttempts           JumpAttempt[]
+  appointmentBindings    AppointmentBinding[]
   importedSharedMixes    SharedMixImport[]
   idempotencyKeys        IdempotencyKey[]
   jobs                   Job[]
@@ -248,6 +249,7 @@ model Contact {
   jumpDates           JumpDate[]
   mixAssignments      MixAssignment[]
   jumps               Jump[]
+  appointmentBindings AppointmentBinding[]
   customFieldValues   ContactCustomFieldValue[]
   relationshipState   ContactRelationshipState?
   createdAt           DateTime                  @default(now())
@@ -451,6 +453,7 @@ model Mix {
   steps                     MixStep[]
   assignments               MixAssignment[]
   jumps                     Jump[]
+  appointmentBindings AppointmentBinding[]
   createdAt                 DateTime        @default(now())
   updatedAt                 DateTime        @updatedAt
 
@@ -492,6 +495,7 @@ model MixAssignment {
   mix           Mix            @relation(fields: [mixId], references: [id], onDelete: Cascade)
   contact       Contact?       @relation(fields: [contactId], references: [id], onDelete: Cascade)
   group         Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  appointmentBinding AppointmentBinding?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -520,6 +524,9 @@ model Jump {
   // Scheduler-owned base instant. scheduledAt is the later of this and snoozedUntil.
   baseScheduledAt  DateTime?
   uniquenessKey    String                 @unique
+  // The appointment binding this follow-up belongs to, when it is anchored to a visit.
+  appointmentBindingId String?
+  appointmentBinding   AppointmentBinding? @relation(fields: [appointmentBindingId], references: [id], onDelete: SetNull)
   workspace        Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact          Contact                @relation(fields: [contactId], references: [id], onDelete: Cascade)
   jumpDate         JumpDate?              @relation(fields: [jumpDateId], references: [id], onDelete: SetNull)
@@ -538,6 +545,7 @@ model Jump {
   @@index([mixId])
   @@index([mixStepId])
   @@index([stepVersionId])
+  @@index([appointmentBindingId])
 }
 
 model SharedMix {
