@@ -98,7 +98,9 @@ export default async function EditMixPage({
             script: step.stepVersion.script,
             dayOffset: step.dayOffset,
             sendTimeMinutes: step.sendTimeMinutes,
-            plannedAt: step.plannedAt ? plannedAtInput(step.plannedAt, timezone) : null
+            plannedAt: step.plannedAt ? plannedAtInput(step.plannedAt, timezone) : null,
+            anchor: step.anchor,
+            offsetMinutes: step.offsetMinutes
           }))
         }}
       />

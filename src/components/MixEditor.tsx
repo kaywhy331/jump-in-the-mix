@@ -7,14 +7,16 @@ import { TimezonePicker } from "@/components/TimezonePicker";
 import { planGoalLabel } from "@/lib/business-taxonomy";
 import { ReviewDialog } from "@/components/ReviewDialog";
 import { saveMixAction } from "@/lib/mix-editor-actions";
+import { STEP_ANCHORS, STEP_ANCHOR_LABELS, MAX_STEP_OFFSET_MINUTES, describeStepTiming } from "@/lib/step-timing";
+import type { StepAnchor } from "@/generated/prisma/client";
 
 type TriggerMode = "DATE_TRIGGERED" | "MANUAL_START" | "BROADCAST";
 type MixStatus = "DRAFT" | "ACTIVE" | "PAUSED";
 type Channel = "SMS" | "EMAIL" | "PHONE_CALL" | "VOICEMAIL" | "WHATSAPP";
 type DateTypeOption = { id: string; name: string; isSystem: boolean };
 type GroupOption = { id: string; name: string; color: string | null; isActive: boolean; contactCount: number };
-type SequenceItem = { key: string; id?: string; name: string; channel: Channel; subject: string; body: string; script: string; dayOffset: number; sendTimeMinutes: number | null; plannedAt: string };
-type MixValue = { id?: string; name?: string; description?: string | null; framework?: string | null; category?: string | null; industry?: string | null; triggerMode?: TriggerMode; dateTypeId?: string | null; status?: MixStatus; groupIds?: string[]; assignAllContacts?: boolean; broadcastDate?: string | null; broadcastTime?: string | null; broadcastTimezone?: string | null; steps?: Array<{ id: string; stepTemplateId: string; templateActive: boolean; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null; dayOffset: number; sendTimeMinutes: number | null; plannedAt?: string | null }> };
+type SequenceItem = { key: string; id?: string; name: string; channel: Channel; subject: string; body: string; script: string; dayOffset: number; sendTimeMinutes: number | null; plannedAt: string; anchor: StepAnchor; offsetMinutes: string };
+type MixValue = { id?: string; name?: string; description?: string | null; framework?: string | null; category?: string | null; industry?: string | null; triggerMode?: TriggerMode; dateTypeId?: string | null; status?: MixStatus; groupIds?: string[]; assignAllContacts?: boolean; broadcastDate?: string | null; broadcastTime?: string | null; broadcastTimezone?: string | null; steps?: Array<{ id: string; stepTemplateId: string; templateActive: boolean; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null; dayOffset: number; sendTimeMinutes: number | null; plannedAt?: string | null; anchor?: StepAnchor; offsetMinutes?: number | null }> };
 type LegacyMessageOption = { id: string; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null };
 
 const MAX_STEP_OFFSET_DAYS = 365;
@@ -27,7 +29,7 @@ const CHANNELS: Array<{ value: Channel; label: string }> = [
 ];
 
 function newStep(index: number, previousOffset = -1): SequenceItem {
-  return { key: `new-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`, name: `Beat ${index + 1}`, channel: index === 0 ? "SMS" : "PHONE_CALL", subject: "", body: "", script: "", dayOffset: Math.min(previousOffset + 1, MAX_STEP_OFFSET_DAYS), sendTimeMinutes: null, plannedAt: "" };
+  return { key: `new-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`, name: `Beat ${index + 1}`, channel: index === 0 ? "SMS" : "PHONE_CALL", subject: "", body: "", script: "", dayOffset: Math.min(previousOffset + 1, MAX_STEP_OFFSET_DAYS), sendTimeMinutes: null, plannedAt: "", anchor: "CALENDAR_DAY", offsetMinutes: "" };
 }
 
 function timeValue(minutes: number | null): string {
@@ -71,7 +73,7 @@ export function MixEditor({
   const [selectedGroupIds, setSelectedGroupIds] = useState(() => new Set(mix?.groupIds ?? []));
   const [reviewOpen, setReviewOpen] = useState(false);
   const [sequence, setSequence] = useState<SequenceItem[]>(() => {
-    const existing = mix?.steps?.map((step) => ({ key: step.id, id: step.id, name: step.name, channel: step.channel, subject: step.subject ?? "", body: step.body ?? "", script: step.script ?? "", dayOffset: step.dayOffset, sendTimeMinutes: step.sendTimeMinutes, plannedAt: step.plannedAt ?? "" })) ?? [];
+    const existing = mix?.steps?.map((step) => ({ key: step.id, id: step.id, name: step.name, channel: step.channel, subject: step.subject ?? "", body: step.body ?? "", script: step.script ?? "", dayOffset: step.dayOffset, sendTimeMinutes: step.sendTimeMinutes, plannedAt: step.plannedAt ?? "", anchor: step.anchor ?? "CALENDAR_DAY", offsetMinutes: step.offsetMinutes == null ? "" : String(step.offsetMinutes) })) ?? [];
     return existing.length ? existing : [newStep(0)];
   });
   const selectedGroups = useMemo(() => groups.filter((group) => selectedGroupIds.has(group.id)), [groups, selectedGroupIds]);
@@ -151,14 +153,19 @@ export function MixEditor({
           <input type="hidden" name="dayOffset" value={signedOffset} />
           <input type="hidden" name="sendTimeMinutes" value={item.sendTimeMinutes ?? ""} />
           <input type="hidden" name="plannedAt" value={item.plannedAt} />
+          <input type="hidden" name="anchor" value={item.anchor} />
+          <input type="hidden" name="offsetMinutes" value={item.anchor === "CALENDAR_DAY" ? "" : item.offsetMinutes} />
           <div className={styles.sequenceHeading}><div className="page-actions"><button className="icon-button small" type="button" onClick={() => moveStep(index, -1)} disabled={index === 0} aria-label={`Move beat ${index + 1} up`}>↑</button><button className="icon-button small" type="button" onClick={() => moveStep(index, 1)} disabled={index === sequence.length - 1} aria-label={`Move beat ${index + 1} down`}>↓</button></div><button className="button small danger" type="button" onClick={() => removeStep(index)} disabled={sequence.length === 1}>Remove</button></div>
           <div className="form-grid">
             <label className="field"><span>Channel</span><select id={fieldId("channel")} name={`inlineChannel-${index}`} value={item.channel} onChange={(event) => updateStep(index, { channel: event.target.value as Channel })}>{CHANNELS.map((channel) => <option value={channel.value} key={channel.value}>{channel.label}</option>)}</select></label>
-            <label className="field"><span>{signedOffset < 0 ? "Tempo · days before start" : "Tempo · days after start"}</span><input id={fieldId("day")} type="number" min={0} max={MAX_STEP_OFFSET_DAYS} value={Math.abs(signedOffset)} onChange={(event) => updateStep(index, { dayOffset: (signedOffset < 0 ? -1 : 1) * Number(event.target.value) })} required /></label>
+            {item.anchor === "CALENDAR_DAY"
+              ? <label className="field"><span>{signedOffset < 0 ? "Tempo · days before start" : "Tempo · days after start"}</span><input id={fieldId("day")} type="number" min={0} max={MAX_STEP_OFFSET_DAYS} value={Math.abs(signedOffset)} onChange={(event) => updateStep(index, { dayOffset: (signedOffset < 0 ? -1 : 1) * Number(event.target.value) })} required /></label>
+              : <label className="field"><span>{item.anchor === "VISIT_COMPLETED" ? "Minutes after it is marked completed" : "Minutes (negative means before)"}</span><input id={fieldId("minutes")} type="number" step={1} min={item.anchor === "VISIT_COMPLETED" ? 0 : -MAX_STEP_OFFSET_MINUTES} max={MAX_STEP_OFFSET_MINUTES} value={item.offsetMinutes} onChange={(event) => updateStep(index, { offsetMinutes: event.target.value })} required /></label>}
+            <label className="field"><span>Timing</span><select id={fieldId("timing")} value={item.anchor} onChange={(event) => updateStep(index, { anchor: event.target.value as StepAnchor, offsetMinutes: event.target.value === "CALENDAR_DAY" ? "" : item.offsetMinutes || "0" })}>{STEP_ANCHORS.map((anchor) => <option value={anchor} key={anchor}>{STEP_ANCHOR_LABELS[anchor]}</option>)}</select>{item.anchor !== "CALENDAR_DAY" && <small>{item.offsetMinutes.trim() && Number.isInteger(Number(item.offsetMinutes)) ? `Goes out ${describeStepTiming({ anchor: item.anchor, offsetMinutes: Number(item.offsetMinutes) })}` : "Enter a whole number of minutes"}. Elapsed minutes, not calendar days: it only runs when this mix is bound to a visit on the calendar, and a clock change does not move it.</small>}</label>
             {item.channel === "EMAIL" && <label className="field full"><span>Subject</span><input name={`inlineSubject-${index}`} value={item.subject} onChange={(event) => updateStep(index, { subject: event.target.value })} maxLength={300} required /></label>}
             {written ? <label className="field full"><span>Message</span><textarea name={`inlineBody-${index}`} value={item.body} onChange={(event) => updateStep(index, { body: event.target.value })} rows={5} placeholder="Hi {{First Name}}, ... {{SMS Signature}}" required /></label> : <label className="field full"><span>{item.channel === "VOICEMAIL" ? "Voicemail" : "Call notes"}</span><textarea name={`inlineScript-${index}`} value={item.script} onChange={(event) => updateStep(index, { script: event.target.value })} rows={5} placeholder="What should you remember to ask?" required /></label>}
           </div>
-          <details className="step-advanced-settings"><summary>More tempo settings</summary><div className="form-grid"><label className="field"><span>Position</span><select value={signedOffset < 0 ? "before" : "after"} onChange={(event) => updateStep(index, { dayOffset: event.target.value === "before" ? -Math.abs(item.dayOffset) : Math.abs(item.dayOffset) })} disabled={triggerMode === "MANUAL_START"}><option value="after">On or after the start</option><option value="before">Before the date</option></select></label><label className="field"><span>Specific time</span><input type="time" value={timeValue(item.sendTimeMinutes)} onChange={(event) => updateStep(index, { sendTimeMinutes: minutesValue(event.target.value) })} /></label><label className="field full"><span>Planned date (optional)</span><input type="datetime-local" value={item.plannedAt} onChange={(event) => updateStep(index, { plannedAt: event.target.value })} /><small>Goes out at this date and time, in your timezone, to every contact who has reached this beat.</small></label></div></details>
+          {item.anchor === "CALENDAR_DAY" && <details className="step-advanced-settings"><summary>More tempo settings</summary><div className="form-grid"><label className="field"><span>Position</span><select value={signedOffset < 0 ? "before" : "after"} onChange={(event) => updateStep(index, { dayOffset: event.target.value === "before" ? -Math.abs(item.dayOffset) : Math.abs(item.dayOffset) })} disabled={triggerMode === "MANUAL_START"}><option value="after">On or after the start</option><option value="before">Before the date</option></select></label><label className="field"><span>Specific time</span><input type="time" value={timeValue(item.sendTimeMinutes)} onChange={(event) => updateStep(index, { sendTimeMinutes: minutesValue(event.target.value) })} /></label><label className="field full"><span>Planned date (optional)</span><input type="datetime-local" value={item.plannedAt} onChange={(event) => updateStep(index, { plannedAt: event.target.value })} /><small>Goes out at this date and time, in your timezone, to every contact who has reached this beat.</small></label></div></details>}
         </fieldset>;
       })}</div>
     </section>
