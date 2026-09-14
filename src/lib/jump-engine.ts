@@ -27,8 +27,12 @@ import type { AppointmentContext } from "@/lib/appointment-context";
 
 const STALE_CANCELLATION_STATUSES: JumpStatus[] = ["PENDING"];
 // Holds scoped to one appointment binding. Each is cleared only by the event that set it: the
-// owner lifting the hold, the appointment being restored, or its evaluation succeeding again.
-export const APPOINTMENT_HOLD_METHODS = { held: "appointment_held", canceled: "appointment_canceled", unresolved: "appointment_unresolved", noShow: "appointment_no_show", completed: "appointment_completed" } as const;
+// owner lifting the hold, the appointment being restored, its evaluation succeeding again, or the
+// visit's outcome being recorded, changed or cleared.
+export const APPOINTMENT_HOLD_METHODS = { held: "appointment_held", canceled: "appointment_canceled", unresolved: "appointment_unresolved", noShow: "appointment_no_show", completed: "appointment_completed", outcomePending: "appointment_outcome_pending" } as const;
+// A stop the journey records when a person leaves the stage that ran a plan. It ends the journey's
+// own enrollment only; a plan bound to one of the person's appointments keeps running.
+const JOURNEY_STAGE_EXIT_STOP = "journey.stage.exit";
 const RECONCILABLE_CANCELLATION_METHODS = new Set([
   "reconciled",
   "mix_paused",
@@ -56,7 +60,7 @@ export type JumpReconciliationResult = {
   created: number;
   updated: number;
   canceled: number;
-  /** Follow-ups held for an appointment binding this pass: an owner hold, a canceled appointment, or a binding that could not be evaluated. */
+  /** Follow-ups held for an appointment binding this pass: an owner hold, a canceled or missed appointment, a beat a completed visit made moot, a beat waiting for the visit's outcome, or a binding that could not be evaluated. Includes rows whose hold reason changed. */
   held: number;
   /** Bindings that could not be evaluated; their rows are held, never treated as stale. */
   failedBindings: number;
@@ -225,7 +229,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         ...(filters.contactId ? { contactId: filters.contactId } : {}),
         ...(filters.mixId ? { mixId: filters.mixId } : {})
       },
-      select: { mixId: true, contactId: true }
+      select: { mixId: true, contactId: true, reason: true }
     }),
     prisma.jump.aggregate({
       where: { AND: [baseJumpWhere(filters), { OR: [{ status: "PENDING" }, { status: "CANCELED", completionMethod: { in: HELD_CANCELLATION_METHODS } }] }] },
@@ -319,6 +323,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
   const timezoneByOwnerId = new Map(ownerPreferences.map((preference) => [preference.userId, preference.timezone]));
   const stopped = new Set(stops.map((item) => stopKey(item.mixId, item.contactId)));
+  const stoppedByJourneyOnly = new Set(stops.filter((item) => item.reason === JOURNEY_STAGE_EXIT_STOP).map((item) => stopKey(item.mixId, item.contactId)));
   const desired = new Map<string, DesiredJump>();
   // Appointment bindings this pass evaluated. A hold keeps the binding's pending rows out of the
   // desired set and cancels them with its own reason, so they return when the reason lifts and are
@@ -344,12 +349,23 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       if (problem) { bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.unresolved, error: problem }); continue; }
       if (binding.heldAt) { bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.held, error: null }); evaluatedBindingIds.push(binding.id); continue; }
       if (entry.canceledAt) { bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.canceled, error: null }); evaluatedBindingIds.push(binding.id); continue; }
-      // A missed visit holds everything bound to it. A completed visit lets the beats before it
-      // lapse, since a reminder for a visit that already happened is moot, and runs the ones after.
+      // Beats are day-based around the visit. One scheduled before the visit starts is preparation,
+      // a same-day morning reminder included; one at or after the start follows the visit. A missed
+      // visit holds everything bound to it. A completed visit lets preparation lapse, since a
+      // reminder for a visit that already happened is moot, and releases what follows. With no
+      // outcome recorded, what follows the visit waits, so wording that presumes the visit happened
+      // is never prepared or sent on the calendar alone. None of this moves a beat's time.
       if (entry.outcome === "NO_SHOW") { bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.noShow, error: null }); evaluatedBindingIds.push(binding.id); continue; }
+      const appointmentMinutes = minutesInTimezone(entry.startsAt, entry.timezone);
+      const preparation = (step: { plannedAt: Date | null; dayOffset: number; sendTimeMinutes: number | null }) => step.plannedAt
+        ? step.plannedAt < entry.startsAt
+        : step.dayOffset < 0 || (step.dayOffset === 0 && (step.sendTimeMinutes ?? appointmentMinutes) < appointmentMinutes);
       if (entry.outcome === "COMPLETED") {
-        const lapsed = assignment.mix.steps.filter((step) => step.dayOffset < 0).map((step) => step.id);
+        const lapsed = assignment.mix.steps.filter(preparation).map((step) => step.id);
         if (lapsed.length) bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.completed, error: null, mixStepIds: lapsed });
+      } else {
+        const waiting = assignment.mix.steps.filter((step) => !preparation(step)).map((step) => step.id);
+        if (waiting.length) bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.outcomePending, error: null, mixStepIds: waiting });
       }
       evaluatedBindingIds.push(binding.id);
       appointment = { title: entry.title, startsAt: entry.startsAt, timezone: entry.timezone, location: entry.location, link: entry.link, details: entry.details };
@@ -364,7 +380,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
     for (const contact of contacts.values()) {
       if (filters.contactId && contact.id !== filters.contactId) continue;
       if (doNotContactIds.has(contact.id)) continue;
-      if (stopped.has(stopKey(assignment.mixId, contact.id))) continue;
+      // A journey stage exit stops the plan the journey ran on its own, not a visit's binding.
+      if (stopped.has(stopKey(assignment.mixId, contact.id)) && !(binding && stoppedByJourneyOnly.has(stopKey(assignment.mixId, contact.id)))) continue;
 
       const triggers: {
         logicalDate: LogicalDate;
@@ -430,7 +447,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       for (const trigger of triggers) {
         let previousScheduledAt: Date | null = null;
         for (const mixStep of assignment.mix.steps) {
-          // Beats a completed visit made moot are held, not desired.
+          // Beats a completed visit made moot, or that wait for the visit's outcome, are held, not desired.
           if (binding && bindingHolds.get(binding.id)?.mixStepIds?.includes(mixStep.id)) continue;
           let originalLogicalDate: LogicalDate;
           let scheduledLogicalDate: LogicalDate;
@@ -629,7 +646,15 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const heldBindingIds = [...bindingHolds.entries()].filter(([, hold]) => !hold.mixStepIds).map(([id]) => id);
   for (const [bindingId, hold] of bindingHolds) {
     const result = await prisma.jump.updateMany({
-      where: { appointmentBindingId: bindingId, status: { in: STALE_CANCELLATION_STATUSES }, ...(hold.mixStepIds ? { mixStepId: { in: hold.mixStepIds } } : {}) },
+      where: {
+        appointmentBindingId: bindingId,
+        ...(hold.mixStepIds ? { mixStepId: { in: hold.mixStepIds } } : {}),
+        // Pending rows are held; a row already held for another appointment reason takes the current one.
+        OR: [
+          { status: { in: STALE_CANCELLATION_STATUSES } },
+          { status: "CANCELED", completionMethod: { in: Object.values(APPOINTMENT_HOLD_METHODS).filter((method) => method !== hold.method) } }
+        ]
+      },
       data: { status: "CANCELED", completedAt: null, completionMethod: hold.method }
     });
     held += result.count;

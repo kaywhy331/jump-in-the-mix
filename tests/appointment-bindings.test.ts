@@ -17,14 +17,18 @@ describe.sequential("appointment bindings", () => {
   let mixId: string;
   const rows = (bindingId: string) => prisma.jump.findMany({ where: { appointmentBindingId: bindingId }, orderBy: { scheduledAt: "asc" } });
 
-  /** A two-beat plan: a reminder the day before, and a check-in at the appointment time. */
+  /**
+   * A two-beat plan: a reminder the day before, and one the morning of. Both are preparation, so
+   * they exist before the visit; a beat that follows the visit waits for its recorded outcome
+   * (see appointment-outcomes.test.ts), which these identity and hold cases do not exercise.
+   */
   async function planWithTwoBeats(name: string) {
     const template = await prisma.stepTemplate.create({ data: { workspaceId, name, channel: "SMS" } });
     const before = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 1, body: "Hi {{First Name}}, see you {{Appointment Date}} at {{Appointment Time}} at {{Appointment Location}}. {{Appointment Details}}" } });
-    const after = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 2, body: "Thanks for today, {{First Name}}. {{Appointment Link}}" } });
+    const morningOf = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 2, body: "See you later today, {{First Name}}. {{Appointment Link}}" } });
     const mix = await prisma.mix.create({ data: { workspaceId, name, triggerMode: "MANUAL_START", status: "ACTIVE" } });
     await prisma.mixStep.create({ data: { mixId: mix.id, stepVersionId: before.id, dayOffset: -1, sortOrder: 1, sendTimeMinutes: 9 * 60 } });
-    await prisma.mixStep.create({ data: { mixId: mix.id, stepVersionId: after.id, dayOffset: 0, sortOrder: 2 } });
+    await prisma.mixStep.create({ data: { mixId: mix.id, stepVersionId: morningOf.id, dayOffset: 0, sortOrder: 2, sendTimeMinutes: 8 * 60 } });
     return mix.id;
   }
 
@@ -51,19 +55,19 @@ describe.sequential("appointment bindings", () => {
     const result = await reconcileJumps({ workspaceId, mixId });
     expect(result).toMatchObject({ created: 2, held: 0, failedBindings: 0 });
     const [reminder, checkIn] = await rows(binding.id);
-    // The reminder beat carries its own 9:00 time; the check-in beat has none and uses the appointment's.
+    // The reminder beat carries its own 9:00 time; the morning-of beat its own 8:00 on the appointment's day.
     expect(reminder.scheduledAt.toISOString()).toBe(at(9, 9, 0).toISOString());
-    expect(checkIn.scheduledAt.toISOString()).toBe(at(10, 14).toISOString());
+    expect(checkIn.scheduledAt.toISOString()).toBe(at(10, 8, 0).toISOString());
     expect(reminder.reason).toBe("Kitchen estimate");
     expect(reminder.renderedSnapshot).toMatchObject({ body: "Hi Alex, see you Thursday, October 15 at 2:30 PM at 12 Elm St. Bring the tile samples." });
-    expect(checkIn.renderedSnapshot).toMatchObject({ body: "Thanks for today, Alex. https://meet.example.test/abc" });
+    expect(checkIn.renderedSnapshot).toMatchObject({ body: "See you later today, Alex. https://meet.example.test/abc" });
     expect((await prisma.appointmentBinding.findUniqueOrThrow({ where: { id: binding.id } })).lastEvaluatedAt).toBeInstanceOf(Date);
   });
 
   it("keeps the same rows, the draft and the snooze when the appointment moves", async () => {
     const binding = await prisma.appointmentBinding.findFirstOrThrow({ where: { workspaceId, mixId } });
     const [reminder, checkIn] = await rows(binding.id);
-    expect((await saveJumpDraft({ workspaceId, jumpId: checkIn.id, family: "TEXT", body: "Thanks for today, {{First Name}}, my own words.", revision: null })).ok).toBe(true);
+    expect((await saveJumpDraft({ workspaceId, jumpId: checkIn.id, family: "TEXT", body: "See you later today, {{First Name}}, my own words.", revision: null })).ok).toBe(true);
     const snoozedUntil = new Date(at(9, 9, 0).getTime() + 3 * 60 * 60_000);
     await prisma.jump.update({ where: { id: reminder.id }, data: { scheduledAt: snoozedUntil, snoozedUntil } });
     await prisma.calendarEntry.update({ where: { id: binding.calendarEntryId }, data: { startsAt: at(12, 16), endsAt: at(12, 17), version: { increment: 1 } } });
@@ -75,9 +79,9 @@ describe.sequential("appointment bindings", () => {
     // The new base is later than the snooze, so the base wins; the snooze stays recorded.
     expect(movedReminder.scheduledAt.toISOString()).toBe(at(11, 9, 0).toISOString());
     expect(movedReminder.snoozedUntil?.toISOString()).toBe(snoozedUntil.toISOString());
-    expect(movedCheckIn.scheduledAt.toISOString()).toBe(at(12, 16).toISOString());
-    expect(movedCheckIn.renderedSnapshot).toMatchObject({ body: "Thanks for today, Alex. https://meet.example.test/abc" });
-    expect(await prisma.jumpDraft.findMany({ where: { jumpId: checkIn.id } })).toMatchObject([{ body: "Thanks for today, {{First Name}}, my own words." }]);
+    expect(movedCheckIn.scheduledAt.toISOString()).toBe(at(12, 8, 0).toISOString());
+    expect(movedCheckIn.renderedSnapshot).toMatchObject({ body: "See you later today, Alex. https://meet.example.test/abc" });
+    expect(await prisma.jumpDraft.findMany({ where: { jumpId: checkIn.id } })).toMatchObject([{ body: "See you later today, {{First Name}}, my own words." }]);
   });
 
   it("holds the binding's rows on an owner hold and brings them back when it lifts", async () => {
