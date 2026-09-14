@@ -72,21 +72,30 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
     expect(await requestWaitlistEntry(email)).toBeNull();
     expect(await prisma.user.count({ where: { email } })).toBe(0);
   });
-  it("carries an allowlisted scenario through waitlist, invitation, and account creation without accepting a later overwrite", async () => {
+  it("carries the latest valid scenario chosen before confirmation through invitation and account creation, then preserves it", async () => {
     const email = "scenario-continuity@example.test";
+    // Before the email is confirmed the latest valid choice wins and the queue position is unchanged;
+    // an unknown scenario never overwrites a valid one.
     const oldToken = await requestWaitlistEntry(email, "painting");
-    const token = await requestWaitlistEntry(email, "recruiting");
+    const first = await prisma.waitlistEntry.findUniqueOrThrow({ where: { email } });
+    const staleToken = await requestWaitlistEntry(email, "recruiting");
+    // Every request rotates the single-use confirmation link, even one with an unknown scenario.
+    const token = await requestWaitlistEntry(email, "not-a-scenario");
     const entry = await prisma.waitlistEntry.findUniqueOrThrow({ where: { email } });
-    expect(entry).toMatchObject({ marketingScenario: "painting", marketingScenarioVersion: 1 });
+    expect(entry).toMatchObject({ marketingScenario: "recruiting", marketingScenarioVersion: 1, createdAt: first.createdAt });
     expect(await confirmWaitlistEntry(oldToken!)).toBe(false);
+    expect(await confirmWaitlistEntry(staleToken!)).toBe(false);
     expect(await confirmWaitlistEntry(token!)).toBe(true);
+    // A confirmed choice is preserved: a later request neither re-queues nor changes the scenario.
+    expect(await requestWaitlistEntry(email, "painting")).toBeNull();
+    expect(await prisma.waitlistEntry.findUniqueOrThrow({ where: { email } })).toMatchObject({ marketingScenario: "recruiting", verifiedAt: expect.any(Date) });
     await inviteSelectedWaitlistEntries([entry.id], "admin", "Scenario test");
     const invite = await prisma.referralAccessInvite.findFirstOrThrow({ where: { recipientEmail: email } });
-    expect(invite).toMatchObject({ marketingScenario: "painting", marketingScenarioVersion: 1 });
+    expect(invite).toMatchObject({ marketingScenario: "recruiting", marketingScenarioVersion: 1 });
     const { token: accessToken } = decryptIntegrationCredentials<{ token: string }>(invite.tokenCiphertext);
     const account = await prisma.$transaction(tx => createBusinessAccount(tx, { email, name: "Scenario member", passwordHash: null, emailVerifiedAt: null, accessToken }));
     users.push(account.id);
-    expect(await prisma.workspaceMarketingPreference.findUnique({ where: { workspaceId: account.workspaceId } })).toMatchObject({ scenario: "painting", version: 1 });
+    expect(await prisma.workspaceMarketingPreference.findUnique({ where: { workspaceId: account.workspaceId } })).toMatchObject({ scenario: "recruiting", version: 1 });
   });
   it("rejects expired and invalid confirmation tokens", async () => {
     const token = await requestWaitlistEntry("expired@example.test", new Date(Date.now() - 25 * 60 * 60_000));

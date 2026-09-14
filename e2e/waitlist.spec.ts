@@ -7,7 +7,8 @@ test("homepage offers an email waitlist without opening account signup", async (
   await expect(page.locator("#waitlist").getByRole("button", { name: "Join the waitlist" })).toBeVisible();
   await page.locator(".hero-actions").getByRole("link", { name: "Join the waitlist" }).click();
   await expect(page).toHaveURL(/\/waitlist$/);
-  await expect(page.getByText(/Every 7 days, we invite up to 10 people/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Join the waitlist" })).toBeVisible();
+  await expect(page.getByText(/Leave your email and we’ll let you know/)).toBeVisible();
   await expect(page.locator('input[name="password"]')).toHaveCount(0);
 });
 

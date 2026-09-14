@@ -11,6 +11,7 @@ import { beginRecoveryHold, readRecoveryHold } from "../scripts/lib/recovery-hol
 import { encryptFile } from "../scripts/lib/backup-archive.mjs";
 import { adminDatabaseUrl, databaseUrlWithDatabase, postgresCliUrl, quoteIdentifier, runCommand } from "../scripts/lib/postgres-ops.mjs";
 
+import { schemaTableCount } from "./helpers/schema-table-count.mjs";
 const baseUrl = process.env.RECOVERY_TEST_DATABASE_URL;
 if (baseUrl && !["localhost", "127.0.0.1", "[::1]"].includes(new URL(baseUrl).hostname)) throw new Error("Recovery state tests require a loopback database server.");
 describe.skipIf(!baseUrl).sequential("authenticated recovery state and held-target review", () => {
@@ -101,7 +102,8 @@ describe.skipIf(!baseUrl).sequential("authenticated recovery state and held-targ
   });
 
   it("captures all tables and composite identities without copying contact content or access secrets", () => {
-    expect(Object.keys(current.tables)).toHaveLength(100);
+    // The source also carries the FutureRecoveryData table created above.
+    expect(Object.keys(current.tables)).toHaveLength(schemaTableCount() + 1);
     expect(current.tables.FutureRecoveryData.keys).toEqual(["tenant", "external"]);
     expect(current.tables.FutureRecoveryData.rows[0].key).toMatch(/^[a-f0-9]{64}$/);
     const text = JSON.stringify(current);

@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { Client } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { grantRuntimeRole, inspectRuntimeRole } from '../scripts/lib/runtime-database-role.mjs';
+import { schemaTableCount } from './helpers/schema-table-count.mjs';
 import { quoteIdentifier } from '../scripts/lib/postgres-ops.mjs';
 import { schemaRelease } from '../scripts/generate-schema-release.mjs';
 
@@ -39,7 +40,9 @@ describe.skipIf(!local).sequential('restricted production database credential', 
   it('grants application DML and read-only migration evidence without ownership', async () => {
     expect((await inspectRuntimeRole(owner, { role })).ready).toBe(false);
     const proof = await grantRuntimeRole(owner, { role });
-    expect(proof).toMatchObject({ boundary: true, ready: true, tables: { total: 99, readable: 99, writable: 99, elevated: false }, history: { readable: true, writable: false } });
+    // Every application table, which is every Prisma model; the migrations table is history, counted separately.
+    const total = schemaTableCount() - 1;
+    expect(proof).toMatchObject({ boundary: true, ready: true, tables: { total, readable: total, writable: total, elevated: false }, history: { readable: true, writable: false } });
     expect(await inspectRuntimeRole(runtime, { role })).toEqual(proof);
   });
   it('executes customer reads/writes and transactional worker locking', async () => {

@@ -12,6 +12,7 @@ import { captureRecoveryState, recoveryStateDigest, recoveryTargetDigest, writeR
 import { readRecoveryHold } from "../scripts/lib/recovery-hold.mjs";
 import { adminDatabaseUrl, assertDatabaseEmpty, databaseUrlWithDatabase, postgresCliUrl, quoteIdentifier, runCommand } from "../scripts/lib/postgres-ops.mjs";
 
+import { schemaTableCount } from "./helpers/schema-table-count.mjs";
 const baseUrl = process.env.RECOVERY_TEST_DATABASE_URL;
 if (baseUrl && !["localhost", "127.0.0.1", "[::1]"].includes(new URL(baseUrl).hostname)) throw new Error("Recovery bundle tests require loopback PostgreSQL.");
 describe.skipIf(!baseUrl).sequential("complete recovery bundles", () => {
@@ -103,7 +104,7 @@ const fs = require('node:fs/promises'), { spawn } = require('node:child_process'
     const result = await job.finished; expect(result.code, result.output).toBe(0);
     manifest = JSON.parse(await readFile(`${archive}.manifest.json`, "utf8"));
     state = await readBackupRecoveryState(archive, manifest, key);
-    expect(manifest.recoveryState).toMatchObject({ version: 1, capturedAt: manifest.source.capturedAt, rows: state.rowCount, tables: 99 });
+    expect(manifest.recoveryState).toMatchObject({ version: 1, capturedAt: manifest.source.capturedAt, rows: state.rowCount, tables: schemaTableCount() });
     expect(state.tables.User.rows).toHaveLength(2);
     expect((await captureRecoveryState(sourceUrl)).tables.User.rows).toHaveLength(3);
     for (const path of [archive, `${archive}.manifest.json`, backupRecoveryStatePath(archive)]) expect((await stat(path)).mode & 0o077).toBe(0);

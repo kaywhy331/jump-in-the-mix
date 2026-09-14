@@ -63,7 +63,10 @@ describe.skipIf(!local || process.env.RUN_RECOVERY_WEB_TESTS !== "true").sequent
   it("blocks restored pages, tokens and mutations immediately and survives a real connection outage", async () => {
     const open = await request("/contacts"); expect(open.status).toBe(200); expect(await open.text()).toContain("PRIVATE_RESTORED_CONTACT");
     const held = await beginRecoveryHold(source.href, { archiveSha256: "a".repeat(64), sourceHash: "b".repeat(64) });
-    for (const path of ["/", "/contacts", "/contacts/restore-contact.png", "/account/tickets", "/api/contacts/import", `/api/auth/magic?token=${magic}`, "/login"]) {
+    // The public homepage stays up during a hold since the homepage program (594a1bb); it must
+    // answer without any restored private content and remain uncacheable.
+    const home = await request("/"); expect(home.status, "/").toBe(200); expect(await home.text()).not.toContain("PRIVATE_RESTORED");
+    for (const path of ["/contacts", "/contacts/restore-contact.png", "/account/tickets", "/api/contacts/import", `/api/auth/magic?token=${magic}`, "/login"]) {
       const response = await request(path); expect(response.status, path).toBe(503); expect(response.headers.get("cache-control")).toContain("no-store");
       const body = await response.text(); expect(body).not.toContain("PRIVATE_RESTORED"); expect(body).not.toContain(held.id);
     }
