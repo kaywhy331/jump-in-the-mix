@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { timezoneForUser } from "@/lib/display-preferences";
 import type { ContactActivityVisibility, JumpOutcome, Prisma } from "@/generated/prisma/client";
 import { getCurrentSession } from "@/lib/auth";
+import { attachAttemptOutcome, parseAttemptPayload, recordJumpAttempt } from "@/lib/jump-attempts";
 import { logicalDateKey, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
@@ -37,13 +38,23 @@ type OutcomePayload = {
   nextDate?: string;
   nextTime?: string;
   requestId?: string;
+  attemptId?: unknown;
+  attempt?: unknown;
 };
+
+// What the recorded outcome can say about the preparation behind it. "attempt" links the exact
+// content that was opened; "unavailable" means nothing was recorded or recoverable; "mismatch"
+// means the device held a different payload than the stored attempt, which is left untouched.
+type PreparationEvidence = "attempt" | "unavailable" | "mismatch";
+const EVIDENCE: PreparationEvidence[] = ["attempt", "unavailable", "mismatch"];
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type StoredResponse = {
   status: "PENDING" | "DONE" | "SKIPPED";
   activityId: string;
   nextCommitmentAt: string | null;
   jumpDateId: string | null;
+  attempt?: { id: string; evidence: PreparationEvidence };
 };
 
 function clean(value: unknown, maximum: number): string {
@@ -69,11 +80,15 @@ function jsonResponse(value: Prisma.JsonValue | null): StoredResponse | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const object = value as Record<string, unknown>;
   if (!["PENDING", "DONE", "SKIPPED"].includes(String(object.status))) return null;
+  const attempt = object.attempt && typeof object.attempt === "object" && !Array.isArray(object.attempt) ? object.attempt as Record<string, unknown> : null;
   return {
     status: object.status as StoredResponse["status"],
     activityId: String(object.activityId ?? ""),
     nextCommitmentAt: typeof object.nextCommitmentAt === "string" ? object.nextCommitmentAt : null,
-    jumpDateId: typeof object.jumpDateId === "string" ? object.jumpDateId : null
+    jumpDateId: typeof object.jumpDateId === "string" ? object.jumpDateId : null,
+    ...(attempt && typeof attempt.id === "string" && EVIDENCE.includes(attempt.evidence as PreparationEvidence)
+      ? { attempt: { id: attempt.id, evidence: attempt.evidence as PreparationEvidence } }
+      : {})
   };
 }
 
@@ -146,6 +161,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
     : null;
   if (nextCommitmentAt && nextCommitmentAt <= new Date()) {
     return NextResponse.json({ error: "The next follow-up must be in the future." }, { status: 400 });
+  }
+
+  // The tray records against the attempt it opened. When that attempt was never acknowledged the
+  // same payload travels again and is created or acknowledged under the create-once rule; a
+  // refused mismatch still records the owner's outcome, marked, with the stored row untouched.
+  const attemptId = typeof payload?.attemptId === "string" && UUID_V4.test(payload.attemptId) ? payload.attemptId.toLowerCase() : null;
+  let evidence: PreparationEvidence = "unavailable";
+  if (attemptId) {
+    if (payload?.attempt !== undefined && payload?.attempt !== null) {
+      try {
+        const attemptPayload = parseAttemptPayload(payload.attempt);
+        if (attemptPayload.id !== attemptId) throw new RangeError("The attempt does not match its id.");
+        const recorded = await recordJumpAttempt({ workspaceId: membership.workspaceId, jumpId: jump.id, payload: attemptPayload });
+        evidence = recorded.ok ? "attempt" : recorded.reason === "mismatch" ? "mismatch" : "unavailable";
+      } catch {
+        evidence = "unavailable";
+      }
+    } else {
+      const known = await prisma.jumpAttempt.findFirst({ where: { id: attemptId, workspaceId: membership.workspaceId, jumpId: jump.id }, select: { id: true } });
+      evidence = known ? "attempt" : "unavailable";
+    }
   }
 
   try {
@@ -230,10 +266,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
             contactName: jump.contact.displayName,
             previousStatus: jump.status,
             nextStatus,
-            userAgent: requestMetadata.userAgent
+            userAgent: requestMetadata.userAgent,
+            ...(attemptId ? { attemptId, preparationEvidence: evidence } : {})
           }
         }
       });
+      if (attemptId && evidence === "attempt") {
+        await attachAttemptOutcome(tx, { workspaceId: membership.workspaceId, jumpId: jump.id, attemptId, outcomeActivityId: activity.id, recordedAt: new Date() });
+      }
 
       await tx.auditLog.create({
         data: {
@@ -252,7 +292,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
         status: nextStatus,
         activityId: activity.id,
         nextCommitmentAt: nextCommitmentAt?.toISOString() ?? null,
-        jumpDateId
+        jumpDateId,
+        ...(attemptId ? { attempt: { id: attemptId, evidence } } : {})
       };
       await tx.idempotencyKey.create({
         data: {

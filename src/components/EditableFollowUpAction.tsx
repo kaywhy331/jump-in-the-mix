@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
-import { JumpActionLink, JumpCopyButton } from "@/components/JumpActionControls";
+import { JumpActionLink, JumpCopyButton, type AttemptDraft } from "@/components/JumpActionControls";
 import { applyDraftEdit, draftSource, parseDraftSource, projectDraft, type DraftSegment, type DraftValues } from "@/lib/draft-segments";
 import { DRAFT_LIMITS, type DetachedChange, type DraftContent, type PreparationFamily } from "@/lib/preparation-family";
 
@@ -83,6 +83,8 @@ export function EditableFollowUpAction({
   template,
   values,
   draft,
+  stepVersionId,
+  contextVersions,
   automaticDelivery = false,
   changedDetails = []
 }: {
@@ -99,6 +101,9 @@ export function EditableFollowUpAction({
   template: DraftContent | null;
   values: DraftValues;
   draft: SavedDraft | null;
+  stepVersionId: string;
+  /** Versions of the contact and business details the text was rendered from. */
+  contextVersions: Record<string, string>;
   /** True when automatic delivery would otherwise send this follow-up; a draft holds it for the owner. */
   automaticDelivery?: boolean;
   /** Details the owner wrote over by hand that have changed since; shown, never rewritten. */
@@ -315,6 +320,20 @@ export function EditableFollowUpAction({
   const copyContent = [subject, content].filter(Boolean).join("\n\n");
   const label = persists ? statusLabel(status, unsaved, saved.revision !== null) : "";
   const theirsText = conflict ? (conflict.theirs ? [conflict.theirs.subject, conflict.theirs[contentKey]].filter(Boolean).join(" · ") : "") : "";
+  // The attempt is built from exactly what is on screen at the gesture, saved or not.
+  const recipient = channel === "EMAIL" ? email : phone;
+  const attempt: AttemptDraft | null = recipient ? {
+    contactId,
+    channel,
+    family,
+    recipient,
+    subject: family === "EMAIL" ? subject : null,
+    body: family === "CALL" ? null : content,
+    script: family === "CALL" ? content : null,
+    draftRevision: persists ? saved.revision : null,
+    stepVersionId,
+    contextVersions
+  } : null;
 
   return (
     <div
@@ -355,6 +374,7 @@ export function EditableFollowUpAction({
           title={actionLabel(channel)}
           contactName={contactName}
           channel={channel}
+          attempt={attempt}
         ><AppIcon name={channelIcon(channel)} /><span>{actionLabel(channel)}</span></JumpActionLink> : (
           <a className="button primary" href={`/contacts/${contactId}/edit`}><AppIcon name="add" />Add {methodLabel}</a>
         )}

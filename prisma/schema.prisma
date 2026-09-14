@@ -156,6 +156,7 @@ model Workspace {
   mixAssignments         MixAssignment[]
   jumps                  Jump[]
   jumpDrafts             JumpDraft[]
+  jumpAttempts           JumpAttempt[]
   importedSharedMixes    SharedMixImport[]
   idempotencyKeys        IdempotencyKey[]
   jobs                   Job[]
@@ -529,6 +530,7 @@ model Jump {
   updatedAt        DateTime               @updatedAt
   pushDeliveries   FollowUpPushDelivery[]
   drafts           JumpDraft[]
+  attempts         JumpAttempt[]
 
   @@index([workspaceId, scheduledAt, status])
   @@index([workspaceId, status, completedAt])

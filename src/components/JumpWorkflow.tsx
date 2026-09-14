@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import styles from "@/components/JumpWorkflow.module.css";
 import { useBrowserScope } from "@/components/BrowserAccountBoundary";
-import { clearOpenedJump, readOpenedJump, validOpenedJump, type OpenedJumpDetail } from "@/lib/opened-jump-state";
+import { readOpenedJump, readUnresolvedAttempts, resolveOpenedJump, validOpenedJump, type OpenedAttemptPayload, type OpenedJumpDetail } from "@/lib/opened-jump-state";
 import { WhenPicker } from "@/components/WhenPicker";
 import { addDays, dateKeyOf } from "@/lib/when-picker";
 export type { OpenedJumpDetail } from "@/lib/opened-jump-state";
@@ -27,8 +27,13 @@ type OutcomeResponse = {
   activityId: string;
   nextCommitmentAt: string | null;
   jumpDateId: string | null;
+  attempt?: { id: string; evidence: "attempt" | "unavailable" | "mismatch" };
   error?: string;
 };
+
+// The handoff the outcome belongs to. An unacknowledged attempt travels again in full so the
+// server can create or acknowledge it; this is logging only and never sends anything.
+type OutcomeAttempt = { attemptId: string; payload?: OpenedAttemptPayload };
 
 type JumpStateDetail = {
   jumpId: string;
@@ -51,12 +56,13 @@ function dispatchJumpState(detail: JumpStateDetail): void {
 async function saveOutcome(
   jumpId: string,
   outcome: Outcome,
-  details: { note?: string; visibility?: "WORKSPACE" | "PRIVATE"; nextDate?: string; nextTime?: string } = {}
+  details: { note?: string; visibility?: "WORKSPACE" | "PRIVATE"; nextDate?: string; nextTime?: string } = {},
+  attempt?: OutcomeAttempt
 ): Promise<OutcomeResponse> {
   const response = await fetch(`/api/jumps/${encodeURIComponent(jumpId)}/outcome`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ outcome, requestId: requestId(), ...details })
+    body: JSON.stringify({ outcome, requestId: requestId(), ...details, ...(attempt ? { attemptId: attempt.attemptId, ...(attempt.payload ? { attempt: attempt.payload } : {}) } : {}) })
   });
   const payload = await response.json().catch(() => ({})) as OutcomeResponse;
   if (!response.ok) throw new Error(payload.error || "The follow-up outcome could not be saved.");
@@ -185,6 +191,8 @@ export function JumpReturnTray() {
   const [visible, setVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const noticeTimer = useRef<number | undefined>(undefined);
   const [outcome, setOutcome] = useState<Outcome>("COMPLETED");
   const [note, setNote] = useState("");
   const [visibility, setVisibility] = useState<"WORKSPACE" | "PRIVATE">("WORKSPACE");
@@ -215,11 +223,14 @@ export function JumpReturnTray() {
     const onVisibility = () => { if (document.visibilityState === "visible") revealStored(); };
     const onState = (event: Event) => {
       const detail = (event as CustomEvent<JumpStateDetail>).detail;
-      if (detail && opened.current?.jumpId === detail.jumpId && detail.status !== "PENDING") {
-        clearOpenedJump(scope);
-        opened.current = null;
+      const current = opened.current;
+      // A state event without a follow-up id, or for a follow-up this tray never opened, is not ours.
+      if (detail?.jumpId && current && current.jumpId === detail.jumpId && detail.status !== "PENDING") {
+        // Finished from the card instead of the tray; move on to the next unresolved handoff.
+        const next = resolveOpenedJump(scope, { attemptId: current.attemptId, jumpId: detail.jumpId });
+        opened.current = next;
         window.clearTimeout(revealTimer.current);
-        setVisible(false);
+        if (next) setSession(next); else setVisible(false);
       }
     };
 
@@ -250,29 +261,41 @@ export function JumpReturnTray() {
         { value: "NOT_SENT", label: "Not sent" }
       ], [isCall]);
 
-  const close = () => {
-    opened.current = null;
+  // Each handoff resolves on its own: dismissing or recording one shows the next unresolved one.
+  const advance = () => {
+    const next = scope && session ? resolveOpenedJump(scope, { attemptId: session.attemptId, jumpId: session.jumpId }) : null;
+    opened.current = next;
     window.clearTimeout(revealTimer.current);
-    if (scope) clearOpenedJump(scope);
-    setVisible(false);
     setError("");
+    if (next) { setSession(next); setVisible(true); } else setVisible(false);
   };
+
+  const showNotice = (text: string) => {
+    setNotice(text);
+    window.clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setNotice(""), 12_000);
+  };
+
+  const close = () => advance();
 
   const save = async (selected: Outcome, details = false) => {
     if (!session) return;
     setSaving(true);
     setError("");
     try {
-      await saveOutcome(session.jumpId, selected, details ? {
+      // The record is tied to the attempt this tray opened, never to the newest draft. The full
+      // payload goes along only while the server has not acknowledged it.
+      const stored = scope && session.attemptId ? readUnresolvedAttempts(scope).find((item) => item.attemptId === session.attemptId) : undefined;
+      const acknowledged = stored?.acknowledged ?? session.acknowledged ?? false;
+      const attempt: OutcomeAttempt | undefined = session.attemptId ? { attemptId: session.attemptId, payload: acknowledged ? undefined : stored?.attempt ?? session.attempt } : undefined;
+      const result = await saveOutcome(session.jumpId, selected, details ? {
         note,
         visibility,
         nextDate: wantsNext ? nextDate : undefined,
         nextTime: wantsNext ? nextTime : undefined
-      } : {});
-      if (scope) clearOpenedJump(scope);
-      opened.current = null;
-      window.clearTimeout(revealTimer.current);
-      setVisible(false);
+      } : {}, attempt);
+      if (result.attempt?.evidence === "mismatch") showNotice("Your outcome is saved. The message recorded when you opened it differs from what this device holds, so that record was not attached.");
+      advance();
       setNote("");
       setScheduleNext(false);
       setNextDate(addDays(dateKeyOf(new Date()), 1));
@@ -285,9 +308,13 @@ export function JumpReturnTray() {
     }
   };
 
-  if (!visible || !session) return null;
+  if (!visible || !session) {
+    if (!notice) return null;
+    return <aside className={styles.returnTray} aria-label="Follow-up outcome saved"><p role="status">{notice}</p><button className="button small" type="button" onClick={() => setNotice("")}>Dismiss</button></aside>;
+  }
   return (
     <aside className={styles.returnTray} aria-label={`Finish follow-up with ${session.contactName}`}>
+      {notice && <p role="status">{notice}</p>}
       <div className={styles.trayHeading}>
         <div>
           <strong>How did the follow-up with {session.contactName} go?</strong>

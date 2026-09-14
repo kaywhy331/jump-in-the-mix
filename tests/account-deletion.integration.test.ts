@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { deleteAccountData } from "../src/lib/account-deletion";
 import { prisma } from "../src/lib/prisma";
@@ -66,6 +67,7 @@ async function seedDeletionGraph() {
   });
   const futureJump = await prisma.jump.findUniqueOrThrow({ where: { uniquenessKey: `delete-future-${suffix}` }, select: { id: true } });
   await prisma.jumpDraft.create({ data: { jumpId: futureJump.id, family: "EMAIL", workspaceId, stepVersionId: version.id, subject: "Erase this subject", body: "Erase this draft" } });
+  await prisma.jumpAttempt.create({ data: { id: randomUUID(), workspaceId, jumpId: futureJump.id, contactId: `delete-contact-${suffix}`, channel: "EMAIL", family: "EMAIL", recipientCiphertext: "PRIVATE_RECIPIENT", recipientHash: "hash", body: "Erase this attempt", stepVersionId: version.id, contextVersions: {}, payloadHash: "hash", openedAt: new Date() } });
   await prisma.supportTicket.create({
     data: {
       id: `delete-ticket-${suffix}`,
@@ -100,7 +102,7 @@ describe("account deletion", () => {
     await expect(prisma.workspace.count({ where: { id: workspaceId } })).resolves.toBe(0);
     await expect(prisma.contact.count({ where: { workspaceId } })).resolves.toBe(0);
     await expect(prisma.job.count({ where: { workspaceId } })).resolves.toBe(0);
-    expect(await Promise.all([prisma.contactGroupState.count({ where: { workspaceId } }), prisma.jumpActionEvent.count({ where: { workspaceId } }), prisma.mixBroadcastSchedule.count({ where: { workspaceId } }), prisma.mixStop.count({ where: { workspaceId } }), prisma.jumpDraft.count({ where: { workspaceId } })])).toEqual([0, 0, 0, 0, 0]);
+    expect(await Promise.all([prisma.contactGroupState.count({ where: { workspaceId } }), prisma.jumpActionEvent.count({ where: { workspaceId } }), prisma.mixBroadcastSchedule.count({ where: { workspaceId } }), prisma.mixStop.count({ where: { workspaceId } }), prisma.jumpDraft.count({ where: { workspaceId } }), prisma.jumpAttempt.count({ where: { workspaceId } })])).toEqual([0, 0, 0, 0, 0, 0]);
     const journeyAndConnectionCounts = await Promise.all([
       prisma.journeyPreference.count({ where: { workspaceId } }), prisma.journeyStage.count({ where: { workspaceId } }),
       prisma.contactJourney.count({ where: { workspaceId } }), prisma.journeyEvent.count({ where: { workspaceId } }),
