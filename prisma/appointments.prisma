@@ -1,0 +1,32 @@
+// A plan enrollment bound to one local appointment. The binding gives every follow-up it
+// generates a stable identity, so moving the appointment updates those rows in place and the
+// owner's drafts, snoozes and recorded attempts stay with them. A binding never reuses an
+// enrollment that has no appointment scope, and it is never sent automatically by default.
+
+model AppointmentBinding {
+  id                String        @id @default(cuid())
+  workspaceId       String
+  contactId         String
+  calendarEntryId   String
+  mixId             String
+  assignmentId      String        @unique
+  // Automatic delivery may claim this binding's follow-ups only when the owner turns it on.
+  automaticDelivery Boolean       @default(false)
+  // An owner hold scoped to this appointment alone; its rows return when the hold lifts.
+  heldAt            DateTime?
+  // The last pass that evaluated the binding, and why it could not when it could not.
+  lastEvaluatedAt   DateTime?
+  lastEvaluationError String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  workspace         Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact           Contact       @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  calendarEntry     CalendarEntry @relation(fields: [calendarEntryId], references: [id], onDelete: Cascade)
+  mix               Mix           @relation(fields: [mixId], references: [id], onDelete: Cascade)
+  assignment        MixAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  jumps             Jump[]
+
+  @@unique([calendarEntryId, mixId])
+  @@index([workspaceId, calendarEntryId])
+  @@index([contactId])
+}

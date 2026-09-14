@@ -158,6 +158,11 @@ model CalendarEntry {
   startsAt     DateTime
   endsAt       DateTime
   timezone     String
+  // Typed details a bound plan's messages can use: where to meet, a link to join, and anything
+  // the owner wants the customer reminded of. Plain text and one https link, never files.
+  location     String?
+  link         String?
+  details      String?
   version      Int                 @default(1)
   updatedAt    DateTime            @updatedAt
   canceledAt   DateTime?
@@ -165,6 +170,7 @@ model CalendarEntry {
   workspace    Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact      Contact?            @relation(fields: [contactId], references: [id], onDelete: Cascade)
   connection   CalendarConnection? @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  bindings     AppointmentBinding[]
 
   @@unique([connectionId, externalUid])
   @@index([workspaceId, startsAt, endsAt])
