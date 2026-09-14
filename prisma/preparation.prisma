@@ -1,0 +1,33 @@
+// Owner-prepared follow-up content. Drafts are the owner's edits to a follow-up's message in the
+// same double-brace token form the step editor validates; the rendered text is a projection over
+// the bound contact and business context and is never stored here. Attempts (the frozen content
+// actually handed to the phone) arrive in a later migration.
+
+enum PreparationFamily {
+  TEXT // SMS and WhatsApp
+  EMAIL
+  CALL // phone call and voicemail
+}
+
+model JumpDraft {
+  jumpId        String
+  family        PreparationFamily
+  workspaceId   String
+  subject       String?
+  body          String?
+  script        String?
+  // The step version the draft started from, so a later template release can be noticed.
+  stepVersionId String
+  // Optimistic revision: a save carries the revision it last saw and a stale save is refused.
+  revision      Int               @default(1)
+  // Template tokens this draft no longer carries, with the value each resolved to when it was
+  // removed, so a later change to that detail raises a review notice instead of a rewrite.
+  detached      Json?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  jump          Jump              @relation(fields: [jumpId], references: [id], onDelete: Cascade)
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([jumpId, family])
+  @@index([workspaceId, updatedAt])
+}

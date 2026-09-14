@@ -134,7 +134,10 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
         workspaceId: workspace.id,
         status: "PENDING",
         scheduledAt: { lte: threshold },
-        stepVersion: { stepTemplate: { channel: { in: channels } } }
+        stepVersion: { stepTemplate: { channel: { in: channels } } },
+        // An owner's draft is never replaced by the plan's text. A drafted follow-up waits on Today
+        // for the owner to send it; the card says so while delivery is switched on.
+        drafts: { none: {} }
       },
       include: {
         contact: { include: { emails: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, phones: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, relationshipState: true } },
@@ -178,7 +181,8 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
         if (!prepared) throw new Error("The prepared message is empty or cannot be sent automatically.");
         const currentPreference = await prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id } });
         const channelStillEnabled = channel === "EMAIL" ? currentPreference?.emailEnabled : currentPreference?.smsEnabled;
-        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", workspace: { owner: { suspendedAt: null } } }, select: { id: true } });
+        // A draft saved since the candidate read also holds the follow-up: the claim is released, not sent.
+        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", drafts: { none: {} }, workspace: { owner: { suspendedAt: null } } }, select: { id: true } });
         if (!currentPreference?.enabled || !channelStillEnabled || !currentJump) {
           await prisma.automatedDelivery.updateMany({ where: { id: deliveryId, lockedBy: workerId, status: "PROCESSING" }, data: { status: "CANCELED", lockedAt: null, lockedBy: null } });
           continue;

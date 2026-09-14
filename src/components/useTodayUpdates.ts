@@ -72,7 +72,7 @@ export function useTodayUpdates(children: ReactNode, viewKey: string, root: RefO
     check.current = schedule;
     const observer = new MutationObserver(schedule);
     observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true,
-      attributeFilter: ["data-follow-up-draft", "data-follow-up-undo", "inert"] });
+      attributeFilter: ["data-follow-up-draft", "data-follow-up-editing", "data-follow-up-undo", "inert"] });
     window.addEventListener("jitm:jump-state", onOutcome);
     window.addEventListener("online", schedule);
     document.addEventListener("visibilitychange", schedule);

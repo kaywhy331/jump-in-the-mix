@@ -81,7 +81,7 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     </aside>}
     {content}
     <dialog ref={dialog} className="confirm-dialog" aria-labelledby={titleId} aria-describedby={descriptionId} onClose={() => setDestination(null)}>
-      <div className="confirm-dialog-header"><div><h2 id={titleId}>Keep your message edits?</h2><p id={descriptionId}>Changing this list would close your unsent message edits. Keep editing, or discard them and continue.</p></div></div>
+      <div className="confirm-dialog-header"><div><h2 id={titleId}>Keep your message edits?</h2><p id={descriptionId}>Your newest message edits haven’t finished saving. Keep editing, or discard those edits and continue.</p></div></div>
       <div className="confirm-dialog-actions">
         <button type="button" className="button primary" onClick={keepEditing}>Keep editing</button>
         <button type="button" className="button danger" onClick={discardAndContinue}>Discard edits and continue</button>

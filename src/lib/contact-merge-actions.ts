@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
+import { originalLocalDateOf } from "@/lib/jump-engine";
 import { prisma } from "@/lib/prisma";
 
 function value(formData: FormData, key: string, maximum = 500): string {
@@ -129,7 +130,27 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
       }
     }
     await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId: source.id, status: { in: ["DONE", "SKIPPED"] } }, data: { contactId: survivor.id } });
+    // The merged person's pending follow-ups are cancelled and regenerate for the survivor. Their
+    // drafts are the owner's work and are never deleted here: one moves onto the survivor's pending
+    // follow-up for the same beat and occurrence when it already exists, otherwise it stays on the
+    // cancelled row and the next pass carries it onto the survivor's regenerated row.
+    const drafted = await tx.jump.findMany({
+      where: { workspaceId: workspace.id, contactId: source.id, status: "PENDING", drafts: { some: {} } },
+      select: { id: true, mixStepId: true, jumpDateId: true, templateSnapshot: true, drafts: { select: { family: true } } }
+    });
     await tx.jump.updateMany({ where: { workspaceId: workspace.id, contactId: source.id, status: "PENDING" }, data: { status: "CANCELED", completionMethod: "contact_merged", completedAt: null } });
+    for (const cancelled of drafted) {
+      const originalLocalDate = originalLocalDateOf(cancelled.templateSnapshot);
+      if (!originalLocalDate) continue;
+      const target = await tx.jump.findFirst({
+        where: { workspaceId: workspace.id, contactId: survivor.id, status: "PENDING", mixStepId: cancelled.mixStepId, jumpDateId: cancelled.jumpDateId, templateSnapshot: { path: ["originalLocalDate"], equals: originalLocalDate } },
+        select: { id: true, drafts: { select: { family: true } } }
+      });
+      if (!target) continue;
+      const occupied = new Set(target.drafts.map((draft) => draft.family));
+      const families = cancelled.drafts.map((draft) => draft.family).filter((family) => !occupied.has(family));
+      if (families.length) await tx.jumpDraft.updateMany({ where: { jumpId: cancelled.id, family: { in: families } }, data: { jumpId: target.id } });
+    }
 
     for (const assignment of source.mixAssignments) {
       const key = `${assignment.mixId}:${assignment.mode}`;
