@@ -41,6 +41,7 @@
     "db:studio": "prisma studio",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:isolated": "node scripts/test-isolated-database.mjs",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test e2e/accessibility.spec.ts",
     "test:lighthouse": "lhci autorun --config=.lighthouserc.cjs",
