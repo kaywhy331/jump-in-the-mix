@@ -22,6 +22,15 @@ describe("recovery hold web boundary", () => {
     const response = await proxy(new NextRequest("http://localhost/register", { method: "POST", headers: { origin: "http://localhost", "next-action": "action", "x-jitm-recovery": "released" } }));
     expect(response.status).toBe(503);
   });
+  it("still holds the private test site's worker handoff, even with a valid worker secret", async () => {
+    const secret = "worker-secret".repeat(4);
+    for (const [key, value] of Object.entries({ PRIVATE_TEST_MODE: "true", PRIVATE_TEST_USERNAME: "tester", PRIVATE_TEST_PASSWORD: "s".repeat(40), NETLIFY_WORKER_SECRET: secret, APP_URL: "https://jump-in-the-mix-test.netlify.app" })) vi.stubEnv(key, value);
+    const handoff = () => proxy(new NextRequest("https://jump-in-the-mix-test.netlify.app/.netlify/functions/jump-worker-background", { method: "POST", headers: { authorization: `Bearer ${secret}`, origin: "https://jump-in-the-mix-test.netlify.app" } }));
+    expect((await handoff()).status).toBe(503);
+    expect(mocks.status).toHaveBeenCalledTimes(1);
+    mocks.status.mockResolvedValue("unavailable"); expect((await handoff()).status).toBe(503);
+    mocks.status.mockResolvedValue("clear"); expect((await handoff()).status).toBe(200);
+  });
   it("fails closed when the recovery catalog cannot be read", async () => {
     mocks.status.mockResolvedValue("unavailable"); expect((await proxy(new NextRequest("http://localhost/contacts"))).status).toBe(503);
   });

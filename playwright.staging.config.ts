@@ -2,6 +2,11 @@ import { defineConfig, devices } from "@playwright/test";
 
 const baseURL = process.env.STAGING_BASE_URL?.trim();
 if (!baseURL) throw new Error("STAGING_BASE_URL is required for the staging smoke suite.");
+// A private test deployment sits behind HTTP Basic authentication before application sign-in.
+// The credentials come only from the environment; pages and API requests both send them.
+const httpUsername = process.env.STAGING_HTTP_USERNAME?.trim();
+const httpPassword = process.env.STAGING_HTTP_PASSWORD;
+const httpCredentials = httpUsername && httpPassword ? { username: httpUsername, password: httpPassword } : undefined;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -15,6 +20,7 @@ export default defineConfig({
   reporter: [["line"], ["html", { outputFolder: "playwright-report-staging", open: "never" }]],
   use: {
     baseURL,
+    ...(httpCredentials ? { httpCredentials } : {}),
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure"
