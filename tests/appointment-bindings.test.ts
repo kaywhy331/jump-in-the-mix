@@ -32,6 +32,15 @@ describe.sequential("appointment bindings", () => {
     return mix.id;
   }
 
+  /** A one-beat plan that follows the visit: the day after at ten. It is released once the visit is recorded as having happened. */
+  async function planWithFollowingBeat(name: string) {
+    const template = await prisma.stepTemplate.create({ data: { workspaceId, name, channel: "SMS" } });
+    const version = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 1, body: "Thanks for the visit, {{First Name}}." } });
+    const mix = await prisma.mix.create({ data: { workspaceId, name, triggerMode: "MANUAL_START", status: "ACTIVE" } });
+    await prisma.mixStep.create({ data: { mixId: mix.id, stepVersionId: version.id, dayOffset: 1, sortOrder: 1, sendTimeMinutes: 10 * 60 } });
+    return mix.id;
+  }
+
   async function bind(contactId: string, entryId: string, planId: string, extra: { automaticDelivery?: boolean } = {}) {
     const assignment = await prisma.mixAssignment.create({ data: { assignmentKey: `${workspaceId}:${planId}:appointment:${entryId}:${contactId}`, workspaceId, mixId: planId, contactId, mode: "SNAPSHOT" } });
     return prisma.appointmentBinding.create({ data: { workspaceId, contactId, calendarEntryId: entryId, mixId: planId, assignmentId: assignment.id, ...extra } });
@@ -137,10 +146,12 @@ describe.sequential("appointment bindings", () => {
 
   it("never sends a bound follow-up automatically unless the binding allows it", async () => {
     await prisma.automationPreference.create({ data: { workspaceId, enabled: true, smsEnabled: true, reviewWindowMinutes: 15 } });
-    // A visit three days ago, so both beats are due and inside the review window.
+    // A visit three days ago recorded as having happened, so the beat after it is released, due, and inside the review window.
     const past = new Date(Date.now() - 3 * DAY);
-    const quiet = await bind(fixture.contactId, (await appointment(fixture.contactId, past, "Quiet visit")).id, await planWithTwoBeats("Quiet plan"));
-    const loud = await bind(fixture.contactId, (await appointment(fixture.contactId, past, "Loud visit")).id, await planWithTwoBeats("Loud plan"), { automaticDelivery: true });
+    const happened = async (title: string) => (await appointment(fixture.contactId, past, title)).id;
+    const quiet = await bind(fixture.contactId, await happened("Quiet visit"), await planWithFollowingBeat("Quiet plan"));
+    const loud = await bind(fixture.contactId, await happened("Loud visit"), await planWithFollowingBeat("Loud plan"), { automaticDelivery: true });
+    await prisma.calendarEntry.updateMany({ where: { workspaceId, title: { in: ["Quiet visit", "Loud visit"] } }, data: { outcome: "COMPLETED", outcomeAt: past } });
     await reconcileJumps({ workspaceId });
     await prisma.jump.updateMany({ where: { appointmentBindingId: { in: [quiet.id, loud.id] } }, data: { createdAt: new Date(Date.now() - 2 * DAY) } });
     await runAutomaticDeliveries(`bindings-${randomUUID().slice(0, 6)}`, new Date());
