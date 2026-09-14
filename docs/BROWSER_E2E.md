@@ -30,7 +30,7 @@ PLAYWRIGHT_WEB_SERVER_COMMAND="npm run start" npm run test:e2e
 
 The normal seeded identities are local-only and can be overridden with `E2E_USER_EMAIL`, `E2E_USER_PASSWORD`, `E2E_ADMIN_EMAIL`, and `E2E_ADMIN_PASSWORD`. Never create deterministic browser-test credentials in production.
 
-The CI order is schema/static validation → migration rehearsal → database deployment → typecheck → unit/integration tests → production build → seed → encrypted backup/restore rehearsal → browser tests. Accessibility scans and Lighthouse budgets run against the same built application.
+The CI order is schema/static validation → migration rehearsal → database deployment → typecheck → unit/integration tests → production build → seed → encrypted backup/restore rehearsal → browser tests. Accessibility scans and Lighthouse budgets run against the same built application. Lighthouse measures the real throttled paint (`throttlingMethod: "devtools"`): on the server-rendered public pages the simulated estimate was bimodal on identical bytes while the observed throttled paint is stable within tens of milliseconds (issue #59 records the measurements); the budgets themselves are unchanged. The `lighthouse-diagnostics` artifact keeps the 18 reports of every run, passing or failing, for seven days.
 
 External checks remain explicit: real Android Contact Picker permission, iPhone/Android native SMS/email/call handoffs, Apple and Google provider consent, email inbox placement, push permission and delivery, and Twilio carrier behavior require controlled staging or physical devices. Record physical results in [Manual device qualification](MANUAL_DEVICE_QUALIFICATION.md).
 
