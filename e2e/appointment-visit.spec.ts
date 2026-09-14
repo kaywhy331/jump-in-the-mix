@@ -70,6 +70,16 @@ test("saves a visit with its details and plan in one step, anchors the follow-up
   await expect(page.locator(".calendar-binding")).not.toContainText("on hold");
   await reconcileJumps({ workspaceId, mixId: planId });
   expect((await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).status).toBe("PENDING");
+
+  // Recording a missed visit holds this visit's follow-ups; clearing it brings them back.
+  await page.locator(".calendar-outcome").getByRole("button", { name: "No-show", exact: true }).click();
+  await expect(page.locator(".calendar-outcome")).toContainText("Visit missed");
+  await reconcileJumps({ workspaceId, mixId: planId });
+  expect(await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).toMatchObject({ status: "CANCELED", completionMethod: APPOINTMENT_HOLD_METHODS.noShow });
+  await page.locator(".calendar-outcome").getByRole("button", { name: "Clear outcome", exact: true }).click();
+  await expect(page.locator(".calendar-outcome")).toContainText("Outcome not recorded");
+  await reconcileJumps({ workspaceId, mixId: planId });
+  expect((await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).status).toBe("PENDING");
 });
 
 test("asks for one inline choice when the entered phone and email match different saved people, keeping everything typed", async ({ page }) => {

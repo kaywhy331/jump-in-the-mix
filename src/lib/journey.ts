@@ -30,16 +30,19 @@ async function changeManagedPlan(tx: Tx, input: JourneyEventInput, previousAssig
   if (previous?.isActive) {
     await tx.mixAssignment.update({ where: { id: previous.id }, data: { isActive: false } });
     await tx.mixStop.upsert({ where: { workspaceId_mixId_contactId: { workspaceId: input.workspaceId, mixId: previous.mixId, contactId: input.contactId } }, create: { workspaceId: input.workspaceId, mixId: previous.mixId, contactId: input.contactId, reason: "journey.stage.exit" }, update: {} });
-    await tx.jump.updateMany({ where: { workspaceId: input.workspaceId, contactId: input.contactId, mixId: previous.mixId, status: "PENDING" }, data: { status: "CANCELED", completionMethod: "journey_stage_changed" } });
+    // Only the journey's own enrollment ends here. A follow-up bound to one of the person's
+    // appointments belongs to that appointment and is left alone.
+    await tx.jump.updateMany({ where: { workspaceId: input.workspaceId, contactId: input.contactId, mixId: previous.mixId, status: "PENDING", appointmentBindingId: null }, data: { status: "CANCELED", completionMethod: "journey_stage_changed" } });
   }
   if (!targetPlanId) return null;
   const [plan, state, stop, assignment] = await Promise.all([
     tx.mix.findFirst({ where: { id: targetPlanId, workspaceId: input.workspaceId, status: "ACTIVE", triggerMode: "MANUAL_START", source: { not: "ONE_TIME" } } }),
     tx.contactRelationshipState.findUnique({ where: { contactId: input.contactId } }),
     tx.mixStop.findUnique({ where: { workspaceId_mixId_contactId: { workspaceId: input.workspaceId, mixId: targetPlanId, contactId: input.contactId } } }),
-    tx.mixAssignment.findFirst({ where: { workspaceId: input.workspaceId, mixId: targetPlanId, contactId: input.contactId, isActive: true } })
+    tx.mixAssignment.findFirst({ where: { workspaceId: input.workspaceId, mixId: targetPlanId, contactId: input.contactId, isActive: true, appointmentBinding: null } })
   ]);
-  // Never take over an independently assigned plan, resume a manual stop, or bypass DNC.
+  // Never take over an independently assigned plan, resume a manual stop, or bypass DNC. An
+  // enrollment scoped to an appointment is not the plan running on its own; both proceed.
   if (!plan || state?.doNotContact || assignment?.isActive || (stop && stop.reason !== "journey.stage.exit")) return null;
   if (stop) await tx.mixStop.delete({ where: { id: stop.id } });
   const created = await tx.mixAssignment.upsert({
@@ -122,7 +125,7 @@ export async function runJourneyMaintenance({ now = new Date(), limit = 25 }: { 
       if (stop) continue;
       const [steps, completed] = await Promise.all([
         prisma.mixStep.findMany({ where: { mixId: assignment.mixId, isActive: true }, select: { id: true } }),
-        prisma.jump.findMany({ where: { workspaceId: person.workspaceId, contactId: person.contactId, mixId: assignment.mixId, status: { in: ["DONE", "SKIPPED"] }, completedAt: { gte: person.stageSince } }, distinct: ["mixStepId"], select: { mixStepId: true } })
+        prisma.jump.findMany({ where: { workspaceId: person.workspaceId, contactId: person.contactId, mixId: assignment.mixId, appointmentBindingId: null, status: { in: ["DONE", "SKIPPED"] }, completedAt: { gte: person.stageSince } }, distinct: ["mixStepId"], select: { mixStepId: true } })
       ]);
       if (steps.length && steps.every(step => completed.some(jump => jump.mixStepId === step.id))) eventType = "PLAN_COMPLETED";
     }
