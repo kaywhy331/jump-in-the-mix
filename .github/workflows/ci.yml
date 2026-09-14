@@ -15,7 +15,10 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # The validate job runs 37 to 41 minutes since the Lighthouse gate measures the real throttled
+    # paint (about 7.5 minutes for its 18 runs, against 3.5 simulated). A 40-minute cap cancelled a
+    # green run at that last gate; the cap is a safety limit, not a budget.
+    timeout-minutes: 60
     env:
       APP_URL: http://127.0.0.1:3000
       # Fixture suites require an explicitly named, loopback-only test database.
