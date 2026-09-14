@@ -45,6 +45,7 @@
     "test:a11y": "playwright test e2e/accessibility.spec.ts",
     "test:lighthouse": "lhci autorun --config=.lighthouserc.cjs",
     "smoke:staging": "node scripts/staging-smoke.mjs",
+    "smoke:staging:seed": "tsx scripts/seed-staging-smoke-user.ts",
     "load:smoke": "node scripts/load-smoke.mjs",
     "validate:schema": "node scripts/validate-schema.mjs",
     "validate:syntax": "node scripts/validate-syntax.mjs",

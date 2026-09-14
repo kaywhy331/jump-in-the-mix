@@ -6,6 +6,8 @@ The dedicated test URL is `https://jump-in-the-mix-test.netlify.app`. The produc
 
 The test site's fallback worker timer is `.github/workflows/private-test-worker.yml`, scheduled every five minutes on GitHub Actions. Standard hosted runners are free for this public repository. Netlify accepted its minute schedule but did not execute it during deployment qualification. Both timers use the same idempotent job claims if Netlify starts running later. Observed GitHub schedule gaps exceeded 90 minutes, so this testing infrastructure does not qualify timely unattended processing.
 
+Every handoff from that timer was rejected with 503 between September 10 and September 14 because the proxy's recovery-boundary check forwarded the timer's Bearer token to the private-site gate; see [Netlify deployment](NETLIFY_DEPLOYMENT.md). A failed GitHub run with `Worker handoff failed (503)` and a stale worker heartbeat together mean the site refused the handoff, not that the timer stopped.
+
 The September 6 test release now uses `WORKER_HEARTBEAT_STALE_SECONDS=180`, replacing the former 1200-second window. Runtime checks returned 200 at a heartbeat age of about 177 seconds and 503 at about 199 seconds. Do not lengthen this threshold to hide missed invocations; it exposes missed ticks without repairing the timer.
 
 Apply `WORKER_DISPATCH_MODE=netlify` to **all contexts** on this dedicated test site. Promoting a preview retains its preview environment; a production-only setting left activity-triggered wakeups disabled. Deployment `6a9d9172257afbb08f032d34` corrects that context mismatch, and authenticated browsing now records a dispatch reservation followed by a fresh worker heartbeat. This does not qualify unattended recurrence.
@@ -21,6 +23,8 @@ Set `PRIVATE_TEST_MODE=true`, `PRIVATE_TEST_USERNAME`, and a random `PRIVATE_TES
 Use `NODE_ENV=production`, HTTPS, strong independent encryption and authentication secrets, `DEMO_MODE=false`, and `PILOT_MODE=false`. The site displays a private-testing banner and sends no-index and no-store headers. Create a normal account after entering the site password. Use sample contacts only.
 
 For private password testing, set `AUTH_REQUIRE_EMAIL_VERIFICATION=false`. Unconfigured Google and Apple options stay hidden. If a provider is partially configured, readiness still fails. Public hosted deployments retain their existing mandatory verification, email, and social-provider checks.
+
+The authenticated staging smoke (`npm run smoke:staging`) signs in as a synthetic account. Seed or reset that account with `npm run smoke:staging:seed` using the test site's `DATABASE_URL` and `STAGING_SMOKE_USER_EMAIL` / `STAGING_SMOKE_USER_PASSWORD` (24 to 72 characters); the script never prints the password and creates an empty verified workspace with onboarding complete. Run the smoke with `STAGING_BASE_URL`, the same two smoke variables, and `STAGING_HTTP_USERNAME` / `STAGING_HTTP_PASSWORD` set to the private access credentials so its page and API requests pass the site password. Its worker check needs a heartbeat younger than `WORKER_HEARTBEAT_STALE_SECONDS`, so run it within that window of a timer tick.
 
 Email sending, verification, magic links, and email password recovery cannot be tested without a configured email provider. For a forgotten test-account password, the operator can run `npx tsx scripts/issue-password-reset-link.ts user@example.com` with the test site's `DATABASE_URL` and `APP_URL`. Give the one-time link directly to that tester; never log or commit it.
 
