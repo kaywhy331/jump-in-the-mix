@@ -28,7 +28,7 @@ import type { AppointmentContext } from "@/lib/appointment-context";
 const STALE_CANCELLATION_STATUSES: JumpStatus[] = ["PENDING"];
 // Holds scoped to one appointment binding. Each is cleared only by the event that set it: the
 // owner lifting the hold, the appointment being restored, or its evaluation succeeding again.
-export const APPOINTMENT_HOLD_METHODS = { held: "appointment_held", canceled: "appointment_canceled", unresolved: "appointment_unresolved" } as const;
+export const APPOINTMENT_HOLD_METHODS = { held: "appointment_held", canceled: "appointment_canceled", unresolved: "appointment_unresolved", noShow: "appointment_no_show", completed: "appointment_completed" } as const;
 const RECONCILABLE_CANCELLATION_METHODS = new Set([
   "reconciled",
   "mix_paused",
@@ -323,7 +323,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   // Appointment bindings this pass evaluated. A hold keeps the binding's pending rows out of the
   // desired set and cancels them with its own reason, so they return when the reason lifts and are
   // never mistaken for stale work.
-  const bindingHolds = new Map<string, { method: string; error: string | null }>();
+  const bindingHolds = new Map<string, { method: string; error: string | null; mixStepIds?: string[] }>();
   const evaluatedBindingIds: string[] = [];
 
   for (const assignment of assignments) {
@@ -344,6 +344,13 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       if (problem) { bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.unresolved, error: problem }); continue; }
       if (binding.heldAt) { bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.held, error: null }); evaluatedBindingIds.push(binding.id); continue; }
       if (entry.canceledAt) { bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.canceled, error: null }); evaluatedBindingIds.push(binding.id); continue; }
+      // A missed visit holds everything bound to it. A completed visit lets the beats before it
+      // lapse, since a reminder for a visit that already happened is moot, and runs the ones after.
+      if (entry.outcome === "NO_SHOW") { bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.noShow, error: null }); evaluatedBindingIds.push(binding.id); continue; }
+      if (entry.outcome === "COMPLETED") {
+        const lapsed = assignment.mix.steps.filter((step) => step.dayOffset < 0).map((step) => step.id);
+        if (lapsed.length) bindingHolds.set(binding.id, { method: APPOINTMENT_HOLD_METHODS.completed, error: null, mixStepIds: lapsed });
+      }
       evaluatedBindingIds.push(binding.id);
       appointment = { title: entry.title, startsAt: entry.startsAt, timezone: entry.timezone, location: entry.location, link: entry.link, details: entry.details };
     }
@@ -423,6 +430,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       for (const trigger of triggers) {
         let previousScheduledAt: Date | null = null;
         for (const mixStep of assignment.mix.steps) {
+          // Beats a completed visit made moot are held, not desired.
+          if (binding && bindingHolds.get(binding.id)?.mixStepIds?.includes(mixStep.id)) continue;
           let originalLogicalDate: LogicalDate;
           let scheduledLogicalDate: LogicalDate;
           let sendTimeMinutes: number;
@@ -617,10 +626,10 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   // Holds run before the stale pass, so a held binding's rows carry their own reason and a binding
   // that failed evaluation never has its work treated as stale.
   let held = 0;
-  const heldBindingIds = [...bindingHolds.keys()];
+  const heldBindingIds = [...bindingHolds.entries()].filter(([, hold]) => !hold.mixStepIds).map(([id]) => id);
   for (const [bindingId, hold] of bindingHolds) {
     const result = await prisma.jump.updateMany({
-      where: { appointmentBindingId: bindingId, status: { in: STALE_CANCELLATION_STATUSES } },
+      where: { appointmentBindingId: bindingId, status: { in: STALE_CANCELLATION_STATUSES }, ...(hold.mixStepIds ? { mixStepId: { in: hold.mixStepIds } } : {}) },
       data: { status: "CANCELED", completedAt: null, completionMethod: hold.method }
     });
     held += result.count;
@@ -636,6 +645,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       ...baseJumpWhere(filters),
       status: { in: STALE_CANCELLATION_STATUSES },
       scheduledAt: { gte: horizonStart, lte: horizonEnd },
+      // A whole-binding hold keeps every row of that binding out of the stale pass; a completed
+      // visit's remaining beats are still desired and reconcile normally.
       ...(heldBindingIds.length ? { OR: [{ appointmentBindingId: null }, { appointmentBindingId: { notIn: heldBindingIds } }] } : {})
     },
     select: { id: true, uniquenessKey: true }

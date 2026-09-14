@@ -2,6 +2,8 @@ export const JOURNEY_EVENTS = [
   { value: "CONTACT_RECEIVED", label: "A contact or inquiry arrives" },
   { value: "CONVERSATION_STARTED", label: "A conversation starts" },
   { value: "MEETING_SCHEDULED", label: "A meeting is scheduled" },
+  { value: "MEETING_COMPLETED", label: "A meeting happened" },
+  { value: "MEETING_NO_SHOW", label: "A meeting was missed" },
   { value: "SALE_CONFIRMED", label: "A sale is confirmed" },
   { value: "WORK_COMPLETED", label: "The work is completed" },
   { value: "PLAN_COMPLETED", label: "The stage’s mix is completed" },

@@ -2,6 +2,8 @@ enum JourneyEventType {
   CONTACT_RECEIVED
   CONVERSATION_STARTED
   MEETING_SCHEDULED
+  MEETING_COMPLETED
+  MEETING_NO_SHOW
   SALE_CONFIRMED
   WORK_COMPLETED
   PLAN_COMPLETED
@@ -163,6 +165,10 @@ model CalendarEntry {
   location     String?
   link         String?
   details      String?
+  // What happened at the visit, recorded by the owner: COMPLETED or NO_SHOW. A missed visit holds
+  // its bound follow-ups; a completed one lets the beats before it lapse and the ones after it run.
+  outcome      String?
+  outcomeAt    DateTime?
   version      Int                 @default(1)
   updatedAt    DateTime            @updatedAt
   canceledAt   DateTime?
