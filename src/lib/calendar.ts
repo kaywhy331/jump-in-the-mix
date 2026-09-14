@@ -1,3 +1,4 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { applyJourneyEvent } from "@/lib/journey";
 import { calendarRange } from "@/lib/calendar-time";
@@ -13,12 +14,14 @@ function detailText(value: string | null | undefined, maximum: number, name: str
   return trimmed || null;
 }
 
-export async function saveCalendarEntry(input: { workspaceId: string; actorUserId?: string; id?: string; version?: number; title: string; kind: string; contactId?: string; startsAt: Date; endsAt: Date; timezone: string; location?: string | null; link?: string | null; details?: string | null; allowOverlap?: boolean }) {
+export type CalendarEntryInput = { workspaceId: string; actorUserId?: string; id?: string; version?: number; title: string; kind: string; contactId?: string; startsAt: Date; endsAt: Date; timezone: string; location?: string | null; link?: string | null; details?: string | null; allowOverlap?: boolean };
+
+/** Validates and writes one entry inside the caller's transaction. */
+export async function saveCalendarEntryIn(tx: Prisma.TransactionClient, input: CalendarEntryInput) {
   calendarRange(input.startsAt, input.endsAt);
   if (!input.title.trim() || input.title.trim().length > 160) throw new Error("Give this event a title of up to 160 characters.");
   if (!["MEETING", "BLOCK"].includes(input.kind)) throw new Error("Choose a meeting or time block.");
   const details = { location: detailText(input.location, APPOINTMENT_DETAIL_LIMITS.location, "location"), link: normalizeAppointmentLink(input.link), details: detailText(input.details, APPOINTMENT_DETAIL_LIMITS.details, "details") };
-  return prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${input.workspaceId} FOR NO KEY UPDATE`;
     const existing = input.id ? await tx.calendarEntry.findFirst({ where: { id: input.id, workspaceId: input.workspaceId, connectionId: null, canceledAt: null } }) : null;
     if (input.id && (!existing || existing.version !== input.version)) throw new Error("This event changed. Refresh the calendar before editing it.");
@@ -40,7 +43,10 @@ export async function saveCalendarEntry(input: { workspaceId: string; actorUserI
     // Follow-ups bound to this appointment re-anchor to its new time and details on the next pass.
     if (existing) await queueBoundReconciliation(tx, input.workspaceId, entry.id);
     return entry;
-  }, { timeout: 15_000 });
+}
+
+export async function saveCalendarEntry(input: CalendarEntryInput) {
+  return prisma.$transaction(async tx => saveCalendarEntryIn(tx, input), { timeout: 15_000 });
 }
 
 /** Enqueues a contact-scoped pass for every plan bound to an appointment, so its follow-ups follow the change. */
