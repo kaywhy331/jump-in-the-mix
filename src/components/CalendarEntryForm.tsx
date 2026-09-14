@@ -8,7 +8,7 @@ import { addMinutesToLocal, formatDateTrigger, formatDurationLabel, formatTimeLa
 const DURATIONS = [15, 30, 45, 60, 90, 120] as const;
 type Duration = (typeof DURATIONS)[number] | "custom";
 
-type Entry = { id: string; version: number; title: string; kind: string; startsAt: string; endsAt: string; contactId: string | null };
+type Entry = { id: string; version: number; title: string; kind: string; startsAt: string; endsAt: string; contactId: string | null; location?: string | null; link?: string | null; details?: string | null };
 
 function initialDuration(entry: Entry | undefined): Duration {
   if (!entry) return 30;
@@ -55,6 +55,9 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
       {values.duration === "custom" ? <label className="when-duration-custom"><span className="sr-only">Ends</span><input type="datetime-local" aria-label="Ends" value={values.customEnd} onChange={event => update("customEnd", event.target.value)} required /></label> : <p className="when-ends-summary">{endSummary}</p>}
     </div>
     <label className="field full"><span>Timezone</span><input name="timezone" value={values.timezone} onChange={event => update("timezone", event.target.value)} list="calendar-timezones" required /><datalist id="calendar-timezones">{[timezone,"UTC","America/Los_Angeles","America/New_York","Europe/London","Europe/Paris","Asia/Kolkata","Asia/Tokyo","Australia/Sydney"].filter((zone, index, all) => all.indexOf(zone) === index).map(zone => <option value={zone} key={zone} />)}</datalist></label>
+    <label className="field full"><span>Where</span><input name="location" maxLength={200} defaultValue={entry?.location ?? ""} placeholder="Address or place, for reminders" /></label>
+    <label className="field full"><span>Link to join or find it (optional)</span><input name="link" type="url" inputMode="url" maxLength={500} defaultValue={entry?.link ?? ""} placeholder="https://" /></label>
+    <label className="field full"><span>Details the customer should be reminded of (optional)</span><textarea name="details" maxLength={1000} rows={2} defaultValue={entry?.details ?? ""} placeholder="What to bring, where to park, who to ask for" /></label>
     <label className="field full checkbox-row"><input type="checkbox" name="allowOverlap" checked={values.allowOverlap} onChange={event => update("allowOverlap", event.target.checked)} /><span>Allow an intentional overlap with another event{availability && availability.bufferMinutes > 0 ? ` or its ${availability.bufferMinutes}-minute buffer` : ""}</span></label>
     <p className="muted-copy field full">A meeting linked to a contact can trigger your journey rules. Save it here, then use its calendar download to share through your preferred provider. Saving does not send an invitation.</p>
     <div className="form-actions field full"><button className="button primary" disabled={pending}>{pending ? "Saving…" : entry ? "Save changes" : "Save event"}</button></div>

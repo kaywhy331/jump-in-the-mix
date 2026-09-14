@@ -5,11 +5,19 @@ import { conflictMessage, findConflict, normalizeBufferMinutes } from "@/lib/cal
 import { parseCalendarFile } from "@/lib/calendar-ical";
 import { fetchCalendarFeed } from "@/lib/calendar-feed-fetch";
 import { decryptIntegrationCredentials } from "@/lib/integration-crypto";
+import { APPOINTMENT_DETAIL_LIMITS, normalizeAppointmentLink } from "@/lib/appointment-context";
 
-export async function saveCalendarEntry(input: { workspaceId: string; actorUserId?: string; id?: string; version?: number; title: string; kind: string; contactId?: string; startsAt: Date; endsAt: Date; timezone: string; allowOverlap?: boolean }) {
+function detailText(value: string | null | undefined, maximum: number, name: string): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (trimmed.length > maximum) throw new Error(`Keep the appointment ${name} under ${maximum} characters.`);
+  return trimmed || null;
+}
+
+export async function saveCalendarEntry(input: { workspaceId: string; actorUserId?: string; id?: string; version?: number; title: string; kind: string; contactId?: string; startsAt: Date; endsAt: Date; timezone: string; location?: string | null; link?: string | null; details?: string | null; allowOverlap?: boolean }) {
   calendarRange(input.startsAt, input.endsAt);
   if (!input.title.trim() || input.title.trim().length > 160) throw new Error("Give this event a title of up to 160 characters.");
   if (!["MEETING", "BLOCK"].includes(input.kind)) throw new Error("Choose a meeting or time block.");
+  const details = { location: detailText(input.location, APPOINTMENT_DETAIL_LIMITS.location, "location"), link: normalizeAppointmentLink(input.link), details: detailText(input.details, APPOINTMENT_DETAIL_LIMITS.details, "details") };
   return prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${input.workspaceId} FOR NO KEY UPDATE`;
     const existing = input.id ? await tx.calendarEntry.findFirst({ where: { id: input.id, workspaceId: input.workspaceId, connectionId: null, canceledAt: null } }) : null;
@@ -23,14 +31,23 @@ export async function saveCalendarEntry(input: { workspaceId: string; actorUserI
     const nearby = await tx.calendarEntry.findMany({ where: { workspaceId: input.workspaceId, canceledAt: null, ...(existing ? { id: { not: existing.id } } : {}), startsAt: { lt: new Date(input.endsAt.getTime() + pad) }, endsAt: { gt: new Date(input.startsAt.getTime() - pad) } }, select: { id: true, title: true, kind: true, startsAt: true, endsAt: true }, orderBy: { startsAt: "asc" }, take: 200 });
     const conflict = findConflict({ kind: input.kind, start: input.startsAt.getTime(), end: input.endsAt.getTime() }, nearby.map(entry => ({ id: entry.id, title: entry.title, kind: entry.kind, start: entry.startsAt.getTime(), end: entry.endsAt.getTime() })), pad);
     if (conflict && !input.allowOverlap) throw new Error(conflictMessage(conflict, bufferMinutes));
-    const data = { title: input.title.trim(), kind: input.kind, contactId: input.contactId || null, startsAt: input.startsAt, endsAt: input.endsAt, timezone: input.timezone };
+    const data = { title: input.title.trim(), kind: input.kind, contactId: input.contactId || null, startsAt: input.startsAt, endsAt: input.endsAt, timezone: input.timezone, ...details };
     const entry = existing ? await tx.calendarEntry.update({ where: { id: existing.id }, data: { ...data, version: { increment: 1 } } }) : await tx.calendarEntry.create({ data: { ...data, workspaceId: input.workspaceId } });
     if (entry.contactId) {
       await tx.contactActivity.create({ data: { workspaceId: input.workspaceId, contactId: entry.contactId, actorUserId: input.actorUserId, kind: "SYSTEM", visibility: "WORKSPACE", summary: `${existing ? "Updated" : "Scheduled"} ${entry.kind === "MEETING" ? "meeting" : "time block"}: ${entry.title}.`, metadata: { calendarEntryId: entry.id, startsAt: entry.startsAt.toISOString(), endsAt: entry.endsAt.toISOString(), timezone: entry.timezone } } });
       if (entry.kind === "MEETING" && (!existing || existing.contactId !== entry.contactId || existing.kind !== "MEETING")) await applyJourneyEvent(tx, { workspaceId: input.workspaceId, contactId: entry.contactId, actorUserId: input.actorUserId, eventType: "MEETING_SCHEDULED", eventKey: `calendar:${entry.id}:${entry.version}`, source: "Calendar" });
     }
+    // Follow-ups bound to this appointment re-anchor to its new time and details on the next pass.
+    if (existing) await queueBoundReconciliation(tx, input.workspaceId, entry.id);
     return entry;
   }, { timeout: 15_000 });
+}
+
+/** Enqueues a contact-scoped pass for every plan bound to an appointment, so its follow-ups follow the change. */
+export async function queueBoundReconciliation(tx: Pick<typeof prisma, "appointmentBinding" | "job">, workspaceId: string, calendarEntryId: string): Promise<number> {
+  const bindings = await tx.appointmentBinding.findMany({ where: { workspaceId, calendarEntryId }, select: { contactId: true, mixId: true } });
+  for (const binding of bindings) await tx.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId: binding.contactId, mixId: binding.mixId } } });
+  return bindings.length;
 }
 
 export async function importCalendar(workspaceId: string, connectionId: string, body: string, timezone: string, now = new Date()) {

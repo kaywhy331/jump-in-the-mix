@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseCalendarTime } from "@/lib/calendar-time";
-import { importCalendar, saveCalendarEntry, syncCalendarConnection } from "@/lib/calendar";
+import { importCalendar, queueBoundReconciliation, saveCalendarEntry, syncCalendarConnection } from "@/lib/calendar";
 import { calendarFeedUrl } from "@/lib/calendar-feed-fetch";
 import { encryptIntegrationCredentials } from "@/lib/integration-crypto";
 import { createConnectionToken } from "@/lib/connection-tokens";
@@ -14,7 +14,7 @@ async function context() { const ctx = await requireWorkspace(); if (ctx.imperso
 export async function saveCalendarAction(_state: { error: string }, data: FormData): Promise<{ error: string }> {
   const { workspace, user } = await context(); const timezone = value(data, "timezone");
   try {
-    await saveCalendarEntry({ workspaceId: workspace.id, actorUserId: user.id, id: value(data, "id") || undefined, version: Number(value(data, "version")), title: value(data, "title"), kind: value(data, "kind"), contactId: value(data, "contactId"), startsAt: parseCalendarTime(value(data, "startsAt"), timezone), endsAt: parseCalendarTime(value(data, "endsAt"), timezone), timezone, allowOverlap: data.get("allowOverlap") === "on" });
+    await saveCalendarEntry({ workspaceId: workspace.id, actorUserId: user.id, id: value(data, "id") || undefined, version: Number(value(data, "version")), title: value(data, "title"), kind: value(data, "kind"), location: value(data, "location"), link: value(data, "link"), details: value(data, "details"), contactId: value(data, "contactId"), startsAt: parseCalendarTime(value(data, "startsAt"), timezone), endsAt: parseCalendarTime(value(data, "endsAt"), timezone), timezone, allowOverlap: data.get("allowOverlap") === "on" });
   } catch (error) { return { error: error instanceof Error ? error.message : "This event could not be saved." }; }
   redirect(`/calendar?date=${encodeURIComponent(value(data, "startsAt").slice(0, 10))}&saved=1`);
 }
@@ -26,6 +26,8 @@ export async function cancelCalendarAction(data: FormData) {
     const entry = await tx.calendarEntry.findFirst({ where: { id: value(data, "id"), workspaceId: workspace.id, connectionId: null, canceledAt: null, version: Number(value(data, "version")) } });
     if (!entry) return;
     await tx.calendarEntry.update({ where: { id: entry.id }, data: { canceledAt: new Date(), version: { increment: 1 } } });
+    // Bound follow-ups are held with their own reason on the next pass, never sent for a visit that is off.
+    await queueBoundReconciliation(tx, workspace.id, entry.id);
     if (entry.contactId) await tx.contactActivity.create({ data: { workspaceId: workspace.id, contactId: entry.contactId, actorUserId: user.id, kind: "SYSTEM", visibility: "WORKSPACE", summary: `Canceled calendar event: ${entry.title}. The customer’s stage was kept.`, metadata: { calendarEntryId: entry.id } } });
   });
   redirect("/calendar?saved=1");
