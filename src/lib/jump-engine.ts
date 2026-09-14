@@ -22,6 +22,7 @@ import {
   type PersonalSchedulingRule
 } from "@/lib/personal-scheduling";
 import { minutesInTimezone, plannedStepApplies } from "@/lib/planned-step";
+import { anchoredStepInstant, anchoredStepIsPreparation } from "@/lib/step-timing";
 import { isValidTimezone } from "@/lib/mix-broadcast";
 import type { AppointmentContext } from "@/lib/appointment-context";
 
@@ -364,9 +365,11 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       // their drafts and history; only their eligibility changes. None of this moves a beat's time.
       if (entry.outcome === "NO_SHOW") { holdBinding(binding.id, { method: APPOINTMENT_HOLD_METHODS.noShow, error: null }); evaluatedBindingIds.push(binding.id); continue; }
       const appointmentMinutes = minutesInTimezone(entry.startsAt, entry.timezone);
-      const preparation = (step: { plannedAt: Date | null; dayOffset: number; sendTimeMinutes: number | null }) => step.plannedAt
-        ? step.plannedAt < entry.startsAt
-        : step.dayOffset < 0 || (step.dayOffset === 0 && (step.sendTimeMinutes ?? appointmentMinutes) < appointmentMinutes);
+      const preparation = (step: { plannedAt: Date | null; dayOffset: number; sendTimeMinutes: number | null; anchor: string; offsetMinutes: number | null }) => step.anchor !== "CALENDAR_DAY"
+        ? anchoredStepIsPreparation({ anchor: step.anchor as "APPOINTMENT_START" | "APPOINTMENT_END" | "VISIT_COMPLETED", offsetMinutes: step.offsetMinutes }, entry)
+        : step.plannedAt
+          ? step.plannedAt < entry.startsAt
+          : step.dayOffset < 0 || (step.dayOffset === 0 && (step.sendTimeMinutes ?? appointmentMinutes) < appointmentMinutes);
       const before = assignment.mix.steps.filter(preparation).map((step) => step.id);
       const after = assignment.mix.steps.filter((step) => !preparation(step)).map((step) => step.id);
       if (entry.outcome === "COMPLETED") {
@@ -462,7 +465,18 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
           let sendTimeMinutes: number;
           let scheduledAt: Date;
           let occurrenceKey = trigger.occurrenceKey;
-          if (mixStep.plannedAt) {
+          if (mixStep.anchor !== "CALENDAR_DAY") {
+            // An elapsed-minute beat counts from the appointment it is bound to, or from the moment
+            // the visit was marked completed. It is an instant: no weekend shift, no quiet hours, no
+            // daylight-saving drift. Without a bound appointment there is nothing to count from.
+            if (!binding?.calendarEntry) continue;
+            const instant = anchoredStepInstant(mixStep, binding.calendarEntry);
+            if (!instant) continue;
+            scheduledAt = instant;
+            scheduledLogicalDate = logicalDateInTimezone(scheduledAt, trigger.timezone);
+            originalLogicalDate = scheduledLogicalDate;
+            sendTimeMinutes = minutesInTimezone(scheduledAt, trigger.timezone);
+          } else if (mixStep.plannedAt) {
             // A planned beat goes out at its instant to everyone who has reached it or passed it by
             // then; contacts still earlier in the mix wait. Weekend shifts and quiet hours do not
             // move it, because the time is explicit.

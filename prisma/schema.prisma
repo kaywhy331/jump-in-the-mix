@@ -33,6 +33,16 @@ enum Channel {
   WHATSAPP
 }
 
+// How a beat of a plan bound to an appointment is timed: a calendar-day rule (the default: a day
+// offset and a time of day), an elapsed number of minutes from the appointment's start or end,
+// or an elapsed number of minutes after the visit is marked completed.
+enum StepAnchor {
+  CALENDAR_DAY
+  APPOINTMENT_START
+  APPOINTMENT_END
+  VISIT_COMPLETED
+}
+
 enum MixStatus {
   DRAFT
   ACTIVE
@@ -470,6 +480,9 @@ model MixStep {
   sendTimeMinutes Int?
   // A planned beat goes out at one instant instead of a day offset from the trigger.
   plannedAt       DateTime?
+  // Elapsed-minute timing for a bound plan; a calendar-day beat keeps offsetMinutes null.
+  anchor          StepAnchor  @default(CALENDAR_DAY)
+  offsetMinutes   Int?
   isActive        Boolean     @default(true)
   mix             Mix         @relation(fields: [mixId], references: [id], onDelete: Cascade)
   stepVersion     StepVersion @relation(fields: [stepVersionId], references: [id], onDelete: Restrict)
