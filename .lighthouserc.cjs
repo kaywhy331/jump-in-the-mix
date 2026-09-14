@@ -17,7 +17,13 @@ module.exports = {
       ],
       numberOfRuns: 3,
       settings: {
-        chromeFlags: "--headless=new --no-sandbox"
+        chromeFlags: "--headless=new --no-sandbox",
+        // Measure the real throttled paint rather than the simulated estimate. On these
+        // server-rendered pages the estimate was bimodal on identical bytes (the hydration
+        // scripts land in its LCP path only when their evaluation happens to start before the
+        // observed first paint), while the observed throttled paint is stable. Issue #59 holds
+        // the measurements. The budgets below are unchanged.
+        throttlingMethod: "devtools"
       }
     },
     assert: {

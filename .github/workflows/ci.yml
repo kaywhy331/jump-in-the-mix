@@ -331,7 +331,10 @@ jobs:
           set -o pipefail
           npm run test:lighthouse 2>&1 | tee lighthouse.log
       - name: Upload Lighthouse diagnostics
-        if: failure()
+        # Every run, and including the dot-directory the reports live in: with the default
+        # include-hidden-files, only lighthouse.log reached the artifact and a failed budget
+        # could not be diagnosed from CI.
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lighthouse-diagnostics
@@ -339,6 +342,7 @@ jobs:
             lighthouse.log
             .artifacts/lighthouse
           if-no-files-found: ignore
+          include-hidden-files: true
           retention-days: 7
       - name: Build production web and worker images
         shell: bash
