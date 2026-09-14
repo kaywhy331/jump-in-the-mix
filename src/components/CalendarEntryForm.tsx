@@ -18,7 +18,7 @@ function initialDuration(entry: Entry | undefined): Duration {
   return (DURATIONS as readonly number[]).includes(minutes) ? minutes as Duration : "custom";
 }
 
-export function CalendarEntryForm({ contacts, contactId = "", timezone, date, entry, locale }: { contacts: Array<{ id: string; displayName: string }>; contactId?: string; timezone: string; date: string; entry?: Entry; locale?: string }) {
+export function CalendarEntryForm({ contacts, contactId = "", timezone, date, entry, locale, plans = [] }: { plans?: Array<{ id: string; name: string }>; contacts: Array<{ id: string; displayName: string }>; contactId?: string; timezone: string; date: string; entry?: Entry; locale?: string }) {
   const starts = splitLocal(entry?.startsAt ?? "") ?? { date, time: "09:00" };
   const [values, setValues] = useState({ title: entry?.title ?? "", kind: entry?.kind ?? "MEETING", contactId: entry?.contactId ?? contactId, date: starts.date, time: starts.time, duration: initialDuration(entry), customEnd: entry?.endsAt ?? `${date}T09:30`, timezone, allowOverlap: false });
   const [availability, setAvailability] = useState<WhenAvailability | null>(null);
@@ -48,6 +48,15 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
     <input type="hidden" name="startsAt" value={startsAt} /><input type="hidden" name="endsAt" value={endsAt} />
     <label className="field full"><span>Title</span><input name="title" maxLength={160} value={values.title} onChange={event => update("title", event.target.value)} placeholder="For example, Discovery call or Focus time" required /></label>
     <label className="field"><span>Event type</span><select name="kind" value={values.kind} onChange={event => update("kind", event.target.value)}><option value="MEETING">Meeting</option><option value="BLOCK">Time block</option></select></label>
+    {!values.contactId && !entry && <details className="field full"><summary>Add a new person for this visit</summary>
+      <div className="form-grid">
+        <label className="field full"><span>Name</span><input name="newContactName" maxLength={200} placeholder="Jordan Lee" /></label>
+        <label className="field"><span>Phone</span><input name="newContactPhone" inputMode="tel" autoComplete="off" placeholder="(555) 555-0123" /></label>
+        <label className="field"><span>Email</span><input name="newContactEmail" inputMode="email" autoComplete="off" placeholder="jordan@example.com" /></label>
+        <p className="muted-copy field full">Saved with the visit. A person already saved with this phone or email is used instead of a duplicate.</p>
+      </div>
+    </details>}
+    {values.kind === "MEETING" && plans.length > 0 && !entry && <label className="field full"><span>Follow-up plan for this visit (optional)</span><select name="planId" defaultValue=""><option value="">No plan</option>{plans.map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select><small>Its reminders and check-ins line up with this appointment and move with it. Nothing is sent automatically unless you turn that on for this visit.</small></label>}
     <label className="field"><span>Contact (optional)</span><select name="contactId" value={values.contactId} onChange={event => update("contactId", event.target.value)}><option value="">No contact</option>{contacts.map(contact => <option value={contact.id} key={contact.id}>{contact.displayName}</option>)}</select></label>
     <div className="field full"><span className="field-label">Starts</span><WhenPicker label="Starts" locale={locale} date={values.date} time={values.time} availability={availability ?? undefined} allowOverlap={values.allowOverlap} onChange={next => setValues(current => ({ ...current, date: next.date, time: next.time ?? current.time }))} /></div>
     <div className="field full when-duration"><span className="field-label">How long</span>

@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseCalendarTime } from "@/lib/calendar-time";
-import { importCalendar, queueBoundReconciliation, saveCalendarEntry, syncCalendarConnection } from "@/lib/calendar";
+import { importCalendar, queueBoundReconciliation, syncCalendarConnection } from "@/lib/calendar";
+import { scheduleVisit, setAppointmentBindingDelivery, setAppointmentBindingHold } from "@/lib/appointment-bindings";
 import { calendarFeedUrl } from "@/lib/calendar-feed-fetch";
 import { encryptIntegrationCredentials } from "@/lib/integration-crypto";
 import { createConnectionToken } from "@/lib/connection-tokens";
@@ -13,10 +14,29 @@ const value = (data: FormData, name: string) => String(data.get(name) ?? "").tri
 async function context() { const ctx = await requireWorkspace(); if (ctx.impersonation) throw new Error("Support sessions are view-only."); return ctx; }
 export async function saveCalendarAction(_state: { error: string }, data: FormData): Promise<{ error: string }> {
   const { workspace, user } = await context(); const timezone = value(data, "timezone");
+  let result: Awaited<ReturnType<typeof scheduleVisit>>;
   try {
-    await saveCalendarEntry({ workspaceId: workspace.id, actorUserId: user.id, id: value(data, "id") || undefined, version: Number(value(data, "version")), title: value(data, "title"), kind: value(data, "kind"), location: value(data, "location"), link: value(data, "link"), details: value(data, "details"), contactId: value(data, "contactId"), startsAt: parseCalendarTime(value(data, "startsAt"), timezone), endsAt: parseCalendarTime(value(data, "endsAt"), timezone), timezone, allowOverlap: data.get("allowOverlap") === "on" });
+    result = await scheduleVisit({ workspaceId: workspace.id, actorUserId: user.id, id: value(data, "id") || undefined, version: Number(value(data, "version")), title: value(data, "title"), kind: value(data, "kind"), location: value(data, "location"), link: value(data, "link"), details: value(data, "details"), contactId: value(data, "contactId"), startsAt: parseCalendarTime(value(data, "startsAt"), timezone), endsAt: parseCalendarTime(value(data, "endsAt"), timezone), timezone, planId: value(data, "planId") || null, newContact: value(data, "newContactName") ? { name: value(data, "newContactName"), phone: value(data, "newContactPhone"), email: value(data, "newContactEmail") } : null, allowOverlap: data.get("allowOverlap") === "on" });
   } catch (error) { return { error: error instanceof Error ? error.message : "This event could not be saved." }; }
-  redirect(`/calendar?date=${encodeURIComponent(value(data, "startsAt").slice(0, 10))}&saved=1`);
+  const next = new URLSearchParams({ date: value(data, "startsAt").slice(0, 10), saved: "1" });
+  if (result.bindingId) next.set("plan", "1");
+  if (result.unscopedEnrollmentKept) next.set("kept", "1");
+  if (result.createdContact) next.set("person", "1");
+  redirect(`/calendar?${next}`);
+}
+
+/** Hold or resume one visit's follow-ups without touching the person's other plans. */
+export async function appointmentBindingHoldAction(data: FormData) {
+  const { workspace } = await context();
+  await setAppointmentBindingHold({ workspaceId: workspace.id, bindingId: value(data, "bindingId"), held: value(data, "held") === "1" });
+  redirect(`/calendar?date=${encodeURIComponent(value(data, "date"))}&saved=1`);
+}
+
+/** Automatic sending for one visit's follow-ups stays off until the owner turns it on here. */
+export async function appointmentBindingDeliveryAction(data: FormData) {
+  const { workspace } = await context();
+  await setAppointmentBindingDelivery({ workspaceId: workspace.id, bindingId: value(data, "bindingId"), automaticDelivery: value(data, "automaticDelivery") === "1" });
+  redirect(`/calendar?date=${encodeURIComponent(value(data, "date"))}&saved=1`);
 }
 
 export async function cancelCalendarAction(data: FormData) {
