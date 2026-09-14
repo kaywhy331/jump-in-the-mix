@@ -19,11 +19,12 @@ import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
-import { addLogicalDays, logicalDateInTimezone, logicalDateKey, zonedDateTimeToUtc } from "@/lib/jump-schedule";
+import { addLogicalDays, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
 import { readPreparationStatus } from "@/lib/preparation";
 import { snoozeJumpAction } from "@/lib/snooze-actions";
+import { snoozeChoices } from "@/lib/snooze-schedule";
 import { parseTodayCursor, readTodayPage } from "@/lib/today-list";
 
 export const metadata: Metadata = { title: "Today" };
@@ -139,6 +140,20 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const currentCursor = parseTodayCursor(params.after) ? { direction: "after" as const, value: params.after! }
     : parseTodayCursor(params.before) ? { direction: "before" as const, value: params.before! } : null;
   const returnTo = currentCursor ? pageHref(currentCursor.direction, currentCursor.value) : firstHref;
+  const scheduling = await prisma.workspacePreference.findUnique({
+    where: { workspaceId: workspace.id },
+    select: { defaultFollowUpMinutes: true, quietHoursStart: true, quietHoursEnd: true }
+  });
+  const now = new Date();
+  // Only offer snooze times after the follow-up is due, so nothing offered is refused.
+  const choicesFor = (followUp: { baseScheduledAt: Date | null; scheduledAt: Date }) => snoozeChoices({
+    now,
+    timezone,
+    floor: followUp.baseScheduledAt ?? followUp.scheduledAt,
+    preferredMinutes: scheduling?.defaultFollowUpMinutes,
+    quietHoursStart: scheduling?.quietHoursStart,
+    quietHoursEnd: scheduling?.quietHoursEnd
+  });
   const actionEvents = followUps.length ? await prisma.jumpActionEvent.findMany({
     where: { workspaceId: workspace.id, jumpId: { in: followUps.map((followUp) => followUp.id) } },
     orderBy: { occurredAt: "desc" },
@@ -217,8 +232,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                 title={`Follow up with ${followUp.contact.displayName}`}
                 description="Move it to a better day, skip it, or stop this mix."
               >
-                <div className="sheet-section"><h3>Snooze</h3><div className="sheet-actions">{[["later-today", "Later today"], ["tomorrow", "Tomorrow"], ["next-monday", "Monday"], ["next-week", "Next week"]].map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value={preset} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div></div>
-                <form action={snoozeJumpAction} className="form-stack"><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value="custom" /><input type="hidden" name="returnTo" value={returnTo} /><div className="field"><span className="field-label">Choose a day</span><WhenField label="Choose a day" variant="inline" dateName="customDate" defaultDate={logicalDateKey(addLogicalDays(today, 1))} minDate={logicalDateKey(today)} quickSelect={false} /></div><small className="muted-copy">Uses your default follow-up time in {timezone}.</small><button className="button" type="submit">Snooze to this day</button></form>
+                <div className="sheet-section"><h3>Snooze</h3><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value={preset} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div></div>
+                <form action={snoozeJumpAction} className="form-stack"><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value="custom" /><input type="hidden" name="returnTo" value={returnTo} /><div className="field"><span className="field-label">Choose a day</span><WhenField label="Choose a day" variant="inline" dateName="customDate" defaultDate={choicesFor(followUp).defaultDate} minDate={choicesFor(followUp).minDate} quickSelect={false} /></div><small className="muted-copy">Uses your default follow-up time in {timezone}.</small><button className="button" type="submit">Snooze to this day</button></form>
                 <div className="sheet-danger-zone"><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button">Skip this follow-up</JumpOutcomeButton>{followUp.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop mix…" title={`Stop ${followUp.mix.name} for ${followUp.contact.displayName}?`} description="Future follow-ups from this mix will be removed. Completed history stays available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={followUp.mixId} /><input type="hidden" name="contactId" value={followUp.contactId} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button danger" type="submit">Stop mix</button></form></ConfirmDialog>}</div>
               </Sheet>}
             </div>

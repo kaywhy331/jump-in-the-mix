@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import type { JumpStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { renderJumpSnapshot } from "@/lib/jump-render";
@@ -22,7 +23,6 @@ import {
 } from "@/lib/personal-scheduling";
 import { minutesInTimezone, plannedStepApplies } from "@/lib/planned-step";
 
-const RECONCILIATION_UPDATE_STATUSES: JumpStatus[] = ["PENDING", "CANCELED"];
 const STALE_CANCELLATION_STATUSES: JumpStatus[] = ["PENDING"];
 const RECONCILABLE_CANCELLATION_METHODS = new Set([
   "reconciled",
@@ -30,6 +30,9 @@ const RECONCILABLE_CANCELLATION_METHODS = new Set([
   "contact_archived",
   "do_not_contact"
 ]);
+// Owner-initiated holds. Their rows come back when the hold is lifted, so they keep the window open
+// for an old base occurrence the way a pending row does.
+const HELD_CANCELLATION_METHODS = ["mix_paused", "contact_archived", "do_not_contact"];
 const BATCH_SIZE = 500;
 const DEFAULT_PAST_DAYS = 45;
 const DEFAULT_FUTURE_DAYS = 365;
@@ -56,6 +59,7 @@ type DesiredJump = {
   mixStepId: string;
   stepVersionId: string;
   scheduledAt: Date;
+  baseScheduledAt: Date;
   reason: string;
   templateSnapshot: Prisma.InputJsonValue;
   renderedSnapshot: Prisma.InputJsonValue;
@@ -73,10 +77,23 @@ type ExistingJump = {
   mixStepId: string;
   stepVersionId: string;
   scheduledAt: Date;
+  baseScheduledAt: Date | null;
+  snoozedUntil: Date | null;
+  updatedAt: Date;
   reason: string;
   templateSnapshot: Prisma.JsonValue;
   renderedSnapshot: Prisma.JsonValue;
 };
+
+function originalLocalDateOf(snapshot: Prisma.JsonValue | Prisma.InputJsonValue): string | null {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+  const value = (snapshot as { originalLocalDate?: unknown }).originalLocalDate;
+  return typeof value === "string" ? value : null;
+}
+
+function occurrenceCarryKey(contactId: string, mixStepId: string, jumpDateId: string | null, originalLocalDate: string): string {
+  return `${contactId}:${mixStepId}:${jumpDateId ?? ""}:${originalLocalDate}`;
+}
 
 function chunks<T>(items: T[], size = BATCH_SIZE): T[][] {
   const result: T[][] = [];
@@ -96,8 +113,10 @@ function stopKey(mixId: string, contactId: string): string {
   return `${mixId}:${contactId}`;
 }
 
+// PostgreSQL returns jsonb keys in its own order, so a string comparison never matched a freshly
+// built snapshot and every pass rewrote every pending follow-up. Compare structurally instead.
 function jsonEqual(left: Prisma.JsonValue | Prisma.InputJsonValue, right: Prisma.JsonValue | Prisma.InputJsonValue): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return isDeepStrictEqual(left, right);
 }
 
 function sameDesired(existing: ExistingJump, desired: DesiredJump): boolean {
@@ -108,6 +127,7 @@ function sameDesired(existing: ExistingJump, desired: DesiredJump): boolean {
     && existing.mixStepId === desired.mixStepId
     && existing.stepVersionId === desired.stepVersionId
     && existing.scheduledAt.getTime() === desired.scheduledAt.getTime()
+    && existing.baseScheduledAt?.getTime() === desired.baseScheduledAt.getTime()
     && existing.reason === desired.reason
     && jsonEqual(existing.templateSnapshot, desired.templateSnapshot)
     && jsonEqual(existing.renderedSnapshot, desired.renderedSnapshot);
@@ -134,7 +154,7 @@ function schedulingRule(stored: PersonalSchedulingRule | undefined): PersonalSch
 
 export async function reconcileJumps(filters: ReconciliationFilters = {}): Promise<JumpReconciliationResult> {
   const now = new Date();
-  const [assignments, stops, pendingBounds] = await Promise.all([
+  const [assignments, stops, pendingBounds, snoozedPending] = await Promise.all([
     prisma.mixAssignment.findMany({
       where: {
         isActive: true,
@@ -192,20 +212,38 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       select: { mixId: true, contactId: true }
     }),
     prisma.jump.aggregate({
-      where: { ...baseJumpWhere(filters), status: { in: STALE_CANCELLATION_STATUSES } },
-      _min: { scheduledAt: true },
+      where: { AND: [baseJumpWhere(filters), { OR: [{ status: "PENDING" }, { status: "CANCELED", completionMethod: { in: HELD_CANCELLATION_METHODS } }] }] },
+      _min: { baseScheduledAt: true, scheduledAt: true },
       _max: { scheduledAt: true }
+    }),
+    // Snoozed pending rows, so a follow-up regenerated for the same occurrence keeps its snooze.
+    prisma.jump.findMany({
+      where: { ...baseJumpWhere(filters), status: "PENDING", snoozedUntil: { not: null } },
+      select: { uniquenessKey: true, contactId: true, mixStepId: true, jumpDateId: true, snoozedUntil: true, templateSnapshot: true }
     })
   ]);
+  // A time edit changes a legacy row's key while its occurrence stays the same. The snooze is
+  // carried onto the regenerated row so a settings save does not drop it. Keys are untouched.
+  const snoozedByOccurrence = new Map<string, { uniquenessKey: string; snoozedUntil: Date }>();
+  for (const item of snoozedPending) {
+    const originalLocalDate = originalLocalDateOf(item.templateSnapshot);
+    if (originalLocalDate && item.snoozedUntil) {
+      snoozedByOccurrence.set(occurrenceCarryKey(item.contactId, item.mixStepId, item.jumpDateId, originalLocalDate), { uniquenessKey: item.uniquenessKey, snoozedUntil: item.snoozedUntil });
+    }
+  }
 
   const offsets = assignments.flatMap((assignment) => assignment.mix.steps.map((step) => step.dayOffset));
   const minimumOffset = offsets.length ? Math.min(...offsets) : 0;
   const maximumOffset = offsets.length ? Math.max(...offsets) : 0;
   const defaultStart = startOfUtcDay(addUtcDays(now, -DEFAULT_PAST_DAYS));
   const defaultEnd = endOfUtcDay(addUtcDays(now, DEFAULT_FUTURE_DAYS));
-  const horizonStart = pendingBounds._min.scheduledAt && pendingBounds._min.scheduledAt < defaultStart
-    ? startOfUtcDay(pendingBounds._min.scheduledAt)
-    : defaultStart;
+  // A snooze moves a follow-up's time inside the window while its base occurrence can lie before it,
+  // so the window reaches back to the earliest base as well as the earliest scheduled time. Identities
+  // are untouched; only the scan window widens.
+  const earliestPending = [pendingBounds._min.baseScheduledAt, pendingBounds._min.scheduledAt]
+    .filter((value): value is Date => value instanceof Date)
+    .sort((left, right) => left.getTime() - right.getTime())[0] ?? null;
+  const horizonStart = earliestPending && earliestPending < defaultStart ? startOfUtcDay(earliestPending) : defaultStart;
   const horizonEnd = pendingBounds._max.scheduledAt && pendingBounds._max.scheduledAt > defaultEnd
     ? endOfUtcDay(pendingBounds._max.scheduledAt)
     : defaultEnd;
@@ -367,6 +405,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
             mixStepId: mixStep.id,
             stepVersionId: mixStep.stepVersionId,
             scheduledAt,
+            baseScheduledAt: scheduledAt,
             reason: trigger.reason,
             templateSnapshot: {
               subject: mixStep.stepVersion.subject,
@@ -402,6 +441,9 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         mixStepId: true,
         stepVersionId: true,
         scheduledAt: true,
+        baseScheduledAt: true,
+        snoozedUntil: true,
+        updatedAt: true,
         reason: true,
         templateSnapshot: true,
         renderedSnapshot: true, completedAt: true
@@ -417,10 +459,19 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   for (const desiredJump of desired.values()) {
     const existing = existingByKey.get(desiredJump.uniquenessKey);
     if (!existing) {
-      creates.push({ ...desiredJump, status: "PENDING" });
+      const originalLocalDate = originalLocalDateOf(desiredJump.templateSnapshot);
+      const carried = originalLocalDate ? snoozedByOccurrence.get(occurrenceCarryKey(desiredJump.contactId, desiredJump.mixStepId, desiredJump.jumpDateId, originalLocalDate)) : undefined;
+      if (carried && !desired.has(carried.uniquenessKey)) {
+        if (carried.snoozedUntil > desiredJump.scheduledAt) desiredJump.scheduledAt = carried.snoozedUntil;
+        creates.push({ ...desiredJump, status: "PENDING", snoozedUntil: carried.snoozedUntil });
+      } else {
+        creates.push({ ...desiredJump, status: "PENDING" });
+      }
       continue;
     }
     if (!canReconcile(existing)) continue;
+    // A snooze is user-owned: the follow-up is never moved earlier than the chosen not-before time.
+    if (existing.snoozedUntil && existing.snoozedUntil > desiredJump.scheduledAt) desiredJump.scheduledAt = existing.snoozedUntil;
     const targetStatus: JumpStatus = existing.status === "CANCELED" ? "PENDING" : existing.status;
     if (targetStatus === existing.status && sameDesired(existing, desiredJump)) continue;
     updates.push({ existing, desired: desiredJump });
@@ -432,7 +483,9 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   }
   for (const batch of chunks(updates, 100)) {
     const results = await prisma.$transaction(batch.map(({ existing, desired: desiredJump }) => prisma.jump.updateMany({
-      where: { id: existing.id, status: { in: RECONCILIATION_UPDATE_STATUSES } },
+      // Guarded on the row exactly as this pass read it, so a snooze, stop, pause, completion or
+      // outcome recorded in the meantime is never overwritten. The next pass sees the new state.
+      where: { id: existing.id, status: existing.status, updatedAt: existing.updatedAt },
       data: {
         workspaceId: desiredJump.workspaceId,
         contactId: desiredJump.contactId,
@@ -441,6 +494,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         mixStepId: desiredJump.mixStepId,
         stepVersionId: desiredJump.stepVersionId,
         scheduledAt: desiredJump.scheduledAt,
+        baseScheduledAt: desiredJump.baseScheduledAt,
         reason: desiredJump.reason,
         templateSnapshot: desiredJump.templateSnapshot,
         renderedSnapshot: desiredJump.renderedSnapshot,
