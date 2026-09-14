@@ -1,5 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
-import { saveCalendarEntryIn, type CalendarEntryInput } from "@/lib/calendar";
+import { queueBoundReconciliation, saveCalendarEntryIn, type CalendarEntryInput } from "@/lib/calendar";
 import { isValidEmail, normalizeEmail, normalizePhone } from "@/lib/contact-input";
 import { applyJourneyEvent } from "@/lib/journey";
 import { prisma } from "@/lib/prisma";
@@ -144,6 +144,33 @@ export async function scheduleVisit(input: ScheduleVisitInput): Promise<Schedule
     return { entryId: entry.id, contactId, bindingId, unscopedEnrollmentKept: Boolean(unscoped), createdContact };
   }, { timeout: 15_000 });
   return result;
+}
+
+export type AppointmentOutcome = "COMPLETED" | "NO_SHOW";
+
+/**
+ * Records what happened at a visit, or clears it. The outcome is a journey event the owner's stage
+ * rules can act on, and an anchor for the bound plan: a missed visit holds every bound follow-up,
+ * a completed one lets the beats before it lapse and runs the ones after. Clearing the outcome
+ * brings held beats back on the next pass.
+ */
+export async function recordAppointmentOutcome(input: { workspaceId: string; actorUserId?: string; entryId: string; version?: number; outcome: AppointmentOutcome | null }): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (input.outcome !== null && input.outcome !== "COMPLETED" && input.outcome !== "NO_SHOW") return { ok: false, message: "Say whether the visit happened or was missed." };
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${input.workspaceId} FOR NO KEY UPDATE`;
+    const entry = await tx.calendarEntry.findFirst({ where: { id: input.entryId, workspaceId: input.workspaceId, connectionId: null, canceledAt: null, ...(input.version !== undefined ? { version: input.version } : {}) } });
+    if (!entry) return { ok: false as const, message: "This visit changed. Refresh the calendar before recording it." };
+    if (entry.kind !== "MEETING") return { ok: false as const, message: "Only a meeting has an outcome." };
+    const now = new Date();
+    await tx.calendarEntry.update({ where: { id: entry.id }, data: { outcome: input.outcome, outcomeAt: input.outcome ? now : null, version: { increment: 1 } } });
+    if (entry.contactId) {
+      const summary = input.outcome === "COMPLETED" ? `Visit happened: ${entry.title}` : input.outcome === "NO_SHOW" ? `Visit missed: ${entry.title}` : `Visit outcome cleared: ${entry.title}`;
+      await tx.contactActivity.create({ data: { workspaceId: input.workspaceId, contactId: entry.contactId, actorUserId: input.actorUserId, kind: "SYSTEM", visibility: "WORKSPACE", summary, metadata: { calendarEntryId: entry.id, outcome: input.outcome } } });
+      if (input.outcome) await applyJourneyEvent(tx, { workspaceId: input.workspaceId, contactId: entry.contactId, actorUserId: input.actorUserId, eventKey: `calendar-outcome:${entry.id}:${input.outcome}:${entry.version + 1}`, eventType: input.outcome === "COMPLETED" ? "MEETING_COMPLETED" : "MEETING_NO_SHOW", source: entry.title });
+    }
+    await queueBoundReconciliation(tx, input.workspaceId, entry.id);
+    return { ok: true as const };
+  }, { timeout: 15_000 });
 }
 
 /** An owner hold scoped to one visit's plan. Its follow-ups return when the hold lifts. */

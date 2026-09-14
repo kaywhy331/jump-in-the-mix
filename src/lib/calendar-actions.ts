@@ -4,7 +4,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseCalendarTime } from "@/lib/calendar-time";
 import { importCalendar, queueBoundReconciliation, syncCalendarConnection } from "@/lib/calendar";
-import { ContactChoiceRequiredError, scheduleVisit, setAppointmentBindingDelivery, setAppointmentBindingHold, type ContactCandidate } from "@/lib/appointment-bindings";
+import { ContactChoiceRequiredError, recordAppointmentOutcome, scheduleVisit, setAppointmentBindingDelivery, setAppointmentBindingHold, type AppointmentOutcome, type ContactCandidate } from "@/lib/appointment-bindings";
 import { calendarFeedUrl } from "@/lib/calendar-feed-fetch";
 import { encryptIntegrationCredentials } from "@/lib/integration-crypto";
 import { createConnectionToken } from "@/lib/connection-tokens";
@@ -27,6 +27,17 @@ export async function saveCalendarAction(_state: CalendarSaveState, data: FormDa
   if (result.bindingId) next.set("plan", "1");
   if (result.unscopedEnrollmentKept) next.set("kept", "1");
   if (result.createdContact) next.set("person", "1");
+  redirect(`/calendar?${next}`);
+}
+
+/** What happened at the visit: it anchors the bound plan and is a journey event the stage rules can act on. */
+export async function appointmentOutcomeAction(data: FormData) {
+  const { workspace, user } = await context();
+  const raw = value(data, "outcome");
+  const outcome = raw === "COMPLETED" || raw === "NO_SHOW" ? raw as AppointmentOutcome : null;
+  const result = await recordAppointmentOutcome({ workspaceId: workspace.id, actorUserId: user.id, entryId: value(data, "id"), version: Number(value(data, "version")), outcome });
+  const next = new URLSearchParams({ date: value(data, "date") });
+  if (result.ok) next.set("saved", "1"); else next.set("error", result.message);
   redirect(`/calendar?${next}`);
 }
 
