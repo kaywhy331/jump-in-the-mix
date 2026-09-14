@@ -71,3 +71,47 @@ test("saves a visit with its details and plan in one step, anchors the follow-up
   await reconcileJumps({ workspaceId, mixId: planId });
   expect((await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).status).toBe("PENDING");
 });
+
+test("asks for one inline choice when the entered phone and email match different saved people, keeping everything typed", async ({ page }) => {
+  const suffix = randomUUID().slice(0, 8);
+  const blakeEmail = `blake-${suffix}@example.com`;
+  await prisma.contact.create({ data: { workspaceId, firstName: "Avery", displayName: `Avery ${suffix}`, phones: { create: { phone: "+15550100601", normalized: "+15550100601", isPrimary: true } } } });
+  const blake = await prisma.contact.create({ data: { workspaceId, firstName: "Blake", displayName: `Blake ${suffix}`, emails: { create: { email: blakeEmail, normalized: blakeEmail, isPrimary: true } } } });
+  await page.goto(`/calendar?date=${visitDate}`); await ready(page);
+  const form = page.locator("form.form-grid");
+  await form.getByLabel("Title").fill("Bathroom estimate");
+  await form.getByLabel("Where").fill("9 Pine Ct");
+  await form.getByLabel("Details the customer should be reminded of (optional)").fill("Side entrance");
+  await form.getByText("Add a new person for this visit").click();
+  await form.getByLabel("Name", { exact: true }).fill("A. Stone");
+  await form.getByLabel("Phone", { exact: true }).fill("+1 555-010-0601");
+  await form.getByLabel("Email", { exact: true }).fill(blakeEmail);
+  await form.getByLabel("Follow-up plan for this visit (optional)").selectOption(planId);
+  await form.getByRole("button", { name: "Save event", exact: true }).click();
+  const choice = form.getByRole("group", { name: "Which saved person is this visit with?" });
+  await expect(choice).toBeVisible();
+  await expect(choice.getByRole("radio", { name: new RegExp(`Avery ${suffix}`) })).toBeVisible();
+  await expect(choice.getByRole("radio", { name: new RegExp(`Blake ${suffix}`) })).toBeVisible();
+  // Nothing typed was lost, and nothing was saved yet.
+  await expect(form.getByLabel("Title")).toHaveValue("Bathroom estimate");
+  await expect(form.getByLabel("Where")).toHaveValue("9 Pine Ct");
+  await expect(form.getByLabel("Details the customer should be reminded of (optional)")).toHaveValue("Side entrance");
+  await expect(form.getByLabel("Phone", { exact: true })).toHaveValue("+1 555-010-0601");
+  await expect(form.getByLabel("Follow-up plan for this visit (optional)")).toHaveValue(planId);
+  expect(await prisma.calendarEntry.count({ where: { workspaceId, title: "Bathroom estimate" } })).toBe(0);
+  await audit(page);
+  await choice.getByRole("radio", { name: new RegExp(`Blake ${suffix}`) }).check();
+  // The default time collides with the first visit. That error keeps everything typed as well.
+  await form.getByRole("button", { name: "Save event", exact: true }).click();
+  await expect(form.getByRole("alert")).toContainText("overlaps");
+  await expect(form.getByLabel("Title")).toHaveValue("Bathroom estimate");
+  await expect(form.getByLabel("Email", { exact: true })).toHaveValue(blakeEmail);
+  await expect(form.getByLabel("Where")).toHaveValue("9 Pine Ct");
+  await form.getByLabel(/Allow an intentional overlap/).check();
+  await form.getByRole("button", { name: "Save event", exact: true }).click();
+  await expect(page.getByText(/line up with this visit and will appear on Today/)).toBeVisible();
+  const entry = await prisma.calendarEntry.findFirstOrThrow({ where: { workspaceId, title: "Bathroom estimate" } });
+  expect(entry).toMatchObject({ contactId: blake.id, location: "9 Pine Ct", details: "Side entrance" });
+  expect(await prisma.appointmentBinding.count({ where: { calendarEntryId: entry.id, contactId: blake.id, mixId: planId } })).toBe(1);
+  expect(await prisma.contact.count({ where: { workspaceId, displayName: "A. Stone" } })).toBe(0);
+});

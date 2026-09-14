@@ -7,10 +7,30 @@ import { prisma } from "@/lib/prisma";
 export type ScheduleVisitInput = Omit<CalendarEntryInput, "contactId"> & {
   contactId?: string | null;
   /** One save: a new person to create and bind when no existing contact is chosen. */
-  newContact?: { name: string; phone?: string | null; email?: string | null } | null;
+  newContact?: {
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+    /** The saved person the owner chose after an ambiguous match. It must still be one of the matches. */
+    resolvedContactId?: string | null;
+  } | null;
   /** The plan to bind to this visit; its beats anchor to the appointment. */
   planId?: string | null;
 };
+
+export type ContactCandidate = { id: string; displayName: string; matched: Array<"phone" | "email"> };
+
+/**
+ * More than one saved person matches the entered phone or email, so no match is unambiguous.
+ * Nothing was saved. The owner chooses one of these inline and saves again with everything
+ * they entered still in place.
+ */
+export class ContactChoiceRequiredError extends Error {
+  constructor(public readonly candidates: ContactCandidate[]) {
+    super("More than one saved person matches the phone or email you entered. Choose who this visit is with.");
+    this.name = "ContactChoiceRequiredError";
+  }
+}
 
 export type ScheduleVisitResult = {
   entryId: string;
@@ -30,7 +50,29 @@ function nameParts(name: string): { firstName: string; lastName: string | null }
   return { firstName: parts[0] ?? "", lastName: parts.length > 1 ? parts.slice(1).join(" ") : null };
 }
 
-/** Finds the person by a saved phone or email, otherwise creates them. Never creates a duplicate of a saved method. */
+/** Every saved person the entered methods point at, with the method that matched each. */
+async function matchingContacts(tx: Prisma.TransactionClient, workspaceId: string, phone: string | null, email: string | null): Promise<ContactCandidate[]> {
+  if (!phone && !email) return [];
+  const rows = await tx.contact.findMany({
+    where: { workspaceId, archivedAt: null, OR: [...(phone ? [{ phones: { some: { normalized: phone } } }] : []), ...(email ? [{ emails: { some: { normalized: email } } }] : [])] },
+    select: {
+      id: true,
+      displayName: true,
+      phones: { where: { normalized: phone ?? "" }, select: { id: true }, take: 1 },
+      emails: { where: { normalized: email ?? "" }, select: { id: true }, take: 1 }
+    },
+    orderBy: [{ displayName: "asc" }, { id: "asc" }],
+    take: 20
+  });
+  return rows.map((row) => ({ id: row.id, displayName: row.displayName, matched: [...(row.phones.length ? ["phone" as const] : []), ...(row.emails.length ? ["email" as const] : [])] }));
+}
+
+/**
+ * Finds the person by a saved phone or email, otherwise creates them. Only an unambiguous
+ * match is reused: when the methods point at more than one saved person, the owner chooses
+ * inline and that choice is checked against the same matches. Never creates a duplicate of a
+ * saved method, and never adds the entered methods to the person the owner chose.
+ */
 async function findOrCreateContact(tx: Prisma.TransactionClient, workspaceId: string, input: NonNullable<ScheduleVisitInput["newContact"]>): Promise<{ id: string; created: boolean }> {
   const name = input.name.trim();
   if (!name || name.length > 200) throw new Error("Enter the person's name.");
@@ -38,13 +80,14 @@ async function findOrCreateContact(tx: Prisma.TransactionClient, workspaceId: st
   if (input.phone?.trim() && !phone) throw new Error("Enter a phone number with 7 to 15 digits.");
   const email = input.email?.trim() ? normalizeEmail(input.email) : null;
   if (email && !isValidEmail(email)) throw new Error("Enter a valid email address.");
-  const existing = phone || email
-    ? await tx.contact.findFirst({
-        where: { workspaceId, archivedAt: null, OR: [...(phone ? [{ phones: { some: { normalized: phone } } }] : []), ...(email ? [{ emails: { some: { normalized: email } } }] : [])] },
-        select: { id: true }
-      })
-    : null;
-  if (existing) return { id: existing.id, created: false };
+  const candidates = await matchingContacts(tx, workspaceId, phone, email);
+  if (input.resolvedContactId) {
+    const chosen = candidates.find((candidate) => candidate.id === input.resolvedContactId);
+    if (!chosen) throw new Error("The person you chose no longer matches these details. Check the phone and email, then save again.");
+    return { id: chosen.id, created: false };
+  }
+  if (candidates.length > 1) throw new ContactChoiceRequiredError(candidates);
+  if (candidates.length === 1) return { id: candidates[0].id, created: false };
   const { firstName, lastName } = nameParts(name);
   const created = await tx.contact.create({
     data: {

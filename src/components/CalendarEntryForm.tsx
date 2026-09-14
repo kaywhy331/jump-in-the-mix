@@ -1,6 +1,7 @@
 "use client";
-import { useActionState, useEffect, useState } from "react";
-import { saveCalendarAction } from "@/lib/calendar-actions";
+import { startTransition, useActionState, useEffect, useState } from "react";
+import { saveCalendarAction, type CalendarSaveState } from "@/lib/calendar-actions";
+import type { ContactCandidate } from "@/lib/appointment-bindings";
 import { Notice } from "@/components/Notice";
 import { WhenPicker, type WhenAvailability } from "@/components/WhenPicker";
 import { addMinutesToLocal, formatDateTrigger, formatDurationLabel, formatTimeLabel, minutesOf, splitLocal } from "@/lib/when-picker";
@@ -20,10 +21,18 @@ function initialDuration(entry: Entry | undefined): Duration {
 
 export function CalendarEntryForm({ contacts, contactId = "", timezone, date, entry, locale, plans = [] }: { plans?: Array<{ id: string; name: string }>; contacts: Array<{ id: string; displayName: string }>; contactId?: string; timezone: string; date: string; entry?: Entry; locale?: string }) {
   const starts = splitLocal(entry?.startsAt ?? "") ?? { date, time: "09:00" };
-  const [values, setValues] = useState({ title: entry?.title ?? "", kind: entry?.kind ?? "MEETING", contactId: entry?.contactId ?? contactId, date: starts.date, time: starts.time, duration: initialDuration(entry), customEnd: entry?.endsAt ?? `${date}T09:30`, timezone, allowOverlap: false });
+  // Every field is controlled so a returned error or an inline person choice never clears what was typed.
+  const [values, setValues] = useState({ title: entry?.title ?? "", kind: entry?.kind ?? "MEETING", contactId: entry?.contactId ?? contactId, date: starts.date, time: starts.time, duration: initialDuration(entry), customEnd: entry?.endsAt ?? `${date}T09:30`, timezone, allowOverlap: false, location: entry?.location ?? "", link: entry?.link ?? "", details: entry?.details ?? "", newContactName: "", newContactPhone: "", newContactEmail: "", resolvedContactId: "", planId: "" });
   const [availability, setAvailability] = useState<WhenAvailability | null>(null);
-  const [state, action, pending] = useActionState(saveCalendarAction, { error: "" });
+  const [newPersonOpen, setNewPersonOpen] = useState(false);
+  const [state, action, pending] = useActionState<CalendarSaveState, FormData>(saveCalendarAction, { error: "" });
   const update = <K extends keyof typeof values>(key: K, value: (typeof values)[K]) => setValues(current => ({ ...current, [key]: value }));
+  // The people to choose between stay on the form until the person's details change, so a choice
+  // already made survives a later error (an overlap, say) and is sent with the next save.
+  const [choice, setChoice] = useState<ContactCandidate[]>([]);
+  useEffect(() => { if (state.choice) setChoice(state.choice.candidates); }, [state]);
+  // Changing the person's details makes an earlier choice stale; the server rechecks it against the same matches anyway.
+  const updatePerson = (key: "newContactName" | "newContactPhone" | "newContactEmail", value: string) => { setChoice([]); setValues(current => ({ ...current, [key]: value, resolvedContactId: "" })); };
 
   // What is already on the calendar that day, so the time grid can gray out taken slots by name.
   useEffect(() => {
@@ -44,19 +53,27 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
   const endsAt = values.duration === "custom" ? values.customEnd : `${end!.date}T${end!.time}`;
   const endSummary = end ? `Ends ${end.date === values.date ? "" : `${formatDateTrigger(end.date)} at `}${formatTimeLabel(end.time)}` : "Choose when it ends";
 
-  return <form action={action} className="form-grid">{state.error && <div className="field full"><Notice type="error">{state.error}</Notice></div>}<input type="hidden" name="id" value={entry?.id ?? ""} /><input type="hidden" name="version" value={entry?.version ?? 0} />
+  const submit = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const data = new FormData(event.currentTarget); startTransition(() => action(data)); };
+  // React resets a form submitted through its action prop once the action settles, which blanks
+  // controlled fields too. Dispatching the same action from the submit event keeps what was typed
+  // while a returned error or person choice is shown; the action prop remains for no-script submits.
+  return <form action={action} onSubmit={submit} className="form-grid">{state.error && <div className="field full"><Notice type="error">{state.error}</Notice></div>}<input type="hidden" name="id" value={entry?.id ?? ""} /><input type="hidden" name="version" value={entry?.version ?? 0} />
     <input type="hidden" name="startsAt" value={startsAt} /><input type="hidden" name="endsAt" value={endsAt} />
     <label className="field full"><span>Title</span><input name="title" maxLength={160} value={values.title} onChange={event => update("title", event.target.value)} placeholder="For example, Discovery call or Focus time" required /></label>
     <label className="field"><span>Event type</span><select name="kind" value={values.kind} onChange={event => update("kind", event.target.value)}><option value="MEETING">Meeting</option><option value="BLOCK">Time block</option></select></label>
-    {!values.contactId && !entry && <details className="field full"><summary>Add a new person for this visit</summary>
+    {!values.contactId && !entry && <details className="field full" open={newPersonOpen || choice.length > 0} onToggle={event => setNewPersonOpen(event.currentTarget.open)}><summary>Add a new person for this visit</summary>
       <div className="form-grid">
-        <label className="field full"><span>Name</span><input name="newContactName" maxLength={200} placeholder="Jordan Lee" /></label>
-        <label className="field"><span>Phone</span><input name="newContactPhone" inputMode="tel" autoComplete="off" placeholder="(555) 555-0123" /></label>
-        <label className="field"><span>Email</span><input name="newContactEmail" inputMode="email" autoComplete="off" placeholder="jordan@example.com" /></label>
-        <p className="muted-copy field full">Saved with the visit. A person already saved with this phone or email is used instead of a duplicate.</p>
+        <label className="field full"><span>Name</span><input name="newContactName" maxLength={200} value={values.newContactName} onChange={event => updatePerson("newContactName", event.target.value)} placeholder="Jordan Lee" /></label>
+        <label className="field"><span>Phone</span><input name="newContactPhone" inputMode="tel" autoComplete="off" value={values.newContactPhone} onChange={event => updatePerson("newContactPhone", event.target.value)} placeholder="(555) 555-0123" /></label>
+        <label className="field"><span>Email</span><input name="newContactEmail" inputMode="email" autoComplete="off" value={values.newContactEmail} onChange={event => updatePerson("newContactEmail", event.target.value)} placeholder="jordan@example.com" /></label>
+        {choice.length > 0 && <fieldset className="field full contact-choice"><legend>Which saved person is this visit with?</legend>
+          <p className="muted-copy">More than one saved person matches the phone or email you entered. Choose one, or change the phone or email. Everything you entered is kept, and nothing has been saved yet.</p>
+          {choice.map(candidate => <label className="checkbox-card" key={candidate.id}><input type="radio" name="resolvedContactId" value={candidate.id} checked={values.resolvedContactId === candidate.id} onChange={() => update("resolvedContactId", candidate.id)} required /><span><strong>{candidate.displayName}</strong><small>Matches the {candidate.matched.join(" and ")} you entered</small></span></label>)}
+        </fieldset>}
+        <p className="muted-copy field full">Saved with the visit. A person already saved with this phone or email is used instead of a duplicate; if more than one matches, you choose which.</p>
       </div>
     </details>}
-    {values.kind === "MEETING" && plans.length > 0 && !entry && <label className="field full"><span>Follow-up plan for this visit (optional)</span><select name="planId" defaultValue=""><option value="">No plan</option>{plans.map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select><small>Its reminders and check-ins line up with this appointment and move with it. Nothing is sent automatically unless you turn that on for this visit.</small></label>}
+    {values.kind === "MEETING" && plans.length > 0 && !entry && <label className="field full"><span>Follow-up plan for this visit (optional)</span><select name="planId" value={values.planId} onChange={event => update("planId", event.target.value)}><option value="">No plan</option>{plans.map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select><small>Its reminders and check-ins line up with this appointment and move with it. Nothing is sent automatically unless you turn that on for this visit.</small></label>}
     <label className="field"><span>Contact (optional)</span><select name="contactId" value={values.contactId} onChange={event => update("contactId", event.target.value)}><option value="">No contact</option>{contacts.map(contact => <option value={contact.id} key={contact.id}>{contact.displayName}</option>)}</select></label>
     <div className="field full"><span className="field-label">Starts</span><WhenPicker label="Starts" locale={locale} date={values.date} time={values.time} availability={availability ?? undefined} allowOverlap={values.allowOverlap} onChange={next => setValues(current => ({ ...current, date: next.date, time: next.time ?? current.time }))} /></div>
     <div className="field full when-duration"><span className="field-label">How long</span>
@@ -64,9 +81,9 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
       {values.duration === "custom" ? <label className="when-duration-custom"><span className="sr-only">Ends</span><input type="datetime-local" aria-label="Ends" value={values.customEnd} onChange={event => update("customEnd", event.target.value)} required /></label> : <p className="when-ends-summary">{endSummary}</p>}
     </div>
     <label className="field full"><span>Timezone</span><input name="timezone" value={values.timezone} onChange={event => update("timezone", event.target.value)} list="calendar-timezones" required /><datalist id="calendar-timezones">{[timezone,"UTC","America/Los_Angeles","America/New_York","Europe/London","Europe/Paris","Asia/Kolkata","Asia/Tokyo","Australia/Sydney"].filter((zone, index, all) => all.indexOf(zone) === index).map(zone => <option value={zone} key={zone} />)}</datalist></label>
-    <label className="field full"><span>Where</span><input name="location" maxLength={200} defaultValue={entry?.location ?? ""} placeholder="Address or place, for reminders" /></label>
-    <label className="field full"><span>Link to join or find it (optional)</span><input name="link" type="url" inputMode="url" maxLength={500} defaultValue={entry?.link ?? ""} placeholder="https://" /></label>
-    <label className="field full"><span>Details the customer should be reminded of (optional)</span><textarea name="details" maxLength={1000} rows={2} defaultValue={entry?.details ?? ""} placeholder="What to bring, where to park, who to ask for" /></label>
+    <label className="field full"><span>Where</span><input name="location" maxLength={200} value={values.location} onChange={event => update("location", event.target.value)} placeholder="Address or place, for reminders" /></label>
+    <label className="field full"><span>Link to join or find it (optional)</span><input name="link" type="url" inputMode="url" maxLength={500} value={values.link} onChange={event => update("link", event.target.value)} placeholder="https://" /></label>
+    <label className="field full"><span>Details the customer should be reminded of (optional)</span><textarea name="details" maxLength={1000} rows={2} value={values.details} onChange={event => update("details", event.target.value)} placeholder="What to bring, where to park, who to ask for" /></label>
     <label className="field full checkbox-row"><input type="checkbox" name="allowOverlap" checked={values.allowOverlap} onChange={event => update("allowOverlap", event.target.checked)} /><span>Allow an intentional overlap with another event{availability && availability.bufferMinutes > 0 ? ` or its ${availability.bufferMinutes}-minute buffer` : ""}</span></label>
     <p className="muted-copy field full">A meeting linked to a contact can trigger your journey rules. Save it here, then use its calendar download to share through your preferred provider. Saving does not send an invitation.</p>
     <div className="form-actions field full"><button className="button primary" disabled={pending}>{pending ? "Saving…" : entry ? "Save changes" : "Save event"}</button></div>

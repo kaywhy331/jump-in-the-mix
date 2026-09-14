@@ -4,7 +4,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseCalendarTime } from "@/lib/calendar-time";
 import { importCalendar, queueBoundReconciliation, syncCalendarConnection } from "@/lib/calendar";
-import { scheduleVisit, setAppointmentBindingDelivery, setAppointmentBindingHold } from "@/lib/appointment-bindings";
+import { ContactChoiceRequiredError, scheduleVisit, setAppointmentBindingDelivery, setAppointmentBindingHold, type ContactCandidate } from "@/lib/appointment-bindings";
 import { calendarFeedUrl } from "@/lib/calendar-feed-fetch";
 import { encryptIntegrationCredentials } from "@/lib/integration-crypto";
 import { createConnectionToken } from "@/lib/connection-tokens";
@@ -12,12 +12,17 @@ import { isValidTimezone } from "@/lib/mix-broadcast";
 
 const value = (data: FormData, name: string) => String(data.get(name) ?? "").trim();
 async function context() { const ctx = await requireWorkspace(); if (ctx.impersonation) throw new Error("Support sessions are view-only."); return ctx; }
-export async function saveCalendarAction(_state: { error: string }, data: FormData): Promise<{ error: string }> {
+/** The save either failed with a message or needs one inline choice between saved people; the form keeps everything entered either way. */
+export type CalendarSaveState = { error: string; choice?: { candidates: ContactCandidate[] } };
+export async function saveCalendarAction(_state: CalendarSaveState, data: FormData): Promise<CalendarSaveState> {
   const { workspace, user } = await context(); const timezone = value(data, "timezone");
   let result: Awaited<ReturnType<typeof scheduleVisit>>;
   try {
-    result = await scheduleVisit({ workspaceId: workspace.id, actorUserId: user.id, id: value(data, "id") || undefined, version: Number(value(data, "version")), title: value(data, "title"), kind: value(data, "kind"), location: value(data, "location"), link: value(data, "link"), details: value(data, "details"), contactId: value(data, "contactId"), startsAt: parseCalendarTime(value(data, "startsAt"), timezone), endsAt: parseCalendarTime(value(data, "endsAt"), timezone), timezone, planId: value(data, "planId") || null, newContact: value(data, "newContactName") ? { name: value(data, "newContactName"), phone: value(data, "newContactPhone"), email: value(data, "newContactEmail") } : null, allowOverlap: data.get("allowOverlap") === "on" });
-  } catch (error) { return { error: error instanceof Error ? error.message : "This event could not be saved." }; }
+    result = await scheduleVisit({ workspaceId: workspace.id, actorUserId: user.id, id: value(data, "id") || undefined, version: Number(value(data, "version")), title: value(data, "title"), kind: value(data, "kind"), location: value(data, "location"), link: value(data, "link"), details: value(data, "details"), contactId: value(data, "contactId"), startsAt: parseCalendarTime(value(data, "startsAt"), timezone), endsAt: parseCalendarTime(value(data, "endsAt"), timezone), timezone, planId: value(data, "planId") || null, newContact: value(data, "newContactName") ? { name: value(data, "newContactName"), phone: value(data, "newContactPhone"), email: value(data, "newContactEmail"), resolvedContactId: value(data, "resolvedContactId") || null } : null, allowOverlap: data.get("allowOverlap") === "on" });
+  } catch (error) {
+    if (error instanceof ContactChoiceRequiredError) return { error: "", choice: { candidates: error.candidates } };
+    return { error: error instanceof Error ? error.message : "This event could not be saved." };
+  }
   const next = new URLSearchParams({ date: value(data, "startsAt").slice(0, 10), saved: "1" });
   if (result.bindingId) next.set("plan", "1");
   if (result.unscopedEnrollmentKept) next.set("kept", "1");

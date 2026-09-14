@@ -176,6 +176,8 @@ These are contract rules for the next slice. The binding schema itself is not pa
 
 **Scope.** A binding never reuses an enrollment without appointment scope; two appointments for the same person and plan are two bindings with separate rows, and moving one touches only its own. A bound follow-up is never claimed by automatic delivery unless its binding allows it.
 
+**One-save person resolution.** A visit saved with a new person's name, phone and email reuses a saved person only when those methods point at exactly one person; a saved method is never duplicated. When they point at more than one (the phone at one person and the email at another, or one method shared by two people), nothing is saved and the form asks for one inline choice between those people with everything entered kept in place. The choice is rechecked against the same matches on the next save, and the chosen person's saved methods are left as they are.
+
 ## 10. Out of scope
 
 No pricing, limits or entitlements. No customer-facing vocabulary changes. No provider OAuth, hosted files or paid AI. No changes to saved-date, manual or broadcast identities. Implementation lands in its own pull request after this contract is reviewed.

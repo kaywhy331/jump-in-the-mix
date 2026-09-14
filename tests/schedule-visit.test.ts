@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { appointmentAssignmentKey, scheduleVisit, setAppointmentBindingDelivery, setAppointmentBindingHold } from "../src/lib/appointment-bindings";
+import { appointmentAssignmentKey, ContactChoiceRequiredError, scheduleVisit, setAppointmentBindingDelivery, setAppointmentBindingHold } from "../src/lib/appointment-bindings";
 import { reconcileJumps } from "../src/lib/jump-engine";
 import { prisma } from "../src/lib/prisma";
 import { createBroadcastFixture, type BroadcastFixture } from "./helpers/broadcast-fixture";
@@ -82,6 +82,33 @@ describe.sequential("one-save visit creation", () => {
     await expect(visit({ newContact: { name: "No Number", phone: "12" } })).rejects.toThrow(/7 to 15 digits/);
     await expect(visit({ planId })).rejects.toThrow(/Choose or add the person/);
     await expect(visit({ contactId: fixture.contactId, planId: "not-a-plan" })).rejects.toThrow(/active plan/);
+  });
+
+  it("reuses only an unambiguous match and asks for one choice when the phone and email point at different people", async () => {
+    const avery = await prisma.contact.create({ data: { workspaceId, firstName: "Avery", displayName: "Avery Stone", phones: { create: { phone: "+15550100888", normalized: "+15550100888", isPrimary: true } } } });
+    const blake = await prisma.contact.create({ data: { workspaceId, firstName: "Blake", displayName: "Blake Stone", emails: { create: { email: "stone@example.com", normalized: "stone@example.com", isPrimary: true } } } });
+    const conflicting = { name: "A. Stone", phone: "+1 555-010-0888", email: "Stone@Example.com" };
+    const error = await visit({ newContact: conflicting, planId, title: "Conflicting visit" }).then(() => null, (thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(ContactChoiceRequiredError);
+    expect((error as ContactChoiceRequiredError).candidates).toEqual([{ id: avery.id, displayName: "Avery Stone", matched: ["phone"] }, { id: blake.id, displayName: "Blake Stone", matched: ["email"] }]);
+    // Nothing is saved while the choice is pending: no appointment, no binding, no third person.
+    expect(await prisma.calendarEntry.count({ where: { workspaceId, title: "Conflicting visit" } })).toBe(0);
+    expect(await prisma.contact.count({ where: { workspaceId, displayName: "A. Stone" } })).toBe(0);
+    // One choice resolves it. The chosen person's saved methods are left exactly as they were.
+    const chosen = await visit({ newContact: { ...conflicting, resolvedContactId: blake.id }, planId, title: "Conflicting visit" });
+    expect(chosen).toMatchObject({ contactId: blake.id, createdContact: false });
+    expect(chosen.bindingId).toBeTruthy();
+    expect(await prisma.contactPhone.count({ where: { contactId: blake.id } })).toBe(0);
+    expect(await prisma.contact.count({ where: { workspaceId, displayName: "A. Stone" } })).toBe(0);
+    // A choice that is not among the matches is refused rather than trusted.
+    await expect(visit({ newContact: { ...conflicting, resolvedContactId: fixture.contactId }, title: "Wrong choice" })).rejects.toThrow(/no longer matches/);
+    // One person matching both methods, or one method matching one person, needs no choice.
+    await prisma.contactEmail.create({ data: { contactId: avery.id, email: "avery@example.com", normalized: "avery@example.com", isPrimary: true } });
+    expect((await visit({ newContact: { name: "Avery", phone: "+1 555 010 0888", email: "avery@example.com" }, title: "Both match Avery" })).contactId).toBe(avery.id);
+    expect((await visit({ newContact: { name: "Avery", email: "avery@example.com" }, title: "Email only" })).contactId).toBe(avery.id);
+    // Two saved people sharing one phone are just as ambiguous.
+    await prisma.contactPhone.create({ data: { contactId: blake.id, phone: "+15550100888", normalized: "+15550100888" } });
+    await expect(visit({ newContact: { name: "Stone", phone: "+15550100888" }, title: "Shared phone" })).rejects.toBeInstanceOf(ContactChoiceRequiredError);
   });
 
   it("holds and resumes one visit's follow-ups and turns automatic sending on only when asked", async () => {
