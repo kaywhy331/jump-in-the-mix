@@ -137,7 +137,9 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
         stepVersion: { stepTemplate: { channel: { in: channels } } },
         // An owner's draft is never replaced by the plan's text. A drafted follow-up waits on Today
         // for the owner to send it; the card says so while delivery is switched on.
-        drafts: { none: {} }
+        drafts: { none: {} },
+        // A follow-up bound to an appointment is never sent automatically unless that binding says so.
+        OR: [{ appointmentBindingId: null }, { appointmentBinding: { automaticDelivery: true } }]
       },
       include: {
         contact: { include: { emails: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, phones: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, relationshipState: true } },
@@ -182,7 +184,7 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
         const currentPreference = await prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id } });
         const channelStillEnabled = channel === "EMAIL" ? currentPreference?.emailEnabled : currentPreference?.smsEnabled;
         // A draft saved since the candidate read also holds the follow-up: the claim is released, not sent.
-        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", drafts: { none: {} }, workspace: { owner: { suspendedAt: null } } }, select: { id: true } });
+        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", drafts: { none: {} }, OR: [{ appointmentBindingId: null }, { appointmentBinding: { automaticDelivery: true } }], workspace: { owner: { suspendedAt: null } } }, select: { id: true } });
         if (!currentPreference?.enabled || !channelStillEnabled || !currentJump) {
           await prisma.automatedDelivery.updateMany({ where: { id: deliveryId, lockedBy: workerId, status: "PROCESSING" }, data: { status: "CANCELED", lockedAt: null, lockedBy: null } });
           continue;

@@ -24,6 +24,7 @@ export async function GET(request: Request) {
     jumps,
     followUpDrafts,
     followUpAttempts,
+    appointmentBindings,
     imports,
     notificationPreference,
     automationPreference,
@@ -45,6 +46,7 @@ export async function GET(request: Request) {
     prisma.jump.findMany({ where: { workspaceId }, include: { contact: { select: { displayName: true } }, mix: { select: { name: true } }, stepVersion: { include: { stepTemplate: { select: { channel: true } } } } }, orderBy: { scheduledAt: "asc" } }),
     prisma.jumpDraft.findMany({ where: { workspaceId }, orderBy: [{ updatedAt: "asc" }, { jumpId: "asc" }] }),
     prisma.jumpAttempt.findMany({ where: { workspaceId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
+    prisma.appointmentBinding.findMany({ where: { workspaceId }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] }),
     prisma.contactImportBatch.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
     prisma.notificationPreference.findUnique({ where: { workspaceId } }),
     prisma.automationPreference.findUnique({ where: { workspaceId } }),
@@ -105,6 +107,7 @@ export async function GET(request: Request) {
     followUpDrafts,
     // The owner's own export shows which address or number each attempt used, decrypted.
     followUpAttempts: followUpAttempts.map(({ recipientCiphertext, ...attempt }) => ({ ...attempt, recipient: decryptAttemptRecipient(recipientCiphertext) })),
+    appointmentBindings,
     imports,
     reviewRequests,
     automatedDeliveries,
