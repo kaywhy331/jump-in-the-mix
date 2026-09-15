@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { startTransition, useActionState, useEffect, useState } from "react";
 import { saveCalendarAction, type CalendarSaveState } from "@/lib/calendar-actions";
 import type { ContactCandidate } from "@/lib/appointment-bindings";
@@ -74,6 +75,7 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
       </div>
     </details>}
     {values.kind === "MEETING" && plans.length > 0 && !entry && <label className="field full"><span>Follow-up plan for this visit (optional)</span><select name="planId" value={values.planId} onChange={event => update("planId", event.target.value)}><option value="">No plan</option>{plans.map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select><small>Its reminders and check-ins line up with this appointment and move with it. Nothing is sent automatically unless you turn that on for this visit.</small></label>}
+    {values.kind === "MEETING" && plans.length === 0 && !entry && <p className="muted-copy field full">No mix is ready to line up with a visit yet. <Link href="/mixes/new?custom=1" className="inline-action">Create a mix</Link> with the cue “When I start it for someone” and start it; no one needs to be enrolled first.</p>}
     <label className="field"><span>Contact (optional)</span><select name="contactId" value={values.contactId} onChange={event => update("contactId", event.target.value)}><option value="">No contact</option>{contacts.map(contact => <option value={contact.id} key={contact.id}>{contact.displayName}</option>)}</select></label>
     <div className="field full"><span className="field-label">Starts</span><WhenPicker label="Starts" locale={locale} date={values.date} time={values.time} availability={availability ?? undefined} allowOverlap={values.allowOverlap} onChange={next => setValues(current => ({ ...current, date: next.date, time: next.time ?? current.time }))} /></div>
     <div className="field full when-duration"><span className="field-label">How long</span>

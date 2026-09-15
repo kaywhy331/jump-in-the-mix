@@ -3,6 +3,7 @@ import { queueBoundReconciliation, saveCalendarEntryIn, type CalendarEntryInput 
 import { isValidEmail, normalizeEmail, normalizePhone } from "@/lib/contact-input";
 import { applyJourneyEvent } from "@/lib/journey";
 import { prisma } from "@/lib/prisma";
+import { boundPlanOutlook, type BoundPlanOutlook } from "@/lib/step-timing";
 
 export type ScheduleVisitInput = Omit<CalendarEntryInput, "contactId"> & {
   contactId?: string | null;
@@ -39,6 +40,8 @@ export type ScheduleVisitResult = {
   /** True when the person already had this plan running without an appointment scope; it is left alone and both proceed. */
   unscopedEnrollmentKept: boolean;
   createdContact: boolean;
+  /** What the bound plan gives the owner right now, beat by beat, so the confirmation is truthful; null without a plan. */
+  outlook: BoundPlanOutlook | null;
 };
 
 export function appointmentAssignmentKey(workspaceId: string, mixId: string, calendarEntryId: string, contactId: string): string {
@@ -120,7 +123,7 @@ export async function scheduleVisit(input: ScheduleVisitInput): Promise<Schedule
       createdContact = person.created;
     }
     const entry = await saveCalendarEntryIn(tx, { ...input, contactId: contactId ?? undefined });
-    if (!input.planId) return { entryId: entry.id, contactId, bindingId: null, unscopedEnrollmentKept: false, createdContact };
+    if (!input.planId) return { entryId: entry.id, contactId, bindingId: null, unscopedEnrollmentKept: false, createdContact, outlook: null };
     if (!contactId) throw new Error("Choose or add the person this visit is with before binding a plan.");
     if (entry.kind !== "MEETING") throw new Error("Only a meeting can carry a follow-up plan.");
     const plan = await tx.mix.findFirst({ where: { id: input.planId, workspaceId: input.workspaceId, status: "ACTIVE", triggerMode: "MANUAL_START", source: { not: "ONE_TIME" } }, select: { id: true } });
@@ -141,7 +144,10 @@ export async function scheduleVisit(input: ScheduleVisitInput): Promise<Schedule
       bindingId = (await tx.appointmentBinding.create({ data: { workspaceId: input.workspaceId, contactId, calendarEntryId: entry.id, mixId: plan.id, assignmentId: assignment.id } })).id;
     }
     await tx.job.create({ data: { workspaceId: input.workspaceId, task: "generate-jumps", payload: { contactId, mixId: plan.id } } });
-    return { entryId: entry.id, contactId, bindingId, unscopedEnrollmentKept: Boolean(unscoped), createdContact };
+    // The plan is attached to this appointment and no other: the owner chose it on this visit, and
+    // nothing here looks for the person's latest or next visit.
+    const steps = await tx.mixStep.findMany({ where: { mixId: plan.id, isActive: true }, select: { anchor: true, offsetMinutes: true, plannedAt: true, dayOffset: true, sendTimeMinutes: true } });
+    return { entryId: entry.id, contactId, bindingId, unscopedEnrollmentKept: Boolean(unscoped), createdContact, outlook: boundPlanOutlook(steps, entry) };
   }, { timeout: 15_000 });
   return result;
 }

@@ -45,7 +45,7 @@ test("saves a visit with its details and plan in one step, anchors the follow-up
   await form.getByLabel("Follow-up plan for this visit (optional)").selectOption(planId);
   await audit(page);
   await form.getByRole("button", { name: "Save event", exact: true }).click();
-  await expect(page.getByText(/line up with this visit and will appear on Today/)).toBeVisible();
+  await expect(page.getByText(/line up with this visit\. 1 beat is scheduled and will appear on Today\./)).toBeVisible();
   const binding = await prisma.appointmentBinding.findFirstOrThrow({ where: { workspaceId, mixId: planId }, include: { calendarEntry: true } });
   expect(binding.calendarEntry).toMatchObject({ title: "Kitchen estimate", location: "12 Elm St", details: "Bring the tile samples", contactId });
   expect(binding.automaticDelivery).toBe(false);
@@ -119,7 +119,7 @@ test("asks for one inline choice when the entered phone and email match differen
   await expect(form.getByLabel("Where")).toHaveValue("9 Pine Ct");
   await form.getByLabel(/Allow an intentional overlap/).check();
   await form.getByRole("button", { name: "Save event", exact: true }).click();
-  await expect(page.getByText(/line up with this visit and will appear on Today/)).toBeVisible();
+  await expect(page.getByText(/line up with this visit\. 1 beat is scheduled and will appear on Today\./)).toBeVisible();
   const entry = await prisma.calendarEntry.findFirstOrThrow({ where: { workspaceId, title: "Bathroom estimate" } });
   expect(entry).toMatchObject({ contactId: blake.id, location: "9 Pine Ct", details: "Side entrance" });
   expect(await prisma.appointmentBinding.count({ where: { calendarEntryId: entry.id, contactId: blake.id, mixId: planId } })).toBe(1);

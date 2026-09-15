@@ -12,6 +12,7 @@ import { formatDateInput, formatTimeInput } from "@/lib/mix-broadcast";
 import { activateMixAction, archiveMixAction, pauseMixAction } from "@/lib/mix-lifecycle-actions";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import { describeStepTiming } from "@/lib/step-timing";
 
 export const metadata: Metadata = { title: "Mixes" };
 
@@ -95,7 +96,12 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
         <div className="mix-list">
           {mixes.map((mix) => {
             const broadcast = broadcastByMixId.get(mix.id);
-            const lastDay = Math.max(0, ...mix.steps.map((step) => step.dayOffset));
+            // Beats timed from a visit have no day of their own; they run only for a visit the mix is lined up with.
+            const calendarSteps = mix.steps.filter((step) => step.anchor === "CALENDAR_DAY");
+            const visitBeats = mix.steps.length - calendarSteps.length;
+            const lastDay = Math.max(0, ...calendarSteps.map((step) => step.dayOffset));
+            const timing = [`${mix.steps.length} beat${mix.steps.length === 1 ? "" : "s"}`, ...(calendarSteps.length ? [`${lastDay + 1} day${lastDay ? "s" : ""}`] : []), ...(visitBeats ? [`${visitBeats} timed from a visit`] : [])].join(" · ");
+            const beatTiming = (step: { anchor: string; dayOffset: number; offsetMinutes: number | null }) => step.anchor === "CALENDAR_DAY" ? `Day ${step.dayOffset}` : describeStepTiming({ anchor: step.anchor as "APPOINTMENT_START" | "APPOINTMENT_END" | "VISIT_COMPLETED", offsetMinutes: step.offsetMinutes });
             const channelSequence = [...new Set(mix.steps.map((step) => step.stepVersion.stepTemplate.channel.replaceAll("_", " ").toLowerCase()))];
             return (
               <article className="mix-row mix-card" key={mix.id}>
@@ -107,7 +113,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                       <span className="mix-trigger">Starts: {mix.dateType ? `when ${mix.dateType.name} is added` : mix.triggerMode === "MANUAL_START" ? "when you choose" : "on one scheduled date"}</span>
                       {broadcast && <span className="mix-broadcast">Scheduled: {formatDateInput(broadcast.localDate)} · {formatTimeInput(broadcast.timeMinutes)} {broadcast.timezone}</span>}
                       <span className="mix-audience">{mix._count.assignments} {mix._count.assignments === 1 ? "person" : "people"}</span>
-                      <span className="mix-timing">{mix.steps.length} beat{mix.steps.length === 1 ? "" : "s"} · {lastDay + 1} day{lastDay ? "s" : ""}</span>
+                      <span className="mix-timing">{timing}</span>
                       <span className="mix-channels">{channelSequence.join(" → ") || "No channels yet"}</span>
                     </div>
                   </div>
@@ -118,12 +124,12 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                 {mix.description && <p className="muted-copy">{mix.description}</p>}
                 <div className="mix-sequence-preview" aria-label={`${mix.name} follow-up sequence`}>
                   {mix.steps.length ? mix.steps.map((step, index) => (
-                    <div className="mix-sequence-item" key={step.id}><span className="mix-sequence-number">Beat {index + 1}</span><span className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></span><span><strong>{step.stepVersion.stepTemplate.name}</strong><small>Day {step.dayOffset}</small></span></div>
+                    <div className="mix-sequence-item" key={step.id}><span className="mix-sequence-number">Beat {index + 1}</span><span className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></span><span><strong>{step.stepVersion.stepTemplate.name}</strong><small>{beatTiming(step)}</small></span></div>
                   )) : <span className="status-pill">No follow-ups yet</span>}
                 </div>
                 <details className="mix-details"><summary>Preview the rhythm</summary><div className="timeline">{mix.steps.map((step, index) => {
                   const content = step.stepVersion.body ?? step.stepVersion.script ?? "No message content";
-                  return <div className="timeline-step" key={step.id}><div className="timeline-day">Beat {index + 1}<small>Day {step.dayOffset}</small></div><div className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></div><div className="timeline-content"><strong>{step.stepVersion.stepTemplate.name}</strong><span className="channel-pill">{step.stepVersion.stepTemplate.channel.replaceAll("_", " ")}</span><p>{step.stepVersion.subject && `${step.stepVersion.subject}\n`}{content}</p></div></div>;
+                  return <div className="timeline-step" key={step.id}><div className="timeline-day">Beat {index + 1}<small>{beatTiming(step)}</small></div><div className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></div><div className="timeline-content"><strong>{step.stepVersion.stepTemplate.name}</strong><span className="channel-pill">{step.stepVersion.stepTemplate.channel.replaceAll("_", " ")}</span><p>{step.stepVersion.subject && `${step.stepVersion.subject}\n`}{content}</p></div></div>;
                 })}</div></details>
               </article>
             );

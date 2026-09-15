@@ -1,6 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
+import { validateStepTiming } from "@/lib/step-timing";
 import type { Channel, MixStatus, MixTriggerMode } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
@@ -108,9 +109,16 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   const offsets = values(formData, "dayOffset");
   const sendTimes = values(formData, "sendTimeMinutes");
   const plannedAts = values(formData, "plannedAt");
+  const anchors = values(formData, "anchor");
+  const offsetMinutes = values(formData, "offsetMinutes");
   const stepCount = offsets.length;
   if (!stepCount || stepCount > 50) fail(path, "Add between one and fifty beats to the mix.");
-  if ([mixStepIds, sendTimes, plannedAts].some((items) => items.length !== stepCount)) fail(path, "The beat sequence is incomplete. Reload and try again.");
+  if ([mixStepIds, sendTimes, plannedAts, anchors, offsetMinutes].some((items) => items.length !== stepCount)) fail(path, "The beat sequence is incomplete. Reload and try again.");
+  // Elapsed-minute timing for a plan bound to a visit; a calendar-day beat keeps its day rule.
+  const parsedTimings = anchors.map((anchor, index) => {
+    try { return validateStepTiming(anchor, offsetMinutes[index] ?? "", index + 1); }
+    catch (error) { return fail(path, error instanceof Error ? error.message : `Beat ${index + 1} has an invalid timing.`); }
+  });
 
   const parsedOffsets = offsets.map((raw, index) => {
     const parsed = Number(raw);
@@ -119,7 +127,10 @@ export async function saveMixAction(formData: FormData): Promise<void> {
     }
     return parsed;
   });
-  if (triggerMode === "MANUAL_START" && parsedOffsets.some((offset) => offset < 0)) {
+  if (parsedTimings.some((timing) => timing.anchor !== "CALENDAR_DAY") && triggerMode !== "MANUAL_START") {
+    fail(path, "Minutes from an appointment apply to a mix that starts when you bind it to a visit. Choose \"When I start it for someone\" as the cue, or time the beat by calendar day.");
+  }
+  if (triggerMode === "MANUAL_START" && parsedOffsets.some((offset, index) => offset < 0 && parsedTimings[index].anchor === "CALENDAR_DAY")) {
     fail(path, "A manually started mix cannot schedule a follow-up before its start date.");
   }
   const parsedSendTimes = sendTimes.map((raw, index) => {
@@ -163,7 +174,11 @@ export async function saveMixAction(formData: FormData): Promise<void> {
     if (unavailableNewGroup) fail(path, "Hidden tags cannot be added to a mix.");
   }
   const assignAllContacts = formData.get("assignAllContacts") === "on";
-  if (status === "ACTIVE" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the mix.");
+  // A mix that starts when the owner chooses needs no audience to be on: it is started from one
+  // person's page or lined up with a visit from the calendar. Elapsed beats never count as scheduled
+  // for an enrollment without an appointment, so the projection below counts calendar-day beats only.
+  if (status === "ACTIVE" && triggerMode !== "MANUAL_START" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the mix.");
+  const calendarStepCount = parsedTimings.filter((timing) => timing.anchor === "CALENDAR_DAY").length;
   if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) fail(path, "Choose who gets the mix.");
 
   const allContactIds = assignAllContacts
@@ -227,10 +242,10 @@ export async function saveMixAction(formData: FormData): Promise<void> {
         const stepVersionId = version.id;
         if (existingStep && !existingStep.stepVersion.stepTemplate.isActive) replacedInternalTemplateIds.add(existingStep.stepVersion.stepTemplateId);
         if (existingStep) {
-          await tx.mixStep.update({ where: { id: existingStep.id }, data: { stepVersionId, dayOffset: parsedOffsets[index], sendTimeMinutes: parsedSendTimes[index], plannedAt: parsedPlannedAts[index], sortOrder: index + 1, isActive: true } });
+          await tx.mixStep.update({ where: { id: existingStep.id }, data: { stepVersionId, dayOffset: parsedOffsets[index], sendTimeMinutes: parsedSendTimes[index], plannedAt: parsedPlannedAts[index], anchor: parsedTimings[index].anchor, offsetMinutes: parsedTimings[index].offsetMinutes, sortOrder: index + 1, isActive: true } });
           retainedIds.add(existingStep.id);
         } else {
-          const created = await tx.mixStep.create({ data: { mixId, stepVersionId, dayOffset: parsedOffsets[index], sendTimeMinutes: parsedSendTimes[index], plannedAt: parsedPlannedAts[index], sortOrder: index + 1, isActive: true } });
+          const created = await tx.mixStep.create({ data: { mixId, stepVersionId, dayOffset: parsedOffsets[index], sendTimeMinutes: parsedSendTimes[index], plannedAt: parsedPlannedAts[index], anchor: parsedTimings[index].anchor, offsetMinutes: parsedTimings[index].offsetMinutes, sortOrder: index + 1, isActive: true } });
           retainedIds.add(created.id);
         }
       }
@@ -269,7 +284,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
           entityType: "Mix",
           entityId: mixId,
           source: "mixes.editor",
-          metadata: { triggerMode, status, followUpCount: stepCount, tagCount: groupIds.length, allContactCount: allContactIds.length, projectedFollowUpCount: (groupIds.length ? null : allContactIds.length * stepCount) }
+          metadata: { triggerMode, status, followUpCount: stepCount, visitTimedCount: stepCount - calendarStepCount, tagCount: groupIds.length, allContactCount: allContactIds.length, projectedFollowUpCount: (groupIds.length ? null : allContactIds.length * calendarStepCount) }
         }
       });
       await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });
