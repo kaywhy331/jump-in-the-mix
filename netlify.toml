@@ -13,3 +13,8 @@
 
 [functions."jump-worker-schedule"]
   schedule = "* * * * *"
+
+# The recovery-boundary probe bundles only the hold read; pg is copied as-is because its
+# optional native binding is not resolvable by the bundler.
+[functions."recovery-boundary"]
+  external_node_modules = ["pg"]

@@ -35,9 +35,11 @@ describe("recovery hold web boundary", () => {
     mocks.status.mockResolvedValue("unavailable"); expect((await proxy(new NextRequest("http://localhost/contacts"))).status).toBe(503);
   });
   it("keeps readiness/liveness and named public assets available without exempting mutations", async () => {
-    for (const path of ["/api/health/live", "/api/health/ready", "/api/health/recovery-boundary", "/brand-logo.png", "/sw.js"]) expect((await proxy(new NextRequest(`http://localhost${path}`))).status).toBe(200);
+    for (const path of ["/api/health/live", "/api/health/ready", "/api/health/recovery-boundary", "/.netlify/functions/recovery-boundary", "/brand-logo.png", "/sw.js"]) expect((await proxy(new NextRequest(`http://localhost${path}`))).status).toBe(200);
     expect(mocks.status).not.toHaveBeenCalled();
+    // The dedicated probe is exempt only for safe methods, so the proxy's own check cannot recurse into it and a mutation there is still held.
     expect((await proxy(new NextRequest("http://localhost/api/health/live", { method: "POST" }))).status).toBe(503);
+    expect((await proxy(new NextRequest("http://localhost/.netlify/functions/recovery-boundary", { method: "POST" }))).status).toBe(503);
   });
   it("preserves security headers and normal routing after a successful catalog check", async () => {
     mocks.status.mockResolvedValue("clear"); const response = await proxy(new NextRequest("http://localhost/contacts"));
