@@ -3,6 +3,7 @@ import { detachedTokens } from "@/lib/draft-segments";
 import { buildJumpReplacementValues } from "@/lib/jump-render";
 import { prisma } from "@/lib/prisma";
 import { DRAFT_LIMITS, draftFieldsForFamily, isPreparationFamily, preparationFamilyForChannel, type DraftContent, type PreparationFamily } from "@/lib/preparation-family";
+import { authoredFamilies, variantsOfSnapshot } from "@/lib/preparation-variants";
 
 /** Template tokens a draft no longer carries, each with the value it resolved to when it was removed. */
 export type DetachedTokens = Record<string, string>;
@@ -38,9 +39,11 @@ async function currentTokenValues(jumpId: string): Promise<Record<string, string
   return buildJumpReplacementValues(jump.contact, jump.workspace.profile, jump.workspace.owner, jump.stepVersion.stepTemplate.channel);
 }
 
-function templateTextOf(snapshot: Prisma.JsonValue, key: "subject" | "body" | "script"): string {
+function templateTextOf(snapshot: Prisma.JsonValue, key: "subject" | "body" | "script", family?: PreparationFamily): string {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return "";
-  const value = (snapshot as Record<string, unknown>)[key];
+  // A draft for an alternative family detaches tokens against that family's authored wording.
+  const variant = family ? variantsOfSnapshot(snapshot)[family] : undefined;
+  const value = variant ? variant[key] : (snapshot as Record<string, unknown>)[key];
   return typeof value === "string" ? value : "";
 }
 
@@ -48,12 +51,12 @@ function templateTextOf(snapshot: Prisma.JsonValue, key: "subject" | "body" | "s
  * Tokens the plan used that this draft dropped, each with the value it shows right now. A token
  * already recorded keeps the value from when it was first removed; a token put back is forgotten.
  */
-async function detachedForSave(jumpId: string, template: Prisma.JsonValue, fields: DraftContent, previous: DetachedTokens | null): Promise<DetachedTokens | null> {
+async function detachedForSave(jumpId: string, template: Prisma.JsonValue, fields: DraftContent, previous: DetachedTokens | null, family?: PreparationFamily): Promise<DetachedTokens | null> {
   const removed = new Set<string>();
   for (const key of ["subject", "body", "script"] as const) {
     const source = fields[key];
     if (source === null) continue;
-    for (const token of detachedTokens(templateTextOf(template, key), source)) removed.add(token);
+    for (const token of detachedTokens(templateTextOf(template, key, family), source)) removed.add(token);
   }
   if (!removed.size) return null;
   const fresh = [...removed].filter((token) => !previous || !Object.hasOwn(previous, token));
@@ -114,7 +117,7 @@ export async function readJumpDrafts(workspaceId: string, jumpIds: string[]): Pr
  * Saves the owner's draft for one follow-up and family. The row is overwritten in place with an
  * optimistic revision: a save that carries a stale revision is refused and the current draft is
  * returned, so two devices never overwrite each other silently. Only a pending follow-up in the
- * caller's workspace accepts a draft, and only for the family its channel uses.
+ * caller's workspace accepts a draft, and only for its plan's family or an authored alternative.
  */
 export async function saveJumpDraft(input: SaveDraftInput): Promise<SaveDraftResult> {
   if (!isPreparationFamily(input.family)) return invalid("Choose a valid message type.");
@@ -137,10 +140,12 @@ export async function saveJumpDraft(input: SaveDraftInput): Promise<SaveDraftRes
     select: { stepVersionId: true, templateSnapshot: true, stepVersion: { select: { stepTemplate: { select: { channel: true } } } } }
   });
   if (!jump) return unavailable();
-  if (preparationFamilyForChannel(jump.stepVersion.stepTemplate.channel) !== family) return unavailable("This follow-up doesn't use that kind of message.");
+  // A draft may edit the plan's own wording or an authored alternative for another family; nothing else.
+  if (!authoredFamilies(jump.stepVersion.stepTemplate.channel, jump.templateSnapshot).includes(family)) return unavailable("This follow-up doesn't use that kind of message.");
 
   if (revision === null) {
-    const detached = await detachedForSave(input.jumpId, jump.templateSnapshot, fields, null);
+    const variantFamily = preparationFamilyForChannel(jump.stepVersion.stepTemplate.channel) === family ? undefined : family;
+    const detached = await detachedForSave(input.jumpId, jump.templateSnapshot, fields, null, variantFamily);
     try {
       const draft = await prisma.jumpDraft.create({
         data: { jumpId: input.jumpId, family, workspaceId: input.workspaceId, stepVersionId: jump.stepVersionId, ...fields, detached: detached ?? Prisma.DbNull },
@@ -156,7 +161,7 @@ export async function saveJumpDraft(input: SaveDraftInput): Promise<SaveDraftRes
   }
 
   const previous = await currentDraft(input.jumpId, family);
-  const detached = await detachedForSave(input.jumpId, jump.templateSnapshot, fields, previous?.detached ?? null);
+  const detached = await detachedForSave(input.jumpId, jump.templateSnapshot, fields, previous?.detached ?? null, preparationFamilyForChannel(jump.stepVersion.stepTemplate.channel) === family ? undefined : family);
   const updated = await prisma.jumpDraft.updateMany({
     where: { jumpId: input.jumpId, family, workspaceId: input.workspaceId, revision },
     data: { ...fields, detached: detached ?? Prisma.DbNull, revision: { increment: 1 } }

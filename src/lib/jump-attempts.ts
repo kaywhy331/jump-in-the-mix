@@ -4,6 +4,7 @@ import { normalizeEmail, normalizePhone } from "@/lib/contact-input";
 import { env } from "@/lib/env";
 import { decryptIntegrationCredentials, encryptIntegrationCredentials } from "@/lib/integration-crypto";
 import { DRAFT_LIMITS, isPreparationFamily, preparationFamilyForChannel, type PreparationFamily } from "@/lib/preparation-family";
+import { attemptChannelAllowed } from "@/lib/preparation-variants";
 import { prisma } from "@/lib/prisma";
 
 const CHANNELS: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
@@ -138,13 +139,17 @@ export async function recordJumpAttempt(input: { workspaceId: string; jumpId: st
     where: { id: jumpId, workspaceId },
     select: {
       contactId: true,
-      contact: { select: { emails: { select: { normalized: true } }, phones: { select: { normalized: true } } } },
+      templateSnapshot: true,
+      contact: { select: { emails: { select: { normalized: true } }, phones: { select: { normalized: true } }, relationshipState: { select: { preferredChannel: true } } } },
       stepVersion: { select: { stepTemplate: { select: { channel: true } } } }
     }
   });
   if (!jump) return { ok: false, reason: "unavailable", message: "Follow-up not found." };
   if (jump.contactId !== payload.contactId) return { ok: false, reason: "invalid", message: "This follow-up belongs to a different person now." };
-  if (jump.stepVersion.stepTemplate.channel !== payload.channel) return { ok: false, reason: "invalid", message: "This follow-up uses a different channel." };
+  // The plan's own channel, or an authored alternative's; WhatsApp only when the person asked for it.
+  if (!attemptChannelAllowed({ primaryChannel: jump.stepVersion.stepTemplate.channel, snapshot: jump.templateSnapshot, channel: payload.channel, family: payload.family, preferredChannel: jump.contact.relationshipState?.preferredChannel ?? null })) {
+    return { ok: false, reason: "invalid", message: "This follow-up uses a different channel." };
+  }
   const normalized = normalizeRecipient(payload.channel, payload.recipient);
   const stored = payload.channel === "EMAIL" ? jump.contact.emails.map((item) => item.normalized) : jump.contact.phones.map((item) => item.normalized);
   if (!stored.includes(normalized)) return { ok: false, reason: "invalid", message: "That address or number isn't saved for this person." };

@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { isQuietTime, notificationClock } from "@/lib/notification-delivery";
 import { isValidTimezone } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
+import { preparationFamilyForChannel } from "@/lib/preparation-family";
 import { escapeHtml, sendTransactionalEmail, transactionalEmailConfigured } from "@/lib/transactional-email";
 
 const uncertainLeaseMs = 20 * 60_000;
@@ -139,7 +140,10 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
         // for the owner to send it; the card says so while delivery is switched on.
         drafts: { none: {} },
         // A follow-up bound to an appointment is never sent automatically unless that binding says so.
-        OR: [{ appointmentBindingId: null }, { appointmentBinding: { automaticDelivery: true } }]
+        OR: [{ appointmentBindingId: null }, { appointmentBinding: { automaticDelivery: true } }],
+        // A follow-up the owner switched to another channel family waits on Today: the plan's
+        // wording is not what they chose, so the delivery claim for the plan's channel does not apply.
+        AND: [{ OR: [{ selectedFamily: null }, { selectedFamily: "EMAIL", stepVersion: { stepTemplate: { channel: "EMAIL" } } }, { selectedFamily: "TEXT", stepVersion: { stepTemplate: { channel: "SMS" } } }] }]
       },
       include: {
         contact: { include: { emails: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, phones: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, relationshipState: true } },
@@ -153,6 +157,7 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
       const eligibleAt = automaticDeliveryEligibleAt(jump.scheduledAt, jump.createdAt, preference.reviewWindowMinutes);
       if (eligibleAt > now || jump.contact.relationshipState?.doNotContact) continue;
       const channel = jump.stepVersion.stepTemplate.channel;
+      if (jump.selectedFamily && jump.selectedFamily !== preparationFamilyForChannel(channel)) continue;
       const recipient = channel === "EMAIL"
         ? primaryValue(jump.contact.emails)?.email
         : channel === "SMS" ? primaryValue(jump.contact.phones)?.phone : undefined;
@@ -184,7 +189,8 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
         const currentPreference = await prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id } });
         const channelStillEnabled = channel === "EMAIL" ? currentPreference?.emailEnabled : currentPreference?.smsEnabled;
         // A draft saved since the candidate read also holds the follow-up: the claim is released, not sent.
-        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", drafts: { none: {} }, OR: [{ appointmentBindingId: null }, { appointmentBinding: { automaticDelivery: true } }], workspace: { owner: { suspendedAt: null } } }, select: { id: true } });
+        // A switch to another family since the candidate read also holds it: the claim is released, not sent.
+        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", drafts: { none: {} }, OR: [{ appointmentBindingId: null }, { appointmentBinding: { automaticDelivery: true } }], AND: [{ OR: [{ selectedFamily: null }, { selectedFamily: preparationFamilyForChannel(channel) }] }], workspace: { owner: { suspendedAt: null } } }, select: { id: true } });
         if (!currentPreference?.enabled || !channelStillEnabled || !currentJump) {
           await prisma.automatedDelivery.updateMany({ where: { id: deliveryId, lockedBy: workerId, status: "PROCESSING" }, data: { status: "CANCELED", lockedAt: null, lockedBy: null } });
           continue;

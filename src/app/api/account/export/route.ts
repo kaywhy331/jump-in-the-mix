@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     prisma.contactActivity.findMany({ where: { workspaceId }, orderBy: { occurredAt: "asc" } }),
     prisma.group.findMany({ where: { workspaceId }, include: { memberships: true }, orderBy: { createdAt: "asc" } }),
     prisma.dateType.findMany({ where: { OR: [{ workspaceId }, { workspaceId: null, isSystem: true }] }, orderBy: { createdAt: "asc" } }),
-    prisma.stepTemplate.findMany({ where: { workspaceId }, include: { versions: { orderBy: { version: "asc" } } }, orderBy: { createdAt: "asc" } }),
+    prisma.stepTemplate.findMany({ where: { workspaceId }, include: { versions: { orderBy: { version: "asc" }, include: { variants: { orderBy: { family: "asc" } } } } }, orderBy: { createdAt: "asc" } }),
     prisma.mix.findMany({ where: { workspaceId }, include: { steps: true, assignments: true }, orderBy: { createdAt: "asc" } }),
     prisma.jump.findMany({ where: { workspaceId }, include: { contact: { select: { displayName: true } }, mix: { select: { name: true } }, stepVersion: { include: { stepTemplate: { select: { channel: true } } } } }, orderBy: { scheduledAt: "asc" } }),
     prisma.jumpDraft.findMany({ where: { workspaceId }, orderBy: [{ updatedAt: "asc" }, { jumpId: "asc" }] }),
