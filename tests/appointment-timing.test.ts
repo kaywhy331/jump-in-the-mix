@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { StepAnchor } from "../src/generated/prisma/client";
 import { recordAppointmentOutcome, scheduleVisit } from "../src/lib/appointment-bindings";
 import { APPOINTMENT_HOLD_METHODS, reconcileJumps } from "../src/lib/jump-engine";
@@ -14,7 +14,11 @@ function setClock(at: Date) { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSyst
 describe.skipIf(!local).sequential("elapsed-minute timing for bound plans", () => {
   let fixture: BroadcastFixture;
   let workspaceId: string;
-  const T0 = new Date(Math.floor(Date.now() / HOUR) * HOUR);
+  // A fixed base instant, never the real clock: noon UTC on a Tuesday is 06:00 in Denver, so a visit
+  // placed at this hour stays on the same local day when a case moves it by a few hours, and the
+  // calendar-day beats around it fall on weekdays. The one case that must cross local midnight
+  // chooses its own late-evening visit explicitly.
+  const T0 = new Date("2026-10-06T12:00:00Z");
 
   async function plan(name: string, beats: Beat[]) {
     const template = await prisma.stepTemplate.create({ data: { workspaceId, name, channel: "SMS" } });
@@ -39,6 +43,7 @@ describe.skipIf(!local).sequential("elapsed-minute timing for bound plans", () =
     fixture = await createBroadcastFixture("timing", "Ren");
     workspaceId = fixture.workspaceId;
   });
+  afterEach(() => setClock(T0));
   afterAll(async () => { vi.useRealTimers(); await fixture.cleanup(); });
 
   it("times beats in elapsed minutes from the visit, holds what follows until the outcome, and skips them without a visit", async () => {
@@ -91,6 +96,35 @@ describe.skipIf(!local).sequential("elapsed-minute timing for bound plans", () =
     expect(after[1]).toMatchObject({ status: "DONE", scheduledAt: halfHour.scheduledAt });
     expect(after[2].scheduledAt.toISOString()).toBe(before[2].scheduledAt.toISOString());
     expect(await prisma.jumpDraft.findUnique({ where: { jumpId_family: { jumpId: twoHours.id, family: "TEXT" } } })).toMatchObject({ body: "My own wording" });
+  });
+
+  it("moves the calendar-day beat as well when a reschedule carries the visit across local midnight", async () => {
+    const planId = await plan("Late visit plan", [
+      { body: "Two hours out", anchor: "APPOINTMENT_START", offsetMinutes: -120 },
+      { body: "Day before at nine", dayOffset: -1, sendTimeMinutes: 9 * 60 }
+    ]);
+    // Thursday 2026-10-08 at 22:00 in Denver (04:00Z on the 9th). The calendar-day beat is the day before at nine local.
+    const startsAt = new Date("2026-10-09T04:00:00Z");
+    const bound = await visit(planId, startsAt, 30, "America/Denver", "Late walkthrough");
+    await reconcileJumps({ workspaceId, mixId: planId });
+    const before = await rows(bound.bindingId!);
+    expect(await shape(bound.bindingId!)).toEqual([
+      [1, "PENDING", null, "2026-10-09T02:00:00.000Z"],
+      [2, "PENDING", null, "2026-10-07T15:00:00.000Z"]
+    ]);
+    // Three hours later is 01:00 on Friday local time: the appointment's local date changed, so the
+    // calendar-day beat legitimately follows it to Thursday at nine, in the same row, while the
+    // elapsed beat stays exactly two hours before the new start.
+    const entry = await prisma.calendarEntry.findUniqueOrThrow({ where: { id: bound.entryId } });
+    const movedStart = new Date(startsAt.getTime() + 3 * HOUR);
+    await prisma.calendarEntry.update({ where: { id: entry.id }, data: { startsAt: movedStart, endsAt: new Date(movedStart.getTime() + 30 * MINUTE), version: entry.version + 1 } });
+    expect(await reconcileJumps({ workspaceId, mixId: planId })).toMatchObject({ updated: 2, created: 0, canceled: 0, held: 0 });
+    const after = await rows(bound.bindingId!);
+    expect(after.map((row) => row.id)).toEqual(before.map((row) => row.id));
+    expect(await shape(bound.bindingId!)).toEqual([
+      [1, "PENDING", null, "2026-10-09T05:00:00.000Z"],
+      [2, "PENDING", null, "2026-10-08T15:00:00.000Z"]
+    ]);
   });
 
   it("counts a completion beat from the recorded completion, re-times it on correction, and never resurrects expired preparation", async () => {
