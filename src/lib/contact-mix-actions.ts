@@ -18,7 +18,7 @@ export async function assignMixToContactAction(formData: FormData): Promise<void
   const contactId = value(formData, "contactId");
   if (impersonation) fail(contactId, "Administrator support sessions are view-only.");
   const [mix, contact] = await Promise.all([
-    prisma.mix.findFirst({ where: { id: mixId, workspaceId: workspace.id, status: "ACTIVE" }, select: { id: true, triggerMode: true } }),
+    prisma.mix.findFirst({ where: { id: mixId, workspaceId: workspace.id, status: "ACTIVE" }, select: { id: true, triggerMode: true, steps: { where: { isActive: true, anchor: { not: "CALENDAR_DAY" } }, select: { id: true }, take: 1 } } }),
     prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, select: { id: true } })
   ]);
   if (!mix || !contact) fail(contactId, "Choose an active mix.");
@@ -51,7 +51,9 @@ export async function assignMixToContactAction(formData: FormData): Promise<void
       }
     });
   });
-  redirect(`/contacts/${contact.id}?mixAssigned=1`);
+  // Beats timed from an appointment have nothing to count from here; the confirmation says so
+  // rather than presenting them as scheduled. The visit is chosen explicitly on the calendar.
+  redirect(`/contacts/${contact.id}?mixAssigned=${mix.steps.length ? "visit" : "1"}`);
 }
 
 export async function removeMixAssignmentAction(formData: FormData): Promise<void> {

@@ -186,6 +186,37 @@ describe.skipIf(!local).sequential("elapsed-minute timing for bound plans", () =
     setClock(T0);
   });
 
+  it("keeps an elapsed interval exact when it straddles the daylight-saving change itself", async () => {
+    const planId = await plan("Straddle plan", [
+      { body: "Three hours out", anchor: "APPOINTMENT_START", offsetMinutes: -180 },
+      { body: "Ninety minutes after", anchor: "APPOINTMENT_END", offsetMinutes: 90 },
+      { body: "An hour after completion", anchor: "VISIT_COMPLETED", offsetMinutes: 60 }
+    ]);
+    // Denver leaves daylight time at 02:00 MDT on 2026-11-01 (08:00Z). The visit is at 03:00 MST (10:00Z), so a beat
+    // three hours before lands at 07:00Z: 01:00 MDT, two hours earlier on the wall clock but three hours of elapsed
+    // time, and inside quiet hours that do not apply to it. The beats after the visit have nothing to count from yet.
+    setClock(new Date("2026-10-25T12:00:00Z"));
+    const autumn = await visit(planId, new Date("2026-11-01T10:00:00Z"), 30, "America/Denver", "Autumn visit");
+    await reconcileJumps({ workspaceId, mixId: planId });
+    expect(await shape(autumn.bindingId!)).toEqual([[1, "PENDING", null, "2026-11-01T07:00:00.000Z"]]);
+    // Denver enters daylight time at 02:00 MST on 2027-03-14 (09:00Z). The visit ends at 01:00 MST (08:00Z); ninety
+    // minutes after is 09:30Z, 03:30 MDT, across the skipped hour. Marked completed at 01:30 MST (08:30Z), the
+    // completion beat lands an hour later, at 09:30Z as well.
+    setClock(new Date("2027-03-07T12:00:00Z"));
+    const spring = await visit(planId, new Date("2027-03-14T07:30:00Z"), 30, "America/Denver", "Spring visit");
+    await reconcileJumps({ workspaceId, mixId: planId });
+    expect(await shape(spring.bindingId!)).toEqual([[1, "PENDING", null, "2027-03-14T04:30:00.000Z"]]);
+    setClock(new Date("2027-03-14T08:30:00Z"));
+    expect(await outcome(spring.entryId, "COMPLETED")).toEqual({ ok: true });
+    await reconcileJumps({ workspaceId, mixId: planId });
+    expect(await shape(spring.bindingId!)).toEqual([
+      [1, "CANCELED", APPOINTMENT_HOLD_METHODS.completed, "2027-03-14T04:30:00.000Z"],
+      [2, "PENDING", null, "2027-03-14T09:30:00.000Z"],
+      [3, "PENDING", null, "2027-03-14T09:30:00.000Z"]
+    ]);
+    setClock(T0);
+  });
+
   it("leaves another visit's rows untouched when one visit's outcome changes", async () => {
     const planId = await plan("Two visits plan", [
       { body: "Heads up", anchor: "APPOINTMENT_START", offsetMinutes: -60 },

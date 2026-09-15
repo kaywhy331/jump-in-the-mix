@@ -11,9 +11,10 @@ import { CalendarEntryForm } from "@/components/CalendarEntryForm";
 import { CopyField } from "@/components/CopyField";
 import { Notice } from "@/components/Notice";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { describeBoundPlanOutlook } from "@/lib/step-timing";
 export const metadata = { title: "Calendar" };
 
-export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ date?: string; contact?: string; edit?: string; q?: string; saved?: string; error?: string; plan?: string; kept?: string; person?: string }> }) {
+export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ date?: string; contact?: string; edit?: string; q?: string; saved?: string; error?: string; plan?: string; kept?: string; person?: string; ready?: string; awaitingOutcome?: string; awaitingCompletion?: string; lapsed?: string; held?: string }> }) {
   const [{ workspace, user, impersonation }, query] = await Promise.all([requireWorkspace(), searchParams]);
   const preference = await prisma.userPreference.findUnique({ where: { userId: user.id } });
   const timezone = preference?.timezone || "UTC";
@@ -37,9 +38,12 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   }
   let subscriptionUrl = "";
   if (share && !impersonation) { try { subscriptionUrl = `${env.appUrl}/api/calendar/feed/${decryptIntegrationCredentials<string>(share.tokenEncrypted)}`; } catch { /* Rotation restores unreadable keys. */ } }
+  // The save reports the bound plan beat by beat; the confirmation says only what that gives the owner now.
+  const count = (raw?: string) => { const parsed = Number(raw ?? ""); return Number.isInteger(parsed) && parsed > 0 && parsed <= 50 ? parsed : 0; };
+  const planNotice = query.plan ? describeBoundPlanOutlook({ ready: count(query.ready), awaitingOutcome: count(query.awaitingOutcome), awaitingCompletion: count(query.awaitingCompletion), lapsed: count(query.lapsed), held: count(query.held) }) : "";
   const format = (value: Date) => new Intl.DateTimeFormat("en", { timeZone: timezone, month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(value);
   return <div className="page calendar-page"><header className="page-header"><div><h1>Calendar</h1><p>Make space for conversations and the work between them.</p></div><div className="page-actions"><Link className="button primary" href="#schedule-event">Schedule an event</Link><a className="button" href="/api/calendar/export">Download calendar</a></div></header>
-    {query.saved && <Notice>{query.person ? "Person added and calendar updated." : "Calendar updated."}{query.plan ? " The plan's follow-ups line up with this visit and will appear on Today." : ""}{query.kept ? " This person already had that plan running on its own; both continue." : ""}</Notice>}{query.error && <Notice type="error">{query.error}</Notice>}
+    {query.saved && <Notice>{query.person ? "Person added and calendar updated." : "Calendar updated."}{planNotice ? ` ${planNotice}` : ""}{query.kept ? " This person already had that plan running on its own; both continue." : ""}</Notice>}{query.error && <Notice type="error">{query.error}</Notice>}
     {connections.some(connection => connection.lastError || !connection.lastSyncedAt || Date.now()-connection.lastSyncedAt.getTime() > 24*3_600_000) && <Notice type="info">Some connected availability may be out of date. Review <a href="#calendar-connections" className="inline-action">calendar connections</a> before booking.</Notice>}
     <section className="card"><div className="section-label"><h2>Your next seven days</h2><span>{timezone}</span></div><form className="filter-bar" action="/calendar"><label className="field"><span>Starting date</span><input type="date" name="date" defaultValue={date} required /></label><button className="button">Show dates</button></form><nav className="calendar-week-nav" aria-label="Calendar weeks"><Link className="button" href={`/calendar?date=${dayDate(-7).toISOString().slice(0,10)}`}>Previous week</Link><Link className="button" href="/calendar">Today</Link><Link className="button" href={`/calendar?date=${dayDate(7).toISOString().slice(0,10)}`}>Next week</Link></nav>
       <div className="calendar-agenda">{Array.from({ length: 7 }, (_, index) => {

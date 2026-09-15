@@ -174,7 +174,11 @@ export async function saveMixAction(formData: FormData): Promise<void> {
     if (unavailableNewGroup) fail(path, "Hidden tags cannot be added to a mix.");
   }
   const assignAllContacts = formData.get("assignAllContacts") === "on";
-  if (status === "ACTIVE" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the mix.");
+  // A mix that starts when the owner chooses needs no audience to be on: it is started from one
+  // person's page or lined up with a visit from the calendar. Elapsed beats never count as scheduled
+  // for an enrollment without an appointment, so the projection below counts calendar-day beats only.
+  if (status === "ACTIVE" && triggerMode !== "MANUAL_START" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the mix.");
+  const calendarStepCount = parsedTimings.filter((timing) => timing.anchor === "CALENDAR_DAY").length;
   if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) fail(path, "Choose who gets the mix.");
 
   const allContactIds = assignAllContacts
@@ -280,7 +284,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
           entityType: "Mix",
           entityId: mixId,
           source: "mixes.editor",
-          metadata: { triggerMode, status, followUpCount: stepCount, tagCount: groupIds.length, allContactCount: allContactIds.length, projectedFollowUpCount: (groupIds.length ? null : allContactIds.length * stepCount) }
+          metadata: { triggerMode, status, followUpCount: stepCount, visitTimedCount: stepCount - calendarStepCount, tagCount: groupIds.length, allContactCount: allContactIds.length, projectedFollowUpCount: (groupIds.length ? null : allContactIds.length * calendarStepCount) }
         }
       });
       await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });

@@ -25,6 +25,7 @@ export async function saveCalendarAction(_state: CalendarSaveState, data: FormDa
   }
   const next = new URLSearchParams({ date: value(data, "startsAt").slice(0, 10), saved: "1" });
   if (result.bindingId) next.set("plan", "1");
+  for (const [key, count] of Object.entries(result.outlook ?? {})) if (count > 0) next.set(key, String(count));
   if (result.unscopedEnrollmentKept) next.set("kept", "1");
   if (result.createdContact) next.set("person", "1");
   redirect(`/calendar?${next}`);

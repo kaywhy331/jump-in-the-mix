@@ -22,7 +22,7 @@ import {
   type PersonalSchedulingRule
 } from "@/lib/personal-scheduling";
 import { minutesInTimezone, plannedStepApplies } from "@/lib/planned-step";
-import { anchoredStepInstant, anchoredStepIsPreparation } from "@/lib/step-timing";
+import { anchoredStepInstant, boundStepIsPreparation, type BoundStepTiming } from "@/lib/step-timing";
 import { isValidTimezone } from "@/lib/mix-broadcast";
 import type { AppointmentContext } from "@/lib/appointment-context";
 
@@ -364,12 +364,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       // an outcome is cleared, until the visit is moved into the future again. Lapsed rows keep
       // their drafts and history; only their eligibility changes. None of this moves a beat's time.
       if (entry.outcome === "NO_SHOW") { holdBinding(binding.id, { method: APPOINTMENT_HOLD_METHODS.noShow, error: null }); evaluatedBindingIds.push(binding.id); continue; }
-      const appointmentMinutes = minutesInTimezone(entry.startsAt, entry.timezone);
-      const preparation = (step: { plannedAt: Date | null; dayOffset: number; sendTimeMinutes: number | null; anchor: string; offsetMinutes: number | null }) => step.anchor !== "CALENDAR_DAY"
-        ? anchoredStepIsPreparation({ anchor: step.anchor as "APPOINTMENT_START" | "APPOINTMENT_END" | "VISIT_COMPLETED", offsetMinutes: step.offsetMinutes }, entry)
-        : step.plannedAt
-          ? step.plannedAt < entry.startsAt
-          : step.dayOffset < 0 || (step.dayOffset === 0 && (step.sendTimeMinutes ?? appointmentMinutes) < appointmentMinutes);
+      // The same preparation rule the owner-facing confirmations use, so the two never disagree.
+      const preparation = (step: BoundStepTiming) => boundStepIsPreparation(step, entry);
       const before = assignment.mix.steps.filter(preparation).map((step) => step.id);
       const after = assignment.mix.steps.filter((step) => !preparation(step)).map((step) => step.id);
       if (entry.outcome === "COMPLETED") {
