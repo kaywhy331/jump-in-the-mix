@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { recoveryBoundaryStatus } from "@/lib/recovery-boundary-client";
+import { recoveryBoundaryPath, recoveryBoundaryStatus } from "@/lib/recovery-boundary-client";
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
@@ -52,6 +52,20 @@ describe("recovery boundary client", () => {
     await expect(recoveryBoundaryStatus(new NextRequest("http://localhost/contacts"))).resolves.toBe("clear");
     vi.stubGlobal("fetch", vi.fn(async () => { throw new DOMException("The operation was aborted due to timeout", "TimeoutError"); }));
     await expect(recoveryBoundaryStatus(new NextRequest("http://localhost/contacts"))).resolves.toBe("unavailable");
+  });
+
+  it("asks the configured same-origin probe, and only a same-origin path", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ status: "clear" }));
+    vi.stubGlobal("fetch", fetchMock);
+    // On Netlify the dedicated function keeps the application function's cold start out of the check.
+    vi.stubEnv("RECOVERY_BOUNDARY_PATH", "/.netlify/functions/recovery-boundary");
+    await expect(recoveryBoundaryStatus(new NextRequest("https://jump-in-the-mix-test.netlify.app/contacts"))).resolves.toBe("clear");
+    expect(fetchMock).toHaveBeenLastCalledWith(new URL("https://jump-in-the-mix-test.netlify.app/.netlify/functions/recovery-boundary"), expect.objectContaining({ cache: "no-store" }));
+    // Anything that is not an absolute path on this origin falls back to the health route.
+    for (const value of ["https://elsewhere.example.test/probe", "//elsewhere.example.test/probe", "relative/path", "/with space", ""]) {
+      expect(recoveryBoundaryPath({ ...process.env, RECOVERY_BOUNDARY_PATH: value })).toBe("/api/health/recovery-boundary");
+    }
+    expect(recoveryBoundaryPath({ ...process.env, RECOVERY_BOUNDARY_PATH: undefined })).toBe("/api/health/recovery-boundary");
   });
 
   it.each([
