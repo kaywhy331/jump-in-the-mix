@@ -249,12 +249,18 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     // Switching away from the plan's channel takes this follow-up out of automatic delivery; the card says so.
     const automaticForPlan = automaticFor(planChannel);
     const heldByChoice = Boolean(alternative && automaticForPlan);
+    // The note gives the real reason: the owner's choice, or the plan's own method missing so the
+    // card fell back to an alternative without anyone choosing it.
+    const chosen = Boolean(alternative && followUp.selectedFamily === active?.family);
+    const heldNote = !heldByChoice || !active ? null : chosen
+      ? `Because you chose ${choiceOption(active.family, active.channel).label.toLowerCase()} instead of the plan’s ${channelLabel(planChannel)}, this one waits for you and won’t send automatically.`
+      : `The plan’s ${channelLabel(planChannel)} needs ${planChannel === "EMAIL" ? "an email address" : "a phone number"} this person doesn’t have, so this one waits for you and won’t send automatically.`;
     const choice = isPending && active && offersChoice(usable) ? <FollowUpChannelChoice
       jumpId={followUp.id}
       contactName={followUp.contact.displayName}
       options={usable.map((item) => choiceOption(item.family, item.channel))}
       selected={active.family}
-      heldNote={heldByChoice ? `Because you chose ${choiceOption(active.family, active.channel).label.toLowerCase()} instead of the plan’s ${channelLabel(planChannel)}, this one waits for you and won’t send automatically.` : null}
+      heldNote={heldNote}
     /> : null;
     const snippet = content.length > 150 ? `${content.slice(0, 147)}…` : content;
     const isNext = followUp.id === nextUp?.id;
