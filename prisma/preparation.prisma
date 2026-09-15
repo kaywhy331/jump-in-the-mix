@@ -64,3 +64,21 @@ model JumpAttempt {
   @@index([jumpId, createdAt])
   @@index([workspaceId, createdAt])
 }
+
+// Slice 3: authored alternatives for one beat's message. The step version's own subject, body
+// and script stay the plan's primary channel; a variant adds wording for another family so the
+// owner can switch channels on Today without another scheduled action. A TEXT variant carries a
+// body, an EMAIL variant a subject and body, a CALL variant only private call notes: outward
+// wording never comes from a call variant and private notes never leak into a text or email.
+model StepVersionVariant {
+  stepVersionId String
+  family        PreparationFamily
+  subject       String?
+  body          String?
+  script        String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  stepVersion   StepVersion       @relation(fields: [stepVersionId], references: [id], onDelete: Cascade)
+
+  @@id([stepVersionId, family])
+}

@@ -438,6 +438,8 @@ model StepVersion {
   stepTemplate   StepTemplate @relation(fields: [stepTemplateId], references: [id], onDelete: Cascade)
   mixSteps       MixStep[]
   jumps          Jump[]
+  // Authored wording for the other channel families of this version (Slice 3).
+  variants       StepVersionVariant[]
   createdAt      DateTime     @default(now())
 
   @@unique([stepTemplateId, version])
@@ -537,6 +539,10 @@ model Jump {
   // Scheduler-owned base instant. scheduledAt is the later of this and snoozedUntil.
   baseScheduledAt  DateTime?
   uniquenessKey    String                 @unique
+  // The channel family the owner chose on Today for this one follow-up; null means the plan's own
+  // channel. It never creates another scheduled action, and a family that is no longer authored or
+  // has no recipient method falls back to the plan's channel when the card is read.
+  selectedFamily   PreparationFamily?
   // The appointment binding this follow-up belongs to, when it is anchored to a visit.
   appointmentBindingId String?
   appointmentBinding   AppointmentBinding? @relation(fields: [appointmentBindingId], references: [id], onDelete: SetNull)

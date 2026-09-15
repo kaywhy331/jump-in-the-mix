@@ -23,6 +23,7 @@ import {
 } from "@/lib/personal-scheduling";
 import { minutesInTimezone, plannedStepApplies } from "@/lib/planned-step";
 import { anchoredStepInstant, boundStepIsPreparation, type BoundStepTiming } from "@/lib/step-timing";
+import { variantTemplatesOf } from "@/lib/preparation-variants";
 import { isValidTimezone } from "@/lib/mix-broadcast";
 import type { AppointmentContext } from "@/lib/appointment-context";
 
@@ -215,7 +216,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
           include: {
             steps: {
               where: { isActive: true },
-              include: { stepVersion: { include: { stepTemplate: true } } },
+              include: { stepVersion: { include: { stepTemplate: true, variants: true } } },
               orderBy: { sortOrder: "asc" }
             },
             dateType: true
@@ -533,6 +534,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
               body: mixStep.stepVersion.body,
               script: mixStep.stepVersion.script,
               channel,
+              // Authored wording for the other channel families (Slice 3); absent on a single-channel beat.
+              ...(variantTemplatesOf(mixStep.stepVersion.variants) ? { variants: variantTemplatesOf(mixStep.stepVersion.variants) } : {}),
               localDateTime,
               timezone: trigger.timezone,
               originalLocalDate: logicalDateKey(originalLogicalDate),
