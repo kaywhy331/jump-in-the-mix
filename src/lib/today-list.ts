@@ -42,13 +42,15 @@ function withinGroup(cursor: Cursor, direction: Direction): Prisma.JumpWhereInpu
 }
 
 const select = {
-  id: true, contactId: true, mixId: true, scheduledAt: true, baseScheduledAt: true, status: true, updatedAt: true, reason: true, renderedSnapshot: true, templateSnapshot: true, stepVersionId: true, completedAt: true,
+  id: true, contactId: true, mixId: true, scheduledAt: true, baseScheduledAt: true, status: true, updatedAt: true, reason: true, renderedSnapshot: true, templateSnapshot: true, stepVersionId: true, completedAt: true, selectedFamily: true,
   // The contact fields the message tokens resolve from, so an owner's draft renders on the card.
   contact: { select: {
     displayName: true, updatedAt: true, firstName: true, lastName: true, company: true, publicNotes: true, privateNotes: true,
     emails: { select: { email: true, isPrimary: true } }, phones: { select: { phone: true, isPrimary: true } },
     addresses: { select: { street1: true, street2: true, city: true, state: true, postalCode: true, country: true, isPrimary: true } },
-    customFieldValues: { select: { value: true, definition: { select: { key: true } } } }
+    customFieldValues: { select: { value: true, definition: { select: { key: true } } } },
+    // The person's stated preference decides whether a text alternative goes by WhatsApp; it is never inferred.
+    relationshipState: { select: { preferredChannel: true } }
   } },
   mix: { select: { name: true, source: true } },
   stepVersion: { select: { stepTemplate: { select: { channel: true } } } }

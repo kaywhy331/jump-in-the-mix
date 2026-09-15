@@ -9,15 +9,19 @@ import { ReviewDialog } from "@/components/ReviewDialog";
 import { saveMixAction } from "@/lib/mix-editor-actions";
 import { STEP_ANCHORS, STEP_ANCHOR_LABELS, MAX_STEP_OFFSET_MINUTES, describeStepReadiness, describeStepTiming } from "@/lib/step-timing";
 import type { StepAnchor } from "@/generated/prisma/client";
+import type { PreparationFamily } from "@/lib/preparation-family";
 
 type TriggerMode = "DATE_TRIGGERED" | "MANUAL_START" | "BROADCAST";
 type MixStatus = "DRAFT" | "ACTIVE" | "PAUSED";
 type Channel = "SMS" | "EMAIL" | "PHONE_CALL" | "VOICEMAIL" | "WHATSAPP";
 type DateTypeOption = { id: string; name: string; isSystem: boolean };
 type GroupOption = { id: string; name: string; color: string | null; isActive: boolean; contactCount: number };
+// Wording for the other channel families of a beat (Slice 3); blank means not offered.
+type Variants = { textBody: string; emailSubject: string; emailBody: string; callScript: string };
 // An elapsed beat is edited as a positive number of minutes plus before/after; the stored offset keeps its sign.
-type SequenceItem = { key: string; id?: string; name: string; channel: Channel; subject: string; body: string; script: string; dayOffset: number; sendTimeMinutes: number | null; plannedAt: string; anchor: StepAnchor; offsetMinutes: string; before: boolean };
-type MixValue = { id?: string; name?: string; description?: string | null; framework?: string | null; category?: string | null; industry?: string | null; triggerMode?: TriggerMode; dateTypeId?: string | null; status?: MixStatus; groupIds?: string[]; assignAllContacts?: boolean; broadcastDate?: string | null; broadcastTime?: string | null; broadcastTimezone?: string | null; steps?: Array<{ id: string; stepTemplateId: string; templateActive: boolean; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null; dayOffset: number; sendTimeMinutes: number | null; plannedAt?: string | null; anchor?: StepAnchor; offsetMinutes?: number | null }> };
+type SequenceItem = { key: string; id?: string; name: string; channel: Channel; subject: string; body: string; script: string; dayOffset: number; sendTimeMinutes: number | null; plannedAt: string; anchor: StepAnchor; offsetMinutes: string; before: boolean; variants: Variants };
+type StoredVariant = { family: PreparationFamily; subject: string | null; body: string | null; script: string | null };
+type MixValue = { id?: string; name?: string; description?: string | null; framework?: string | null; category?: string | null; industry?: string | null; triggerMode?: TriggerMode; dateTypeId?: string | null; status?: MixStatus; groupIds?: string[]; assignAllContacts?: boolean; broadcastDate?: string | null; broadcastTime?: string | null; broadcastTimezone?: string | null; steps?: Array<{ id: string; stepTemplateId: string; templateActive: boolean; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null; dayOffset: number; sendTimeMinutes: number | null; plannedAt?: string | null; anchor?: StepAnchor; offsetMinutes?: number | null; variants?: StoredVariant[] }> };
 type LegacyMessageOption = { id: string; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null };
 
 const MAX_STEP_OFFSET_DAYS = 365;
@@ -29,8 +33,20 @@ const CHANNELS: Array<{ value: Channel; label: string }> = [
   { value: "WHATSAPP", label: "WhatsApp" }
 ];
 
+const NO_VARIANTS: Variants = { textBody: "", emailSubject: "", emailBody: "", callScript: "" };
+
+function variantsOf(stored: StoredVariant[] | undefined): Variants {
+  const find = (family: PreparationFamily) => stored?.find((item) => item.family === family);
+  return { textBody: find("TEXT")?.body ?? "", emailSubject: find("EMAIL")?.subject ?? "", emailBody: find("EMAIL")?.body ?? "", callScript: find("CALL")?.script ?? "" };
+}
+
+/** The family a channel's wording belongs to; a beat never offers an alternative for its own family. */
+function familyOf(channel: Channel): PreparationFamily {
+  return channel === "EMAIL" ? "EMAIL" : channel === "PHONE_CALL" || channel === "VOICEMAIL" ? "CALL" : "TEXT";
+}
+
 function newStep(index: number, previousOffset = -1): SequenceItem {
-  return { key: `new-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`, name: `Beat ${index + 1}`, channel: index === 0 ? "SMS" : "PHONE_CALL", subject: "", body: "", script: "", dayOffset: Math.min(previousOffset + 1, MAX_STEP_OFFSET_DAYS), sendTimeMinutes: null, plannedAt: "", anchor: "CALENDAR_DAY", offsetMinutes: "", before: false };
+  return { key: `new-${Date.now()}-${index}-${Math.random().toString(36).slice(2)}`, name: `Beat ${index + 1}`, channel: index === 0 ? "SMS" : "PHONE_CALL", subject: "", body: "", script: "", dayOffset: Math.min(previousOffset + 1, MAX_STEP_OFFSET_DAYS), sendTimeMinutes: null, plannedAt: "", anchor: "CALENDAR_DAY", offsetMinutes: "", before: false, variants: NO_VARIANTS };
 }
 
 function timeValue(minutes: number | null): string {
@@ -81,7 +97,7 @@ export function MixEditor({
   const [selectedGroupIds, setSelectedGroupIds] = useState(() => new Set(mix?.groupIds ?? []));
   const [reviewOpen, setReviewOpen] = useState(false);
   const [sequence, setSequence] = useState<SequenceItem[]>(() => {
-    const existing = mix?.steps?.map((step) => ({ key: step.id, id: step.id, name: step.name, channel: step.channel, subject: step.subject ?? "", body: step.body ?? "", script: step.script ?? "", dayOffset: step.dayOffset, sendTimeMinutes: step.sendTimeMinutes, plannedAt: step.plannedAt ?? "", anchor: step.anchor ?? "CALENDAR_DAY", offsetMinutes: step.offsetMinutes == null ? "" : String(Math.abs(step.offsetMinutes)), before: (step.offsetMinutes ?? 0) < 0 })) ?? [];
+    const existing = mix?.steps?.map((step) => ({ key: step.id, id: step.id, name: step.name, channel: step.channel, subject: step.subject ?? "", body: step.body ?? "", script: step.script ?? "", dayOffset: step.dayOffset, sendTimeMinutes: step.sendTimeMinutes, plannedAt: step.plannedAt ?? "", anchor: step.anchor ?? "CALENDAR_DAY", offsetMinutes: step.offsetMinutes == null ? "" : String(Math.abs(step.offsetMinutes)), before: (step.offsetMinutes ?? 0) < 0, variants: variantsOf(step.variants) })) ?? [];
     return existing.length ? existing : [newStep(0)];
   });
   const selectedGroups = useMemo(() => groups.filter((group) => selectedGroupIds.has(group.id)), [groups, selectedGroupIds]);
@@ -182,6 +198,21 @@ export function MixEditor({
             {item.channel === "EMAIL" && <label className="field full"><span>Subject</span><input name={`inlineSubject-${index}`} value={item.subject} onChange={(event) => updateStep(index, { subject: event.target.value })} maxLength={300} required /></label>}
             {written ? <label className="field full"><span>Message</span><textarea name={`inlineBody-${index}`} value={item.body} onChange={(event) => updateStep(index, { body: event.target.value })} rows={5} placeholder="Hi {{First Name}}, ... {{SMS Signature}}" required /></label> : <label className="field full"><span>{item.channel === "VOICEMAIL" ? "Voicemail" : "Call notes"}</span><textarea name={`inlineScript-${index}`} value={item.script} onChange={(event) => updateStep(index, { script: event.target.value })} rows={5} placeholder="What should you remember to ask?" required /></label>}
           </div>
+          {(() => {
+            const primary = familyOf(item.channel);
+            const setVariant = (patch: Partial<Variants>) => updateStep(index, { variants: { ...item.variants, ...patch } });
+            const offered = [primary !== "TEXT" && item.variants.textBody.trim(), primary !== "EMAIL" && item.variants.emailBody.trim(), primary !== "CALL" && item.variants.callScript.trim()].filter(Boolean).length;
+            return <details className="step-advanced-settings" data-beat-alternatives={index}><summary>Also offer as…{offered ? ` (${offered})` : ""}</summary><div className="form-grid">
+              <input type="hidden" name={`variantTextBody-${index}`} value={primary === "TEXT" ? "" : item.variants.textBody} />
+              <input type="hidden" name={`variantEmailSubject-${index}`} value={primary === "EMAIL" ? "" : item.variants.emailSubject} />
+              <input type="hidden" name={`variantEmailBody-${index}`} value={primary === "EMAIL" ? "" : item.variants.emailBody} />
+              <input type="hidden" name={`variantCallScript-${index}`} value={primary === "CALL" ? "" : item.variants.callScript} />
+              <p className="muted-copy field full">Write this beat for another way of reaching out. On Today you choose which one to use; each version keeps its own wording, and choosing never sends anything or adds another follow-up. Leave a version blank to not offer it.</p>
+              {primary !== "TEXT" && <label className="field full"><span>Text version</span><textarea value={item.variants.textBody} onChange={(event) => setVariant({ textBody: event.target.value })} rows={3} placeholder="Hi {{First Name}}, ... {{SMS Signature}}" /></label>}
+              {primary !== "EMAIL" && <><label className="field full"><span>Email version subject</span><input value={item.variants.emailSubject} onChange={(event) => setVariant({ emailSubject: event.target.value })} maxLength={300} /></label><label className="field full"><span>Email version</span><textarea value={item.variants.emailBody} onChange={(event) => setVariant({ emailBody: event.target.value })} rows={4} placeholder="Hi {{First Name}}, ... {{Email Signature}}" /></label></>}
+              {primary !== "CALL" && <label className="field full"><span>Call version · notes for you</span><textarea value={item.variants.callScript} onChange={(event) => setVariant({ callScript: event.target.value })} rows={3} placeholder="What should you remember to ask? Private notes may go here." /></label>}
+            </div></details>;
+          })()}
           {item.anchor === "CALENDAR_DAY" && <details className="step-advanced-settings"><summary>More tempo settings</summary><div className="form-grid"><label className="field"><span>Position</span><select value={signedOffset < 0 ? "before" : "after"} onChange={(event) => updateStep(index, { dayOffset: event.target.value === "before" ? -Math.abs(item.dayOffset) : Math.abs(item.dayOffset) })} disabled={triggerMode === "MANUAL_START"}><option value="after">On or after the start</option><option value="before">Before the date</option></select></label><label className="field"><span>Specific time</span><input type="time" value={timeValue(item.sendTimeMinutes)} onChange={(event) => updateStep(index, { sendTimeMinutes: minutesValue(event.target.value) })} /></label><label className="field full"><span>Planned date (optional)</span><input type="datetime-local" value={item.plannedAt} onChange={(event) => updateStep(index, { plannedAt: event.target.value })} /><small>Becomes due at this date and time, in your timezone, for every contact who has reached this beat.</small></label></div></details>}
         </fieldset>;
       })}</div>

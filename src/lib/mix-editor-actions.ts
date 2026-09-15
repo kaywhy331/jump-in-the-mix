@@ -8,6 +8,8 @@ import { requireWorkspace } from "@/lib/auth";
 import { listGroupStates, mergeGroupActivity } from "@/lib/group-activity";
 import { parseBroadcastScheduleInput } from "@/lib/mix-broadcast";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
+import { preparationFamilyForChannel, type PreparationFamily } from "@/lib/preparation-family";
+import { variantFieldsForFamily } from "@/lib/preparation-variants";
 import { prisma } from "@/lib/prisma";
 import { startDraftMix } from "@/lib/mix-start";
 import { timezoneForUser } from "@/lib/display-preferences";
@@ -16,13 +18,49 @@ import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
 const MAX_STEP_OFFSET_DAYS = 365;
 const CHANNELS: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
 
+type InlineVariant = { family: PreparationFamily; subject: string | null; body: string | null; script: string | null };
+
 type InlineAction = {
   name: string;
   channel: Channel;
   subject: string | null;
   body: string | null;
   script: string | null;
+  /** Authored wording for the beat's other channel families (Slice 3); a blank version is not offered. */
+  variants: InlineVariant[];
 };
+
+/**
+ * The beat's alternatives. A version is authored when its wording is present; the beat's own family
+ * is never an alternative. Outward wording (text, email) refuses private-note tokens exactly as a
+ * non-call beat does; an email version needs a subject; every version uses only known tokens.
+ */
+function validateInlineVariants(formData: FormData, index: number, channel: Channel, path: string): InlineVariant[] {
+  const primary = preparationFamilyForChannel(channel);
+  const beat = `Beat ${index + 1}`;
+  const candidates: Array<{ family: PreparationFamily; label: string; content: { subject: string | null; body: string | null; script: string | null } }> = [
+    { family: "TEXT", label: "text version", content: { subject: null, body: value(formData, `variantTextBody-${index}`, 20_000) || null, script: null } },
+    { family: "EMAIL", label: "email version", content: { subject: value(formData, `variantEmailSubject-${index}`, 300) || null, body: value(formData, `variantEmailBody-${index}`, 20_000) || null, script: null } },
+    { family: "CALL", label: "call version", content: { subject: null, body: null, script: value(formData, `variantCallScript-${index}`, 20_000) || null } }
+  ];
+  const variants: InlineVariant[] = [];
+  for (const candidate of candidates) {
+    if (candidate.family === primary) continue;
+    const content = variantFieldsForFamily(candidate.family, candidate.content);
+    const wording = candidate.family === "CALL" ? content.script : content.body;
+    if (!wording) {
+      if (candidate.family === "EMAIL" && content.subject) fail(path, `${beat}'s email version has a subject but no message.`);
+      continue;
+    }
+    if (candidate.family === "EMAIL" && !content.subject) fail(path, `${beat}'s email version needs a subject.`);
+    const text = [content.subject, content.body, content.script].filter(Boolean).join("\n");
+    const unknown = findUnknownPlaceholders(text);
+    if (unknown.length) fail(path, `${beat}'s ${candidate.label} uses unsupported placeholders: ${unknown.join(", ")}`);
+    if (candidate.family !== "CALL" && containsPrivateNotesPlaceholder(text)) fail(path, `Private notes may only be inserted into ${beat}'s call version.`);
+    variants.push({ family: candidate.family, ...content });
+  }
+  return variants;
+}
 
 function value(formData: FormData, key: string, maximum = 4000): string {
   return String(formData.get(key) ?? "").trim().slice(0, maximum);
@@ -58,7 +96,8 @@ function validateInlineAction(formData: FormData, index: number, path: string): 
     channel,
     subject,
     body,
-    script
+    script,
+    variants: validateInlineVariants(formData, index, channel, path)
   };
 }
 
@@ -233,7 +272,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
             name: `${name} — ${action.name}`,
             channel: action.channel,
             isActive: false,
-            versions: { create: { version: 1, subject: action.subject, body: action.body, script: action.script, longSms: action.channel === "SMS" && (action.body?.length ?? 0) > 160 } }
+            versions: { create: { version: 1, subject: action.subject, body: action.body, script: action.script, longSms: action.channel === "SMS" && (action.body?.length ?? 0) > 160, variants: { create: action.variants } } }
           },
           include: { versions: true }
         });

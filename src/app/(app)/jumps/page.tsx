@@ -5,6 +5,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { AutoSubmitForm } from "@/components/AutoSubmitForm";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EditableFollowUpAction } from "@/components/EditableFollowUpAction";
+import { FollowUpChannelChoice, type ChannelChoiceOption } from "@/components/FollowUpChannelChoice";
 import { EmptyState } from "@/components/EmptyState";
 import { JumpActionLink } from "@/components/JumpActionControls";
 import { JumpOutcomeButton, JumpReturnTray, JumpStampEditor, JumpWorkflowCard } from "@/components/JumpWorkflow";
@@ -22,7 +23,8 @@ import { projectDraftSource, type DraftValues } from "@/lib/draft-segments";
 import { formatDateTime } from "@/lib/format";
 import { readJumpDrafts } from "@/lib/jump-drafts";
 import { buildJumpReplacementValues } from "@/lib/jump-render";
-import { detachedChanges, preparationFamilyForChannel } from "@/lib/preparation-family";
+import { detachedChanges, preparationFamilyForChannel, type PreparationFamily } from "@/lib/preparation-family";
+import { offersChoice, preparedVariants, selectedVariant, usableVariants, variantsOfSnapshot } from "@/lib/preparation-variants";
 import { addLogicalDays, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
@@ -93,6 +95,13 @@ function channelLabel(channel: Channel): string {
   if (channel === "PHONE_CALL") return "call";
   if (channel === "VOICEMAIL") return "voicemail";
   return channel.replaceAll("_", " ").toLowerCase();
+}
+
+/** The chip for one usable variant: the family's plain name, WhatsApp when the person prefers it. */
+function choiceOption(family: PreparationFamily, channel: Channel): ChannelChoiceOption {
+  if (family === "EMAIL") return { family, label: "Email", icon: "email" };
+  if (family === "CALL") return { family, label: "Call", icon: "phone" };
+  return { family, label: channel === "WHATSAPP" ? "WhatsApp" : "Text", icon: "message" };
 }
 
 function eventLabel(action: string): string {
@@ -209,24 +218,50 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const snapshot = (followUp.renderedSnapshot ?? {}) as Snapshot;
     const email = followUp.contact.emails.find((item) => item.isPrimary)?.email ?? followUp.contact.emails[0]?.email;
     const phone = followUp.contact.phones.find((item) => item.isPrimary)?.phone ?? followUp.contact.phones[0]?.phone;
-    const followUpChannel = followUp.stepVersion.stepTemplate.channel;
-    const url = actionUrl(followUpChannel, email, phone, snapshot);
+    const planChannel = followUp.stepVersion.stepTemplate.channel;
     const isPending = pendingStatuses.includes(followUp.status);
     // A pending follow-up edits its plan text as a draft; the card shows the draft rendered over the
     // contact and business details, so an edit made yesterday still reads with today's details.
-    const family = preparationFamilyForChannel(followUpChannel);
-    const template = isPending ? templateTextOf(followUp.templateSnapshot) : null;
+    const planTemplate = isPending ? templateTextOf(followUp.templateSnapshot) : null;
+    // One follow-up, channel alternatives: the plan's wording plus any authored variant the person can
+    // receive. The owner's choice for this follow-up wins while usable; otherwise the plan's channel.
+    const methods = { email: email ?? null, phone: phone ?? null, preferredChannel: followUp.contact.relationshipState?.preferredChannel ?? null };
+    const prepared = planTemplate ? preparedVariants({ channel: planChannel, template: planTemplate }, variantsOfSnapshot(followUp.templateSnapshot), methods) : [];
+    const usable = usableVariants(prepared, methods);
+    const active = selectedVariant(usable, followUp.selectedFamily) ?? prepared[0] ?? null;
+    const followUpChannel = active?.channel ?? planChannel;
+    const family = active?.family ?? preparationFamilyForChannel(planChannel);
+    const template = active?.template ?? null;
     const draft = template ? drafts.get(followUp.id)?.find((item) => item.family === family) ?? null : null;
     const allValues = template ? buildJumpReplacementValues(followUp.contact, profile, renderOwner, followUpChannel) : {};
     const draftValues = template ? pickTokens(allValues, [template.subject, template.body, template.script, draft?.subject, draft?.body, draft?.script]) : {};
     // A detail the owner wrote over by hand has changed since; say so rather than rewriting their words.
     const changedDetails = draft ? detachedChanges(draft.detached, allValues) : [];
-    const preparedSubject = draft ? projectDraftSource(draft.subject, draftValues) : snapshot.subject ?? null;
-    const preparedContent = draft ? projectDraftSource(draft.body ?? draft.script, draftValues) : null;
+    // An alternative's wording is rendered from its authored template here; the plan's own comes from the stored render.
+    const alternative = active && !active.primary;
+    const preparedSubject = draft ? projectDraftSource(draft.subject, draftValues) : alternative ? projectDraftSource(template!.subject, draftValues) : snapshot.subject ?? null;
+    const preparedContent = draft ? projectDraftSource(draft.body ?? draft.script, draftValues) : alternative ? projectDraftSource(template!.body ?? template!.script, draftValues) : null;
     const content = preparedContent ?? snapshot.body ?? snapshot.script ?? snapshot.subject ?? "No message has been prepared yet.";
+    const url = actionUrl(followUpChannel, email, phone, alternative ? { subject: preparedSubject, body: family === "CALL" ? null : preparedContent, script: family === "CALL" ? preparedContent : null } : snapshot);
     const contextVersions = { contactVersion: followUp.contact.updatedAt.toISOString(), businessProfileVersion: profile?.updatedAt.toISOString() ?? "none" };
     // A direct call from the list records the notes as shown, so the attempt matches the card.
     const callAttempt = isPending && phone ? { contactId: followUp.contactId, channel: followUpChannel, family, recipient: phone, subject: null, body: null, script: preparedContent ?? snapshot.script ?? null, draftRevision: draft?.revision ?? null, stepVersionId: followUp.stepVersionId, contextVersions } : null;
+    // Switching away from the plan's channel takes this follow-up out of automatic delivery; the card says so.
+    const automaticForPlan = automaticFor(planChannel);
+    const heldByChoice = Boolean(alternative && automaticForPlan);
+    // The note gives the real reason: the owner's choice, or the plan's own method missing so the
+    // card fell back to an alternative without anyone choosing it.
+    const chosen = Boolean(alternative && followUp.selectedFamily === active?.family);
+    const heldNote = !heldByChoice || !active ? null : chosen
+      ? `Because you chose ${choiceOption(active.family, active.channel).label.toLowerCase()} instead of the plan’s ${channelLabel(planChannel)}, this one waits for you and won’t send automatically.`
+      : `The plan’s ${channelLabel(planChannel)} needs ${planChannel === "EMAIL" ? "an email address" : "a phone number"} this person doesn’t have, so this one waits for you and won’t send automatically.`;
+    const choice = isPending && active && offersChoice(usable) ? <FollowUpChannelChoice
+      jumpId={followUp.id}
+      contactName={followUp.contact.displayName}
+      options={usable.map((item) => choiceOption(item.family, item.channel))}
+      selected={active.family}
+      heldNote={heldNote}
+    /> : null;
     const snippet = content.length > 150 ? `${content.slice(0, 147)}…` : content;
     const isNext = followUp.id === nextUp?.id;
     const recentEvents = eventsByFollowUp.get(followUp.id) ?? [];
@@ -240,6 +275,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const missingMethod = needsEmail ? !email : !phone;
     const directCall = followUpChannel === "PHONE_CALL" || followUpChannel === "VOICEMAIL";
     const editableAction = <EditableFollowUpAction
+      key={family}
       jumpId={followUp.id}
       contactId={followUp.contactId}
       contactName={followUp.contact.displayName}
@@ -254,9 +290,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       draft={draft ? { subject: draft.subject, body: draft.body, script: draft.script, revision: draft.revision } : null}
       stepVersionId={followUp.stepVersionId}
       contextVersions={contextVersions}
-      automaticDelivery={automaticFor(followUpChannel)}
+      automaticDelivery={automaticForPlan && !alternative}
       changedDetails={changedDetails}
     />;
+    const prepare = <>{choice}{editableAction}</>;
 
     return (
       <JumpWorkflowCard jumpId={followUp.id} contactName={followUp.contact.displayName} revision={followUp.updatedAt.toISOString()} key={followUp.id}>
@@ -265,7 +302,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             {isNext && <span className="eyebrow">Next up</span>}
             <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span className={followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{dueLabel}</span><span className="channel-pill">{channelLabel(followUpChannel)}</span></div>
             <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}<span>{followUp.mix.name}</span><span>{followUp.reason}</span></div>
-            {isNext ? <>{editableAction}{recentEvents.length > 0 && <div className="jump-action-history"><small>Recent activity</small>{recentEvents.map((event) => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt, displayPreferences)}</span>)}</div>}</> : <p className="jump-snippet">{snippet}</p>}
+            {isNext ? <>{prepare}{recentEvents.length > 0 && <div className="jump-action-history"><small>Recent activity</small>{recentEvents.map((event) => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt, displayPreferences)}</span>)}</div>}</> : <p className="jump-snippet">{snippet}</p>}
           </div>
 
           <div className="jump-primary-action">
@@ -274,7 +311,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             ) : directCall && url ? (
               <JumpActionLink jumpId={followUp.id} action={actionType(followUpChannel)} href={url} className="button primary jump-channel-action" ariaLabel={`Call ${followUp.contact.displayName}`} title="Call" contactName={followUp.contact.displayName} channel={followUpChannel} attempt={callAttempt}><AppIcon name="phone" /><span>Call</span></JumpActionLink>
             ) : (
-              <Sheet trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review message for ${followUp.contact.displayName}`}><AppIcon name={followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Message ${followUp.contact.displayName}`} description="Make it sound like you. Fine-tune before opening your phone’s composer.">{editableAction}</Sheet>
+              <Sheet trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review message for ${followUp.contact.displayName}`}><AppIcon name={followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Message ${followUp.contact.displayName}`} description="Make it sound like you. Fine-tune before opening your phone’s composer.">{prepare}</Sheet>
             ))}
             <div className="jump-completion-actions">
               <JumpOutcomeButton jumpId={followUp.id} outcome={isPending ? "COMPLETED" : "REOPENED"} className={`button small jump-done-action ${isPending ? "" : "done"}`} ariaLabel={isPending ? "Done" : "Undo"}><AppIcon name="check" /><span>{isPending ? "Done" : "Undo"}</span></JumpOutcomeButton>

@@ -198,7 +198,7 @@ These are contract rules for the next slice. The binding schema itself is not pa
 
 **Delivery safeguards.** Automatic delivery claims only the plan's own channel for a follow-up whose `selectedFamily` is null or equals that channel's family; a follow-up switched to another family is held for the owner, in the candidate read and again in the recheck before sending, so a claim taken for the plan's channel is released rather than reused. Drafts hold delivery as before.
 
-**Lifecycle.** Export includes each step version's variants with the plan and the follow-up's selection with the row; contact merge, retention and deletion are unchanged because drafts and attempts are keyed as before. Library and starter mixes carry no variants yet; typed custom details and optional blocks are queued separately. The authoring controls and the Today switcher ship in the next pull request.
+**Lifecycle.** Export includes each step version's variants with the plan and the follow-up's selection with the row; contact merge, retention and deletion are unchanged because drafts and attempts are keyed as before. Library and starter mixes carry no variants yet; typed custom details and optional blocks are queued separately. The Beat editor's “Also offer as…” fields author the alternatives (a blank version is not offered; an email version needs a subject; private-note tokens are refused outside the call version), and the Today card offers a compact Text/Email/Call choice only when more than one variant is usable, remembering the choice per follow-up; the card's channel, wording, draft, handoff link, attempt and automatic-delivery note all follow the active variant.
 
 ## 10. Out of scope
 
