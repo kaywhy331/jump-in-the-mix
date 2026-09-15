@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { scheduleVisit } from "../src/lib/appointment-bindings";
 import { runAutomaticDeliveries } from "../src/lib/automatic-delivery";
 import { recordJumpAttempt, type AttemptPayload } from "../src/lib/jump-attempts";
 import { saveJumpDraft } from "../src/lib/jump-drafts";
@@ -117,6 +118,37 @@ describe.skipIf(!local).sequential("one follow-up, channel alternatives", () => 
     expect(jump.selectedFamily).toBe("EMAIL");
     expect(jump.drafts.map((draft) => draft.family).sort()).toEqual(["CALL", "EMAIL", "TEXT"]);
     expect((jump.renderedSnapshot as { body: string }).body).toContain("Casey's Roofing");
+  });
+
+  it("refuses a stale save on an alternative's draft and returns that family's current draft, never another family's", async () => {
+    const current = await prisma.jumpDraft.findUniqueOrThrow({ where: { jumpId_family: { jumpId, family: "EMAIL" } } });
+    const stale = await saveJumpDraft({ workspaceId, jumpId, family: "EMAIL", subject: "Your estimate", body: "Typed on another device", revision: current.revision + 5 });
+    expect(stale).toMatchObject({ ok: false, reason: "conflict", draft: { family: "EMAIL", revision: current.revision, body: current.body } });
+    expect((await prisma.jumpDraft.findUniqueOrThrow({ where: { jumpId_family: { jumpId, family: "EMAIL" } } })).body).toBe(current.body);
+    expect((await prisma.jumpDraft.findUniqueOrThrow({ where: { jumpId_family: { jumpId, family: "TEXT" } } })).body).toBe("Hi {{First Name}}, my own text.");
+  });
+
+  it("keeps the selection and each family's draft when a bound visit is rescheduled and the row moves in place", async () => {
+    const visitor = await prisma.contact.create({ data: { workspaceId, firstName: "Vi", displayName: "Vi", phones: { create: { phone: "+15550100602", normalized: "+15550100602", isPrimary: true } }, emails: { create: { email: "vi@example.com", normalized: "vi@example.com", isPrimary: true } } } });
+    const template = await prisma.stepTemplate.create({ data: { workspaceId, name: "Visit text", channel: "SMS" } });
+    const version = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 1, body: "See you soon {{First Name}}", variants: { create: [{ family: "EMAIL", subject: "See you soon", body: "Hi {{First Name}}, see you soon." }] } } });
+    const mix = await prisma.mix.create({ data: { workspaceId, name: "Visit plan", triggerMode: "MANUAL_START", status: "ACTIVE" } });
+    await prisma.mixStep.create({ data: { mixId: mix.id, stepVersionId: version.id, sortOrder: 1, dayOffset: -1, sendTimeMinutes: 9 * 60 } });
+    const startsAt = new Date(Date.now() + 5 * 86_400_000);
+    const bound = await scheduleVisit({ workspaceId, title: "Site visit", kind: "MEETING", startsAt, endsAt: new Date(startsAt.getTime() + 30 * 60_000), timezone: "UTC", contactId: visitor.id, planId: mix.id, allowOverlap: true });
+    await reconcileJumps({ workspaceId, mixId: mix.id });
+    const row = await prisma.jump.findFirstOrThrow({ where: { appointmentBindingId: bound.bindingId! } });
+    expect((row.templateSnapshot as { variants?: unknown }).variants).toEqual({ EMAIL: { subject: "See you soon", body: "Hi {{First Name}}, see you soon.", script: null } });
+    expect(await selectJumpVariant({ workspaceId, jumpId: row.id, family: "EMAIL" })).toEqual({ ok: true, selectedFamily: "EMAIL" });
+    expect(await saveJumpDraft({ workspaceId, jumpId: row.id, family: "EMAIL", subject: "See you soon", body: "Hi Vi, see you soon, bring the plans.", revision: null })).toMatchObject({ ok: true });
+    const entry = await prisma.calendarEntry.findUniqueOrThrow({ where: { id: bound.entryId } });
+    const moved = new Date(startsAt.getTime() + 2 * 86_400_000);
+    await prisma.calendarEntry.update({ where: { id: entry.id }, data: { startsAt: moved, endsAt: new Date(moved.getTime() + 30 * 60_000), version: entry.version + 1 } });
+    expect(await reconcileJumps({ workspaceId, mixId: mix.id })).toMatchObject({ updated: 1, created: 0, canceled: 0 });
+    const after = await prisma.jump.findUniqueOrThrow({ where: { id: row.id }, include: { drafts: true } });
+    expect(after.scheduledAt.getTime()).toBeGreaterThan(row.scheduledAt.getTime());
+    expect(after.selectedFamily).toBe("EMAIL");
+    expect(after.drafts.map((draft) => [draft.family, draft.body])).toEqual([["EMAIL", "Hi Vi, see you soon, bring the plans."]]);
   });
 
   it("holds a switched follow-up from automatic delivery and releases the claim rather than reusing it", async () => {
