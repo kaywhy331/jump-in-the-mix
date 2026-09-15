@@ -29,7 +29,7 @@ export default async function EditMixPage({
       include: {
         steps: {
           where: { isActive: true },
-          include: { stepVersion: { include: { stepTemplate: true } } },
+          include: { stepVersion: { include: { stepTemplate: true, variants: true } } },
           orderBy: { sortOrder: "asc" }
         },
         assignments: { where: { isActive: true, mode: "DYNAMIC" } }
@@ -100,7 +100,8 @@ export default async function EditMixPage({
             sendTimeMinutes: step.sendTimeMinutes,
             plannedAt: step.plannedAt ? plannedAtInput(step.plannedAt, timezone) : null,
             anchor: step.anchor,
-            offsetMinutes: step.offsetMinutes
+            offsetMinutes: step.offsetMinutes,
+            variants: step.stepVersion.variants.map((variant) => ({ family: variant.family, subject: variant.subject, body: variant.body, script: variant.script }))
           }))
         }}
       />

@@ -56,7 +56,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
   const mixes = await prisma.mix.findMany({
       where,
       include: {
-        steps: { where: { isActive: true }, include: { stepVersion: { include: { stepTemplate: true } } }, orderBy: { sortOrder: "asc" } },
+        steps: { where: { isActive: true }, include: { stepVersion: { include: { stepTemplate: true, variants: { select: { family: true } } } } }, orderBy: { sortOrder: "asc" } },
         dateType: true,
         _count: { select: { assignments: true } }
       },
@@ -102,6 +102,8 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
             const lastDay = Math.max(0, ...calendarSteps.map((step) => step.dayOffset));
             const timing = [`${mix.steps.length} beat${mix.steps.length === 1 ? "" : "s"}`, ...(calendarSteps.length ? [`${lastDay + 1} day${lastDay ? "s" : ""}`] : []), ...(visitBeats ? [`${visitBeats} timed from a visit`] : [])].join(" · ");
             const beatTiming = (step: { anchor: string; dayOffset: number; offsetMinutes: number | null }) => step.anchor === "CALENDAR_DAY" ? `Day ${step.dayOffset}` : describeStepTiming({ anchor: step.anchor as "APPOINTMENT_START" | "APPOINTMENT_END" | "VISIT_COMPLETED", offsetMinutes: step.offsetMinutes });
+            // A beat with authored alternatives can be sent another way from Today; say which.
+            const alternatives = (step: { stepVersion: { variants: Array<{ family: string }> } }) => step.stepVersion.variants.length ? ` · also ${step.stepVersion.variants.map((variant) => variant.family === "EMAIL" ? "email" : variant.family === "CALL" ? "call" : "text").join(", ")}` : "";
             const channelSequence = [...new Set(mix.steps.map((step) => step.stepVersion.stepTemplate.channel.replaceAll("_", " ").toLowerCase()))];
             return (
               <article className="mix-row mix-card" key={mix.id}>
@@ -124,7 +126,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                 {mix.description && <p className="muted-copy">{mix.description}</p>}
                 <div className="mix-sequence-preview" aria-label={`${mix.name} follow-up sequence`}>
                   {mix.steps.length ? mix.steps.map((step, index) => (
-                    <div className="mix-sequence-item" key={step.id}><span className="mix-sequence-number">Beat {index + 1}</span><span className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></span><span><strong>{step.stepVersion.stepTemplate.name}</strong><small>{beatTiming(step)}</small></span></div>
+                    <div className="mix-sequence-item" key={step.id}><span className="mix-sequence-number">Beat {index + 1}</span><span className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></span><span><strong>{step.stepVersion.stepTemplate.name}</strong><small>{beatTiming(step)}{alternatives(step)}</small></span></div>
                   )) : <span className="status-pill">No follow-ups yet</span>}
                 </div>
                 <details className="mix-details"><summary>Preview the rhythm</summary><div className="timeline">{mix.steps.map((step, index) => {
