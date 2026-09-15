@@ -10,7 +10,7 @@ const httpCredentials = httpUsername && httpPassword ? { username: httpUsername,
 
 export default defineConfig({
   testDir: "./e2e",
-  testMatch: "staging-smoke.spec.ts",
+  testMatch: /staging-.*\.spec\.ts$/,
   outputDir: "test-results-staging",
   timeout: 90_000,
   expect: { timeout: 15_000 },
