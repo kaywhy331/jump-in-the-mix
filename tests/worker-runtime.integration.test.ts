@@ -12,9 +12,10 @@ describe.skipIf(!local).sequential("unattended worker processes on PostgreSQL", 
   const database = `jitm_design_runtime_${randomUUID().replaceAll("-", "").slice(0, 10)}`;
   let admin: Client, sql: Client, gate: Client, db: PrismaClient, url: URL;
   const children: ChildProcess[] = [], output = new Map<ChildProcess, string>();
-  const sockets = new Set<Socket>(); let proxyOffline = false;
+  const sockets = new Set<Socket>(); let proxyOffline = false, proxyStalled = false;
   const proxy = createServer(incoming => {
     if (proxyOffline) { incoming.destroy(); return; }
+    if (proxyStalled) { sockets.add(incoming); incoming.on("error", () => undefined); incoming.on("close", () => sockets.delete(incoming)); return; }
     const upstream = connect({ host: url.hostname, port: Number(url.port) });
     for (const socket of [incoming, upstream]) { sockets.add(socket); socket.on("error", () => { incoming.destroy(); upstream.destroy(); }); socket.on("close", () => { sockets.delete(socket); incoming.destroy(); upstream.destroy(); }); }
     incoming.pipe(upstream); upstream.pipe(incoming);
@@ -37,7 +38,8 @@ describe.skipIf(!local).sequential("unattended worker processes on PostgreSQL", 
   }
   afterEach(async () => {
     await Promise.all(children.splice(0).map(child => stop(child)));
-    for (const socket of sockets) socket.destroy(); proxyOffline = false;
+    for (const socket of sockets) socket.destroy(); proxyOffline = false; proxyStalled = false;
+    await sql.query(`ALTER DATABASE "${database}" RESET jitm.recovery_hold`);
     await gate.query("SELECT pg_advisory_unlock_all()");
     await sql.query('DROP TRIGGER IF EXISTS worker_import_gate ON "IdempotencyKey"'); await sql.query('DROP FUNCTION IF EXISTS worker_import_gate()');
     await db.contactImportBatch.deleteMany(); await db.workspacePreference.deleteMany(); await db.workspace.deleteMany(); await db.user.deleteMany();
@@ -77,6 +79,24 @@ describe.skipIf(!local).sequential("unattended worker processes on PostgreSQL", 
     await db.mixAssignment.create({ data: { assignmentKey: randomUUID(), workspaceId: workspace.id, mixId: mix.id, contactId: contact.id, startDate: new Date() } });
     return { user, workspace, contact, mix };
   }
+  it.each(["held", "unavailable", "timed-out"])("does not claim queued work while recovery is %s, then processes it when clear", async state => {
+    const f = await fixture();
+    const job = await db.job.create({ data: { workspaceId: f.workspace.id, task: "generate-jumps", payload: { contactId: f.contact.id } } });
+    if (state === "held") await sql.query(`ALTER DATABASE "${database}" SET jitm.recovery_hold TO 'isolated-runtime-test'`);
+    proxyOffline = state === "unavailable"; proxyStalled = state === "timed-out";
+    const started = Date.now(), worker = start(true);
+    await until(() => output.get(worker)!.includes(`verification (${state === "held" ? "recovery-held" : "unavailable"})`), 20_000);
+    expect(Date.now() - started).toBeLessThan(20_000);
+    expect(await db.job.findUnique({ where: { id: job.id } })).toMatchObject({ attempts: 0, completedAt: null, lockedBy: null });
+    expect(await db.jump.count()).toBe(0); expect(await db.workerHeartbeat.count()).toBe(0);
+    await stop(worker);
+    await sql.query(`ALTER DATABASE "${database}" RESET jitm.recovery_hold`);
+    proxyOffline = false; proxyStalled = false; for (const socket of sockets) socket.destroy();
+    await ready(start(true));
+    await until(async () => Boolean((await db.job.findUnique({ where: { id: job.id } }))?.completedAt));
+    expect(await db.jump.count({ where: { contactId: f.contact.id } })).toBe(1);
+    expect(await db.job.findUnique({ where: { id: job.id } })).toMatchObject({ attempts: 1, failedAt: null });
+  }, 50_000);
   it("runs a future job only when due, with two workers and no web requests", async () => {
     const f = await fixture(); const first = start(), second = start(); await ready(first); await ready(second);
     const job = await db.job.create({ data: { workspaceId: f.workspace.id, task: "generate-jumps", payload: { contactId: f.contact.id }, runAt: new Date(Date.now() + 4000) } });

@@ -1,5 +1,7 @@
 # Production promotion hand-off: 472356d to jumpinthemix.com (Render)
 
+> Historical promotion record. The recovery-fix qualification addendum below supersedes the deployment and rollback advice; no production promotion is currently authorized.
+
 Written 2026-09-16 02:25 UTC (evening of 2026-09-15 Pacific) by the Trix session that ran the migration step with Kevin. Uncommitted working note; the next agent decides whether it becomes part of a release record.
 
 ## Status in one line
@@ -170,3 +172,15 @@ The packaged baseline built from 472356d returned 503 for a recovery-clear authe
 Existing Netlify test deploy `6aa99626d303505e51d13d2d` passed desktop smoke at 05:12:34 UTC (actual sign-in and ten protected routes). A read-only audit at 05:11:47 UTC found 60 migration rows but a checksum mismatch for `20260906010000_customer_journey_intake_calendar`. The prior local deploy script worked around this by temporarily changing a migration file before generating the release manifest. **That is not qualification of the same production release artifact.** This fix task will not repeat that workaround, change shared migration history or disable release checks. Publication of the exact artifact to that database remains blocked pending an approved resolution. The existing-deploy smoke must not be presented as fixed-commit qualification.
 
 Final tested commit, CI results, artifact identity, local qualification status and remaining approval requirements will be recorded below before handoff.
+
+### Local validation receipts
+
+- Runtime source tested: `d2d1d4c` (PR #78). Subsequent test/evidence-only changes do not change the packaged runtime.
+- Standalone release archive: `.artifacts/render-recovery-fix/standalone-d2d1d4c.tar.gz`, SHA-256 `d7b9c1f553a0a8aee7219defb7ee60acd32013950b3923a1d71fc8a9495ae855`. The archive is retained locally and was produced before Netlify adaptation. It contains the exact standalone output used for the HTTPS tests; no customer/production credentials were injected.
+- Focused boundary/function/proxy checks: **41 passed**. Database fallback covers clear/held/unavailable and exceptions; dedicated HTTP rejects hostile request addressing, invalid configured origins, redirects, failures and malformed responses. The dedicated function's existing tests exercise its timeout and discard late answers.
+- Packaged HTTPS matrix: **2 passed**, 63.08 seconds, with private mode off/on. Both used actual password-form submission, a resulting session cookie, authenticated contacts and a committed contact import. Missing authentication and cross-origin mutation were rejected. Login, protected routes, worker-health access and mutation were denied under hold, connection refusal and blackholed connections. Checks remained bounded below nine seconds each; no timeout constants changed. The test's worker-health success fixture is a heartbeat row, not proof of worker processing.
+- Separate real worker-process suite: **7 passed, 1 skipped**, 66.67 seconds, including held/unavailable/timed-out startup, unchanged queued-job attempts, clear-state recovery and exactly one generated follow-up. The skipped five-minute unattended test remains enabled in CI. Persistent workers still use their existing 30-second release recheck interval; this fix does not introduce an instantaneous in-flight worker cutoff.
+- Full isolated local suite before the additional three worker cases: **1,157 passed, 67 skipped**, 303.12 seconds. Production Next.js build passed. Netlify build and application/function/edge packaging passed with compile-only database configuration; nothing was published.
+- Existing test-site desktop smoke: **passed**, 05:12:34 UTC. Existing test-site mobile smoke: **passed**, 05:16:24 UTC. These use the already published deploy, not PR #78.
+
+The local tests reproduce the Render topology, but formal approval to use this local isolated environment for release qualification is still pending. The exact archived artifact can be rerun after approval without rebuilding. No paid environment was created. The checksum mismatch in the existing test database independently prevents claiming same-artifact test-site qualification. CI results must be checked on the final PR head before approval; local successes do not substitute for that run.
