@@ -197,6 +197,17 @@ describe.skipIf(!local)("admission reservations on PostgreSQL", () => {
     expect(audit.afterData).toMatchObject({ accountCeiling: state.policy.accountCeiling, revision: input.expectedRevision + 1 });
     expect(JSON.stringify(audit)).not.toContain(password);
   });
+  it("commits concurrent duplicate submissions once and revalidates credential removal", async () => {
+    const input = await operator();
+    await prisma.adminMfaCredential.update({ where: { userId: input.actorUserId }, data: { enabledAt: null } });
+    await expect(changeAdmissionPolicy(input)).rejects.toMatchObject({ needsMfa: true });
+    expect(await prisma.platformAuditEvent.count({ where: { actorUserId: input.actorUserId, action: "admission.policy.change" } })).toBe(0);
+    await prisma.adminMfaCredential.update({ where: { userId: input.actorUserId }, data: { enabledAt: new Date() } });
+    const attempts = await Promise.allSettled([changeAdmissionPolicy(input), changeAdmissionPolicy(input)]);
+    expect(attempts.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect((await getAdmissionSnapshot()).policy.revision).toBe(input.expectedRevision + 1);
+    expect(await prisma.platformAuditEvent.count({ where: { actorUserId: input.actorUserId, action: "admission.policy.change" } })).toBe(1);
+  });
   it("rejects invalid limits and malformed database singleton writes", async () => {
     const input = await operator();
     for (const value of [-1, 0.5, 1_000_001, NaN]) await expect(changeAdmissionPolicy({ ...input, configuration: { ...input.configuration, accountCeiling: value } })).rejects.toThrow("whole-number");

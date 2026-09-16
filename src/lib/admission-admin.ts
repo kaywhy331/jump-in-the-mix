@@ -25,7 +25,7 @@ export async function changeAdmissionPolicy(input: {
     const actor = await tx.user.findUnique({ where: { id: input.actorUserId }, select: { passwordHash: true, emailVerifiedAt: true, suspendedAt: true, staffMembership: true } });
     const session = await tx.session.findFirst({ where: { id: input.actorSessionId, userId: input.actorUserId, expiresAt: { gt: now } } });
     if (!session || !actor?.emailVerifiedAt || actor.suspendedAt || !hasAdminPermission(actor.staffMembership, "settings.manage")) throw new AdmissionError("Your current staff access does not allow admission changes.");
-    if (env.requireAdminMfa && !await tx.adminMfaSession.findFirst({ where: { sessionId: session.id, userId: input.actorUserId, verifiedAt: { gte: new Date(now.getTime() - 10 * 60_000) }, expiresAt: { gt: now } } })) throw new AdmissionError("Verify your authenticator again before changing admission controls.", true);
+    if (env.requireAdminMfa && (!await tx.adminMfaCredential.findFirst({ where: { userId: input.actorUserId, enabledAt: { not: null } } }) || !await tx.adminMfaSession.findFirst({ where: { sessionId: session.id, userId: input.actorUserId, verifiedAt: { gte: new Date(now.getTime() - 10 * 60_000) }, expiresAt: { gt: now } } }))) throw new AdmissionError("Verify your authenticator again before changing admission controls.", true);
     if (!actor.passwordHash || input.password.length > 72 || !await bcrypt.compare(input.password, actor.passwordHash)) throw new AdmissionError("Enter your current administrator password.");
     const current = await getAdmissionPolicy(tx);
     if (current.revision !== input.expectedRevision) throw new AdmissionError("Admission controls changed. Reload before saving.");
