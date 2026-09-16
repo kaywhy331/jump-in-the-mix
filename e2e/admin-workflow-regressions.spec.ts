@@ -77,6 +77,14 @@ test("a different staff session cannot recover the previous operator's in-memory
     await context.addCookies([{ name: "jitm_session", value: f.admin.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
     await page.goto(`/admin/support/${f.ticket.id}`);
     await page.locator('textarea[name="body"]').fill("Private draft belonging to the first operator.");
+    await page.route("**/api/admin/browser-context", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ status: "unavailable" }) }));
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await expect(page.getByRole("button", { name: "Retry session check" })).toBeEnabled();
+    await expect(page.locator('textarea[name="body"]')).toBeHidden();
+    await page.unroute("**/api/admin/browser-context");
+    await page.getByRole("button", { name: "Retry session check" }).click();
+    await expect(page.locator('textarea[name="body"]')).toBeVisible();
+    await expect(page.locator('textarea[name="body"]')).toHaveValue("Private draft belonging to the first operator.");
     await context.addCookies([{ name: "jitm_session", value: f.colleague.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
     await expect(page.locator('textarea[name="body"]')).toHaveValue("");
