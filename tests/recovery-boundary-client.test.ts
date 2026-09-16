@@ -1,13 +1,41 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { recoveryBoundaryPath, recoveryBoundaryStatus } from "@/lib/recovery-boundary-client";
 
+const database = vi.hoisted(() => ({ read: vi.fn() }));
+vi.mock("@/lib/recovery-hold", () => ({ databaseRecoveryStatus: database.read }));
+beforeEach(() => {
+  vi.stubEnv("RECOVERY_BOUNDARY_PATH", "/api/health/recovery-boundary");
+  vi.stubEnv("APP_URL", "https://preview.example.test");
+  database.read.mockReset();
+});
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 const privateSite = { PRIVATE_TEST_MODE: "true", PRIVATE_TEST_USERNAME: "tester", PRIVATE_TEST_PASSWORD: "s".repeat(40) };
 const siteCredentials = `Basic ${Buffer.from(`tester:${"s".repeat(40)}`).toString("base64")}`;
 
 describe("recovery boundary client", () => {
+  it.each(["clear", "held", "unavailable"])("uses the standalone bounded database reader for %s without HTTP", async status => {
+    vi.stubEnv("RECOVERY_BOUNDARY_PATH", "");
+    database.read.mockResolvedValue(status);
+    const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+    await expect(recoveryBoundaryStatus(new NextRequest("https://0.0.0.0:10000/login", { headers: { "x-forwarded-host": "attacker.test", "x-forwarded-proto": "https" } }))).resolves.toBe(status);
+    expect(database.read).toHaveBeenCalledOnce(); expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("fails closed on a database reader exception", async () => {
+    vi.stubEnv("RECOVERY_BOUNDARY_PATH", ""); database.read.mockRejectedValue(new Error("offline"));
+    await expect(recoveryBoundaryStatus(new NextRequest("https://localhost/login"))).resolves.toBe("unavailable");
+  });
+  it.each(["", "http://localhost:10000", "https://user:secret@example.test", "https://example.test/path", "https://example.test?query=1", "https://example.test#hash"])("rejects invalid configured probe origin %s", async origin => {
+    vi.stubEnv("APP_URL", origin); const fetchMock = vi.fn(); vi.stubGlobal("fetch", fetchMock);
+    await expect(recoveryBoundaryStatus(new NextRequest("https://attacker.test/login"))).resolves.toBe("unavailable");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("ignores hostile origins and headers and refuses probe redirects", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ status: "clear" })); vi.stubGlobal("fetch", fetchMock);
+    await recoveryBoundaryStatus(new NextRequest("https://attacker.test/login", { headers: { "x-forwarded-host": "attacker.test", "x-forwarded-proto": "http" } }));
+    expect(fetchMock).toHaveBeenCalledWith(new URL("https://preview.example.test/api/health/recovery-boundary"), expect.objectContaining({ redirect: "error" }));
+  });
   it.each(["clear", "held"] as const)("accepts the bounded %s response from the configured deploy", async status => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ status }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
@@ -27,7 +55,7 @@ describe("recovery boundary client", () => {
     const browser = new NextRequest("https://preview.example.test/contacts", { headers: { authorization: "Basic from-the-browser" } });
     await recoveryBoundaryStatus(browser);
     expect(fetchMock).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({ headers: expect.objectContaining({ authorization: siteCredentials }) }));
-    // The check stays on the request's own origin.
+    // The check stays on the configured origin.
     expect(fetchMock.mock.calls.every(([url]) => String(url) === "https://preview.example.test/api/health/recovery-boundary")).toBe(true);
   });
 
@@ -59,6 +87,7 @@ describe("recovery boundary client", () => {
     vi.stubGlobal("fetch", fetchMock);
     // On Netlify the dedicated function keeps the application function's cold start out of the check.
     vi.stubEnv("RECOVERY_BOUNDARY_PATH", "/.netlify/functions/recovery-boundary");
+    vi.stubEnv("APP_URL", "https://jump-in-the-mix-test.netlify.app");
     await expect(recoveryBoundaryStatus(new NextRequest("https://jump-in-the-mix-test.netlify.app/contacts"))).resolves.toBe("clear");
     expect(fetchMock).toHaveBeenLastCalledWith(new URL("https://jump-in-the-mix-test.netlify.app/.netlify/functions/recovery-boundary"), expect.objectContaining({ cache: "no-store" }));
     // Anything that is not an absolute path on this origin falls back to the health route.

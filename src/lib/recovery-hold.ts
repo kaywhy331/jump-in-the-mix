@@ -2,10 +2,8 @@ import { Pool } from "pg";
 import { recoveryHoldQuery } from "@/lib/recovery-hold-query.mjs";
 import { RECOVERY_CONNECT_TIMEOUT_MS, RECOVERY_QUERY_TIMEOUT_MS, RECOVERY_READ_DEADLINE_MS, RECOVERY_STATEMENT_TIMEOUT_MS } from "@/lib/recovery-hold-budget.mjs";
 
-// The proxy runs in its own runtime (an edge function on Netlify) and cannot open a database
-// connection, so it asks over HTTP: the Next.js health route, or on Netlify the dedicated
-// `recovery-boundary` function whose cold start is small. Both read on every request so a newly
-// placed hold cannot hide behind a cache, and both connections and waiting requests are bounded.
+// Standalone Node reads directly; Netlify's proxy uses a dedicated HTTP probe. Both use
+// this bounded catalog read without caching, so a newly placed hold takes effect immediately.
 let pool: Pool | undefined;
 
 /**
