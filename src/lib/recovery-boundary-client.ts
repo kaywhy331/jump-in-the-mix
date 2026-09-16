@@ -6,13 +6,7 @@ export type RecoveryBoundaryStatus = "clear" | "held" | "unavailable";
 
 const DEFAULT_RECOVERY_BOUNDARY_PATH = "/api/health/recovery-boundary";
 
-/**
- * Where the probe lives on the request's own origin. The default is the Next.js health route.
- * On Netlify the application function's cold start would otherwise sit inside this check's
- * budget right after a publish, so the site sets RECOVERY_BOUNDARY_PATH to the dedicated
- * `/.netlify/functions/recovery-boundary` function. Only a same-origin absolute path is
- * accepted; anything else falls back to the default rather than sending the check elsewhere.
- */
+/** The dedicated probe path is configured by the hosting environment, never the caller. */
 export function recoveryBoundaryPath(source: NodeJS.ProcessEnv = process.env): string {
   const configured = source.RECOVERY_BOUNDARY_PATH?.trim();
   return configured && /^\/[A-Za-z0-9._~\/-]+$/.test(configured) && !configured.startsWith("//") ? configured : DEFAULT_RECOVERY_BOUNDARY_PATH;
@@ -28,13 +22,27 @@ function privateTestAuthorization(): string | null {
   return `Basic ${Buffer.from(`${process.env.PRIVATE_TEST_USERNAME}:${process.env.PRIVATE_TEST_PASSWORD}`).toString("base64")}`;
 }
 
-export async function recoveryBoundaryStatus(request: NextRequest): Promise<RecoveryBoundaryStatus> {
+export async function recoveryBoundaryStatus(_request: NextRequest): Promise<RecoveryBoundaryStatus> {
   try {
+    // Standalone Node has a bounded database reader. Self-fetching a request-derived HTTPS
+    // origin can address the plaintext listener behind TLS termination (Render).
+    if (!process.env.RECOVERY_BOUNDARY_PATH?.trim()) {
+      const { databaseRecoveryStatus } = await import("@/lib/recovery-hold");
+      return await databaseRecoveryStatus();
+    }
+    const path = process.env.RECOVERY_BOUNDARY_PATH.trim();
+    if (recoveryBoundaryPath() !== path || path.split("/").some(segment => segment === "." || segment === "..")) return "unavailable";
+    // Netlify's dedicated function stays outside the application function's cold start.
+    // APP_URL is operator configuration; request origins and forwarded headers are untrusted.
+    const endpoint = new URL(process.env.APP_URL ?? "");
+    if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.search || endpoint.hash || endpoint.pathname !== "/") return "unavailable";
+    endpoint.pathname = path;
     const headers: Record<string, string> = { accept: "application/json" };
     const authorization = privateTestAuthorization();
     if (authorization) headers.authorization = authorization;
-    const response = await fetch(new URL(recoveryBoundaryPath(), request.nextUrl.origin), {
+    const response = await fetch(endpoint, {
       cache: "no-store",
+      redirect: "error",
       headers,
       signal: AbortSignal.timeout(RECOVERY_CHECK_TIMEOUT_MS)
     });
