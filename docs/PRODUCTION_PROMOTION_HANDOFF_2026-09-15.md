@@ -1,6 +1,6 @@
 # Production promotion hand-off: 472356d to jumpinthemix.com (Render)
 
-> Historical promotion record. The recovery-fix qualification addendum below supersedes the deployment and rollback advice; no production promotion is currently authorized.
+> Historical promotion record. The [September 16 qualification receipt](PR78_QUALIFICATION_2026-09-16.md) supersedes the pending-authorization and qualification statements below. The [production-promotion decision packet](PR78_PRODUCTION_PROMOTION_DECISION_2026-09-16.md) supplies the current gates, worker-first deployment order, and conditional rollback safeguards. No production promotion is authorized; the earlier commands are historical, not instructions to execute.
 
 Written 2026-09-16 02:25 UTC (evening of 2026-09-15 Pacific) by the Trix session that ran the migration step with Kevin. Uncommitted working note; the next agent decides whether it becomes part of a release record.
 
