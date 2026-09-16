@@ -21,6 +21,7 @@ export function AdminMfaPanel({
   const action = mode === "setup" ? enableAdminMfaAction : verifyAdminMfaAction;
   const [state, formAction, pending] = useActionState(action, INITIAL_ADMIN_MFA_STATE);
   const [copied, setCopied] = useState(false);
+  const admissionDraft = /^\/admin\/admission\?draft=[0-9a-f-]{36}$/.test(returnTo);
 
   useEffect(() => {
     if (state.status === "verified") {
@@ -60,6 +61,7 @@ export function AdminMfaPanel({
   return (
     <form action={formAction} className="card admin-mfa-form">
       <input type="hidden" name="returnTo" value={returnTo} />
+      {admissionDraft && <p role="status">Your admission changes are held as a draft for 30 minutes. Verification will return you to review them; you must re-enter your password and select Save admission controls to apply them.</p>}
       {mode === "setup" && (
         <>
           <div className="card-header">
@@ -114,7 +116,7 @@ export function AdminMfaPanel({
       {state.status === "error" && <div className="notice error" role="alert">{state.message}</div>}
 
       <div className="form-actions">
-        <Link className="button" href="/jumps">Return to Today</Link>
+        <Link className="button" href="/jumps">{admissionDraft ? "Cancel verification" : "Return to Today"}</Link>
         <button className="button primary" type="submit" disabled={pending}>
           {pending ? "Verifying…" : mode === "setup" ? "Enable administrator MFA" : "Verify and continue"}
         </button>

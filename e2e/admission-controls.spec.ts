@@ -126,6 +126,7 @@ test("emergency pause preserves a recipient link and stale or removed staff auth
   await page.getByLabel("Pause new waitlist requests").check();
   await page.getByLabel("Reason for admission change").fill("Emergency admission rehearsal with existing links");
   await page.getByLabel("Your administrator password").fill(password);
+  await page.getByLabel("I reviewed the current saved settings").check();
   await save(page);
   const token = randomBytes(32).toString("base64url"), recipient = email();
   const invite = await prisma.referralAccessInvite.create({ data: { recipientEmail: recipient, tokenHash: createHash("sha256").update(token).digest("hex"), tokenCiphertext: "unused-browser-fixture", source: "WAITLIST_MANUAL" } });

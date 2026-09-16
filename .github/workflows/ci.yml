@@ -298,7 +298,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          npx playwright test e2e/staff-onboarding.spec.ts e2e/voice-capture.spec.ts e2e/admission-controls.spec.ts e2e/admin-workspace.spec.ts e2e/library-administration.spec.ts e2e/system-mix-administration.spec.ts e2e/admin-reports.spec.ts e2e/support-cases.spec.ts e2e/email-recovery.spec.ts e2e/operational-alerts.spec.ts e2e/data-retention.spec.ts e2e/support-email.spec.ts --project desktop-chromium 2>&1 | tee staff-onboarding-e2e.log
+          npx playwright test e2e/staff-onboarding.spec.ts e2e/voice-capture.spec.ts e2e/admission-controls.spec.ts e2e/admission-mfa.spec.ts e2e/admin-workspace.spec.ts e2e/library-administration.spec.ts e2e/system-mix-administration.spec.ts e2e/admin-reports.spec.ts e2e/support-cases.spec.ts e2e/email-recovery.spec.ts e2e/operational-alerts.spec.ts e2e/data-retention.spec.ts e2e/support-email.spec.ts --project desktop-chromium 2>&1 | tee staff-onboarding-e2e.log
       - name: Staff and waitlist browser flows with isolated fixtures
         env:
           PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
