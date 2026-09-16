@@ -1,0 +1,172 @@
+{
+  "environment": "Disposable local synthetic database; production build for final route sweep",
+  "groups": [
+    {
+      "group": "phase-verification",
+      "checks": [
+        {
+          "name": "support pagination and admin status labels",
+          "passed": true
+        },
+        {
+          "name": "support draft survives triage and template replacement is explicit",
+          "passed": true
+        },
+        {
+          "name": "editor disclosure jump reveals and focuses review",
+          "passed": true
+        },
+        {
+          "name": "channel aware editor retains validation errors and working values",
+          "passed": true
+        },
+        {
+          "name": "compact customers and account detail",
+          "passed": true
+        },
+        {
+          "name": "library options and system wording page render",
+          "passed": true
+        },
+        {
+          "name": "dark mode contrast and narrow layout",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "group": "report-ops-verification",
+      "checks": [
+        {
+          "path": "/admin",
+          "passed": true
+        },
+        {
+          "path": "/admin/reports",
+          "passed": true
+        },
+        {
+          "path": "/admin/reports?view=engagement",
+          "passed": true
+        },
+        {
+          "path": "/admin/reports?view=content",
+          "passed": true
+        },
+        {
+          "path": "/admin/reports?view=operations",
+          "passed": true
+        },
+        {
+          "path": "/admin/reports/history",
+          "passed": true
+        },
+        {
+          "path": "/admin/reports/history?view=storage",
+          "passed": true
+        },
+        {
+          "path": "/admin/reports/history/cmu4jc6u8005nb0l3xgeqi3ap",
+          "passed": true
+        },
+        {
+          "path": "/admin/reports/exports",
+          "passed": true
+        },
+        {
+          "path": "/admin/operations",
+          "passed": true
+        },
+        {
+          "path": "/admin/operations?view=health",
+          "passed": true
+        },
+        {
+          "path": "/admin/operations?view=maintenance",
+          "passed": true
+        },
+        {
+          "path": "/admin/operations/alerts",
+          "passed": true
+        },
+        {
+          "path": "/admin/email",
+          "passed": true
+        }
+      ]
+    },
+    {
+      "group": "access-verification",
+      "checks": [
+        {
+          "path": "/admin/waitlist",
+          "passed": true
+        },
+        {
+          "path": "/admin/waitlist?view=history",
+          "passed": true
+        },
+        {
+          "path": "/admin/waitlist?view=delivery",
+          "passed": true
+        },
+        {
+          "path": "/admin/waitlist?view=waves",
+          "passed": true
+        },
+        {
+          "path": "/admin/access",
+          "passed": true
+        },
+        {
+          "path": "/admin/access/cmu4jc6rl005hb0l30gy7trvj",
+          "passed": true
+        },
+        {
+          "path": "/admin/email/recovery",
+          "passed": true
+        },
+        {
+          "path": "/admin/email/recovery/cmu4jc6rn005ib0l32niesphz",
+          "passed": true
+        },
+        {
+          "path": "/admin/email/suppressions",
+          "passed": true
+        },
+        {
+          "path": "/admin/email/suppressions/cmu4jc6rv005jb0l396775566",
+          "passed": true
+        },
+        {
+          "path": "/admin/audit",
+          "passed": true
+        },
+        {
+          "path": "/admin/audit?scope=workspace",
+          "passed": true
+        },
+        {
+          "path": "/admin/team",
+          "passed": true
+        },
+        {
+          "path": "/admin/team?view=invitations",
+          "passed": true
+        },
+        {
+          "path": "/admin/team?view=add&email=morgan%40audit.example.test",
+          "passed": true
+        },
+        {
+          "path": "/admin/team?view=add&email=notyet%40audit.example.test",
+          "passed": true
+        },
+        {
+          "path": "/admin/admission",
+          "passed": true
+        }
+      ]
+    }
+  ]
+}

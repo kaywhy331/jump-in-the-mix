@@ -18,7 +18,7 @@ async function save(page: Page) {
   const revision = Number(await page.locator('input[name="revision"]').inputValue());
   await page.getByRole("button", { name: "Save admission controls", exact: true }).click();
   await expect(page).toHaveURL(url => url.pathname === "/admin/admission" && url.searchParams.get("saved") === String(revision + 1));
-  await expect(page.getByRole("status")).toContainText("Admission controls saved");
+  await expect(page.locator(".notice.success")).toContainText("Admission controls saved");
 }
 test.beforeEach(async () => { restore = await openTestAdmission(); });
 async function owner() {
@@ -64,19 +64,31 @@ test("administrator saves limits and manual batches respect them, with accessibl
   const first = email(), second = email();
   await prisma.waitlistEntry.createMany({ data: [first, second].map(email => ({ email, verifiedAt: new Date() })) });
   await page.goto("/admin/waitlist");
+  await page.getByText("Automatic wave schedule and controls", { exact: true }).click();
   await expect(page.getByText("The next eligible batch will wait", { exact: false })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Send invitations to selected people" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Review 0 invitations" })).toBeDisabled();
   await page.getByRole("checkbox", { name: first, exact: true }).check();
   await page.getByRole("checkbox", { name: second, exact: true }).check();
   await page.getByLabel("Reason for manual invitations").fill("Try selection above pending limit");
-  await page.getByRole("button", { name: "Send invitations to selected people" }).click();
-  await expect(page.locator(".notice.error")).toContainText("selected invitations were not queued");
+  await expect(page.getByRole("button", { name: "Review 2 invitations" })).toBeDisabled();
+  await expect(page.locator('.notice.error[role="alert"]')).toContainText("fewer people");
   expect(await prisma.referralAccessInvite.count({ where: { recipientEmail: { in: [first, second] } } })).toBe(0);
   await page.getByRole("checkbox", { name: first, exact: true }).check();
   await page.getByRole("checkbox", { name: second, exact: true }).uncheck();
   await page.getByLabel("Reason for manual invitations").fill("Select one person within the limit");
-  await page.getByRole("button", { name: "Send invitations to selected people" }).click();
-  await expect(page.getByRole("status")).toContainText("1 invitations queued");
+  await page.getByRole("button", { name: "Review 1 invitations" }).click();
+  const blocker = await prisma.referralAccessInvite.create({ data: { recipientEmail: email(), source: "WAITLIST_MANUAL", tokenHash: randomUUID(), tokenCiphertext: "test-only" } });
+  await page.getByRole("button", { name: "Confirm and queue invitations" }).click();
+  await expect(page.locator(".notice.error").first()).toContainText("selected invitations were not queued");
+  expect(await prisma.referralAccessInvite.count({ where: { recipientEmail: { in: [first, second] } } })).toBe(0);
+  await prisma.referralAccessInvite.delete({ where: { id: blocker.id } });
+  page.once("dialog", dialog => dialog.accept());
+  await page.reload();
+  await page.getByRole("checkbox", { name: first, exact: true }).check();
+  await page.getByLabel("Reason for manual invitations").fill("Select one person within the limit");
+  await page.getByRole("button", { name: "Review 1 invitations" }).click();
+  await page.getByRole("button", { name: "Confirm and queue invitations" }).click();
+  await expect(page.locator(".notice.success")).toContainText("1 invitations queued");
   expect((await prisma.waitlistEntry.findUniqueOrThrow({ where: { email: first } })).status).toBe("ACCESS_GRANTED");
   expect(await prisma.waitlistDelivery.count({ where: { status: "QUEUED", invite: { recipientEmail: first } } })).toBe(1);
 });
@@ -99,15 +111,16 @@ test("manual controls distinguish unconfigured, paused and exhausted capacity", 
     const { message, ...policy } = state;
     await prisma.admissionPolicy.update({ where: { id: "default" }, data: policy });
     await page.goto("/admin/waitlist");
-    await expect(manual.getByRole("alert")).toContainText(message);
-    await expect(manual.getByRole("button", { name: "Send invitations to selected people" })).toBeDisabled();
+    await expect(manual.locator(".notice.error")).toContainText(message);
+    await expect(manual.getByRole("button", { name: "Review 0 invitations" })).toBeDisabled();
     await expect(page.getByRole("checkbox", { name: recipient, exact: true })).toBeDisabled();
-    await expect(manual.getByRole("link", { name: "Configure invitation limits and pauses" })).toHaveAttribute("href", "/admin/admission");
+    await page.getByText("Automatic wave schedule and controls", { exact: true }).click();
+    await expect(page.getByRole("link", { name: "Manage admission limits and pauses" })).toHaveAttribute("href", "/admin/admission");
     if (reservation) await prisma.referralAccessInvite.delete({ where: { id: reservation.id } });
   }
   await prisma.staffMembership.update({ where: { userId: fixture.user.id }, data: { denies: ["settings.manage"] } });
   await page.goto("/admin/waitlist");
-  await expect(manual.getByRole("link", { name: "Configure invitation limits and pauses" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Manage admission limits and pauses" })).toHaveCount(0);
 });
 
 test("emergency pause preserves a recipient link and stale or removed staff authority cannot overwrite controls", async ({ page, context, browser }, info) => {
@@ -122,6 +135,7 @@ test("emergency pause preserves a recipient link and stale or removed staff auth
   await page.getByRole("button", { name: "Save admission controls" }).click();
   await expect(page.locator(".notice.error")).toContainText("Admission controls changed");
   expect((await prisma.admissionPolicy.findUniqueOrThrow({ where: { id: "default" } })).revision).toBe(revision + 1);
+  await page.getByText("Emergency account-creation control", { exact: true }).click();
   await page.getByLabel("Emergency: pause account creation from invitations").check();
   await page.getByLabel("Pause new waitlist requests").check();
   await page.getByLabel("Reason for admission change").fill("Emergency admission rehearsal with existing links");

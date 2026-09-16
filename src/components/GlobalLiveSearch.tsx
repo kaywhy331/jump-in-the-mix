@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const FILTER_FORM_SELECTOR = [
   "form.filter-bar",
@@ -36,6 +36,7 @@ export function GlobalLiveSearch() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [announcement, setAnnouncement] = useState("");
   const timers = useRef(new Map<HTMLFormElement, number>());
 
   useEffect(() => {
@@ -49,8 +50,12 @@ export function GlobalLiveSearch() {
       const timer = timers.current.get(form);
       if (timer) window.clearTimeout(timer);
       timers.current.delete(form);
+      const href = targetHref(form);
+      if (href === `${window.location.pathname}${window.location.search}`) return;
       form.dataset.livePending = "true";
-      router.replace(targetHref(form), { scroll: false });
+      form.setAttribute("aria-busy", "true");
+      setAnnouncement("Updating results…");
+      router.replace(href, { scroll: false });
     };
 
     const onInput = (event: Event) => {
@@ -100,8 +105,12 @@ export function GlobalLiveSearch() {
     // uncontrolled form. Keep its controls in sync, preserving in-progress typing.
     document.querySelectorAll<HTMLFormElement>(FILTER_FORM_SELECTOR).forEach((form) => {
       if (!shouldEnhance(form) || new URL(form.action, window.location.href).pathname !== pathname) return;
-      form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input[name="q"], select[name]').forEach((control) => {
+      form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('input[name]:not([type="hidden"]):not([type="submit"]):not([type="password"]), select[name]').forEach((control) => {
         if (control === document.activeElement) return;
+        if (control instanceof HTMLInputElement && ["checkbox", "radio"].includes(control.type)) {
+          control.checked = searchParams.getAll(control.name).includes(control.value);
+          return;
+        }
         const value = searchParams.get(control.name) ?? "";
         control.value = control instanceof HTMLSelectElement && !Array.from(control.options).some(option => option.value === value)
           ? control.options[0]?.value ?? ""
@@ -110,8 +119,10 @@ export function GlobalLiveSearch() {
     });
     document.querySelectorAll<HTMLFormElement>('[data-live-pending="true"]').forEach((form) => {
       delete form.dataset.livePending;
+      form.removeAttribute("aria-busy");
+      setAnnouncement("Results updated.");
     });
   }, [pathname, searchParams]);
 
-  return <span className="sr-only" aria-live="polite" id="global-live-search-status" />;
+  return <span className="sr-only" aria-live="polite" id="global-live-search-status">{announcement}</span>;
 }

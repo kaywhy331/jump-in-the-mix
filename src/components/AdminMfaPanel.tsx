@@ -10,12 +10,14 @@ export function AdminMfaPanel({
   mode,
   returnTo,
   secret,
-  qrDataUrl
+  qrDataUrl,
+  canReturn = false
 }: {
   mode: "setup" | "verify";
   returnTo: string;
   secret?: string;
   qrDataUrl?: string;
+  canReturn?: boolean;
 }) {
   const router = useRouter();
   const action = mode === "setup" ? enableAdminMfaAction : verifyAdminMfaAction;
@@ -116,7 +118,7 @@ export function AdminMfaPanel({
       {state.status === "error" && <div className="notice error" role="alert">{state.message}</div>}
 
       <div className="form-actions">
-        <Link className="button" href="/jumps">{admissionDraft ? "Cancel verification" : "Return to Today"}</Link>
+        {canReturn && <Link className="button" href={returnTo}>Return without verifying</Link>}
         <button className="button primary" type="submit" disabled={pending}>
           {pending ? "Verifying…" : mode === "setup" ? "Enable administrator MFA" : "Verify and continue"}
         </button>

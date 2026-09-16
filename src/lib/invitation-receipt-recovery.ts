@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Prisma } from "@/generated/prisma/client";
+import type { Prisma, WaitlistDelivery, EmailMessage } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { lockStaff } from "@/lib/staff-access";
 import { lockAccess } from "@/lib/access-lock";
@@ -76,6 +76,17 @@ export async function recoverInvitationReceipt(input: Review & { providerId?: st
   });
 }
 
+export async function invitationRepeatEligibility(tx: Prisma.TransactionClient, delivery: Pick<WaitlistDelivery, "inviteId" | "staffInvitationId" | "generationStartedAt" | "firstAttemptAt">, record: Pick<EmailMessage, "firstAttemptAt" | "bouncedAt" | "complainedAt" | "suppressedAt" | "failedAt"> | null, recipient: string, now = new Date()) {
+  const availableAt = new Date(Math.max(delivery.generationStartedAt.getTime(), delivery.firstAttemptAt?.getTime() ?? 0, record?.firstAttemptAt.getTime() ?? 0) + 24 * 3600_000);
+  if (now < availableAt) return { available: false, availableAt, reason: "Wait at least 24 hours after this delivery began. Use the existing safe retry within its original window." };
+  const staffInvite = delivery.staffInvitationId ? await tx.staffInvitation.findUnique({ where: { id: delivery.staffInvitationId } }) : null;
+  const invite = delivery.inviteId ? await tx.referralAccessInvite.findUnique({ where: { id: delivery.inviteId }, include: { inviter: { select: { suspendedAt: true, emailVerifiedAt: true } } } }) : null;
+  const available = staffInvite ? staffInvite.email === recipient && await staffInvitationAvailable(tx, staffInvite, now)
+    : invite && invite.recipientEmail === recipient && !invite.acceptedAt && !invite.revokedAt && (!invite.inviterUserId || invite.inviter?.emailVerifiedAt && !invite.inviter.suspendedAt) && !await tx.user.findUnique({ where: { email: invite.recipientEmail }, select: { id: true } }) && !await invitationEmailSuppressed(tx, invite.recipientEmail);
+  if (!available || record && (record.bouncedAt || record.complainedAt || record.suppressedAt || record.failedAt)) return { available: false, availableAt, reason: "This invitation is no longer eligible to send. Resolve the recipient or account issue first." };
+  return { available: true, availableAt, reason: null };
+}
+
 export async function repeatInvitationDelivery(input: Review & { password: string; providerReference: string; requestReference: string; providerReviewed: boolean; recipientRequested: boolean; duplicateRiskAccepted: boolean }) {
   const { expected, reason } = validate(input);
   if (typeof input.password !== "string" || !input.password || input.password.length > 72) throw new EmailReviewError("Enter your current administrator password.");
@@ -85,13 +96,8 @@ export async function repeatInvitationDelivery(input: Review & { password: strin
   return prisma.$transaction(async tx => {
     const { delivery, message, messageId, record, prepared } = await review(tx, input, input.password);
     const now = new Date();
-    const since = Math.max(delivery.generationStartedAt.getTime(), delivery.firstAttemptAt?.getTime() ?? 0, record?.firstAttemptAt.getTime() ?? 0);
-    if (now.getTime() - since < 24 * 3600_000) throw new EmailReviewError("Wait at least 24 hours after this delivery began. Use the existing safe retry within its original window.");
-    const staffInvite = delivery.staffInvitationId ? await tx.staffInvitation.findUnique({ where: { id: delivery.staffInvitationId } }) : null;
-    const invite = delivery.inviteId ? await tx.referralAccessInvite.findUnique({ where: { id: delivery.inviteId }, include: { inviter: { select: { suspendedAt: true, emailVerifiedAt: true } } } }) : null;
-    const available = staffInvite ? staffInvite.email === prepared.email && await staffInvitationAvailable(tx, staffInvite, now)
-      : invite && invite.recipientEmail === prepared.email && !invite.acceptedAt && !invite.revokedAt && (!invite.inviterUserId || invite.inviter?.emailVerifiedAt && !invite.inviter.suspendedAt) && !await tx.user.findUnique({ where: { email: invite.recipientEmail }, select: { id: true } }) && !await invitationEmailSuppressed(tx, invite.recipientEmail);
-    if (!available || record && (record.bouncedAt || record.complainedAt || record.suppressedAt || record.failedAt)) throw new EmailReviewError("This invitation is no longer eligible to send. Resolve the recipient or account issue first.");
+    const eligibility = await invitationRepeatEligibility(tx, delivery, record, prepared.email, now);
+    if (!eligibility.available) throw new EmailReviewError(eligibility.reason!);
     // Archive metadata before changing the current generation. Actual API attempts
     // and receipts remain in the email ledger and continue consuming the budget.
     await tx.invitationDeliveryHistory.create({ data: { deliveryId: delivery.id, generation: delivery.generation, emailMessageId: messageId, status: delivery.status, attempts: delivery.attempts, firstAttemptAt: delivery.firstAttemptAt ?? record?.firstAttemptAt, generationStartedAt: delivery.generationStartedAt, providerId: delivery.providerId ?? record?.providerId } });

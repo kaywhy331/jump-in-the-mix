@@ -90,9 +90,9 @@
 .admin-metric-card span { color: var(--muted); font-size: .78rem; font-weight: 800; }
 .admin-metric-card strong { font-size: 1.75rem; line-height: 1; }
 .admin-metric-card small { color: var(--muted); line-height: 1.45; }
-.admin-metric-card.healthy { border-color: #bce8d5; background: #f5fcf8; }
-.admin-metric-card.attention { border-color: #f1d18d; background: #fffaf0; }
-.admin-metric-card.critical { border-color: #efc1c8; background: #fff6f7; }
+.admin-metric-card.healthy { border-color: var(--line); background: var(--status-success-bg); color: var(--status-success-ink); }
+.admin-metric-card.attention { border-color: var(--line); background: var(--status-warning-bg); color: var(--status-warning-ink); }
+.admin-metric-card.critical { border-color: var(--line); background: var(--status-danger-bg); color: var(--status-danger-ink); }
 .admin-command-center, .admin-operation-section { margin-top: 0; margin-bottom: 18px; }
 .admin-command-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .admin-operation-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }

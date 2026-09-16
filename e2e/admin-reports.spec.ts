@@ -57,9 +57,10 @@ test("administrator requests a background export and downloads only within the a
   await expect(referral.getByRole("cell").nth(6)).toHaveText("1");
   await expect(referral.getByRole("cell").nth(7)).toHaveText("1");
   await expect(referral.getByRole("cell").nth(8)).toHaveText("1");
+  await page.getByText("Export this date range as CSV", { exact: true }).click();
   await page.getByRole("button", { name: "Prepare CSV export" }).click();
-  await expect(page).toHaveURL(/\/admin\/reports\/exports\?queued=1$/);
-  await expect(page.getByText("The export is queued. Refresh status when it is ready.")).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/reports\/exports\?.*queued=1/);
+  await expect(page.getByText("The export is queued. This page checks progress while visible.")).toBeVisible();
   const row = await prisma.reportExport.findFirstOrThrow({ where: { actorUserId: fixture.staff.id } });
   expect(row.contentCiphertext).toBeNull(); expect(row.status).toBe("QUEUED");
   await prisma.job.update({ where: { id: row.jobId! }, data: { failedAt: new Date(), attempts: 3, lastError: "Aggregate report preparation failed." } });
@@ -95,7 +96,7 @@ test("administrator requests a background export and downloads only within the a
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
   await prisma.staffMembership.update({ where: { userId: fixture.staff.id }, data: { denies: ["reports.read"] } });
-  const denied = await context.request.get(path, { maxRedirects: 0 }); expect(denied.headers().location).toBe("/admin/access-denied");
+  const denied = await context.request.get(path, { maxRedirects: 0 }); expect(denied.headers().location).toBe("/admin/access-denied?capability=reports.read");
   await prisma.staffMembership.update({ where: { userId: fixture.staff.id }, data: { denies: [] } });
   await prisma.reportExport.update({ where: { id: row.id }, data: { expiresAt: new Date(Date.now() - 1) } }); expect((await context.request.get(path)).status()).toBe(404);
   await page.reload(); await expect(page.getByText("No unexpired exports for this sign-in.")).toBeVisible();
@@ -110,7 +111,7 @@ test("saved daily history shows recorded values, observation times and gated det
   const job = await prisma.job.create({ data: { task: REPORT_SNAPSHOT_TASK, payload: { snapshotId: snapshot.id }, lockedAt: new Date(), lockedBy: leaseId } }); jobIds.push(job.id);
   await prisma.reportDailySnapshot.update({ where: { id: snapshot.id }, data: { jobId: job.id } });
   await runReportSnapshot(snapshot.id, { jobId: job.id, leaseId });
-  await page.goto("/admin/reports/history");
+  await page.goto("/admin/reports/history?view=storage");
   await expect(page.getByRole("table", { name: "First storage measurement per UTC day" })).toContainText(storageDay.toISOString().slice(0, 10));
   await page.goto("/admin/reports/history?from=2020-01-01&through=2020-01-31");
   const table = page.getByRole("table", { name: "UTC activity dates and observed values" });
@@ -122,11 +123,13 @@ test("saved daily history shows recorded values, observation times and gated det
   }
   await page.getByRole("link", { name: "2020-01-03", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Saved daily report · 2020-01-03" })).toBeVisible();
+  await page.getByText("Definitions and limits for these numbers", { exact: true }).click();
   await expect(page.getByText("These are saved aggregates", { exact: false })).toBeVisible();
   await expect(page.locator("main")).not.toContainText(fixture.secret);
+  await page.getByRole("navigation", { name: "Report sections" }).getByRole("link", { name: "Content", exact: true }).click();
   await expect(page.getByRole("table", { name: "Library copies and follow-up outcomes in range" })).toContainText("Historical public library title");
   await prisma.staffMembership.update({ where: { userId: fixture.staff.id }, data: { denies: ["reports.read"] } });
-  await page.reload(); await expect(page).toHaveURL(/\/admin\/access-denied$/);
+  await page.reload(); await expect(page).toHaveURL(/\/admin\/access-denied\?/);
 });
 
 test("analyst sees aggregate cohorts, switches trends and dates, and loses access after permission removal", async ({ page, context }, info) => {
@@ -143,6 +146,7 @@ test("analyst sees aggregate cohorts, switches trends and dates, and loses acces
   await expect(activation.locator("dl > div").filter({ hasText: "New accounts" })).toContainText("4");
   await expect(activation.locator("dl > div").filter({ hasText: "Activated" })).toContainText("1 (25%)");
   await expect(page.getByRole("table", { name: "Invitation cohorts by source" }).getByRole("row").filter({ hasText: "Member referral" })).toContainText("24 hours");
+  await page.getByRole("navigation", { name: "Report sections" }).getByRole("link", { name: "Content", exact: true }).click();
   await expect(page.getByRole("table", { name: "Library copies and follow-up outcomes in range" })).toContainText("Historical public library title");
   await page.getByRole("combobox", { name: "Trend metric" }).selectOption("emailFailures");
   await expect(page.locator("figcaption")).toContainText("Daily peak: 1 on 2020-01-05");
@@ -153,16 +157,18 @@ test("analyst sees aggregate cohorts, switches trends and dates, and loses acces
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
+  await page.getByRole("navigation", { name: "Report sections" }).getByRole("link", { name: "Growth", exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "Report sections" }).getByRole("link", { name: "Growth", exact: true })).toHaveAttribute("aria-current", "page");
   await page.getByLabel("From (UTC)").fill("2010-02-01"); await page.getByLabel("Through (UTC)").fill("2010-02-28");
   await page.getByRole("button", { name: "Update report" }).click();
   await expect(page).toHaveURL(/from=2010-02-01&through=2010-02-28/);
   await expect(page.getByText("No invitations were created in this range.")).toBeVisible();
   await page.getByRole("link", { name: "Last 7 days", exact: true }).click();
-  await expect(page).toHaveURL(/days=7$/); await expect(page.getByText("Show daily values (7 days)", { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/days=7(?:&|$)/); await expect(page.getByText("Show daily values (7 days)", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Through (UTC)")).toHaveValue(new Date().toISOString().slice(0, 10));
   await prisma.staffMembership.update({ where: { userId: fixture.staff.id }, data: { denies: ["reports.read"] } });
   await page.goto("/admin/reports?from=2020-01-01&through=2020-01-31");
-  await expect(page).toHaveURL(/\/admin\/access-denied$/);
+  await expect(page).toHaveURL(/\/admin\/access-denied\?/);
   await expect(page.getByRole("navigation", { name: "Administration", exact: true }).getByRole("link", { name: "Reports", exact: true })).toHaveCount(0);
   expect(await prisma.platformAuditEvent.count({ where: { actorUserId: fixture.staff.id, action: "permission.denied", entityId: "reports.read" } })).toBeGreaterThan(0);
 });

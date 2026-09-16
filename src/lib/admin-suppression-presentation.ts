@@ -1,0 +1,1 @@
+export const SUPPRESSION_LABELS = { HARD_BOUNCE: "Permanent bounce", COMPLAINT: "Spam complaint", PROVIDER_SUPPRESSION: "Provider suppression", INVITATION_OPTOUT: "Recipient invitation opt-out" } as const;

@@ -146,7 +146,7 @@ test("failed verification, cancellation and discarding never save settings", asy
   await page.getByRole("button", { name: "Verify and continue", exact: true }).click();
   await expect(page.locator(".notice.error")).toBeVisible();
   expect(await policy()).toEqual(before);
-  await page.getByRole("link", { name: "Cancel verification" }).click();
+  await page.getByRole("link", { name: "Return without verifying" }).click();
   await expect(page).not.toHaveURL(/\/account\/admin-mfa/);
   expect(await saves()).toBe(0);
   await page.goto(returnTo);

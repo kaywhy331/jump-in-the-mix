@@ -19,7 +19,9 @@ test("admin manually invites selected confirmed users and removes them from Wait
   const user = await prisma.user.create({ data: { email: `admin-${suffix}@example.test`, name: "Test admin", emailVerifiedAt: new Date(), isPlatformAdmin: true, staffMembership: { create: { role: "OWNER" } } } });
   const workspace = await prisma.workspace.create({ data: { name: "Test", slug: suffix, ownerId: user.id, members: { create: { userId: user.id, role: "OWNER" } } } });
   const token = randomBytes(32).toString("base64url");
-  await prisma.session.create({ data: { userId: user.id, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 60 * 60_000) } });
+  const session = await prisma.session.create({ data: { userId: user.id, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 60 * 60_000) } });
+  await prisma.adminMfaCredential.create({ data: { userId: user.id, enabledAt: new Date(), secretCiphertext: "browser-fixture" } });
+  await prisma.adminMfaSession.create({ data: { userId: user.id, sessionId: session.id, expiresAt: session.expiresAt } });
   await prisma.waitlistEntry.create({ data: { email, verifiedAt: new Date() } });
   await prisma.waitlistEntry.create({ data: { email: unconfirmedEmail } });
   try {
@@ -29,7 +31,10 @@ test("admin manually invites selected confirmed users and removes them from Wait
     await expect(page.getByRole("checkbox", { name: unconfirmedEmail, exact: true })).toBeDisabled();
     await page.getByRole("checkbox", { name: email, exact: true }).check();
     await page.getByLabel("Reason for manual invitations").fill("Browser test");
-    await page.getByRole("button", { name: "Send invitations to selected people" }).click();
+    await expect(page.getByText(/1 selected/)).toBeVisible();
+    await page.getByRole("button", { name: "Review 1 invitations", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Review before queueing" })).toBeVisible();
+    await page.getByRole("button", { name: "Confirm and queue invitations", exact: true }).click();
     await expect(page.getByRole("status").filter({ hasText: "1 invitations queued" })).toBeVisible();
     await expect(page.getByRole("checkbox", { name: email, exact: true })).toHaveCount(0);
     const invite = await prisma.referralAccessInvite.findFirstOrThrow({ where: { recipientEmail: email }, include: { delivery: true } });
@@ -39,7 +44,7 @@ test("admin manually invites selected confirmed users and removes them from Wait
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).referralInvitesIssued).toBe(0);
     await page.getByRole("link", { name: "Access history", exact: true }).click();
     await expect(page.getByRole("heading", { name: /Access history/ })).toBeVisible();
-    await expect(page.getByText("WAITLIST MANUAL · QUEUED", { exact: false })).toBeVisible();
+    await expect(page.locator(".admin-queue-row").filter({ hasText: email })).toContainText("access granted");
     await prisma.staffMembership.update({ where: { userId: user.id }, data: { status: "DISABLED" } });
     await page.goto("/admin/waitlist");
     await expect(page).toHaveURL(/\/jumps/);
@@ -48,6 +53,8 @@ test("admin manually invites selected confirmed users and removes them from Wait
     await prisma.waitlistEntry.deleteMany({ where: { email: { in: [email, unconfirmedEmail] } } });
     await prisma.waitlistAudit.deleteMany({ where: { actorUserId: user.id } });
     await prisma.workspace.delete({ where: { id: workspace.id } });
+    await prisma.adminMfaSession.deleteMany({ where: { userId: user.id } });
+    await prisma.adminMfaCredential.deleteMany({ where: { userId: user.id } });
     await prisma.user.delete({ where: { id: user.id } });
   }
 });

@@ -1,5 +1,6 @@
 "use server";
 
+import { safeAdminReturnTo } from "@/lib/admin-navigation";
 import bcrypt from "bcryptjs";
 import {
   AdminMfaError,
@@ -15,11 +16,6 @@ import { getRequestMetadata } from "@/lib/request-context";
 
 function value(formData: FormData, key: string, maxLength = 200): string {
   return String(formData.get(key) ?? "").trim().slice(0, maxLength);
-}
-
-function safeAdminReturnTo(raw: string): string {
-  if (!raw.startsWith("/admin") || raw.startsWith("//")) return "/admin";
-  return raw;
 }
 
 async function enforceAdminMfaRateLimit(userId: string, scope: string): Promise<string | null> {
@@ -102,7 +98,7 @@ export async function verifyAdminMfaAction(
   if (rateLimitError) return { status: "error", message: rateLimitError };
 
   const code = value(formData, "code", 40);
-  const redirectTo = safeAdminReturnTo(value(formData, "returnTo", 500));
+  const redirectTo = safeAdminReturnTo(value(formData, "returnTo", 2000));
   try {
     const method = await consumeAdminMfaCode(user.id, code);
     await markAdminMfaSessionVerified(session.id, user.id);

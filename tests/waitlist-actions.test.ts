@@ -37,7 +37,7 @@ describe("waitlist server action boundaries", () => {
     expect(mocks.selected).toHaveBeenCalledWith(["entry"], { userId: "admin", sessionId: "admin-session" }, "Launch");
   });
   it.each([{ entryId: [] }, { entryId: Array.from({ length: 51 }, (_, i) => String(i)) }])("rejects empty or oversized selections", async ({ entryId }) => {
-    await expect(inviteWaitlistSelectionAction(form({ entryId, reason: "Launch" }))).rejects.toThrow("Select%20between");
+    await expect(inviteWaitlistSelectionAction(form({ entryId, reason: "Launch" }))).rejects.toThrow(/Select(?:%20|\+)between/);
     expect(mocks.selected).not.toHaveBeenCalled();
   });
   it("requires a reason and configured email before reserving access", async () => {

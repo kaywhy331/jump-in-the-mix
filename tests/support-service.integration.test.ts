@@ -158,4 +158,15 @@ describe.sequential("support ticket lifecycle and workspace isolation", () => {
     expect(reopened?.messages.at(-1)?.body).toMatch(/reopened the ticket/i);
     expect(await prisma.auditLog.count({ where: { workspaceId: ids.workspaceA, entityId: ids.ticket } })).toBeGreaterThanOrEqual(6);
   });
+  it("saves reply and resolution atomically, with idempotent retries", async () => {
+    const input = { ticketId: ids.ticket, adminUserId: ids.admin, actorSessionId: ids.session, requestKey: randomUUID(), body: "The fix is verified; please reply if you need more help.", resolve: true };
+    const first = await adminReplyToSupportTicketRecord(input);
+    expect(first.ticket).toMatchObject({ status: "RESOLVED", resolvedByUserId: ids.admin });
+    expect(first.ticket.resolvedAt).toBeInstanceOf(Date);
+    const repeat = await adminReplyToSupportTicketRecord(input);
+    expect(repeat.message.id).toBe(first.message.id);
+    expect(await prisma.supportTicketMessage.count({ where: { ticketId: ids.ticket, body: input.body } })).toBe(1);
+    expect(await prisma.platformAuditEvent.count({ where: { entityId: ids.ticket, action: "support.case.status", actorUserId: ids.admin } })).toBeGreaterThan(0);
+  });
+
 });

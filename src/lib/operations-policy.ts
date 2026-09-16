@@ -1,15 +1,15 @@
 export const OPERATIONS_CHECKS = {
-  web: { title: "Web readiness", href: "/admin/operations", help: "Check the web service, database connectivity and deployment configuration." },
-  worker: { title: "Worker heartbeat", href: "/admin/operations", help: "Check the independently supervised worker and its recent heartbeat." },
-  jobs: { title: "Failed or overdue jobs", href: "/admin/operations", help: "Inspect recorded failures and overdue work before retrying eligible jobs." },
-  invitations: { title: "Invitation delivery review", href: "/admin/email/recovery", help: "Review uncertain or overdue invitation deliveries; preserve the original grant." },
-  email: { title: "Email capacity and support notifications", href: "/admin/email", help: "Review rolling usage, account-email reserves, and pending support notifications. Open Admin → Support for notification recovery." },
-  database: { title: "Database storage capacity", href: "/admin/reports", help: "Compare physical database size with the configured provider allowance." },
-  backup: { title: "Encrypted backup freshness", href: "/admin/operations", help: "Check the verified backup manifest on the monitor's storage. Freshness alone does not prove offsite durability or restore success." },
-  restore: { title: "Restore rehearsal freshness", href: "/admin/operations", help: "Run a complete encrypted backup, isolated restore and foreign-key smoke rehearsal, then retain its receipt." },
-  mfa: { title: "Administrator verification blocks", href: "/admin/audit", help: "Review blocked administrator verification attempts. A block is a signal to investigate, not proof of account compromise." },
-  support: { title: "Unusual support access volume", href: "/admin/audit", help: "Review elevated support-view openings. This aggregate threshold does not determine whether access was inappropriate." },
-  notifications: { title: "Operational notification setup", href: "/admin/operations", help: "Configure a private operational webhook and verify delivery to the intended administrator channel." }
+  web: { impact: "Customers may be unable to open the app or save work.", title: "Web readiness", href: "/admin/operations", help: "Check the web service, database connectivity and deployment configuration." },
+  worker: { impact: "Queued invitations, reminders and reports may be delayed.", title: "Worker heartbeat", href: "/admin/operations", help: "Check the independently supervised worker and its recent heartbeat." },
+  jobs: { impact: "Some requested background work has failed or missed its expected run time.", title: "Failed or overdue jobs", href: "/admin/operations", help: "Inspect recorded failures and overdue work before retrying eligible jobs." },
+  invitations: { impact: "Recipients may still be waiting for their invitation.", title: "Invitation delivery review", href: "/admin/email/recovery", help: "Review uncertain or overdue invitation deliveries; preserve the original grant." },
+  email: { impact: "Email limits or failed notifications may delay account and support messages.", title: "Email capacity and support notifications", href: "/admin/email", help: "Review rolling usage, account-email reserves, and pending support notifications. Open Admin → Support for notification recovery." },
+  database: { impact: "Insufficient database capacity can interrupt reads and writes.", title: "Database storage capacity", href: "/admin/reports", help: "Compare physical database size with the configured provider allowance." },
+  backup: { impact: "Recent data may not have a verified backup.", title: "Encrypted backup freshness", href: "/admin/operations", help: "Check the verified backup manifest on the monitor's storage. Freshness alone does not prove offsite durability or restore success." },
+  restore: { impact: "The ability to recover from a backup has not been demonstrated recently.", title: "Restore rehearsal freshness", href: "/admin/operations", help: "Run a complete encrypted backup, isolated restore and foreign-key smoke rehearsal, then retain its receipt." },
+  mfa: { impact: "Some staff verification attempts were blocked.", title: "Administrator verification blocks", href: "/admin/audit", help: "Review blocked administrator verification attempts. A block is a signal to investigate, not proof of account compromise." },
+  support: { impact: "Support access volume exceeded the configured review threshold.", title: "Unusual support access volume", href: "/admin/audit", help: "Review elevated support-view openings. This aggregate threshold does not determine whether access was inappropriate." },
+  notifications: { impact: "Administrators may not receive incident notifications.", title: "Operational notification setup", href: "/admin/operations", help: "Configure a private operational webhook and verify delivery to the intended administrator channel." }
 } as const;
 export type OperationsCode = keyof typeof OPERATIONS_CHECKS;
 export type OperationsState = "OK" | "WARNING" | "CRITICAL" | "UNKNOWN";

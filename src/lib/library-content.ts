@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { MIX_TEMPLATE_CATEGORIES, MIX_TEMPLATE_INDUSTRIES, normalizeSharedMixSteps } from "@/lib/shared-mix";
-import { slugify } from "@/lib/slug";
+export function libraryDateKey(value: string): string {
+  return value.normalize("NFKD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 120);
+}
 
 const text = (max: number) => z.string().trim().max(max).nullable();
 const schema = z.object({
@@ -17,14 +19,14 @@ const schema = z.object({
 export type LibraryContent = z.infer<typeof schema>;
 
 export class LibraryError extends Error {
-  constructor(message: string, readonly needsMfa = false) { super(message); }
+  constructor(message: string, readonly needsMfa = false, readonly field?: string) { super(message); }
 }
 export function validateLibraryContent(value: unknown): LibraryContent {
   const result = schema.safeParse(value);
-  if (!result.success) throw new LibraryError(result.error.issues[0]?.message ?? "Check the mix content.");
+  if (!result.success) throw new LibraryError(result.error.issues[0]?.message ?? "Check the mix content.", false, result.error.issues[0]?.path.join("."));
   const content = result.data;
   if (content.triggerMode === "DATE_TRIGGERED") {
-    content.dateTypeSlug = slugify(content.dateTypeSlug || content.dateTypeName || "");
+    content.dateTypeSlug = libraryDateKey(content.dateTypeSlug || content.dateTypeName || "");
     if (!content.dateTypeName || !content.dateTypeSlug) throw new LibraryError("Date-based mixes must identify the saved date that starts them.");
   } else { content.dateTypeName = null; content.dateTypeSlug = null; }
   content.steps = normalizeSharedMixSteps(content.steps);

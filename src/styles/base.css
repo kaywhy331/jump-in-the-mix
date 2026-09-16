@@ -41,6 +41,8 @@
   --z-modal: 100;
   --motion-fast: 160ms;
   --focus: #826cff;
+  --status-warning-bg: #fff4dc;
+  --status-warning-ink: #795100;
   --status-success-bg: #e8f8f1;
   --status-success-ink: #0d7758;
   --status-danger-bg: #fff0f2;

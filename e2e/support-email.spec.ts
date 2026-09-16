@@ -47,10 +47,10 @@ test("a saved reply appears for the customer while its notification waits for th
   await context.addCookies([{ name: "jitm_session", value: f.admin.token, url: baseURL, httpOnly: true, sameSite: "Strict" }]);
   await page.goto(`/admin/support/${f.ticket.id}`);
   const body = "We checked the Mix. Please confirm its Jump Date in the ticket.";
-  await page.getByRole("textbox", { name: "Jump in the Mix Response", exact: true }).fill(body);
-  await page.getByRole("button", { name: "Send Jump in the Mix Response", exact: true }).click();
-  await expect(page).toHaveURL(/replied=1$/); await expect(page.getByText("Email pending", { exact: true })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Jump in the Mix Response", exact: true })).toHaveValue("");
+  await page.getByRole("textbox", { name: "Reply to customer", exact: true }).fill(body);
+  await page.getByRole("button", { name: "Send reply", exact: true }).click();
+  await expect(page.getByText("Reply saved. Waiting on the customer; email notification is queued separately.")).toBeVisible(); await expect(page.getByText("Email pending", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Reply to customer", exact: true })).toHaveValue("");
   const delivery = await prisma.supportEmailDelivery.findFirstOrThrow({ where: { message: { ticketId: f.ticket.id } } });
   expect(delivery.status).toBe("QUEUED"); expect(await prisma.emailSendAttempt.count({ where: { messageId: delivery.emailMessageId } })).toBe(0);
   await layout(page);
@@ -70,7 +70,7 @@ test("an administrator finds a review and repairs local acceptance without sendi
   await layout(page);
   await page.getByRole("textbox", { name: "Review reason", exact: true }).fill("Confirmed the original local provider acceptance receipt.");
   await page.getByRole("button", { name: "Check acceptance receipt", exact: true }).click();
-  await expect(page).toHaveURL(/emailReviewed=1$/); await expect(page.getByText("Accepted by email provider", { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/emailReviewed=1(?:&|$)/); await expect(page.getByText("Accepted by email provider", { exact: true })).toBeVisible();
   expect((await prisma.supportEmailDelivery.findUniqueOrThrow({ where: { id: item.delivery.id } })).status).toBe("SENT");
   expect(await prisma.emailSendAttempt.count({ where: { messageId: item.delivery.emailMessageId } })).toBe(0);
 });
@@ -88,7 +88,7 @@ test("a replacement requires explicit review and a current password, preserving 
   await page.getByLabel("I understand another copy may arrive.", { exact: true }).check();
   await page.getByLabel("Current administrator password", { exact: true }).fill(password);
   await page.getByRole("button", { name: "Approve replacement email", exact: true }).click();
-  await expect(page).toHaveURL(/emailReviewed=1$/); await expect(page.getByText("Email pending", { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/emailReviewed=1(?:&|$)/); await expect(page.getByText("Email pending", { exact: true })).toBeVisible();
   const deliveries = await prisma.supportEmailDelivery.findMany({ where: { messageId: item.message.id }, orderBy: { generation: "asc" } });
   expect(deliveries).toHaveLength(2); expect(deliveries[0].status).toBe("REVIEW"); expect(deliveries[1].status).toBe("QUEUED");
   expect(preparedEmail(frozenSupportEmail(deliveries[0])).body).toBe(preparedEmail(frozenSupportEmail(deliveries[1])).body);

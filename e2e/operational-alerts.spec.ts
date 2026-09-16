@@ -24,6 +24,7 @@ test("an administrator acknowledges the incident through its actual action witho
   await card.getByRole("textbox", { name: "Reason for acknowledgment", exact: true }).fill("I am investigating the worker supervisor and its last restart.");
   await card.getByRole("button", { name: "Acknowledge alert" }).click();
   await expect(page).toHaveURL(/acknowledged=1$/); await expect(page.locator(".notice.success")).toContainText("problem stays open");
+  await page.getByRole("link", { name: "Acknowledged", exact: true }).click();
   await expect(card).toContainText("underlying check remains critical"); await expect(card.getByRole("button", { name: "Acknowledge alert" })).toHaveCount(0);
   const row = await prisma.operationsCheck.findUniqueOrThrow({ where: { code: "worker" } }); expect(row.state).toBe("CRITICAL"); expect(row.acknowledgedBy).toBe(f.user.id);
   expect(await prisma.operationsNotice.count({ where: { code: "worker", status: "CANCELED" } })).toBe(1);
@@ -35,6 +36,7 @@ test("changed evidence rejects a stale form and permission removal prevents ackn
   await card.getByRole("textbox", { name: "Reason for acknowledgment", exact: true }).fill("Review the latest worker incident and restart history.");
   await prisma.operationsCheck.update({ where: { code: "worker" }, data: { evidence: { ageSeconds: 900, limitSeconds: 90 }, revision: { increment: 1 } } });
   await card.getByRole("button", { name: "Acknowledge alert" }).click(); await expect(page.locator(".notice.error")).toContainText("alert changed");
+  await page.getByRole("button", { name: "I reviewed the current record; keep my draft" }).click();
   await card.getByRole("textbox", { name: "Reason for acknowledgment", exact: true }).fill("Review the latest worker incident and restart history.");
   await prisma.staffMembership.update({ where: { userId: f.user.id }, data: { denies: ["operations.manage"] } });
   await card.getByRole("button", { name: "Acknowledge alert" }).click(); await expect(page).toHaveURL(/access-denied/);
