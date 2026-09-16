@@ -63,3 +63,5 @@ export function supportEmailStatusLabel(value: string): string { return optionLa
 export function isSupportCategory(value: string): value is SupportCategoryValue { return SUPPORT_CATEGORIES.some((option) => option.value === value); }
 export function isSupportPriority(value: string): value is SupportPriorityValue { return SUPPORT_PRIORITIES.some((option) => option.value === value); }
 export function isSupportStatus(value: string): value is SupportStatusValue { return SUPPORT_STATUSES.some((option) => option.value === value); }
+
+export function adminSupportStatusLabel(value: string) { return value === "WAITING_ON_USER" ? "Waiting on customer" : supportStatusLabel(value); }

@@ -5,7 +5,7 @@ import { beforeAll, afterAll, afterEach, describe, expect, it, vi } from "vitest
 import { prisma } from "../src/lib/prisma";
 
 const context = vi.hoisted(() => ({ cookies: new Map<string, string>(), mail: vi.fn() }));
-vi.mock("next/headers", () => ({ cookies: async () => ({ get: (key: string) => context.cookies.has(key) ? { value: context.cookies.get(key) } : undefined, set: (key: string, value: string) => context.cookies.set(key, value), delete: (key: string) => context.cookies.delete(key) }) }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers(), cookies: async () => ({ get: (key: string) => context.cookies.has(key) ? { value: context.cookies.get(key) } : undefined, set: (key: string, value: string) => context.cookies.set(key, value), delete: (key: string) => context.cookies.delete(key) }) }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`REDIRECT ${path}`); } }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/request-context", () => ({ getRequestMetadata: async () => ({ ipAddress: null, userAgent: "Local account-access test" }) }));

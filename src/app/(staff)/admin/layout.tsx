@@ -6,7 +6,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="admin-layout-shell">
       <AdminNav permissions={permissions} />
-      <div className="admin-workspace-main">{children}</div>
+      <div className="admin-workspace-main"><AdminNav permissions={permissions} tabs />{children}</div>
     </div>
   );
 }

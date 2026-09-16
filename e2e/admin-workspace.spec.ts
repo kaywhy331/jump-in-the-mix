@@ -49,7 +49,7 @@ test("overview highlights missing monitoring, respects roles, and offers a usabl
     await applyRenderedTheme(page, colorScheme, { width, height: 1000 });
     if (width === 320) {
       await page.getByRole("button", { name: "Menu", exact: true }).click();
-      await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Team", exact: true })).toBeVisible();
+      await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Settings", exact: true })).toBeVisible();
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
@@ -57,7 +57,7 @@ test("overview highlights missing monitoring, respects roles, and offers a usabl
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Ready-made mixes", exact: true }).click();
+  await page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Content", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/templates$/);
   await expect(page.getByRole("button", { name: "Menu", exact: true })).toHaveAttribute("aria-expanded", "false");
   await page.goBack();
@@ -68,7 +68,7 @@ test("overview highlights missing monitoring, respects roles, and offers a usabl
   await expect(page.getByRole("link", { name: /Create a library draft/ })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Explore reports/ })).toBeVisible();
   await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Team", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Settings", exact: true })).toHaveCount(0);
 });
 
 test("content search, visibility, ordering and pagination work together without losing filters", async ({ page, context }, info) => {
@@ -82,13 +82,12 @@ test("content search, visibility, ordering and pagination work together without 
   await page.goto("/admin/templates");
   await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill(prefix);
   await page.getByLabel("Sort mixes").selectOption("title");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(25);
   await expect(page.locator(".admin-library-row").first()).toContainText(`${prefix} 00`);
   await page.getByRole("link", { name: "Next", exact: true }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(2);
   await expect(page.getByRole("searchbox", { name: "Search ready-made mixes" })).toHaveValue(prefix);
-  await page.getByRole("navigation", { name: "Library visibility" }).getByRole("link", { name: /Drafts & hidden/ }).click();
+  await page.getByRole("navigation", { name: "Library visibility" }).getByRole("link", { name: /Unpublished/ }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(1);
   await expect(page.locator(".admin-library-row")).toContainText(`${prefix} 26`);
   await expect(page.getByRole("navigation", { name: "Library pages" })).toContainText("Page 1 of 1");
@@ -99,10 +98,8 @@ test("content search, visibility, ordering and pagination work together without 
   }
   await page.getByRole("navigation", { name: "Library visibility" }).getByRole("link", { name: /All mixes/ }).click();
   await page.getByLabel("Sort mixes").selectOption("popular");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.locator(".admin-library-row").first()).toContainText(`${prefix} 26`);
   await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill(`${prefix} missing`);
-  await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("heading", { name: "No mixes match these filters" })).toBeVisible();
   await page.getByRole("link", { name: "Show all mixes", exact: true }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(25);

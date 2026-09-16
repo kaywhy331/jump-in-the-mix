@@ -198,6 +198,7 @@ export async function adminReplyToSupportTicketRecord(input: {
   actorSessionId: string;
   requestKey: string;
   body: string;
+  resolve?: boolean;
 }) {
   if (!/^[a-f0-9-]{36}$/i.test(input.requestKey) || input.body.trim().length < 2 || input.body.length > 5000) throw new SupportTicketError("Reload the reply form and write a response of 2–5000 characters.");
   const requestKey = createHash("sha256").update(JSON.stringify([input.adminUserId, input.ticketId, input.requestKey])).digest("hex");
@@ -229,13 +230,17 @@ export async function adminReplyToSupportTicketRecord(input: {
     const updatedTicket = await tx.supportTicket.update({
       where: { id: ticket.id },
       data: {
-        status: "WAITING_ON_USER",
+        status: input.resolve ? "RESOLVED" : "WAITING_ON_USER",
         lastActivityAt: now,
-        resolvedAt: null,
-        resolvedByUserId: null,
+        resolvedAt: input.resolve ? now : null,
+        resolvedByUserId: input.resolve ? input.adminUserId : null,
         closedAt: null
       }
     });
+    if (input.resolve) {
+      const ended = await tx.adminImpersonation.updateMany({ where: { ticketId: ticket.id, endedAt: null }, data: { endedAt: now } });
+      await tx.platformAuditEvent.create({ data: { actorUserId: input.adminUserId, action: "support.case.status", entityType: "SupportTicket", entityId: ticket.id, beforeData: { status: ticket.status }, afterData: { status: "RESOLVED", endedViews: ended.count } } });
+    }
     await tx.auditLog.create({
       data: {
         workspaceId: ticket.workspaceId,

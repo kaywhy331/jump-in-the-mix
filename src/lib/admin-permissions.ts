@@ -53,6 +53,8 @@ export function effectiveAdminPermissions(staff: StaffAccess | null | undefined)
 
 export const ADMIN_AREAS: ReadonlyArray<{ label: string; href: string; permission: AdminPermission }> = [
   { label: "Overview", href: "/admin", permission: "dashboard.read" },
+  { label: "Report history", href: "/admin/reports/history", permission: "reports.read" },
+  { label: "Exports", href: "/admin/reports/exports", permission: "reports.read" },
   { label: "Reports", href: "/admin/reports", permission: "reports.read" },
   { label: "Users", href: "/admin/users", permission: "users.read" },
   { label: "Waitlist", href: "/admin/waitlist", permission: "waitlist.read" },
@@ -60,11 +62,13 @@ export const ADMIN_AREAS: ReadonlyArray<{ label: string; href: string; permissio
   { label: "Email recovery", href: "/admin/email/recovery", permission: "email.manage" },
   { label: "Support", href: "/admin/support", permission: "support.manage" },
   { label: "Ready-made mixes", href: "/admin/templates", permission: "mixes.edit" },
-  { label: "System Mix", href: "/admin/system-mix", permission: "mixes.edit" },
+  { label: "Invitation wording", href: "/admin/system-mix", permission: "mixes.edit" },
   { label: "Operations", href: "/admin/operations", permission: "operations.read" },
+  { label: "Alerts", href: "/admin/operations/alerts", permission: "operations.read" },
+  { label: "Suppression", href: "/admin/email/suppressions", permission: "email.manage" },
   { label: "Email", href: "/admin/email", permission: "operations.read" },
   { label: "Audit", href: "/admin/audit", permission: "audit.read" },
   { label: "Admission", href: "/admin/admission", permission: "settings.manage" },
-  { label: "System Settings", href: "/admin/settings", permission: "settings.manage" },
+  { label: "Library options", href: "/admin/settings", permission: "settings.manage" },
   { label: "Team", href: "/admin/team", permission: "staff.manage" }
 ];

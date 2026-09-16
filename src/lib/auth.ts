@@ -13,6 +13,7 @@ import { endAdminImpersonationGrant, resolveAdminImpersonationGrant } from "@/li
 import { getRequestMetadata } from "@/lib/request-context";
 import { wakeWorkerAfterResponse } from "@/lib/worker-dispatch-after";
 import { effectiveAdminPermissions, hasAdminPermission, type AdminPermission } from "@/lib/admin-permissions";
+import { firstAdminDestination, safeAdminReturnTo } from "@/lib/admin-navigation";
 import { lockAccess } from "@/lib/access-lock";
 
 export function hashSessionToken(token: string): string {
@@ -238,14 +239,15 @@ export async function requirePlatformAdmin(permission?: AdminPermission | AdminP
       adminMfaCredentialStatus(identity.user.id),
       adminMfaSessionIsVerified(identity.session.id, identity.user.id)
     ]);
-    if (!credential.enabledAt) redirect("/account/admin-mfa?setup=1&returnTo=%2Fadmin");
-    if (!verified) redirect("/account/admin-mfa?verify=1&returnTo=%2Fadmin");
+    const returnTo = safeAdminReturnTo((await headers()).get("x-jitm-admin-return"), firstAdminDestination(identity.permissions));
+    if (!credential.enabledAt) redirect(`/account/admin-mfa?setup=1&returnTo=${encodeURIComponent(returnTo)}`);
+    if (!verified) redirect(`/account/admin-mfa?verify=1&returnTo=${encodeURIComponent(returnTo)}`);
   }
   const required = permission ? (Array.isArray(permission) ? permission : [permission]) : [];
   const denied = required.find(p => !hasAdminPermission(identity.staff, p));
   if (denied) {
     await prisma.platformAuditEvent.create({ data: { actorUserId: identity.user.id, action: "permission.denied", entityType: "AdminPermission", entityId: denied, outcome: "DENIED" } });
-    redirect("/admin/access-denied");
+    redirect(`/admin/access-denied?capability=${encodeURIComponent(denied)}`);
   }
   return identity;
 }

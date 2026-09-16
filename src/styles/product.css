@@ -229,6 +229,8 @@
     --shadow: 0 18px 50px rgba(0, 0, 0, .42);
     --shadow-sm: 0 6px 20px rgba(0, 0, 0, .28);
     --shadow-md: 0 14px 38px rgba(0, 0, 0, .36);
+    --status-warning-bg: #392e19;
+    --status-warning-ink: #f1c574;
     --status-success-bg: #15382f;
     --status-success-ink: #83e2c1;
     --success-ink: #83e2c1;

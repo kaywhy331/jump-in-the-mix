@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "../src/lib/prisma";
 const context = vi.hoisted(() => ({ token: "" }));
-vi.mock("next/headers", () => ({ cookies: async () => ({ get: (key: string) => key === "jitm_session" ? { value: context.token } : undefined }) }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers(), cookies: async () => ({ get: (key: string) => key === "jitm_session" ? { value: context.token } : undefined }) }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`REDIRECT ${path}`); } }));
 vi.mock("@/lib/env", async original => {
   const mod = await original<typeof import("../src/lib/env")>();

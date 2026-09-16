@@ -59,7 +59,7 @@ describe.skipIf(!local).sequential("waitlist mutation authorization on PostgreSQ
     });
     const form = new FormData(); form.set("entryId", entry.id); form.set("scheduleAction", "pause"); form.set("reason", "Waitlist authorization regression");
     const run = action === "manual" ? inviteWaitlistSelectionAction : setWaitlistScheduleAction;
-    await expect(run(form)).rejects.toThrow(change === "valid" ? action === "manual" ? "queued=1&skipped=0" : "REDIRECT /admin/waitlist" : "error=Your%20staff%20access%20changed");
+    await expect(run(form)).rejects.toThrow(change === "valid" ? action === "manual" ? "queued=1&skipped=0" : "REDIRECT /admin/waitlist" : /error=Your(?:%20|\+)staff(?:%20|\+)access(?:%20|\+)changed/);
     const granted = change === "valid" && action === "manual";
     expect(await prisma.waitlistEntry.findUnique({ where: { id: entry.id } })).toMatchObject({ status: granted ? "ACCESS_GRANTED" : "WAITING" });
     expect(await prisma.referralAccessInvite.count({ where: { recipientEmail: fixture.email } })).toBe(granted ? 1 : 0);

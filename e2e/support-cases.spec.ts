@@ -26,7 +26,7 @@ async function checkLayout(page: import("@playwright/test").Page) {
 
 test("support assigns a case, opens its audited read-only view, and returns to the queue", async ({ page, context }, info) => {
   await context.addCookies([{ name: "jitm_session", value: f.admin.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
-  await page.goto("/admin/support");
+  await page.goto(`/admin/support?q=${encodeURIComponent(f.ticket.reference)}`);
   await expect(page.getByRole("heading", { name: "Admin · Support" })).toBeVisible();
   expect(await page.content()).not.toContain("PRIVATE_SUPPORT_BODY_SENTINEL");
   await checkLayout(page);
@@ -37,7 +37,7 @@ test("support assigns a case, opens its audited read-only view, and returns to t
   await page.getByRole("combobox", { name: "Assigned to", exact: true }).selectOption(f.admin.user.id);
   await page.getByRole("textbox", { name: "Assignment reason", exact: true }).fill("I will investigate this customer’s missing follow-up.");
   await page.getByRole("button", { name: "Save assignment" }).click();
-  await expect(page).toHaveURL(/assignmentSaved=1$/);
+  await expect(page).toHaveURL(/assignmentSaved=1(?:&|$)/);
   await expect(page.getByRole("button", { name: "Start view-only session" })).toBeVisible();
   await checkLayout(page);
   await page.getByRole("textbox", { name: "Support reason", exact: true }).fill("Review the queue configuration reported in this ticket.");
@@ -86,7 +86,7 @@ test("reassignment ends an existing view, rejects a stale form, and a copied coo
     await second.getByRole("combobox", { name: "Assigned to", exact: true }).selectOption(f.colleague.user.id);
     await second.getByRole("textbox", { name: "Assignment reason", exact: true }).fill("Take over this case for the next support shift.");
     await second.getByRole("button", { name: "Save assignment" }).click();
-    await expect(second).toHaveURL(/assignmentSaved=1$/);
+    await expect(second).toHaveURL(/assignmentSaved=1(?:&|$)/);
     await page.goto("/contacts"); await expect(page.locator(".impersonation-banner")).toHaveCount(0);
     await page.getByRole("button", { name: "Clear ended support view" }).click();
     await expect(page).toHaveURL(/\/admin\/support\?impersonationEnded=1$/);

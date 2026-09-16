@@ -136,3 +136,55 @@
   .admin-library-search input[type="search"] { flex-basis: 100%; }
   .admin-library-search select { flex: 1; min-width: 0; }
 }
+
+/* Shared workspace patterns. */
+.admin-area-tabs { margin-bottom: 22px; }
+.admin-operator { display: grid; gap: 2px; min-width: 0; font-size: .78rem; }
+.admin-operator strong { overflow-wrap: anywhere; }
+.admin-operator small { color: var(--muted); }
+.admin-queue { display: grid; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.admin-queue-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 18px; padding: 14px 18px; }
+.admin-queue-row + .admin-queue-row { border-top: 1px solid var(--line); }
+.admin-queue-row > div { min-width: 0; }
+.admin-queue-row h2, .admin-queue-row h3, .admin-queue-row p { margin: 0; }
+.admin-queue-row h2, .admin-queue-row h3 { font-size: .95rem; }
+.admin-queue-row small, .admin-queue-row p { color: var(--muted); font-size: .8rem; overflow-wrap: anywhere; }
+.admin-result-summary { color: var(--muted); font-size: .85rem; }
+.admin-metric-card:is(.healthy,.attention,.critical) :is(span,small) { color: inherit; }
+.staff-shell .support-message { color: var(--ink); }
+.staff-shell label:has(> input[type="checkbox"]) { display: flex; align-items: center; gap: 8px; }
+.staff-shell label > input[type="checkbox"] { flex: 0 0 auto; width: 18px; height: 18px; }
+.staff-shell .admin-safety-card { background: var(--surface); border-color: var(--line); }
+.admin-pagination { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-block: 16px; }
+@media (max-width: 760px) { .admin-operator { flex-basis: 100%; } .admin-navigation-groups { display: block; } .admin-navigation-group { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+
+.staff-shell .admin-option-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.staff-shell .admin-user-search { display: flex; flex-wrap: wrap; gap: 12px; }
+.staff-shell .admin-user-search input { min-width: 0; flex: 3 1 280px; }
+.staff-shell .admin-user-search select { flex: 1 1 180px; width: auto; }
+.admin-ticket-context h2 { font-size: 1rem; }
+
+.admin-beat-editor { border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.admin-beat-editor > summary, .admin-release-confirmation > summary, .admin-content-diff summary { cursor: pointer; min-height: 44px; padding: 10px 0; font-weight: 750; }
+.admin-diff-columns { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 18px; }
+.admin-diff-columns p { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }
+.admin-diff-columns > div { padding: 12px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; }
+.admin-release-confirmation { padding: 12px; border: 1px solid var(--line); border-radius: 12px; margin-block: 14px; }
+@media(max-width:760px) { .admin-diff-columns { grid-template-columns: 1fr; } }
+
+.admin-refresh { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-block: 14px; color: var(--muted); font-size: .8rem; }
+.staff-shell meter { width: 100%; max-width: 600px; height: 16px; }
+
+.admin-report-toolbar { padding: 12px 0; }
+.admin-report-toolbar p { font-size: .8rem; color: var(--muted); margin-block: 8px; }
+.admin-report-export { margin-block: 16px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.admin-report-export > summary { cursor: pointer; min-height: 32px; font-weight: 750; }
+.admin-audit-data { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow-y: auto; padding: 14px; background: var(--surface-soft); border-radius: 10px; }
+.staff-shell .admin-audit-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+.staff-shell .admin-audit-filters > input { min-width: 0; flex: 2 1 260px; }
+.staff-shell .admin-audit-filters > select { width: auto; min-width: 0; flex: 1 1 170px; }
+
+.staff-shell .admin-permission-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(130px,180px); gap: 12px; padding-block: 8px; }
+.admin-permission-row span { display: grid; gap: 4px; }
+.admin-permission-row small { color: var(--muted); }
+@media(max-width:430px) { .staff-shell .admin-permission-row { grid-template-columns: 1fr; } }

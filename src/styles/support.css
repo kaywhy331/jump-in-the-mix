@@ -100,8 +100,8 @@
   border-radius: 15px;
   background: var(--surface-soft);
 }
-.support-message.user { justify-self: end; background: #f5f2ff; border-color: #d9d4ff; }
-.support-message.admin { justify-self: start; background: #eef9f5; border-color: #c9eadf; }
+.support-message.user { justify-self: end; background: var(--brand-soft); border-color: var(--line); }
+.support-message.admin { justify-self: start; background: var(--status-success-bg); border-color: var(--line); }
 .support-message header { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 8px; }
 .support-message header strong { font-size: .82rem; }
 .support-message header time { color: var(--muted); font-size: .72rem; white-space: nowrap; }

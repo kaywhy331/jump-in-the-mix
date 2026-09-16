@@ -1,3 +1,5 @@
+import { AdminPagination } from "@/components/AdminPagination";
+import { adminPage, adminQuery } from "@/lib/admin-navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
@@ -15,7 +17,7 @@ import {
   SUPPORT_STATUSES,
   supportCategoryLabel,
   supportPriorityLabel,
-  supportStatusLabel,
+  adminSupportStatusLabel,
   type SupportCategoryValue,
   type SupportPriorityValue,
   type SupportStatusValue
@@ -24,6 +26,8 @@ import {
 export const metadata: Metadata = { title: "Admin · Support" };
 
 type SearchParams = {
+  page?: string;
+  view?: string;
   q?: string;
   email?: string;
   error?: string;
@@ -34,10 +38,11 @@ type SearchParams = {
 };
 
 export default async function AdminSupportPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [params, { user }] = await Promise.all([searchParams, requirePlatformAdmin("support.manage")]);
+  const [params, { user, permissions }] = await Promise.all([searchParams, requirePlatformAdmin("support.manage")]);
   const displayPreferences = await displayPreferencesForUser(user.id);
   const query = typeof params.q === "string" ? params.q.trim().slice(0, 200) : "";
-  const statusValue = params.status ?? "";
+  const view = ["mine", "unassigned", "waiting", "all"].includes(params.view ?? "") ? params.view! : params.email === "review" ? "all" : "attention";
+  const statusValue = params.status ?? (view === "waiting" ? "WAITING_ON_USER" : view === "all" ? "all" : "attention");
   const categoryValue = params.category ?? "";
   const priorityValue = params.priority ?? "";
   const status: SupportStatusValue | "all" | "attention" = isSupportStatus(statusValue) ? statusValue : statusValue === "attention" ? "attention" : "all";
@@ -63,6 +68,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
     : [[], []];
 
   const where: Prisma.SupportTicketWhereInput = {
+    ...(view === "mine" ? { assignedToUserId: user.id } : view === "unassigned" ? { assignedToUserId: null } : {}),
     ...(params.email === "review" ? { messages: { some: { authorType: "ADMIN", emailStatus: "FAILED" } } } : {}),
     ...(status === "attention" ? { status: { in: ["OPEN", "WAITING_ON_SUPPORT"] } } : status !== "all" ? { status } : {}),
     ...(category !== "all" ? { category } : {}),
@@ -79,6 +85,10 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
       : {})
   };
 
+  const total = await prisma.supportTicket.count({ where });
+  const page = Math.min(adminPage(params.page), Math.max(1, Math.ceil(total / 25)));
+  const queueHref = (nextPage = page, nextView = view) => adminQuery("/admin/support", { q: query, status: statusValue, category: categoryValue, priority: priorityValue, email: params.email, view: nextView, page: nextPage });
+  const returnTo = queueHref();
   const [tickets, openCount, waitingCount, urgentCount, failedEmailCount] = await Promise.all([
     prisma.supportTicket.findMany({
       where,
@@ -86,8 +96,8 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
         _count: { select: { messages: true } },
         assignedTo: { select: { name: true } }
       },
-      orderBy: [{ priority: "desc" }, { lastActivityAt: "desc" }],
-      take: 100
+      orderBy: [{ priority: "desc" }, { lastActivityAt: "asc" }, { id: "asc" }],
+      take: 25, skip: (page - 1) * 25
     }),
     prisma.supportTicket.count({ where: { status: { in: ["OPEN", "WAITING_ON_SUPPORT"] } } }),
     prisma.supportTicket.count({ where: { status: "WAITING_ON_USER" } }),
@@ -119,8 +129,8 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
           <p>Assign tickets, review customer requests, and track replies. Opening a conversation records access in the audit log.</p>
         </div>
         <div className="page-actions">
-          <Link className="button" href="/admin/users">Users</Link>
-          <Link className="button" href="/admin/templates">Ready-made mixes</Link>
+          {permissions.includes("users.read") && <Link className="button" href="/admin/users">Customers</Link>}
+          {permissions.includes("mixes.edit") && <Link className="button" href="/admin/templates">Ready-made mixes</Link>}
         </div>
       </header>
 
@@ -130,10 +140,12 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
         <article className="stat-card"><small>Waiting on support</small><strong>{openCount}</strong></article>
         <article className="stat-card"><small>Waiting on customer</small><strong>{waitingCount}</strong></article>
         <article className="stat-card"><small>Urgent, not closed</small><strong>{urgentCount}</strong></article>
-        <article className="stat-card"><small>Reply emails needing review</small><strong>{failedEmailCount}</strong><Link href="/admin/support?email=review">Review notifications</Link></article>
+        <article className="stat-card"><small>Reply emails needing review</small><strong>{failedEmailCount}</strong><Link href="/admin/support?email=review&view=all">Review notifications</Link></article>
       </section>
 
-      <form className="card support-admin-filters" method="get">
+      <nav className="admin-content-tabs" aria-label="Support views">{[["attention", "Needs reply"], ["mine", "Mine"], ["unassigned", "Unassigned"], ["waiting", "Waiting on customer"], ["all", "All"]].map(([key, label]) => <Link key={key} href={adminQuery("/admin/support", { view: key, q: query })} aria-current={view === key ? "page" : undefined}>{label}</Link>)}</nav>
+      <form className="card support-admin-filters live-search-form" method="get">
+        <input type="hidden" name="view" value={view} />
         <label className="field"><span className="field-label">Email notifications</span><select name="email" defaultValue={params.email === "review" ? "review" : "all"}><option value="all">All tickets</option><option value="review">Needs review</option></select></label>
         <label className="field support-admin-query">
           <span className="field-label">Search</span>
@@ -144,7 +156,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
           <select name="status" defaultValue={status}>
             <option value="all">All statuses</option>
             <option value="attention">Needs a reply</option>
-            {SUPPORT_STATUSES.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
+            {SUPPORT_STATUSES.map((item) => <option value={item.value} key={item.value}>{adminSupportStatusLabel(item.value)}</option>)}
           </select>
         </label>
         <label className="field">
@@ -167,12 +179,13 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
         </div>
       </form>
 
+      <p className="admin-result-summary" role="status">{total} matching tickets · oldest activity first within each priority</p>
       <section className="support-admin-ticket-list">
         {tickets.map((ticket) => {
           const requester = requesterById.get(ticket.requesterUserId);
           const workspace = workspaceById.get(ticket.workspaceId);
           return (
-            <Link prefetch={false} className={`card support-admin-ticket priority-${ticket.priority.toLowerCase()}`} href={`/admin/support/${ticket.id}`} key={ticket.id}>
+            <Link prefetch={false} className={`card support-admin-ticket priority-${ticket.priority.toLowerCase()}`} href={adminQuery(`/admin/support/${ticket.id}`, { returnTo })} key={ticket.id}>
               <div className="support-admin-ticket-heading">
                 <div>
                   <span className="support-ticket-reference">{ticket.reference}</span>
@@ -180,7 +193,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
                   <p>{requester?.name ?? "Unknown requester"} · {requester?.email ?? ticket.requesterUserId}</p>
                 </div>
                 <div className="support-admin-ticket-badges">
-                  <span className={`status-pill ${ticket.status === "RESOLVED" ? "done" : ""}`}>{supportStatusLabel(ticket.status)}</span>
+                  <span className={`status-pill ${ticket.status === "RESOLVED" ? "done" : ""}`}>{adminSupportStatusLabel(ticket.status)}</span>
                   <span className={`status-pill priority-${ticket.priority.toLowerCase()}`}>{supportPriorityLabel(ticket.priority)}</span>
                 </div>
               </div>
@@ -189,7 +202,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
                 <span>{workspace?.name ?? ticket.workspaceId}</span>
                 <span>{ticket._count.messages} messages</span>
                 <span>Assigned: {ticket.assignedTo?.name ?? "Unassigned"}</span>
-                <span>Updated {formatDateTime(ticket.lastActivityAt, displayPreferences)}</span>
+                <span>{["OPEN", "WAITING_ON_SUPPORT"].includes(ticket.status) ? "Awaiting reply" : "Last activity"}: {formatDateTime(ticket.lastActivityAt, displayPreferences)} ({Math.max(0, Math.floor((Date.now() - ticket.lastActivityAt.getTime()) / 3_600_000))}h ago)</span>
               </div>
             </Link>
           );
@@ -202,6 +215,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
           </div>
         )}
       </section>
+      <AdminPagination page={page} total={total} pageSize={25} href={queueHref} />
     </div>
   );
 }

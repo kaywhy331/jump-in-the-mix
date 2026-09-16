@@ -157,6 +157,7 @@ export async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-jitm-request-id", randomUUID());
   requestHeaders.set("x-jitm-support-path", request.nextUrl.pathname);
+  requestHeaders.set("x-jitm-admin-return", `${request.nextUrl.pathname}${request.nextUrl.search}`.slice(0, 2000));
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", contentSecurityPolicy(nonce));
   const response = applySecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), nonce);

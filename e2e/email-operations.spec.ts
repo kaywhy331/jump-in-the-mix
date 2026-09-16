@@ -16,7 +16,9 @@ test("signed delivery events appear in admin diagnostics without exposing email 
   const providerId = randomUUID(); const messageId = randomUUID(); const eventId = `msg_${randomUUID()}`;
   const staff = await prisma.user.create({ data: { email: `staff-${email}`, name: "Email operator", emailVerifiedAt: new Date(), staffMembership: { create: { role: "OPERATOR" } } } });
   const entry = await prisma.waitlistEntry.create({ data: { email, verifiedAt: new Date(), status: "ACCESS_GRANTED" } });
-  await prisma.session.create({ data: { userId: staff.id, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 3600_000) } });
+  const session = await prisma.session.create({ data: { userId: staff.id, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 3600_000) } });
+  await prisma.adminMfaCredential.create({ data: { userId: staff.id, enabledAt: new Date(), secretCiphertext: "browser-fixture" } });
+  await prisma.adminMfaSession.create({ data: { userId: staff.id, sessionId: session.id, expiresAt: session.expiresAt } });
   await prisma.emailMessage.create({ data: { id: messageId, recipientHash: emailRecipientHash(email), payloadHash: "test-only", category: "INVITATION", firstAttemptAt: new Date(), acceptedAt: new Date(), providerId } });
   const invite = await prisma.referralAccessInvite.create({ data: { recipientEmail: email, tokenHash: randomUUID(), tokenCiphertext: "test-only", source: "WAITLIST_MANUAL", delivery: { create: { messageCiphertext: "test-only", status: "SENT", providerId, emailMessageId: messageId } } } });
   try {
@@ -30,6 +32,7 @@ test("signed delivery events appear in admin diagnostics without exposing email 
     await context.addCookies([{ name: "jitm_session", value: token, url: testInfo.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
     await page.goto("/admin/email");
     await expect(page.getByRole("heading", { name: "Admin · Email" })).toBeVisible();
+    await page.getByText(/Recent provider events/).click();
     await expect(page.getByRole("heading", { name: "email.bounced", exact: true })).toBeVisible();
     await expect(page.getByText(/0 of 90 attempts used/)).toBeVisible();
     await expect(page.getByText("PRIVATE SUBJECT NEVER DISPLAY")).toHaveCount(0);
@@ -40,11 +43,12 @@ test("signed delivery events appear in admin diagnostics without exposing email 
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
     }
     await page.goto(`/admin/access?q=${encodeURIComponent(email)}`);
-    await expect(page.getByText("Bounced", { exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Review invitation", exact: true }).click();
+    await expect(page.locator("main")).toContainText("Bounced");
     await expect(page.getByRole("button", { name: "Revoke invitation" })).toHaveCount(0);
     await prisma.staffMembership.update({ where: { userId: staff.id }, data: { denies: ["operations.read"] } });
     await page.goto("/admin/email");
-    await expect(page).toHaveURL(/\/admin\/access-denied$/);
+    await expect(page).toHaveURL(/\/admin\/access-denied\?/);
   } finally {
     await prisma.referralAccessInvite.deleteMany({ where: { id: invite.id } });
     await prisma.waitlistEntry.deleteMany({ where: { id: entry.id } });
@@ -52,6 +56,8 @@ test("signed delivery events appear in admin diagnostics without exposing email 
     await prisma.emailProviderEvent.deleteMany({ where: { id: eventId } });
     await prisma.emailSuppression.deleteMany({ where: { email } });
     await prisma.platformAuditEvent.deleteMany({ where: { OR: [{ actorUserId: staff.id }, { entityId: eventId }] } });
+    await prisma.adminMfaSession.deleteMany({ where: { userId: staff.id } });
+    await prisma.adminMfaCredential.deleteMany({ where: { userId: staff.id } });
     await prisma.user.deleteMany({ where: { id: staff.id } });
   }
 });
