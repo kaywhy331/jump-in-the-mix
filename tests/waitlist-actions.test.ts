@@ -23,7 +23,7 @@ function form(values: Record<string, string | string[]>) {
 }
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.admin.mockResolvedValue({ user: { id: "admin" } }); mocks.ready.mockReturnValue(true); mocks.configured.mockReturnValue(true);
+  mocks.admin.mockResolvedValue({ user: { id: "admin" }, session: { id: "admin-session" } }); mocks.ready.mockReturnValue(true); mocks.configured.mockReturnValue(true);
   mocks.selected.mockResolvedValue({ queued: 1, skipped: 0 }); mocks.rate.mockResolvedValue({ allowed: true }); mocks.send.mockResolvedValue({ delivered: true });
 });
 describe("waitlist server action boundaries", () => {
@@ -34,7 +34,7 @@ describe("waitlist server action boundaries", () => {
   });
   it("deduplicates manual selection and records the authenticated actor", async () => {
     await expect(inviteWaitlistSelectionAction(form({ entryId: ["entry", "entry"], reason: "Launch" }))).rejects.toThrow("queued=1&skipped=0");
-    expect(mocks.selected).toHaveBeenCalledWith(["entry"], "admin", "Launch");
+    expect(mocks.selected).toHaveBeenCalledWith(["entry"], { userId: "admin", sessionId: "admin-session" }, "Launch");
   });
   it.each([{ entryId: [] }, { entryId: Array.from({ length: 51 }, (_, i) => String(i)) }])("rejects empty or oversized selections", async ({ entryId }) => {
     await expect(inviteWaitlistSelectionAction(form({ entryId, reason: "Launch" }))).rejects.toThrow("Select%20between");

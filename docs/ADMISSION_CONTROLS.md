@@ -28,6 +28,8 @@ A due wave needs room for its entire eligible batch, up to ten. It retains the d
 
 Manual invitations are additional to the weekly ten and use the same capacity. Unconfirmed, missing, or already-granted entries are skipped; the remaining eligible selection must fit as a whole. If it does not fit, nothing from that selection is queued. Choose fewer people or have an authorized operator adjust capacity. Manual selection never changes the weekly schedule or consumes a staff member's five personal invitations.
 
+The manual form shows available capacity and explains whether zero limits, exhausted reservations, paused issuance, or unavailable email prevent sending. It disables selection and submission when no invitation can be queued, and offers admission settings to staff with `settings.manage`. A smaller manual selection remains available when it fits even if a full weekly batch must wait. The transaction rechecks capacity when submitted, so a stale page cannot exceed the limits.
+
 ## Pause controls
 
 | Control | Effect | Existing commitments |
@@ -44,6 +46,10 @@ The emergency signup pause does not automatically pause issuance or sending. If 
 
 Admission changes recheck the actor's current permission, verified/active account, session expiry, password, and recent MFA inside ordered staff/access transaction locks. A revision prevents an older form from overwriting a newer configuration. The platform audit records the reason and before/after values, excluding passwords and tokens. Configuration is a private singleton, not a public mix-library setting.
 
+Manual invitation issuance and weekly pause/resume also recheck current staff permissions, verified/active account, session expiry, enabled MFA credential and MFA verification inside the ordered staff/access locks, before reconciliation or any other writes. A route check that succeeded before revocation does not authorize these mutations afterward. These operations retain their existing permission requirements and do not require the admission-settings password step.
+
 `tests/admission.integration.test.ts` covers default closure, independent limits and pauses, concurrent reservations, whole batches, cadence after delays, reservation conversion, revocation, suspended/staff counting, current credentials, stale revisions, audit data, and database constraints. `e2e/admission-controls.spec.ts` uses isolated local fixtures with required MFA and no email worker; it checks administrator forms, manual-limit errors, emergency recipient pages, stale/denied saves, and accessibility at phone/desktop widths in both themes. Test fixtures explicitly configure capacity and restore the original policy afterward.
+
+`tests/waitlist-authorization.integration.test.ts` exercises manual issuance and schedule changes after permission, staff status, account verification, suspension, session, MFA-session or MFA-credential changes. Denied mutations preserve waitlist state, grants, outbox, schedule and audit records; valid mutations still succeed. Direct manual-allocation calls must supply a live authorized session.
 
 Real-provider and production-load qualification remain separate requirements. See the [completion ledger](PRODUCT_COMPLETION.md).

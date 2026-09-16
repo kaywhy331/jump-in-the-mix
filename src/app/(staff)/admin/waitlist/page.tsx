@@ -31,6 +31,9 @@ export default async function AdminWaitlistPage({ searchParams }: { searchParams
   const emails = entries.map(entry => entry.email);
   const admission = await getAdmissionSnapshot();
   const admissionProblem = issuanceProblem(admission, "WAITLIST", Math.min(eligible, 10));
+  const sendingReady = waitlistSendingReady();
+  // A smaller manual selection can fit even when the full weekly batch cannot.
+  const manualProblem = issuanceProblem(admission, "WAITLIST") ?? (!sendingReady ? "Invitation email is unavailable. Ask an administrator to configure sending before queueing invitations." : null);
   const invites = await prisma.referralAccessInvite.findMany({ where: { recipientEmail: { in: emails } }, select: { recipientEmail: true, source: true, lastSentAt: true, acceptedAt: true, revokedAt: true, delivery: { select: { status: true } } }, orderBy: { createdAt: "desc" } });
   const href = (nextPage: number) => `/admin/waitlist?${new URLSearchParams({ q: query, view, page: String(nextPage) })}`;
   return <div className="page">
@@ -38,7 +41,7 @@ export default async function AdminWaitlistPage({ searchParams }: { searchParams
     {params.error && <Notice type="error">{params.error}</Notice>}
     {params.queued !== undefined && <Notice>{Number(params.queued) || 0} invitations queued. {Number(params.skipped) || 0} skipped because they were no longer eligible. The worker sends queued email.</Notice>}
     {params.retry && <Notice>Delivery queued for another attempt.</Notice>}
-    {!waitlistSendingReady() && <Notice type="error">Sending is unavailable. Configure RESEND_API_KEY, EMAIL_FROM, and DATA_ENCRYPTION_KEY, and disable pilot mode before opening the waitlist.</Notice>}
+    {!sendingReady && <Notice type="error">Invitation email is unavailable. Ask an administrator to configure sending before queueing invitations.</Notice>}
     <section className="card form-stack" aria-labelledby="schedule-title">
       <h2 id="schedule-title">Automatic waves</h2>
       <p>{admission.remaining} spaces available for new invitations. {admissionProblem ? "The next eligible batch will wait for admission capacity or resumed issuance." : "The eligible batch fits the current admission limits."}</p>
@@ -60,7 +63,7 @@ export default async function AdminWaitlistPage({ searchParams }: { searchParams
         {entries.length === 0 && <p>No entries in this view.</p>}
         {entries.map(entry => {
           const invite = invites.find(item => item.recipientEmail === entry.email);
-          const canInvite = permissions.includes("waitlist.manage") && entry.status === "WAITING" && Boolean(entry.verifiedAt);
+          const canInvite = permissions.includes("waitlist.manage") && !manualProblem && entry.status === "WAITING" && Boolean(entry.verifiedAt);
           return <div className="card" key={entry.id} style={{ overflowWrap: "anywhere" }}>
             {view === "waiting" ? <label><input type="checkbox" name="entryId" value={entry.id} disabled={!canInvite} /> {entry.email}</label> : <strong>{entry.email}</strong>}
             <p>Requested {date(entry.createdAt)} · {entry.verifiedAt ? "Email confirmed" : "Awaiting email confirmation"}</p>
@@ -71,7 +74,10 @@ export default async function AdminWaitlistPage({ searchParams }: { searchParams
         })}
         {view === "waiting" && permissions.includes("waitlist.manage") && <><label className="field"><span>Reason for manual invitations</span><input name="reason" maxLength={500} required placeholder="For example, launch partners" /></label>
           <p>Select up to 50 confirmed entries on this page. Manual invitations are additional to the weekly ten and do not use your five personal invitations.</p>
-          <button className="button primary" type="submit" disabled={!entries.some(entry => entry.verifiedAt)}>Send invitations to selected people</button></>}
+          <p>{admission.remaining} spaces available. Your entire eligible selection must fit.</p>
+          {manualProblem && <Notice type="error">{manualProblem}</Notice>}
+          {permissions.includes("settings.manage") && <Link className="inline-action" href="/admin/admission">Configure invitation limits and pauses</Link>}
+          <button className="button primary" type="submit" disabled={Boolean(manualProblem) || !entries.some(entry => entry.verifiedAt)}>Send invitations to selected people</button></>}
       </form>
       <nav className="page-actions" aria-label="Waitlist pages">{page > 1 && <Link href={href(page - 1)}>Previous</Link>}<span>Page {page}</span>{page * 50 < count && <Link href={href(page + 1)}>Next</Link>}</nav>
     </section>

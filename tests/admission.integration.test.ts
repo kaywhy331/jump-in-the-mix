@@ -47,6 +47,7 @@ async function configuration(data: Partial<typeof DEFAULT_ADMISSION_POLICY>) {
 async function operator() {
   const user = await person(true);
   const session = await prisma.session.create({ data: { userId: user.id, tokenHash: createHash("sha256").update(randomUUID()).digest("hex"), expiresAt: new Date(Date.now() + 3600_000) } });
+  await prisma.adminMfaCredential.create({ data: { userId: user.id, enabledAt: new Date(), secretCiphertext: "admission-fixture-only" } });
   await prisma.adminMfaSession.create({ data: { userId: user.id, sessionId: session.id, expiresAt: session.expiresAt } });
   return { actorUserId: user.id, actorSessionId: session.id, password, reason: "Measured launch rehearsal capacity", expectedRevision: (await getAdmissionSnapshot()).policy.revision,
     configuration: { ...DEFAULT_ADMISSION_POLICY, accountCeiling: 20, outstandingCeiling: 10 } };
@@ -118,23 +119,25 @@ describe.skipIf(!local)("admission reservations on PostgreSQL", () => {
     expect((await prisma.waitlistSchedule.findUniqueOrThrow({ where: { id: "default" } })).nextRunAt.getTime()).toBe(scheduled.getTime() + 3 * WAITLIST_INTERVAL_MS);
   });
   it("manual batches are all-or-nothing and do not bypass a wave's capacity reservations", async () => {
+    const admin = await operator(), actor = { userId: admin.actorUserId, sessionId: admin.actorSessionId };
     const pool = await entries(12);
     await configuration({ outstandingCeiling: 10 });
-    await expect(inviteSelectedWaitlistEntries(pool.map(row => row.id), "local-admin", "Manual batch test")).rejects.toThrow("not queued");
+    await expect(inviteSelectedWaitlistEntries(pool.map(row => row.id), actor, "Manual batch test")).rejects.toThrow("not queued");
     expect(await prisma.waitlistDelivery.count()).toBe(0);
     await prisma.waitlistSchedule.create({ data: { nextRunAt: new Date() } });
-    await Promise.allSettled([runDueWaitlistWave(), inviteSelectedWaitlistEntries([pool[11].id], "local-admin", "Competing manual batch")]);
+    await Promise.allSettled([runDueWaitlistWave(), inviteSelectedWaitlistEntries([pool[11].id], actor, "Competing manual batch")]);
     const state = await getAdmissionSnapshot();
     expect([1, 10]).toContain(state.outstanding);
     expect(state.outstanding).toBeLessThanOrEqual(10);
   });
   it("pauses member referrals independently and pauses all new grants without touching queued delivery", async () => {
+    const admin = await operator(), actor = { userId: admin.actorUserId, sessionId: admin.actorSessionId };
     const { inputs } = await network(); const [entry, later] = await entries(2);
     await configuration({ referralsPaused: true });
     await expect(prisma.$transaction(tx => allocateAccessInvite(tx, inputs[0]))).rejects.toThrow("paused");
-    await inviteSelectedWaitlistEntries([entry.id], "local-admin", "Platform release remains enabled");
+    await inviteSelectedWaitlistEntries([entry.id], actor, "Platform release remains enabled");
     await configuration({ grantsPaused: true });
-    await expect(inviteSelectedWaitlistEntries([later.id], "local-admin", "Paused platform release")).rejects.toThrow("paused");
+    await expect(inviteSelectedWaitlistEntries([later.id], actor, "Paused platform release")).rejects.toThrow("paused");
     expect(await prisma.waitlistDelivery.count({ where: { status: "QUEUED" } })).toBe(1);
   });
   it("preserves existing confirmation links while pausing new collection", async () => {

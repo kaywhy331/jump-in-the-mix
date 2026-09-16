@@ -14,34 +14,37 @@ import { invitationEmailSuppressed } from "@/lib/invitation-preferences";
 function fail(message: string): never { redirect(`/admin/waitlist?error=${encodeURIComponent(message)}`); }
 
 export async function inviteWaitlistSelectionAction(formData: FormData): Promise<void> {
-  const { user } = await requirePlatformAdmin(["waitlist.read", "waitlist.manage"]);
+  const { user, session } = await requirePlatformAdmin(["waitlist.read", "waitlist.manage"]);
   const ids = [...new Set(formData.getAll("entryId").map(String))];
   const reason = String(formData.get("reason") ?? "").trim();
   if (!ids.length || ids.length > WAITLIST_MANUAL_LIMIT || ids.some(id => id.length > 100)) fail(`Select between 1 and ${WAITLIST_MANUAL_LIMIT} people.`);
   if (!reason || reason.length > 500) fail("Enter a reason of 1–500 characters.");
   if (!waitlistSendingReady()) fail("Configure transactional email and encryption before sending invitations.");
   let result;
-  try { result = await inviteSelectedWaitlistEntries(ids, user.id, reason); }
+  try { result = await inviteSelectedWaitlistEntries(ids, { userId: user.id, sessionId: session.id }, reason); }
   catch (error) { if (error instanceof AdmissionError) fail(error.message); throw error; }
   revalidatePath("/admin/waitlist");
   redirect(`/admin/waitlist?queued=${result.queued}&skipped=${result.skipped}`);
 }
 
 export async function setWaitlistScheduleAction(formData: FormData): Promise<void> {
-  const { user } = await requirePlatformAdmin(["waitlist.read", "waves.pause"]);
+  const { user, session } = await requirePlatformAdmin(["waitlist.read", "waves.pause"]);
   const action = String(formData.get("scheduleAction") ?? "");
   if (action !== "pause" && action !== "resume") fail("Choose pause or resume.");
   const reason = String(formData.get("reason") ?? "").trim();
   if (!reason || reason.length > 500) fail("Enter a reason of 1–500 characters.");
-  await prisma.$transaction(async tx => {
-    await lockAccess(tx);
+  const authorized = await prisma.$transaction(async tx => {
+    await lockStaff(tx); await lockAccess(tx);
+    if (!await staffSessionHasPermissions(tx, { userId: user.id, sessionId: session.id }, ["waitlist.read", "waves.pause"])) return false;
     const schedule = await tx.waitlistSchedule.findUnique({ where: { id: "default" } });
     const paused = action === "pause";
-    if (schedule?.paused === paused) return;
+    if (schedule?.paused === paused) return true;
     const nextRunAt = new Date(Date.now() + WAITLIST_INTERVAL_MS);
     await tx.waitlistSchedule.upsert({ where: { id: "default" }, create: { id: "default", paused, nextRunAt }, update: { paused, ...(!paused ? { nextRunAt } : {}) } });
     await tx.waitlistAudit.create({ data: { actorUserId: user.id, action: `SCHEDULE_${action.toUpperCase()}`, reason } });
+    return true;
   });
+  if (!authorized) fail("Your staff access changed. Sign in and verify your current permissions before changing weekly waves.");
   revalidatePath("/admin/waitlist");
   redirect("/admin/waitlist");
 }

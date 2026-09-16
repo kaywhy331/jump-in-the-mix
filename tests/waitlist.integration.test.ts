@@ -1,6 +1,7 @@
 import { openTestAdmission } from "./helpers/admission-fixture";
+import { createEmailReviewFixture } from "./helpers/email-review-fixture";
 import { randomUUID } from "node:crypto";
-import { beforeAll, afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "../src/lib/prisma";
 const mail = vi.hoisted(() => ({ send: vi.fn() }));
 vi.mock("@/lib/env", async original => {
@@ -48,9 +49,17 @@ async function member(email = `${randomUUID()}@example.test`) {
 
 describe.skipIf(!local)("waitlist on PostgreSQL", () => {
   let restoreAdmission: (() => Promise<void>) | undefined;
+  let admin: Awaited<ReturnType<typeof createEmailReviewFixture>>;
+  let actor: { userId: string; sessionId: string };
   beforeAll(async () => { restoreAdmission = await openTestAdmission(); });
   afterAll(async () => { await restoreAdmission?.(); });
-  beforeEach(async () => { await cleanup(); mail.send.mockReset().mockResolvedValue({ delivered: true, providerId: "test-provider-id" }); });
+  beforeEach(async () => {
+    await cleanup();
+    admin = await createEmailReviewFixture();
+    actor = { userId: admin.user.id, sessionId: admin.session.id };
+    mail.send.mockReset().mockResolvedValue({ delivered: true, providerId: "test-provider-id" });
+  });
+  afterEach(async () => { await admin.cleanup(); });
   afterAll(cleanup);
 
   it("normalizes emails without provider-specific transformations", () => {
@@ -89,7 +98,7 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
     // A confirmed choice is preserved: a later request neither re-queues nor changes the scenario.
     expect(await requestWaitlistEntry(email, "painting")).toBeNull();
     expect(await prisma.waitlistEntry.findUniqueOrThrow({ where: { email } })).toMatchObject({ marketingScenario: "recruiting", verifiedAt: expect.any(Date) });
-    await inviteSelectedWaitlistEntries([entry.id], "admin", "Scenario test");
+    await inviteSelectedWaitlistEntries([entry.id], actor, "Scenario test");
     const invite = await prisma.referralAccessInvite.findFirstOrThrow({ where: { recipientEmail: email } });
     expect(invite).toMatchObject({ marketingScenario: "recruiting", marketingScenarioVersion: 1 });
     const { token: accessToken } = decryptIntegrationCredentials<{ token: string }>(invite.tokenCiphertext);
@@ -141,13 +150,12 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
     expect((await prisma.waitlistSchedule.findUniqueOrThrow({ where: { id: "default" } })).nextRunAt.getTime()).toBe(scheduled.getTime() + 4 * WAITLIST_INTERVAL_MS);
   });
   it("manual selection ignores unconfirmed, unknown and already-granted entries, without changing cadence or personal quota", async () => {
-    const admin = await member();
     const pool = await entries(3);
     const [unconfirmed] = await entries(1, false);
     const scheduled = await due();
     const selected = [pool[1].id, pool[1].id, unconfirmed.id, "missing"];
-    expect(await inviteSelectedWaitlistEntries(selected, admin.user.id, "Launch partners")).toEqual({ queued: 1, skipped: 2 });
-    expect(await inviteSelectedWaitlistEntries(selected, admin.user.id, "Retry")).toEqual({ queued: 0, skipped: 3 });
+    expect(await inviteSelectedWaitlistEntries(selected, actor, "Launch partners")).toEqual({ queued: 1, skipped: 2 });
+    expect(await inviteSelectedWaitlistEntries(selected, actor, "Retry")).toEqual({ queued: 0, skipped: 3 });
     expect((await prisma.waitlistSchedule.findUniqueOrThrow({ where: { id: "default" } })).nextRunAt).toEqual(scheduled);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: admin.user.id } })).referralInvitesIssued).toBe(0);
     expect(await prisma.waitlistAudit.findFirst()).toMatchObject({ actorUserId: admin.user.id, action: "WAITLIST_MANUAL", reason: "Launch partners" });
@@ -155,7 +163,7 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
   it("excludes existing users and existing grants before selecting a wave", async () => {
     const pool = await entries(13);
     await member(pool[0].email);
-    await inviteSelectedWaitlistEntries([pool[1].id], "admin", "Manual");
+    await inviteSelectedWaitlistEntries([pool[1].id], actor, "Manual");
     await prisma.waitlistEntry.update({ where: { id: pool[1].id }, data: { status: "WAITING" } });
     const wave = await runDueWaitlistWave(await due());
     expect(wave).toMatchObject({ fifo: 5, random: 5 });
@@ -169,7 +177,7 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
     const contact = await prisma.contact.create({ data: { workspaceId: workspace.id, displayName: "Friend", emails: { create: { email: entry.email, normalized: entry.email } } } });
     const results = await Promise.allSettled([
       prisma.$transaction(tx => allocateAccessInvite(tx, { expectedVersion: 1, userId: user.id, workspaceId: workspace.id, contactId: contact.id, recipientEmail: entry.email })),
-      inviteSelectedWaitlistEntries([entry.id], "admin", "Manual")
+      inviteSelectedWaitlistEntries([entry.id], actor, "Manual")
     ]);
     expect(results.some(r => r.status === "fulfilled")).toBe(true);
     expect(await prisma.referralAccessInvite.count({ where: { recipientEmail: entry.email } })).toBe(1);
@@ -180,7 +188,7 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
   it("manual selection racing a scheduled wave cannot issue the same recipient twice", async () => {
     const pool = await entries(20);
     const now = await due();
-    await Promise.all([runDueWaitlistWave(now), inviteSelectedWaitlistEntries([pool[0].id], "admin", "Manual")]);
+    await Promise.all([runDueWaitlistWave(now), inviteSelectedWaitlistEntries([pool[0].id], actor, "Manual")]);
     expect(await prisma.referralAccessInvite.count({ where: { recipientEmail: pool[0].email } })).toBe(1);
     expect(await prisma.waitlistWave.count()).toBe(1);
     expect(await prisma.referralAccessInvite.count({ where: { source: { in: ["WAITLIST_FIFO", "WAITLIST_RANDOM"] } } })).toBe(10);
@@ -202,7 +210,7 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
   });
   it("platform links are email-bound and single-use; failed signup rolls back, successful signup gets five slots", async () => {
     const [entry] = await entries(1);
-    await inviteSelectedWaitlistEntries([entry.id], "admin", "Test");
+    await inviteSelectedWaitlistEntries([entry.id], actor, "Test");
     const invite = await prisma.referralAccessInvite.findFirstOrThrow({ where: { recipientEmail: entry.email } });
     const { token } = decryptIntegrationCredentials<{ token: string }>(invite.tokenCiphertext);
     const input = { email: entry.email, name: "New member", passwordHash: null, emailVerifiedAt: null, accessToken: token };
@@ -216,7 +224,7 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
   });
   it("concurrent senders claim one delivery and mark provider acceptance", async () => {
     const [entry] = await entries(1);
-    await inviteSelectedWaitlistEntries([entry.id], "admin", "Test");
+    await inviteSelectedWaitlistEntries([entry.id], actor, "Test");
     await Promise.all([deliverWaitlistInvitations(), deliverWaitlistInvitations()]);
     expect(mail.send).toHaveBeenCalledTimes(1);
     expect(await prisma.waitlistDelivery.findFirst()).toMatchObject({ status: "SENT", providerId: "test-provider-id" });
@@ -224,7 +232,7 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
   });
   it("retries identical encrypted messages and stops uncertain sends outside the provider window", async () => {
     const [entry] = await entries(1);
-    await inviteSelectedWaitlistEntries([entry.id], "admin", "Test");
+    await inviteSelectedWaitlistEntries([entry.id], actor, "Test");
     mail.send.mockRejectedValue(new Error("sensitive provider response"));
     const now = new Date();
     await deliverWaitlistInvitations(now);
@@ -238,7 +246,7 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
   });
   it("recovers a stale lease using the same key and cancels revoked invitations", async () => {
     const pool = await entries(2);
-    await inviteSelectedWaitlistEntries(pool.map(e => e.id), "admin", "Test");
+    await inviteSelectedWaitlistEntries(pool.map(e => e.id), actor, "Test");
     const deliveries = await prisma.waitlistDelivery.findMany();
     await prisma.waitlistDelivery.update({ where: { id: deliveries[0].id }, data: { status: "SENDING", leaseId: "crashed-worker", lockedAt: new Date(Date.now() - 10 * 60_000), firstAttemptAt: new Date(Date.now() - 10 * 60_000) } });
     expect((await prisma.referralAccessInvite.updateMany({ where: { delivery: { id: deliveries[1].id } }, data: { revokedAt: new Date() } })).count).toBe(1);
@@ -249,7 +257,7 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
 
   it("withdraws using email proof, invalidates all unused grants, and cancels pending email", async () => {
     const [entry] = await entries(1);
-    await inviteSelectedWaitlistEntries([entry.id], "admin", "Test withdrawal");
+    await inviteSelectedWaitlistEntries([entry.id], actor, "Test withdrawal");
     const invite = await prisma.referralAccessInvite.findFirstOrThrow({ where: { recipientEmail: entry.email } });
     const { token: accessToken } = decryptIntegrationCredentials<{ token: string }>(invite.tokenCiphertext);
     const url = await requestInvitationStopLink(entry.email);
@@ -263,7 +271,7 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
     await deliverWaitlistInvitations();
     expect(mail.send).not.toHaveBeenCalled();
     await expect(prisma.$transaction(tx => createBusinessAccount(tx, { email: entry.email, name: "Recipient", passwordHash: null, emailVerifiedAt: null, accessToken }))).rejects.toThrow("unavailable");
-    expect(await inviteSelectedWaitlistEntries([entry.id], "admin", "Retry withdrawn entry")).toEqual({ queued: 0, skipped: 1 });
+    expect(await inviteSelectedWaitlistEntries([entry.id], actor, "Retry withdrawn entry")).toEqual({ queued: 0, skipped: 1 });
   });
 
   it("does not let an unconfirmed new request undo withdrawal, and confirmed rejoining resets FIFO position", async () => {
@@ -298,7 +306,7 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
   it("withdrawal racing a manual grant always leaves no usable access or queued email", async () => {
     const [entry] = await entries(1);
     const url = await requestInvitationStopLink(entry.email);
-    await Promise.all([stopInvitationEmails(new URL(url!).searchParams.get("token")!), inviteSelectedWaitlistEntries([entry.id], "admin", "Racing request")]);
+    await Promise.all([stopInvitationEmails(new URL(url!).searchParams.get("token")!), inviteSelectedWaitlistEntries([entry.id], actor, "Racing request")]);
     expect(await prisma.referralAccessInvite.count({ where: { recipientEmail: entry.email, revokedAt: null } })).toBe(0);
     expect(await prisma.waitlistDelivery.count({ where: { invite: { recipientEmail: entry.email }, status: { in: ["QUEUED", "SENDING"] } } })).toBe(0);
     expect(await prisma.waitlistEntry.findUnique({ where: { id: entry.id } })).toMatchObject({ status: "WITHDRAWN" });

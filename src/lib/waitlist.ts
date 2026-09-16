@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { transactionalEmailConfigured } from "@/lib/transactional-email";
 import { queueAccessInvitation } from "@/lib/access-invitation-mail";
 import { AdmissionError, admissionSnapshot, getAdmissionPolicy, issuanceProblem } from "@/lib/admission";
+import { lockStaff, staffSessionHasPermissions } from "@/lib/staff-access";
 import { MARKETING_SCENARIO_VERSION, storedMarketingScenario, marketingScenarioId } from "@/lib/marketing-scenarios";
 
 export const WAITLIST_INTERVAL_MS = 7 * 24 * 60 * 60_000;
@@ -90,19 +91,20 @@ async function grantWaitlistAccess(tx: Prisma.TransactionClient, entry: { id: st
   await tx.waitlistAudit.create({ data: { action: source, entryId: entry.id, inviteId: invite.id, actorUserId, reason } });
 }
 
-export async function inviteSelectedWaitlistEntries(ids: string[], actorUserId: string, reason: string, now = new Date()) {
+export async function inviteSelectedWaitlistEntries(ids: string[], actor: { userId: string; sessionId: string }, reason: string, now = new Date()) {
   const selected = [...new Set(ids)];
   if (!selected.length || selected.length > WAITLIST_MANUAL_LIMIT) throw new Error(`Select between 1 and ${WAITLIST_MANUAL_LIMIT} people.`);
   if (!reason.trim() || reason.length > 500) throw new Error("Enter a reason of 1–500 characters.");
   return prisma.$transaction(async tx => {
-    await lockAccess(tx);
+    await lockStaff(tx); await lockAccess(tx);
+    if (!await staffSessionHasPermissions(tx, actor, ["waitlist.read", "waitlist.manage"])) throw new AdmissionError("Your staff access changed. Sign in and verify your current permissions before sending invitations.");
     await reconcileWaitlist(tx);
     const entries = await tx.waitlistEntry.findMany({ where: { id: { in: selected }, status: "WAITING", verifiedAt: { not: null } }, orderBy: { id: "asc" } });
     if (entries.length) {
       const problem = issuanceProblem(await admissionSnapshot(tx), "WAITLIST", entries.length);
       if (problem) throw new AdmissionError("The selected invitations were not queued. " + problem);
     }
-    for (const entry of entries) await grantWaitlistAccess(tx, entry, "WAITLIST_MANUAL", now, actorUserId, reason.trim());
+    for (const entry of entries) await grantWaitlistAccess(tx, entry, "WAITLIST_MANUAL", now, actor.userId, reason.trim());
     return { queued: entries.length, skipped: selected.length - entries.length };
   }, { timeout: 20_000 });
 }
