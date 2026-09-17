@@ -46,4 +46,6 @@ The mobile workflow suite passed 49 tests; two desktop-specific viewport checks 
 
 ## Release validation
 
+The isolated release-test fixture now handles cancellation during its initial snapshot. Previously, a signal arriving after “ready” but before the command listener existed could leave cleanup waiting indefinitely. The strengthened cancellation regression reproduced the 90-second timeout before the fix and passed afterward. All seven fixture lifecycle tests then passed locally; no application workflow or permission check was bypassed.
+
 Repository CI and test-site publication are pending. Their results and deployment identity will be recorded before handoff.
