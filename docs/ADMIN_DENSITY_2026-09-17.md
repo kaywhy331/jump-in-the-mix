@@ -24,7 +24,7 @@ Copy changes are grounded in current behavior. The supplied copy references info
 
 The local production build, TypeScript validation and schema/syntax/import checks passed. All 51 selected desktop browser workflows passed across the initial run and corrected rerun. Four stale test interactions were updated for shorter labels, live filtering and disclosure controls; behavioral assertions remain. A new browser regression verifies first-screen report metrics, admission controls, option saves and email allowance at 1366 × 768. It also checks that tabbing through the library editor keeps fields visible above its sticky save bar.
 
-[Measurements](admin-density-2026-09-17/measurements.json) cover 38 page/view states at 1366 × 768 and 390 × 844. Every route returned 200 with no horizontal page overflow. The fixture includes 103 support tickets, library content, waitlist entries, saved reports, delivery review and suppression records.
+[Measurements](admin-density-2026-09-17/measurements.json) cover 38 page/view states at 1366 × 768 and 390 × 844. Every route returned 200 with no horizontal page overflow. These local measurements exclude the private test banner; the live release check includes it and separately verifies that all primary report metrics fit in the viewport. The fixture includes 103 support tickets, library content, waitlist entries, saved reports, delivery review and suppression records.
 
 | View | Before: document height | After: document height | First-screen result |
 | --- | ---: | ---: | --- |
@@ -54,4 +54,19 @@ The full CI browser run also exposed a heading selector that matched both the sh
 
 Operational-alert assertions now use the shorter status messages while retaining database-state, stale-data, permission and health-endpoint checks. All eight desktop/mobile alert checks and all 12 remaining staff, customer-access, email and waitlist checks passed in a fresh local database, which was removed afterward. A scan of browser assertions found no remaining references to removed copy.
 
-Repository CI and test-site publication are pending. Their results and deployment identity will be recorded before handoff.
+All six release checks passed on the final head, including [full repository CI](https://github.com/kaywhy331/jump-in-the-mix/actions/runs/35246447860), security checks, and production/backup/monitor images. CI covered migrations, unit/integration tests, the production build, recovery and load rehearsals, browser journeys, and Lighthouse budgets. It recorded 1,259 unit/integration passes (9 skips), and 228 + 57 + 12 browser passes; the main browser run also skipped 186 opt-in or project-specific cases.
+
+[PR #81](https://github.com/kaywhy331/jump-in-the-mix/pull/81) is merged into the existing integrated `fix/invitation-admission-authorization` branch. The revision is published to [the stable test admin](https://jump-in-the-mix-test.netlify.app/admin).
+
+- Checked head: `b316ee3bf7bcf81199b9e747e82cbd68f39a5766`; application merge: `e1ec120d93cbb198d1786d35e0fb29658e97813b`.
+- Dedicated site: `8fd20ccd-5c35-47e5-99ce-98e5670d52fe`; published deploy: `6aac226885ac27ab196bd257`; publication recorded at 2026-09-17T17:25:32.319Z.
+- Rollback deployment: `6aab1cebfdb7da946d82c417` on this same site.
+- Live verification used password sign-in and MFA with a temporary synthetic admin, checked 29 page states at 1366 × 768 and 390 × 844, and confirmed all 13 primary growth-report metrics fit above the desktop fold. The synthetic account and its credentials/sessions were removed. The smoke sent no customer messages or invitations.
+- All 15 checked CSS/JavaScript assets matched the prepared release build byte for byte. No failed browser assets were recorded.
+- Readiness, recovery-boundary and final worker health passed. A heartbeat followed publication; 4 distinct heartbeats stayed within the 180-second freshness threshold across 5 later samples without application traffic.
+
+The first publication failed its live asset check because a prebuilt deploy used the configured `.next` directory instead of Netlify’s generated static output. The previous test deployment was restored and the failed deploy removed. The same verified build was then published with `netlify deploy --no-build --dir .netlify/static --prod --site 8fd20ccd-5c35-47e5-99ce-98e5670d52fe`. The final password/MFA, route and asset checks passed.
+
+No schema migration or database-history rewrite was needed. All 60 required migrations matched. The documented historical trailing newline for `20260906010000_customer_journey_intake_calendar` was restored only in the isolated staging build before generating its manifest; committed SQL was unchanged. See [the existing staging exception](HOMEPAGE_RELEASE_AND_ROLLBACK_2026-09-10.md).
+
+If rollback is needed, verify the dedicated test-site identity and current deployment, restore `6aab1cebfdb7da946d82c417`, and repeat readiness, asset and worker checks. Preserve the database schema and history. This receipt follows publication and changes documentation only.
