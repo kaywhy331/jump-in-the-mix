@@ -52,4 +52,6 @@ The isolated release-test fixture now handles cancellation during its initial sn
 
 The full CI browser run also exposed a heading selector that matched both the shortened “Support” page title and a support-ticket title. The security journey now targets the exact level-one heading and opens the customer-view disclosure explicitly. Its local rerun passed enrollment, recovery-code verification, view-only mutation rejection and return to the queue.
 
+Operational-alert assertions now use the shorter status messages while retaining database-state, stale-data, permission and health-endpoint checks. All eight desktop/mobile alert checks and all 12 remaining staff, customer-access, email and waitlist checks passed in a fresh local database, which was removed afterward. A scan of browser assertions found no remaining references to removed copy.
+
 Repository CI and test-site publication are pending. Their results and deployment identity will be recorded before handoff.
