@@ -27,7 +27,7 @@ async function checkLayout(page: import("@playwright/test").Page) {
 test("support assigns a case, opens its audited read-only view, and returns to the queue", async ({ page, context }, info) => {
   await context.addCookies([{ name: "jitm_session", value: f.admin.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
   await page.goto(`/admin/support?q=${encodeURIComponent(f.ticket.reference)}`);
-  await expect(page.getByRole("heading", { name: "Support" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Support", level: 1, exact: true })).toBeVisible();
   expect(await page.content()).not.toContain("PRIVATE_SUPPORT_BODY_SENTINEL");
   await checkLayout(page);
   expect(await prisma.platformAuditEvent.count({ where: { actorUserId: f.admin.user.id, action: "support.case.read" } })).toBe(0);

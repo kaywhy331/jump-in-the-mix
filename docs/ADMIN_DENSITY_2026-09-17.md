@@ -50,4 +50,6 @@ A [nine-message conversation](admin-density-2026-09-17/conversation.png) also pa
 
 The isolated release-test fixture now handles cancellation during its initial snapshot. Previously, a signal arriving after “ready” but before the command listener existed could leave cleanup waiting indefinitely. The strengthened cancellation regression reproduced the 90-second timeout before the fix and passed afterward. All seven fixture lifecycle tests then passed locally; no application workflow or permission check was bypassed.
 
+The full CI browser run also exposed a heading selector that matched both the shortened “Support” page title and a support-ticket title. The security journey now targets the exact level-one heading and opens the customer-view disclosure explicitly. Its local rerun passed enrollment, recovery-code verification, view-only mutation rejection and return to the queue.
+
 Repository CI and test-site publication are pending. Their results and deployment identity will be recorded before handoff.

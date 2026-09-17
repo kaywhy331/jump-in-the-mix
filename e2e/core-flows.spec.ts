@@ -13,7 +13,7 @@ const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? "AdminJumpInTheMix123!";
 
 async function signIn(page: Page, email: string, password: string) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Email", { exact: true }).fill(email);
   await page.getByLabel("Password").fill(password);
   await Promise.all([
     page.waitForURL(/\/(jumps|onboarding)(\?|$)/),
@@ -282,13 +282,14 @@ test.describe("stateful administrator security journey", () => {
     await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
     await page.getByRole("link", { name: "Support", exact: true }).first().click();
-    await expect(page.getByRole("heading", { name: "Support" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Support", level: 1, exact: true })).toBeVisible();
 
     const customer = await prisma.user.findUniqueOrThrow({ where: { email: userEmail } });
     const handler = await prisma.user.findUniqueOrThrow({ where: { email: adminEmail } });
     const membership = await prisma.workspaceMember.findFirstOrThrow({ where: { userId: customer.id } });
     const ticket = await prisma.supportTicket.create({ data: { reference: `CORE-${Date.now()}`, title: "Investigate follow-up queue", category: "JUMPS", workspaceId: membership.workspaceId, requesterUserId: customer.id, assignedToUserId: handler.id } });
     await page.goto(`/admin/support/${ticket.id}`);
+    await page.getByText("Customer support view", { exact: true }).click();
     await page.getByRole("textbox", { name: "Support reason", exact: true }).fill("E2E verification of the centrally enforced view-only mutation boundary.");
     await page.getByRole("button", { name: "Start view-only session" }).click();
     await expect(page.locator(".impersonation-banner")).toContainText("view-only");
