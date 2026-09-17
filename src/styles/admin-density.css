@@ -237,6 +237,8 @@
 .staff-shell .admin-mfa-form, .staff-shell .admin-mfa-ready-card, .staff-shell .admin-mfa-recovery-card { gap: 12px; }
 .staff-shell .admin-wording-form { max-width: 900px; }
 @media(min-width:761px) {
+ /* Keep focused editor fields above the sticky save bar when tabbing. */
+ html:has(.staff-shell .admin-save-bar) { scroll-padding-bottom: calc(6rem + 24px); }
  .staff-shell .admin-queue { display: block; max-height: clamp(240px,calc(100svh - 380px),620px); overflow-y: auto; scrollbar-width: thin; }
  .staff-shell .support-admin-ticket-list { max-height: clamp(240px,calc(100svh - 435px),620px); overflow-y: auto; scrollbar-width: thin; }
  .staff-shell .admin-library-rows { max-height: clamp(240px,calc(100svh - 440px),620px); overflow-y: auto; scrollbar-width: thin; }

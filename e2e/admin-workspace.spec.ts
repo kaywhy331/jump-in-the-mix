@@ -130,7 +130,7 @@ test("overview support action opens only conversations needing a reply and prese
   } finally { await fixture.cleanup(); }
 });
 
-test("desktop primary report data and admin controls fit above the fold", async ({ page, context }, info) => {
+test("desktop primary controls fit above the fold and editor focus stays visible", async ({ page, context }, info) => {
   test.skip(info.project.name !== "desktop-chromium", "Desktop fold contract; mobile layouts are checked separately.");
   const { token } = await identity();
   await context.addCookies([{ name: "jitm_session", value: token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
@@ -151,5 +151,17 @@ test("desktop primary report data and admin controls fit above the fold", async 
       expect(box!.y + box!.height, `${path}: primary content below fold`).toBeLessThanOrEqual(768);
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth), path).toBeLessThanOrEqual(1366);
+  }
+  await page.goto("/admin/templates/new");
+  await page.waitForLoadState("networkidle");
+  await page.locator('textarea[name="stepBody"]').focus();
+  for (let step = 0; step < 6; step++) {
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.evaluate(() => {
+      const active = document.activeElement as HTMLElement;
+      const box = active.getBoundingClientRect();
+      const bar = document.querySelector(".admin-save-bar")!.getBoundingClientRect();
+      return box.top >= 0 && box.bottom <= innerHeight && (Boolean(active.closest(".admin-save-bar")) || box.bottom <= bar.top);
+    }), { message: "A keyboard target must remain visible above the save bar" }).toBe(true);
   }
 });

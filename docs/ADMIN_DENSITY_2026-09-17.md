@@ -1,6 +1,6 @@
 # Admin layout and density revision — September 17, 2026
 
-The September 16 release improved workflow behavior but left too much space and explanatory copy ahead of the work. This revision addresses that visual gap. The original audit and release records remain intact.
+The September 16 release improved workflow behavior but left too much space and explanatory copy ahead of the work. This revision addresses that visual gap. The [original page-by-page audit](ADMIN_UX_AUDIT_2026-09-16.md) and release records remain intact.
 
 ## Acceptance criteria
 
@@ -18,11 +18,11 @@ At a 1366 × 768 desktop viewport, the title, main status, relevant controls and
 - Operations and email: compact metrics and diagnostics, aligned allowance/health panels, focused recovery and suppression review.
 - Team, audit, options and MFA: concise copy, compact staff disclosures, bounded option/audit lists and shorter security guidance.
 
-Copy changes are grounded in current behavior. The supplied copy references informed clarity and removal of redundant lines; no fictional customer profiles or marketing claims were used to justify admin behavior. Sending, access, publication, concurrency, passwords and MFA safeguards remain enforced.
+Copy changes are grounded in current behavior. The supplied copy references informed clarity and removal of redundant lines; no fictional customer profiles or marketing claims were used to justify admin behavior. Sending, access, publication, concurrency, passwords and MFA safeguards remain enforced. Admission uses “Not paused” separately from available capacity, so zero capacity cannot be mistaken for an open invitation flow.
 
 ## Verification
 
-The local production build, TypeScript validation and schema/syntax/import checks passed. All 51 selected desktop browser workflows passed across the initial run and corrected rerun. Four stale test interactions were updated for shorter labels, live filtering and disclosure controls; behavioral assertions remain. A new browser regression verifies first-screen report metrics, admission controls, option saves and email allowance at 1366 × 768.
+The local production build, TypeScript validation and schema/syntax/import checks passed. All 51 selected desktop browser workflows passed across the initial run and corrected rerun. Four stale test interactions were updated for shorter labels, live filtering and disclosure controls; behavioral assertions remain. A new browser regression verifies first-screen report metrics, admission controls, option saves and email allowance at 1366 × 768. It also checks that tabbing through the library editor keeps fields visible above its sticky save bar.
 
 [Measurements](admin-density-2026-09-17/measurements.json) cover 38 page/view states at 1366 × 768 and 390 × 844. Every route returned 200 with no horizontal page overflow. The fixture includes 103 support tickets, library content, waitlist entries, saved reports, delivery review and suppression records.
 
@@ -42,6 +42,8 @@ Document-height reductions include bounded lists and collapsed secondary section
 
 Visual comparisons: [Support before](admin-density-2026-09-17/before-support.png) / [after](admin-density-2026-09-17/desktop-final-support.png), [Reports before](admin-density-2026-09-17/before-reports.png) / [after](admin-density-2026-09-17/desktop-final-reports.png), [Admission before](admin-density-2026-09-17/before-admission.png) / [after](admin-density-2026-09-17/desktop-final-admission.png). Mobile: [Overview](admin-density-2026-09-17/mobile-overview.png), [Support](admin-density-2026-09-17/mobile-support.png).
 
+The mobile workflow suite passed 49 tests; two desktop-specific viewport checks were skipped as intended. The [accessibility sweep](admin-density-2026-09-17/accessibility.json) checked all 38 views in light desktop and dark 320 px layouts, with zero automated WCAG-tagged violations. Support and option lists can be scrolled and exited with the keyboard. A manual focus check caught the sticky save bar covering editor inputs; the corrected layout passed its new regression and the six affected light/dark view checks. No browser JavaScript errors were recorded in those sweeps. Automated scans are not a complete accessibility certification.
+
 ## Release validation
 
-Mobile workflow checks, repository CI and test-site publication are pending. Their results and deployment identity will be recorded before handoff.
+Repository CI and test-site publication are pending. Their results and deployment identity will be recorded before handoff.

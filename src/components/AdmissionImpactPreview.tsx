@@ -15,5 +15,5 @@ export function AdmissionImpactPreview({ accounts, outstanding, currentRemaining
     update(); form.addEventListener("input", update); form.addEventListener("change", update);
     return () => { form.removeEventListener("input", update); form.removeEventListener("change", update); };
   }, [accounts, outstanding]);
-  return <div className="notice info" ref={target} aria-live="polite"><strong>After saving: </strong>{proposed ? <><span>{currentRemaining} → {proposed.remaining} spaces available.</span><p>{proposed.paused.length ? `Paused after saving: ${proposed.paused.join("; ")}.` : "All admission controls open."}</p></> : <p>Review the proposed limits and pauses before saving.</p>}</div>;
+  return <div className="notice info" ref={target} aria-live="polite"><strong>After saving: </strong>{proposed ? <><span>{currentRemaining} → {proposed.remaining} spaces available.</span><p>{proposed.paused.length ? `Paused after saving: ${proposed.paused.join("; ")}.` : "No pauses enabled."}</p></> : <p>Review the proposed limits and pauses before saving.</p>}</div>;
 }
