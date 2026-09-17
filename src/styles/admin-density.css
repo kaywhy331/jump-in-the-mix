@@ -218,6 +218,11 @@
 .staff-shell .admin-add-staff { max-width: 880px; }
 .staff-shell .admin-staff-access-form .notice { margin-bottom: 0; }
 .staff-shell .support-thread { max-height: 180px; }
+.staff-shell .support-admin-side-column .form-grid { grid-template-columns: minmax(0,1fr); }
+@media(min-width:1300px) {
+ .staff-shell .support-admin-main-column { grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; }
+ .staff-shell .support-thread { max-height: clamp(180px,calc(100svh - 390px),620px); }
+}
 .staff-shell .support-admin-side-column details.card { margin: 0; }
 .staff-shell .support-admin-side-column .support-definition-list > div { grid-template-columns: 1fr 1fr; }
 .staff-shell .admin-setting-grid > .card { margin-top: 0; }

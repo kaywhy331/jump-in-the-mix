@@ -51,20 +51,36 @@ test("account change retains nonsecret fields through password failure and MFA, 
 test("support reply survives triage, requires template replacement confirmation and resolves atomically", async ({ page, context }, info) => {
   const f = await fixture();
   try {
+    const now = Date.now();
+    await prisma.supportTicketMessage.updateMany({ where: { ticketId: f.ticket.id }, data: { createdAt: new Date(now - 60_000) } });
+    await prisma.supportTicketMessage.createMany({ data: Array.from({ length: 8 }, (_, index) => ({ ticketId: f.ticket.id, authorUserId: f.customer.user.id, authorType: "USER" as const, body: `Customer update ${index + 1}: I checked my inbox and still need help finding the invitation.`, createdAt: new Date(now - (8 - index) * 1000) })) });
+    if (info.project.name === "desktop-chromium") await page.setViewportSize({ width: 1366, height: 768 });
     await context.addCookies([{ name: "jitm_session", value: f.admin.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
     await page.goto(`/admin/support/${f.ticket.id}?returnTo=${encodeURIComponent('/admin/support?view=mine')}`);
+    const conversation = page.getByRole("region", { name: "Conversation messages", exact: true });
+    await expect.poll(() => conversation.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThanOrEqual(1);
+    await expect.poll(() => conversation.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+    if (info.project.name === "desktop-chromium") {
+      for (const name of ["Send reply and resolve", "Save triage", "Close ticket"]) {
+        const button = await page.getByRole("button", { name, exact: true }).boundingBox();
+        expect(button!.y + button!.height, name).toBeLessThanOrEqual(768);
+      }
+    }
     const body = "Keep this prepared response while updating the ticket priority.";
     await page.locator('textarea[name="body"]').fill(body);
     await page.getByRole("combobox", { name: "Priority", exact: true }).selectOption("URGENT");
     await page.getByRole("button", { name: "Save triage" }).click();
     await expect(page).toHaveURL(/triageSaved=1/);
     await expect(page.locator('textarea[name="body"]')).toHaveValue(body);
+    await expect.poll(() => conversation.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThanOrEqual(1);
+    await conversation.evaluate(el => { el.scrollTop = 0; });
     await page.getByLabel("Response template").selectOption("Resolved");
     await expect(page.locator('textarea[name="body"]')).toHaveValue(body);
     await page.getByRole("button", { name: "Keep my reply" }).click();
     await page.getByRole("button", { name: "Send reply and resolve" }).click();
     await expect(page.getByText("Reply saved and ticket resolved. The email notification is queued separately.")).toBeVisible();
     await expect(page.locator('textarea[name="body"]')).toHaveValue("");
+    await expect.poll(() => conversation.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThanOrEqual(1);
     await expect(page.getByRole("link", { name: "Support queue", exact: true })).toHaveAttribute("href", "/admin/support?view=mine");
     expect(await prisma.supportTicket.findUnique({ where: { id: f.ticket.id } })).toMatchObject({ status: "RESOLVED", priority: "URGENT" });
     expect(await prisma.supportTicketMessage.count({ where: { ticketId: f.ticket.id, body, authorType: "ADMIN" } })).toBe(1);

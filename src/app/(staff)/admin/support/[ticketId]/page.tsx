@@ -1,4 +1,5 @@
 import { AdminDraftForm } from "@/components/AdminDraftForm";
+import { AdminSupportConversation } from "@/components/AdminSupportConversation";
 import { safeAdminReturnTo } from "@/lib/admin-navigation";
 import { randomUUID } from "node:crypto";
 import { SupportEmailRecovery } from "@/components/SupportEmailRecovery";
@@ -97,7 +98,7 @@ export default async function AdminSupportTicketPage({
       {query.statusSaved && <Notice type="success">Ticket status updated.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
 
-      <section className="card admin-ticket-context"><h2>{requester?.name ?? "Customer"} · {adminSupportStatusLabel(ticket.status)}</h2><p>{requester?.email} · {workspace?.name} · {supportPriorityLabel(ticket.priority)} priority · Assigned to {assignees.find(person => person.id === ticket.assignedToUserId)?.name ?? "Unassigned"}</p><a href="#ticket-controls">Ticket controls</a></section>
+      <section className="card admin-ticket-context"><h2>{requester?.name ?? "Customer"} · {adminSupportStatusLabel(ticket.status)}</h2><p>{requester?.email} · {workspace?.name} · {supportPriorityLabel(ticket.priority)} priority · Assignee: {assignees.find(person => person.id === ticket.assignedToUserId)?.name ?? "Unassigned"}</p><a href="#ticket-controls">Ticket controls</a></section>
       <section className="support-admin-detail-grid">
         <div className="support-admin-main-column">
           <section className="card support-thread-card">
@@ -105,7 +106,7 @@ export default async function AdminSupportTicketPage({
               <div><h2>Conversation</h2></div>
               <span className="status-pill">{ticket.messages.length}</span>
             </div>
-            <div className="support-thread" role="region" aria-label="Conversation messages" tabIndex={0}>
+            <AdminSupportConversation latestMessageId={ticket.messages.at(-1)?.id}>
               {ticket.messages.map((message) => (
                 <article className={`support-message ${message.authorType === "ADMIN" ? "admin" : "user"}`} key={message.id}>
                   <header>
@@ -124,7 +125,7 @@ export default async function AdminSupportTicketPage({
                   )}
                 </article>
               ))}
-            </div>
+            </AdminSupportConversation>
           </section>
 
           {ticket.status !== "CLOSED" ? (

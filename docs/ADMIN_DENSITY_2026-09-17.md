@@ -11,7 +11,7 @@ At a 1366 × 768 desktop viewport, the title, main status, relevant controls and
 - Shared staff header, navigation, tabs, cards, form spacing and queue rows.
 - Overview: concise status notes and actions; compact summary strip.
 - Customers and invitations: short headers, common filters first, record details beside actions.
-- Support: compact ticket rows, concise activity age, secondary filters on demand, reply and triage together, assignment and customer-view controls in disclosures.
+- Support: compact ticket rows, concise activity age, secondary filters on demand, conversation and reply side by side on wide screens, latest message visible on opening, assignment and customer-view controls in disclosures.
 - Waitlist: eligibility and capacity status, selection/review controls before the results, bounded desktop queue, separate schedule details.
 - Content: compact library results, secondary filters, parallel draft/beat editing, persistent desktop save bar, shorter wording editor and version sections.
 - Reports: compact date controls, first-screen metrics and trend, separate detail tables and definitions. Denominators, observation times and current-versus-saved limits remain explicit.
@@ -30,7 +30,7 @@ The local production build, TypeScript validation and schema/syntax/import check
 | --- | ---: | ---: | --- |
 | Overview | 1,060 px | 768 px | Summary, attention queue and quick actions visible |
 | Support | 5,450 px | 834 px | Five complete tickets; first row starts at 402 px instead of 663 px |
-| Ticket | 2,537 px | 892 px | Conversation, reply buttons, triage and status actions visible |
+| Ticket | 2,537 px | 964 px | Conversation, reply buttons, triage and status actions visible |
 | Waitlist | 1,819 px | 932 px | Capacity, search, selection and review controls before the queue |
 | Library | 3,463 px | 864 px | Compact rows; filters and creation action visible |
 | Invitation wording | 1,596 px | 861 px | Content fields and draft save visible |
@@ -43,6 +43,8 @@ Document-height reductions include bounded lists and collapsed secondary section
 Visual comparisons: [Support before](admin-density-2026-09-17/before-support.png) / [after](admin-density-2026-09-17/desktop-final-support.png), [Reports before](admin-density-2026-09-17/before-reports.png) / [after](admin-density-2026-09-17/desktop-final-reports.png), [Admission before](admin-density-2026-09-17/before-admission.png) / [after](admin-density-2026-09-17/desktop-final-admission.png). Mobile: [Overview](admin-density-2026-09-17/mobile-overview.png), [Support](admin-density-2026-09-17/mobile-support.png).
 
 The mobile workflow suite passed 49 tests; two desktop-specific viewport checks were skipped as intended. The [accessibility sweep](admin-density-2026-09-17/accessibility.json) checked all 38 views in light desktop and dark 320 px layouts, with zero automated WCAG-tagged violations. Support and option lists can be scrolled and exited with the keyboard. A manual focus check caught the sticky save bar covering editor inputs; the corrected layout passed its new regression and the six affected light/dark view checks. No browser JavaScript errors were recorded in those sweeps. Automated scans are not a complete accessibility certification.
+
+A [nine-message conversation](admin-density-2026-09-17/conversation.png) also passed [four light/dark desktop/320 px checks](admin-density-2026-09-17/conversation.json). The thread opens at the latest message; desktop reply buttons end at 602 px, and triage/status controls fit above the fold. The desktop/mobile reply regression covers opening the latest message, retaining the draft through triage, returning to the latest message, and revealing the newly saved reply.
 
 ## Release validation
 
