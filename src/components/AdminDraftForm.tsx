@@ -48,7 +48,7 @@ export function AdminDraftForm({ draftKey, fields, revision, revisionField = "re
   }}>
     {currentRevision !== undefined && <input name={revisionField} type="hidden" value={currentRevision} />}
     {conflict && <div className="notice info" role="alert"><p>This record changed while your draft was open. Review the current record before applying the retained fields.</p><button className="button" type="button" onClick={() => { setReviewedRevision(currentRevision ?? ""); draft.set({ ...draft.value, revision: currentRevision }); }}>I reviewed the current record; keep my draft</button></div>}
-    {draft.dirty && <p className="admin-result-summary" role="status">Unsaved changes retained in this tab for 30 minutes. After verification, review and submit again. <button type="button" className="button small" onClick={() => { if (window.confirm("Discard these unsaved changes?")) { draft.clear(); allowReset.current = true; form.current?.reset(); } }}>Discard draft</button></p>}
+    {draft.dirty && <p className="admin-result-summary" role="status">Unsaved · kept in this tab for 30 minutes. Submit again after verification. <button type="button" className="button small" onClick={() => { if (window.confirm("Discard these unsaved changes?")) { draft.clear(); allowReset.current = true; form.current?.reset(); } }}>Discard draft</button></p>}
     {children}
   </form>;
 }

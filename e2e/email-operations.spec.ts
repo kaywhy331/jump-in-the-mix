@@ -31,10 +31,10 @@ test("signed delivery events appear in admin diagnostics without exposing email 
     expect((await prisma.waitlistEntry.findUniqueOrThrow({ where: { id: entry.id } })).status).toBe("SUPPRESSED");
     await context.addCookies([{ name: "jitm_session", value: token, url: testInfo.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
     await page.goto("/admin/email");
-    await expect(page.getByRole("heading", { name: "Admin · Email" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Email" })).toBeVisible();
     await page.getByText(/Recent provider events/).click();
     await expect(page.getByRole("heading", { name: "email.bounced", exact: true })).toBeVisible();
-    await expect(page.getByText(/0 of 90 attempts used/)).toBeVisible();
+    await expect(page.getByText(/0 of 90 used/)).toBeVisible();
     await expect(page.getByText("PRIVATE SUBJECT NEVER DISPLAY")).toHaveCount(0);
     await expect(page.getByText("PRIVATE PROVIDER BODY")).toHaveCount(0);
     for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
@@ -43,7 +43,7 @@ test("signed delivery events appear in admin diagnostics without exposing email 
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
     }
     await page.goto(`/admin/access?q=${encodeURIComponent(email)}`);
-    await page.getByRole("link", { name: "Review invitation", exact: true }).click();
+    await page.getByRole("link", { name: "Review", exact: true }).click();
     await expect(page.locator("main")).toContainText("Bounced");
     await expect(page.getByRole("button", { name: "Revoke invitation" })).toHaveCount(0);
     await prisma.staffMembership.update({ where: { userId: staff.id }, data: { denies: ["operations.read"] } });

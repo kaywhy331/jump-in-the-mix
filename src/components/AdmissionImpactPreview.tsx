@@ -15,5 +15,5 @@ export function AdmissionImpactPreview({ accounts, outstanding, currentRemaining
     update(); form.addEventListener("input", update); form.addEventListener("change", update);
     return () => { form.removeEventListener("input", update); form.removeEventListener("change", update); };
   }, [accounts, outstanding]);
-  return <div className="notice info" ref={target} aria-live="polite"><strong>Review proposed impact</strong>{proposed ? <><p>{currentRemaining} currently available → {proposed.remaining} spaces under the proposed limits.</p><p>{proposed.paused.length ? `Paused after saving: ${proposed.paused.join("; ")}.` : "All four admission pause controls would be open."}</p></> : <p>Review the proposed limits and pauses before saving.</p>}<small>This estimate uses the current reservation counts. The server checks current authorization and configuration again when you save. Existing accounts and invitations are retained.</small></div>;
+  return <div className="notice info" ref={target} aria-live="polite"><strong>After saving: </strong>{proposed ? <><span>{currentRemaining} → {proposed.remaining} spaces available.</span><p>{proposed.paused.length ? `Paused after saving: ${proposed.paused.join("; ")}.` : "All admission controls open."}</p></> : <p>Review the proposed limits and pauses before saving.</p>}</div>;
 }

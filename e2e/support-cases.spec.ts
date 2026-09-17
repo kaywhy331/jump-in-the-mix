@@ -27,17 +27,19 @@ async function checkLayout(page: import("@playwright/test").Page) {
 test("support assigns a case, opens its audited read-only view, and returns to the queue", async ({ page, context }, info) => {
   await context.addCookies([{ name: "jitm_session", value: f.admin.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
   await page.goto(`/admin/support?q=${encodeURIComponent(f.ticket.reference)}`);
-  await expect(page.getByRole("heading", { name: "Admin · Support" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Support" })).toBeVisible();
   expect(await page.content()).not.toContain("PRIVATE_SUPPORT_BODY_SENTINEL");
   await checkLayout(page);
   expect(await prisma.platformAuditEvent.count({ where: { actorUserId: f.admin.user.id, action: "support.case.read" } })).toBe(0);
   await page.getByRole("link").filter({ hasText: f.ticket.reference }).click();
   await expect(page.getByText("PRIVATE_SUPPORT_BODY_SENTINEL")).toBeVisible();
   await expect(page.getByRole("button", { name: "Start view-only session" })).toHaveCount(0);
+  await page.getByText("Change assignment", { exact: true }).click();
   await page.getByRole("combobox", { name: "Assigned to", exact: true }).selectOption(f.admin.user.id);
   await page.getByRole("textbox", { name: "Assignment reason", exact: true }).fill("I will investigate this customer’s missing follow-up.");
   await page.getByRole("button", { name: "Save assignment" }).click();
   await expect(page).toHaveURL(/assignmentSaved=1(?:&|$)/);
+  await page.getByText("Customer support view", { exact: true }).click();
   await expect(page.getByRole("button", { name: "Start view-only session" })).toBeVisible();
   await checkLayout(page);
   await page.getByRole("textbox", { name: "Support reason", exact: true }).fill("Review the queue configuration reported in this ticket.");
@@ -68,6 +70,7 @@ test("reassignment ends an existing view, rejects a stale form, and a copied coo
   await prisma.supportTicket.update({ where: { id: f.ticket.id }, data: { assignedToUserId: f.admin.user.id, assignmentRevision: 1 } });
   await context.addCookies([{ name: "jitm_session", value: f.admin.token, url: baseURL, httpOnly: true, sameSite: "Strict" }]);
   await page.goto(`/admin/support/${f.ticket.id}`);
+  await page.getByText("Customer support view", { exact: true }).click();
   await page.getByRole("textbox", { name: "Support reason", exact: true }).fill("Investigate the customer’s current jump queue.");
   await page.getByRole("button", { name: "Start view-only session" }).click();
   await expect(page.locator(".impersonation-banner")).toBeVisible();
@@ -83,6 +86,7 @@ test("reassignment ends an existing view, rejects a stale form, and a copied coo
     await expect(second.getByText("Private customer workspace", { exact: true })).toHaveCount(0);
     await other.clearCookies(); await other.addCookies([{ name: "jitm_session", value: f.colleague.token, url: baseURL, httpOnly: true, sameSite: "Strict" }]);
     await second.goto(`/admin/support/${f.ticket.id}`);
+    await second.getByText("Change assignment", { exact: true }).click();
     await second.getByRole("combobox", { name: "Assigned to", exact: true }).selectOption(f.colleague.user.id);
     await second.getByRole("textbox", { name: "Assignment reason", exact: true }).fill("Take over this case for the next support shift.");
     await second.getByRole("button", { name: "Save assignment" }).click();
@@ -106,7 +110,7 @@ test("MFA and separate permissions protect the page and direct start endpoint", 
   await prisma.adminMfaSession.create({ data: { userId: f.admin.user.id, sessionId: f.admin.session.id, expiresAt: f.admin.session.expiresAt } });
   await prisma.staffMembership.update({ where: { userId: f.admin.user.id }, data: { denies: ["support.view_customer"] } });
   await page.goto(`/admin/support/${f.ticket.id}`); await expect(page.getByText("PRIVATE_SUPPORT_BODY_SENTINEL")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Customer support view" })).toHaveCount(0);
+  await expect(page.getByText("Customer support view", { exact: true })).toHaveCount(0);
   const start = await context.request.post("/api/admin/impersonation/start", { headers: { origin: new URL(baseURL).origin }, form: { ticketId: f.ticket.id, assignmentRevision: "0", targetUserId: f.customer.user.id, workspaceId: f.workspace.id, reason: "Attempt unauthorized customer access" }, maxRedirects: 0 });
   expect(start.status()).toBe(303); expect(start.headers().location).toContain("access-denied");
   await prisma.staffMembership.update({ where: { userId: f.admin.user.id }, data: { denies: ["support.manage"] } });

@@ -86,31 +86,31 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
   return (
     <div className="page admin-control-page">
       <header className="page-header">
-        <div><h1>Admin · Operations</h1><p>Inspect background work, worker health, and recoverable failures.</p></div><Link className="button" href="/admin/operations/alerts">Operational alerts</Link>
+        <div><h1>Operations</h1></div><Link className="button" href="/admin/operations/alerts">Operational alerts</Link>
       </header>
       {params.error && <Notice type="error">{String(params.error).slice(0, 400)}</Notice>}{params.retried && <Notice>Job queued for another attempt.</Notice>}
 
       <AdminRefresh observedAt={new Date().toISOString()} />
-      <nav className="admin-content-tabs" aria-label="Operations views">{[["jobs", "Failed work and jobs"], ["health", "Worker health"], ["maintenance", "Maintenance"]].map(([key, label]) => <Link key={key} href={adminQuery("/admin/operations", { view: key })} aria-current={view === key ? "page" : undefined}>{label}</Link>)}</nav>
+      <nav className="admin-content-tabs" aria-label="Operations views">{[["jobs", "Jobs"], ["health", "Worker health"], ["maintenance", "Maintenance"]].map(([key, label]) => <Link key={key} href={adminQuery("/admin/operations", { view: key })} aria-current={view === key ? "page" : undefined}>{label}</Link>)}</nav>
       <section className="admin-metric-grid">
-        <Link className={`card admin-metric-card ${failedJobs ? "critical" : "healthy"}`} href="/admin/operations?status=failed"><span>Failed jobs</span><strong>{failedJobs}</strong><small>Eligible failures can be retried safely.</small></Link>
-        <Link className="card admin-metric-card" href="/admin/operations?status=pending"><span>Pending jobs</span><strong>{pendingJobs}</strong><small>Waiting for a worker lease.</small></Link>
-        <Link className="card admin-metric-card" href="/admin/operations?status=running"><span>Running jobs</span><strong>{runningJobs}</strong><small>Currently locked by a worker.</small></Link>
-        <div className={`card admin-metric-card ${healthyWorkerCount ? "healthy" : "critical"}`}><span>Healthy workers</span><strong>{healthyWorkerCount}</strong><small>Heartbeat received within {staleSeconds} seconds.</small></div>
-        <div className={`card admin-metric-card ${staleWorkerCount ? "critical" : "healthy"}`}><span>Stale workers</span><strong>{staleWorkerCount}</strong><small>Running records missing a current heartbeat.</small></div>
+        <Link className={`card admin-metric-card ${failedJobs ? "critical" : "healthy"}`} href="/admin/operations?status=failed"><span>Failed jobs</span><strong>{failedJobs}</strong></Link>
+        <Link className="card admin-metric-card" href="/admin/operations?status=pending"><span>Pending jobs</span><strong>{pendingJobs}</strong></Link>
+        <Link className="card admin-metric-card" href="/admin/operations?status=running"><span>Running jobs</span><strong>{runningJobs}</strong></Link>
+        <div className={`card admin-metric-card ${healthyWorkerCount ? "healthy" : "critical"}`}><span>Healthy workers</span><strong>{healthyWorkerCount}</strong><small>Within {staleSeconds}s</small></div>
+        <div className={`card admin-metric-card ${staleWorkerCount ? "critical" : "healthy"}`}><span>Stale workers</span><strong>{staleWorkerCount}</strong></div>
       </section>
 
       {view === "maintenance" && <section className="card form-stack" id="data-retention">
         <h2>Data retention</h2>
         {retentionStale ? <Notice type="error">Data cleanup is missing, stale, or failed. Check the worker before relying on the retention schedule.</Notice> : <Notice type="success">A complete data cleanup pass was recorded within the last 24 hours.</Notice>}
-        <p>Last complete pass: {timestamp(retention?.completedAt ?? null, displayPreferences)}. Each pass processes a bounded batch; older records can remain while a backlog clears.</p>
+        <p>Last complete pass: {timestamp(retention?.completedAt ?? null, displayPreferences)}. Backlogs may need several passes.</p>
         {retention?.counts && <dl>{Object.entries(RETENTION_COUNT_LABELS).map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{typeof retentionCounts[key] === "number" && Number.isSafeInteger(retentionCounts[key]) && Number(retentionCounts[key]) >= 0 ? String(retentionCounts[key]) : "—"}</dd></div>)}</dl>}
-        <p>Active invitations, open support cases, pending support email, opt-outs and lifetime invitation slots are protected. Minimal email keys and event IDs remain to prevent reuse and replay.</p>
+        <p>Active invitations, open cases, pending email and opt-outs are protected. Replay-prevention keys remain.</p>
       </section>}
 
       {view === "health" && <section className="card admin-operation-section">
         <div className="card-header"><div><h2>Worker heartbeats</h2><p>Showing the 20 most recent worker records. Stale heartbeats can delay customer follow-ups, imports and email.</p></div></div>
-        <div className="admin-operation-list">
+        <div className="admin-operation-list" role="region" aria-label="Worker records" tabIndex={0}>
           {workers.map((worker) => {
             const ageSeconds = Math.max(0, Math.floor((Date.now() - worker.lastSeenAt.getTime()) / 1000));
             const healthy = worker.status === "RUNNING" && ageSeconds <= staleSeconds;
@@ -126,7 +126,7 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
       </section>}
 
       {view === "jobs" && <section className="card admin-operation-section">
-        <div className="card-header"><div><h2>Background jobs</h2><p>Filter recent work and retry only records that reached a failed state.</p></div></div>
+        <div className="card-header"><div><h2>Background jobs</h2></div></div>
         <form className="filter-bar admin-operation-filters" method="get">
           <input type="hidden" name="view" value="jobs" />{params.jobId && <input name="jobId" type="hidden" value={params.jobId} />}
           <select name="status" defaultValue={status} aria-label="Filter jobs by status"><option value="failed">Failed</option><option value="pending">Pending</option><option value="running">Running</option><option value="completed">Completed</option><option value="all">All</option></select>
@@ -134,7 +134,7 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
           <button className="button" type="submit">Filter</button>
           {(status !== "failed" || task) && <Link className="button" href="/admin/operations">Reset</Link>}
         </form>
-        <div className="admin-operation-list">
+        <div className="admin-operation-list" role="region" aria-label="Job results" tabIndex={0}>
           {jobs.map((job) => (
             <article className="admin-operation-row" key={job.id}>
               <div><strong>{adminJobPresentation(job.task).title}</strong><span>{job.workspace?.name ?? "Platform job"} · {jobStatus(job)}</span><p>{job.completedAt ? "Work completed." : adminJobPresentation(job.task).impact}</p>{job.failedAt && <small>{adminJobPresentation(job.task).next}</small>}<details><summary>Diagnostics and dates</summary><p>Task: {job.task} · Record {job.id}</p><small>Created {timestamp(job.createdAt, displayPreferences)} · run at {timestamp(job.runAt, displayPreferences)} · attempts {job.attempts}/{job.maxAttempts}</small>{job.lastError && <code>{job.lastError}</code>}</details></div>

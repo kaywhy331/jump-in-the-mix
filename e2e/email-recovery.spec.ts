@@ -42,7 +42,7 @@ test("review clears provider blocks while preserving recipient opt-out and all p
   await prisma.emailSuppression.createMany({ data: ["HARD_BOUNCE", "COMPLAINT", "INVITATION_OPTOUT"].map(reason => ({ email: f.email, reason: reason as "HARD_BOUNCE" | "COMPLAINT" | "INVITATION_OPTOUT" })) });
   await page.goto("/admin/email/suppressions"); await page.getByRole("searchbox", { name: "Recipient email" }).fill(f.email);
   await expect(page.getByRole("heading", { name: f.email, exact: true })).toBeVisible(); await layout(page);
-  await page.getByRole("link", { name: "Review recipient", exact: true }).click(); await expect(page.getByRole("heading", { name: "2. Review evidence for 2 provider blocks" })).toBeVisible(); await layout(page);
+  await page.getByRole("link", { name: "Review recipient", exact: true }).click(); await expect(page.getByRole("heading", { name: "Review evidence for 2 provider blocks" })).toBeVisible(); await layout(page);
   await reviewForm(page); await page.getByRole("button", { name: "Clear provider blocks locally" }).click();
   await expect(page).toHaveURL(/cleared=1$/); await expect(page.getByText("Provider blocks were cleared locally.", { exact: false })).toBeVisible();
   await expect(page.getByText("The recipient’s invitation opt-out remains in place.", { exact: false })).toBeVisible();

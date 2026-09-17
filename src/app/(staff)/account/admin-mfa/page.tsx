@@ -30,9 +30,9 @@ export default async function AdminMfaPage({ searchParams }: { searchParams: Pro
   if (credential.enabledAt && verified && !params.verify) {
     return (
       <div className="page admin-mfa-page">
-        <header className="page-header"><div><h1>Administrator MFA</h1><p>Administrator access is protected with a verified second factor.</p></div></header>
+        <header className="page-header"><div><h1>Administrator MFA</h1></div></header>
         <section className="card admin-mfa-ready-card">
-          <div className="card-header"><div><h2>This session is verified</h2><p>Admin browsing remains verified for up to {env.adminMfaMaxAgeMinutes} minutes. Sensitive changes require verification within the last 10 minutes and may also require your password.</p></div><span className="status-pill done">Protected</span></div>
+          <div className="card-header"><div><h2>This session is verified</h2><p>Browsing: up to {env.adminMfaMaxAgeMinutes} minutes. Sensitive changes: verify within 10 minutes; a password may also be required.</p></div><span className="status-pill done">Protected</span></div>
           <dl className="account-definition-list">
             <div><dt>Enabled</dt><dd>{formatDateTime(credential.enabledAt, displayPreferences)}</dd></div>
             <div><dt>Recovery codes remaining</dt><dd>{credential.recoveryCodesRemaining}</dd></div>
@@ -46,7 +46,7 @@ export default async function AdminMfaPage({ searchParams }: { searchParams: Pro
   if (credential.enabledAt) {
     return (
       <div className="page admin-mfa-page">
-        <header className="page-header"><div><h1>Administrator verification</h1><p>Confirm a second factor before opening platform administration or starting a support view.</p></div></header>
+        <header className="page-header"><div><h1>Administrator verification</h1><p>Enter your authenticator or recovery code.</p></div></header>
         <AdminMfaPanel mode="verify" returnTo={returnTo} canReturn={verified} />
       </div>
     );
@@ -55,7 +55,7 @@ export default async function AdminMfaPage({ searchParams }: { searchParams: Pro
   if (!user.passwordHash) {
     return (
       <div className="page admin-mfa-page">
-        <header className="page-header"><div><h1>Secure administrator access</h1><p>Administrator MFA requires password reauthentication during setup.</p></div></header>
+        <header className="page-header"><div><h1>Secure administrator access</h1><p>Set a password to enroll MFA.</p></div></header>
         <section className="card"><p>Set an account password first, then return here to enroll an authenticator.</p><Link className="button primary" href="/forgot-password">Set account password</Link></section>
       </div>
     );
@@ -71,7 +71,7 @@ export default async function AdminMfaPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="page admin-mfa-page">
-      <header className="page-header"><div><h1>Secure administrator access</h1><p>Administrator MFA is required before platform controls and audited support views can be used.</p></div></header>
+      <header className="page-header"><div><h1>Secure administrator access</h1><p>Connect an authenticator to use administration.</p></div></header>
       <AdminMfaPanel mode="setup" returnTo={returnTo} secret={enrollment.secret} qrDataUrl={qrDataUrl} />
     </div>
   );

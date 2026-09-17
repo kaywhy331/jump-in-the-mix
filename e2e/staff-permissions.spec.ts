@@ -32,11 +32,11 @@ test("growth staff need no customer workspace and cannot open user or team data"
   const { token, user } = await fixture("GROWTH");
   await context.addCookies([{ name: "jitm_session", value: token, url: testInfo.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
   await page.goto("/admin");
-  await expect(page.getByRole("heading", { name: "Admin · Overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Administration" })).toHaveCount(1);
   await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Users" })).toHaveCount(0);
   await page.goto("/admin/waitlist");
-  await expect(page.getByRole("heading", { name: "Admin · Waitlist" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Waitlist" })).toBeVisible();
   for (const path of ["/admin/users", "/admin/team", "/admin/audit", "/admin/settings", "/admin/operations", "/admin/email", "/admin/templates"]) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/admin\/access-denied\?/);
@@ -49,8 +49,8 @@ test("owner edits individual staff permissions and revokes the target session", 
   const owner = await fixture("OWNER"); const target = await fixture("GROWTH");
   await context.addCookies([{ name: "jitm_session", value: owner.token, url: testInfo.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
   await page.goto("/admin/team");
-  const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: "Test GROWTH", exact: true }) });
-  await panel.getByText(/Review or change access/).click();
+  const panel = page.locator("details.admin-team-record").filter({ hasText: "Test GROWTH" });
+  await panel.locator(":scope > summary").click();
   await panel.getByText(/Individual permission overrides/).click();
   await panel.getByLabel("Override: Send manual waitlist invitations", { exact: true }).selectOption("deny");
   await panel.getByLabel("Reason for access change").fill("Restrict to waitlist review");
@@ -134,8 +134,8 @@ test("staff console navigation and team controls fit both themes at phone and de
   const { token, user } = await fixture("OWNER");
   await context.addCookies([{ name: "jitm_session", value: token, url: testInfo.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
   await page.goto("/admin/team");
-  const panel = page.locator("section").filter({ has: page.getByRole("heading", { name: user.name ?? user.email, exact: true }) });
-  await panel.getByText(/Review or change access/).click();
+  const panel = page.locator("details.admin-team-record").filter({ hasText: user.email });
+  await panel.locator(":scope > summary").click();
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 390, 1440]) {
     await applyRenderedTheme(page, colorScheme, { width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);

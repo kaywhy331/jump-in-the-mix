@@ -66,12 +66,12 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
     <div className="page admin-users-page">
       <header className="page-header">
         <div>
-          <h1>Admin · Users</h1>
-          <p>Find an account, review its access, and manage sessions within your permissions.</p>
+          <h1>Users</h1>
+
         </div>
         <div className="page-actions">
           {permissions.includes("support.manage") && <Link className="button" href="/admin/support">Support</Link>}
-          {permissions.includes("mixes.edit") && <Link className="button" href="/admin/templates">Ready-made mixes</Link>}
+
         </div>
       </header>
 
@@ -89,7 +89,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
       </form>
       <p>{total} matching accounts · Page {page}</p>
 
-      <div className="admin-queue">
+      <div className="admin-queue" role="region" aria-label="Results" tabIndex={0}>
         {users.map(user => <article className="admin-queue-row" key={user.id}>
           <div><h2><Link href={`/admin/users/${user.id}?returnTo=${encodeURIComponent(pageHref(page))}`}>{user.name}</Link></h2><p>{user.email}</p><small>{user.memberships.map(item => item.workspace.name).join(" · ") || "No customer workspace"} · Joined {formatDate(user.createdAt, displayPreferences)}</small></div>
           <div className="page-actions"><span className="status-pill">{user.suspendedAt ? "Suspended" : "Active"}</span>{user.staffMembership && <span className="status-pill">Staff · {user.staffMembership.role.toLowerCase()}</span>}<span>{user._count.sessions} sessions</span><Link className="button small" href={`/admin/users/${user.id}?returnTo=${encodeURIComponent(pageHref(page))}`}>View account</Link></div>

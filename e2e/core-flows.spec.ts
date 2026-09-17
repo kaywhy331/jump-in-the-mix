@@ -269,7 +269,7 @@ test.describe("stateful administrator security journey", () => {
     expect(firstRecoveryCode).toBeTruthy();
 
     await page.getByRole("link", { name: "Continue to Admin" }).click();
-    await expect(page.getByRole("heading", { name: "Admin · Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
     await page.context().clearCookies();
     await signIn(page, adminEmail, adminPassword);
@@ -279,10 +279,10 @@ test.describe("stateful administrator security journey", () => {
     await page.getByLabel("Verification code").fill(firstRecoveryCode!);
     await page.getByRole("button", { name: "Verify and continue" }).click();
     await page.waitForURL(/\/admin$/);
-    await expect(page.getByRole("heading", { name: "Admin · Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
     await page.getByRole("link", { name: "Support", exact: true }).first().click();
-    await expect(page.getByRole("heading", { name: "Admin · Support" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Support" })).toBeVisible();
 
     const customer = await prisma.user.findUniqueOrThrow({ where: { email: userEmail } });
     const handler = await prisma.user.findUniqueOrThrow({ where: { email: adminEmail } });

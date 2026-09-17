@@ -8,7 +8,7 @@ import { Notice } from "@/components/Notice";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getAdmissionSnapshot, issuanceProblem } from "@/lib/admission";
-import { inviteWaitlistSelectionAction, retryWaitlistDeliveryAction, setWaitlistScheduleAction } from "@/lib/waitlist-admin-actions";
+import { retryWaitlistDeliveryAction, setWaitlistScheduleAction } from "@/lib/waitlist-admin-actions";
 import { WAITLIST_RETRY_WINDOW_MS } from "@/lib/waitlist-delivery";
 import { waitlistSendingReady } from "@/lib/waitlist";
 
@@ -43,7 +43,7 @@ export default async function AdminWaitlistPage({ searchParams }: { searchParams
   const admissionProblem = issuanceProblem(admission, "WAITLIST", Math.min(eligible, 10));
   const sendingReady = waitlistSendingReady();
   // A smaller manual selection can fit even when the full weekly batch cannot.
-  const manualProblem = issuanceProblem(admission, "WAITLIST") ?? (!sendingReady ? "Invitation email is unavailable. Ask an administrator to configure sending before queueing invitations." : null);
+  const manualProblem = issuanceProblem(admission, "WAITLIST") ?? (!sendingReady ? "Sending unavailable. Check email configuration." : null);
   const invites = await prisma.referralAccessInvite.findMany({ where: { recipientEmail: { in: emails } }, select: { id: true, recipientEmail: true, source: true, lastSentAt: true, acceptedAt: true, revokedAt: true, delivery: { select: { status: true } } }, orderBy: { createdAt: "desc" } });
   const [blocked, existing, actors] = await Promise.all([
     prisma.emailSuppression.findMany({ where: { email: { in: emails }, clearedAt: null }, select: { email: true } }),
@@ -54,22 +54,22 @@ export default async function AdminWaitlistPage({ searchParams }: { searchParams
   for (const invite of invites) if (!invite.acceptedAt && !invite.revokedAt) unavailable.add(invite.recipientEmail);
   const names = new Map(actors.map(person => [person.id, person.name]));
   const href = (nextPage: number) => adminQuery("/admin/waitlist", { q: query, view, confirmed, page: nextPage });
-  return <div className="page">
-    <header className="page-header"><div><h1>Admin · Waitlist</h1><p>Every 7 days: 5 earliest confirmed signups, then 5 randomly selected from the rest. {eligible} confirmed requests pass current account, invitation and suppression checks.</p></div></header>
+  return <div className="page admin-waitlist-page">
+    <header className="page-header"><div><h1>Waitlist</h1></div></header>
     {params.error && <Notice type="error">{params.error}</Notice>}
     {params.queued !== undefined && <Notice>{Number(params.queued) || 0} invitations queued. {Number(params.skipped) || 0} skipped because they were no longer eligible. The worker sends queued email.</Notice>}
     {params.retry && <Notice>Delivery queued for another attempt.</Notice>}
     {params.scheduleSaved && <Notice>Weekly wave schedule updated.</Notice>}
     <nav className="admin-content-tabs" aria-label="Waitlist views">{[["waiting", "Waiting"], ["history", "Access history"], ["delivery", "Delivery"], ["waves", "Waves and activity"]].map(([key,label]) => <Link key={key} href={adminQuery("/admin/waitlist", { view: key, q: query, confirmed })} aria-current={view === key ? "page" : undefined}>{label}</Link>)}</nav>
-    <p role="status">{admission.remaining} invitation spaces available · {manualProblem ?? "Capacity and sending configuration allow queueing. The worker sends queued email."}</p>
-    {!sendingReady && <Notice type="error">Invitation email is unavailable. Ask an administrator to configure sending before queueing invitations.</Notice>}
+    <p role="status" className="admin-inline-status">{eligible} eligible · {admission.remaining} spaces available · {manualProblem?.split(". ")[0] ?? "Ready to queue invitations."}</p>
+
     {["waiting", "history"].includes(view) && <section className="card form-stack" aria-labelledby="waiting-title">
       <h2 id="waiting-title">{view === "waiting" ? "Waiting" : "Access history"} · {count}</h2>
       <form method="get" className="admin-library-search live-search-form"><input type="hidden" name="view" value={view} /><label className="field"><span>Search email</span><input name="q" type="search" defaultValue={query} /></label><label className="field"><span>Email confirmation</span><select name="confirmed" defaultValue={confirmed}><option value="all">All requests</option><option value="confirmed">Confirmed</option><option value="unconfirmed">Awaiting confirmation</option></select></label><button className="button" type="submit">Search</button></form>
       <WaitlistSelectionForm returnTo={href(page)} capacity={admission.remaining} problem={manualProblem} canManage={view === "waiting" && permissions.includes("waitlist.manage")} saved={params.queued !== undefined ? `${params.queued}:${params.skipped}` : undefined} rows={entries.map(entry => ({ id: entry.id, email: entry.email, requested: date(entry.createdAt), href: permissions.includes("access.read") && invites.find(invite => invite.recipientEmail === entry.email) ? adminQuery(`/admin/access/${invites.find(invite => invite.recipientEmail === entry.email)!.id}`, { returnTo: href(page) }) : undefined, confirmed: Boolean(entry.verifiedAt), canInvite: !manualProblem && entry.status === "WAITING" && Boolean(entry.verifiedAt) && !unavailable.has(entry.email), context: unavailable.has(entry.email) && entry.status === "WAITING" ? "Account, invitation or suppression prevents another grant." : entry.status === "WAITING" ? undefined : entry.status.toLowerCase().replaceAll("_", " ") }))} />
       <AdminPagination page={page} total={count} pageSize={50} href={href} />
     </section>}
-    <details className="card form-stack" aria-labelledby="schedule-title"><summary id="schedule-title">Automatic wave schedule and controls</summary>
+    <details className="card form-stack" aria-labelledby="schedule-title"><summary id="schedule-title">Wave schedule</summary>
       <p>{admission.remaining} spaces available for new invitations. {admissionProblem ? "The next eligible batch will wait for admission capacity or resumed issuance." : "The eligible batch fits the current admission limits."}</p>
       {permissions.includes("settings.manage") && <Link className="inline-action" href="/admin/admission">Manage admission limits and pauses</Link>}
       <p>{schedule ? schedule.paused ? "New weekly waves are paused." : `Next wave: ${date(schedule.nextRunAt)}.` : "The first wave is scheduled 7 days after the configured worker first runs."}</p>
@@ -81,7 +81,7 @@ export default async function AdminWaitlistPage({ searchParams }: { searchParams
         <button className="button" type="submit">{schedule?.paused ? "Resume · next wave in 7 days" : "Pause weekly waves"}</button>
       </AdminDraftForm>}
     </details>
-    {view === "delivery" && <section className="card form-stack" aria-labelledby="delivery-title"><h2 id="delivery-title">Pending deliveries and problems</h2>
+    {view === "delivery" && <section className="card form-stack" aria-labelledby="delivery-title"><h2 id="delivery-title">Delivery queue</h2>
       <p>“Sent” means accepted by the email provider. This does not confirm inbox delivery.</p>
       {!problems.length && <p>No pending deliveries or problems.</p>}
       {problems.map(item => item.invite && <div key={item.id} style={{ overflowWrap: "anywhere" }}><strong>{item.invite.recipientEmail} · {item.status}</strong>{item.lastError && <p>{item.lastError}</p>}

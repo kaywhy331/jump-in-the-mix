@@ -27,7 +27,7 @@ test("admin manually invites selected confirmed users and removes them from Wait
   try {
     await context.addCookies([{ name: "jitm_session", value: token, url: testInfo.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
     await page.goto("/admin/waitlist");
-    await expect(page.getByRole("heading", { name: "Admin · Waitlist" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Waitlist" })).toBeVisible();
     await expect(page.getByRole("checkbox", { name: unconfirmedEmail, exact: true })).toBeDisabled();
     await page.getByRole("checkbox", { name: email, exact: true }).check();
     await page.getByLabel("Reason for manual invitations").fill("Browser test");
