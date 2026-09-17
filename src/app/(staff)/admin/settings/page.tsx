@@ -18,13 +18,10 @@ export default async function AdminSystemSettingsPage() {
   return (
     <div className="page admin-control-page">
       <header className="page-header">
-        <div><h1>Admin · Library options</h1><p>Manage reviewed mix-library options without editing application code.</p></div>
+        <div><h1>Library options</h1><p>Options shown in customer filters and mix editors.</p></div>
       </header>
 
-      <section className="card admin-safety-card">
-        <strong>Validated configuration</strong>
-        <p>Choose and reorder reviewed values. Saving changes the customer library filters and customer mix editors. It does not rename existing content.</p>
-      </section>
+
 
       <div className="admin-setting-groups">
         {categories.map((category) => (
@@ -34,7 +31,7 @@ export default async function AdminSystemSettingsPage() {
               {settings.filter((setting) => setting.category === category).map((setting) => (
                 <article className="card admin-setting-card" key={setting.key}>
                   <div className="admin-setting-heading">
-                    <div><h3>{setting.label}</h3><p>{setting.description}</p></div>
+                    <div><h3>{setting.label}</h3></div>
                     <span className={setting.isCustomized ? "status-pill done" : "status-pill"}>{setting.isCustomized ? "Customized" : "Default"}</span>
                   </div>
                   <LibraryOptionsForm revision={setting.updatedAt?.toISOString() ?? "default"} settingKey={setting.key} options={listOptions(setting.value)} allowed={[...setting.defaultValue]} />

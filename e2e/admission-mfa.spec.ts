@@ -92,14 +92,14 @@ test("expired MFA returns the unsaved draft for explicit confirmation", async ({
   await expectDraft(page);
   await page.reload();
   await expectDraft(page);
-  await expect(page.getByText("New invitations need configured limits.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Set both limits above zero to allow invitations.", { exact: false })).toBeVisible();
   expect(await policy()).toEqual(before);
   await page.getByLabel("Your administrator password").fill(password);
   await save(page);
   await expect(page.getByText("Admission controls saved.", { exact: true })).toBeVisible();
   expect(await policy()).toMatchObject({ accountCeiling: 1, outstandingCeiling: 1, referralsPaused: true, revision: before.revision + 1 });
   expect(await saves()).toBe(1);
-  await expect(page.getByText("New invitations need configured limits.", { exact: false })).toHaveCount(0);
+  await expect(page.getByText("Set both limits above zero to allow invitations.", { exact: false })).toHaveCount(0);
   await page.reload();
   await expect(page.getByLabel("Total account and reservation limit")).toHaveValue("1");
   expect(await saves()).toBe(1);
@@ -120,7 +120,7 @@ test("fresh MFA saves 1/1 unpaused; success cannot be forged in a URL and zero s
   await page.getByLabel("Your administrator password").fill(password);
   await save(page);
   await expect(page.getByText("Admission controls saved.", { exact: true })).toBeVisible();
-  await expect(page.getByText("New invitations need configured limits.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Set both limits above zero to allow invitations.", { exact: false })).toBeVisible();
 });
 
 test("fully expired MFA also preserves the draft before step-up", async ({ page, context }, info) => {

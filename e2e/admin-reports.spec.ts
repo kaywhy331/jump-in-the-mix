@@ -53,11 +53,12 @@ test("administrator requests a background export and downloads only within the a
   await prisma.invitationDeliveryHistory.create({ data: { deliveryId: repeated.id, generation: 1, emailMessageId: repeated.emailMessageId!, status: "SENT", attempts: repeated.attempts, generationStartedAt: repeated.createdAt } });
   await prisma.waitlistDelivery.update({ where: { id: repeated.id }, data: { emailMessageId: null, generation: 2, status: "QUEUED" } });
   await page.goto("/admin/reports?from=2020-01-01&through=2020-01-31");
+  await page.getByText("Invitation conversion", { exact: true }).click();
   const referral = page.getByRole("table", { name: "Invitation cohorts by source" }).getByRole("row").filter({ hasText: "Member referral" });
   await expect(referral.getByRole("cell").nth(6)).toHaveText("1");
   await expect(referral.getByRole("cell").nth(7)).toHaveText("1");
   await expect(referral.getByRole("cell").nth(8)).toHaveText("1");
-  await page.getByText("Export this date range as CSV", { exact: true }).click();
+  await page.getByText("Export CSV", { exact: true }).click();
   await page.getByRole("button", { name: "Prepare CSV export" }).click();
   await expect(page).toHaveURL(/\/admin\/reports\/exports\?.*queued=1/);
   await expect(page.getByText("The export is queued. This page checks progress while visible.")).toBeVisible();
@@ -145,6 +146,7 @@ test("analyst sees aggregate cohorts, switches trends and dates, and loses acces
   const activation = page.getByRole("heading", { name: "New account activation" }).locator("..");
   await expect(activation.locator("dl > div").filter({ hasText: "New accounts" })).toContainText("4");
   await expect(activation.locator("dl > div").filter({ hasText: "Activated" })).toContainText("1 (25%)");
+  await page.getByText("Invitation conversion", { exact: true }).click();
   await expect(page.getByRole("table", { name: "Invitation cohorts by source" }).getByRole("row").filter({ hasText: "Member referral" })).toContainText("24 hours");
   await page.getByRole("navigation", { name: "Report sections" }).getByRole("link", { name: "Content", exact: true }).click();
   await expect(page.getByRole("table", { name: "Library copies and follow-up outcomes in range" })).toContainText("Historical public library title");
@@ -162,8 +164,9 @@ test("analyst sees aggregate cohorts, switches trends and dates, and loses acces
   await page.getByLabel("From (UTC)").fill("2010-02-01"); await page.getByLabel("Through (UTC)").fill("2010-02-28");
   await page.getByRole("button", { name: "Update report" }).click();
   await expect(page).toHaveURL(/from=2010-02-01&through=2010-02-28/);
+  await page.getByText("Invitation conversion", { exact: true }).click();
   await expect(page.getByText("No invitations were created in this range.")).toBeVisible();
-  await page.getByRole("link", { name: "Last 7 days", exact: true }).click();
+  await page.getByRole("link", { name: "7 days", exact: true }).click();
   await expect(page).toHaveURL(/days=7(?:&|$)/); await expect(page.getByText("Show daily values (7 days)", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Through (UTC)")).toHaveValue(new Date().toISOString().slice(0, 10));
   await prisma.staffMembership.update({ where: { userId: fixture.staff.id }, data: { denies: ["reports.read"] } });
@@ -180,7 +183,7 @@ test("invalid dates, missing MFA, and customer credentials cannot expose a repor
   for (const query of ["from=2020-02-30&through=2020-03-01", "days=7&days=30", "from=2010-01-01&through=2020-01-01"]) {
     await page.goto(`/admin/reports?${query}`);
     await expect(page.locator(".notice.error")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Invitation conversion" })).toHaveCount(0);
+    await expect(page.getByText("Invitation conversion", { exact: true })).toHaveCount(0);
   }
   await prisma.adminMfaSession.deleteMany({ where: { sessionId: identity.row.id } });
   await page.goto("/admin/reports"); await expect(page).toHaveURL(/\/account\/admin-mfa\?verify=1/);

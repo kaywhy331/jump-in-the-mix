@@ -1,0 +1,569 @@
+{
+  "views": [
+    {
+      "view": "overview",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "users",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "user",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "support",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "ticket",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "waitlist",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "waves",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "invitations",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "invitation",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "library",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "new-mix",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "edit-mix",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "wording",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "reports",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "report-history",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "saved-report",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "exports",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "operations",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "health",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "maintenance",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "alerts",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "email",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "recovery",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "delivery",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "suppressions",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "suppression",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "audit",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "team",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "team-add",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "team-invitations",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "admission",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "settings",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "denied",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "engagement",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "content-report",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "operations-report",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "mfa",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "mfa-verify",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "overview",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "users",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "user",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "support",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "ticket",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "waitlist",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "waves",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "invitations",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "invitation",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "library",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "new-mix",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "edit-mix",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "wording",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "reports",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "report-history",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "saved-report",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "exports",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "operations",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "health",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "maintenance",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "alerts",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "email",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "recovery",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "delivery",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "suppressions",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "suppression",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "audit",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "team",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "team-add",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "team-invitations",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "admission",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "settings",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "denied",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "engagement",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "content-report",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "operations-report",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "mfa",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "mfa-verify",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    }
+  ],
+  "finalAffectedViews": [
+    {
+      "view": "new-mix",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "edit-mix",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "admission",
+      "theme": "light",
+      "width": 1366,
+      "violations": []
+    },
+    {
+      "view": "new-mix",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "edit-mix",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    },
+    {
+      "view": "admission",
+      "theme": "dark",
+      "width": 320,
+      "violations": []
+    }
+  ],
+  "keyboard": [
+    {
+      "path": "/admin/support",
+      "scrollable": true,
+      "canLeave": true
+    },
+    {
+      "path": "/admin/settings",
+      "scrollable": true,
+      "canLeave": true
+    }
+  ],
+  "editorFocus": [
+    {
+      "control": "Choose a placeholder\u2026{{First Name}}{{Las",
+      "top": 373.65625,
+      "bottom": 410.65625,
+      "barTop": 630.65625,
+      "barBottom": 723.796875,
+      "inBar": false,
+      "fullyCovered": false
+    },
+    {
+      "control": "stepLongSms",
+      "top": 425.65625,
+      "bottom": 443.65625,
+      "barTop": 630.65625,
+      "barBottom": 723.796875,
+      "inBar": false,
+      "fullyCovered": false
+    },
+    {
+      "control": "stepOptOut",
+      "top": 461.65625,
+      "bottom": 479.65625,
+      "barTop": 630.65625,
+      "barBottom": 723.796875,
+      "inBar": false,
+      "fullyCovered": false
+    },
+    {
+      "control": "Add beat",
+      "top": 547.65625,
+      "bottom": 583.65625,
+      "barTop": 630.65625,
+      "barBottom": 723.796875,
+      "inBar": false,
+      "fullyCovered": false
+    },
+    {
+      "control": "reason",
+      "top": 670.5,
+      "bottom": 706.796875,
+      "barTop": 630.65625,
+      "barBottom": 723.796875,
+      "inBar": true,
+      "fullyCovered": false
+    },
+    {
+      "control": "Save draft for review",
+      "top": 670.796875,
+      "bottom": 706.796875,
+      "barTop": 630.65625,
+      "barBottom": 723.796875,
+      "inBar": true,
+      "fullyCovered": false
+    }
+  ],
+  "browserErrors": [],
+  "passed": true,
+  "note": "The initial manual keyboard check found save-bar overlap. Root scroll padding now keeps focused editor fields visible; the focused regression and affected light/dark views passed after correction."
+}

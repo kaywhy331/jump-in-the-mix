@@ -1,0 +1,63 @@
+{
+  "geometry": {
+    "height": 964,
+    "thread": {
+      "x": 241,
+      "y": 314.265625,
+      "width": 361,
+      "height": 378,
+      "top": 314.265625,
+      "right": 602,
+      "bottom": 692.265625,
+      "left": 241
+    },
+    "scrollTop": 505,
+    "scrollHeight": 883,
+    "last": {
+      "x": 241,
+      "y": 601.515625,
+      "width": 361,
+      "height": 91.03125,
+      "top": 601.515625,
+      "right": 602,
+      "bottom": 692.546875,
+      "left": 241
+    },
+    "buttons": [
+      {
+        "text": "Send reply",
+        "bottom": 601.78125
+      },
+      {
+        "text": "Send reply and resolve",
+        "bottom": 601.78125
+      }
+    ]
+  },
+  "accessibility": [
+    {
+      "theme": "light",
+      "width": 1366,
+      "overflow": false,
+      "violations": []
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "overflow": false,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "width": 1366,
+      "overflow": false,
+      "violations": []
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "overflow": false,
+      "violations": []
+    }
+  ]
+}

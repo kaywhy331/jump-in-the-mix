@@ -49,7 +49,7 @@ test("administrator saves limits and manual batches respect them, with accessibl
   const baseline = await getAdmissionSnapshot();
   await context.addCookies([{ name: "jitm_session", value: fixture.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
   await page.goto("/admin/admission");
-  await expect(page.getByRole("heading", { name: "Admin · Admission" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Admission" })).toBeVisible();
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
     await applyRenderedTheme(page, colorScheme, { width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
@@ -64,7 +64,7 @@ test("administrator saves limits and manual batches respect them, with accessibl
   const first = email(), second = email();
   await prisma.waitlistEntry.createMany({ data: [first, second].map(email => ({ email, verifiedAt: new Date() })) });
   await page.goto("/admin/waitlist");
-  await page.getByText("Automatic wave schedule and controls", { exact: true }).click();
+  await page.getByText("Wave schedule", { exact: true }).click();
   await expect(page.getByText("The next eligible batch will wait", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "Review 0 invitations" })).toBeDisabled();
   await page.getByRole("checkbox", { name: first, exact: true }).check();
@@ -111,10 +111,10 @@ test("manual controls distinguish unconfigured, paused and exhausted capacity", 
     const { message, ...policy } = state;
     await prisma.admissionPolicy.update({ where: { id: "default" }, data: policy });
     await page.goto("/admin/waitlist");
-    await expect(manual.locator(".notice.error")).toContainText(message);
+    await expect(page.locator(".admin-inline-status")).toContainText(message === "No spaces remain" ? "Invitations are at the current access limit" : message);
     await expect(manual.getByRole("button", { name: "Review 0 invitations" })).toBeDisabled();
     await expect(page.getByRole("checkbox", { name: recipient, exact: true })).toBeDisabled();
-    await page.getByText("Automatic wave schedule and controls", { exact: true }).click();
+    await page.getByText("Wave schedule", { exact: true }).click();
     await expect(page.getByRole("link", { name: "Manage admission limits and pauses" })).toHaveAttribute("href", "/admin/admission");
     if (reservation) await prisma.referralAccessInvite.delete({ where: { id: reservation.id } });
   }

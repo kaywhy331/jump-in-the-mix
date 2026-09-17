@@ -26,7 +26,6 @@ export function AdminNav({ permissions, tabs = false }: { permissions: AdminPerm
         {open ? "Close menu" : "Menu"}<AppIcon name={open ? "close" : "chevronDown"} />
       </button>
     </div>
-    <span className="admin-mobile-location">{selected?.label ?? "Administration"}{active && selected?.label !== active.label ? ` / ${active.label}` : ""}</span>
     <div id="admin-navigation-links" className="admin-navigation-groups">
       <div className="admin-navigation-group">{groups.map(group => <Link key={group.label} href={group.items[0].href} aria-current={selected?.label === group.label ? "page" : undefined} onClick={() => setOpenPath(null)}>{group.label}</Link>)}</div>
     </div>

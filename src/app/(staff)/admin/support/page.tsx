@@ -15,7 +15,6 @@ import {
   SUPPORT_CATEGORIES,
   SUPPORT_PRIORITIES,
   SUPPORT_STATUSES,
-  supportCategoryLabel,
   supportPriorityLabel,
   adminSupportStatusLabel,
   type SupportCategoryValue,
@@ -93,7 +92,6 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
     prisma.supportTicket.findMany({
       where,
       include: {
-        _count: { select: { messages: true } },
         assignedTo: { select: { name: true } }
       },
       orderBy: [{ priority: "desc" }, { lastActivityAt: "asc" }, { id: "asc" }],
@@ -106,31 +104,21 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
   ]);
 
   const requesterIds = [...new Set(tickets.map((ticket) => ticket.requesterUserId))];
-  const workspaceIds = [...new Set(tickets.map((ticket) => ticket.workspaceId))];
-  const [requesters, workspaces] = await Promise.all([
-    requesterIds.length
-      ? prisma.user.findMany({ where: { id: { in: requesterIds } }, select: { id: true, name: true, email: true } })
-      : [],
-    workspaceIds.length
-      ? prisma.workspace.findMany({
-          where: { id: { in: workspaceIds } },
-          select: { id: true, name: true }
-        })
-      : []
-  ]);
-  const requesterById = new Map(requesters.map((item) => [item.id, item]));
-  const workspaceById = new Map(workspaces.map((item) => [item.id, item]));
+  const requesters = requesterIds.length
+    ? await prisma.user.findMany({ where: { id: { in: requesterIds } }, select: { id: true, name: true, email: true } })
+    : [];
+  const requesterById = new Map(requesters.map(item => [item.id, item]));
 
   return (
     <div className="page admin-support-page">
       <header className="page-header">
         <div>
-          <h1>Admin · Support</h1>
-          <p>Assign tickets, review customer requests, and track replies. Opening a conversation records access in the audit log.</p>
+          <h1>Support</h1>
+
         </div>
         <div className="page-actions">
           {permissions.includes("users.read") && <Link className="button" href="/admin/users">Customers</Link>}
-          {permissions.includes("mixes.edit") && <Link className="button" href="/admin/templates">Ready-made mixes</Link>}
+
         </div>
       </header>
 
@@ -140,70 +128,31 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
         <article className="stat-card"><small>Waiting on support</small><strong>{openCount}</strong></article>
         <article className="stat-card"><small>Waiting on customer</small><strong>{waitingCount}</strong></article>
         <article className="stat-card"><small>Urgent, not closed</small><strong>{urgentCount}</strong></article>
-        <article className="stat-card"><small>Reply emails needing review</small><strong>{failedEmailCount}</strong><Link href="/admin/support?email=review&view=all">Review notifications</Link></article>
+        <Link className="stat-card" href="/admin/support?email=review&view=all"><small>Email needs review</small><strong>{failedEmailCount}</strong></Link>
       </section>
 
       <nav className="admin-content-tabs" aria-label="Support views">{[["attention", "Needs reply"], ["mine", "Mine"], ["unassigned", "Unassigned"], ["waiting", "Waiting on customer"], ["all", "All"]].map(([key, label]) => <Link key={key} href={adminQuery("/admin/support", { view: key, q: query })} aria-current={view === key ? "page" : undefined}>{label}</Link>)}</nav>
-      <form className="card support-admin-filters live-search-form" method="get">
+      <form className="admin-filter-toolbar live-search-form" method="get">
         <input type="hidden" name="view" value={view} />
-        <label className="field"><span className="field-label">Email notifications</span><select name="email" defaultValue={params.email === "review" ? "review" : "all"}><option value="all">All tickets</option><option value="review">Needs review</option></select></label>
-        <label className="field support-admin-query">
-          <span className="field-label">Search</span>
-          <input name="q" defaultValue={query} placeholder="Reference, title, user, email, or workspace" />
-        </label>
-        <label className="field">
-          <span className="field-label">Status</span>
-          <select name="status" defaultValue={status}>
-            <option value="all">All statuses</option>
-            <option value="attention">Needs a reply</option>
-            {SUPPORT_STATUSES.map((item) => <option value={item.value} key={item.value}>{adminSupportStatusLabel(item.value)}</option>)}
-          </select>
-        </label>
-        <label className="field">
-          <span className="field-label">Category</span>
-          <select name="category" defaultValue={category}>
-            <option value="all">All categories</option>
-            {SUPPORT_CATEGORIES.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-          </select>
-        </label>
-        <label className="field">
-          <span className="field-label">Priority</span>
-          <select name="priority" defaultValue={priority}>
-            <option value="all">All priorities</option>
-            {SUPPORT_PRIORITIES.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
-          </select>
-        </label>
-        <div className="support-admin-filter-actions">
-          <button className="button primary" type="submit">Apply filters</button>
-          <Link className="button" href="/admin/support">Clear</Link>
-        </div>
+        <label className="field"><span>Search tickets</span><input type="search" name="q" defaultValue={query} placeholder="Name, email, reference or workspace" /></label>
+        <label className="field"><span>Priority</span><select name="priority" defaultValue={priority}><option value="all">All priorities</option>{SUPPORT_PRIORITIES.map(item => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
+        <button className="button primary" type="submit">Apply filters</button><Link className="button" href="/admin/support">Clear</Link>
+        <details className="admin-filter-options" open={Boolean(params.category && params.category !== "all" || params.email === "review" || params.status && params.status !== "attention" && params.status !== "all")}><summary>More filters{category !== "all" || params.email === "review" ? " · active" : ""}</summary><div>
+          <label className="field"><span>Status</span><select name="status" defaultValue={status}><option value="all">All statuses</option><option value="attention">Needs a reply</option>{SUPPORT_STATUSES.map(item => <option value={item.value} key={item.value}>{adminSupportStatusLabel(item.value)}</option>)}</select></label>
+          <label className="field"><span>Category</span><select name="category" defaultValue={category}><option value="all">All categories</option>{SUPPORT_CATEGORIES.map(item => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
+          <label className="field"><span>Email notifications</span><select name="email" defaultValue={params.email === "review" ? "review" : "all"}><option value="all">All tickets</option><option value="review">Needs review</option></select></label>
+        </div></details>
       </form>
 
-      <p className="admin-result-summary" role="status">{total} matching tickets · oldest activity first within each priority</p>
-      <section className="support-admin-ticket-list">
+      <p className="admin-result-summary" role="status">{total} tickets · priority, then oldest first</p>
+      <section className="support-admin-ticket-list" role="region" aria-label="Support tickets" tabIndex={0}>
         {tickets.map((ticket) => {
           const requester = requesterById.get(ticket.requesterUserId);
-          const workspace = workspaceById.get(ticket.workspaceId);
           return (
             <Link prefetch={false} className={`card support-admin-ticket priority-${ticket.priority.toLowerCase()}`} href={adminQuery(`/admin/support/${ticket.id}`, { returnTo })} key={ticket.id}>
-              <div className="support-admin-ticket-heading">
-                <div>
-                  <span className="support-ticket-reference">{ticket.reference}</span>
-                  <h2>{ticket.title}</h2>
-                  <p>{requester?.name ?? "Unknown requester"} · {requester?.email ?? ticket.requesterUserId}</p>
-                </div>
-                <div className="support-admin-ticket-badges">
-                  <span className={`status-pill ${ticket.status === "RESOLVED" ? "done" : ""}`}>{adminSupportStatusLabel(ticket.status)}</span>
-                  <span className={`status-pill priority-${ticket.priority.toLowerCase()}`}>{supportPriorityLabel(ticket.priority)}</span>
-                </div>
-              </div>
-              <div className="support-admin-ticket-context">
-                <span>{supportCategoryLabel(ticket.category)}</span>
-                <span>{workspace?.name ?? ticket.workspaceId}</span>
-                <span>{ticket._count.messages} messages</span>
-                <span>Assigned: {ticket.assignedTo?.name ?? "Unassigned"}</span>
-                <span>{["OPEN", "WAITING_ON_SUPPORT"].includes(ticket.status) ? "Awaiting reply" : "Last activity"}: {formatDateTime(ticket.lastActivityAt, displayPreferences)} ({Math.max(0, Math.floor((Date.now() - ticket.lastActivityAt.getTime()) / 3_600_000))}h ago)</span>
-              </div>
+              <div><h2>{ticket.title}</h2><p><span className="support-ticket-reference">{ticket.reference}</span>{requester?.name ?? "Unknown requester"} · {requester?.email ?? ticket.requesterUserId}</p></div>
+              <div className="support-admin-ticket-badges"><span className={`status-pill ${ticket.status === "RESOLVED" ? "done" : ""}`}>{adminSupportStatusLabel(ticket.status)}</span>{ticket.priority !== "NORMAL" && <span className={`status-pill priority-${ticket.priority.toLowerCase()}`}>{supportPriorityLabel(ticket.priority)}</span>}</div>
+              <div className="admin-ticket-age"><span>{ticket.assignedTo?.name ?? "Unassigned"}</span><time dateTime={ticket.lastActivityAt.toISOString()} title={formatDateTime(ticket.lastActivityAt, displayPreferences)}>{Math.floor((Date.now() - ticket.lastActivityAt.getTime()) / 86_400_000) >= 1 ? `${Math.floor((Date.now() - ticket.lastActivityAt.getTime()) / 86_400_000)}d` : `${Math.max(0, Math.floor((Date.now() - ticket.lastActivityAt.getTime()) / 3_600_000))}h`} since activity</time></div>
             </Link>
           );
         })}
@@ -211,7 +160,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
           <div className="empty-state">
             <div className="empty-icon">?</div>
             <h2>No tickets match these filters</h2>
-            <p>Clear one or more filters or wait for a customer to submit a new support request.</p>
+            <p>Try fewer filters.</p>
           </div>
         )}
       </section>

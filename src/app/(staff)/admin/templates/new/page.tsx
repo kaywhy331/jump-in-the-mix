@@ -23,7 +23,7 @@ export default async function NewLibraryDraftPage({ searchParams }: { searchPara
     } catch { sourceIssue = true; }
   }
   return <div className="page admin-template-editor-page">
-    <header className="page-header"><div><h1>Create a library draft</h1><p>Prepare a useful starting point customers can adapt to their own relationships.</p></div><Link className="button" href={returnTo}>Back to mixes</Link></header>
+    <header className="page-header"><div><h1>Create a library draft</h1></div><Link className="button" href={returnTo}>Back to mixes</Link></header>
     {query.error && <Notice type="error">{query.error}</Notice>}
     {query.sourceMixId && (!source || sourceIssue) && <Notice type="error">This source mix cannot be copied. Choose an available mix from your own account, or start a new draft below.</Notice>}
     <LibraryDraftForm revision={0} content={content} sourceKey={source ? source.id : "new"} returnTo={returnTo} />

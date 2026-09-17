@@ -69,7 +69,7 @@ export function AdminMfaPanel({
           <div className="card-header">
             <div>
               <h2>Connect an authenticator app</h2>
-              <p>Scan the QR code with a standards-based authenticator, then confirm the current six-digit code.</p>
+              <p>Scan the QR code, then enter your 6-digit code.</p>
             </div>
             <span className="status-pill">Required</span>
           </div>
@@ -77,7 +77,7 @@ export function AdminMfaPanel({
             {qrDataUrl && <img className="admin-mfa-qr" src={qrDataUrl} alt="QR code for Jump in the Mix administrator MFA" width={220} height={220} />}
             <div className="admin-mfa-manual-key">
               <strong>Cannot scan the code?</strong>
-              <span>Choose manual entry in your authenticator and use this secret:</span>
+              <span>Enter this key in your authenticator:</span>
               <code data-testid="mfa-secret">{secret}</code>
               <small>Type: time based · 6 digits · 30-second period</small>
             </div>
@@ -85,7 +85,7 @@ export function AdminMfaPanel({
           <label className="field">
             <span className="field-label">Current password</span>
             <input name="currentPassword" type="password" autoComplete="current-password" maxLength={72} required />
-            <small>Password confirmation prevents a stolen session from silently enrolling a new authenticator.</small>
+
           </label>
         </>
       )}
@@ -96,7 +96,7 @@ export function AdminMfaPanel({
             <h2>Verify administrator access</h2>
             <p>Enter the current authenticator code, or use one unused recovery code.</p>
           </div>
-          <span className="status-pill">Step-up</span>
+          <span className="status-pill">Verification</span>
         </div>
       )}
 

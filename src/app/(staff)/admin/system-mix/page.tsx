@@ -40,13 +40,13 @@ export default async function SystemMixAdminPage({ searchParams }: { searchParam
     <header className="page-header"><div><h1>Invitation wording</h1><p>Version {config.publishedVersion} is published. Latest draft: version {config.draftVersion}.</p></div></header>
     {query.saved && <Notice type="success">Draft version {query.saved} saved for review.</Notice>}{query.released && <Notice type="success">Invitation wording published.</Notice>}{query.error && <Notice type="error">{query.error}</Notice>}
     <AdminEditorNavigation prefix="wording" />
-    <details id="wording-draft" className="card admin-editor-section admin-editor-disclosure" open={!query.saved && !query.released}><summary><h2>Edit the next draft</h2></summary>    <AdminDraftForm draftKey="system-wording" fields={["subject", "body", "reason"]} revision={config.controlRevision} saved={query.saved} action={saveSystemMixDraftAction} className="form-stack">
+    <details id="wording-draft" className="card admin-editor-section admin-editor-disclosure" open={!query.saved && !query.released}><summary><h2>Edit the next draft</h2></summary>    <AdminDraftForm draftKey="system-wording" fields={["subject", "body", "reason"]} revision={config.controlRevision} saved={query.saved} action={saveSystemMixDraftAction} className="form-stack admin-wording-form">
 
-      <p>Use plain text and {"{{Sender Name}}"} in both fields. Include {"{{Contact Name}}"} in the introduction. Jump adds the account and preference links.</p>
-      <label className="field"><span>Invitation subject</span><input name="subject" defaultValue={draft.subject} minLength={10} maxLength={180} required /></label>
-      <label className="field"><span>Invitation introduction</span><textarea name="body" defaultValue={draft.body} minLength={40} maxLength={2000} rows={8} required /></label>
-      <label className="field"><span>Reason for draft change</span><textarea name="reason" minLength={10} maxLength={500} rows={2} required /></label>
-      <FormSubmitButton label="Save wording draft" pendingLabel="Saving draft…" />
+      <p>Use {"{{Sender Name}}"} in both fields and {"{{Contact Name}}"} in the introduction. Links are added automatically.</p>
+      <div className="admin-wording-fields"><div className="form-stack"><label className="field"><span>Invitation subject</span><input name="subject" defaultValue={draft.subject} minLength={10} maxLength={180} required /></label>
+      <label className="field"><span>Invitation introduction</span><textarea name="body" defaultValue={draft.body} minLength={40} maxLength={2000} rows={5} required /></label>
+      </div><div className="form-stack"><label className="field"><span>Reason for draft change</span><input name="reason" minLength={10} maxLength={500} required /></label>
+      <FormSubmitButton label="Save wording draft" pendingLabel="Saving draft…" /></div></div>
     </AdminDraftForm>
 </details>
     <details id="wording-review" className="card admin-editor-section admin-editor-disclosure" open={Boolean(query.saved || query.released)}><summary><h2>Preview and publish · version {draft.version}</h2></summary><SystemMixPreview key={draft.version} content={draft} /><AdminContentDiff before={published} after={draft} />    <section className="card form-stack"><h2>Release impact</h2><p>{members} verified members have personal invitations remaining. A publication changes their future invitation previews. The {queued} queued or sending invitations keep their prepared content and access links.</p>
@@ -57,6 +57,6 @@ export default async function SystemMixAdminPage({ searchParams }: { searchParam
     <section id="wording-history" className="card admin-editor-section"><details open={Boolean(query.historyPage)}><summary><h2>Version history</h2></summary>{revisions.map(row => <details key={row.id}><summary>Version {row.version} · {formatDateTime(row.createdAt, display)} · {publishedVersions.has(row.version) ? "Previously published" : "Draft only"}</summary>
       <p>{row.reason}</p>{permissions.includes("access.read") && <Link href={`/admin/access?systemMixVersion=${row.version}`}>Review invitations prepared with version {row.version}</Link>}<p>Author: {row.actorUserId ? actorNames.get(row.actorUserId) ?? "Former staff member" : "Application migration"}</p><SystemMixPreview content={row} />{canPublish && publishedVersions.has(row.version) && row.version !== config.publishedVersion && releaseForm("rollback", row.version)}
     </details>)}<nav className="page-actions" aria-label="Version history pages">{historyPage > 1 && <Link href={`?historyPage=${historyPage - 1}`}>Newer versions</Link>}{historyPage * 10 < count && <Link href={`?historyPage=${historyPage + 1}`}>Older versions</Link>}</nav></details></section>
-    <section className="card"><h2>Recent publications</h2>{releases.map(row => <p key={row.id}>{formatDateTime(row.createdAt, display)} · {row.action.toLowerCase()} version {row.version} · {row.reason}</p>)}</section>
+    <details className="card"><summary>Recent publications</summary>{releases.map(row => <p key={row.id}>{formatDateTime(row.createdAt, display)} · {row.action.toLowerCase()} version {row.version} · {row.reason}</p>)}</details>
   </div>;
 }

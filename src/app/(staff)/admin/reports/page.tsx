@@ -27,22 +27,20 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
     if (!(cause instanceof ReportError)) console.error("Aggregate administration report query failed.");
   }
   return <div className={`page ${styles.page}`}>
-    <header className="page-header"><div><h1>Reports</h1><p>See who joins, who follows through, and what needs attention.</p></div></header>
+    <header className="page-header"><h1>Reports</h1><nav className="page-actions" aria-label="Report tools"><Link href={adminQuery("/admin/reports/history", { from: range.fromDay, through: range.throughDay })} prefetch={false}>Saved daily reports</Link><Link href={adminQuery("/admin/reports/exports", { from: range.fromDay, through: range.throughDay })} prefetch={false}>Your exports</Link></nav></header>
     <section className="admin-report-toolbar">
       <form data-live-filter="false" key={`${range.fromDay}:${range.throughDay}`} method="get" action="/admin/reports" className={styles.filters}>
         <input name="view" type="hidden" value={view} /><label className="field"><span>From (UTC)</span><input name="from" type="date" defaultValue={range.fromDay} max={now.toISOString().slice(0, 10)} required /></label>
         <label className="field"><span>Through (UTC)</span><input name="through" type="date" defaultValue={range.throughDay} max={now.toISOString().slice(0, 10)} required /></label>
         <button className="button primary" type="submit">Update report</button>
       </form>
-      <nav className="page-actions" aria-label="Report date presets">{[7, 30, 90].map(days => <Link key={days} href={adminQuery("/admin/reports", { days, view })} prefetch={false}>Last {days} days</Link>)}</nav>
-      <p>Choose up to 366 days. End date is included. Today’s totals are partial.</p>
-    </section>
-    {error && <Notice type="error">{error}</Notice>}
-    <nav className="page-actions" aria-label="Report tools"><Link href={adminQuery("/admin/reports/exports", { from: range.fromDay, through: range.throughDay })} prefetch={false}>Your exports</Link><Link href={adminQuery("/admin/reports/history", { from: range.fromDay, through: range.throughDay })} prefetch={false}>Saved daily reports</Link></nav>
-    {report && <><p>Range: {range.fromDay} through {range.throughDay} UTC. Observed at {range.asOf.toISOString().slice(0, 19).replace("T", " ")} UTC.</p>
-      <details className="admin-report-export"><summary>Export this date range as CSV</summary><form action={requestReportExportAction} className="form-stack"><p>Prepare an aggregate CSV in the background. It uses the data available when prepared and stays available for up to 24 hours in this sign-in.</p>
+      <nav className="page-actions" aria-label="Report date presets">{[7, 30, 90].map(days => <Link key={days} href={adminQuery("/admin/reports", { days, view })} prefetch={false}>{days} days</Link>)}</nav>
+      {report && <details className="admin-report-export"><summary>Export CSV</summary><form action={requestReportExportAction} className="form-stack"><p>Aggregate data. Download within 24 hours in this sign-in.</p>
         <input type="hidden" name="from" value={range.fromDay} /><input type="hidden" name="through" value={range.throughDay} /><input type="hidden" name="requestKey" value={randomUUID()} />
         <FormSubmitButton label="Prepare CSV export" pendingLabel="Requesting export…" />
-      </form></details><AdminReportTabs path="/admin/reports" view={view} params={{ from: range.fromDay, through: range.throughDay }} /><AdminReportView report={report} limits={reportEmailLimits()} view={view} /></>}
+      </form></details>}
+    </section>
+    {error && <Notice type="error">{error}</Notice>}
+    {report && <><p className="admin-secondary-note">Observed {range.asOf.toISOString().slice(0, 16).replace("T", " ")} UTC · Today is partial · Max 366 days, end date included</p><AdminReportTabs path="/admin/reports" view={view} params={{ from: range.fromDay, through: range.throughDay }} /><AdminReportView report={report} limits={reportEmailLimits()} view={view} /></>}
   </div>;
 }
