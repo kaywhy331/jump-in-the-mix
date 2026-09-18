@@ -2,6 +2,8 @@
 
 This work implements the [184-finding audit](UI_UX_PRODUCT_READINESS_AUDIT_2026-09-18.md). The [individual checklist](ui-ux-audit-2026-09-18/IMPLEMENTATION_CHECKLIST.md) separates implementation, verification, external qualification and live deployment. A code change alone does not close a finding.
 
+**174 findings are implemented, verified and checked off against the live production revision. Ten findings remain open for participant, owner, physical-device, assistive-technology or actual delivery-provider evidence. The requested all-findings definition of done is not yet met.**
+
 ## Current implementation
 
 The release covers the public demo and profession continuity, authentication recovery, minimal onboarding with starter review, protected form drafts, contact editing and history, audience selection, scheduling previews, Today and native-app return recovery, invitations, intake review, feedback, preferences, account safeguards, support and administrative workflows.
@@ -20,12 +22,31 @@ Evidence is retained in `.artifacts/ui-ux-implementation-20260918/`. Test fixtur
 - MFA enrollment and one-time recovery passed. Seven magic-link redirect cases plus four readiness unit cases passed.
 - The 162-state Chromium route scan and 26-state Firefox scan found one dark-theme demo-notice contrast issue, now fixed. A 78-state HTTPS follow-up across Chromium, Firefox and WebKit reported no axe violations or horizontal overflow after that fix. WebKit exposed canceled speculative staff-navigation requests during immediate navigation. A direct trace returned 200 when those requests completed. Staff navigation and overview links now fetch on demand; the targeted trace verifies the correction.
 - A final multi-form save regression caught an unsaved scheduling draft being discarded by a profile save. A form-specific confirmation now protects that boundary. Desktop/mobile tests verify cancellation preserves both drafts, successful saves clear the warning, and support triage still preserves replies (four passed).
+- After disabling speculative fetches for staff navigation, the targeted WebKit trace reported no page errors or failed requests, and the final admin navigation/layout checks passed both cases.
 
 ## Deployment state
 
-No release has been deployed yet. The isolated release package starts from current production commit `ab323cd14ac09a9329315b10a4bb8e3b82fbbe65`. The schema, 61 migration files, dependency lockfile and deployment configuration match that baseline. This release requires no schema migration.
+The implementation is live at **https://jumpinthemix.com/** on revision `32f276fc6bdd2a71d23692437e6836e1bebe090a`, from branch `release/ui-ux-readiness-20260918`. The isolated release package starts from production commit `ab323cd14ac09a9329315b10a4bb8e3b82fbbe65`. The schema, 61 migration files, dependency lockfile and deployment configuration match that baseline. This release required no schema migration. Existing unrelated working-tree changes were preserved; release documentation is committed separately after the deployed implementation.
 
-Production preflight returned 200 for live, ready and worker health; both Render services are still on the expected baseline. Staging at `https://jump-in-the-mix-test.netlify.app/` has a pre-existing database outage: Neon returns SQLSTATE 53000, quota exceeded, for project `tiny-wave-99766597`, endpoint `ep-super-unit-a5le0lzc`. Its provider record reports a quota reset on October 1. No paid upgrade or replacement database has been provisioned. The customer database is separate.
+| Target | Deployment | Verified result |
+| --- | --- | --- |
+| Production worker | `dep-dammc0dbedkc73cag3t0` | Live at 16:26:58 UTC; synthetic no-op queue job processed and removed. |
+| Production web | `dep-dammct61egvs73cqpcvg` | Live at 16:31:12 UTC; revision and served assets verified. |
+| Stable Netlify test site | `6aad680b193c47aaf380fa28` | Published to https://jump-in-the-mix-test.netlify.app/; separate database quota restriction remains. |
+
+Production postflight matched all **629 source files and 19 served assets** to the release. All 61 database migrations matched, and live, ready, worker and recovery-boundary health returned 200. Public routes rendered and protected routes redirected signed-out visitors to login.
+
+The live synthetic customer check passed actual password sign-in, onboarding with all three purposes, first follow-up preparation, the three-invitation allowance, nine authenticated mobile surfaces without horizontal overflow, and the scoped automatic-sending preview. There were no page errors. An initial heading-count assertion included a closed account dialog; the corrected check verifies one accessible heading, visible workspace content and no open account gate. Both runs removed their temporary account, workspace, contacts and follow-ups. No real customer messages were sent.
+
+The final production watch ended at 16:37:17 UTC: three rounds of live/ready/worker checks returned 200, the updated worker heartbeat was current, no jobs had failed since rollout, no synthetic accounts remained, and customer-table counts matched the postflight baseline.
+
+Staging uses the explicit test site ID `8fd20ccd-5c35-47e5-99ce-98e5670d52fe`. Copied dependency executable links initially pointed into the production package and caused its first build to fail. Restoring local dependency paths allowed the normal Turbopack build and publication to succeed without a framework/configuration change. The staging package preserves its previously applied migration-file bytes; production migration history is unchanged.
+
+The staging database has a pre-existing outage: Neon returns SQLSTATE 53000, quota exceeded, for project `tiny-wave-99766597`, endpoint `ep-super-unit-a5le0lzc`. Its provider record reports a quota reset on October 1. No paid upgrade or replacement database has been provisioned. The customer database is separate. Authenticated staging qualification remains blocked until the test database is available.
+
+Staging postflight verified the stable URL's published deployment identity and matched 16 served assets to the uploaded build. Homepage and FAQ checks passed at 390 pixels/light and 1440 pixels/dark, with no axe violations or horizontal overflow. Login, Terms and Privacy returned 503, as did database and worker readiness; these routes are recorded as unavailable, not passed. Production equivalents passed. The [sanitized release receipt](ui-ux-audit-2026-09-18/release-verification.json) records both deployment outcomes.
+
+The task's local test server, HTTPS proxy, disposable database, copied environment credentials and temporary TLS key were removed or stopped after verification. Original workspace configuration was restored from the session snapshots.
 
 ## Qualification still required
 

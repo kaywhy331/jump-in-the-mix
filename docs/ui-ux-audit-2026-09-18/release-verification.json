@@ -1,0 +1,270 @@
+{
+  "verifiedAt": "2026-09-18T16:41:24.108Z",
+  "implementationRevision": "32f276fc6bdd2a71d23692437e6836e1bebe090a",
+  "branch": "release/ui-ux-readiness-20260918",
+  "audit": {
+    "total": 184,
+    "complete": 174,
+    "awaitingQualification": [
+      "HOME-02",
+      "PRO-05",
+      "DEMO-03",
+      "PUBLIC-05",
+      "NAV-05",
+      "SEND-05",
+      "REVIEW-05",
+      "NOTIFY-05",
+      "EMAIL-05",
+      "RECOVER-05"
+    ],
+    "definitionOfDoneMet": false
+  },
+  "production": {
+    "url": "https://jumpinthemix.com/",
+    "web": {
+      "id": "dep-dammct61egvs73cqpcvg",
+      "commit": "32f276fc6bdd2a71d23692437e6836e1bebe090a",
+      "finishedAt": "2026-09-18T16:31:12.333839Z"
+    },
+    "worker": {
+      "id": "dep-dammc0dbedkc73cag3t0",
+      "commit": "32f276fc6bdd2a71d23692437e6836e1bebe090a",
+      "finishedAt": "2026-09-18T16:26:58.471414Z"
+    },
+    "checks": [
+      {
+        "path": "/api/health/live",
+        "status": 200
+      },
+      {
+        "path": "/api/health/ready",
+        "status": 200
+      },
+      {
+        "path": "/api/health/worker",
+        "status": 200
+      },
+      {
+        "path": "/api/health/recovery-boundary",
+        "status": 200
+      },
+      {
+        "path": "/",
+        "status": 200
+      },
+      {
+        "path": "/login",
+        "status": 200
+      },
+      {
+        "path": "/faq",
+        "status": 200
+      },
+      {
+        "path": "/terms",
+        "status": 200
+      },
+      {
+        "path": "/privacy",
+        "status": 200
+      },
+      {
+        "path": "/jumps",
+        "status": 307,
+        "redirectsToLogin": true
+      },
+      {
+        "path": "/onboarding",
+        "status": 307,
+        "redirectsToLogin": true
+      },
+      {
+        "path": "/mixes/system",
+        "status": 307,
+        "redirectsToLogin": true
+      },
+      {
+        "path": "/admin",
+        "status": 307,
+        "redirectsToLogin": true
+      }
+    ],
+    "sourceFilesMatched": 629,
+    "servedAssetsMatched": 19,
+    "databaseRelease": {
+      "status": "ready",
+      "required": 61,
+      "missing": 0,
+      "mismatched": 0
+    },
+    "authenticatedSmoke": {
+      "passed": true,
+      "checks": [
+        "Production password sign-in redirects to onboarding",
+        "Onboarding saves all three purposes and prepares first follow-up",
+        "Invitation form displays the three-invitation allowance on mobile",
+        "Nine authenticated customer surfaces render on mobile without horizontal overflow",
+        "Hosted automatic-sending review endpoint returns scoped preview data"
+      ],
+      "pageErrors": [],
+      "syntheticDataRemoved": true
+    },
+    "finalWatch": {
+      "finishedAt": "2026-09-18T16:37:17.890Z",
+      "healthChecks": [
+        {
+          "at": "2026-09-18T16:36:32.173Z",
+          "path": "/api/health/live",
+          "status": 200
+        },
+        {
+          "at": "2026-09-18T16:36:32.370Z",
+          "path": "/api/health/ready",
+          "status": 200
+        },
+        {
+          "at": "2026-09-18T16:36:32.481Z",
+          "path": "/api/health/worker",
+          "status": 200
+        },
+        {
+          "at": "2026-09-18T16:36:52.715Z",
+          "path": "/api/health/live",
+          "status": 200
+        },
+        {
+          "at": "2026-09-18T16:36:53.059Z",
+          "path": "/api/health/ready",
+          "status": 200
+        },
+        {
+          "at": "2026-09-18T16:36:53.189Z",
+          "path": "/api/health/worker",
+          "status": 200
+        },
+        {
+          "at": "2026-09-18T16:37:13.350Z",
+          "path": "/api/health/live",
+          "status": 200
+        },
+        {
+          "at": "2026-09-18T16:37:13.651Z",
+          "path": "/api/health/ready",
+          "status": 200
+        },
+        {
+          "at": "2026-09-18T16:37:13.886Z",
+          "path": "/api/health/worker",
+          "status": 200
+        }
+      ],
+      "failedJobs": 0,
+      "syntheticAccounts": 0,
+      "passed": true
+    }
+  },
+  "staging": {
+    "url": "https://jump-in-the-mix-test.netlify.app",
+    "siteId": "8fd20ccd-5c35-47e5-99ce-98e5670d52fe",
+    "deployId": "6aad680b193c47aaf380fa28",
+    "publishedAssetsVerified": true,
+    "servedAssetsMatched": 16,
+    "checks": [
+      {
+        "path": "/",
+        "status": 200
+      },
+      {
+        "path": "/login",
+        "status": 503
+      },
+      {
+        "path": "/faq",
+        "status": 200
+      },
+      {
+        "path": "/terms",
+        "status": 503
+      },
+      {
+        "path": "/privacy",
+        "status": 503
+      },
+      {
+        "path": "/api/health/live",
+        "status": 200
+      },
+      {
+        "path": "/api/health/ready",
+        "status": 503
+      },
+      {
+        "path": "/api/health/worker",
+        "status": 503
+      }
+    ],
+    "browser": [
+      {
+        "path": "/",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "axeViolations": 0
+      },
+      {
+        "path": "/login",
+        "width": 390,
+        "theme": "light",
+        "status": 503,
+        "tested": false,
+        "reason": "Unavailable while staging database health is failing"
+      },
+      {
+        "path": "/faq",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "axeViolations": 0
+      },
+      {
+        "path": "/",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "axeViolations": 0
+      },
+      {
+        "path": "/login",
+        "width": 1440,
+        "theme": "dark",
+        "status": 503,
+        "tested": false,
+        "reason": "Unavailable while staging database health is failing"
+      },
+      {
+        "path": "/faq",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "axeViolations": 0
+      }
+    ],
+    "databaseReady": false,
+    "workerReady": false,
+    "blocker": "Existing Neon test-database quota exhausted; no billing change or replacement database provisioned.",
+    "sourceInputsMatched": 627,
+    "documentedHistoricalDifferences": [
+      "prisma/migrations/20260906010000_customer_journey_intake_calendar/migration.sql",
+      "src/generated/schema-release.ts"
+    ]
+  },
+  "evidenceDirectory": ".artifacts/ui-ux-implementation-20260918/",
+  "notes": [
+    "No schema migration or dependency change was required.",
+    "Automated results do not close participant, owner, physical-device, assistive-technology or real-provider qualifications."
+  ]
+}
