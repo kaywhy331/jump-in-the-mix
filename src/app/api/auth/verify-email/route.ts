@@ -7,7 +7,7 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 
 function redirectTo(request: Request, path: string): NextResponse {
-  return NextResponse.redirect(new URL(path, request.url));
+  return NextResponse.redirect(new URL(path, env.appUrl));
 }
 
 export async function GET(request: Request) {
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
       where: { userId: user.id },
       include: { workspace: { include: { profile: true } } }
     });
-    const destination = new URL(membership?.workspace.profile?.onboardingDone ? "/jumps" : "/onboarding", request.url);
+    const destination = new URL(membership?.workspace.profile?.onboardingDone ? "/jumps" : "/onboarding", env.appUrl);
     destination.searchParams.set("verified", "1");
     return NextResponse.redirect(destination);
   } catch (error) {

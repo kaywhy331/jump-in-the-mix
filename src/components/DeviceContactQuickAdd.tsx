@@ -70,7 +70,7 @@ function readableError(error: unknown): string {
   return error instanceof Error ? error.message : "The device Contact Picker could not be opened.";
 }
 
-export function DeviceContactQuickAdd() {
+export function DeviceContactQuickAdd({ onboarding = false }: { onboarding?: boolean }) {
   const router = useRouter();
   const [support, setSupport] = useState<"detecting" | "supported" | "unsupported">("detecting");
   const [properties, setProperties] = useState<ContactProperty[]>([]);
@@ -172,6 +172,8 @@ export function DeviceContactQuickAdd() {
       </div>
     );
   }
+
+  if (support === "unsupported" && onboarding) return <p className="muted">Device contact selection isn’t available in this browser. Import a CSV or vCard file, or enter a person below.</p>;
 
   if (support === "unsupported") {
     return (

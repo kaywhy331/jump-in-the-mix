@@ -51,7 +51,7 @@ export default async function AdminWaitlistPage({ searchParams }: { searchParams
     prisma.user.findMany({ where: { id: { in: audit.flatMap(row => row.actorUserId ? [row.actorUserId] : []) } }, select: { id: true, name: true } })
   ]);
   const unavailable = new Set([...blocked, ...existing].map(row => row.email));
-  for (const invite of invites) if (!invite.acceptedAt && !invite.revokedAt) unavailable.add(invite.recipientEmail);
+  for (const invite of invites) if (invite.recipientEmail && !invite.acceptedAt && !invite.revokedAt) unavailable.add(invite.recipientEmail);
   const names = new Map(actors.map(person => [person.id, person.name]));
   const href = (nextPage: number) => adminQuery("/admin/waitlist", { q: query, view, confirmed, page: nextPage });
   return <div className="page admin-waitlist-page">

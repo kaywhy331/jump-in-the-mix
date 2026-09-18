@@ -40,6 +40,7 @@ const profile = {
   emailSignature: "Alex Morgan",
   reviewUrl: null,
   onboardingStep: 5,
+  useCases: [],
   onboardingDone: true,
   createdAt: new Date(),
   updatedAt: new Date()

@@ -6,7 +6,7 @@ test("invitation-only entry fits phones and desktops in both themes", async ({ p
   await page.goto("/register");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("An invitation from someone you know");
   await expect(page.locator("form")).toHaveCount(0);
-  await expect(page.getByText(/Each member has five invitations/)).toBeVisible();
+  await expect(page.getByText(/Each member has three invitations/)).toBeVisible();
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
     for (const width of [320, 390, 768, 1440]) {

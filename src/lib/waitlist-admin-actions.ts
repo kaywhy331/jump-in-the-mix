@@ -59,7 +59,7 @@ export async function retryWaitlistDeliveryAction(formData: FormData): Promise<v
     await lockStaff(tx); await lockAccess(tx);
     if (!await staffSessionHasPermissions(tx, { userId: user.id, sessionId: session.id }, ["waitlist.read", "waitlist.manage"])) return 0;
     const delivery = await tx.waitlistDelivery.findUnique({ where: { id }, select: { invite: { select: { recipientEmail: true } } } });
-    if (!delivery?.invite || await invitationEmailSuppressed(tx, delivery.invite.recipientEmail)) return 0;
+    if (!delivery?.invite?.recipientEmail || await invitationEmailSuppressed(tx, delivery.invite.recipientEmail)) return 0;
     const changed = await tx.waitlistDelivery.updateMany({ where: { id, status: "REVIEW", firstAttemptAt: { gt: new Date(Date.now() - WAITLIST_RETRY_WINDOW_MS) }, invite: { acceptedAt: null, revokedAt: null, source: { not: "REFERRAL" } } }, data: { status: "QUEUED", nextAttemptAt: new Date() } });
     if (changed.count) await tx.waitlistAudit.create({ data: { actorUserId: user.id, action: "DELIVERY_RETRY", reason: `Delivery ${id}` } });
     return changed.count;

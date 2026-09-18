@@ -142,7 +142,7 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   await expect(page.getByRole("heading", { name: "Jump in the mix." })).toBeVisible();
   await page.getByLabel("Business name").fill("Browser Test Plumbing");
   await page.getByLabel("Name", { exact: true }).fill("Jordan First Win");
-  await page.getByLabel("Email optional").fill("jordan-first-win@example.com");
+  await page.getByLabel("Email recommended").fill("jordan-first-win@example.com");
   await page.getByLabel("Phone recommended").fill("+1 (555) 010-0123");
   // Onboarding asks for free text about the conversation rather than a fixed reason.
   await page.getByLabel("What should you remember?").fill("Follow up about an estimate");

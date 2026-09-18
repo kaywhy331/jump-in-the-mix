@@ -28,10 +28,11 @@ export async function manageAccessInvitationAction(formData: FormData): Promise<
     const invite = await tx.referralAccessInvite.findUnique({ where: { id: inviteId }, select: { id: true, recipientEmail: true, acceptedAt: true, revokedAt: true } });
     if (!invite || invite.acceptedAt || invite.revokedAt) return false;
     if (operation === "revoke") {
+      await tx.jump.updateMany({ where: { accessInviteId: inviteId, status: "PENDING" }, data: { status: "CANCELED", completionMethod: "invitation_revoked" } });
       await tx.referralAccessInvite.update({ where: { id: inviteId }, data: { revokedAt: new Date() } });
       await tx.waitlistDelivery.updateMany({ where: { inviteId, status: { in: ["QUEUED", "SENDING", "REVIEW"] } }, data: { status: "CANCELED", leaseId: null, lockedAt: null, lastError: null } });
     } else {
-      if (await invitationEmailSuppressed(tx, invite.recipientEmail)) return false;
+      if (!invite.recipientEmail || await invitationEmailSuppressed(tx, invite.recipientEmail)) return false;
       const retried = await tx.waitlistDelivery.updateMany({ where: { inviteId, status: "REVIEW", firstAttemptAt: { gt: new Date(Date.now() - WAITLIST_RETRY_WINDOW_MS) } }, data: { status: "QUEUED", nextAttemptAt: new Date() } });
       if (!retried.count) return false;
     }

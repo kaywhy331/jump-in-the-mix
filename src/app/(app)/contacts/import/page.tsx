@@ -7,7 +7,8 @@ import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Import Contacts" };
 
-export default async function ImportContactsPage() {
+export default async function ImportContactsPage({ searchParams }: { searchParams: Promise<{ onboarding?: string }> }) {
+  const onboarding = (await searchParams).onboarding === "1";
   const { workspace } = await requireWorkspace();
   const [rawGroups, groupStates, customFields, dateTypes, activeContacts] = await Promise.all([
     prisma.group.findMany({
@@ -39,6 +40,7 @@ export default async function ImportContactsPage() {
         <div><h1>Import Contacts</h1><p>Choose a file, review only the rows that need a decision, then let the background worker finish safely.</p></div>
         <div className="page-actions"><Link className="button" href="/contacts">Back to Contacts</Link></div>
       </header>
+      {onboarding && <p>After the import finishes, return to your setup tab and choose “Refresh imported contacts”. Your other setup choices stay in that tab.</p>}
       <ContactImportWizardV2
         groups={groups.map((group) => ({ id: group.id, name: group.name, contactCount: group._count.memberships }))}
         customFields={customFields}

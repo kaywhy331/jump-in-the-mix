@@ -53,6 +53,7 @@ function pickTokens(values: Record<string, string>, sources: Array<string | null
   return picked;
 }
 type SearchParams = {
+  invitations?: string;
   range?: string;
   status?: string;
   channel?: string;
@@ -216,8 +217,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   const renderCard = (followUp: (typeof ordered)[number]) => {
     const snapshot = (followUp.renderedSnapshot ?? {}) as Snapshot;
-    const email = followUp.contact.emails.find((item) => item.isPrimary)?.email ?? followUp.contact.emails[0]?.email;
-    const phone = followUp.contact.phones.find((item) => item.isPrimary)?.phone ?? followUp.contact.phones[0]?.phone;
+    const email = followUp.accessInvite?.recipientEmail ?? followUp.contact.emails.find((item) => item.isPrimary)?.email ?? followUp.contact.emails[0]?.email;
+    const phone = followUp.accessInvite?.recipientPhone ?? followUp.contact.phones.find((item) => item.isPrimary)?.phone ?? followUp.contact.phones[0]?.phone;
     const planChannel = followUp.stepVersion.stepTemplate.channel;
     const isPending = pendingStatuses.includes(followUp.status);
     // A pending follow-up edits its plan text as a draft; the card shows the draft rendered over the
@@ -247,7 +248,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     // A direct call from the list records the notes as shown, so the attempt matches the card.
     const callAttempt = isPending && phone ? { contactId: followUp.contactId, channel: followUpChannel, family, recipient: phone, subject: null, body: null, script: preparedContent ?? snapshot.script ?? null, draftRevision: draft?.revision ?? null, stepVersionId: followUp.stepVersionId, contextVersions } : null;
     // Switching away from the plan's channel takes this follow-up out of automatic delivery; the card says so.
-    const automaticForPlan = automaticFor(planChannel);
+    const automaticForPlan = !followUp.accessInvite && automaticFor(planChannel);
     const heldByChoice = Boolean(alternative && automaticForPlan);
     // The note gives the real reason: the owner's choice, or the plan's own method missing so the
     // card fell back to an alternative without anyone choosing it.
@@ -339,7 +340,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
       <JumpReturnTray />
-      {params.welcome && <><Notice type="success">{welcomeMessage}</Notice><section className="card"><h2>Try your first networking mix</h2><p>You have five personal invitations. Choose a contact and send them unique access through the Jump in the Mix System Mix.</p><Link className="button primary" href="/mixes/system?welcome=1">Try the System Mix</Link></section></>}
+      {params.invitations && <Notice type="success">Your invitations are ready in Today. Review each message and send it from your own text or email app.</Notice>}
+    {params.welcome && <><Notice type="success">{welcomeMessage}</Notice><section className="card"><h2>Try your first networking mix</h2><p>You have three personal invitations. Add email addresses or text numbers, then review and send their unique signup links from Today.</p><Link className="button primary" href="/mixes/system?welcome=1">Prepare invitations</Link></section></>}
       {params.demo && <Notice type="info">Using local demo data.</Notice>}
       {params.applied && <Notice type="success">Mix changes saved.</Notice>}
       {params.mixStopped && <Notice type="success">Mix stopped.</Notice>}

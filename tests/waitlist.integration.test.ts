@@ -312,29 +312,25 @@ describe.skipIf(!local)("waitlist on PostgreSQL", () => {
     expect(await prisma.waitlistEntry.findUnique({ where: { id: entry.id } })).toMatchObject({ status: "WITHDRAWN" });
   });
 
-  it("queues one immutable member email atomically and respects recipient withdrawal without refunding a slot", async () => {
+  it("prepares one immutable member reminder without email delivery and respects recipient withdrawal", async () => {
     const { user, workspace } = await member();
     const email = `${randomUUID()}@example.test`;
     const contact = await prisma.contact.create({ data: { workspaceId: workspace.id, displayName: "Friend <script>", emails: { create: { email, normalized: email } } } });
     const input = { expectedVersion: 1, userId: user.id, workspaceId: workspace.id, contactId: contact.id, recipientEmail: email };
     const invite = await prisma.$transaction(tx => allocateAccessInvite(tx, input));
-    const original = await prisma.waitlistDelivery.findUniqueOrThrow({ where: { inviteId: invite.id } });
-    const message = decryptIntegrationCredentials<{ text: string; html: string; idempotencyKey: string }>(original.messageCiphertext);
-    expect(message.text).toContain("/register?invite=");
-    expect(message.text).toContain("/waitlist/leave?token=");
-    expect(message.html).not.toContain("<script>");
-    expect(message.idempotencyKey).toBe(`system-invite-${invite.id}`);
-    await prisma.contact.update({ where: { id: contact.id }, data: { displayName: "Edited after queue" } });
+    const original = await prisma.jump.findUniqueOrThrow({ where: { accessInviteId: invite.id } });
+    const message = original.renderedSnapshot as { body: string };
+    expect(message.body).toContain("/register?invite=");
+    expect(await prisma.waitlistDelivery.count({ where: { inviteId: invite.id } })).toBe(0);
+    await prisma.contact.update({ where: { id: contact.id }, data: { displayName: "Edited after preparation" } });
     expect((await prisma.$transaction(tx => allocateAccessInvite(tx, input))).id).toBe(invite.id);
-    expect((await prisma.waitlistDelivery.findUniqueOrThrow({ where: { inviteId: invite.id } })).messageCiphertext).toBe(original.messageCiphertext);
-    mail.send.mockRejectedValueOnce(new Error("Temporary provider failure"));
-    const now = new Date();
-    await deliverWaitlistInvitations(now);
-    await deliverWaitlistInvitations(new Date(now.getTime() + 120_000));
-    expect(mail.send.mock.calls[0][0]).toEqual(mail.send.mock.calls[1][0]);
+    expect((await prisma.jump.findUniqueOrThrow({ where: { accessInviteId: invite.id } })).renderedSnapshot).toEqual(original.renderedSnapshot);
+    await deliverWaitlistInvitations(new Date());
+    expect(mail.send).not.toHaveBeenCalled();
     const url = await requestInvitationStopLink(email);
     expect(await stopInvitationEmails(new URL(url!).searchParams.get("token")!)).toBe(true);
-    await expect(prisma.$transaction(tx => allocateAccessInvite(tx, input))).rejects.toThrow("cannot be sent");
+    await expect(prisma.$transaction(tx => allocateAccessInvite(tx, input))).rejects.toThrow("opted out");
+    expect((await prisma.jump.findUniqueOrThrow({ where: { accessInviteId: invite.id } })).status).toBe("CANCELED");
     expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).referralInvitesIssued).toBe(1);
   });
 

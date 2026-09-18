@@ -7,6 +7,8 @@ vi.mock("@/lib/env", async importOriginal => {
   return { ...original, env: { ...original.env, pilotMode: false, dataEncryptionKey: "referral-integration-test-key" } };
 });
 import { allocateAccessInvite } from "../src/lib/referral-access";
+import { runAutomaticDeliveries } from "../src/lib/automatic-delivery";
+import { generateJumps } from "../src/lib/jump-engine";
 import { createBusinessAccount } from "../src/lib/account-provisioning";
 import { decryptIntegrationCredentials } from "../src/lib/integration-crypto";
 
@@ -29,12 +31,36 @@ describe.skipIf(!local)("referral access with PostgreSQL transactions", () => {
     await prisma.workspace.deleteMany({ where: { ownerId: { in: createdUsers } } });
     await prisma.user.deleteMany({ where: { id: { in: createdUsers } } });
   });
-  it("enforces five allocations under real concurrent requests", async () => {
+  it("enforces three allocations under real concurrent requests", async () => {
     const { user, workspace, contacts } = await owner();
     const results = await Promise.allSettled(contacts.map(contact => prisma.$transaction(tx => allocateAccessInvite(tx, { expectedVersion: 1, userId: user.id, workspaceId: workspace.id, contactId: contact.id, recipientEmail: contact.emails[0].email }))));
-    expect(results.filter(item => item.status === "fulfilled")).toHaveLength(5);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).referralInvitesIssued).toBe(5);
-    expect(await prisma.referralAccessInvite.count({ where: { inviterUserId: user.id } })).toBe(5);
+    expect(results.filter(item => item.status === "fulfilled")).toHaveLength(3);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).referralInvitesIssued).toBe(3);
+    expect(await prisma.referralAccessInvite.count({ where: { inviterUserId: user.id } })).toBe(3);
+  });
+  it("creates a phone invitation in Today with no queued mail, survives reconciliation, and admits one account only", async () => {
+    const { user, workspace, contacts } = await owner();
+    const phone = "+1555" + String(Date.now()).slice(-7);
+    await prisma.contactPhone.create({ data: { contactId: contacts[0].id, phone, normalized: phone, isPrimary: true } });
+    const input = { userId: user.id, workspaceId: workspace.id, contactId: contacts[0].id, recipientPhone: phone, expectedVersion: 1 };
+    const invite = await prisma.$transaction(tx => allocateAccessInvite(tx, input));
+    expect((await prisma.$transaction(tx => allocateAccessInvite(tx, input))).id).toBe(invite.id);
+    expect(invite).toMatchObject({ recipientEmail: null, recipientPhone: phone, manualDelivery: true });
+    const { token } = decryptIntegrationCredentials<{ token: string }>(invite.tokenCiphertext);
+    const reminder = await prisma.jump.findUniqueOrThrow({ where: { accessInviteId: invite.id } });
+    expect(reminder.status).toBe("PENDING");
+    expect((reminder.renderedSnapshot as { body: string }).body).toContain(`/register?invite=${token}`);
+    expect(await prisma.waitlistDelivery.count({ where: { inviteId: invite.id } })).toBe(0);
+    await generateJumps({ workspaceId: workspace.id });
+    expect((await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).status).toBe("PENDING");
+    await prisma.automationPreference.create({ data: { workspaceId: workspace.id, enabled: true, smsEnabled: true, reviewWindowMinutes: 15 } });
+    await prisma.jump.update({ where: { id: reminder.id }, data: { scheduledAt: new Date(Date.now() - 3600_000), createdAt: new Date(Date.now() - 3600_000) } });
+    await runAutomaticDeliveries("personal-invite-test");
+    expect(await prisma.automatedDelivery.count({ where: { jumpId: reminder.id } })).toBe(0);
+    const results = await Promise.allSettled([1, 2].map(index => prisma.$transaction(tx => createBusinessAccount(tx, { email: `phone-${randomUUID()}-${index}@example.test`, name: "Phone guest", passwordHash: null, emailVerifiedAt: null, accessToken: token }))));
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    for (const result of results) if (result.status === "fulfilled") createdUsers.push(result.value.id);
+    expect((await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).status).toBe("CANCELED");
   });
   it("rolls back a failed signup and permits only one subsequent acceptance", async () => {
     const { user, workspace, contacts } = await owner();

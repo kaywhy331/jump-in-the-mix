@@ -9,3 +9,11 @@ export type OnboardingUse = typeof ONBOARDING_USES[number]["id"];
 export function onboardingUse(value: string) {
   return ONBOARDING_USES.find(use => use.id === value);
 }
+
+export function onboardingUses(values: string[]): OnboardingUse[] {
+  return ONBOARDING_USES.filter(use => values.includes(use.id)).map(use => use.id);
+}
+
+export function onboardingReasons(uses: OnboardingUse[]): string[] {
+  return [...new Set(ONBOARDING_USES.filter(use => uses.includes(use.id)).flatMap(use => [...use.reasons]))];
+}

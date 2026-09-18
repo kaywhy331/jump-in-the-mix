@@ -20,7 +20,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
   const token = params.invite ?? "";
   const pilotOpen = env.pilotMode && await pilotRegistrationOpen();
   const invite = !env.pilotMode && validAccessToken(token)
-    ? await prisma.referralAccessInvite.findFirst({ where: { tokenHash: hashAuthToken(token), acceptedAt: null, revokedAt: null }, select: { id: true, marketingScenario: true, marketingScenarioVersion: true } })
+    ? await prisma.referralAccessInvite.findFirst({ where: { tokenHash: hashAuthToken(token), acceptedAt: null, revokedAt: null }, select: { id: true, recipientPhone: true, marketingScenario: true, marketingScenarioVersion: true } })
     : null;
   const paused = Boolean(invite) && (await getAdmissionPolicy()).redemptionPaused;
   const scenario = storedMarketingScenario(invite?.marketingScenario, invite?.marketingScenarioVersion);
@@ -28,13 +28,13 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
     <Logo />
     {!pilotOpen && !invite ? <>
       <div><h1>{token ? "This invitation is unavailable" : "An invitation from someone you know"}</h1>
-      <p>{token ? "This link is invalid, revoked, or already used. If you already created your account, sign in below." : "Jump in the Mix grows through personal connections. Each member has five invitations to share with contacts through the Jump in the Mix System Mix. Ask someone in your network to invite you."}</p></div>
+      <p>{token ? "This link is invalid, revoked, or already used. If you already created your account, sign in below." : "Jump in the Mix grows through personal connections. Each member has three invitations to share with contacts by text or email. Ask someone in your network to invite you."}</p></div>
       <Link className="button primary" href="/waitlist">Join the waitlist</Link>
       <p>Have a unique invitation link? Open it to create your free account.</p><Link className="button" href="/login">Sign in</Link>
     </> : paused ? <>
       <h1>Account creation is temporarily paused</h1><p>Your invitation has not been used. Please open this same link again later.</p><Link className="button" href="/login">Sign in to an existing account</Link>
     </> : <>
-      <div><h1>Create your free account</h1><p>{pilotOpen ? "Set up the owner account for this private installation." : "Use the email address your invitation was sent to. After verification, start with one person and review every follow-up before sending."}</p>{scenario && <p>Your {scenario.label.toLowerCase()} starter will be ready to review. You can change it or skip setup.</p>}</div>
+      <div><h1>Create your free account</h1><p>{pilotOpen ? "Set up the owner account for this private installation." : invite?.recipientPhone ? "Choose your email address to create an account. Verify it to start with one person and review every follow-up before sending." : "Use the email address your invitation was sent to. After verification, start with one person and review every follow-up before sending."}</p>{scenario && <p>Your {scenario.label.toLowerCase()} starter will be ready to review. You can change it or skip setup.</p>}</div>
       {params.error && <Notice type="error">{params.error}</Notice>}
       <form action={registerAction} className="form-stack">
         {invite && <input type="hidden" name="invite" value={token} />}

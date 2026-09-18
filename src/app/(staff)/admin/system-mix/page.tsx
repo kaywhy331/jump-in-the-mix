@@ -23,7 +23,7 @@ export default async function SystemMixAdminPage({ searchParams }: { searchParam
     prisma.systemMixRevision.findMany({ where: { systemMixId: config.id }, orderBy: { version: "desc" }, take: 10, skip: (historyPage - 1) * 10 }),
     prisma.systemMixRelease.findMany({ where: { systemMixId: config.id }, orderBy: { controlRevision: "desc" }, take: 20 }),
     prisma.systemMixRevision.count({ where: { systemMixId: config.id } }),
-    prisma.user.count({ where: { emailVerifiedAt: { not: null }, suspendedAt: null, referralInvitesIssued: { lt: 5 }, ownedWorkspaces: { some: {} } } }),
+    prisma.user.count({ where: { emailVerifiedAt: { not: null }, suspendedAt: null, referralInvitesIssued: { lt: 3 }, ownedWorkspaces: { some: {} } } }),
     prisma.waitlistDelivery.count({ where: { invite: { source: "REFERRAL" }, status: { in: ["QUEUED", "SENDING"] } } })
   ]);
   const publishedVersions = new Set((await prisma.systemMixRelease.findMany({ where: { systemMixId: config.id, version: { in: revisions.map(row => row.version) } }, distinct: ["version"], select: { version: true } })).map(row => row.version));
@@ -50,8 +50,8 @@ export default async function SystemMixAdminPage({ searchParams }: { searchParam
     </AdminDraftForm>
 </details>
     <details id="wording-review" className="card admin-editor-section admin-editor-disclosure" open={Boolean(query.saved || query.released)}><summary><h2>Preview and publish · version {draft.version}</h2></summary><SystemMixPreview key={draft.version} content={draft} /><AdminContentDiff before={published} after={draft} />    <section className="card form-stack"><h2>Release impact</h2><p>{members} verified members have personal invitations remaining. A publication changes their future invitation previews. The {queued} queued or sending invitations keep their prepared content and access links.</p>
-      <p>Review the exact saved subject and introduction. Publishing requires your password, a reason, and MFA verification within the last ten minutes. Members with an older preview must review again before sending. Waitlist and staff invitation wording is managed separately.</p>
-      <p>The five lifetime invitations and access rules are fixed. {permissions.includes("settings.manage") ? <Link href="/admin/admission">Use Admission to pause new referrals.</Link> : "An administrator with admission permissions can pause new referrals."}</p>
+      <p>Review the exact saved subject and introduction. Publishing requires your password, a reason, and MFA verification within the last ten minutes. Members with an older preview must review again before preparing reminders. Waitlist and staff invitation wording is managed separately.</p>
+      <p>The three lifetime invitations and access rules are fixed. {permissions.includes("settings.manage") ? <Link href="/admin/admission">Use Admission to pause new referrals.</Link> : "An administrator with admission permissions can pause new referrals."}</p>
     </section>
 {canPublish && draft.version !== published.version ? releaseForm("publish", draft.version) : <p>{canPublish ? "This saved version is already published." : "A publisher must review and release this draft."}</p>}<details><summary>Compare the currently published preview · version {published.version}</summary><SystemMixPreview content={published} /></details></details>
     <section id="wording-history" className="card admin-editor-section"><details open={Boolean(query.historyPage)}><summary><h2>Version history</h2></summary>{revisions.map(row => <details key={row.id}><summary>Version {row.version} · {formatDateTime(row.createdAt, display)} · {publishedVersions.has(row.version) ? "Previously published" : "Draft only"}</summary>

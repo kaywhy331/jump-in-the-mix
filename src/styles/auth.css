@@ -75,3 +75,6 @@
   .account-sessions-card .card-header form, .account-sessions-card .card-header .button { width: 100%; }
   .account-signout-all, .account-signout-all > summary { width: 100%; }
 }
+
+.first-win-onboarding .checkbox-card > span { display: grid; gap: 4px; }
+.first-win-onboarding .checkbox-card { align-items: flex-start; }

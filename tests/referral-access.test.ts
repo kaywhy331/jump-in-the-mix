@@ -14,6 +14,11 @@ function database(initial = 0) {
   const records: any[] = [];
   const mocks = {
     $executeRaw: vi.fn(),
+    mix: { create: vi.fn(async () => ({ id: "mix" })) },
+    stepTemplate: { create: vi.fn(async () => ({ id: "template" })) },
+    stepVersion: { create: vi.fn(async () => ({ id: "version" })) },
+    mixStep: { create: vi.fn(async () => ({ id: "step" })) },
+    jump: { create: vi.fn(), updateMany: vi.fn() },
     admissionPolicy: { findUnique: vi.fn(async () => ({ accountCeiling: 1000, outstandingCeiling: 1000, grantsPaused: false, referralsPaused: false, redemptionPaused: false })) },
     emailSuppression: { findFirst: vi.fn(async () => null) },
     verificationToken: { create: vi.fn() },
@@ -31,7 +36,7 @@ function database(initial = 0) {
       findFirst: vi.fn(async () => null),
       findUnique: vi.fn(async ({ where }: any) => where.id ? records.find(item => item.id === where.id) ?? null : records.find(item => item.contactId === where.inviterUserId_contactId.contactId) ?? null),
       create: vi.fn(async ({ data }: any) => { const record = { id: `invite-${records.length}`, acceptedAt: null, revokedAt: null, ...data }; records.push(record); return record; }),
-      updateMany: vi.fn(async ({ where, data }: any) => { const record = records.find(item => item.tokenHash === where.tokenHash && item.recipientEmail === where.recipientEmail && item.acceptedAt === null && item.revokedAt === null); if (!record) return { count: 0 }; Object.assign(record, data); return { count: 1 }; }),
+      updateMany: vi.fn(async ({ where, data }: any) => { const record = records.find(item => item.tokenHash === where.tokenHash && (item.recipientEmail === where.OR[0].recipientEmail || item.recipientEmail === null && item.recipientPhone && item.manualDelivery) && item.acceptedAt === null && item.revokedAt === null); if (!record) return { count: 0 }; Object.assign(record, data); return { count: 1 }; }),
       findUniqueOrThrow: vi.fn(async ({ where }: any) => records.find(item => item.tokenHash === where.tokenHash)),
       update: vi.fn()
     },
@@ -46,27 +51,29 @@ function database(initial = 0) {
 const input = (contactId = "contact") => ({ expectedVersion: 1, userId: "owner", workspaceId: "workspace", contactId, recipientEmail: "contact@example.com" });
 beforeEach(() => { settings.pilotMode = false; });
 describe("personal access invitations", () => {
-  it("generates five distinct encrypted 256-bit tokens and rejects a sixth", async () => {
+  it("generates three distinct encrypted 256-bit tokens and rejects a fourth", async () => {
     const db = database();
-    const invites = await Promise.all(Array.from({ length: 5 }, (_, i) => allocateAccessInvite(db.tx, input(`contact-${i}`))));
+    const invites = await Promise.all(Array.from({ length: 3 }, (_, i) => allocateAccessInvite(db.tx, input(`contact-${i}`))));
     const tokens = invites.map(invite => decryptIntegrationCredentials<{ token: string }>(invite.tokenCiphertext).token);
-    expect(new Set(tokens).size).toBe(5);
+    expect(new Set(tokens).size).toBe(3);
     expect(tokens.every(validAccessToken)).toBe(true);
     expect(invites.every((invite, i) => !invite.tokenCiphertext.includes(tokens[i]) && invite.tokenHash !== tokens[i])).toBe(true);
-    await expect(allocateAccessInvite(db.tx, input("sixth"))).rejects.toThrow("five invitations");
-    expect(db.issued()).toBe(5);
+    await expect(allocateAccessInvite(db.tx, input("fourth"))).rejects.toThrow("three invitations");
+    expect(db.issued()).toBe(3);
   });
   it("uses a conditional atomic increment for competing last-slot requests", async () => {
-    const db = database(4);
+    const db = database(2);
     const results = await Promise.allSettled([allocateAccessInvite(db.tx, input("a")), allocateAccessInvite(db.tx, input("b"))]);
     expect(results.filter(item => item.status === "fulfilled")).toHaveLength(1);
-    expect(db.mocks.user.updateMany).toHaveBeenCalledWith({ where: { id: "owner", referralInvitesIssued: { lt: 5 } }, data: { referralInvitesIssued: { increment: 1 } } });
+    expect(db.mocks.user.updateMany).toHaveBeenCalledWith({ where: { id: "owner", referralInvitesIssued: { lt: 3 } }, data: { referralInvitesIssued: { increment: 1 } } });
   });
   it("retries the same contact without consuming another slot", async () => {
     const db = database();
     const first = await allocateAccessInvite(db.tx, input());
     expect(await allocateAccessInvite(db.tx, input())).toBe(first);
     expect(db.issued()).toBe(1);
+    expect(db.mocks.jump.create).toHaveBeenCalledTimes(1);
+    expect(db.mocks.waitlistDelivery.create).not.toHaveBeenCalled();
   });
   it("rejects contacts from another workspace", async () => {
     const db = database();

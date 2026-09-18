@@ -134,6 +134,7 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
       where: {
         workspaceId: workspace.id,
         status: "PENDING",
+        accessInviteId: null, // Personal invitations are always sent by the member.
         scheduledAt: { lte: threshold },
         stepVersion: { stepTemplate: { channel: { in: channels } } },
         // An owner's draft is never replaced by the plan's text. A drafted follow-up waits on Today

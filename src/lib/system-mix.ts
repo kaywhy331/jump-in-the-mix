@@ -1,9 +1,9 @@
-export const REFERRAL_INVITE_LIMIT = 5;
+export const REFERRAL_INVITE_LIMIT = 3;
 export const SYSTEM_MIX_NAME = "Jump in the Mix System Mix";
 export type SystemMixContent = { subject: string; body: string };
 export const DEFAULT_SYSTEM_MIX: SystemMixContent = {
   subject: "{{Sender Name}} invited you to Jump in the Mix",
-  body: "Hi {{Contact Name}},\n\nI’m using Jump in the Mix to stay in touch with the people in my circle. It’s free and invitation-only, and I’d like to share one of my five personal invitations with you.\n\n{{Sender Name}}"
+  body: "Hi {{Contact Name}},\n\nI’m using Jump in the Mix to stay in touch with the people in my circle. It’s free and invitation-only, and I’d like to share one of my three personal invitations with you.\n\n{{Sender Name}}"
 };
 export class SystemMixError extends Error {
   constructor(message: string, readonly needsMfa = false) { super(message); }
@@ -23,7 +23,7 @@ export function validateSystemMixContent(value: SystemMixContent): SystemMixCont
 function displayName(value: string, fallback: string) { return value.replace(/[\u0000-\u001f\u007f]+/g, " ").trim().slice(0, 160) || fallback; }
 export function renderSystemMix(content: SystemMixContent, sender: string, contact: string) {
   const names: Record<string, string> = { "Sender Name": displayName(sender, "Someone in your network"), "Contact Name": displayName(contact, "there") };
-  const render = (text: string) => text.replace(/{{(Sender Name|Contact Name)}}/g, (_, key: string) => names[key]);
+  const render = (text: string) => text.replaceAll("five personal invitations", "three personal invitations").replace(/{{(Sender Name|Contact Name)}}/g, (_, key: string) => names[key]);
   return { subject: render(content.subject), body: render(content.body) };
 }
 export function systemInviteMessage(sender: string, contact: string): string {

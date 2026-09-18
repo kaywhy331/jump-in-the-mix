@@ -65,7 +65,7 @@ export async function registerAction(formData: FormData): Promise<void> {
   const accessToken = value(formData, "invite");
   const path = accessToken ? `/register?invite=${encodeURIComponent(accessToken)}` : "/register";
   const mustVerify = !env.pilotMode || env.requireEmailVerification;
-  if (!env.pilotMode && !validAccessToken(accessToken)) fail("/register", "Open the unique invitation link sent to your email to create an account.");
+  if (!env.pilotMode && !validAccessToken(accessToken)) fail("/register", "Open the unique invitation link shared with you to create an account.");
 
   await enforceRateLimit(path, { scope: "auth.register.ip", identifiers: [metadata.ipAddress], limit: 8, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 });
   await enforceRateLimit(path, { scope: "auth.register.email", identifiers: [email], limit: 3, windowMs: 24 * 60 * 60 * 1000, blockMs: 24 * 60 * 60 * 1000 });

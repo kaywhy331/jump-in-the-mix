@@ -192,6 +192,7 @@ model WorkspaceMember {
 
 model WorkspaceProfile {
   workspaceId    String    @id
+  useCases       String[]  @default([])
   industry       String?
   primaryGoal    String?
   company        String?
@@ -521,6 +522,8 @@ model MixAssignment {
 
 model Jump {
   id               String                 @id @default(cuid())
+  accessInviteId   String?                @unique
+  accessInvite     ReferralAccessInvite?  @relation(fields: [accessInviteId], references: [id], onDelete: SetNull)
   workspaceId      String
   contactId        String
   jumpDateId       String?
@@ -676,7 +679,10 @@ model ReferralAccessInvite {
   inviterUserId   String?
   workspaceId     String?
   contactId       String?
-  recipientEmail  String
+  recipientEmail  String?
+  recipientPhone  String?
+  manualDelivery  Boolean   @default(false)
+  reminder        Jump?
   lastSentAt      DateTime?
   tokenHash       String    @unique
   tokenCiphertext String

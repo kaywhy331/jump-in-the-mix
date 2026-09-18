@@ -138,6 +138,7 @@ export async function recordJumpAttempt(input: { workspaceId: string; jumpId: st
   const jump = await prisma.jump.findFirst({
     where: { id: jumpId, workspaceId },
     select: {
+      accessInvite: { select: { recipientEmail: true, recipientPhone: true, acceptedAt: true, revokedAt: true } },
       contactId: true,
       templateSnapshot: true,
       contact: { select: { emails: { select: { normalized: true } }, phones: { select: { normalized: true } }, relationshipState: { select: { preferredChannel: true } } } },
@@ -151,6 +152,7 @@ export async function recordJumpAttempt(input: { workspaceId: string; jumpId: st
     return { ok: false, reason: "invalid", message: "This follow-up uses a different channel." };
   }
   const normalized = normalizeRecipient(payload.channel, payload.recipient);
+  if (jump.accessInvite && (jump.accessInvite.revokedAt || jump.accessInvite.acceptedAt || normalized !== normalizeRecipient(payload.channel, jump.accessInvite.recipientEmail ?? jump.accessInvite.recipientPhone ?? ""))) return { ok: false, reason: "unavailable", message: "This invitation is no longer available for this recipient." };
   const stored = payload.channel === "EMAIL" ? jump.contact.emails.map((item) => item.normalized) : jump.contact.phones.map((item) => item.normalized);
   if (!stored.includes(normalized)) return { ok: false, reason: "invalid", message: "That address or number isn't saved for this person." };
 

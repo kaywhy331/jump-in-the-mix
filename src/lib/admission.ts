@@ -24,9 +24,10 @@ export async function admissionSnapshot(tx: Prisma.TransactionClient) {
   const accounts = await tx.user.count({ where: { OR: [
     { staffMembership: { is: null } }, { ownedWorkspaces: { some: {} } }, { memberships: { some: {} } }
   ] } });
-  // Count each unused grant conservatively, including queued or uncertain mail.
+  // Count unused email grants conservatively, including queued or uncertain mail.
+  // Member-sent invitations use the separate lifetime allowance, not email-wave capacity.
   // Revocation/acceptance release this reservation in the same admission lock.
-  const outstanding = await tx.referralAccessInvite.count({ where: { acceptedAt: null, revokedAt: null } });
+  const outstanding = await tx.referralAccessInvite.count({ where: { acceptedAt: null, revokedAt: null, manualDelivery: false } });
   const remaining = Math.max(0, Math.min(policy.accountCeiling - accounts - outstanding, policy.outstandingCeiling - outstanding));
   return { policy, accounts, outstanding, committed: accounts + outstanding, remaining };
 }

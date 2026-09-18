@@ -42,6 +42,7 @@ function withinGroup(cursor: Cursor, direction: Direction): Prisma.JumpWhereInpu
 }
 
 const select = {
+  accessInvite: { select: { recipientEmail: true, recipientPhone: true, acceptedAt: true, revokedAt: true } },
   id: true, contactId: true, mixId: true, scheduledAt: true, baseScheduledAt: true, status: true, updatedAt: true, reason: true, renderedSnapshot: true, templateSnapshot: true, stepVersionId: true, completedAt: true, selectedFamily: true,
   // The contact fields the message tokens resolve from, so an owner's draft renders on the card.
   contact: { select: {
