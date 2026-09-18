@@ -2,7 +2,9 @@
 
 This work implements the [184-finding audit](UI_UX_PRODUCT_READINESS_AUDIT_2026-09-18.md). The [individual checklist](ui-ux-audit-2026-09-18/IMPLEMENTATION_CHECKLIST.md) separates implementation, verification, external qualification and live deployment. A code change alone does not close a finding.
 
-**174 findings are implemented, verified and checked off against the live production revision. Ten findings remain open for participant, owner, physical-device, assistive-technology or actual delivery-provider evidence. The requested all-findings definition of done is not yet met.**
+**175 findings are complete. Nine remain open for participant, physical-device, assistive-technology or controlled-inbox/staff recovery observations. The requested all-findings definition of done is not yet met.**
+
+The [authorized follow-up](ui-ux-audit-2026-09-18/AUTHORIZED_FOLLOWUP.md) records owner approval and the subsequent receipt-recovery correction, deployed to production and the stable test site. Current production revision: `8520b73cc41d72c40ecec1ca06ca752fd95ce5d5`. Original release evidence below is retained as history.
 
 ## Current implementation
 
@@ -24,9 +26,9 @@ Evidence is retained in `.artifacts/ui-ux-implementation-20260918/`. Test fixtur
 - A final multi-form save regression caught an unsaved scheduling draft being discarded by a profile save. A form-specific confirmation now protects that boundary. Desktop/mobile tests verify cancellation preserves both drafts, successful saves clear the warning, and support triage still preserves replies (four passed).
 - After disabling speculative fetches for staff navigation, the targeted WebKit trace reported no page errors or failed requests, and the final admin navigation/layout checks passed both cases.
 
-## Deployment state
+## Original deployment state
 
-The implementation is live at **https://jumpinthemix.com/** on revision `32f276fc6bdd2a71d23692437e6836e1bebe090a`, from branch `release/ui-ux-readiness-20260918`. The isolated release package starts from production commit `ab323cd14ac09a9329315b10a4bb8e3b82fbbe65`. The schema, 61 migration files, dependency lockfile and deployment configuration match that baseline. This release required no schema migration. Existing unrelated working-tree changes were preserved; release documentation is committed separately after the deployed implementation.
+The original implementation release was published at **https://jumpinthemix.com/** on revision `32f276fc6bdd2a71d23692437e6836e1bebe090a`, from branch `release/ui-ux-readiness-20260918`. The isolated release package starts from production commit `ab323cd14ac09a9329315b10a4bb8e3b82fbbe65`. The schema, 61 migration files, dependency lockfile and deployment configuration match that baseline. This release required no schema migration. Existing unrelated working-tree changes were preserved; release documentation is committed separately after the deployed implementation.
 
 | Target | Deployment | Verified result |
 | --- | --- | --- |
@@ -51,3 +53,5 @@ The task's local test server, HTTPS proxy, disposable database, copied environme
 ## Qualification still required
 
 Physical iPhone/Android handoffs, native contact/voice capture, assistive technology, actual reminder/provider delivery, participant comprehension and owner-led trust-copy review need their own evidence. Automated browser and API results are not substitutes for these observations. The [remaining qualification worksheet](ui-ux-audit-2026-09-18/REMAINING_QUALIFICATION.md), [manual device worksheet](MANUAL_DEVICE_QUALIFICATION.md), and [roadmap reconciliation](HOMEPAGE_READINESS_RECONCILIATION_2026-09-18.md) name the outstanding evidence.
+
+The [September 18 continuation](ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md) reconfirmed the existing deployment, added 60 passing live browser states and 40 focused passing tests, and prepared exact review tasks for the ten open findings. It made no application or deployment changes and did not close any external qualification gate.

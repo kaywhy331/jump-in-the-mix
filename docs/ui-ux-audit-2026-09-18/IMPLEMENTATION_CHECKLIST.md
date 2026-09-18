@@ -4,9 +4,9 @@
 
 Original audit: [184 findings](../UI_UX_PRODUCT_READINESS_AUDIT_2026-09-18.md). Implementation and evidence are tracked separately; original observations remain unchanged.
 
-Status counts: complete: 174 · awaiting-qualification: 10.
+Status counts: complete: 175 · awaiting-qualification: 9.
 
-Live implementation: [Jump in the Mix](https://jumpinthemix.com/), revision `32f276fc6bdd2a71d23692437e6836e1bebe090a`, verified 2026-09-18T16:33:44.994Z. [Release evidence](../UI_UX_IMPLEMENTATION_2026-09-18.md).
+Live implementation: [Jump in the Mix](https://jumpinthemix.com/), revision `8520b73cc41d72c40ecec1ca06ca752fd95ce5d5`, verified 2026-09-18T21:01:10.031Z. [Release evidence](../UI_UX_IMPLEMENTATION_2026-09-18.md).
 
 Unchecked findings require the observations listed in the [qualification worksheet](REMAINING_QUALIFICATION.md).
 
@@ -26,7 +26,7 @@ Unchecked findings require the observations listed in the [qualification workshe
   Acceptance: A new visitor reaches a draft with one deliberate tap without hunting through contact fields.
 - [ ] **HOME-02 — Two acquisition tasks compete for attention** · awaiting-qualification
   Implementation: src/app/page.tsx; docs/HOMEPAGE_READINESS_RECONCILIATION_2026-09-18.md.
-  Verification: Public/auth browser checks: initial demo focus, mobile navigation and context links; homepage roadmap reconciliation.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md.
+  Verification: Public/auth browser checks: initial demo focus, mobile navigation and context links; homepage roadmap reconciliation.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md; Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md.
   Acceptance: In a moderated task, visitors can explain what each action does before choosing it.
   Still required: Moderated acquisition-choice task with suitable participants.
 - [x] **HOME-03 — Useful navigation disappears on phones** · complete
@@ -62,7 +62,7 @@ Unchecked findings require the observations listed in the [qualification workshe
   Acceptance: A recruiter, consultant, photographer, agent or contractor can correctly describe the supported workflow.
 - [ ] **PRO-05 — Profession fit remains an untested hypothesis** · awaiting-qualification
   Implementation: src/app/for/[profession]/page.tsx; src/lib/persona-mixes.ts; src/components/PublicHeader.tsx.
-  Verification: Public/auth browser checks and marketing scenario tests; profession-route scan.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md.
+  Verification: Public/auth browser checks and marketing scenario tests; profession-route scan.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md; Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md.
   Acceptance: Each profession has task-completion and comprehension evidence before claims of validated fit.
   Still required: Profession-specific participant task and comprehension sessions.
 
@@ -78,7 +78,7 @@ Unchecked findings require the observations listed in the [qualification workshe
   Acceptance: Demo completion never opens an external composer under a sandbox promise.
 - [ ] **DEMO-03 — Icon-only completion is hard to distinguish from sending** · awaiting-qualification
   Implementation: src/components/ProductDemo.tsx.
-  Verification: Public/auth browser checks: edits retained on scenario switch, reset and intercepted sandbox handoffs.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md.
+  Verification: Public/auth browser checks: edits retained on scenario switch, reset and intercepted sandbox handoffs.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md; Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md.
   Acceptance: Participants distinguish opening, sending, recording and skipping without assistance.
   Still required: Participant distinction between opening, sending, recording and skipping.
 - [x] **DEMO-04 — Attachment language exceeds what the demo prepares** · complete
@@ -112,11 +112,10 @@ Unchecked findings require the observations listed in the [qualification workshe
   Implementation: src/components/PublicCapabilities.tsx.
   Verification: Public route scan and source review of contents navigation, recovery and capability copy.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md.
   Acceptance: The template, reminder and FAQ pages describe the same current sending contract.
-- [ ] **PUBLIC-05 — Trust content needs an owner-led factual review** · awaiting-qualification
+- [x] **PUBLIC-05 — Trust content needs an owner-led factual review** · complete
   Implementation: src/components/PublicArticle.tsx; src/app/faq/page.tsx; src/app/contact/page.tsx; src/components/PublicDocument.tsx.
-  Verification: Public route scan and source review of contents navigation, recovery and capability copy.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md.
+  Verification: Public route scan and source review of contents navigation, recovery and capability copy.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md; Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md; Owner reviewed the qualification materials and authorized proceeding on 2026-09-18: "reviewed. go ahead and implement i authorize"; current wording accepted without requested changes..
   Acceptance: Record a dated content review and resolve any mismatched product claims before broad release.
-  Still required: Dated owner-led factual review of trust and product claims.
 
 ## WAIT
 
@@ -215,7 +214,7 @@ Unchecked findings require the observations listed in the [qualification workshe
   Acceptance: A routine refresh during review does not erase a captured note unexpectedly.
 - [ ] **NAV-05 — Voice and native contact capture need device qualification** · awaiting-qualification
   Implementation: src/components/AppShell.tsx; src/components/Nav.tsx; src/components/QuickAdd.tsx; src/components/NewContactForm.tsx; src/components/VoiceNoteButton.tsx.
-  Verification: Browser navigation scan; retained Quick Add capture source and boundary tests.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md.
+  Verification: Browser navigation scan; retained Quick Add capture source and boundary tests.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md; Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md.
   Acceptance: Record actual iPhone/Android outcomes, including recovery without losing typed text.
   Still required: Physical iPhone/Android contact and voice capture, including cancellation.
 
@@ -262,7 +261,7 @@ Unchecked findings require the observations listed in the [qualification workshe
   Acceptance: An interrupted user can find and resolve an unrecorded handoff on returning.
 - [ ] **SEND-05 — Real external-app handoffs remain a release gate** · awaiting-qualification
   Implementation: src/components/EditableFollowUpAction.tsx; src/components/JumpWorkflow.tsx; src/components/JumpActionControls.tsx.
-  Verification: Handoff/outcome tests and state/source review; physical devices remain separately open.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md.
+  Verification: Handoff/outcome tests and state/source review; physical devices remain separately open.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md; Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md.
   Acceptance: Record successful and canceled handoffs on supported iPhone/Android combinations before public readiness signoff.
   Still required: Physical iPhone/Android external-app handoff and return checks.
 
@@ -543,7 +542,7 @@ Unchecked findings require the observations listed in the [qualification workshe
   Acceptance: A dissatisfied customer has a useful next step without an invented response-time promise.
 - [ ] **REVIEW-05 — Real recipient comprehension is unverified** · awaiting-qualification
   Implementation: src/components/ReviewFeedbackForm.tsx; src/app/review/[token]/page.tsx; src/app/(app)/settings/business/page.tsx.
-  Verification: UI/UX workflow browser test: rating selection, private receipt, same public-review route at low rating and correction link.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md.
+  Verification: UI/UX workflow browser test: rating selection, private receipt, same public-review route at low rating and correction link.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md; Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md.
   Acceptance: Customers understand where their feedback goes before submitting it.
   Still required: Recipient comprehension observation for private feedback and public review.
 
@@ -590,7 +589,7 @@ Unchecked findings require the observations listed in the [qualification workshe
   Acceptance: Before enabling automation, the owner can identify recipients and earliest send times.
 - [ ] **NOTIFY-05 — Reminder delivery and timing need real-channel evidence** · awaiting-qualification
   Implementation: src/components/AutomaticSendPreview.tsx; src/app/api/settings/sending-preview/route.ts.
-  Verification: Automatic-sending preview browser test: candidate exclusions, earliest time and prior attempts; notification delivery unit tests and source review.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md.
+  Verification: Automatic-sending preview browser test: candidate exclusions, earliest time and prior attempts; notification delivery unit tests and source review.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md; Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md.
   Acceptance: Document actual delivered reminders and accurate failure feedback before declaring these functions ready.
   Still required: Controlled real-channel delivery and timing receipts.
 
@@ -774,10 +773,10 @@ Unchecked findings require the observations listed in the [qualification workshe
   Verification: Email operations/recovery browser suites and 65-event paging/search browser test; synthetic transport receipt and opt-out handling.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md.
   Acceptance: Operators do not mistake clearing one provider issue for permission to contact a opted-out recipient.
 - [ ] **EMAIL-05 — Real delivery recovery remains unverified here** · awaiting-qualification
-  Implementation: src/app/(staff)/admin/email/page.tsx; src/app/(staff)/admin/email/recovery/[deliveryId]/page.tsx; src/app/(staff)/admin/email/suppressions/page.tsx.
-  Verification: Email operations/recovery browser suites and 65-event paging/search browser test; synthetic transport receipt and opt-out handling.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md.
+  Implementation: src/app/(staff)/admin/email/page.tsx; src/app/(staff)/admin/email/recovery/[deliveryId]/page.tsx; src/app/(staff)/admin/email/suppressions/page.tsx; src/lib/email-provider-recovery.ts.
+  Verification: Email operations/recovery browser suites and 65-event paging/search browser test; synthetic transport receipt and opt-out handling.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md; Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md; 114 focused tests passed; actual Resend simulator receipt/event, same-key retry, bounce suppression and dedicated read credential verified. See docs/ui-ux-audit-2026-09-18/AUTHORIZED_FOLLOWUP.md..
   Acceptance: The UI’s delivery statements match provider records and safe retry outcomes.
-  Still required: Actual provider-side delivery/recovery evidence beyond synthetic receipts.
+  Still required: Controlled human-inbox observation and an eligible staff-UI recovery session; provider simulator evidence alone does not close these requirements.
 
 ## REPORT
 
@@ -868,6 +867,6 @@ Unchecked findings require the observations listed in the [qualification workshe
   Acceptance: Losing connectivity does not cause users to infer that an unsaved form has been stored.
 - [ ] **RECOVER-05 — Automated accessibility success is not full product qualification** · awaiting-qualification
   Implementation: src/app/error.tsx; src/app/not-found.tsx; src/app/offline/page.tsx; src/components/AppShell.tsx; docs/MANUAL_DEVICE_QUALIFICATION.md.
-  Verification: Three-engine route/a11y scan, public 404 and error recovery/source review; manual qualification remains open.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md.
+  Verification: Three-engine route/a11y scan, public 404 and error recovery/source review; manual qualification remains open.; Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md; Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md.
   Acceptance: Record keyboard, screen-reader, zoom, interruption and physical-device results; resolve blockers before unrestricted launch.
   Still required: Manual screen-reader, zoom/reflow, interruption and physical-device qualification.

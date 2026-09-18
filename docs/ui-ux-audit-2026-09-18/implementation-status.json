@@ -49,7 +49,8 @@
       ],
       "verification": [
         "Public/auth browser checks: initial demo focus, mobile navigation and context links; homepage roadmap reconciliation.",
-        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md",
+        "Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md"
       ],
       "acceptance": "In a moderated task, visitors can explain what each action does before choosing it.",
       "remaining": "Moderated acquisition-choice task with suitable participants.",
@@ -231,7 +232,8 @@
       ],
       "verification": [
         "Public/auth browser checks and marketing scenario tests; profession-route scan.",
-        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md",
+        "Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md"
       ],
       "acceptance": "Each profession has task-completion and comprehension evidence before claims of validated fit.",
       "remaining": "Profession-specific participant task and comprehension sessions.",
@@ -298,7 +300,8 @@
       ],
       "verification": [
         "Public/auth browser checks: edits retained on scenario switch, reset and intercepted sandbox handoffs.",
-        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md",
+        "Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md"
       ],
       "acceptance": "Participants distinguish opening, sending, recording and skipping without assistance.",
       "remaining": "Participant distinction between opening, sending, recording and skipping.",
@@ -470,7 +473,7 @@
       "title": "Trust content needs an owner-led factual review",
       "evidence": "V",
       "priority": "P2",
-      "status": "awaiting-qualification",
+      "status": "complete",
       "implementation": [
         "src/components/PublicArticle.tsx",
         "src/app/faq/page.tsx",
@@ -479,15 +482,22 @@
       ],
       "verification": [
         "Public route scan and source review of contents navigation, recovery and capability copy.",
-        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md",
+        "Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md",
+        "Owner reviewed the qualification materials and authorized proceeding on 2026-09-18: \"reviewed. go ahead and implement i authorize\"; current wording accepted without requested changes."
       ],
       "acceptance": "Record a dated content review and resolve any mismatched product claims before broad release.",
-      "remaining": "Dated owner-led factual review of trust and product claims.",
-      "liveImplementation": {
+      "liveEvidence": {
         "url": "https://jumpinthemix.com/",
         "commit": "32f276fc6bdd2a71d23692437e6836e1bebe090a",
         "verifiedAt": "2026-09-18T16:33:44.994Z",
         "proof": "Production source/asset hashes, web/worker health and synthetic authenticated smoke; docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      },
+      "ownerReview": {
+        "reviewedAt": "2026-09-18T20:36:48.194Z",
+        "reviewer": "Project owner via user message",
+        "statement": "reviewed. go ahead and implement i authorize",
+        "scope": "Current public claims and authorization to proceed; no participant, device or inbox observations inferred."
       }
     },
     {
@@ -1020,7 +1030,8 @@
       ],
       "verification": [
         "Browser navigation scan; retained Quick Add capture source and boundary tests.",
-        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md",
+        "Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md"
       ],
       "acceptance": "Record actual iPhone/Android outcomes, including recovery without losing typed text.",
       "remaining": "Physical iPhone/Android contact and voice capture, including cancellation.",
@@ -1261,7 +1272,8 @@
       ],
       "verification": [
         "Handoff/outcome tests and state/source review; physical devices remain separately open.",
-        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md",
+        "Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md"
       ],
       "acceptance": "Record successful and canceled handoffs on supported iPhone/Android combinations before public readiness signoff.",
       "remaining": "Physical iPhone/Android external-app handoff and return checks.",
@@ -2733,7 +2745,8 @@
       ],
       "verification": [
         "UI/UX workflow browser test: rating selection, private receipt, same public-review route at low rating and correction link.",
-        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md",
+        "Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md"
       ],
       "acceptance": "Customers understand where their feedback goes before submitting it.",
       "remaining": "Recipient comprehension observation for private feedback and public review.",
@@ -2981,7 +2994,8 @@
       ],
       "verification": [
         "Automatic-sending preview browser test: candidate exclusions, earliest time and prior attempts; notification delivery unit tests and source review.",
-        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md",
+        "Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md"
       ],
       "acceptance": "Document actual delivered reminders and accurate failure feedback before declaring these functions ready.",
       "remaining": "Controlled real-channel delivery and timing receipts.",
@@ -3956,19 +3970,22 @@
       "implementation": [
         "src/app/(staff)/admin/email/page.tsx",
         "src/app/(staff)/admin/email/recovery/[deliveryId]/page.tsx",
-        "src/app/(staff)/admin/email/suppressions/page.tsx"
+        "src/app/(staff)/admin/email/suppressions/page.tsx",
+        "src/lib/email-provider-recovery.ts"
       ],
       "verification": [
         "Email operations/recovery browser suites and 65-event paging/search browser test; synthetic transport receipt and opt-out handling.",
-        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md",
+        "Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md",
+        "114 focused tests passed; actual Resend simulator receipt/event, same-key retry, bounce suppression and dedicated read credential verified. See docs/ui-ux-audit-2026-09-18/AUTHORIZED_FOLLOWUP.md."
       ],
       "acceptance": "The UI’s delivery statements match provider records and safe retry outcomes.",
-      "remaining": "Actual provider-side delivery/recovery evidence beyond synthetic receipts.",
+      "remaining": "Controlled human-inbox observation and an eligible staff-UI recovery session; provider simulator evidence alone does not close these requirements.",
       "liveImplementation": {
         "url": "https://jumpinthemix.com/",
-        "commit": "32f276fc6bdd2a71d23692437e6836e1bebe090a",
-        "verifiedAt": "2026-09-18T16:33:44.994Z",
-        "proof": "Production source/asset hashes, web/worker health and synthetic authenticated smoke; docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+        "commit": "8520b73cc41d72c40ecec1ca06ca752fd95ce5d5",
+        "verifiedAt": "2026-09-18T21:01:10.031Z",
+        "proof": "Production source/asset hashes, migration and health checks, actual provider recovery/events; docs/ui-ux-audit-2026-09-18/AUTHORIZED_FOLLOWUP.md"
       }
     },
     {
@@ -4476,7 +4493,8 @@
       ],
       "verification": [
         "Three-engine route/a11y scan, public 404 and error recovery/source review; manual qualification remains open.",
-        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md",
+        "Supplementary verification and pending session tasks: docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md"
       ],
       "acceptance": "Record keyboard, screen-reader, zoom, interruption and physical-device results; resolve blockers before unrestricted launch.",
       "remaining": "Manual screen-reader, zoom/reflow, interruption and physical-device qualification.",
@@ -4488,12 +4506,28 @@
       }
     }
   ],
-  "updatedAt": "2026-09-18T16:35:58.072Z",
+  "updatedAt": "2026-09-18T21:01:48.983Z",
   "qualificationCaveat": "Engineering checks do not establish measured user comprehension, real device behavior or delivery. Open qualification items are not checked off.",
   "release": {
     "url": "https://jumpinthemix.com/",
-    "commit": "32f276fc6bdd2a71d23692437e6836e1bebe090a",
-    "verifiedAt": "2026-09-18T16:33:44.994Z",
-    "proof": "Production source/asset hashes, web/worker health and synthetic authenticated smoke; docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+    "commit": "8520b73cc41d72c40ecec1ca06ca752fd95ce5d5",
+    "verifiedAt": "2026-09-18T21:01:10.031Z",
+    "proof": "Production source/asset hashes, migration and health checks, actual provider recovery/events; docs/ui-ux-audit-2026-09-18/AUTHORIZED_FOLLOWUP.md"
+  },
+  "qualificationFollowup": {
+    "report": "docs/ui-ux-audit-2026-09-18/AUTHORIZED_FOLLOWUP.md",
+    "evidence": "docs/ui-ux-audit-2026-09-18/authorized-verification.json",
+    "recordedAt": "2026-09-18T21:01:48.983Z",
+    "completedFindings": 175,
+    "awaitingQualification": 9,
+    "deployed": true
+  },
+  "previousQualificationFollowup": {
+    "report": "docs/ui-ux-audit-2026-09-18/QUALIFICATION_CONTINUATION.md",
+    "evidence": "docs/ui-ux-audit-2026-09-18/qualification-verification.json",
+    "recordedAt": "2026-09-18T20:11:30.955Z",
+    "completedFindings": 174,
+    "awaitingQualification": 10,
+    "deployed": false
   }
 }
