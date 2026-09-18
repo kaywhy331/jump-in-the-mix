@@ -38,7 +38,7 @@ export default async function ProfessionPage({ params }: { params: Promise<{ pro
           <p className="hero-note">{persona.boundary}</p>
           <MixesFor current={persona.id} />
         </div>
-        <ProductDemo scenarioId={persona.id} scenarios={persona.mixes} heading={persona.demoHeading} legend={`Choose a ${persona.label.toLowerCase()} mix`} />
+        <ProductDemo scenarioId={persona.id} scenarios={persona.mixes} heading="Try one quick follow-up" legend={`Choose a ${persona.label.toLowerCase()} mix`} />
       </section>
       <section className="section public-route-notes" aria-labelledby="route-notes-title">
         <div className="section-heading"><h2 id="route-notes-title">What this is, and what it isn’t.</h2><p>{persona.boundary}</p></div>

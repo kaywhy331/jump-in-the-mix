@@ -20,25 +20,6 @@
   .jump-completion-actions > form { display: block; }
   .jump-task-complete .jump-completion-actions > form { display: none; }
 
-  .jump-completion-actions .jump-done-action {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    min-height: 44px;
-    padding: 0;
-    border-radius: 12px;
-    font-size: 0;
-  }
-
-  .jump-completion-actions .jump-done-action::after {
-    content: "✓";
-    font-size: 1.05rem;
-    line-height: 1;
-  }
-
   .contact-selection-controls {
     grid-template-columns: minmax(0, 1fr) auto auto;
   }

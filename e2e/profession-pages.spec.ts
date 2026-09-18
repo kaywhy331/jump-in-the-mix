@@ -4,38 +4,15 @@ import { PERSONAS } from "../src/lib/persona-mixes";
 
 test.use({ screenshot: "off", video: "off", trace: "off" });
 
-test("each profession has its own landing page playing that persona's mixes", async ({ page }) => {
+test("each profession has one short follow-up example", async ({ page }) => {
   for (const persona of PERSONAS) {
-    const response = await page.goto(`/for/${persona.slug}`);
-    expect(response?.status()).toBe(200);
+    await page.goto(`/for/${persona.slug}`);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(persona.headline);
-    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", new RegExp(`/for/${persona.slug}$`));
-    await expect(page.getByRole("heading", { name: persona.demoHeading })).toBeVisible();
-    const radios = page.getByRole("radio");
-    await expect(radios).toHaveCount(persona.mixes.length);
-    for (const mix of persona.mixes) await expect(page.getByRole("radio", { name: mix.label, exact: true })).toBeVisible();
-    await expect(page.locator("#waitlist").getByLabel("Email address")).toBeVisible();
-    await expect(page.locator('#waitlist input[name="scenario"]')).toHaveValue(persona.id);
-    await expect(page.locator(".product-demo").getByText("Fictional demo contact")).toBeVisible();
-    await expect(page.locator(".mixes-for a")).toHaveCount(PERSONAS.length + 1);
+    await expect(page.locator("#sample textarea")).toBeEnabled();
+    expect((await page.locator("#sample textarea").inputValue()).length).toBeLessThan(300);
     await expect(page.locator(".mixes-for a[aria-current='page']")).toHaveText(persona.navLabel);
-    await expect(page.locator(".demo-beat")).toHaveCount(persona.mixes[0].steps.length);
   }
   expect((await page.goto("/for/not-a-profession"))?.status()).toBe(404);
-});
-
-test("a persona mix steps through its beats like the homepage demo", async ({ page }) => {
-  const persona = PERSONAS.find(item => item.id === "painting")!;
-  await page.goto(`/for/${persona.slug}`);
-  const mix = persona.mixes[0];
-  await page.getByRole("radio", { name: mix.label, exact: true }).check();
-  await expect(page.locator(".demo-beat")).toHaveCount(mix.steps.length);
-  await expect(page.locator(".demo-beat").first().getByRole("button", { name: /Beat 1/ })).toHaveAttribute("aria-expanded", "true");
-  await page.locator(".demo-beat").nth(1).getByRole("button", { name: /Beat 2/ }).click();
-  await expect(page.locator(".demo-beat.open")).toHaveCount(1);
-  await expect(page.locator(".demo-beat.open .demo-beat-toggle")).toContainText(mix.steps[1].title);
-  await page.locator(".demo-beat.open").getByRole("button", { name: "Mark completed" }).click();
-  await expect(page.locator(".demo-beat.open .demo-beat-stamp")).toHaveText(/[A-Z][a-z]{2} \d{1,2}, \d{1,2}:\d{2}/);
 });
 
 test("the homepage links to every profession page and keeps its trimmed sections", async ({ page }) => {

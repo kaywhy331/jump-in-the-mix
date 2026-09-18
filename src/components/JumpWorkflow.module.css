@@ -34,8 +34,9 @@
   padding: 1rem;
   border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
   border-radius: 1rem;
-  background: Canvas;
-  color: CanvasText;
+  background: var(--surface);
+  color: var(--ink);
+  border: 2px solid var(--brand);
   box-shadow: 0 1rem 3rem rgb(0 0 0 / 22%);
 }
 
@@ -49,7 +50,7 @@
 
 .trayHeading p {
   margin: 0.2rem 0 0;
-  opacity: 0.72;
+  color: var(--muted);
 }
 
 .outcomeGrid {
@@ -64,7 +65,7 @@
 
 .detailDisclosure summary {
   cursor: pointer;
-  opacity: 0.72;
+  color: var(--muted);
 }
 
 .detailForm {
@@ -190,8 +191,8 @@
 
 @media (max-width: 680px) {
   .returnTray {
-    bottom: max(0.5rem, env(safe-area-inset-bottom));
-    max-height: calc(100dvh - 1rem);
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    max-height: calc(100dvh - 110px - env(safe-area-inset-bottom));
     overflow: auto;
     border-radius: 0.9rem;
   }

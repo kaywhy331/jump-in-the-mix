@@ -74,19 +74,22 @@ test("onboarding permits minimal details only after reviewing its actual starter
   expect((await prisma.workspaceProfile.findUniqueOrThrow({ where: { workspaceId: workspace.id } })).company).toBeNull();
 });
 
-test("low ratings retain the same optional public-review route and a correction path", async ({ page }) => {
+test("all ratings retain the same optional public-review route and a correction path", async ({ page }) => {
   const { workspace } = await member(page);
   const contact = await prisma.contact.create({ data: { workspaceId: workspace.id, displayName: "Feedback person" } });
+  for (const rating of [1, 2, 3, 4, 5]) {
   const token = randomBytes(32).toString("base64url");
   await prisma.reviewRequest.create({ data: { workspaceId: workspace.id, contactId: contact.id, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 3600_000) } });
   await page.goto(`/review/${token}`);
-  await page.getByRole("radio", { name: "1 out of 5" }).check();
-  await expect(page.getByText("Selected 1 out of 5")).toBeVisible();
+  await page.getByRole("radio", { name: `${rating} out of 5` }).check();
+  await expect(page.getByText(`Selected ${rating} out of 5`)).toBeVisible();
   await page.getByRole("button", { name: "Send private feedback" }).click();
   await expect(page.getByRole("link", { name: "Leave a public review (optional)" })).toBeVisible();
+  await page.getByText("Contact the business or correct feedback", { exact: true }).click();
   await expect(page.getByRole("link", { name: "Contact the business directly" })).toHaveAttribute("href", "https://example.com/contact");
   const handoff = await page.request.get(`/api/reviews/${token}/public-review`, { maxRedirects: 0 });
   expect(handoff.status()).toBe(302); expect(handoff.headers().location).toBe("https://example.com/review");
+  }
 });
 
 

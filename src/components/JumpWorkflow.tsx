@@ -322,17 +322,17 @@ export function JumpReturnTray() {
       <div className={styles.trayHeading}>
         <div>
           <strong>How did the follow-up with {session.contactName} go?</strong>
-          <p>Opening an app does not confirm sending. Record what actually happened.</p>
+          <p>Step 3 · Record what happened. Opening an app does not send it.</p>
         </div>
         <button className="button small" type="button" onClick={close} aria-label="Record outcome later">Later</button>
       </div>
       <div className={styles.outcomeGrid}>
         {quickOutcomes.map((item) => (
-          <button className={item.value === "NOT_SENT" ? "button" : "button primary"} type="button" key={item.value} disabled={saving} onClick={() => save(item.value)}>{item.label}</button>
+          <button className={["COMPLETED", "CONNECTED"].includes(item.value) ? "button primary" : "button"} type="button" key={item.value} disabled={saving} onClick={() => save(item.value)}>{item.label}</button>
         ))}
       </div>
       <details className={styles.detailDisclosure}>
-        <summary>Add a note, detailed outcome, or next follow-up</summary>
+        <summary>Add a note or next follow-up</summary>
         <form className={styles.detailForm} onSubmit={(event) => { event.preventDefault(); void save(outcome, true); }}>
           <label>
             <span>Outcome</span>

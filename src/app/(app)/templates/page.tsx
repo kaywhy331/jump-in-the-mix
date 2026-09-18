@@ -4,6 +4,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
 import { Sheet } from "@/components/Sheet";
 import { planGoalLabel, planGoalValues } from "@/lib/business-taxonomy";
+import { ProfessionExamples } from "@/components/ProfessionExamples";
 import { SharedMixPreview } from "@/components/SharedMixPreview";
 import { PlanApproachGuide } from "@/components/PlanApproachGuide";
 import { requireWorkspace } from "@/lib/auth";
@@ -62,8 +63,9 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
 
   return <div className="page mix-template-page">
     {params.error && <Notice type="error">{params.error}</Notice>}
-    <header className="page-header"><div><h1>Ready-made mixes</h1><p>Find your rhythm. Remix a starting point for a new connection, a customer, or someone you want to reconnect with.</p></div><div className="page-actions"><Link className="button" href="/mixes">My mixes</Link><Link className="button primary" href="/mixes/new?custom=1">Create a mix</Link></div></header>
-    <nav className="page-actions" aria-label="Choose a follow-up task">{[["Follow up a new lead", "lead"], ["Check an estimate", "estimate"], ["Reconnect with someone", "reconnect"]].map(([label, q]) => <Link className="button" href={`/templates?q=${q}`} key={q}>{label}</Link>)}<Link className="button" href="/templates">Browse all mixes</Link></nav>
+    <header className="page-header"><div><h1>Ready-made mixes</h1><p>Choose a plan for your next follow-up.</p></div><div className="page-actions"><Link className="button" href="/mixes">My mixes</Link><Link className="button primary" href="/mixes/new?custom=1">Create a mix</Link></div></header>
+    <ProfessionExamples />
+    <details className="workflow-options"><summary>Browse by task</summary><nav className="page-actions" aria-label="Choose a follow-up task">{[["Follow up a new lead", "lead"], ["Check an estimate", "estimate"], ["Reconnect with someone", "reconnect"]].map(([label, q]) => <Link className="button" href={`/templates?q=${q}`} key={q}>{label}</Link>)}<Link className="button" href="/templates">Browse all mixes</Link></nav></details>
     <form className="filter-bar plan-library-filters" method="get" action="/templates">
       <label className="field library-search"><span className="sr-only">Search ready-made mixes</span><input name="q" defaultValue={query} placeholder="Search a goal, approach, or author" type="search" /></label>
       <details className="library-refinements"><summary>Refine mixes{[category, industry, framework].filter(Boolean).length > 0 ? ` · ${[category, industry, framework].filter(Boolean).length}` : ""}</summary><div className="library-filter-fields">
@@ -86,11 +88,11 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
         <p className="library-plan-facts"><span>{steps.length} {steps.length === 1 ? "beat" : "beats"}</span><span>{template.durationDays === 0 ? "On the start date" : `${template.durationDays} ${template.durationDays === 1 ? "day" : "days"}`}</span></p>
         {template.framework && <p className="template-approach">{template.framework === "Ready-made" ? "Everyday follow-up" : template.framework}</p>}
         {issue ? <Notice type="error">This mix is being updated. Please choose another.</Notice> : <div className="mix-template-card-footer"><Link className="button primary" href={`/templates/${template.id}/use`}>Use this mix</Link>
-          <Sheet className="plan-preview-sheet" trigger={<button className="button" type="button" aria-label={`Preview the rhythm: ${template.title}`}>Preview the rhythm <span aria-hidden="true">↗</span></button>} title={template.title} description={template.description}>
+          <Sheet className="plan-preview-sheet" trigger={<button className="button" type="button" aria-label={`Preview the rhythm: ${template.title}`}>Preview</button>} title={template.title} description={template.description}>
             <Link className="button primary plan-preview-use" href={`/templates/${template.id}/use`}>Remix it</Link>
             {salesPlan && <p className="plan-audience"><strong>Best for</strong> {salesPlan.audience}</p>}
-            <SharedMixPreview title={template.title} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} durationDays={template.durationDays} steps={steps} expanded />
-            {salesPlan && <PlanApproachGuide plan={salesPlan}/>}
+            <SharedMixPreview title={template.title} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} durationDays={template.durationDays} steps={steps} />
+            {salesPlan && <details className="workflow-options"><summary>About this approach</summary><PlanApproachGuide plan={salesPlan}/></details>}
           </Sheet>
         </div>}
       </article>;

@@ -279,3 +279,25 @@
   .public-mobile-menu a { display: block; padding: 10px 4px; }
   .public-page .demo-actions { flex-wrap: wrap; }
 }
+
+/* The public demo demonstrates one useful follow-up, one decision at a time. */
+.quick-demo { padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow-md); min-width: 0; }
+.quick-demo-header h2 { margin: 0; font-size: 1.3rem; }
+.quick-demo-header p { margin: 5px 0 14px; color: var(--muted); font-size: .88rem; }
+.quick-demo-examples { margin-bottom: 12px; font-size: .88rem; }
+.quick-demo-examples summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; text-decoration: underline; text-underline-offset: 3px; }
+.quick-demo-step { border-top: 1px solid var(--line); padding-top: 16px; }
+.quick-demo-step h3 { font-size: 1.16rem; margin: 0 0 12px; }
+.quick-demo-step p { margin: 0 0 12px; }
+.quick-demo-progress { color: var(--muted); font-size: .78rem; font-weight: 650; }
+.quick-demo-context { color: var(--muted); font-size: .92rem; }
+.quick-demo textarea { min-height: 110px; line-height: 1.5; resize: vertical; background: var(--surface-soft); }
+.quick-demo blockquote { margin: 0 0 16px; padding: 16px; border-left: 3px solid var(--brand); border-radius: 0 12px 12px 0; background: var(--surface-soft); white-space: pre-wrap; overflow-wrap: anywhere; }
+.quick-demo-actions { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: stretch; }
+.quick-demo .button { min-height: 44px; padding: 10px 14px; white-space: normal; }
+.quick-demo-next { border: 0; padding: 0; margin: 0 0 18px; display: grid; gap: 8px; }
+.quick-demo-next label { display: flex; gap: 10px; align-items: center; min-height: 46px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.quick-demo-next input { width: auto; }
+.quick-demo-access { color: var(--muted); font-size: .85rem; margin-top: 12px !important; }
+.quick-demo-reset { margin-top: 10px; min-height: 44px; color: var(--muted); }
+@media (max-width: 600px) { .quick-demo { padding: 16px; border-radius: 16px; } .quick-demo-actions { grid-template-columns: minmax(0,1fr) minmax(0,1.35fr); } }

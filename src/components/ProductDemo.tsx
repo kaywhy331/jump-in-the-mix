@@ -2,200 +2,60 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { AppIcon, type AppIconName } from "@/components/AppIcon";
-import { DEMO_CONTACT_DEFAULTS, DEMO_MARKER, DEMO_SCENARIOS, demoActionUrl, personalizeDemoText, resolveDemoContact, type DemoContactDetails, type DemoStep } from "@/lib/product-demo";
-import { WhenPicker } from "@/components/WhenPicker";
-import { addDays, dateKeyOf } from "@/lib/when-picker";
+import { DEMO_SCENARIOS } from "@/lib/product-demo";
+import { MARKETING_SCENARIOS } from "@/lib/marketing-scenarios";
 
-const channels: Record<DemoStep["channel"], { label: string; action: string; icon: AppIconName }> = {
-  text: { label: "Text", action: "Text Message", icon: "message" },
-  email: { label: "Email", action: "E-Mail", icon: "email" },
-  phone: { label: "Phone", action: "Phone Call", icon: "phone" }
-};
-
-const HANDOFF_TIP = "This is a practice preview. No app opens and nothing is sent. In your account, you review the draft before opening your own messaging app.";
-const stampFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
-export const formatBeatStamp = (at: number | Date) => stampFormat.format(at);
-// datetime-local wants local wall-clock time without an offset.
-const toLocalInput = (at: number) => { const d = new Date(at); const pad = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-// A planned beat starts on the usual follow-up window, tomorrow at ten, decided once the page is live in the browser.
-type PlannedWhen = { date: string; time: string };
-const defaultPlanned = (): PlannedWhen => ({ date: addDays(dateKeyOf(new Date()), 1), time: "10:00" });
-
-const SkipIcon = () => <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5.5v9l7-4.5z" /><path d="M14.5 5.5v9" /></svg>;
-const CopyIcon = () => <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="7" width="9" height="9" rx="1.5" /><path d="M13 7V5.5A1.5 1.5 0 0 0 11.5 4h-6A1.5 1.5 0 0 0 4 5.5v6A1.5 1.5 0 0 0 5.5 13H7" /></svg>;
-
-type BeatState = { status: "completed" | "skipped"; at: number };
-
-// One "i" that explains the handoff on hover, focus or tap, in place of the old help lines.
-function InfoTip({ id }: { id: string }) {
-  const [open, setOpen] = useState(false);
-  return <span className={`demo-info${open ? " open" : ""}`} onMouseLeave={() => setOpen(false)}>
-    <button type="button" className="demo-info-button" aria-label="How opening your app works" aria-describedby={id} aria-expanded={open} onClick={() => setOpen(current => !current)} onBlur={() => setOpen(false)}>
-      <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><circle cx="10" cy="6.3" r="1.05" fill="currentColor" /><path d="M8.5 9h1.9v5M8.5 14h3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-    </button>
-    <span role="tooltip" id={id} className="demo-info-tip">{HANDOFF_TIP}</span>
-  </span>;
-}
-
-// The recorded time is a button; clicking it opens a picker so the user can correct it.
-function BeatStamp({ state, onChange }: { state: BeatState; onChange: (at: number) => void }) {
-  const [editing, setEditing] = useState(false);
-  const label = state.status === "completed" ? "Completed" : "Skipped";
-  if (editing) {
-    return <span className={`demo-beat-stamp editing ${state.status}`}>
-      <input type="datetime-local" aria-label={`${label} time`} value={toLocalInput(state.at)} autoFocus onChange={event => { const next = new Date(event.target.value).getTime(); if (!Number.isNaN(next)) onChange(next); }} onBlur={() => setEditing(false)} onKeyDown={event => { if (event.key === "Enter" || event.key === "Escape") setEditing(false); }} />
-    </span>;
-  }
-  return <button type="button" className={`demo-beat-stamp ${state.status}`} title={`${label} — click to change the time`} aria-label={`${label} ${formatBeatStamp(state.at)}. Change the time`} onClick={() => setEditing(true)}>
-    {state.status === "completed" ? <AppIcon name="check" /> : <SkipIcon />}
-    <time dateTime={new Date(state.at).toISOString()}>{formatBeatStamp(state.at)}</time>
-  </button>;
-}
-
-function DemoBeat({ step, index, open, state, ready, appleMobile, contact, onToggle, onMark }: {
-  step: DemoStep; index: number; open: boolean; state: BeatState | null; ready: boolean; appleMobile: boolean; contact: DemoContactDetails;
-  onToggle: () => void; onMark: (status: BeatState["status"] | null, at?: number) => void;
-}) {
-  const uid = useId();
-  const [messageDraft, setMessage] = useState<string | null>(null);
-  const [subjectDraft, setSubject] = useState<string | null>(null);
-  const [planned, setPlanned] = useState<PlannedWhen | null>(null);
-  useEffect(() => { if (ready && step.planned) setPlanned(current => current ?? defaultPlanned()); }, [ready, step.planned]);
-  const [status, setStatus] = useState("");
-  const message = messageDraft ?? personalizeDemoText(step.message, contact);
-  const subject = subjectDraft ?? personalizeDemoText(step.subject ?? "", contact);
-  const messageField = useRef<HTMLTextAreaElement>(null);
-  const channel = channels[step.channel];
-  const actionUrl = demoActionUrl(step.channel, subject, message, appleMobile, contact);
-  const edited = messageDraft !== null || subjectDraft !== null;
-  const completed = state?.status === "completed";
-  const skipped = state?.status === "skipped";
-  const plannedLabel = step.planned ? (planned ? `Planned ${formatBeatStamp(new Date(`${planned.date}T${planned.time}`).getTime())}` : step.timing) : step.timing;
-
-  async function copyDraft() {
-    try {
-      await navigator.clipboard.writeText(`${DEMO_MARKER}\n\n${subject ? `${subject}\n\n` : ""}${message}`);
-      setStatus("Demo copied. You can paste it into your app.");
-    } catch {
-      messageField.current?.focus();
-      messageField.current?.select();
-      setStatus("Copy is unavailable here. The draft is selected so you can copy it manually.");
-    }
-  }
-
-  return <li className={`demo-beat${open ? " open" : ""}${completed ? " done" : ""}${skipped ? " skipped" : ""}`}>
-    <div className="demo-beat-head">
-      {state && <BeatStamp state={state} onChange={at => onMark(state.status, at)} />}
-      <button type="button" className="demo-beat-toggle" id={`${uid}-toggle`} aria-expanded={open} aria-controls={`${uid}-body`} onClick={onToggle}>
-        <span className="demo-beat-number">Beat {index + 1}</span>
-        <span className="demo-beat-title">{step.title}</span>
-        <span className="demo-beat-meta"><AppIcon name={channel.icon} />{channel.label} · {plannedLabel}</span>
-        <AppIcon name="chevronDown" />
-      </button>
-    </div>
-    {/* Bodies stay mounted so edits survive switching between beats; only the open one is shown. */}
-    <div className="demo-beat-body" id={`${uid}-body`} role="region" aria-labelledby={`${uid}-toggle`} hidden={!open}>
-      {/* Inline rather than a drawer: the demo shares the page, so the calendar opens beneath the fields. */}
-      {step.planned && <div className="field demo-planned"><span className="field-label">Planned date</span><WhenPicker label="Planned date" variant="inline" date={planned?.date ?? ""} time={planned?.time ?? "10:00"} noPast disabled={!ready || !planned} hint="When this beat will be ready for review. Selecting a date does not send it." onChange={next => setPlanned({ date: next.date, time: next.time ?? "10:00" })} /></div>}
-      {step.channel === "email" && <label className="field"><span>Subject</span><input disabled={!ready} value={subject} maxLength={160} onChange={event => { setSubject(event.target.value); setStatus(""); }} /></label>}
-      {/* The name lives on the control: a wrapping label's text would include the draft itself. */}
-      <div className="field demo-message-field"><span className="conversation-note demo-notes-bubble"><textarea className="demo-message" ref={messageField} aria-label={step.channel === "phone" ? "Call reminders, one per line" : "Message"} disabled={!ready} value={message} maxLength={1500} rows={step.channel === "email" ? 6 : 4} onChange={event => { setMessage(event.target.value); setStatus(""); }} /></span></div>
-      {step.channel === "phone" && <details className="demo-contact-note-preview"><summary>Contact notes</summary><p>{contact.notes}</p></details>}
-      {edited && <button className="button demo-reset-draft" type="button" onClick={() => { setMessage(null); setSubject(null); setStatus(""); }}>Use prepared {step.channel === "phone" ? "reminders" : "message"}</button>}
-      <div className="demo-actions">
-        <button className="button primary" type="button" disabled={!ready} aria-describedby={`${uid}-tip`} onClick={() => setStatus(`Practice preview: ${step.channel === "phone" ? "review your call notes" : "review and edit this message"}. No app opened and nothing was sent.`)}><AppIcon name={channel.icon} /><span>Preview {step.channel === "phone" ? "call" : step.channel === "email" ? "email" : "text"}</span></button>
-        <button className="button demo-copy" type="button" disabled={!ready} aria-label={step.channel === "phone" ? "Copy notes" : "Copy message"} title={step.channel === "phone" ? "Copy notes" : "Copy message"} onClick={copyDraft}><CopyIcon /><span>Copy</span></button>
-        <button className={`button demo-check${completed ? " done" : ""}`} type="button" disabled={!ready} aria-pressed={completed} aria-label={completed ? "Completed — undo" : "Mark completed"} title={completed ? "Undo completed" : "Mark completed"} onClick={() => onMark(completed ? null : "completed")}><AppIcon name="check" /><span>{completed ? "Undo done" : "Mark done"}</span></button>
-        <button className={`button demo-skip${skipped ? " done" : ""}`} type="button" disabled={!ready} aria-pressed={skipped} aria-label={skipped ? "Skipped — undo" : "Skip"} title={skipped ? "Undo skip" : "Skip this beat"} onClick={() => onMark(skipped ? null : "skipped")}><SkipIcon /><span>Skip</span></button>
-        <InfoTip id={`${uid}-tip`} />
-      </div>
-      {!actionUrl && <p className="demo-draft-help" id={`${uid}-contact-help`}>Enter a valid {step.channel === "email" ? "email address" : "phone number"} in Edit contact, or leave it blank to use the sample.</p>}
-      <p className="demo-status" role="status">{status}</p>
-    </div>
-  </li>;
-}
-
+const examples = [
+  { id: "client", label: "A client check-in", person: "Alex", context: "Alex asked you to check back this week.", message: "Hi Alex, you asked me to check back this week. Is now a good time to pick up our conversation?" },
+  { id: "personal", label: "A personal hello", person: "Sam", context: "It has been a while since you caught up.", message: "Hi Sam, you crossed my mind today. How have you been? It would be lovely to catch up when you have a moment." },
+  { id: "networking", label: "After meeting someone", person: "Jordan", context: "You met Jordan at an event yesterday.", message: "Hi Jordan, it was great meeting you yesterday. I enjoyed hearing about your work. Would you like to grab a coffee next week?" }
+];
+type Practice = { message: string; step: 0 | 1 | 2 | 3; next: "tomorrow" | "later" };
 type DemoScenario = (typeof DEMO_SCENARIOS)[number];
-// The homepage plays the generic mixes; each profession page hands in that persona's own.
-export function ProductDemo({ scenarioId, scenarios = DEMO_SCENARIOS, heading = "Try a demo mix", legend = "Choose a demo mix" }: { scenarioId?: string; scenarios?: readonly DemoScenario[]; heading?: string; legend?: string } = {}) {
-  const [resetVersion, setResetVersion] = useState(0);
-  const [ready, setReady] = useState(false);
-  const [appleMobile, setAppleMobile] = useState(false);
-  const [selected, setSelected] = useState(0);
-  const [openBeat, setOpenBeat] = useState(0);
-  const [beatStates, setBeatStates] = useState<Record<string, BeatState>>({});
-  const [contactValues, setContactValues] = useState<DemoContactDetails>({ ...DEMO_CONTACT_DEFAULTS });
-  const [highlighted, setHighlighted] = useState(false);
-  const demoWindow = useRef<HTMLElement>(null);
-  const contactEditor = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    setAppleMobile(/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
-    setReady(true);
-    let highlightTimeout: number | undefined;
-    const highlight = () => {
-      window.clearTimeout(highlightTimeout);
-      setHighlighted(true);
-      setOpenBeat(0);
-      requestAnimationFrame(() => {
-        const field = demoWindow.current?.querySelector<HTMLTextAreaElement>("ol:not([hidden]) textarea");
-        field?.focus(); field?.scrollIntoView({ block: "center", behavior: "smooth" });
-      });
-      highlightTimeout = window.setTimeout(() => setHighlighted(false), 3000);
-    };
-    const handleTrigger = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-      if (event.target instanceof Element && event.target.closest('[data-demo-trigger][href="#sample"]')) {
-        event.preventDefault(); highlight();
-      }
-    };
-    document.addEventListener("click", handleTrigger);
-    if (window.location.hash === "#sample") highlight();
-    return () => { document.removeEventListener("click", handleTrigger); window.clearTimeout(highlightTimeout); };
-  }, []);
-  const scenario = scenarios[selected];
-  const selection = scenarioId ? `${scenarioId}~${scenario.id}` : undefined;
-  useEffect(() => { if (selection) window.dispatchEvent(new CustomEvent("jitm:scenario", { detail: { scenario: selection } })); }, [selection]);
-  const contact = resolveDemoContact(contactValues);
-  const sampleContact = contact.name === DEMO_CONTACT_DEFAULTS.name && contact.phone === DEMO_CONTACT_DEFAULTS.phone && contact.email === DEMO_CONTACT_DEFAULTS.email;
-  const initials = contact.name.split(/\s+/).slice(0, 2).map(part => Array.from(part)[0]).join("").toLocaleUpperCase();
-  const updateContact = (field: keyof DemoContactDetails, value: string) => setContactValues(current => ({ ...current, [field]: value }));
-  // Completion and skips are remembered per beat of each mix while the page is open, like a real day's list.
-  const beatKey = (index: number) => `${scenario.id}:${index}`;
-  const markBeat = (index: number, status: BeatState["status"] | null, at?: number) => setBeatStates(current => {
-    const key = beatKey(index);
-    if (!status) { const { [key]: _removed, ...rest } = current; return rest; }
-    return { ...current, [key]: { status, at: at ?? Date.now() } };
-  });
 
-  return <section ref={demoWindow} className={`product-demo conversation-panel speech-bubble${highlighted ? " demo-highlighted" : ""}`} id="sample" data-marketing-scenario={selection} tabIndex={-1} aria-label={heading} aria-busy={!ready}>
-    <div className="product-demo-heading"><h2>{heading}</h2><p>Practice only. Nothing is sent and no messaging app opens.</p></div>
-    <div className="demo-contact">
-      <div className="demo-person"><span className="demo-avatar" aria-hidden="true">{initials}</span><div><strong>{contact.name}</strong><p>{sampleContact ? "Fictional demo contact" : "Your test contact"}</p></div></div>
-      <div className="demo-contact-details"><span>{contact.phone}</span><span>{contact.email}</span></div>
-      <details className="demo-contact-editor" ref={contactEditor}>
-        <summary>Edit contact</summary>
-        <p className="demo-contact-help">Try your own details. Names update the prepared messages below as you type. Leave any field blank to use the sample.</p>
-        <div className="demo-contact-fields">
-          <label className="field"><span>Contact name</span><input autoComplete="off" name="demo-contact-name" disabled={!ready} value={contactValues.name} maxLength={120} onChange={event => updateContact("name", event.target.value)} /></label>
-          <label className="field"><span>Your name</span><input autoComplete="off" name="demo-sender-name" disabled={!ready} value={contactValues.senderName} maxLength={120} onChange={event => updateContact("senderName", event.target.value)} /></label>
-          <label className="field"><span>Phone</span><input type="tel" autoComplete="off" name="demo-contact-phone" disabled={!ready} value={contactValues.phone} maxLength={40} onChange={event => updateContact("phone", event.target.value)} /></label>
-          <label className="field"><span>Email</span><input type="email" autoComplete="off" name="demo-contact-email" disabled={!ready} value={contactValues.email} maxLength={254} onChange={event => updateContact("email", event.target.value)} /></label>
-          <div className="field demo-contact-notes"><label htmlFor="demo-contact-notes">Notes</label><textarea id="demo-contact-notes" autoComplete="off" name="demo-contact-notes" disabled={!ready} value={contactValues.notes} maxLength={1000} rows={3} onChange={event => updateContact("notes", event.target.value)} /></div>
-        </div>
-        <div className="demo-contact-editor-actions"><button className="button" type="button" disabled={!ready} onClick={() => setContactValues({ ...DEMO_CONTACT_DEFAULTS })}>Use sample contact</button><button className="button" type="button" onClick={() => { if (contactEditor.current) contactEditor.current.open = false; }}>Done</button></div>
-        <p className="demo-contact-help">These details stay in this demo and reset when you refresh.</p>
-      </details>
+// A short, in-memory showcase. It never opens a composer, sends, or saves a schedule.
+export function ProductDemo({ scenarioId, scenarios, heading = "Try one follow-up" }: { scenarioId?: string; scenarios?: readonly DemoScenario[]; heading?: string; legend?: string } = {}) {
+  const persona = MARKETING_SCENARIOS.find(item => item.id === scenarioId);
+  const choices = persona ? [{ id: persona.id === "consulting" ? "milestone" : scenarios?.[0]?.id ?? persona.id, label: persona.starterTitle, person: persona.person, context: persona.context, message: persona.draft }] : examples;
+  const [selected, setSelected] = useState(choices[0].id);
+  const [practices, setPractices] = useState<Record<string, Practice>>({});
+  const [ready, setReady] = useState(false);
+  const example = choices.find(item => item.id === selected) ?? choices[0];
+  const initial: Practice = { message: example.message, step: 0, next: "tomorrow" };
+  const practice = practices[example.id] ?? initial;
+  const update = (patch: Partial<Practice>) => setPractices(current => ({ ...current, [example.id]: { ...(current[example.id] ?? initial), ...patch } }));
+  const field = useRef<HTMLTextAreaElement>(null);
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  const focusStep = useRef(false);
+  const uid = useId();
+  const selection = persona ? `${persona.id}~${example.id}` : undefined;
+  useEffect(() => { setReady(true); }, []);
+  useEffect(() => { if (selection) window.dispatchEvent(new CustomEvent("jitm:scenario", { detail: { scenario: selection } })); }, [selection]);
+  useEffect(() => { if (focusStep.current) { stepHeading.current?.focus(); focusStep.current = false; } }, [practice.step]);
+  useEffect(() => {
+    const highlight = () => { setPractices(current => ({ ...current, [example.id]: { ...(current[example.id] ?? initial), step: 0 } })); requestAnimationFrame(() => { field.current?.focus(); field.current?.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" }); }); };
+    const trigger = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (event.target instanceof Element && event.target.closest('[data-demo-trigger][href="#sample"]')) { event.preventDefault(); highlight(); }
+    };
+    document.addEventListener("click", trigger, true);
+    return () => document.removeEventListener("click", trigger, true);
+  }, [example.id, example.message]);
+  const go = (step: Practice["step"]) => { focusStep.current = true; update({ step }); };
+  const title = ["Make it sound like you", "Review your message", "Choose the next step", practice.next === "later" ? "Left for now" : "A next step, ready to review"][practice.step];
+
+  return <section className="product-demo quick-demo" id="sample" aria-label={heading} data-marketing-scenario={selection} aria-busy={!ready}>
+    <div className="quick-demo-header"><h2>{heading}</h2><p>Fictional example. Nothing is sent.</p></div>
+    {choices.length > 1 && <details className="quick-demo-examples"><summary>Change example</summary><label className="field"><span>Example</span><select value={example.id} disabled={!ready} onChange={event => setSelected(event.target.value)}>{choices.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label></details>}
+    <div className="quick-demo-step" aria-labelledby={`${uid}-step`}>
+      <p className="quick-demo-progress">{practice.step < 3 ? `Step ${practice.step + 1} of 3` : "Practice complete"}</p>
+      <h3 id={`${uid}-step`} ref={stepHeading} tabIndex={-1}>{title}</h3>
+      {practice.step === 0 && <><p className="quick-demo-context">{example.context}</p><label className="field"><span>Message to {example.person}</span><textarea ref={field} value={practice.message} onChange={event => update({ message: event.target.value })} maxLength={1500} rows={4} disabled={!ready} /></label><button className="button primary" type="button" disabled={!ready || !practice.message.trim()} onClick={() => go(1)}>Preview message</button></>}
+      {practice.step === 1 && <><p className="quick-demo-recipient">To {example.person}</p><blockquote>{practice.message}</blockquote><p>In your account, you send through your own messaging app. This preview sends nothing.</p><div className="quick-demo-actions"><button className="button" type="button" onClick={() => go(0)}>Back to edit</button><button className="button primary" type="button" onClick={() => go(2)}>Choose next step</button></div></>}
+      {practice.step === 2 && <><p>When would you like to check in again?</p><fieldset className="quick-demo-next"><legend className="sr-only">Next step</legend><label><input type="radio" name={`${uid}-next`} checked={practice.next === "tomorrow"} onChange={() => update({ next: "tomorrow" })} />Review tomorrow</label><label><input type="radio" name={`${uid}-next`} checked={practice.next === "later"} onChange={() => update({ next: "later" })} />Leave it for now</label></fieldset><div className="quick-demo-actions"><button className="button" type="button" onClick={() => go(1)}>Back</button><button className="button primary" type="button" onClick={() => go(3)}>Finish practice</button></div></>}
+      {practice.step === 3 && <><p role="status">{practice.next === "tomorrow" ? "In your account, this follow-up would appear in Today tomorrow." : "You chose to leave this follow-up for now."} Nothing was sent or scheduled in this demo.</p><p>A Mix is a follow-up plan you can reuse.</p><Link className="button primary" href={selection ? `/waitlist?scenario=${encodeURIComponent(selection)}` : "/waitlist"}>Join the waitlist</Link><p className="quick-demo-access">Confirm your email, then wait for an invitation. Free account; no card.</p></>}
     </div>
-    <fieldset className="demo-scenarios" disabled={!ready}><legend>{legend}</legend>{scenarios.map((item, index) => <label key={item.id}><input type="radio" name="demo-scenario" checked={selected === index} onChange={() => { setSelected(index); setOpenBeat(0); }} /><span>{item.label}</span></label>)}</fieldset>
-    <section className="demo-rhythm" aria-labelledby="demo-rhythm-title">
-      <h3 id="demo-rhythm-title">Rhythm <span>· {scenario.steps.length} beats</span></h3>
-      <p className="demo-scenario-description">{scenario.description}</p>
-      {scenarios.map(item => <ol className="demo-beats" hidden={item.id !== scenario.id} key={`${item.id}:${resetVersion}`}>
-        {item.steps.map((step, index) => <DemoBeat key={`${item.id}-${index}`} step={step} index={index} open={openBeat === index} state={beatStates[`${item.id}:${index}`] ?? null} ready={ready} appleMobile={appleMobile} contact={contact} onToggle={() => setOpenBeat(current => current === index ? -1 : index)} onMark={(status, at) => markBeat(index, status, at)} />)}
-      </ol>)}
-    </section>
-    <button className="text-button" type="button" onClick={() => { setContactValues({ ...DEMO_CONTACT_DEFAULTS }); setBeatStates({}); setResetVersion(value => value + 1); setOpenBeat(0); }}>Reset entire demo</button>
-    <Link className="demo-start" href={selection ? `/waitlist?scenario=${encodeURIComponent(selection)}` : "/waitlist"}>Join the waitlist <span aria-hidden="true">→</span></Link>
+    <button className="text-button quick-demo-reset" type="button" disabled={!ready} onClick={() => { focusStep.current = true; setPractices(current => ({ ...current, [example.id]: initial })); }}>Reset example</button>
+    <noscript><p>This example needs JavaScript to edit. You can still read it and <Link href="/waitlist">join the waitlist</Link>.</p></noscript>
   </section>;
 }

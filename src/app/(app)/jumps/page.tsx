@@ -7,7 +7,6 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { EditableFollowUpAction } from "@/components/EditableFollowUpAction";
 import { FollowUpChannelChoice, type ChannelChoiceOption } from "@/components/FollowUpChannelChoice";
 import { EmptyState } from "@/components/EmptyState";
-import { JumpActionLink } from "@/components/JumpActionControls";
 import { JumpOutcomeButton, JumpReturnTray, JumpStampEditor, JumpWorkflowCard } from "@/components/JumpWorkflow";
 import { Notice } from "@/components/Notice";
 import { TodayBriefing } from "@/components/TodayBriefing";
@@ -74,27 +73,11 @@ type SearchParams = {
   listReset?: string;
 };
 
-type ActionType = "COMPOSED" | "CALLED" | "VOICEMAIL_STARTED";
 
 const pendingStatuses: JumpStatus[] = ["PENDING"];
 const doneStatuses: JumpStatus[] = ["DONE"];
 const completedStatuses: JumpStatus[] = [...doneStatuses, "SKIPPED"];
 const channels: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
-
-function actionUrl(channel: Channel, email: string | undefined, phone: string | undefined, snapshot: Snapshot): string | null {
-  const body = encodeURIComponent(snapshot.body ?? snapshot.script ?? "");
-  if (channel === "EMAIL" && email) return `mailto:${email}?subject=${encodeURIComponent(snapshot.subject ?? "")}&body=${body}`;
-  if (channel === "SMS" && phone) return `sms:${phone}?body=${body}`;
-  if (channel === "WHATSAPP" && phone) return `https://wa.me/${phone.replace(/\D/g, "")}?text=${body}`;
-  if ((channel === "PHONE_CALL" || channel === "VOICEMAIL") && phone) return `tel:${phone}`;
-  return null;
-}
-
-function actionType(channel: Channel): ActionType {
-  if (channel === "PHONE_CALL") return "CALLED";
-  if (channel === "VOICEMAIL") return "VOICEMAIL_STARTED";
-  return "COMPOSED";
-}
 
 function channelLabel(channel: Channel): string {
   if (channel === "PHONE_CALL") return "call";
@@ -253,10 +236,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const preparedSubject = draft ? projectDraftSource(draft.subject, draftValues) : alternative ? projectDraftSource(template!.subject, draftValues) : snapshot.subject ?? null;
     const preparedContent = draft ? projectDraftSource(draft.body ?? draft.script, draftValues) : alternative ? projectDraftSource(template!.body ?? template!.script, draftValues) : null;
     const content = preparedContent ?? snapshot.body ?? snapshot.script ?? snapshot.subject ?? "No message has been prepared yet.";
-    const url = actionUrl(followUpChannel, email, phone, alternative ? { subject: preparedSubject, body: family === "CALL" ? null : preparedContent, script: family === "CALL" ? preparedContent : null } : snapshot);
     const contextVersions = { contactVersion: followUp.contact.updatedAt.toISOString(), businessProfileVersion: profile?.updatedAt.toISOString() ?? "none" };
-    // A direct call from the list records the notes as shown, so the attempt matches the card.
-    const callAttempt = isPending && phone ? { contactId: followUp.contactId, channel: followUpChannel, family, recipient: phone, subject: null, body: null, script: preparedContent ?? snapshot.script ?? null, draftRevision: draft?.revision ?? null, stepVersionId: followUp.stepVersionId, contextVersions } : null;
     // Switching away from the plan's channel takes this follow-up out of automatic delivery; the card says so.
     const automaticForPlan = !followUp.accessInvite && automaticFor(planChannel);
     const heldByChoice = Boolean(alternative && automaticForPlan);
@@ -304,7 +284,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       automaticDelivery={automaticForPlan && !alternative}
       changedDetails={changedDetails}
     />;
-    const prepare = <>{choice}{editableAction}</>;
+    const prepare = <><p className="workflow-step-label">Step 1 · Review your follow-up</p>{choice && <details className="workflow-options"><summary>Change contact method</summary>{choice}</details>}{editableAction}</>;
 
     return (
       <JumpWorkflowCard jumpId={followUp.id} contactName={followUp.contact.displayName} revision={followUp.updatedAt.toISOString()} key={followUp.id}>
@@ -313,28 +293,23 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             {isNext && <span className="eyebrow">Next up</span>}
             <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span className={followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{dueLabel}</span><span className="channel-pill">{channelLabel(followUpChannel)}</span></div>
             <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}<span>{followUp.mix.name}</span>{followUp.reason && followUp.reason.trim().toLowerCase() !== followUp.mix.name.trim().toLowerCase() && <span>{followUp.reason}</span>}{isPending && <span className="status-pill">{automaticForPlan && !heldByChoice && !drafts.get(followUp.id) && !followUp.accessInvite && (!followUp.appointmentBinding || followUp.appointmentBinding.automaticDelivery) && !missingMethod ? "Automatic sending enabled" : automaticForPlan ? "Held for your review" : "Manual · you send"}</span>}</div>
-            {isNext ? <>{prepare}{recentEvents.length > 0 && <div className="jump-action-history"><small>Recent activity</small>{recentEvents.map((event) => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt, displayPreferences)}</span>)}</div>}</> : <p className="jump-snippet">{snippet}</p>}
+            <p className="jump-snippet">{snippet}</p>
           </div>
 
           <div className="jump-primary-action">
-            {!isNext && (missingMethod ? (
-              <Link className="button primary jump-channel-action" href={`/contacts/${followUp.contactId}/edit`} aria-label={`Add ${needsEmail ? "email" : "phone"} for ${followUp.contact.displayName}`}><AppIcon name="add" /><span>Add {needsEmail ? "email" : "phone"}</span></Link>
-            ) : directCall && url ? (
-              <JumpActionLink jumpId={followUp.id} action={actionType(followUpChannel)} href={url} className="button primary jump-channel-action" ariaLabel={`Call ${followUp.contact.displayName}`} title="Call" contactName={followUp.contact.displayName} channel={followUpChannel} attempt={callAttempt}><AppIcon name="phone" /><span>Call</span></JumpActionLink>
-            ) : (
-              <Sheet trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review message for ${followUp.contact.displayName}`}><AppIcon name={followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Message ${followUp.contact.displayName}`} description="Make it sound like you. Fine-tune before opening your phone’s composer.">{prepare}</Sheet>
-            ))}
+            {isPending && <Sheet className="follow-up-review-sheet" trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review ${directCall ? "call" : "message"} for ${followUp.contact.displayName}`}><AppIcon name={directCall ? "phone" : followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Follow up with ${followUp.contact.displayName}`} description="Review, open your app, then come back to record what happened.">{prepare}</Sheet>}
             <div className="jump-completion-actions">
-              <JumpOutcomeButton jumpId={followUp.id} confirmation={isPending && !isNext ? `Record ${channelLabel(followUpChannel)} follow-up for ${followUp.contact.displayName} as complete? This records your action; it does not send a message.` : undefined} outcome={isPending ? "COMPLETED" : "REOPENED"} className={`button small jump-done-action ${isPending ? "" : "done"}`} ariaLabel={isPending ? `Mark done for ${followUp.contact.displayName}` : "Undo"}><AppIcon name="check" /><span>{isPending ? "Mark done" : "Undo"}</span></JumpOutcomeButton>
-              {isPending && <JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" confirmation={!isNext ? `Skip ${followUp.reason || followUp.mix.name} for ${followUp.contact.displayName}? You can undo this immediately or reopen it from the skipped list.` : undefined} className="button small jump-skip-action" ariaLabel="Skip"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5.5v9l7-4.5z" /><path d="M14.5 5.5v9" /></svg><span>Skip</span></JumpOutcomeButton>}
+              {!isPending && <JumpOutcomeButton jumpId={followUp.id} outcome="REOPENED" className="button small jump-done-action" ariaLabel="Undo"><span>Undo</span></JumpOutcomeButton>}
               {isPending && <Sheet
                 trigger={<button className="button small" type="button" aria-label={`More options for ${followUp.contact.displayName}`}>More</button>}
                 title={`Follow up with ${followUp.contact.displayName}`}
                 description="Move it to a better day, skip it, or stop this mix."
               >
+                <div className="sheet-section"><h3>Already finished?</h3><JumpOutcomeButton jumpId={followUp.id} outcome="COMPLETED" className="button" ariaLabel={`Mark done for ${followUp.contact.displayName}`}><AppIcon name="check" /><span>Mark done</span></JumpOutcomeButton></div>
                 <div className="sheet-section"><h3>Snooze</h3><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value={preset} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div></div>
                 <form action={snoozeJumpAction} className="form-stack"><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value="custom" /><input type="hidden" name="returnTo" value={returnTo} /><div className="field"><span className="field-label">Choose a day</span><WhenField label="Choose a day" variant="inline" dateName="customDate" defaultDate={choicesFor(followUp).defaultDate} minDate={choicesFor(followUp).minDate} quickSelect={false} /></div><small className="muted-copy">Uses your default follow-up time in {timezone}.</small><button className="button" type="submit">Snooze to this day</button></form>
                 <div className="sheet-danger-zone"><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button">Skip this follow-up</JumpOutcomeButton>{followUp.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop mix…" title={`Stop ${followUp.mix.name} for ${followUp.contact.displayName}?`} description="Future follow-ups from this mix will be removed. Completed history stays available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={followUp.mixId} /><input type="hidden" name="contactId" value={followUp.contactId} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button danger" type="submit">Stop mix</button></form></ConfirmDialog>}</div>
+                {recentEvents.length > 0 && <details className="workflow-options"><summary>Recent activity</summary><div className="jump-action-history">{recentEvents.map(event => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt, displayPreferences)}</span>)}</div></details>}
               </Sheet>}
             </div>
           </div>
@@ -354,7 +329,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
       <JumpReturnTray />
       {params.invitations && <Notice type="success">Your invitations are ready in Today. Review each message and send it from your own text or email app.</Notice>}
-    {params.welcome && <Notice type="success">{welcomeMessage} Review the follow-up below first. You can prepare personal invitations later from <Link href="/mixes/system">My invitations</Link>.</Notice>}
+    {params.welcome && <Notice type="success">{welcomeMessage} Tap Review to begin.</Notice>}
       {params.demo && <Notice type="info">Using local demo data.</Notice>}
       {params.applied && <Notice type="success">Mix changes saved.</Notice>}
       {params.mixStopped && <Notice type="success">Mix stopped.</Notice>}
@@ -372,15 +347,17 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             <label className="field"><span>Status</span><select name="status" defaultValue={status}><option value="all">Open and completed</option><option value="pending">Open</option><option value="done">Completed</option><option value="skipped">Skipped</option></select></label>
             <label className="field"><span>How</span><select name="channel" defaultValue={channel}><option value="all">Any method</option>{channels.map((item) => <option key={item} value={item}>{channelLabel(item)}</option>)}</select></label>
           </AutoSubmitForm>
+      <form action="/jumps" className="search-row" role="search"><label className="field"><span>Find a person, Mix, or reason</span><input type="search" name="q" defaultValue={query} maxLength={160} placeholder="Search this follow-up view" /></label>{[...viewParams].filter(([name]) => name !== "q").map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}<button className="button" type="submit">Search</button></form>
+      <nav className="page-actions" aria-label="Today layout"><TodayLink className="button small" aria-current={!compact ? "page" : undefined} href={`/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "focus" })}`}>Focused work</TodayLink><TodayLink className="button small" aria-current={compact ? "page" : undefined} href={`/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "compact" })}`}>Compact scan</TodayLink><TodayLink className="button small" href="/jumps?range=all&status=pending&priority=overdue&view=compact">Review overdue</TodayLink></nav>
+
           {activeFilterCount > 0 && <TodayLink className="button" href="/jumps">Clear filters</TodayLink>}
         </Sheet>
       </header>
 
-      <form action="/jumps" className="search-row" role="search"><label className="field"><span>Find a person, Mix, or reason</span><input type="search" name="q" defaultValue={query} maxLength={160} placeholder="Search this follow-up view" /></label>{[...viewParams].filter(([name]) => name !== "q").map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}<button className="button" type="submit">Search</button></form>
-      <nav className="page-actions" aria-label="Today layout"><TodayLink className="button small" aria-current={!compact ? "page" : undefined} href={`/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "focus" })}`}>Focused work</TodayLink><TodayLink className="button small" aria-current={compact ? "page" : undefined} href={`/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "compact" })}`}>Compact scan</TodayLink><TodayLink className="button small" href="/jumps?range=all&status=pending&priority=overdue&view=compact">Review overdue</TodayLink></nav>
       <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
-      <p className="today-week-line"><TodayLink href="/jumps?range=week&status=pending">This week: {dueThisWeekCount} open</TodayLink><span>·</span><TodayLink href="/jumps?range=due&status=done">{completedTodayCount} completed today</TodayLink></p>
+      <details className="today-overview"><summary>This week & completed follow-ups</summary>      <p className="today-week-line"><TodayLink href="/jumps?range=week&status=pending">This week: {dueThisWeekCount} open</TodayLink><span>·</span><TodayLink href="/jumps?range=due&status=done">{completedTodayCount} completed today</TodayLink></p>
       {!activeFilterCount && <TodayBriefing text={todayBriefing({ attention: attentionCount, overdue: overdueCount, markedDone: completedTodayCount, ready: preparation.state === "ready" })} />}
+</details>
       {needsAttention.length > 0 && <section aria-labelledby="needs-attention"><div className="section-label urgent"><h2 id="needs-attention">Needs attention</h2><span>{needsAttention.length < attentionCount ? `${needsAttention.length} of ${attentionCount.toLocaleString()}` : needsAttention.length}</span></div><div className="jump-list">{needsAttention.map(renderCard)}</div></section>}
       {upcoming.length > 0 && <section aria-labelledby="upcoming-follow-ups"><div className="section-label"><h2 id="upcoming-follow-ups">Up next</h2><span>{upcoming.length < upcomingCount ? `${upcoming.length} of ${upcomingCount.toLocaleString()}` : upcoming.length}</span></div><div className="jump-list">{upcoming.map(renderCard)}</div></section>}
       {completed.length > 0 && <section aria-labelledby="completed-follow-ups"><div className="completed-divider"><span id="completed-follow-ups">Completed</span></div><div className="jump-list">{completed.map(renderCard)}</div></section>}

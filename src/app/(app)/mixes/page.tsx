@@ -78,12 +78,12 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
       {params.starter === "exists" && <Notice type="info">Your starter mix is below.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
       <header className="page-header">
-        <div><h1>Mixes</h1><p>A mix is a follow-up campaign for the people in your circle. Build it from beats: messages and reminders at a tempo that feels right.</p></div>
+        <div><h1>Mixes</h1><p>Your reusable follow-up plans.</p></div>
         <div className="page-actions">
-          <Link className="button" href="/templates">Ready-made mixes</Link><Link className="button primary mobile-header-action" href="/mixes/new" aria-label="Create a mix"><AppIcon name="add"/><span className="mobile-action-label">Create a mix</span></Link>
+          <Link className="button primary" href="/templates">Find a follow-up plan</Link>
         </div>
       </header>
-      <section className="card" aria-labelledby="system-mix-title"><h2 id="system-mix-title">Jump in the Mix System Mix</h2><p>Choose a contact, review your introduction, and send them unique access to a free account.</p><Link className="button primary" href="/mixes/system">Open System Mix</Link></section>
+      <details className="workflow-options"><summary>More options</summary><div className="page-actions"><Link className="button" href="/mixes/new">Create a mix from scratch</Link><Link className="button" href="/mixes/system">My invitations</Link></div></details>
       <div className="mix-filter-row">
         <form className="filter-bar mix-filter-bar" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search mixes" aria-label="Search mixes"/>{status && <input type="hidden" name="status" value={status}/>}<button className="sr-only" type="submit">Search mixes</button></form>
         <Sheet trigger={<button className={status ? "button filter-trigger active" : "button filter-trigger"} type="button"><AppIcon name="settings"/><span>Filter{status ? " 1" : ""}</span></button>} title="Filter mixes" description="Changes apply as soon as you choose them.">

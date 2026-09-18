@@ -75,7 +75,9 @@ export function JumpActionLink({
       className={className}
       aria-label={ariaLabel}
       title={title}
-      onClick={() => {
+      onClick={(event) => {
+        // Close the review sheet so the outcome tray is reachable on return.
+        event.currentTarget.closest("dialog")?.close();
         // The native link is followed by the browser right after this handler. Nothing below is
         // awaited, so persistence never delays the phone.
         const openedAt = Date.now();
