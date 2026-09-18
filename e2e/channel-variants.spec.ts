@@ -47,19 +47,25 @@ test.afterAll(async () => {
   if (userId) await prisma.user.deleteMany({ where: { id: userId } });
 });
 
-async function ready(page: Page) { await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 }); }
+async function ready(page: Page) {
+  await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 });
+  if (new URL(page.url()).pathname === "/jumps" && !(await page.getByLabel(/^Finish follow-up with/).filter({ visible: true }).isVisible())) {
+    await card(page).getByRole("button", { name: /^Review / }).click();
+    await card(page).getByText("Change contact method", { exact: true }).click();
+  }
+}
 async function audit(page: Page) { expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]); }
 const card = (page: Page) => page.locator(`#jump-${jumpId}`);
 const choice = (page: Page) => card(page).getByRole("group", { name: "How to reach Alex Rivera" });
 const editor = (page: Page) => card(page).locator(".editable-follow-up");
-const field = (page: Page) => editor(page).getByRole("textbox", { name: "Fine-tune before sending", exact: true });
+const field = (page: Page) => editor(page).getByRole("textbox", { name: "Your message", exact: true });
 const selected = () => prisma.jump.findUniqueOrThrow({ where: { id: jumpId }, select: { selectedFamily: true } });
 
 test("the Beat editor authors text, email and call versions, refuses private notes outside the call version, and reads them back", async ({ page }) => {
   const name = `Estimate with alternatives ${randomUUID().slice(0, 8)}`;
   await page.goto("/mixes/new?custom=1"); await ready(page);
   await page.getByLabel("Mix name").fill(name);
-  await page.getByLabel("Cue · when should it start?").selectOption("MANUAL_START");
+  await page.getByLabel("When should it start?").selectOption("MANUAL_START");
   const beat = page.getByRole("group", { name: "Beat 1" });
   await beat.getByLabel("Message").fill(textBody);
   await beat.getByText("Also offer as…").click();

@@ -6,7 +6,9 @@ Original audit: [184 findings](../UI_UX_PRODUCT_READINESS_AUDIT_2026-09-18.md). 
 
 Status counts: complete: 175 · awaiting-qualification: 9.
 
-Live implementation: [Jump in the Mix](https://jumpinthemix.com/), revision `8520b73cc41d72c40ecec1ca06ca752fd95ce5d5`, verified 2026-09-18T21:01:10.031Z. [Release evidence](../UI_UX_IMPLEMENTATION_2026-09-18.md).
+Live implementation: [Jump in the Mix](https://jumpinthemix.com/), revision `a0bf38bb116de342e33290d4f75abe80f2c7359c`, verified 2026-09-18T22:44:54.967Z. [Release evidence](../UI_UX_IMPLEMENTATION_2026-09-18.md).
+
+Latest owner-feedback implementation: [mobile clarity release](../MOBILE_CLARITY_2026-09-18.md).
 
 Unchecked findings require the observations listed in the [qualification worksheet](REMAINING_QUALIFICATION.md).
 

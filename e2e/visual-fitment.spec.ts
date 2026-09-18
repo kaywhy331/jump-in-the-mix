@@ -215,9 +215,9 @@ test("global Quick Add previews natural-language capture before continuing", asy
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("What do you want to remember?").fill("Follow up with Jordan next Monday about the proposal");
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(dialog.getByText("Confirm this interpretation")).toBeVisible();
+  await expect(dialog.getByText("Check the details")).toBeVisible();
   await expect(dialog.getByText("Jordan", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Continue with Contact" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Add person & follow-up" })).toBeVisible();
   page.once("dialog", (confirmation) => confirmation.accept());
   await dialog.getByRole("button", { name: "Close Quick Add" }).click();
   await expect(dialog).toBeHidden();
@@ -289,12 +289,14 @@ test("Quick Add shortcuts continue into actionable contact journeys", async ({ p
   await signIn(page);
   await page.goto("/jumps");
   await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
+  await page.getByRole("dialog", { name: "Quick Add" }).getByText("Other ways to add", { exact: true }).click();
   await page.getByRole("dialog", { name: "Quick Add" }).getByRole("link", { name: /Add a person/ }).click();
   await expect(page).toHaveURL(/\/contacts\/new$/);
   await expect(page.getByRole("heading", { name: "Add a contact" })).toBeVisible();
 
   await page.goto("/jumps");
   await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
+  await page.getByRole("dialog", { name: "Quick Add" }).getByText("Other ways to add", { exact: true }).click();
   await page.getByRole("dialog", { name: "Quick Add" }).getByRole("link", { name: /Log what happened/ }).click();
   await expect(page).toHaveURL(/\/contacts\?intent=log-note/);
   await expect(page.getByText("Then add what happened to their notes.")).toBeVisible();

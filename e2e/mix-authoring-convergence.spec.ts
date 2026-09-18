@@ -72,8 +72,10 @@ test("an approved template uses one setup screen and explicit audience", async (
     await page.goto(`/templates/${sharedId}/use`);
     await expect(page.getByRole("heading", { name: "Set up your mix" })).toBeVisible();
     await page.getByLabel("Mix name").fill(mixName);
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByLabel("Everyone").check();
-    await page.getByRole("button", { name: "Create my remix" }).click();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await page.getByRole("button", { name: "Save draft" }).click();
     await page.waitForURL(/\/mixes\/[^/]+\/edit\?imported=1/);
     const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId: "demo_workspace", name: mixName } });
     mixId = mix.id;

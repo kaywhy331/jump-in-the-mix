@@ -16,6 +16,8 @@ The September 18 continuation prepared an executable [session runbook](QUALIFICA
 | EMAIL-05 | Correlate the staff UI and controlled inbox with provider receipts; exercise an eligible recovery through the staff UI. Actual provider simulator events, identical-key retry, and receipt validation now supplement the passing integration tests. A simulator is not an observed inbox or completed staff session. | Delivery/operations owner |
 | RECOVER-05 | Manual screen-reader, keyboard, 200% zoom/reflow, interruption and physical-device checks, with any blockers repaired and retested. | Accessibility/device QA |
 
+The owner’s corrected September 18 review identified clutter and mobile guidance problems. The [mobile clarity follow-up](../MOBILE_CLARITY_2026-09-18.md) records those observations, the deployed corrections and the exact remaining checks, including the distinction between password recovery and the staff email-delivery recovery screen. These observations do not close the nine gates.
+
 For each session, record: date, reviewer, device/OS/browser or assistive technology, test account, exact task, observed result, safe evidence reference and retest outcome. Do not place customer content, credentials, invitation tokens or recovery codes in this report.
 
 The designated staging site also needs its existing Neon quota restored, or an explicitly authorized replacement test database. The current provider quota blocker is separate from the customer site's database. No billing upgrade or database substitution is included in this release.

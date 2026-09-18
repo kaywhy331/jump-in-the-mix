@@ -65,11 +65,15 @@ test("contact navigation asks before discarding edits", async ({ page }) => {
 });
 
 test("overlapping tags count one recipient and only that audience's missing methods", async ({ page }) => {
-  const response = await page.request.get(`/api/contacts/audience?${new URLSearchParams(groups.map(id => ["group", id]))}`);
-  expect(response.status()).toBe(200);
-  expect(await response.json()).toEqual({ total: 1, missingEmail: 0, missingPhone: 1 });
+  // Use the signed-in browser: production Secure cookies on loopback HTTP are
+  // accepted by Chromium, but not by Playwright's separate request client.
+  const response = await page.evaluate(async path => { const result = await fetch(path); return { status: result.status, data: await result.json() }; }, `/api/contacts/audience?${new URLSearchParams(groups.map(id => ["group", id]))}`);
+  expect(response.status).toBe(200);
+  expect(response.data).toEqual({ total: 1, missingEmail: 0, missingPhone: 1 });
   await page.goto("/templates/mix_relationship_next_verse/use");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   for (const id of groups) await page.locator(`input[name="groupIds"][value="${id}"]`).check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.locator(".import-summary-grid > div").first()).toHaveText("1people");
 });
 
@@ -77,7 +81,9 @@ test("a template can be saved as a draft before choosing people", async ({ page 
   await page.goto("/templates/mix_relationship_next_verse/use");
   await page.getByLabel("Mix name", { exact: true }).fill(`Audience-free draft ${suffix}`);
   await page.getByLabel("After setup", { exact: true }).selectOption("DRAFT");
-  await page.getByRole("button", { name: "Create my remix", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await page.waitForURL(/\/mixes\/[^/]+\/edit\?imported=1/);
   const saved = await prisma.mix.findFirstOrThrow({ where: { workspaceId, name: `Audience-free draft ${suffix}` }, include: { assignments: true } });
   expect(saved.status).toBe("DRAFT");

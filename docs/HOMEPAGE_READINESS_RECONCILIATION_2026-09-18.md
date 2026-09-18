@@ -1,5 +1,7 @@
 # Homepage roadmap reconciliation — September 18, 2026
 
+**September 18 follow-up:** The [mobile clarity release](MOBILE_CLARITY_2026-09-18.md) supersedes earlier descriptions of the multi-Mix public demo. The live showcase now presents one short example through edit, preview, next step and completion, with no sending or scheduling. Earlier evidence remains historical; participant comprehension is still unqualified.
+
 This is a current-evidence supplement to the [original roadmap](HOMEPAGE_EXPERIENCE_ROADMAP_2026-09-10.md), whose original planning text and recorded checkboxes remain preserved. An earlier checked item is not, by itself, evidence that the September 18 release meets every part of its acceptance criterion. The [release record](UI_UX_IMPLEMENTATION_2026-09-18.md) and [individual audit checklist](ui-ux-audit-2026-09-18/IMPLEMENTATION_CHECKLIST.md) govern this release's implementation, verification and live status.
 
 The five ICPs remain fictional planning hypotheses. The two supplied Joanna Wiebe documents and asset inventory are indexed in [assets/README.md](../assets/README.md). Neither source review, automated tests nor deployment establish participant comprehension, conversion improvement or validated profession fit.

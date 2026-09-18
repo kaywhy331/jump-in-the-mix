@@ -38,9 +38,9 @@ test.afterAll(async () => {
   if (userId) await prisma.user.deleteMany({ where: { id: userId } });
 });
 
-async function visit(page: Page) { await page.goto("/jumps"); await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 }); }
+async function visit(page: Page) { await page.goto("/jumps"); await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 }); await page.locator(`#jump-${jumpId}`).getByRole("button", { name: /^Review / }).click(); }
 const editor = (page: Page) => page.locator(`#jump-${jumpId} .editable-follow-up`);
-const field = (page: Page) => editor(page).getByRole("textbox", { name: "Fine-tune before sending", exact: true });
+const field = (page: Page) => editor(page).getByRole("textbox", { name: "Your message", exact: true });
 const draftRow = () => prisma.jumpDraft.findUnique({ where: { jumpId_family: { jumpId, family: "TEXT" } } });
 async function setName(first: string) { await prisma.contact.update({ where: { id: contactId }, data: { firstName: first, displayName: `${first} Rivera` } }); }
 async function seedDraft(body: string) {
@@ -69,6 +69,7 @@ test("keeps fine-tuned text across a reload and renders it with the contact's cu
   await visit(page);
   await expect(field(page)).toHaveValue(rendered("Alexandra", "your estimate is ready to review."));
 
+  await editor(page).getByText("Copy or reset", { exact: true }).click();
   await editor(page).getByRole("button", { name: "Discard edits", exact: true }).click();
   await expect(field(page)).toHaveValue(rendered("Alexandra"));
   await expect.poll(() => prisma.jumpDraft.count({ where: { jumpId } })).toBe(0);
@@ -87,6 +88,8 @@ test("guards leaving only while keystrokes have not reached the server", async (
   await expect(page.locator('[data-follow-up-draft="true"]')).toHaveCount(1);
   // The autosave has started and is being held; leaving now must be guarded.
   await expect.poll(() => held_count).toBeGreaterThan(0);
+  await page.getByRole("dialog", { name: /^Follow up with/ }).getByRole("button", { name: /^Close Follow up with/ }).click();
+  await page.getByText("This week & completed follow-ups", { exact: true }).click();
   await page.getByRole("link", { name: /This week/ }).click();
   const guard = page.getByRole("dialog", { name: "Keep your message edits?", exact: true });
   await expect(guard).toBeVisible();
@@ -95,6 +98,7 @@ test("guards leaving only while keystrokes have not reached the server", async (
   release();
   await expect(editor(page).getByRole("status")).toHaveText("Saved");
   await expect(page.locator('[data-follow-up-draft="true"]')).toHaveCount(0);
+  await page.getByRole("dialog", { name: /^Follow up with/ }).getByRole("button", { name: /^Close Follow up with/ }).click();
   await page.getByRole("link", { name: /This week/ }).click();
   await expect(page).toHaveURL(/range=week/);
   await expect(guard).toBeHidden();
@@ -147,6 +151,7 @@ test("recovers a failed discard and keeps text typed during one", async ({ page 
     if (route.request().method() === "DELETE" && fail) return route.abort("failed");
     return route.continue();
   });
+  await editor(page).getByText("Copy or reset", { exact: true }).click();
   await editor(page).getByRole("button", { name: "Discard edits", exact: true }).click();
   await expect(editor(page).getByRole("status")).toContainText("the discard didn't go through");
   expect(seen).toContain("DELETE");

@@ -20,6 +20,8 @@ Production build and TypeScript check passed. Thirty-nine focused unit tests pas
 
 Local workflow tests use a disposable loopback database with synthetic people and messages. Native messaging links are intercepted; the tests verify handoff state and explicit outcomes without sending messages. Automated accessibility checks cover the demo states, public pages and install prompt; these checks do not establish physical-device or assistive-technology acceptance.
 
+Additional regressions passed for all five feedback ratings, channel-specific edits and handoffs, reload retention, revision conflicts, failed discard recovery, automatic-delivery draft holds, unsaved-navigation guards, simulated dictation/permission errors, capture retention/expiry, blocked storage, quick-contact transfer, hidden completion actions and deduplicated plan audiences. Historical test locators were updated for the current labels and disclosures. The full historical browser suite was not run.
+
 ## Owner observations and remaining qualification
 
 1. **Homepage clarity:** too many Mixes and beats. Replaced with one short guided example; owner/participant retest remains open (HOME-02).
@@ -36,6 +38,12 @@ The audit remains 175/184 checked off, with nine manual gates. See [remaining qu
 
 ## Release evidence
 
-Pending publication and hosted verification. Evidence artifacts are under `.artifacts/mobile-clarity-20260918/`; private environment files are not documentation or release assets.
+Production is live at https://jumpinthemix.com/ on revision `a0bf38bb116de342e33290d4f75abe80f2c7359c`, verified 2026-09-18T22:44:54.967Z.
 
-The private-feedback browser matrix also passed on desktop and mobile at all five ratings (two cases).
+- Render web: `dep-damrrboae00c73eq1o40`; worker: `dep-damrq2bm8hqs73f3mvrg`.
+- All four health routes returned 200. Public pages returned 200; protected pages redirected unauthenticated requests to login.
+- Hosted verification matched 615 source files and 18 served assets to the release; all 61 migrations were present with no mismatch. The worker completed and removed one scoped no-op test job.
+- Live browser checks passed the guided demo at 320px, 390px and desktop widths in light/dark themes, with zero automated demo accessibility violations and no demo POSTs. All five live profession pages showed one short example with no horizontal overflow.
+- Staging was published to https://jump-in-the-mix-test.netlify.app/ as `6aadbd124eab6fd3d43bd22d`. Served assets matched the uploaded package. Homepage/FAQ layout and accessibility checks passed; login, database readiness and worker readiness still return 503 during the existing Neon quota outage. This is not a healthy staging signoff.
+
+Evidence artifacts are under `.artifacts/mobile-clarity-20260918/`: `release.json`, `postflight.json`, `live-browser.json`, `worker-smoke.json`, `staging-postflight.json`, build and selected browser logs. Private environment files are not documentation or release assets.
