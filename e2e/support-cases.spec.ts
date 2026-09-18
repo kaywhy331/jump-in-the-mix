@@ -34,7 +34,7 @@ test("support assigns a case, opens its audited read-only view, and returns to t
   await page.getByRole("link").filter({ hasText: f.ticket.reference }).click();
   await expect(page.getByText("PRIVATE_SUPPORT_BODY_SENTINEL")).toBeVisible();
   await expect(page.getByRole("button", { name: "Start view-only session" })).toHaveCount(0);
-  await page.getByText("Change assignment", { exact: true }).click();
+  if (!(await page.locator("#case-assignment").evaluate(element => (element as HTMLDetailsElement).open))) await page.getByText("Change assignment", { exact: true }).click();
   await page.getByRole("combobox", { name: "Assigned to", exact: true }).selectOption(f.admin.user.id);
   await page.getByRole("textbox", { name: "Assignment reason", exact: true }).fill("I will investigate this customer’s missing follow-up.");
   await page.getByRole("button", { name: "Save assignment" }).click();

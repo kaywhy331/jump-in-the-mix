@@ -6,6 +6,6 @@ export default function NotFound() {
     <span className="recovery-symbol"><AppIcon name="arrowLeft" /></span>
     <h1>Let’s get you back on track.</h1>
     <p>This link may have changed, or the item is no longer available.</p>
-    <div className="page-actions"><Link className="button primary" href="/jumps">Go to Today</Link><Link className="button" href="/help">Get help</Link></div>
+    <div className="page-actions"><Link className="button primary" href="/">Go to home</Link><Link className="button" href="/contact">Contact support</Link></div>
   </div></section>;
 }

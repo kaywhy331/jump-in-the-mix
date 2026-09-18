@@ -22,6 +22,7 @@ type SearchParams = {
   permission?: string;
   view?: string;
   page?: string;
+  sort?: string;
   importBatch?: string;
   created?: string;
   archived?: string;
@@ -60,6 +61,7 @@ function savedViewValue(query: Prisma.JsonValue, key: string): string {
 
 function pageHref(input: {
   page: number;
+  sort?: string;
   q: string;
   groupId: string;
   priority: string;
@@ -69,6 +71,7 @@ function pageHref(input: {
   importBatchId: string;
 }): string {
   const params = new URLSearchParams();
+  if (input.sort && input.sort !== "name") params.set("sort", input.sort);
   if (input.q) params.set("q", input.q);
   if (input.groupId) params.set("group", input.groupId);
   if (input.priority) params.set("priority", input.priority);
@@ -101,7 +104,9 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const permission = ["contactable", "do-not-contact"].includes(requestedPermission) ? requestedPermission : "";
   const importBatchId = params.importBatch?.trim() ?? "";
   const requestedPage = Number(params.page ?? "1");
-  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10_000) : 1;
+  const requestedSort = params.sort ?? (selectedView ? savedViewValue(selectedView.query, "sort") : "name");
+  const sort = ["updated", "newest"].includes(requestedSort) ? requestedSort : "name";
+  let page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10_000) : 1;
   const intent = params.intent === "important-date" || params.intent === "one-time-jump" || params.intent === "log-note" ? params.intent : undefined;
 
   const importBatch = importBatchId
@@ -138,8 +143,9 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     } : {})
   };
 
-  const [totalCount, contacts, rawGroups, groupStates] = await Promise.all([
-    prisma.contact.count({ where: contactWhere }),
+  const totalCount = await prisma.contact.count({ where: contactWhere });
+  page = Math.min(page, Math.max(1, Math.ceil(totalCount / PAGE_SIZE)));
+  const [contacts, rawGroups, groupStates] = await Promise.all([
     prisma.contact.findMany({
       where: contactWhere,
       include: {
@@ -151,7 +157,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         jumpDates: { where: { isActive: true }, include: { dateType: true }, orderBy: { dateValue: "asc" } },
         relationshipState: { select: { preferredChannel: true, priority: true, doNotContact: true } }
       },
-      orderBy: [{ displayName: "asc" }, { id: "asc" }],
+      orderBy: sort === "updated" ? [{ updatedAt: "desc" }, { id: "asc" }] : sort === "newest" ? [{ createdAt: "desc" }, { id: "asc" }] : [{ displayName: "asc" }, { id: "asc" }],
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE
     }),
@@ -241,11 +247,12 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {totalCount > 200 && <ContactSavedViewsBar
         views={savedViews.map(({ id, name, isDefault }) => ({ id, name, isDefault }))}
         selectedViewId={selectedView?.id ?? ""}
-        filters={{ q, group: groupId, priority, permission }}
+        filters={{ q, group: groupId, priority, permission, sort }}
       />}
       <ContactsBulkWorkspace
         contacts={contactDtos}
         groups={groups.map((group) => ({ id: group.id, name: group.name, description: group.description, color: group.color, contactCount: group._count.memberships, isActive: group.isActive }))}
+        sort={sort}
         query={q}
         groupFilter={groupId}
         priorityFilter={priority}
@@ -255,9 +262,9 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       <nav className="pagination-bar" aria-label="Contact result pages">
         <span>{resultMessage}</span>
         <div className="page-actions">
-          {page > 1 && <Link className="button" href={pageHref({ page: page - 1, q, groupId, priority, permission, viewId: selectedView?.id ?? "", intent, importBatchId })}>Previous</Link>}
+          {page > 1 && <Link className="button" href={pageHref({ page: page - 1, q, groupId, priority, permission, viewId: selectedView?.id ?? "", intent, importBatchId, sort })}>Previous</Link>}
           <span>Page {Math.min(page, totalPages)} of {totalPages}</span>
-          {page < totalPages && <Link className="button" href={pageHref({ page: page + 1, q, groupId, priority, permission, viewId: selectedView?.id ?? "", intent, importBatchId })}>Next</Link>}
+          {page < totalPages && <Link className="button" href={pageHref({ page: page + 1, q, groupId, priority, permission, viewId: selectedView?.id ?? "", intent, importBatchId, sort })}>Next</Link>}
         </div>
       </nav>
     </div>

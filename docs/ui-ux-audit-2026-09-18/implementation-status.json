@@ -1,0 +1,3389 @@
+{
+  "started": "2026-09-18",
+  "definitionOfDone": "Every finding has implementation and acceptance evidence, and the verified release is live on jumpinthemix.com. External qualification is not replaced by code review.",
+  "production": "https://jumpinthemix.com/ (Render)",
+  "staging": "https://jump-in-the-mix-test.netlify.app/ (Netlify site 8fd20ccd-5c35-47e5-99ce-98e5670d52fe)",
+  "phases": [
+    "1. Correctness and retained work",
+    "2. Public acquisition, authentication and first use",
+    "3. Daily workflow, contacts and Mixes",
+    "4. Connections, settings, support and recovery",
+    "5. Admin workflows",
+    "6. Regression, cross-browser and hosted qualification",
+    "7. Test-site publish, production deployment and live verification"
+  ],
+  "findings": [
+    {
+      "id": "HOME-01",
+      "area": "HOME",
+      "title": "First useful demo action is below the first phone screen",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ProductDemo.tsx",
+        "docs/HOMEPAGE_READINESS_RECONCILIATION_2026-09-18.md"
+      ],
+      "verification": [
+        "Public/auth browser checks: initial demo focus, mobile navigation and context links; homepage roadmap reconciliation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A new visitor reaches a draft with one deliberate tap without hunting through contact fields."
+    },
+    {
+      "id": "HOME-02",
+      "area": "HOME",
+      "title": "Two acquisition tasks compete for attention",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "awaiting-qualification",
+      "implementation": [
+        "src/app/page.tsx",
+        "docs/HOMEPAGE_READINESS_RECONCILIATION_2026-09-18.md"
+      ],
+      "verification": [
+        "Public/auth browser checks: initial demo focus, mobile navigation and context links; homepage roadmap reconciliation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "In a moderated task, visitors can explain what each action does before choosing it.",
+      "remaining": "Moderated acquisition-choice task with suitable participants."
+    },
+    {
+      "id": "HOME-03",
+      "area": "HOME",
+      "title": "Useful navigation disappears on phones",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/PublicHeader.tsx",
+        "docs/HOMEPAGE_READINESS_RECONCILIATION_2026-09-18.md"
+      ],
+      "verification": [
+        "Public/auth browser checks: initial demo focus, mobile navigation and context links; homepage roadmap reconciliation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Templates and Questions remain reachable near the top at 320 and 390 pixels."
+    },
+    {
+      "id": "HOME-04",
+      "area": "HOME",
+      "title": "Free access is explained late",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/page.tsx",
+        "docs/HOMEPAGE_READINESS_RECONCILIATION_2026-09-18.md"
+      ],
+      "verification": [
+        "Public/auth browser checks: initial demo focus, mobile navigation and context links; homepage roadmap reconciliation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users understand that a request joins a queue rather than opens an account immediately."
+    },
+    {
+      "id": "HOME-05",
+      "area": "HOME",
+      "title": "The roadmap is not current launch evidence",
+      "evidence": "V",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "docs/HOMEPAGE_READINESS_RECONCILIATION_2026-09-18.md"
+      ],
+      "verification": [
+        "Public/auth browser checks: initial demo focus, mobile navigation and context links; homepage roadmap reconciliation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Every completed roadmap item links to current evidence; research results are separated from planning hypotheses."
+    },
+    {
+      "id": "PRO-01",
+      "area": "PRO",
+      "title": "Primary waitlist links drop profession context",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/WaitlistLink.tsx"
+      ],
+      "verification": [
+        "Public/auth browser checks and marketing scenario tests; profession-route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Each page’s top, demo and bottom CTAs preserve the same intended onboarding context."
+    },
+    {
+      "id": "PRO-02",
+      "area": "PRO",
+      "title": "Selected Mix is not carried into signup",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/lib/marketing-scenarios.ts",
+        "src/lib/vertical-plan-library.ts"
+      ],
+      "verification": [
+        "Public/auth browser checks and marketing scenario tests; profession-route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Selecting a nondefault example survives invitation redemption in a fresh browser."
+    },
+    {
+      "id": "PRO-03",
+      "area": "PRO",
+      "title": "The phone experience delays the professional example",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ProductDemo.tsx"
+      ],
+      "verification": [
+        "Public/auth browser checks and marketing scenario tests; profession-route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A visitor can identify the example’s person, reason and next step in the first short interaction."
+    },
+    {
+      "id": "PRO-04",
+      "area": "PRO",
+      "title": "Tool-boundary clarification comes after the demo",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/for/[profession]/page.tsx"
+      ],
+      "verification": [
+        "Public/auth browser checks and marketing scenario tests; profession-route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A recruiter, consultant, photographer, agent or contractor can correctly describe the supported workflow."
+    },
+    {
+      "id": "PRO-05",
+      "area": "PRO",
+      "title": "Profession fit remains an untested hypothesis",
+      "evidence": "V",
+      "priority": "P2",
+      "status": "awaiting-qualification",
+      "implementation": [
+        "src/app/for/[profession]/page.tsx",
+        "src/lib/persona-mixes.ts",
+        "src/components/PublicHeader.tsx"
+      ],
+      "verification": [
+        "Public/auth browser checks and marketing scenario tests; profession-route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Each profession has task-completion and comprehension evidence before claims of validated fit.",
+      "remaining": "Profession-specific participant task and comprehension sessions."
+    },
+    {
+      "id": "DEMO-01",
+      "area": "DEMO",
+      "title": "Changing examples silently discards edited messages",
+      "evidence": "R",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ProductDemo.tsx"
+      ],
+      "verification": [
+        "Public/auth browser checks: edits retained on scenario switch, reset and intercepted sandbox handoffs.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Message, subject and planned date survive switching away and back."
+    },
+    {
+      "id": "DEMO-02",
+      "area": "DEMO",
+      "title": "A public practice session offers real communication-app handoffs",
+      "evidence": "R",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ProductDemo.tsx"
+      ],
+      "verification": [
+        "Public/auth browser checks: edits retained on scenario switch, reset and intercepted sandbox handoffs.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Demo completion never opens an external composer under a sandbox promise."
+    },
+    {
+      "id": "DEMO-03",
+      "area": "DEMO",
+      "title": "Icon-only completion is hard to distinguish from sending",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "awaiting-qualification",
+      "implementation": [
+        "src/components/ProductDemo.tsx"
+      ],
+      "verification": [
+        "Public/auth browser checks: edits retained on scenario switch, reset and intercepted sandbox handoffs.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Participants distinguish opening, sending, recording and skipping without assistance.",
+      "remaining": "Participant distinction between opening, sending, recording and skipping."
+    },
+    {
+      "id": "DEMO-04",
+      "area": "DEMO",
+      "title": "Attachment language exceeds what the demo prepares",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/lib/persona-mixes.ts"
+      ],
+      "verification": [
+        "Public/auth browser checks: edits retained on scenario switch, reset and intercepted sandbox handoffs.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "No draft asserts an attachment is present unless the user has supplied it."
+    },
+    {
+      "id": "DEMO-05",
+      "area": "DEMO",
+      "title": "Planned timing sounds like automatic sending",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ProductDemo.tsx"
+      ],
+      "verification": [
+        "Public/auth browser checks: edits retained on scenario switch, reset and intercepted sandbox handoffs.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Visitors correctly explain that selecting a date does not send a message."
+    },
+    {
+      "id": "DEMO-06",
+      "area": "DEMO",
+      "title": "Reset behavior is fragmented",
+      "evidence": "C",
+      "priority": "P3",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ProductDemo.tsx"
+      ],
+      "verification": [
+        "Public/auth browser checks: edits retained on scenario switch, reset and intercepted sandbox handoffs.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A visitor can return the entire current example to its initial state in one action."
+    },
+    {
+      "id": "PUBLIC-01",
+      "area": "PUBLIC",
+      "title": "Public templates and saved Mixes have similar names",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/PublicCapabilities.tsx"
+      ],
+      "verification": [
+        "Public route scan and source review of contents navigation, recovery and capability copy.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Visitors know whether a CTA copies example text, previews a workflow, or requests account access."
+    },
+    {
+      "id": "PUBLIC-02",
+      "area": "PUBLIC",
+      "title": "Long reference pages need stronger navigation",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/PublicContents.tsx"
+      ],
+      "verification": [
+        "Public route scan and source review of contents navigation, recovery and capability copy.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A user reaches a named topic without scanning the whole document on a phone."
+    },
+    {
+      "id": "PUBLIC-03",
+      "area": "PUBLIC",
+      "title": "Recovery help is disconnected from failed actions",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/forgot-password/page.tsx",
+        "src/app/register/page.tsx"
+      ],
+      "verification": [
+        "Public route scan and source review of contents navigation, recovery and capability copy.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A signed-out user can reach working support directly from every account-recovery failure."
+    },
+    {
+      "id": "PUBLIC-04",
+      "area": "PUBLIC",
+      "title": "Educational claims lack a visible capability summary",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/PublicCapabilities.tsx"
+      ],
+      "verification": [
+        "Public route scan and source review of contents navigation, recovery and capability copy.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "The template, reminder and FAQ pages describe the same current sending contract."
+    },
+    {
+      "id": "PUBLIC-05",
+      "area": "PUBLIC",
+      "title": "Trust content needs an owner-led factual review",
+      "evidence": "V",
+      "priority": "P2",
+      "status": "awaiting-qualification",
+      "implementation": [
+        "src/components/PublicArticle.tsx",
+        "src/app/faq/page.tsx",
+        "src/app/contact/page.tsx",
+        "src/components/PublicDocument.tsx"
+      ],
+      "verification": [
+        "Public route scan and source review of contents navigation, recovery and capability copy.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Record a dated content review and resolve any mismatched product claims before broad release.",
+      "remaining": "Dated owner-led factual review of trust and product claims."
+    },
+    {
+      "id": "WAIT-01",
+      "area": "WAIT",
+      "title": "Joining and confirming are not explained before submission",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/waitlist/page.tsx"
+      ],
+      "verification": [
+        "Waitlist/admission integration tests and source review of retained form errors and generic recovery receipts.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A first-time visitor knows to look for and act on the confirmation email."
+    },
+    {
+      "id": "WAIT-02",
+      "area": "WAIT",
+      "title": "Submitted form retains the initial action label",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/WaitlistForm.tsx"
+      ],
+      "verification": [
+        "Waitlist/admission integration tests and source review of retained form errors and generic recovery receipts.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Repeat submissions clearly distinguish changing an address from requesting another confirmation."
+    },
+    {
+      "id": "WAIT-03",
+      "area": "WAIT",
+      "title": "Error text is not associated with the email control",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/WaitlistForm.tsx"
+      ],
+      "verification": [
+        "Waitlist/admission integration tests and source review of retained form errors and generic recovery receipts.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A screen-reader user hears the specific error when returning to the email field."
+    },
+    {
+      "id": "WAIT-04",
+      "area": "WAIT",
+      "title": "Unavailable invitations have a broad fallback",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/register/page.tsx"
+      ],
+      "verification": [
+        "Waitlist/admission integration tests and source review of retained form errors and generic recovery receipts.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A user with a previously used link can recover without mistakenly joining the queue again."
+    },
+    {
+      "id": "WAIT-05",
+      "area": "WAIT",
+      "title": "Temporary pauses have weak recovery expectations",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/register/page.tsx",
+        "src/app/waitlist/page.tsx"
+      ],
+      "verification": [
+        "Waitlist/admission integration tests and source review of retained form errors and generic recovery receipts.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "The user knows the link remains usable and has a useful action during the pause."
+    },
+    {
+      "id": "AUTH-01",
+      "area": "AUTH",
+      "title": "Password fields have no visibility toggle",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/PasswordInput.tsx",
+        "src/components/ActionForm.tsx",
+        "src/lib/customer-return-path.ts",
+        "src/app/api/auth/magic/route.ts"
+      ],
+      "verification": [
+        "Public/auth browser tests, verify-email redirect tests and seven magic-link return-target tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users can inspect and correct a long password on mobile and with a keyboard."
+    },
+    {
+      "id": "AUTH-02",
+      "area": "AUTH",
+      "title": "Authentication submits lack pending feedback",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/FormSubmitButton.tsx",
+        "src/components/ActionForm.tsx",
+        "src/components/PasswordInput.tsx",
+        "src/lib/customer-return-path.ts",
+        "src/app/api/auth/magic/route.ts"
+      ],
+      "verification": [
+        "Public/auth browser tests, verify-email redirect tests and seven magic-link return-target tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Slow requests visibly enter a pending state and cannot be accidentally resubmitted."
+    },
+    {
+      "id": "AUTH-03",
+      "area": "AUTH",
+      "title": "Validation returns page-level errors",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ActionForm.tsx",
+        "src/lib/form-errors.ts",
+        "src/components/PasswordInput.tsx",
+        "src/lib/customer-return-path.ts",
+        "src/app/api/auth/magic/route.ts"
+      ],
+      "verification": [
+        "Public/auth browser tests, verify-email redirect tests and seven magic-link return-target tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A failed signup or reset can be corrected without re-entering unrelated nonsecret information."
+    },
+    {
+      "id": "AUTH-04",
+      "area": "AUTH",
+      "title": "Recovery copy exposes implementation language",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/forgot-password/page.tsx",
+        "src/components/ActionForm.tsx",
+        "src/components/PasswordInput.tsx",
+        "src/lib/customer-return-path.ts",
+        "src/app/api/auth/magic/route.ts"
+      ],
+      "verification": [
+        "Public/auth browser tests, verify-email redirect tests and seven magic-link return-target tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A customer can understand the next step without knowing how the site is hosted."
+    },
+    {
+      "id": "AUTH-05",
+      "area": "AUTH",
+      "title": "Protected destination is lost after sign-in",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/lib/customer-return-path.ts",
+        "src/lib/auth.ts",
+        "src/lib/auth-actions.ts",
+        "src/components/ActionForm.tsx",
+        "src/components/PasswordInput.tsx",
+        "src/app/api/auth/magic/route.ts"
+      ],
+      "verification": [
+        "Public/auth browser tests, verify-email redirect tests and seven magic-link return-target tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Following a contact or support-ticket link while signed out returns to that item after authentication."
+    },
+    {
+      "id": "ONB-01",
+      "area": "ONB",
+      "title": "Success is announced for a person who cannot be reached",
+      "evidence": "R",
+      "priority": "P1",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/jumps/page.tsx",
+        "src/components/StarterPreview.tsx",
+        "src/lib/date-input.ts"
+      ],
+      "verification": [
+        "Onboarding/invitation and UI/UX workflow browser tests; timezone/date unit cases.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A ready-to-send success state has a usable recipient; incomplete records receive an honest next step."
+    },
+    {
+      "id": "ONB-02",
+      "area": "ONB",
+      "title": "Default date uses UTC instead of the account timezone",
+      "evidence": "C",
+      "priority": "P1",
+      "status": "verified-local",
+      "implementation": [
+        "src/lib/date-input.ts",
+        "src/components/LocalDateInput.tsx",
+        "src/components/StarterPreview.tsx"
+      ],
+      "verification": [
+        "Onboarding/invitation and UI/UX workflow browser tests; timezone/date unit cases.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "At 01:00 UTC, a Los Angeles user receives the preceding local date; test both sides of midnight."
+    },
+    {
+      "id": "ONB-03",
+      "area": "ONB",
+      "title": "The one-person start is a long setup form",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/OnboardingForm.tsx",
+        "src/components/StarterPreview.tsx",
+        "src/lib/date-input.ts"
+      ],
+      "verification": [
+        "Onboarding/invitation and UI/UX workflow browser tests; timezone/date unit cases.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A novice completes the first useful follow-up with minimal scrolling and can skip optional setup visibly."
+    },
+    {
+      "id": "ONB-04",
+      "area": "ONB",
+      "title": "Business name remains required on the default path",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/OnboardingForm.tsx",
+        "src/lib/onboarding-actions.ts",
+        "src/components/StarterPreview.tsx",
+        "src/lib/date-input.ts"
+      ],
+      "verification": [
+        "Onboarding/invitation and UI/UX workflow browser tests; timezone/date unit cases.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A business user can prepare a personal follow-up before completing the business profile."
+    },
+    {
+      "id": "ONB-05",
+      "area": "ONB",
+      "title": "Starter assignment is not reviewable before creation",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/StarterPreview.tsx",
+        "src/app/api/onboarding/preview/route.ts",
+        "src/lib/date-input.ts"
+      ],
+      "verification": [
+        "Onboarding/invitation and UI/UX workflow browser tests; timezone/date unit cases.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users see the complete first plan and explicitly accept its timing before it is created."
+    },
+    {
+      "id": "ONB-06",
+      "area": "ONB",
+      "title": "Referrals interrupt the first-success screen",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/jumps/page.tsx",
+        "src/components/StarterPreview.tsx",
+        "src/lib/date-input.ts"
+      ],
+      "verification": [
+        "Onboarding/invitation and UI/UX workflow browser tests; timezone/date unit cases.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "The first screen after setup makes the chosen person’s next action visually primary."
+    },
+    {
+      "id": "ONB-07",
+      "area": "ONB",
+      "title": "Import requires cross-tab coordination",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/OnboardingForm.tsx",
+        "src/components/StarterPreview.tsx",
+        "src/lib/date-input.ts"
+      ],
+      "verification": [
+        "Onboarding/invitation and UI/UX workflow browser tests; timezone/date unit cases.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A successful import yields a selectable person without guessing which tab or refresh control to use."
+    },
+    {
+      "id": "NAV-01",
+      "area": "NAV",
+      "title": "Calendar and journey are several steps from daily work",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/AppShell.tsx",
+        "src/components/Nav.tsx",
+        "src/components/QuickAdd.tsx",
+        "src/components/NewContactForm.tsx",
+        "src/components/VoiceNoteButton.tsx"
+      ],
+      "verification": [
+        "Browser navigation scan; retained Quick Add capture source and boundary tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Regular users reach their frequent scheduling and relationship tasks predictably from any page."
+    },
+    {
+      "id": "NAV-02",
+      "area": "NAV",
+      "title": "Journey highlights a different parent than its entry point",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/AppShell.tsx",
+        "src/components/Nav.tsx",
+        "src/components/QuickAdd.tsx",
+        "src/components/NewContactForm.tsx",
+        "src/components/VoiceNoteButton.tsx"
+      ],
+      "verification": [
+        "Browser navigation scan; retained Quick Add capture source and boundary tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Entering journey from More does not unexpectedly change the perceived navigation section."
+    },
+    {
+      "id": "NAV-03",
+      "area": "NAV",
+      "title": "Several More labels describe unrelated tasks together",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/AppShell.tsx",
+        "src/components/Nav.tsx",
+        "src/components/QuickAdd.tsx",
+        "src/components/NewContactForm.tsx",
+        "src/components/VoiceNoteButton.tsx"
+      ],
+      "verification": [
+        "Browser navigation scan; retained Quick Add capture source and boundary tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users find timezone, notifications and sign-out without opening multiple menus."
+    },
+    {
+      "id": "NAV-04",
+      "area": "NAV",
+      "title": "Quick Add transfer is temporary and lost on reload",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/AppShell.tsx",
+        "src/components/Nav.tsx",
+        "src/components/QuickAdd.tsx",
+        "src/components/NewContactForm.tsx",
+        "src/components/VoiceNoteButton.tsx"
+      ],
+      "verification": [
+        "Browser navigation scan; retained Quick Add capture source and boundary tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A routine refresh during review does not erase a captured note unexpectedly."
+    },
+    {
+      "id": "NAV-05",
+      "area": "NAV",
+      "title": "Voice and native contact capture need device qualification",
+      "evidence": "V",
+      "priority": "P2",
+      "status": "awaiting-qualification",
+      "implementation": [
+        "src/components/AppShell.tsx",
+        "src/components/Nav.tsx",
+        "src/components/QuickAdd.tsx",
+        "src/components/NewContactForm.tsx",
+        "src/components/VoiceNoteButton.tsx"
+      ],
+      "verification": [
+        "Browser navigation scan; retained Quick Add capture source and boundary tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Record actual iPhone/Android outcomes, including recovery without losing typed text.",
+      "remaining": "Physical iPhone/Android contact and voice capture, including cancellation."
+    },
+    {
+      "id": "TODAY-01",
+      "area": "TODAY",
+      "title": "Today has no person or message search",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/jumps/page.tsx",
+        "src/components/TodayNavigation.tsx",
+        "src/components/TodayBriefing.tsx"
+      ],
+      "verification": [
+        "Today route scan; today-list/unit and handoff state tests; search/layout source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A user can find a named person’s due beat without paging through unrelated follow-ups."
+    },
+    {
+      "id": "TODAY-02",
+      "area": "TODAY",
+      "title": "Repeated plan and reason text adds noise",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/jumps/page.tsx",
+        "src/components/TodayNavigation.tsx",
+        "src/components/TodayBriefing.tsx"
+      ],
+      "verification": [
+        "Today route scan; today-list/unit and handoff state tests; search/layout source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A card’s secondary text adds new information instead of repeating its title."
+    },
+    {
+      "id": "TODAY-03",
+      "area": "TODAY",
+      "title": "One expanded card consumes most of a phone screen",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/jumps/page.tsx",
+        "src/components/TodayNavigation.tsx",
+        "src/components/TodayBriefing.tsx"
+      ],
+      "verification": [
+        "Today route scan; today-list/unit and handoff state tests; search/layout source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users can review several upcoming people quickly and deliberately expand one draft."
+    },
+    {
+      "id": "TODAY-04",
+      "area": "TODAY",
+      "title": "Overdue work has weak prioritization controls",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/jumps/page.tsx",
+        "src/components/TodayNavigation.tsx",
+        "src/components/TodayBriefing.tsx"
+      ],
+      "verification": [
+        "Today route scan; today-list/unit and handoff state tests; search/layout source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users with a backlog can identify urgent commitments without opening every contact."
+    },
+    {
+      "id": "TODAY-05",
+      "area": "TODAY",
+      "title": "Caught-up state favors adding people",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/jumps/page.tsx",
+        "src/components/TodayNavigation.tsx",
+        "src/components/TodayBriefing.tsx"
+      ],
+      "verification": [
+        "Today route scan; today-list/unit and handoff state tests; search/layout source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Both an empty account and a caught-up account receive an appropriate next step."
+    },
+    {
+      "id": "SEND-01",
+      "area": "SEND",
+      "title": "Open, send and complete remain separate mental steps",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/EditableFollowUpAction.tsx",
+        "src/components/JumpWorkflow.tsx",
+        "src/components/JumpActionControls.tsx"
+      ],
+      "verification": [
+        "Handoff/outcome tests and state/source review; physical devices remain separately open.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users do not interpret opening the composer as proof a message was sent."
+    },
+    {
+      "id": "SEND-02",
+      "area": "SEND",
+      "title": "Collapsed cards still expose Done and Skip",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/EditableFollowUpAction.tsx",
+        "src/components/JumpWorkflow.tsx",
+        "src/components/JumpActionControls.tsx"
+      ],
+      "verification": [
+        "Handoff/outcome tests and state/source review; physical devices remain separately open.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users can tell which beat and recipient they are completing without opening unrelated menus."
+    },
+    {
+      "id": "SEND-03",
+      "area": "SEND",
+      "title": "Delivery mode is not a persistent visual anchor",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/EditableFollowUpAction.tsx",
+        "src/components/JumpWorkflow.tsx",
+        "src/components/JumpActionControls.tsx"
+      ],
+      "verification": [
+        "Handoff/outcome tests and state/source review; physical devices remain separately open.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A user can identify what will happen without opening settings."
+    },
+    {
+      "id": "SEND-04",
+      "area": "SEND",
+      "title": "The outcome step can add repeated work",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/EditableFollowUpAction.tsx",
+        "src/components/JumpWorkflow.tsx",
+        "src/components/JumpActionControls.tsx"
+      ],
+      "verification": [
+        "Handoff/outcome tests and state/source review; physical devices remain separately open.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An interrupted user can find and resolve an unrecorded handoff on returning."
+    },
+    {
+      "id": "SEND-05",
+      "area": "SEND",
+      "title": "Real external-app handoffs remain a release gate",
+      "evidence": "V",
+      "priority": "P1",
+      "status": "awaiting-qualification",
+      "implementation": [
+        "src/components/EditableFollowUpAction.tsx",
+        "src/components/JumpWorkflow.tsx",
+        "src/components/JumpActionControls.tsx"
+      ],
+      "verification": [
+        "Handoff/outcome tests and state/source review; physical devices remain separately open.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Record successful and canceled handoffs on supported iPhone/Android combinations before public readiness signoff.",
+      "remaining": "Physical iPhone/Android external-app handoff and return checks."
+    },
+    {
+      "id": "LIST-01",
+      "area": "LIST",
+      "title": "Select all means only the loaded page",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/page.tsx",
+        "src/components/ContactsBulkWorkspace.tsx",
+        "src/components/ContactSavedViewsBar.tsx"
+      ],
+      "verification": [
+        "Contact lifecycle/follow-up summary tests; route scan and paging/selection source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "With more than 50 results, the selected scope and count are unmistakable before a bulk action."
+    },
+    {
+      "id": "LIST-02",
+      "area": "LIST",
+      "title": "Out-of-range contact pages are not clamped to the result count",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/page.tsx",
+        "src/components/ContactsBulkWorkspace.tsx",
+        "src/components/ContactSavedViewsBar.tsx"
+      ],
+      "verification": [
+        "Contact lifecycle/follow-up summary tests; route scan and paging/selection source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A stale page URL does not present a misleading empty contact list when matching people exist."
+    },
+    {
+      "id": "LIST-03",
+      "area": "LIST",
+      "title": "Sorting cannot reflect the user’s current task",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/page.tsx",
+        "src/components/ContactsBulkWorkspace.tsx",
+        "src/components/ContactSavedViewsBar.tsx"
+      ],
+      "verification": [
+        "Contact lifecycle/follow-up summary tests; route scan and paging/selection source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users can review the most urgent or recently active relationships without scanning alphabetically."
+    },
+    {
+      "id": "LIST-04",
+      "area": "LIST",
+      "title": "Important contact tools are difficult to discover",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/page.tsx",
+        "src/components/ContactsBulkWorkspace.tsx",
+        "src/components/ContactSavedViewsBar.tsx"
+      ],
+      "verification": [
+        "Contact lifecycle/follow-up summary tests; route scan and paging/selection source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A novice finds import and duplicate review without opening unrelated settings."
+    },
+    {
+      "id": "LIST-05",
+      "area": "LIST",
+      "title": "Contact rows emphasize methods more than next commitments",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/page.tsx",
+        "src/components/ContactsBulkWorkspace.tsx",
+        "src/components/ContactSavedViewsBar.tsx"
+      ],
+      "verification": [
+        "Contact lifecycle/follow-up summary tests; route scan and paging/selection source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users can identify contacts needing a next step from the list itself."
+    },
+    {
+      "id": "EDIT-01",
+      "area": "EDIT",
+      "title": "A recoverable validation error clears the draft",
+      "evidence": "R",
+      "priority": "P1",
+      "status": "verified-local",
+      "implementation": [
+        "src/lib/contact-actions.ts",
+        "src/components/ContactForm.tsx",
+        "src/components/FormGuard.tsx",
+        "src/lib/form-errors.ts"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests: invalid phone retains fields, navigation guard, duplicate second-survivor case; method-undo source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An invalid phone can be corrected with every other entered value intact."
+    },
+    {
+      "id": "EDIT-02",
+      "area": "EDIT",
+      "title": "Leaving an edited contact loses unsaved work without warning",
+      "evidence": "R",
+      "priority": "P1",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/FormGuard.tsx",
+        "src/lib/form-errors.ts"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests: invalid phone retains fields, navigation guard, duplicate second-survivor case; method-undo source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Accidental navigation does not silently discard contact edits."
+    },
+    {
+      "id": "EDIT-03",
+      "area": "EDIT",
+      "title": "Required identity is not explained beside the fields",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ContactForm.tsx",
+        "src/components/FormGuard.tsx",
+        "src/lib/form-errors.ts"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests: invalid phone retains fields, navigation guard, duplicate second-survivor case; method-undo source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A user understands which combinations of name/company are accepted before submitting."
+    },
+    {
+      "id": "EDIT-04",
+      "area": "EDIT",
+      "title": "Saving has no visible pending state",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ContactForm.tsx",
+        "src/components/FormGuard.tsx",
+        "src/lib/form-errors.ts"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests: invalid phone retains fields, navigation guard, duplicate second-survivor case; method-undo source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A throttled save provides immediate feedback and produces one intended contact change."
+    },
+    {
+      "id": "EDIT-05",
+      "area": "EDIT",
+      "title": "The privacy meaning of Note changes across forms",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ContactForm.tsx",
+        "src/components/FormGuard.tsx",
+        "src/lib/form-errors.ts"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests: invalid phone retains fields, navigation guard, duplicate second-survivor case; method-undo source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users can distinguish reusable message context from private notes before saving."
+    },
+    {
+      "id": "EDIT-06",
+      "area": "EDIT",
+      "title": "Removing a populated contact method is immediate",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ContactForm.tsx",
+        "src/components/FormGuard.tsx",
+        "src/lib/form-errors.ts"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests: invalid phone retains fields, navigation guard, duplicate second-survivor case; method-undo source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Accidentally removing a populated method can be reversed without retyping it."
+    },
+    {
+      "id": "DETAIL-01",
+      "area": "DETAIL",
+      "title": "Older history disappears behind an undocumented cap",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/[contactId]/page.tsx",
+        "src/components/ContactTimeline.tsx",
+        "src/app/api/contacts/[contactId]/activity/route.ts",
+        "src/components/ContactRelationshipStatePanel.tsx"
+      ],
+      "verification": [
+        "UI/UX workflow browser test: 163 same-time events, filters, correction persistence, stale 409 and foreign-contact 404.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A contact with more than 150 events can reach its oldest retained history."
+    },
+    {
+      "id": "DETAIL-02",
+      "area": "DETAIL",
+      "title": "Timeline filter state is visual only",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/[contactId]/page.tsx",
+        "src/components/ContactTimeline.tsx",
+        "src/app/api/contacts/[contactId]/activity/route.ts",
+        "src/components/ContactRelationshipStatePanel.tsx"
+      ],
+      "verification": [
+        "UI/UX workflow browser test: 163 same-time events, filters, correction persistence, stale 409 and foreign-contact 404.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Keyboard and screen-reader users can identify the active timeline view."
+    },
+    {
+      "id": "DETAIL-03",
+      "area": "DETAIL",
+      "title": "An empty filtered timeline gives the wrong explanation",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/[contactId]/page.tsx",
+        "src/components/ContactTimeline.tsx",
+        "src/app/api/contacts/[contactId]/activity/route.ts",
+        "src/components/ContactRelationshipStatePanel.tsx"
+      ],
+      "verification": [
+        "UI/UX workflow browser test: 163 same-time events, filters, correction persistence, stale 409 and foreign-contact 404.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Switching to Notes on a communications-only contact explains the filter result accurately."
+    },
+    {
+      "id": "DETAIL-04",
+      "area": "DETAIL",
+      "title": "Saved notes have no correction interface",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/[contactId]/page.tsx",
+        "src/components/ContactTimeline.tsx",
+        "src/app/api/contacts/[contactId]/activity/route.ts",
+        "src/components/ContactRelationshipStatePanel.tsx"
+      ],
+      "verification": [
+        "UI/UX workflow browser test: 163 same-time events, filters, correction persistence, stale 409 and foreign-contact 404.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A typo or accidentally entered private detail can be corrected through a clear user-facing process."
+    },
+    {
+      "id": "DETAIL-05",
+      "area": "DETAIL",
+      "title": "Do not contact needs a clearer impact explanation",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/[contactId]/page.tsx",
+        "src/components/ContactTimeline.tsx",
+        "src/app/api/contacts/[contactId]/activity/route.ts",
+        "src/components/ContactRelationshipStatePanel.tsx"
+      ],
+      "verification": [
+        "UI/UX workflow browser test: 163 same-time events, filters, correction persistence, stale 409 and foreign-contact 404.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users understand whether existing drafts, reminders and manual contact buttons remain available."
+    },
+    {
+      "id": "IMPORT-01",
+      "area": "IMPORT",
+      "title": "Import polling can fail silently",
+      "evidence": "C",
+      "priority": "P1",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ContactImportWizardV2.tsx"
+      ],
+      "verification": [
+        "Import job, boundary, route and recovery integration tests; source review of polling/cancellation failure UI and route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Offline and 401/500 polling failures visibly change state without losing the batch identity."
+    },
+    {
+      "id": "IMPORT-02",
+      "area": "IMPORT",
+      "title": "Cancel failures have no user feedback",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ContactImportWizardV2.tsx"
+      ],
+      "verification": [
+        "Import job, boundary, route and recovery integration tests; source review of polling/cancellation failure UI and route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A failed cancellation is visibly reported and can be retried safely."
+    },
+    {
+      "id": "IMPORT-03",
+      "area": "IMPORT",
+      "title": "Retry failed rows depends on the original tab state",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ContactImportWizardV2.tsx"
+      ],
+      "verification": [
+        "Import job, boundary, route and recovery integration tests; source review of polling/cancellation failure UI and route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "After reload, a failed batch still has an understandable recovery route."
+    },
+    {
+      "id": "IMPORT-04",
+      "area": "IMPORT",
+      "title": "Clean rows are summarized without enough spot-checking",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ContactImportWizardV2.tsx"
+      ],
+      "verification": [
+        "Import job, boundary, route and recovery integration tests; source review of polling/cancellation failure UI and route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users can catch incorrect but technically valid column mappings before records are written."
+    },
+    {
+      "id": "IMPORT-05",
+      "area": "IMPORT",
+      "title": "Progress has no accessible name",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ContactImportWizardV2.tsx"
+      ],
+      "verification": [
+        "Import job, boundary, route and recovery integration tests; source review of polling/cancellation failure UI and route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Assistive technology identifies what is progressing and its current completion level."
+    },
+    {
+      "id": "CLEAN-01",
+      "area": "CLEAN",
+      "title": "Keeping the second duplicate always fails",
+      "evidence": "R",
+      "priority": "P1",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/DuplicateMergeForm.tsx",
+        "src/app/(app)/contacts/duplicates/page.tsx"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests; contact lifecycle/custom-field tests and restore/dependency source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Both survivor choices merge successfully and retain the intended record."
+    },
+    {
+      "id": "CLEAN-02",
+      "area": "CLEAN",
+      "title": "Duplicate coverage silently stops at 10,000 contacts",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/duplicates/page.tsx"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests; contact lifecycle/custom-field tests and restore/dependency source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A larger address book never receives an all-clear based on a partial scan."
+    },
+    {
+      "id": "CLEAN-03",
+      "area": "CLEAN",
+      "title": "Merge does not preview conflicting values",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/duplicates/page.tsx",
+        "src/components/DuplicateMergeForm.tsx",
+        "src/lib/contact-merge-actions.ts",
+        "src/app/(app)/contacts/archived/page.tsx",
+        "src/app/(app)/contacts/custom-fields/page.tsx"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests; contact lifecycle/custom-field tests and restore/dependency source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users can predict which conflicting company, custom field and primary contact method will survive."
+    },
+    {
+      "id": "CLEAN-04",
+      "area": "CLEAN",
+      "title": "Archive restore lacks a scheduling-impact preview",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/duplicates/page.tsx",
+        "src/components/DuplicateMergeForm.tsx",
+        "src/lib/contact-merge-actions.ts",
+        "src/app/(app)/contacts/archived/page.tsx",
+        "src/app/(app)/contacts/custom-fields/page.tsx"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests; contact lifecycle/custom-field tests and restore/dependency source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A restored contact’s next actions match the expectations shown before or immediately after restoring."
+    },
+    {
+      "id": "CLEAN-05",
+      "area": "CLEAN",
+      "title": "Custom field deletion does not show dependent Mixes",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/contacts/duplicates/page.tsx",
+        "src/components/DuplicateMergeForm.tsx",
+        "src/lib/contact-merge-actions.ts",
+        "src/app/(app)/contacts/archived/page.tsx",
+        "src/app/(app)/contacts/custom-fields/page.tsx"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests; contact lifecycle/custom-field tests and restore/dependency source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A user can repair affected drafts/Mixes without discovering blank fields during a later send."
+    },
+    {
+      "id": "LIB-01",
+      "area": "LIB",
+      "title": "Audience preview double-counts overlapping tags",
+      "evidence": "R",
+      "priority": "P1",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/api/contacts/audience/route.ts",
+        "src/components/useAudiencePreview.ts"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests: true audience union, missing methods and draft without an audience; library publication browser checks.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "One person in two selected tags counts once in both preview and activation."
+    },
+    {
+      "id": "LIB-02",
+      "area": "LIB",
+      "title": "A template draft cannot be created without an audience",
+      "evidence": "R",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/lib/shared-mix-use-service.ts",
+        "src/components/TemplateUseForm.tsx"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests: true audience union, missing methods and draft without an audience; library publication browser checks.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A new account can create and edit a template draft before selecting recipients."
+    },
+    {
+      "id": "LIB-03",
+      "area": "LIB",
+      "title": "New users face an undifferentiated library",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/mixes/page.tsx",
+        "src/app/(app)/templates/page.tsx",
+        "src/components/TemplateUseForm.tsx"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests: true audience union, missing methods and draft without an audience; library publication browser checks.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A novice finds a suitable first plan without understanding sales-framework terminology."
+    },
+    {
+      "id": "LIB-04",
+      "area": "LIB",
+      "title": "Using a template is hidden inside its preview",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/mixes/page.tsx",
+        "src/app/(app)/templates/page.tsx",
+        "src/components/TemplateUseForm.tsx"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests: true audience union, missing methods and draft without an audience; library publication browser checks.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users who have already chosen a plan can start setup without an unnecessary modal step."
+    },
+    {
+      "id": "LIB-05",
+      "area": "LIB",
+      "title": "Count and duration wording lacks edge-case polish",
+      "evidence": "C",
+      "priority": "P3",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/mixes/page.tsx",
+        "src/app/(app)/templates/page.tsx",
+        "src/components/TemplateUseForm.tsx"
+      ],
+      "verification": [
+        "UI/UX readiness browser tests: true audience union, missing methods and draft without an audience; library publication browser checks.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "One-step plans read as one beat or a single follow-up, with an intelligible timing summary."
+    },
+    {
+      "id": "MIX-01",
+      "area": "MIX",
+      "title": "A long custom plan has no unsaved-draft protection",
+      "evidence": "C",
+      "priority": "P1",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/FormGuard.tsx",
+        "src/components/SchedulePreview.tsx",
+        "src/lib/schedule-preview.ts",
+        "src/components/useAudiencePreview.ts"
+      ],
+      "verification": [
+        "Schedule-preview and audience browser tests; editor undo, unsaved-work and timing source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Leaving or reloading a modified multi-beat plan cannot silently discard all work."
+    },
+    {
+      "id": "MIX-02",
+      "area": "MIX",
+      "title": "Editor activation repeats the overlapping-tag count error",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/useAudiencePreview.ts",
+        "src/components/MixEditor.tsx",
+        "src/components/SchedulePreview.tsx",
+        "src/lib/schedule-preview.ts"
+      ],
+      "verification": [
+        "Schedule-preview and audience browser tests; editor undo, unsaved-work and timing source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "The review describes the selected audience rather than unrelated contacts or repeated tag memberships."
+    },
+    {
+      "id": "MIX-03",
+      "area": "MIX",
+      "title": "Removing a beat loses its contents immediately",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/MixEditor.tsx",
+        "src/app/(app)/mixes/new/page.tsx",
+        "src/app/(app)/mixes/[mixId]/edit/page.tsx",
+        "src/components/SchedulePreview.tsx",
+        "src/lib/schedule-preview.ts",
+        "src/components/useAudiencePreview.ts"
+      ],
+      "verification": [
+        "Schedule-preview and audience browser tests; editor undo, unsaved-work and timing source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A mistaken removal restores the full message, variants and timing."
+    },
+    {
+      "id": "MIX-04",
+      "area": "MIX",
+      "title": "Relative timing is hard to verify as actual dates",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/MixEditor.tsx",
+        "src/app/(app)/mixes/new/page.tsx",
+        "src/app/(app)/mixes/[mixId]/edit/page.tsx",
+        "src/components/SchedulePreview.tsx",
+        "src/lib/schedule-preview.ts",
+        "src/components/useAudiencePreview.ts"
+      ],
+      "verification": [
+        "Schedule-preview and audience browser tests; editor undo, unsaved-work and timing source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users can verify the exact sequence dates before activation, including weekend and quiet-hour effects."
+    },
+    {
+      "id": "MIX-05",
+      "area": "MIX",
+      "title": "Advanced timing language increases the learning burden",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/MixEditor.tsx",
+        "src/app/(app)/mixes/new/page.tsx",
+        "src/app/(app)/mixes/[mixId]/edit/page.tsx",
+        "src/components/SchedulePreview.tsx",
+        "src/lib/schedule-preview.ts",
+        "src/components/useAudiencePreview.ts"
+      ],
+      "verification": [
+        "Schedule-preview and audience browser tests; editor undo, unsaved-work and timing source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A first-time user can create a two-step plan without decoding brand terminology."
+    },
+    {
+      "id": "INV-01",
+      "area": "INV",
+      "title": "Revocation is immediate despite a permanent allowance cost",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/mixes/system/page.tsx",
+        "src/components/SystemMixInviteForm.tsx",
+        "src/lib/system-mix-actions.ts"
+      ],
+      "verification": [
+        "Onboarding/invitation and System Mix publication browser tests: selected recipients, allowance confirmation, reminder creation and revocation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users cannot accidentally revoke a still-needed invitation with one tap."
+    },
+    {
+      "id": "INV-02",
+      "area": "INV",
+      "title": "Preparing an invitation consumes a scarce slot before sending",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/mixes/system/page.tsx",
+        "src/components/SystemMixInviteForm.tsx",
+        "src/lib/system-mix-actions.ts"
+      ],
+      "verification": [
+        "Onboarding/invitation and System Mix publication browser tests: selected recipients, allowance confirmation, reminder creation and revocation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users correctly predict the remaining allowance before confirming preparation."
+    },
+    {
+      "id": "INV-03",
+      "area": "INV",
+      "title": "The combined address input offers no channel-specific keyboard",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/mixes/system/page.tsx",
+        "src/components/SystemMixInviteForm.tsx",
+        "src/lib/system-mix-actions.ts"
+      ],
+      "verification": [
+        "Onboarding/invitation and System Mix publication browser tests: selected recipients, allowance confirmation, reminder creation and revocation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Phones expose a suitable keyboard and validation matches the selected invitation channel."
+    },
+    {
+      "id": "INV-04",
+      "area": "INV",
+      "title": "Saved-contact choice is capped and requires a separate search submit",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/mixes/system/page.tsx",
+        "src/components/SystemMixInviteForm.tsx",
+        "src/lib/system-mix-actions.ts"
+      ],
+      "verification": [
+        "Onboarding/invitation and System Mix publication browser tests: selected recipients, allowance confirmation, reminder creation and revocation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Finding another recipient does not discard an invitation draft or hide matching people without explanation."
+    },
+    {
+      "id": "INV-05",
+      "area": "INV",
+      "title": "Status has no direct link to the exact prepared reminder",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/mixes/system/page.tsx",
+        "src/components/SystemMixInviteForm.tsx",
+        "src/lib/system-mix-actions.ts"
+      ],
+      "verification": [
+        "Onboarding/invitation and System Mix publication browser tests: selected recipients, allowance confirmation, reminder creation and revocation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An owner reaches the correct prepared invitation without searching unrelated beats."
+    },
+    {
+      "id": "JOURNEY-01",
+      "area": "JOURNEY",
+      "title": "Selecting a stage drops an existing person search",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/journey/page.tsx",
+        "src/app/(app)/settings/journey/page.tsx",
+        "src/components/JourneyRuleForm.tsx",
+        "src/components/ContactJourneyPanel.tsx"
+      ],
+      "verification": [
+        "Journey rule-editing browser suite and customer-journey/configuration integration tests, including stale draft and paused automation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Searching then changing stage retains the query and shows clear active-filter state."
+    },
+    {
+      "id": "JOURNEY-02",
+      "area": "JOURNEY",
+      "title": "Automatic and Paused are ambiguous at the person level",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/journey/page.tsx",
+        "src/app/(app)/settings/journey/page.tsx",
+        "src/components/JourneyRuleForm.tsx",
+        "src/components/ContactJourneyPanel.tsx"
+      ],
+      "verification": [
+        "Journey rule-editing browser suite and customer-journey/configuration integration tests, including stale draft and paused automation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A user can explain why one contact is paused and how to resume the intended behavior."
+    },
+    {
+      "id": "JOURNEY-03",
+      "area": "JOURNEY",
+      "title": "Time in stage is not connected to a next action",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/journey/page.tsx",
+        "src/app/(app)/settings/journey/page.tsx",
+        "src/components/JourneyRuleForm.tsx",
+        "src/components/ContactJourneyPanel.tsx"
+      ],
+      "verification": [
+        "Journey rule-editing browser suite and customer-journey/configuration integration tests, including stale draft and paused automation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "The board helps decide who needs attention, not only where they are categorized."
+    },
+    {
+      "id": "JOURNEY-04",
+      "area": "JOURNEY",
+      "title": "Rules need a worked customer example",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/journey/page.tsx",
+        "src/app/(app)/settings/journey/page.tsx",
+        "src/components/JourneyRuleForm.tsx",
+        "src/components/ContactJourneyPanel.tsx"
+      ],
+      "verification": [
+        "Journey rule-editing browser suite and customer-journey/configuration integration tests, including stale draft and paused automation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An owner can preview the consequence of a rule without changing a live customer."
+    },
+    {
+      "id": "JOURNEY-05",
+      "area": "JOURNEY",
+      "title": "Combined automation needs scenario-based usability checks",
+      "evidence": "V",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/journey/page.tsx",
+        "src/app/(app)/settings/journey/page.tsx",
+        "src/components/JourneyRuleForm.tsx",
+        "src/components/ContactJourneyPanel.tsx"
+      ],
+      "verification": [
+        "Journey rule-editing browser suite and customer-journey/configuration integration tests, including stale draft and paused automation.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Conflicting or paused automation produces a clear, recoverable user-facing state."
+    },
+    {
+      "id": "CAL-01",
+      "area": "CAL",
+      "title": "Empty calendar days create a long mobile detour",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/calendar/page.tsx",
+        "src/components/CalendarEntryForm.tsx"
+      ],
+      "verification": [
+        "Calendar/time/scheduling tests and three-engine calendar route scan; pagination, locale and invite-copy source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users can scan availability and start an event without traversing repeated empty panels."
+    },
+    {
+      "id": "CAL-02",
+      "area": "CAL",
+      "title": "Timezone entry differs from the rest of the product",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/calendar/page.tsx",
+        "src/components/CalendarEntryForm.tsx"
+      ],
+      "verification": [
+        "Calendar/time/scheduling tests and three-engine calendar route scan; pagination, locale and invite-copy source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users can select any supported zone without memorizing an IANA identifier."
+    },
+    {
+      "id": "CAL-03",
+      "area": "CAL",
+      "title": "Calendar display ignores saved locale preferences",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/calendar/page.tsx",
+        "src/components/CalendarEntryForm.tsx"
+      ],
+      "verification": [
+        "Calendar/time/scheduling tests and three-engine calendar route scan; pagination, locale and invite-copy source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Changing locale affects calendar formatting consistently with Today and account screens."
+    },
+    {
+      "id": "CAL-04",
+      "area": "CAL",
+      "title": "Sharing the event is explained only near Save",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/calendar/page.tsx",
+        "src/components/CalendarEntryForm.tsx"
+      ],
+      "verification": [
+        "Calendar/time/scheduling tests and three-engine calendar route scan; pagination, locale and invite-copy source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users do not believe the attendee was notified merely because the event was saved."
+    },
+    {
+      "id": "CAL-05",
+      "area": "CAL",
+      "title": "The event limit offers the wrong recovery direction",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/calendar/page.tsx",
+        "src/components/CalendarEntryForm.tsx"
+      ],
+      "verification": [
+        "Calendar/time/scheduling tests and three-engine calendar route scan; pagination, locale and invite-copy source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A busy account can inspect all relevant events without dismantling a calendar connection."
+    },
+    {
+      "id": "LEAD-01",
+      "area": "LEAD",
+      "title": "Connection setup becomes technical abruptly",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/connections/page.tsx",
+        "src/components/PublicLeadForm.tsx",
+        "src/app/lead/[connectionId]/page.tsx"
+      ],
+      "verification": [
+        "Intake/connection tests and source review of held search, timestamp and public-form validation; connection route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A nontechnical owner can publish a usable lead form without encountering API setup."
+    },
+    {
+      "id": "LEAD-02",
+      "area": "LEAD",
+      "title": "Recent inquiry timestamps ignore account locale",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/connections/page.tsx",
+        "src/components/PublicLeadForm.tsx",
+        "src/app/lead/[connectionId]/page.tsx"
+      ],
+      "verification": [
+        "Intake/connection tests and source review of held search, timestamp and public-form validation; connection route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An owner can match a recent inquiry to their local working day without converting UTC."
+    },
+    {
+      "id": "LEAD-03",
+      "area": "LEAD",
+      "title": "Needs-review work is a sequential ten-item queue",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/connections/page.tsx",
+        "src/components/PublicLeadForm.tsx",
+        "src/app/lead/[connectionId]/page.tsx"
+      ],
+      "verification": [
+        "Intake/connection tests and source review of held search, timestamp and public-form validation; connection route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An owner can find an urgent held inquiry without first resolving unrelated entries."
+    },
+    {
+      "id": "LEAD-04",
+      "area": "LEAD",
+      "title": "Hosted-form receipt ends without a useful next action",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/connections/page.tsx",
+        "src/components/PublicLeadForm.tsx",
+        "src/app/lead/[connectionId]/page.tsx"
+      ],
+      "verification": [
+        "Intake/connection tests and source review of held search, timestamp and public-form validation; connection route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Someone who entered a wrong phone number can understand how to correct the request."
+    },
+    {
+      "id": "LEAD-05",
+      "area": "LEAD",
+      "title": "Required contact-method validation is indirect",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/connections/page.tsx",
+        "src/components/PublicLeadForm.tsx",
+        "src/app/lead/[connectionId]/page.tsx"
+      ],
+      "verification": [
+        "Intake/connection tests and source review of held search, timestamp and public-form validation; connection route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Submitting neither method moves the user directly to the relevant fields with a clear instruction."
+    },
+    {
+      "id": "REVIEW-01",
+      "area": "REVIEW",
+      "title": "Low-score users receive fewer follow-on choices",
+      "evidence": "R",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ReviewFeedbackForm.tsx",
+        "src/app/review/[token]/page.tsx",
+        "src/app/(app)/settings/business/page.tsx"
+      ],
+      "verification": [
+        "UI/UX workflow browser test: rating selection, private receipt, same public-review route at low rating and correction link.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "High- and low-rating users can access the same optional public-review route."
+    },
+    {
+      "id": "REVIEW-02",
+      "area": "REVIEW",
+      "title": "Star values have no visible meaning anchors",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ReviewFeedbackForm.tsx",
+        "src/app/review/[token]/page.tsx",
+        "src/app/(app)/settings/business/page.tsx"
+      ],
+      "verification": [
+        "UI/UX workflow browser test: rating selection, private receipt, same public-review route at low rating and correction link.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users consistently understand which end represents a poor or excellent experience."
+    },
+    {
+      "id": "REVIEW-03",
+      "area": "REVIEW",
+      "title": "Feedback cannot be corrected after submission",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ReviewFeedbackForm.tsx",
+        "src/app/review/[token]/page.tsx",
+        "src/app/(app)/settings/business/page.tsx"
+      ],
+      "verification": [
+        "UI/UX workflow browser test: rating selection, private receipt, same public-review route at low rating and correction link.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An accidental rating or text error has a discoverable remedy."
+    },
+    {
+      "id": "REVIEW-04",
+      "area": "REVIEW",
+      "title": "Private acknowledgement implies a response without setting expectations",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/ReviewFeedbackForm.tsx",
+        "src/app/review/[token]/page.tsx",
+        "src/app/(app)/settings/business/page.tsx"
+      ],
+      "verification": [
+        "UI/UX workflow browser test: rating selection, private receipt, same public-review route at low rating and correction link.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A dissatisfied customer has a useful next step without an invented response-time promise."
+    },
+    {
+      "id": "REVIEW-05",
+      "area": "REVIEW",
+      "title": "Real recipient comprehension is unverified",
+      "evidence": "V",
+      "priority": "P2",
+      "status": "awaiting-qualification",
+      "implementation": [
+        "src/components/ReviewFeedbackForm.tsx",
+        "src/app/review/[token]/page.tsx",
+        "src/app/(app)/settings/business/page.tsx"
+      ],
+      "verification": [
+        "UI/UX workflow browser test: rating selection, private receipt, same public-review route at low rating and correction link.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Customers understand where their feedback goes before submitting it.",
+      "remaining": "Recipient comprehension observation for private feedback and public review."
+    },
+    {
+      "id": "PREF-01",
+      "area": "PREF",
+      "title": "Timezone and schedule are separated from business setup",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/business/page.tsx",
+        "src/app/(app)/account/preferences/page.tsx",
+        "src/app/(app)/settings/jump-date-types/page.tsx"
+      ],
+      "verification": [
+        "Worked schedule browser test; preferences route scan and guarded-save/signature/date-type source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users can see the active signature, timezone and sending defaults before starting a plan."
+    },
+    {
+      "id": "PREF-02",
+      "area": "PREF",
+      "title": "Signature editing has no rendered message example",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/business/page.tsx",
+        "src/app/(app)/account/preferences/page.tsx",
+        "src/app/(app)/settings/jump-date-types/page.tsx"
+      ],
+      "verification": [
+        "Worked schedule browser test; preferences route scan and guarded-save/signature/date-type source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A user can spot duplicate names, awkward spacing and overly long signoffs before saving."
+    },
+    {
+      "id": "PREF-03",
+      "area": "PREF",
+      "title": "Scheduling changes have no concrete impact preview",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/business/page.tsx",
+        "src/app/(app)/account/preferences/page.tsx",
+        "src/app/(app)/settings/jump-date-types/page.tsx"
+      ],
+      "verification": [
+        "Worked schedule browser test; preferences route scan and guarded-save/signature/date-type source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "The user can predict the time/date of an affected beat before confirming new defaults."
+    },
+    {
+      "id": "PREF-04",
+      "area": "PREF",
+      "title": "Customer settings forms lack consistent pending/dirty states",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/business/page.tsx",
+        "src/app/(app)/account/preferences/page.tsx",
+        "src/app/(app)/settings/jump-date-types/page.tsx"
+      ],
+      "verification": [
+        "Worked schedule browser test; preferences route scan and guarded-save/signature/date-type source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Slow saves and accidental navigation do not leave users unsure whether edits were kept."
+    },
+    {
+      "id": "PREF-05",
+      "area": "PREF",
+      "title": "Date types expose taxonomy before explaining consequences",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/business/page.tsx",
+        "src/app/(app)/account/preferences/page.tsx",
+        "src/app/(app)/settings/jump-date-types/page.tsx"
+      ],
+      "verification": [
+        "Worked schedule browser test; preferences route scan and guarded-save/signature/date-type source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Users know what disabling a type changes and which existing plans depend on it."
+    },
+    {
+      "id": "NOTIFY-01",
+      "area": "NOTIFY",
+      "title": "Unavailable-email fallback can recommend unavailable push",
+      "evidence": "R",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/notifications/page.tsx",
+        "src/components/PushNotificationControl.tsx",
+        "src/app/(app)/settings/sending/page.tsx",
+        "src/components/AutomaticSendPreview.tsx",
+        "src/app/api/settings/sending-preview/route.ts"
+      ],
+      "verification": [
+        "Automatic-sending preview browser test: candidate exclusions, earliest time and prior attempts; notification delivery unit tests and source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "When both channels are unavailable, the page gives one accurate explanation and useful support action."
+    },
+    {
+      "id": "NOTIFY-02",
+      "area": "NOTIFY",
+      "title": "Device reminder failure language is technical",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/notifications/page.tsx",
+        "src/components/PushNotificationControl.tsx",
+        "src/app/(app)/settings/sending/page.tsx",
+        "src/components/AutomaticSendPreview.tsx",
+        "src/app/api/settings/sending-preview/route.ts"
+      ],
+      "verification": [
+        "Automatic-sending preview browser test: candidate exclusions, earliest time and prior attempts; notification delivery unit tests and source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "The message describes a product capability and next step without server jargon."
+    },
+    {
+      "id": "NOTIFY-03",
+      "area": "NOTIFY",
+      "title": "Email reminder preferences do not show a sample or test action",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/notifications/page.tsx",
+        "src/components/PushNotificationControl.tsx",
+        "src/app/(app)/settings/sending/page.tsx",
+        "src/components/AutomaticSendPreview.tsx",
+        "src/app/api/settings/sending-preview/route.ts"
+      ],
+      "verification": [
+        "Automatic-sending preview browser test: candidate exclusions, earliest time and prior attempts; notification delivery unit tests and source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Members can verify the reminder’s contents and destination before relying on it."
+    },
+    {
+      "id": "NOTIFY-04",
+      "area": "NOTIFY",
+      "title": "Enabling automation lacks an exact near-term sending preview",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/settings/notifications/page.tsx",
+        "src/components/PushNotificationControl.tsx",
+        "src/app/(app)/settings/sending/page.tsx",
+        "src/components/AutomaticSendPreview.tsx",
+        "src/app/api/settings/sending-preview/route.ts"
+      ],
+      "verification": [
+        "Automatic-sending preview browser test: candidate exclusions, earliest time and prior attempts; notification delivery unit tests and source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Before enabling automation, the owner can identify recipients and earliest send times."
+    },
+    {
+      "id": "NOTIFY-05",
+      "area": "NOTIFY",
+      "title": "Reminder delivery and timing need real-channel evidence",
+      "evidence": "V",
+      "priority": "P1",
+      "status": "awaiting-qualification",
+      "implementation": [
+        "src/components/AutomaticSendPreview.tsx",
+        "src/app/api/settings/sending-preview/route.ts"
+      ],
+      "verification": [
+        "Automatic-sending preview browser test: candidate exclusions, earliest time and prior attempts; notification delivery unit tests and source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Document actual delivered reminders and accurate failure feedback before declaring these functions ready.",
+      "remaining": "Controlled real-channel delivery and timing receipts."
+    },
+    {
+      "id": "ACCOUNT-01",
+      "area": "ACCOUNT",
+      "title": "Account email is displayed without a change/recovery path",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/account/page.tsx",
+        "src/components/AccountDeletionForm.tsx",
+        "src/app/account/deleted/page.tsx",
+        "src/components/AccountExport.tsx"
+      ],
+      "verification": [
+        "Passwordless deletion browser checks, export/deletion integration tests, session-source review and three-engine account route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A member who is losing access to an email address can find the approved way to update it."
+    },
+    {
+      "id": "ACCOUNT-02",
+      "area": "ACCOUNT",
+      "title": "Social-only account deletion requires creating a password",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/account/page.tsx",
+        "src/components/AccountDeletionForm.tsx",
+        "src/app/account/deleted/page.tsx",
+        "src/components/AccountExport.tsx"
+      ],
+      "verification": [
+        "Passwordless deletion browser checks, export/deletion integration tests, session-source review and three-engine account route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A social-only member can delete after secure reauthentication without inventing a new credential."
+    },
+    {
+      "id": "ACCOUNT-03",
+      "area": "ACCOUNT",
+      "title": "Deletion warning reference points to no matching element",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/account/page.tsx",
+        "src/components/AccountDeletionForm.tsx",
+        "src/app/account/deleted/page.tsx",
+        "src/components/AccountExport.tsx"
+      ],
+      "verification": [
+        "Passwordless deletion browser checks, export/deletion integration tests, session-source review and three-engine account route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "The form’s accessible description includes the deletion consequences."
+    },
+    {
+      "id": "ACCOUNT-04",
+      "area": "ACCOUNT",
+      "title": "Data export begins as a bare download action",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/account/page.tsx",
+        "src/components/AccountDeletionForm.tsx",
+        "src/app/account/deleted/page.tsx",
+        "src/components/AccountExport.tsx"
+      ],
+      "verification": [
+        "Passwordless deletion browser checks, export/deletion integration tests, session-source review and three-engine account route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A user can distinguish a started download, an export failure and a complete export."
+    },
+    {
+      "id": "ACCOUNT-05",
+      "area": "ACCOUNT",
+      "title": "Session rows emphasize technical identifiers",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/account/page.tsx",
+        "src/components/AccountDeletionForm.tsx",
+        "src/app/account/deleted/page.tsx",
+        "src/components/AccountExport.tsx"
+      ],
+      "verification": [
+        "Passwordless deletion browser checks, export/deletion integration tests, session-source review and three-engine account route scan.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A member can identify the session they intend to revoke without interpreting an IP address."
+    },
+    {
+      "id": "HELP-01",
+      "area": "HELP",
+      "title": "Customer support drafts lack the admin reply protections",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/help/page.tsx",
+        "src/components/SupportFaq.tsx",
+        "src/app/(app)/account/tickets/[ticketId]/page.tsx"
+      ],
+      "verification": [
+        "Support tests, help/ticket route scans and source review of FAQ status, retained forms and optional coarse context.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A network error or navigation interruption does not erase a long explanation."
+    },
+    {
+      "id": "HELP-02",
+      "area": "HELP",
+      "title": "Reply expectations are unclear",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/help/page.tsx",
+        "src/components/SupportFaq.tsx",
+        "src/app/(app)/account/tickets/[ticketId]/page.tsx"
+      ],
+      "verification": [
+        "Support tests, help/ticket route scans and source review of FAQ status, retained forms and optional coarse context.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A customer knows whether to wait, check the ticket or use another channel."
+    },
+    {
+      "id": "HELP-03",
+      "area": "HELP",
+      "title": "Successful FAQ filtering is not announced",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/help/page.tsx",
+        "src/components/SupportFaq.tsx",
+        "src/app/(app)/account/tickets/[ticketId]/page.tsx"
+      ],
+      "verification": [
+        "Support tests, help/ticket route scans and source review of FAQ status, retained forms and optional coarse context.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Screen-reader users hear how many answers match after changing the query."
+    },
+    {
+      "id": "HELP-04",
+      "area": "HELP",
+      "title": "Tickets rely on a user’s manual description of context",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/help/page.tsx",
+        "src/components/SupportFaq.tsx",
+        "src/app/(app)/account/tickets/[ticketId]/page.tsx"
+      ],
+      "verification": [
+        "Support tests, help/ticket route scans and source review of FAQ status, retained forms and optional coarse context.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Support receives useful reproduction context without collecting private contact data."
+    },
+    {
+      "id": "HELP-05",
+      "area": "HELP",
+      "title": "No-match help sends users to a vague location",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(app)/help/page.tsx",
+        "src/components/SupportFaq.tsx",
+        "src/app/(app)/account/tickets/[ticketId]/page.tsx"
+      ],
+      "verification": [
+        "Support tests, help/ticket route scans and source review of FAQ status, retained forms and optional coarse context.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A failed help search has one obvious continuation without scrolling through the rest of the page."
+    },
+    {
+      "id": "ADMINHOME-01",
+      "area": "ADMINHOME",
+      "title": "Mobile administration uses two navigation layers",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/page.tsx",
+        "src/components/AdminNav.tsx",
+        "src/lib/admin-navigation.ts"
+      ],
+      "verification": [
+        "Admin workspace browser tests, 320-pixel navigation checks and overview urgency/refresh source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An operator identifies the current area and reaches an adjacent task quickly on a phone."
+    },
+    {
+      "id": "ADMINHOME-02",
+      "area": "ADMINHOME",
+      "title": "Overflowing tab strips give little continuation cue",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/page.tsx",
+        "src/components/AdminNav.tsx",
+        "src/lib/admin-navigation.ts"
+      ],
+      "verification": [
+        "Admin workspace browser tests, 320-pixel navigation checks and overview urgency/refresh source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "All sibling destinations are discoverable and the active one is fully visible at 320 pixels."
+    },
+    {
+      "id": "ADMINHOME-03",
+      "area": "ADMINHOME",
+      "title": "Attention cards lack a common urgency scale",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/page.tsx",
+        "src/components/AdminNav.tsx",
+        "src/lib/admin-navigation.ts"
+      ],
+      "verification": [
+        "Admin workspace browser tests, 320-pixel navigation checks and overview urgency/refresh source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Operators can decide the first action without opening each attention item."
+    },
+    {
+      "id": "ADMINHOME-04",
+      "area": "ADMINHOME",
+      "title": "Overview freshness is a render timestamp",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/page.tsx",
+        "src/components/AdminNav.tsx",
+        "src/lib/admin-navigation.ts"
+      ],
+      "verification": [
+        "Admin workspace browser tests, 320-pixel navigation checks and overview urgency/refresh source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A long-open overview makes stale metrics apparent rather than implying they are current."
+    },
+    {
+      "id": "ADMINHOME-05",
+      "area": "ADMINHOME",
+      "title": "Staff and customer context can be easy to confuse",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/page.tsx",
+        "src/components/AdminNav.tsx",
+        "src/lib/admin-navigation.ts"
+      ],
+      "verification": [
+        "Admin workspace browser tests, 320-pixel navigation checks and overview urgency/refresh source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An operator does not use the overview total as the number of remaining customer places."
+    },
+    {
+      "id": "ADMINUSER-01",
+      "area": "ADMINUSER",
+      "title": "Search results provide limited triage context",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/users/page.tsx",
+        "src/app/(staff)/admin/users/[userId]/page.tsx"
+      ],
+      "verification": [
+        "User administration and workflow browser tests: suspension/restoration, retained reason, live permissions and renewed MFA.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A support operator can identify the likely target without repeatedly opening similar accounts."
+    },
+    {
+      "id": "ADMINUSER-02",
+      "area": "ADMINUSER",
+      "title": "Access changes need a task-specific review summary",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/users/page.tsx",
+        "src/app/(staff)/admin/users/[userId]/page.tsx"
+      ],
+      "verification": [
+        "User administration and workflow browser tests: suspension/restoration, retained reason, live permissions and renewed MFA.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "The operator can name the exact account and consequence immediately before submitting."
+    },
+    {
+      "id": "ADMINUSER-03",
+      "area": "ADMINUSER",
+      "title": "Suspension consequences are a dense paragraph",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/users/page.tsx",
+        "src/app/(staff)/admin/users/[userId]/page.tsx"
+      ],
+      "verification": [
+        "User administration and workflow browser tests: suspension/restoration, retained reason, live permissions and renewed MFA.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Operators can explain what restoring access will and will not automatically restore."
+    },
+    {
+      "id": "ADMINUSER-04",
+      "area": "ADMINUSER",
+      "title": "Session dates are not a recognizable device inventory",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/users/page.tsx",
+        "src/app/(staff)/admin/users/[userId]/page.tsx"
+      ],
+      "verification": [
+        "User administration and workflow browser tests: suspension/restoration, retained reason, live permissions and renewed MFA.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An operator can discuss the relevant session accurately with the account owner."
+    },
+    {
+      "id": "ADMINUSER-05",
+      "area": "ADMINUSER",
+      "title": "Denied and changing-access states need operator task checks",
+      "evidence": "V",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/users/page.tsx",
+        "src/app/(staff)/admin/users/[userId]/page.tsx"
+      ],
+      "verification": [
+        "User administration and workflow browser tests: suspension/restoration, retained reason, live permissions and renewed MFA.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A denied action explains the supported next step and preserves appropriate nonsecret draft work."
+    },
+    {
+      "id": "ADMINSUP-01",
+      "area": "ADMINSUP",
+      "title": "Queue age is time since any activity",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/support/page.tsx",
+        "src/app/(staff)/admin/support/[ticketId]/page.tsx",
+        "src/components/SupportReplyComposer.tsx",
+        "src/components/FormGuard.tsx"
+      ],
+      "verification": [
+        "Support case/email/workflow browser suites: assignment conflicts, ended views, reply retention and separate delivery receipt; beforeunload clears after save.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An internal update cannot make an overdue customer reply appear newly received."
+    },
+    {
+      "id": "ADMINSUP-02",
+      "area": "ADMINSUP",
+      "title": "Reply action and email delivery need clearer separation",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/support/page.tsx",
+        "src/app/(staff)/admin/support/[ticketId]/page.tsx",
+        "src/components/SupportReplyComposer.tsx",
+        "src/components/FormGuard.tsx"
+      ],
+      "verification": [
+        "Support case/email/workflow browser suites: assignment conflicts, ended views, reply retention and separate delivery receipt; beforeunload clears after save.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An operator can confirm the customer-visible reply without assuming inbox delivery."
+    },
+    {
+      "id": "ADMINSUP-03",
+      "area": "ADMINSUP",
+      "title": "Reply drafts are lost on refresh",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/support/page.tsx",
+        "src/app/(staff)/admin/support/[ticketId]/page.tsx",
+        "src/components/SupportReplyComposer.tsx",
+        "src/components/FormGuard.tsx"
+      ],
+      "verification": [
+        "Support case/email/workflow browser suites: assignment conflicts, ended views, reply retention and separate delivery receipt; beforeunload clears after save.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Routine refresh during case investigation cannot silently remove a lengthy reply."
+    },
+    {
+      "id": "ADMINSUP-04",
+      "area": "ADMINSUP",
+      "title": "View-only support entry requires careful discovery",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/support/page.tsx",
+        "src/app/(staff)/admin/support/[ticketId]/page.tsx",
+        "src/components/SupportReplyComposer.tsx",
+        "src/components/FormGuard.tsx"
+      ],
+      "verification": [
+        "Support case/email/workflow browser suites: assignment conflicts, ended views, reply retention and separate delivery receipt; beforeunload clears after save.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A support operator can determine why view-only access is unavailable without trial and error."
+    },
+    {
+      "id": "ADMINSUP-05",
+      "area": "ADMINSUP",
+      "title": "Concurrent case handling was not qualified in this audit",
+      "evidence": "V",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/FormGuard.tsx",
+        "src/components/SupportReplyComposer.tsx"
+      ],
+      "verification": [
+        "Support case/email/workflow browser suites: assignment conflicts, ended views, reply retention and separate delivery receipt; beforeunload clears after save.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Conflicts, ended support views and failed email remain understandable and recoverable."
+    },
+    {
+      "id": "ACCESS-01",
+      "area": "ACCESS",
+      "title": "Access status is distributed across three pages",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/waitlist/page.tsx",
+        "src/app/(staff)/admin/access/page.tsx",
+        "src/app/(staff)/admin/access/[inviteId]/page.tsx",
+        "src/app/(staff)/admin/admission/page.tsx",
+        "src/components/WaitlistSelectionForm.tsx"
+      ],
+      "verification": [
+        "Admission/referral/waitlist integration tests and staff access browser checks; impact-preview and selection source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An operator can diagnose one blocked signup without losing recipient context."
+    },
+    {
+      "id": "ACCESS-02",
+      "area": "ACCESS",
+      "title": "Capacity terminology is easy to overgeneralize",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/waitlist/page.tsx",
+        "src/app/(staff)/admin/access/page.tsx",
+        "src/app/(staff)/admin/access/[inviteId]/page.tsx",
+        "src/app/(staff)/admin/admission/page.tsx",
+        "src/components/WaitlistSelectionForm.tsx"
+      ],
+      "verification": [
+        "Admission/referral/waitlist integration tests and staff access browser checks; impact-preview and selection source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Operators do not assume zero displayed capacity blocks every form of account admission."
+    },
+    {
+      "id": "ACCESS-03",
+      "area": "ACCESS",
+      "title": "Pause controls have materially different effects",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/waitlist/page.tsx",
+        "src/app/(staff)/admin/access/page.tsx",
+        "src/app/(staff)/admin/access/[inviteId]/page.tsx",
+        "src/app/(staff)/admin/admission/page.tsx",
+        "src/components/WaitlistSelectionForm.tsx"
+      ],
+      "verification": [
+        "Admission/referral/waitlist integration tests and staff access browser checks; impact-preview and selection source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "The operator can predict what happens to a new request, queued email and existing invitation under each change."
+    },
+    {
+      "id": "ACCESS-04",
+      "area": "ACCESS",
+      "title": "Empty waitlist still presents selection work",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/waitlist/page.tsx",
+        "src/app/(staff)/admin/access/page.tsx",
+        "src/app/(staff)/admin/access/[inviteId]/page.tsx",
+        "src/app/(staff)/admin/admission/page.tsx",
+        "src/components/WaitlistSelectionForm.tsx"
+      ],
+      "verification": [
+        "Admission/referral/waitlist integration tests and staff access browser checks; impact-preview and selection source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "No-recipient views direct the operator to the blocker or next setup task rather than a zero-item workflow."
+    },
+    {
+      "id": "ACCESS-05",
+      "area": "ACCESS",
+      "title": "Invitation search hides its supported phone search",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/waitlist/page.tsx",
+        "src/app/(staff)/admin/access/page.tsx",
+        "src/app/(staff)/admin/access/[inviteId]/page.tsx",
+        "src/app/(staff)/admin/admission/page.tsx",
+        "src/components/WaitlistSelectionForm.tsx"
+      ],
+      "verification": [
+        "Admission/referral/waitlist integration tests and staff access browser checks; impact-preview and selection source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An operator knows a text invitation can be found by its recipient phone number."
+    },
+    {
+      "id": "ADMINLIB-01",
+      "area": "ADMINLIB",
+      "title": "Published and draft labels require interpretation",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/LibraryDraftForm.tsx",
+        "src/app/(staff)/admin/templates/page.tsx",
+        "src/app/(staff)/admin/system-mix/page.tsx",
+        "src/components/LibraryOptionsForm.tsx"
+      ],
+      "verification": [
+        "Library administration and System Mix browser suites: draft, preview, publication, rollback, hidden item and stale/permission denial.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A reviewer identifies what customers currently see and whether an edit awaits publication."
+    },
+    {
+      "id": "ADMINLIB-02",
+      "area": "ADMINLIB",
+      "title": "Customer and staff vocabulary differs",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/LibraryDraftForm.tsx",
+        "src/app/(staff)/admin/templates/page.tsx",
+        "src/app/(staff)/admin/system-mix/page.tsx",
+        "src/components/LibraryOptionsForm.tsx"
+      ],
+      "verification": [
+        "Library administration and System Mix browser suites: draft, preview, publication, rollback, hidden item and stale/permission denial.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Editors can predict exactly how authored content is presented to members."
+    },
+    {
+      "id": "ADMINLIB-03",
+      "area": "ADMINLIB",
+      "title": "Long authoring forms put review context far from editing",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/LibraryDraftForm.tsx",
+        "src/app/(staff)/admin/templates/page.tsx",
+        "src/app/(staff)/admin/system-mix/page.tsx",
+        "src/components/LibraryOptionsForm.tsx"
+      ],
+      "verification": [
+        "Library administration and System Mix browser suites: draft, preview, publication, rollback, hidden item and stale/permission denial.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A reviewer can locate missing fields or timing problems without rescanning the entire form."
+    },
+    {
+      "id": "ADMINLIB-04",
+      "area": "ADMINLIB",
+      "title": "Library option changes lack a customer-filter preview",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/LibraryDraftForm.tsx",
+        "src/app/(staff)/admin/templates/page.tsx",
+        "src/app/(staff)/admin/system-mix/page.tsx",
+        "src/components/LibraryOptionsForm.tsx"
+      ],
+      "verification": [
+        "Library administration and System Mix browser suites: draft, preview, publication, rollback, hidden item and stale/permission denial.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An editor understands which new choices disappear and how existing content remains discoverable."
+    },
+    {
+      "id": "ADMINLIB-05",
+      "area": "ADMINLIB",
+      "title": "Full publish/rollback usability needs a populated edit scenario",
+      "evidence": "V",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/components/LibraryDraftForm.tsx",
+        "src/app/(staff)/admin/templates/page.tsx",
+        "src/app/(staff)/admin/system-mix/page.tsx",
+        "src/components/LibraryOptionsForm.tsx"
+      ],
+      "verification": [
+        "Library administration and System Mix browser suites: draft, preview, publication, rollback, hidden item and stale/permission denial.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Editors can verify the live version and recover from a conflict without losing their intended changes."
+    },
+    {
+      "id": "EMAIL-01",
+      "area": "EMAIL",
+      "title": "Provider-event history stops at the latest 30",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/email/page.tsx",
+        "src/app/(staff)/admin/email/recovery/[deliveryId]/page.tsx",
+        "src/app/(staff)/admin/email/suppressions/page.tsx"
+      ],
+      "verification": [
+        "Email operations/recovery browser suites and 65-event paging/search browser test; synthetic transport receipt and opt-out handling.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An older delivery incident can be investigated without relying on being in the latest 30 events."
+    },
+    {
+      "id": "EMAIL-02",
+      "area": "EMAIL",
+      "title": "Operational terms obscure the customer consequence",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/email/page.tsx",
+        "src/app/(staff)/admin/email/recovery/[deliveryId]/page.tsx",
+        "src/app/(staff)/admin/email/suppressions/page.tsx"
+      ],
+      "verification": [
+        "Email operations/recovery browser suites and 65-event paging/search browser test; synthetic transport receipt and opt-out handling.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An operator can explain whether the person should wait, use an existing link or receive a reviewed resend."
+    },
+    {
+      "id": "EMAIL-03",
+      "area": "EMAIL",
+      "title": "Recovery navigation repeats similar destinations",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/email/page.tsx",
+        "src/app/(staff)/admin/email/recovery/[deliveryId]/page.tsx",
+        "src/app/(staff)/admin/email/suppressions/page.tsx"
+      ],
+      "verification": [
+        "Email operations/recovery browser suites and 65-event paging/search browser test; synthetic transport receipt and opt-out handling.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A failed invitation has one obvious investigation entry rather than competing similar links."
+    },
+    {
+      "id": "EMAIL-04",
+      "area": "EMAIL",
+      "title": "Mixed suppression reasons need a simple action summary",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/email/page.tsx",
+        "src/app/(staff)/admin/email/recovery/[deliveryId]/page.tsx",
+        "src/app/(staff)/admin/email/suppressions/page.tsx"
+      ],
+      "verification": [
+        "Email operations/recovery browser suites and 65-event paging/search browser test; synthetic transport receipt and opt-out handling.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Operators do not mistake clearing one provider issue for permission to contact a opted-out recipient."
+    },
+    {
+      "id": "EMAIL-05",
+      "area": "EMAIL",
+      "title": "Real delivery recovery remains unverified here",
+      "evidence": "V",
+      "priority": "P1",
+      "status": "awaiting-qualification",
+      "implementation": [
+        "src/app/(staff)/admin/email/page.tsx",
+        "src/app/(staff)/admin/email/recovery/[deliveryId]/page.tsx",
+        "src/app/(staff)/admin/email/suppressions/page.tsx"
+      ],
+      "verification": [
+        "Email operations/recovery browser suites and 65-event paging/search browser test; synthetic transport receipt and opt-out handling.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "The UI’s delivery statements match provider records and safe retry outcomes.",
+      "remaining": "Actual provider-side delivery/recovery evidence beyond synthetic receipts."
+    },
+    {
+      "id": "REPORT-01",
+      "area": "REPORT",
+      "title": "Metric interpretation is hidden behind disclosures",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/reports/page.tsx",
+        "src/components/AdminReportView.tsx",
+        "src/app/(staff)/admin/reports/exports/page.tsx",
+        "src/app/(staff)/admin/reports/history/page.tsx",
+        "src/components/AdminRefresh.tsx"
+      ],
+      "verification": [
+        "Report browser suite: export lifetime, authorized session, saved history, permission removal, dates and trends; desktop fold and route/theme checks.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A reader can interpret a conversion percentage without confusing account counts, eligible cohorts or missing data."
+    },
+    {
+      "id": "REPORT-02",
+      "area": "REPORT",
+      "title": "Automatic export checking stops after eight polls",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/reports/page.tsx",
+        "src/components/AdminReportView.tsx",
+        "src/app/(staff)/admin/reports/exports/page.tsx",
+        "src/app/(staff)/admin/reports/history/page.tsx",
+        "src/components/AdminRefresh.tsx"
+      ],
+      "verification": [
+        "Report browser suite: export lifetime, authorized session, saved history, permission removal, dates and trends; desktop fold and route/theme checks.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A slow export remains easy to follow after two minutes without an apparently stalled status."
+    },
+    {
+      "id": "REPORT-03",
+      "area": "REPORT",
+      "title": "Export expiry is described mostly as an absolute time",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/reports/page.tsx",
+        "src/components/AdminReportView.tsx",
+        "src/app/(staff)/admin/reports/exports/page.tsx",
+        "src/app/(staff)/admin/reports/history/page.tsx",
+        "src/components/AdminRefresh.tsx"
+      ],
+      "verification": [
+        "Report browser suite: export lifetime, authorized session, saved history, permission removal, dates and trends; desktop fold and route/theme checks.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An operator understands whether the current download will still work after signing in elsewhere."
+    },
+    {
+      "id": "REPORT-04",
+      "area": "REPORT",
+      "title": "Live and saved reporting need a stronger visual distinction",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/reports/page.tsx",
+        "src/components/AdminReportView.tsx",
+        "src/app/(staff)/admin/reports/exports/page.tsx",
+        "src/app/(staff)/admin/reports/history/page.tsx",
+        "src/components/AdminRefresh.tsx"
+      ],
+      "verification": [
+        "Report browser suite: export lifetime, authorized session, saved history, permission removal, dates and trends; desktop fold and route/theme checks.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Screenshots and exported reports retain enough context to avoid treating live totals as immutable history."
+    },
+    {
+      "id": "REPORT-05",
+      "area": "REPORT",
+      "title": "Dense real-world report states were not fully exercised",
+      "evidence": "V",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/reports/page.tsx",
+        "src/components/AdminReportView.tsx",
+        "src/app/(staff)/admin/reports/exports/page.tsx",
+        "src/app/(staff)/admin/reports/history/page.tsx",
+        "src/components/AdminRefresh.tsx"
+      ],
+      "verification": [
+        "Report browser suite: export lifetime, authorized session, saved history, permission removal, dates and trends; desktop fold and route/theme checks.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "All observations and failure recovery remain usable without horizontal page overflow or ambiguous missing values."
+    },
+    {
+      "id": "OPS-01",
+      "area": "OPS",
+      "title": "No jobs is not the same as a healthy system",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/operations/page.tsx",
+        "src/app/(staff)/admin/operations/alerts/page.tsx",
+        "src/app/(staff)/admin/audit/page.tsx",
+        "src/components/AdminRefresh.tsx"
+      ],
+      "verification": [
+        "Operational-alert browser suite; worker/monitor integration tests and heartbeat/notice/audit source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Operators can distinguish idle healthy processing from no worker evidence."
+    },
+    {
+      "id": "OPS-02",
+      "area": "OPS",
+      "title": "Acknowledgment is easy to confuse with resolution",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/operations/page.tsx",
+        "src/app/(staff)/admin/operations/alerts/page.tsx",
+        "src/app/(staff)/admin/audit/page.tsx",
+        "src/components/AdminRefresh.tsx"
+      ],
+      "verification": [
+        "Operational-alert browser suite; worker/monitor integration tests and heartbeat/notice/audit source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Acknowledgment never looks like successful recovery or disappears from the operator’s unresolved-work view."
+    },
+    {
+      "id": "OPS-03",
+      "area": "OPS",
+      "title": "Alert notification history is capped without paging",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/operations/page.tsx",
+        "src/app/(staff)/admin/operations/alerts/page.tsx",
+        "src/app/(staff)/admin/audit/page.tsx",
+        "src/components/AdminRefresh.tsx"
+      ],
+      "verification": [
+        "Operational-alert browser suite; worker/monitor integration tests and heartbeat/notice/audit source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An operator can review older attempts for a still-relevant incident."
+    },
+    {
+      "id": "OPS-04",
+      "area": "OPS",
+      "title": "Audit action names are machine-oriented",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/operations/page.tsx",
+        "src/app/(staff)/admin/operations/alerts/page.tsx",
+        "src/app/(staff)/admin/audit/page.tsx",
+        "src/components/AdminRefresh.tsx"
+      ],
+      "verification": [
+        "Operational-alert browser suite; worker/monitor integration tests and heartbeat/notice/audit source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Operators can describe what changed without interpreting dotted action names or raw JSON."
+    },
+    {
+      "id": "OPS-05",
+      "area": "OPS",
+      "title": "Audit date filters and event times use different frames",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/operations/page.tsx",
+        "src/app/(staff)/admin/operations/alerts/page.tsx",
+        "src/app/(staff)/admin/audit/page.tsx",
+        "src/components/AdminRefresh.tsx"
+      ],
+      "verification": [
+        "Operational-alert browser suite; worker/monitor integration tests and heartbeat/notice/audit source review.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Events near midnight are understandable within the selected date range."
+    },
+    {
+      "id": "STAFF-01",
+      "area": "STAFF",
+      "title": "Permission review is a long capability inventory",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/team/page.tsx",
+        "src/components/StaffAccessForm.tsx",
+        "src/components/AdminMfaPanel.tsx",
+        "src/app/(staff)/account/admin-mfa/page.tsx",
+        "src/app/staff/accept/page.tsx"
+      ],
+      "verification": [
+        "Staff onboarding/permissions browser suites; MFA clipboard failure, storage acknowledgment, enrollment and one-time recovery browser tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "An owner can explain a proposed staff member’s effective responsibilities before saving."
+    },
+    {
+      "id": "STAFF-02",
+      "area": "STAFF",
+      "title": "Owner promotion can disappear without an adjacent explanation",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/team/page.tsx",
+        "src/components/StaffAccessForm.tsx",
+        "src/components/AdminMfaPanel.tsx",
+        "src/app/(staff)/account/admin-mfa/page.tsx",
+        "src/app/staff/accept/page.tsx"
+      ],
+      "verification": [
+        "Staff onboarding/permissions browser suites; MFA clipboard failure, storage acknowledgment, enrollment and one-time recovery browser tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "The owner can discover the required next step without assuming the role does not exist."
+    },
+    {
+      "id": "STAFF-03",
+      "area": "STAFF",
+      "title": "Copy recovery codes has no failure handling",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/team/page.tsx",
+        "src/components/StaffAccessForm.tsx",
+        "src/components/AdminMfaPanel.tsx",
+        "src/app/(staff)/account/admin-mfa/page.tsx",
+        "src/app/staff/accept/page.tsx"
+      ],
+      "verification": [
+        "Staff onboarding/permissions browser suites; MFA clipboard failure, storage acknowledgment, enrollment and one-time recovery browser tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Clipboard denial leaves the recovery codes visible with clear instructions rather than an unhandled failure."
+    },
+    {
+      "id": "STAFF-04",
+      "area": "STAFF",
+      "title": "Continuing after enrollment does not confirm code storage",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/team/page.tsx",
+        "src/components/StaffAccessForm.tsx",
+        "src/components/AdminMfaPanel.tsx",
+        "src/app/(staff)/account/admin-mfa/page.tsx",
+        "src/app/staff/accept/page.tsx"
+      ],
+      "verification": [
+        "Staff onboarding/permissions browser suites; MFA clipboard failure, storage acknowledgment, enrollment and one-time recovery browser tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A new staff member understands codes are one-time recovery material before leaving the screen."
+    },
+    {
+      "id": "STAFF-05",
+      "area": "STAFF",
+      "title": "MFA and staff invitation completion need dedicated qualification",
+      "evidence": "V",
+      "priority": "P1",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/(staff)/admin/team/page.tsx",
+        "src/components/StaffAccessForm.tsx",
+        "src/components/AdminMfaPanel.tsx",
+        "src/app/(staff)/account/admin-mfa/page.tsx",
+        "src/app/staff/accept/page.tsx"
+      ],
+      "verification": [
+        "Staff onboarding/permissions browser suites; MFA clipboard failure, storage acknowledgment, enrollment and one-time recovery browser tests.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Enrollment, recovery, expiry and permission removal are verified before administrative readiness signoff."
+    },
+    {
+      "id": "RECOVER-01",
+      "area": "RECOVER",
+      "title": "Public error recovery points to authenticated destinations",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/error.tsx",
+        "src/app/not-found.tsx",
+        "src/app/offline/page.tsx",
+        "src/components/AppShell.tsx",
+        "docs/MANUAL_DEVICE_QUALIFICATION.md"
+      ],
+      "verification": [
+        "Three-engine route/a11y scan, public 404 and error recovery/source review; manual qualification remains open.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A public broken link does not require signing in just to recover or ask for help."
+    },
+    {
+      "id": "RECOVER-02",
+      "area": "RECOVER",
+      "title": "Customer routes have no loading.tsx boundaries",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/error.tsx",
+        "src/app/not-found.tsx",
+        "src/app/offline/page.tsx",
+        "src/components/AppShell.tsx",
+        "docs/MANUAL_DEVICE_QUALIFICATION.md"
+      ],
+      "verification": [
+        "Three-engine route/a11y scan, public 404 and error recovery/source review; manual qualification remains open.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "A throttled navigation communicates its destination and loading state without appearing inert."
+    },
+    {
+      "id": "RECOVER-03",
+      "area": "RECOVER",
+      "title": "Authenticated shell lacks the public skip link",
+      "evidence": "C",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/error.tsx",
+        "src/app/not-found.tsx",
+        "src/app/offline/page.tsx",
+        "src/components/AppShell.tsx",
+        "docs/MANUAL_DEVICE_QUALIFICATION.md"
+      ],
+      "verification": [
+        "Three-engine route/a11y scan, public 404 and error recovery/source review; manual qualification remains open.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Keyboard users can bypass repeated workspace navigation in one step."
+    },
+    {
+      "id": "RECOVER-04",
+      "area": "RECOVER",
+      "title": "Offline copy does not distinguish saved from unsaved work",
+      "evidence": "H",
+      "priority": "P2",
+      "status": "verified-local",
+      "implementation": [
+        "src/app/error.tsx",
+        "src/app/not-found.tsx",
+        "src/app/offline/page.tsx",
+        "src/components/AppShell.tsx",
+        "docs/MANUAL_DEVICE_QUALIFICATION.md"
+      ],
+      "verification": [
+        "Three-engine route/a11y scan, public 404 and error recovery/source review; manual qualification remains open.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Losing connectivity does not cause users to infer that an unsaved form has been stored."
+    },
+    {
+      "id": "RECOVER-05",
+      "area": "RECOVER",
+      "title": "Automated accessibility success is not full product qualification",
+      "evidence": "V",
+      "priority": "P1",
+      "status": "awaiting-qualification",
+      "implementation": [
+        "src/app/error.tsx",
+        "src/app/not-found.tsx",
+        "src/app/offline/page.tsx",
+        "src/components/AppShell.tsx",
+        "docs/MANUAL_DEVICE_QUALIFICATION.md"
+      ],
+      "verification": [
+        "Three-engine route/a11y scan, public 404 and error recovery/source review; manual qualification remains open.",
+        "Current evidence and limits: docs/UI_UX_IMPLEMENTATION_2026-09-18.md"
+      ],
+      "acceptance": "Record keyboard, screen-reader, zoom, interruption and physical-device results; resolve blockers before unrestricted launch.",
+      "remaining": "Manual screen-reader, zoom/reflow, interruption and physical-device qualification."
+    }
+  ],
+  "updatedAt": "2026-09-18T16:23:46.503Z",
+  "qualificationCaveat": "Engineering checks do not establish measured user comprehension, real device behavior or delivery. Open qualification items are not checked off."
+}

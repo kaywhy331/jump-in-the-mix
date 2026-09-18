@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/components/JumpWorkflow.module.css";
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 
@@ -18,6 +18,7 @@ type TimelineItem = {
 
 type TimelinePayload = {
   items?: TimelineItem[];
+  nextCursor?: string | null;
   error?: string;
 };
 
@@ -47,6 +48,9 @@ export function ContactTimeline({
   contactId: string;
   displayPreferences: DisplayFormatPreferences;
 }) {
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [correction, setCorrection] = useState("");
   const [items, setItems] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
@@ -56,28 +60,46 @@ export function ContactTimeline({
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<"ALL" | "COMMUNICATIONS" | "NOTES">("ALL");
 
-  const load = async () => {
+  const requestVersion = useRef(0);
+  const load = async (older = false) => {
+    const version = ++requestVersion.current;
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`/api/contacts/${encodeURIComponent(contactId)}/activity`, { cache: "no-store" });
+      const query = new URLSearchParams({ filter });
+      if (older && nextCursor) query.set("cursor", nextCursor);
+      const response = await fetch(`/api/contacts/${encodeURIComponent(contactId)}/activity?${query}`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({})) as TimelinePayload;
+      if (version !== requestVersion.current) return;
       if (!response.ok) throw new Error(payload.error || "The Contact timeline could not be loaded.");
-      setItems(payload.items ?? []);
+      setItems(current => older ? [...current, ...(payload.items ?? []).filter(item => !current.some(existing => existing.id === item.id))] : payload.items ?? []);
+      setNextCursor(payload.nextCursor ?? null);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The Contact timeline could not be loaded.");
+      if (version === requestVersion.current) setError(reason instanceof Error ? reason.message : "The Contact timeline could not be loaded.");
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
   };
 
-  useEffect(() => { setReady(true); void load(); }, [contactId]);
+  useEffect(() => { setReady(true); void load(); return () => { requestVersion.current++; }; }, [contactId, filter]);
 
   const visibleItems = useMemo(() => items.filter((item) => {
     if (filter === "COMMUNICATIONS") return item.kind === "JUMP_OUTCOME";
     if (filter === "NOTES") return item.kind === "CUSTOMER_NOTE" || item.kind === "PRIVATE_UPDATE";
     return true;
   }), [filter, items]);
+
+  const correctNote = async (item: TimelineItem, remove = false) => {
+    if (remove && !window.confirm("Remove this note from the timeline? This cannot be undone.")) return;
+    setSaving(true); setError("");
+    try {
+      const response = await fetch(`/api/contacts/${encodeURIComponent(contactId)}/activity`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: item.id, expectedSummary: item.summary ?? "", summary: correction, remove }) });
+      const body = await response.json(); if (!response.ok) throw new Error(body.error ?? "The note could not be changed.");
+      setItems(current => remove ? current.filter(value => value.id !== item.id) : current.map(value => value.id === item.id ? { ...value, summary: correction } : value));
+      setEditing(null); setCorrection("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "The note could not be changed. Your correction is still here."); }
+    finally { setSaving(false); }
+  };
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -115,15 +137,15 @@ export function ContactTimeline({
       </form>
 
       <div className="filter-bar" aria-label="Timeline filters">
-        <button className={filter === "ALL" ? "button primary" : "button"} type="button" onClick={() => setFilter("ALL")}>All</button>
-        <button className={filter === "COMMUNICATIONS" ? "button primary" : "button"} type="button" onClick={() => setFilter("COMMUNICATIONS")}>Communications</button>
-        <button className={filter === "NOTES" ? "button primary" : "button"} type="button" onClick={() => setFilter("NOTES")}>Notes</button>
+        <button className={filter === "ALL" ? "button primary" : "button"} type="button" aria-pressed={filter === "ALL"} onClick={() => setFilter("ALL")}>All</button>
+        <button className={filter === "COMMUNICATIONS" ? "button primary" : "button"} type="button" aria-pressed={filter === "COMMUNICATIONS"} onClick={() => setFilter("COMMUNICATIONS")}>Communications</button>
+        <button className={filter === "NOTES" ? "button primary" : "button"} type="button" aria-pressed={filter === "NOTES"} onClick={() => setFilter("NOTES")}>Notes</button>
         <button className="button" type="button" onClick={() => void load()} disabled={loading}>Refresh</button>
       </div>
 
       {error && <p className={styles.error} role="alert">{error}</p>}
       {loading && <p className={styles.loading} role="status">Loading relationship history…</p>}
-      {!loading && !visibleItems.length && <p className={styles.loading}>No history yet. Complete a follow-up or add the first note above.</p>}
+      {!loading && !visibleItems.length && <p className={styles.loading}>{filter === "ALL" ? "No history yet. Complete a follow-up or add the first note above." : "No events match this filter. Choose All to see other history."}</p>}
       {visibleItems.length > 0 && (
         <ol className={styles.timelineList}>
           {visibleItems.map((item) => (
@@ -137,12 +159,15 @@ export function ContactTimeline({
                   <time dateTime={item.occurredAt}>{formatDateTime(item.occurredAt, displayPreferences)}</time>
                 </div>
                 {item.summary && <p>{item.summary}</p>}
+                {(item.kind === "CUSTOMER_NOTE" || item.kind === "PRIVATE_UPDATE") && <div>{editing === item.id ? <form onSubmit={event => { event.preventDefault(); void correctNote(item); }}><label className="field"><span>Correct note</span><textarea value={correction} onChange={event => setCorrection(event.target.value)} maxLength={4000} required /></label><button className="button primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save correction"}</button><button className="button" type="button" onClick={() => setEditing(null)}>Cancel correction</button></form> : <div className="page-actions"><button type="button" className="text-button" onClick={() => { setEditing(item.id); setCorrection(item.summary ?? ""); }}>Edit note</button><button type="button" className="text-button" disabled={saving} onClick={() => void correctNote(item, true)}>Remove note</button></div>}</div>}
                 {item.nextCommitmentAt && <p><strong>Next follow-up:</strong> {formatDateTime(item.nextCommitmentAt, displayPreferences)}</p>}
               </div>
             </li>
           ))}
         </ol>
       )}
+      <p className="muted-copy">Showing {items.length} events in this view.</p>
+      {nextCursor && <button type="button" className="button" disabled={loading} onClick={() => void load(true)}>Load older history</button>}
     </div>
   );
 }

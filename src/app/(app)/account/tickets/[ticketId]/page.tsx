@@ -1,3 +1,6 @@
+import { ActionForm } from "@/components/ActionForm";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { SupportContext } from "@/components/SupportContext";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -7,7 +10,7 @@ import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 import {
   reopenSupportTicketAction,
-  replyToSupportTicketAction
+  replyToSupportTicketFormAction
 } from "@/lib/support-actions";
 import {
   supportCategoryLabel,
@@ -65,7 +68,7 @@ export default async function SupportTicketPage({
       {query.replied && <Notice type="success">Your reply was added to the ticket.</Notice>}
       {query.reopened && <Notice type="success">The ticket was reopened and returned to the support queue.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
-      <p>{SUPPORT_RETENTION_NOTICE}</p>
+      <p>{SUPPORT_RETENTION_NOTICE}</p><p>Support is best effort; there is no guaranteed reply time. Check this conversation for responses. If you cannot sign in, use <Link href="/contact">public contact support</Link>.</p>
       {impersonation && <Notice type="info">This is a view-only administrator support session. Ticket replies and status changes are unavailable.</Notice>}
 
       <section className="support-ticket-layout">
@@ -93,7 +96,7 @@ export default async function SupportTicketPage({
           )}
 
           {replyAllowed && (
-            <form action={replyToSupportTicketAction} className="form-stack support-user-reply">
+            <ActionForm protect action={replyToSupportTicketFormAction} className="form-stack support-user-reply">
               <input type="hidden" name="ticketId" value={ticket.id} />
               <label className="field">
                 <span className="field-label">Reply to this ticket</span>
@@ -106,8 +109,8 @@ export default async function SupportTicketPage({
                   required
                 />
               </label>
-              <div className="form-actions"><button className="button primary" type="submit">Send reply</button></div>
-            </form>
+              <SupportContext /><div className="form-actions"><FormSubmitButton label="Send reply" pendingLabel="Sending…" /></div>
+            </ActionForm>
           )}
 
           {ticket.status === "CLOSED" && (

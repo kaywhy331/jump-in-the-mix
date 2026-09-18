@@ -8,7 +8,7 @@ async function signIn(page: Page) {
   if (!userEmail || !userPassword) throw new Error("STAGING_SMOKE_USER_EMAIL and STAGING_SMOKE_USER_PASSWORD are required.");
   await page.goto("/login");
   await page.getByLabel("Email").fill(userEmail);
-  await page.getByLabel("Password").fill(userPassword);
+  await page.getByLabel("Password", { exact: true }).fill(userPassword);
   await Promise.all([
     page.waitForURL(/\/(jumps|onboarding)(\?|$)/),
     page.getByRole("button", { name: "Sign in" }).click()

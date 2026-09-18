@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
-import type { ContactActivityKind, ContactActivityVisibility, Prisma } from "@/generated/prisma/client";
+import { Prisma, type ContactActivityKind, type ContactActivityVisibility } from "@/generated/prisma/client";
 import { getCurrentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
@@ -55,55 +55,51 @@ async function authenticatedContact(contactId: string) {
   return { session, membership, contact } as const;
 }
 
-export async function GET(_request: Request, { params }: { params: Promise<{ contactId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ contactId: string }> }) {
   const { contactId } = await params;
   const scoped = await authenticatedContact(contactId);
   if ("error" in scoped) return scoped.error;
-
-  const activities = await prisma.contactActivity.findMany({
-    where: { workspaceId: scoped.membership.workspaceId, contactId },
-    orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
-    take: 150
+  const query = new URL(request.url).searchParams;
+  const filter = query.get("filter");
+  let cursor: { at: Date; key: string } | null = null;
+  try {
+    if (query.has("cursor")) {
+      const raw = query.get("cursor")!;
+      if (raw.length > 1000) throw new Error();
+      const value = JSON.parse(Buffer.from(raw, "base64url").toString());
+      if (typeof value.at !== "string" || typeof value.key !== "string" || value.key.length > 180 || !/^(activity|jump):/.test(value.key)) throw new Error();
+      cursor = { at: new Date(value.at), key: value.key };
+      if (Number.isNaN(+cursor.at)) throw new Error();
+    }
+  } catch { return NextResponse.json({ error: "The history position is invalid. Refresh the timeline." }, { status: 400 }); }
+  const kind = filter === "NOTES" ? Prisma.sql`AND a.kind IN ('CUSTOMER_NOTE', 'PRIVATE_UPDATE')` : filter === "COMMUNICATIONS" ? Prisma.sql`AND a.kind = 'JUMP_OUTCOME'` : Prisma.empty;
+  const workspaceId = scoped.membership.workspaceId;
+  const keys = await prisma.$queryRaw<Array<{ id: string; key: string; source: string; occurredAt: Date }>>(Prisma.sql`
+    SELECT * FROM (
+      SELECT a.id, 'activity:' || a.id AS key, 'activity' AS source, a."occurredAt" FROM "ContactActivity" a
+      WHERE a."workspaceId" = ${workspaceId} AND a."contactId" = ${contactId} ${kind}
+      UNION ALL
+      SELECT j.id, 'jump:' || j.id AS key, 'jump' AS source, j."completedAt" AS "occurredAt" FROM "Jump" j
+      WHERE j."workspaceId" = ${workspaceId} AND j."contactId" = ${contactId} AND j.status IN ('DONE', 'SKIPPED') AND j."completedAt" IS NOT NULL
+      AND ${filter !== "NOTES"} AND NOT EXISTS (SELECT 1 FROM "ContactActivity" a WHERE a."workspaceId" = ${workspaceId} AND a."contactId" = ${contactId} AND a."jumpId" = j.id)
+    ) history
+    ${cursor ? Prisma.sql`WHERE ("occurredAt" < ${cursor.at} OR ("occurredAt" = ${cursor.at} AND key COLLATE "C" < ${cursor.key}))` : Prisma.empty}
+    ORDER BY "occurredAt" DESC, key COLLATE "C" DESC LIMIT 51
+  `);
+  const selected = keys.slice(0, 50);
+  const [activities, completedJumps] = await Promise.all([
+    prisma.contactActivity.findMany({ where: { workspaceId, contactId, id: { in: selected.filter(row => row.source === "activity").map(row => row.id) } } }),
+    prisma.jump.findMany({ where: { workspaceId, contactId, id: { in: selected.filter(row => row.source === "jump").map(row => row.id) } }, include: { mix: { select: { name: true } }, stepVersion: { include: { stepTemplate: { select: { channel: true } } } } } })
+  ]);
+  const items = selected.flatMap(row => {
+    const activity = activities.find(item => row.source === "activity" && item.id === row.id);
+    if (activity) return [{ id: activity.id, source: "activity", kind: activity.kind, outcome: activity.outcome, channel: activity.channel, visibility: activity.visibility, summary: activity.summary, nextCommitmentAt: activity.nextCommitmentAt?.toISOString() ?? null, occurredAt: activity.occurredAt.toISOString() }];
+    const jump = completedJumps.find(item => row.source === "jump" && item.id === row.id);
+    return jump ? [{ id: `jump:${jump.id}`, source: "jump", kind: "JUMP_OUTCOME" as const, outcome: jump.status === "SKIPPED" ? "SKIPPED" as const : "COMPLETED" as const, channel: jump.stepVersion.stepTemplate.channel, visibility: "WORKSPACE" as const, summary: `${jump.mix.name} · ${jump.reason}`, nextCommitmentAt: null, occurredAt: jump.completedAt!.toISOString() }] : [];
   });
-  const linkedJumpIds = new Set(activities.flatMap((activity) => activity.jumpId ? [activity.jumpId] : []));
-  const completedJumps = await prisma.jump.findMany({
-    where: {
-      workspaceId: scoped.membership.workspaceId,
-      contactId,
-      status: { in: ["DONE", "SKIPPED"] },
-      completedAt: { not: null }
-    },
-    include: { mix: { select: { name: true } }, stepVersion: { include: { stepTemplate: { select: { channel: true } } } } },
-    orderBy: { completedAt: "desc" },
-    take: 100
-  });
-
-  const items = [
-    ...activities.map((activity) => ({
-      id: activity.id,
-      source: "activity" as const,
-      kind: activity.kind,
-      outcome: activity.outcome,
-      channel: activity.channel,
-      visibility: activity.visibility,
-      summary: activity.summary,
-      nextCommitmentAt: activity.nextCommitmentAt?.toISOString() ?? null,
-      occurredAt: activity.occurredAt.toISOString()
-    })),
-    ...completedJumps.filter((jump) => !linkedJumpIds.has(jump.id)).map((jump) => ({
-      id: `jump:${jump.id}`,
-      source: "jump" as const,
-      kind: "JUMP_OUTCOME" as const,
-      outcome: jump.status === "SKIPPED" ? "SKIPPED" as const : "COMPLETED" as const,
-      channel: jump.stepVersion.stepTemplate.channel,
-      visibility: "WORKSPACE" as const,
-      summary: `${jump.mix.name} · ${jump.reason}`,
-      nextCommitmentAt: null,
-      occurredAt: jump.completedAt!.toISOString()
-    }))
-  ].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)).slice(0, 150);
-
-  return NextResponse.json({ contact: scoped.contact, items });
+  const last = selected.at(-1);
+  const nextCursor = keys.length > 50 && last ? Buffer.from(JSON.stringify({ at: last.occurredAt.toISOString(), key: last.key })).toString("base64url") : null;
+  return NextResponse.json({ contact: scoped.contact, items, nextCursor }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ contactId: string }> }) {
@@ -200,4 +196,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
     if (replayAfterRace) return NextResponse.json({ item: replayAfterRace, duplicate: true });
     return NextResponse.json({ error: error instanceof Error ? error.message : "The update could not be saved." }, { status: 409 });
   }
+}
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ contactId: string }> }) {
+  const { contactId } = await params;
+  const scoped = await authenticatedContact(contactId);
+  if ("error" in scoped) return scoped.error;
+  if (scoped.session.impersonation) return NextResponse.json({ error: "Administrator support sessions are view-only." }, { status: 403 });
+  const rate = await consumeRateLimit({ scope: "api.contact-note-edit", identifiers: [scoped.membership.workspaceId, scoped.session.user.id], limit: 60, windowMs: 60_000, blockMs: 5 * 60_000 });
+  if (!rate.allowed) return NextResponse.json({ error: "Too many note changes. Try again shortly." }, { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } });
+  const input = await request.json().catch(() => null) as { id?: unknown; summary?: unknown; expectedSummary?: unknown; remove?: unknown } | null;
+  const id = clean(input?.id, 120), summary = clean(input?.summary, 4000);
+  const remove = input?.remove === true;
+  if (!id || (!remove && !summary) || typeof input?.expectedSummary !== "string") return NextResponse.json({ error: "Choose a note and provide the corrected text." }, { status: 400 });
+  const workspaceId = scoped.membership.workspaceId;
+  const changed = await prisma.$transaction(async tx => {
+    const where = { id, workspaceId, contactId, kind: { in: NOTE_KINDS }, summary: input.expectedSummary as string };
+    const result = remove ? await tx.contactActivity.deleteMany({ where }) : await tx.contactActivity.updateMany({ where, data: { summary } });
+    if (result.count) await tx.auditLog.create({ data: { workspaceId, actorType: "USER", actorUserId: scoped.session.user.id, action: remove ? "contact.note.remove" : "contact.note.correct", entityType: "Contact", entityId: contactId, source: "contact.timeline", metadata: { activityId: id, summaryLength: remove ? 0 : summary.length } } });
+    return result.count;
+  });
+  if (!changed) return NextResponse.json({ error: "This note changed or is no longer available. Refresh and review it before trying again." }, { status: 409 });
+  return NextResponse.json({ saved: true });
 }

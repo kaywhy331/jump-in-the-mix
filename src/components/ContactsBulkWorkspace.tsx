@@ -40,6 +40,7 @@ function contactIdsInputs(contactIds: string[]) {
 
 export function ContactsBulkWorkspace({
   contacts,
+  sort = "name",
   groups,
   query,
   groupFilter,
@@ -48,6 +49,7 @@ export function ContactsBulkWorkspace({
   intent
 }: {
   contacts: ContactBulkDto[];
+  sort?: string;
   groups: ContactBulkGroup[];
   query: string;
   groupFilter: string;
@@ -100,6 +102,7 @@ export function ContactsBulkWorkspace({
         <div className="contacts-title-search">
           <h1>Contacts</h1>
           <form className="contact-header-search live-search-form" action="/contacts" method="get">
+            <input name="sort" type="hidden" value={sort} />
             <input name="q" type="search" defaultValue={query} placeholder="Search contacts" aria-label="Search contacts" autoComplete="off" />
             {groupFilter && <input type="hidden" name="group" value={groupFilter} />}
             {priorityFilter && <input type="hidden" name="priority" value={priorityFilter} />}
@@ -147,9 +150,11 @@ export function ContactsBulkWorkspace({
       {intent === "log-note" && <div className="notice info" role="status"><strong>Choose a person.</strong> Then add what happened to their notes.</div>}
 
       <div className="contact-list-controls">
+        <Link className="button" href="/contacts/import">Import contacts</Link>
         <Sheet trigger={<button className={activeFilterCount ? "button filter-trigger active" : "button filter-trigger"} type="button"><AppIcon name="settings" />Filter{activeFilterCount ? ` ${activeFilterCount}` : ""}</button>} title="Filter contacts" description="Changes apply right away.">
           <form className="filter-bar form-stack" action="/contacts" method="get">
             <input type="hidden" name="q" value={query} />
+            <label className="field"><span>Sort contacts</span><select name="sort" defaultValue={sort}><option value="name">Name</option><option value="updated">Recently updated</option><option value="newest">Recently added</option></select></label>
             <label className="field"><span>Tag</span><select name="group" defaultValue={groupFilter}><option value="">All tags</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.isActive ? group.name : `Hidden · ${group.name}`}</option>)}</select></label>
             <label className="field"><span>Priority</span><select name="priority" defaultValue={priorityFilter}><option value="">All priorities</option><option value="URGENT">Urgent</option><option value="HIGH">High</option><option value="NORMAL">Normal</option><option value="LOW">Low</option></select></label>
             <label className="field"><span>Contact permission</span><select name="permission" defaultValue={permissionFilter}><option value="">Everyone</option><option value="contactable">Can contact</option><option value="do-not-contact">Do not contact</option></select></label>
@@ -180,7 +185,7 @@ export function ContactsBulkWorkspace({
       })}</div> : query || activeFilterCount ? <EmptyState title="No contacts matched" description="Try a different search or filter." actionHref="/contacts" actionLabel="Clear filters" /> : <EmptyState title="Start with one person" description="Make time for your circle. Add a customer, a friend, or someone you would like to know better." actionHref="/contacts/new" actionLabel="Add a person" />}
 
       {selectedIds.length > 0 && <aside className="bulk-contact-bar" aria-label="Actions for selected contacts">
-        <div className="bulk-selection-count"><strong>{selectedIds.length}</strong><span>selected</span><button type="button" className="text-button" onClick={() => setSelected(new Set())}>Clear</button>{contacts.length > 1 && <button type="button" className="text-button" onClick={toggleAll}>{allSelected ? "Deselect all" : "Select all"}</button>}</div>
+        <div className="bulk-selection-count"><strong>{selectedIds.length}</strong><span>selected</span><button type="button" className="text-button" onClick={() => setSelected(new Set())}>Clear</button>{contacts.length > 1 && <button type="button" className="text-button" onClick={toggleAll}>{allSelected ? "Deselect this page" : "Select this page"}</button>}</div>
         <Sheet trigger={<button className="button bulk-action-button" type="button" aria-label="Tags"><AppIcon name="people" /><span className="bulk-action-label">Tags</span></button>} title="Update tags">
           {groups.length ? <>
             {activeTags.length ? <form action={assignSelectedContactsToActiveGroupAction} className="form-stack">{contactIdsInputs(selectedIds)}<label className="field"><span>Add tag</span><select name="groupId" required>{activeTags.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><button className="button primary" type="submit">Add tag</button></form> : <p>No tags are available.</p>}

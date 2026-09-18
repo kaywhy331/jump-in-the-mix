@@ -11,18 +11,22 @@ const INITIAL_ZONES = ["UTC", "America/New_York", "America/Chicago", "America/De
 
 export function TimezonePicker({
   defaultValue,
+  onChange,
   confirmDetection = false,
   name = "timezone",
   id = name,
   label = "Timezone"
 }: {
   defaultValue: string;
+  onChange?: (timezone: string) => void;
   confirmDetection?: boolean;
   name?: string;
   id?: string;
   label?: string;
 }) {
   const [value, setValue] = useState(defaultValue);
+  const onChangeRef = useRef(onChange); onChangeRef.current = onChange;
+  useEffect(() => { onChangeRef.current?.(value); }, [value]);
   const [query, setQuery] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();

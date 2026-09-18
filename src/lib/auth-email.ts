@@ -1,3 +1,4 @@
+import { customerReturnPath } from "@/lib/customer-return-path";
 import { hashAuthToken } from "@/lib/auth-tokens";
 import { env } from "@/lib/env";
 import { escapeHtml, sendTransactionalEmail } from "@/lib/transactional-email";
@@ -55,8 +56,10 @@ export async function sendPasswordChangedEmail(email: string, name: string): Pro
   await sendTransactionalEmail({ category: "AUTH", to: email, subject: "Your Jump in the Mix password changed", ...message });
 }
 
-export async function sendMagicLoginEmail(email: string, token: string): Promise<void> {
-  const url = absoluteUrl(`/api/auth/magic?token=${encodeURIComponent(token)}`);
+export async function sendMagicLoginEmail(email: string, token: string, next?: string | null): Promise<void> {
+  const params = new URLSearchParams({ token });
+  const returnTo = customerReturnPath(next); if (returnTo) params.set("next", returnTo);
+  const url = absoluteUrl(`/api/auth/magic?${params}`);
   const message = emailFrame(
     "Your secure sign-in link",
     "Tap the button below to sign in to Jump in the Mix. No password is needed.",

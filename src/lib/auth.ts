@@ -1,3 +1,4 @@
+import { customerReturnPath } from "@/lib/customer-return-path";
 import { createHash, randomBytes } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { supportReadContext } from "@/lib/support-read-audit";
@@ -202,7 +203,10 @@ export async function getCurrentSession() {
 
 export async function requireSession() {
   const session = await getCurrentSession();
-  if (!session) redirect("/login");
+  if (!session) {
+    const destination = customerReturnPath((await headers()).get("x-jitm-admin-return"));
+    redirect(destination ? `/login?next=${encodeURIComponent(destination)}` : "/login");
+  }
   return session;
 }
 

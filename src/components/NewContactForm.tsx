@@ -15,7 +15,7 @@ export function NewContactForm({ draftId, ...props }: { draftId?: string } & Omi
   useEffect(() => {
     const key = `${scope}:${draftId}`;
     // React Strict Mode can repeat setup. Consumption is still once per mount.
-    if (read.current?.key !== key) read.current = { key, value: draftId ? takeCaptureDraft(scope, draftId) : null };
+    if (read.current?.key !== key) read.current = { key, value: draftId ? takeCaptureDraft(scope, draftId, Date.now(), false) : null };
     setDraft(read.current.value); setLoaded(true);
   }, [scope, draftId]);
   if (draftId && !loaded) return <p role="status">Opening your draft…</p>;
@@ -25,7 +25,7 @@ export function NewContactForm({ draftId, ...props }: { draftId?: string } & Omi
     emails: draft.email ? [{ email: draft.email, label: "Email", isPrimary: true }] : undefined
   } : undefined;
   return <>
-    {draft && <Notice type="info">Review the details from Quick Add before saving. This draft is kept only in this open form; reloading clears it.</Notice>}
+    {draft && <Notice type="info">Review the details from Quick Add before saving. The original capture is recoverable in this tab for 10 minutes. Save the contact to keep it; later edits stay in this form until saved.</Notice>}
     {draftId && !draft && <Notice type="info">This temporary draft is no longer available in this tab. You can enter the details here or use Quick Add again.</Notice>}
     <ContactForm key={draftId ?? "new"} {...props} mode="create" contact={contact} followUp={props.followUp ? { ...props.followUp, defaultDate: draft?.dateValue ?? undefined, defaultReason: draft?.reason.slice(0, 240) || "Follow up" } : null} />
   </>;

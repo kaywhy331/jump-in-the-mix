@@ -10,8 +10,9 @@ function completedState(status: ReviewState, rating: number | null): "happy" | "
   return null;
 }
 
-export function ReviewFeedbackForm({ token, initialStatus, initialRating, reviewAvailable }: { token: string; initialStatus: ReviewState; initialRating: number | null; reviewAvailable: boolean }) {
+export function ReviewFeedbackForm({ token, initialStatus, initialRating, reviewAvailable, businessContact }: { token: string; initialStatus: ReviewState; initialRating: number | null; reviewAvailable: boolean; businessContact?: string | null }) {
   const [outcome, setOutcome] = useState<"happy" | "attention" | null>(() => completedState(initialStatus, initialRating));
+  const [rating, setRating] = useState<number | null>(initialRating);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -36,11 +37,10 @@ export function ReviewFeedbackForm({ token, initialStatus, initialRating, review
     }
   };
 
-  if (outcome === "attention") return <div className="review-thanks" role="status"><h2>Thank you for telling us</h2><p>Your feedback went privately to the business so they can make things right.</p></div>;
-  if (outcome === "happy") return <div className="review-thanks" role="status"><h2>Thank you—we’re glad we could help</h2><p>One more small favor can make a big difference to a local business.</p><div className="review-next-actions">{reviewAvailable && <a className="button primary" href={`/api/reviews/${encodeURIComponent(token)}/public-review`}>Leave a public review</a>}<a className="button" href={`/api/reviews/${encodeURIComponent(token)}/refer`}>Recommend us to a friend</a></div></div>;
+  if (outcome) return <div className="review-thanks" role="status"><h2>Thank you for your feedback</h2><p>Your rating and comments were recorded privately for the business. A reply is not guaranteed.</p><div className="review-next-actions">{reviewAvailable && <a className="button primary" href={`/api/reviews/${encodeURIComponent(token)}/public-review`}>Leave a public review (optional)</a>}<a className="button" href={`/api/reviews/${encodeURIComponent(token)}/refer`}>Recommend us to a friend (optional)</a></div><p>Need to correct your feedback or discuss the experience? {businessContact ? <a href={businessContact}>Contact the business directly</a> : "Reply to your original conversation with the business and describe the correction."}</p></div>;
 
   return <form className="review-feedback-form" onSubmit={submit}>
-    <fieldset><legend>How was your experience?</legend><div className="rating-options">{[1, 2, 3, 4, 5].map((rating) => <label key={rating}><input type="radio" name="rating" value={rating} required /><span aria-hidden="true">★</span><span className="sr-only">{rating} out of 5</span></label>)}</div></fieldset>
+    <fieldset><legend>How was your experience?</legend><div className="rating-options">{[1, 2, 3, 4, 5].map((rating) => <label key={rating}><input type="radio" name="rating" value={rating} onChange={() => setRating(rating)} required /><span aria-hidden="true">★</span><span className="sr-only">{rating} out of 5</span></label>)}</div><p>1 — Poor · 5 — Excellent</p><p role="status">{rating ? `Selected ${rating} out of 5` : "Choose a rating"}</p></fieldset>
     <label className="field"><span>Anything you’d like us to know? <small>Optional and private</small></span><textarea name="feedback" rows={4} maxLength={2000} /></label>
     {error && <p className="notice error" role="alert">{error}</p>}
     <button className="button primary" type="submit" disabled={loading}>{loading ? "Sending…" : "Send private feedback"}</button>

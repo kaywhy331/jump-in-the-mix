@@ -107,7 +107,10 @@ test("staff drafts, previews, publishes and rolls back while customers retain re
     expect((await prisma.sharedMixMetadata.findUniqueOrThrow({ where: { sharedMixId: id } })).version).toBe(1);
     expect((await prisma.stepVersion.findUniqueOrThrow({ where: { id: imported.steps[0].stepVersionId } })).body).toBe("Second edition prepared message.");
     await release(page, "Hide from customer library");
-    const hidden = await customerPage.goto(`/templates/${id}/use`); expect(hidden?.status()).toBe(404);
+    await customerPage.goto(`/templates/${id}/use`);
+    await expect(customerPage.getByRole("heading", { name: "Let’s get you back on track." })).toBeVisible();
+    await expect(customerPage.getByRole("button", { name: "Create my remix" })).toHaveCount(0);
+    expect(await prisma.mix.count({ where: { workspaceId: workspace.id } })).toBe(1);
   } finally { await customerContext.close(); }
 });
 
@@ -138,9 +141,9 @@ test("editors can save drafts while stale forms and removed publication rights a
   const secondBeat = page.locator(".admin-beat-editor").nth(1);
   await secondBeat.getByLabel("Beat name", { exact: true }).fill("Later check-in");
   await secondBeat.getByRole("textbox", { name: "Message", exact: true }).fill("Keep this second message with its timing and options.");
-  await secondBeat.getByLabel("Days after start").fill("7");
+  await secondBeat.getByLabel("Days from the cue date (negative = before)").fill("7");
   await secondBeat.getByLabel("Send time", { exact: false }).fill("14:25");
-  await secondBeat.getByLabel("Allow long SMS").check();
+  await secondBeat.getByLabel("Allow long text messages").check();
   await secondBeat.getByLabel("Include opt-out wording").check();
   await secondBeat.getByRole("button", { name: "Move earlier", exact: true }).click();
   await page.getByLabel("Reason for draft change").fill("Reorder prepared beats while preserving their content");

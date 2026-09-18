@@ -1,3 +1,4 @@
+import { customerReturnPath } from "@/lib/customer-return-path";
 import { accountHome } from "@/lib/account-home";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT, type JWTPayload } from "jose";
@@ -29,7 +30,7 @@ export function appleSignInConfigured(configuration: AppleConfiguration = env): 
 }
 
 export function safeOAuthReturnTo(value: string | null | undefined): string | null {
-  return value?.startsWith("/") && !value.startsWith("//") ? value.slice(0, 500) : null;
+  return customerReturnPath(value);
 }
 
 export function identityNonceMatches(received: unknown, expected: string): boolean {

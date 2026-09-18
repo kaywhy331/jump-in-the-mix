@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { TimezonePicker } from "@/components/TimezonePicker";
+import { FormGuard } from "@/components/FormGuard";
 import { startTransition, useActionState, useEffect, useState } from "react";
 import { saveCalendarAction, type CalendarSaveState } from "@/lib/calendar-actions";
 import type { ContactCandidate } from "@/lib/appointment-bindings";
@@ -58,7 +60,7 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
   // React resets a form submitted through its action prop once the action settles, which blanks
   // controlled fields too. Dispatching the same action from the submit event keeps what was typed
   // while a returned error or person choice is shown; the action prop remains for no-script submits.
-  return <form action={action} onSubmit={submit} className="form-grid">{state.error && <div className="field full"><Notice type="error">{state.error}</Notice></div>}<input type="hidden" name="id" value={entry?.id ?? ""} /><input type="hidden" name="version" value={entry?.version ?? 0} />
+  return <form action={action} onSubmit={submit} className="form-grid"><FormGuard /><p className="field full muted-copy">Save this event in your calendar. No invitation is sent; download and share it afterward.</p>{state.error && <div className="field full"><Notice type="error">{state.error}</Notice></div>}<input type="hidden" name="id" value={entry?.id ?? ""} /><input type="hidden" name="version" value={entry?.version ?? 0} />
     <input type="hidden" name="startsAt" value={startsAt} /><input type="hidden" name="endsAt" value={endsAt} />
     <label className="field full"><span>Title</span><input name="title" maxLength={160} value={values.title} onChange={event => update("title", event.target.value)} placeholder="For example, Discovery call or Focus time" required /></label>
     <label className="field"><span>Event type</span><select name="kind" value={values.kind} onChange={event => update("kind", event.target.value)}><option value="MEETING">Meeting</option><option value="BLOCK">Time block</option></select></label>
@@ -82,7 +84,7 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
       <div className="when-chips" role="group" aria-label="How long">{DURATIONS.map(minutes => <button type="button" key={minutes} className="when-chip" aria-pressed={values.duration === minutes} onClick={() => update("duration", minutes)}>{formatDurationLabel(minutes)}</button>)}<button type="button" className="when-chip" aria-pressed={values.duration === "custom"} onClick={() => update("duration", "custom")}>Custom end</button></div>
       {values.duration === "custom" ? <label className="when-duration-custom"><span className="sr-only">Ends</span><input type="datetime-local" aria-label="Ends" value={values.customEnd} onChange={event => update("customEnd", event.target.value)} required /></label> : <p className="when-ends-summary">{endSummary}</p>}
     </div>
-    <label className="field full"><span>Timezone</span><input name="timezone" value={values.timezone} onChange={event => update("timezone", event.target.value)} list="calendar-timezones" required /><datalist id="calendar-timezones">{[timezone,"UTC","America/Los_Angeles","America/New_York","Europe/London","Europe/Paris","Asia/Kolkata","Asia/Tokyo","Australia/Sydney"].filter((zone, index, all) => all.indexOf(zone) === index).map(zone => <option value={zone} key={zone} />)}</datalist></label>
+    <div className="field full"><TimezonePicker defaultValue={values.timezone} onChange={zone => update("timezone", zone)} label="Event timezone" /><small>Event times are entered in {values.timezone}. Changing the zone keeps the entered clock time.</small></div>
     <label className="field full"><span>Where</span><input name="location" maxLength={200} value={values.location} onChange={event => update("location", event.target.value)} placeholder="Address or place, for reminders" /></label>
     <label className="field full"><span>Link to join or find it (optional)</span><input name="link" type="url" inputMode="url" maxLength={500} value={values.link} onChange={event => update("link", event.target.value)} placeholder="https://" /></label>
     <label className="field full"><span>Details the customer should be reminded of (optional)</span><textarea name="details" maxLength={1000} rows={2} value={values.details} onChange={event => update("details", event.target.value)} placeholder="What to bring, where to park, who to ask for" /></label>

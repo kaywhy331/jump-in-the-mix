@@ -173,3 +173,7 @@
   .impersonation-banner small { display: none; }
   .admin-metric-grid, .admin-overview-metrics { grid-template-columns: 1fr; }
 }
+
+.admin-draft-readiness { position: sticky; top: 0; z-index: 3; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 6px; }
+.admin-draft-readiness details[open] { max-height: 35vh; overflow: auto; }
+.admin-tabs-hint { font-size: .8rem; color: var(--muted); margin: 0 0 6px; }

@@ -53,6 +53,10 @@ function pickTokens(values: Record<string, string>, sources: Array<string | null
   return picked;
 }
 type SearchParams = {
+  q?: string;
+  jump?: string;
+  priority?: string;
+  view?: string;
   invitations?: string;
   range?: string;
   status?: string;
@@ -115,6 +119,9 @@ function eventLabel(action: string): string {
 
 export default async function TodayPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
+  const query = (params.q ?? "").trim().slice(0, 160);
+  const priority = params.priority === "overdue" ? "overdue" : "all";
+  const compact = params.view === "compact";
   const range = ["due", "week", "month", "all"].includes(params.range ?? "") ? params.range! : "due";
   const status = ["all", "pending", "done", "skipped"].includes(params.status ?? "") ? params.status! : "all";
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
@@ -147,7 +154,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   } else if (range === "week") dateWhere = { scheduledAt: { gte: startToday, lt: endWeek } };
   else if (range === "month") dateWhere = { scheduledAt: { gte: startToday, lt: endMonth } };
 
-  const where: Prisma.JumpWhereInput = { workspaceId: workspace.id, ...statusWhere, ...dateWhere, ...channelWhere };
+  const where: Prisma.JumpWhereInput = { workspaceId: workspace.id, ...(params.jump ? { id: params.jump.slice(0, 120) } : {}), AND: [statusWhere, dateWhere, channelWhere,
+    ...(priority === "overdue" ? [{ status: "PENDING" as const, scheduledAt: { lt: startToday } }] : []),
+    ...(query ? [{ OR: [{ contact: { displayName: { contains: query, mode: "insensitive" as const } } }, { mix: { name: { contains: query, mode: "insensitive" as const } } }, { reason: { contains: query, mode: "insensitive" as const } }] }] : [])
+  ] };
   // Observe preparation first so a just-finished job cannot report ready beside an older list.
   const preparation = await readPreparationStatus(workspace.id);
   const [list, totalCount, pendingCount, attentionCount, overdueCount, dueThisWeekCount, completedTodayCount] = await Promise.all([
@@ -173,7 +183,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const automaticFor = (followUpChannel: Channel) => Boolean(automation?.enabled && ((followUpChannel === "EMAIL" && automation.emailEnabled) || (followUpChannel === "SMS" && automation.smsEnabled)));
   const profile = workspace.profile;
   const renderOwner = { name: owner?.name ?? user.name ?? "", email: owner?.email ?? user.email };
-  const viewParams = new URLSearchParams({ range, status, channel });
+  const viewParams = new URLSearchParams({ range, status, channel, ...(query ? { q: query } : {}), ...(params.jump ? { jump: params.jump.slice(0, 120) } : {}), ...(priority !== "all" ? { priority } : {}), ...(compact ? { view: "compact" } : {}) });
   const firstHref = `/jumps?${viewParams}`;
   if (list.reset) redirect(`${firstHref}&listReset=1`);
   const pageHref = (direction: "after" | "before", cursor: string) => `${firstHref}&${direction}=${encodeURIComponent(cursor)}`;
@@ -213,7 +223,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const completed = ordered.filter((followUp) => completedStatuses.includes(followUp.status));
   const upcomingCount = pendingCount - attentionCount;
   const nextUp = needsAttention[0] ?? null;
-  const activeFilterCount = Number(range !== "due") + Number(status !== "all") + Number(channel !== "all");
+  const activeFilterCount = Number(range !== "due") + Number(status !== "all") + Number(channel !== "all") + Number(Boolean(query)) + Number(priority !== "all") + Number(Boolean(params.jump));
 
   const renderCard = (followUp: (typeof ordered)[number]) => {
     const snapshot = (followUp.renderedSnapshot ?? {}) as Snapshot;
@@ -264,7 +274,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       heldNote={heldNote}
     /> : null;
     const snippet = content.length > 150 ? `${content.slice(0, 147)}…` : content;
-    const isNext = followUp.id === nextUp?.id;
+    const isNext = !compact && followUp.id === nextUp?.id;
     const recentEvents = eventsByFollowUp.get(followUp.id) ?? [];
     const daysOverdue = Math.max(1, Math.floor((startToday.getTime() - followUp.scheduledAt.getTime()) / 86_400_000) + 1);
     const dueLabel = followUp.scheduledAt < startToday
@@ -302,7 +312,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           <div className="jump-card-main">
             {isNext && <span className="eyebrow">Next up</span>}
             <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span className={followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{dueLabel}</span><span className="channel-pill">{channelLabel(followUpChannel)}</span></div>
-            <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}<span>{followUp.mix.name}</span><span>{followUp.reason}</span></div>
+            <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}<span>{followUp.mix.name}</span>{followUp.reason && followUp.reason.trim().toLowerCase() !== followUp.mix.name.trim().toLowerCase() && <span>{followUp.reason}</span>}{isPending && <span className="status-pill">{automaticForPlan && !heldByChoice && !drafts.get(followUp.id) && !followUp.accessInvite && (!followUp.appointmentBinding || followUp.appointmentBinding.automaticDelivery) && !missingMethod ? "Automatic sending enabled" : automaticForPlan ? "Held for your review" : "Manual · you send"}</span>}</div>
             {isNext ? <>{prepare}{recentEvents.length > 0 && <div className="jump-action-history"><small>Recent activity</small>{recentEvents.map((event) => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt, displayPreferences)}</span>)}</div>}</> : <p className="jump-snippet">{snippet}</p>}
           </div>
 
@@ -315,8 +325,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
               <Sheet trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review message for ${followUp.contact.displayName}`}><AppIcon name={followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Message ${followUp.contact.displayName}`} description="Make it sound like you. Fine-tune before opening your phone’s composer.">{prepare}</Sheet>
             ))}
             <div className="jump-completion-actions">
-              <JumpOutcomeButton jumpId={followUp.id} outcome={isPending ? "COMPLETED" : "REOPENED"} className={`button small jump-done-action ${isPending ? "" : "done"}`} ariaLabel={isPending ? "Done" : "Undo"}><AppIcon name="check" /><span>{isPending ? "Done" : "Undo"}</span></JumpOutcomeButton>
-              {isPending && <JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button small jump-skip-action" ariaLabel="Skip"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5.5v9l7-4.5z" /><path d="M14.5 5.5v9" /></svg><span>Skip</span></JumpOutcomeButton>}
+              <JumpOutcomeButton jumpId={followUp.id} confirmation={isPending && !isNext ? `Record ${channelLabel(followUpChannel)} follow-up for ${followUp.contact.displayName} as complete? This records your action; it does not send a message.` : undefined} outcome={isPending ? "COMPLETED" : "REOPENED"} className={`button small jump-done-action ${isPending ? "" : "done"}`} ariaLabel={isPending ? `Mark done for ${followUp.contact.displayName}` : "Undo"}><AppIcon name="check" /><span>{isPending ? "Mark done" : "Undo"}</span></JumpOutcomeButton>
+              {isPending && <JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" confirmation={!isNext ? `Skip ${followUp.reason || followUp.mix.name} for ${followUp.contact.displayName}? You can undo this immediately or reopen it from the skipped list.` : undefined} className="button small jump-skip-action" ariaLabel="Skip"><svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5.5v9l7-4.5z" /><path d="M14.5 5.5v9" /></svg><span>Skip</span></JumpOutcomeButton>}
               {isPending && <Sheet
                 trigger={<button className="button small" type="button" aria-label={`More options for ${followUp.contact.displayName}`}>More</button>}
                 title={`Follow up with ${followUp.contact.displayName}`}
@@ -333,15 +343,18 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     );
   };
 
-  const firstFollowUpReady = params.firstContact && followUps.some(followUp => followUp.contact.displayName === params.firstContact);
+  const firstFollowUp = params.firstContact ? followUps.find(followUp => followUp.contact.displayName === params.firstContact) : undefined;
+  const firstNeedsEmail = firstFollowUp?.stepVersion.stepTemplate.channel === "EMAIL";
+  const firstFollowUpReady = firstFollowUp && (firstNeedsEmail ? firstFollowUp.contact.emails.length > 0 : firstFollowUp.contact.phones.length > 0);
   const welcomeMessage = firstFollowUpReady ? `Your first follow-up for ${params.firstContact} is ready.`
+    : firstFollowUp ? `Your follow-up for ${params.firstContact} is saved. Add ${firstNeedsEmail ? "an email address" : "a phone number"} to review and send it.`
     : preparation.state !== "ready" ? "Your details are saved. We’re checking your follow-ups." : "Your follow-up list is ready.";
 
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
       <JumpReturnTray />
       {params.invitations && <Notice type="success">Your invitations are ready in Today. Review each message and send it from your own text or email app.</Notice>}
-    {params.welcome && <><Notice type="success">{welcomeMessage}</Notice><section className="card"><h2>Try your first networking mix</h2><p>You have three personal invitations. Add email addresses or text numbers, then review and send their unique signup links from Today.</p><Link className="button primary" href="/mixes/system?welcome=1">Prepare invitations</Link></section></>}
+    {params.welcome && <Notice type="success">{welcomeMessage} Review the follow-up below first. You can prepare personal invitations later from <Link href="/mixes/system">My invitations</Link>.</Notice>}
       {params.demo && <Notice type="info">Using local demo data.</Notice>}
       {params.applied && <Notice type="success">Mix changes saved.</Notice>}
       {params.mixStopped && <Notice type="success">Mix stopped.</Notice>}
@@ -354,6 +367,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         <div><h1 tabIndex={-1}>Today</h1><p>{attentionCount ? `${attentionCount.toLocaleString()} follow-up${attentionCount === 1 ? " needs" : "s need"} your attention${overdueCount ? ` · ${overdueCount.toLocaleString()} overdue` : ""}.` : preparation.state !== "ready" ? "Your follow-up list is awaiting preparation." : upcomingCount ? `${upcomingCount.toLocaleString()} upcoming follow-up${upcomingCount === 1 ? "" : "s"}.` : activeFilterCount ? "No open follow-ups in this view." : "You’re caught up."}</p></div>
         <Sheet trigger={<button className={activeFilterCount ? "button filter-trigger active" : "button filter-trigger"} type="button"><AppIcon name="settings" />Filter{activeFilterCount ? ` ${activeFilterCount}` : ""}</button>} title="Filter Today" description="Changes apply as soon as you choose them.">
           <AutoSubmitForm key={viewParams.toString()} className="form-stack" action="/jumps" ariaLabel="Today filters">
+            <input type="hidden" name="q" value={query} /><input type="hidden" name="view" value={compact ? "compact" : "focus"} /><label className="field"><span>Priority</span><select name="priority" defaultValue={priority}><option value="all">All priorities</option><option value="overdue">Overdue commitments</option></select></label>
             <label className="field"><span>Dates</span><select name="range" defaultValue={range}><option value="due">Due now</option><option value="week">Next 7 days</option><option value="month">Next 30 days</option><option value="all">All dates</option></select></label>
             <label className="field"><span>Status</span><select name="status" defaultValue={status}><option value="all">Open and completed</option><option value="pending">Open</option><option value="done">Completed</option><option value="skipped">Skipped</option></select></label>
             <label className="field"><span>How</span><select name="channel" defaultValue={channel}><option value="all">Any method</option>{channels.map((item) => <option key={item} value={item}>{channelLabel(item)}</option>)}</select></label>
@@ -362,6 +376,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         </Sheet>
       </header>
 
+      <form action="/jumps" className="search-row" role="search"><label className="field"><span>Find a person, Mix, or reason</span><input type="search" name="q" defaultValue={query} maxLength={160} placeholder="Search this follow-up view" /></label>{[...viewParams].filter(([name]) => name !== "q").map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}<button className="button" type="submit">Search</button></form>
+      <nav className="page-actions" aria-label="Today layout"><TodayLink className="button small" aria-current={!compact ? "page" : undefined} href={`/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "focus" })}`}>Focused work</TodayLink><TodayLink className="button small" aria-current={compact ? "page" : undefined} href={`/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "compact" })}`}>Compact scan</TodayLink><TodayLink className="button small" href="/jumps?range=all&status=pending&priority=overdue&view=compact">Review overdue</TodayLink></nav>
       <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
       <p className="today-week-line"><TodayLink href="/jumps?range=week&status=pending">This week: {dueThisWeekCount} open</TodayLink><span>·</span><TodayLink href="/jumps?range=due&status=done">{completedTodayCount} completed today</TodayLink></p>
       {!activeFilterCount && <TodayBriefing text={todayBriefing({ attention: attentionCount, overdue: overdueCount, markedDone: completedTodayCount, ready: preparation.state === "ready" })} />}
@@ -378,6 +394,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       {!ordered.length && preparation.state === "ready" && (activeFilterCount
         ? <EmptyState title="No follow-ups match these filters" description="Try clearing the filters to see what needs your attention today." actionHref="/jumps" actionLabel="Clear filters" />
         : <EmptyState title="Nothing due right now" description="A little hello goes a long way. Add a person and choose a follow-up date; your next action will appear here." actionHref="/contacts/new" actionLabel="Add a person" />)}
+      {!ordered.length && <div className="page-actions"><TodayLink className="button" href="/jumps?range=month&status=pending">Review upcoming</TodayLink><Link className="button" href="/contacts">Schedule with an existing person</Link></div>}
     </TodayNavigation>
   );
 }

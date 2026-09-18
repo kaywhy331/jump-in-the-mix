@@ -1,8 +1,11 @@
+import { ActionForm } from "@/components/ActionForm";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { PasswordInput } from "@/components/PasswordInput";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
-import { registerAction } from "@/lib/auth-actions";
+import { registerFormAction } from "@/lib/auth-actions";
 import { hashAuthToken } from "@/lib/auth-tokens";
 import { env } from "@/lib/env";
 import { pilotRegistrationOpen } from "@/lib/pilot-registration";
@@ -36,14 +39,15 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
     </> : <>
       <div><h1>Create your free account</h1><p>{pilotOpen ? "Set up the owner account for this private installation." : invite?.recipientPhone ? "Choose your email address to create an account. Verify it to start with one person and review every follow-up before sending." : "Use the email address your invitation was sent to. After verification, start with one person and review every follow-up before sending."}</p>{scenario && <p>Your {scenario.label.toLowerCase()} starter will be ready to review. You can change it or skip setup.</p>}</div>
       {params.error && <Notice type="error">{params.error}</Notice>}
-      <form action={registerAction} className="form-stack">
+      <ActionForm action={registerFormAction} className="form-stack">
         {invite && <input type="hidden" name="invite" value={token} />}
         <label className="field"><span>Your name</span><input name="name" autoComplete="name" maxLength={120} required /></label>
         <label className="field"><span>Email</span><input name="email" type="email" autoComplete="email" maxLength={254} required /></label>
-        <label className="field"><span>Password</span><input name="password" type="password" autoComplete="new-password" minLength={12} maxLength={72} required /><small>Use at least 12 characters.</small></label>
-        <button className="button primary" type="submit">Create free account</button>
-      </form><p>Already have an account? <Link href="/login">Sign in</Link>.</p>
+        <label className="field"><span>Password</span><PasswordInput aria-label="Password" name="password"  autoComplete="new-password" minLength={12} maxLength={72} required /><small>Use at least 12 characters.</small></label>
+        <FormSubmitButton label="Create free account" pendingLabel="Please wait…" />
+      </ActionForm><p>Already have an account? <Link href="/login">Sign in</Link>.</p>
     </>}
+    <p><Link href="/contact">Get help with an invitation or account</Link>.</p>
     <PublicTrustLinks />
   </section></main>;
 }

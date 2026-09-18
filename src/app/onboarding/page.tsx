@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { dateInputInTimezone } from "@/lib/date-input";
 import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
 import { OnboardingForm } from "@/components/OnboardingForm";
@@ -14,7 +15,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   const [params, { workspace, user }] = await Promise.all([searchParams, requireWorkspace()]);
   const [timezone, marketingPreference, contacts] = await Promise.all([timezoneForUser(user.id), prisma.workspaceMarketingPreference.findUnique({ where: { workspaceId: workspace.id } }), prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true, displayName: true }, orderBy: { createdAt: "desc" }, take: 100 })]);
   const selectedUses = onboardingUses(params.useCase ? [params.useCase].flat() : workspace.profile?.useCases.length ? workspace.profile.useCases : ["business"]);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = dateInputInTimezone(new Date(), timezone);
   const scenario = storedMarketingScenario(marketingPreference?.scenario, marketingPreference?.version);
   return (
     <main className="onboarding-shell">

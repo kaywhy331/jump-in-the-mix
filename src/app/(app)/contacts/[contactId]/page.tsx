@@ -64,6 +64,7 @@ export default async function ContactDetailPage({ params, searchParams }: { para
   if (!contact) notFound();
 
   const displayPreferences = await displayPreferencesForUser(user.id);
+  const pendingCount = await prisma.jump.count({ where: { workspaceId: workspace.id, contactId, status: "PENDING" } });
   const followUpType = dateTypes.find((type) => type.slug === "follow-up");
   const stopByMixId = new Map(stops.map((stop) => [stop.mixId, stop]));
   const directPlanIds = new Set(contact.mixAssignments.map((assignment) => assignment.mixId));
@@ -127,7 +128,7 @@ export default async function ContactDetailPage({ params, searchParams }: { para
         <section className="card contact-priority-card">
           <div className="card-header"><div><h2>Relationship</h2><p>Stages, priorities, and preferences.</p></div></div>
           <ContactJourneyPanel workspaceId={workspace.id} contactId={contact.id} />
-          <ContactRelationshipStatePanel contactId={contact.id} state={state} />
+          <ContactRelationshipStatePanel pendingCount={pendingCount} contactId={contact.id} state={state} />
         </section>
 
         <section className="card contact-timeline-card">

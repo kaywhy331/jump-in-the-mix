@@ -31,8 +31,8 @@ test("signed delivery events appear in admin diagnostics without exposing email 
     expect((await prisma.waitlistEntry.findUniqueOrThrow({ where: { id: entry.id } })).status).toBe("SUPPRESSED");
     await context.addCookies([{ name: "jitm_session", value: token, url: testInfo.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
     await page.goto("/admin/email");
-    await expect(page.getByRole("heading", { name: "Email" })).toBeVisible();
-    await page.getByText(/Recent provider events/).click();
+    await expect(page.getByRole("heading", { name: "Email", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Provider event history" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "email.bounced", exact: true })).toBeVisible();
     await expect(page.getByText(/0 of 90 used/)).toBeVisible();
     await expect(page.getByText("PRIVATE SUBJECT NEVER DISPLAY")).toHaveCount(0);

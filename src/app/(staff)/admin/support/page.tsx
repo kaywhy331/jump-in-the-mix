@@ -92,6 +92,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
     prisma.supportTicket.findMany({
       where,
       include: {
+        messages: { where: { authorType: "USER" }, orderBy: { createdAt: "desc" }, take: 1, select: { createdAt: true } },
         assignedTo: { select: { name: true } }
       },
       orderBy: [{ priority: "desc" }, { lastActivityAt: "asc" }, { id: "asc" }],
@@ -152,7 +153,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
             <Link prefetch={false} className={`card support-admin-ticket priority-${ticket.priority.toLowerCase()}`} href={adminQuery(`/admin/support/${ticket.id}`, { returnTo })} key={ticket.id}>
               <div><h2>{ticket.title}</h2><p><span className="support-ticket-reference">{ticket.reference}</span>{requester?.name ?? "Unknown requester"} · {requester?.email ?? ticket.requesterUserId}</p></div>
               <div className="support-admin-ticket-badges"><span className={`status-pill ${ticket.status === "RESOLVED" ? "done" : ""}`}>{adminSupportStatusLabel(ticket.status)}</span>{ticket.priority !== "NORMAL" && <span className={`status-pill priority-${ticket.priority.toLowerCase()}`}>{supportPriorityLabel(ticket.priority)}</span>}</div>
-              <div className="admin-ticket-age"><span>{ticket.assignedTo?.name ?? "Unassigned"}</span><time dateTime={ticket.lastActivityAt.toISOString()} title={formatDateTime(ticket.lastActivityAt, displayPreferences)}>{Math.floor((Date.now() - ticket.lastActivityAt.getTime()) / 86_400_000) >= 1 ? `${Math.floor((Date.now() - ticket.lastActivityAt.getTime()) / 86_400_000)}d` : `${Math.max(0, Math.floor((Date.now() - ticket.lastActivityAt.getTime()) / 3_600_000))}h`} since activity</time></div>
+              <div className="admin-ticket-age"><span>{ticket.assignedTo?.name ?? "Unassigned"}</span><time dateTime={ticket.lastActivityAt.toISOString()} title={formatDateTime(ticket.lastActivityAt, displayPreferences)}>{Math.floor((Date.now() - ticket.lastActivityAt.getTime()) / 86_400_000) >= 1 ? `${Math.floor((Date.now() - ticket.lastActivityAt.getTime()) / 86_400_000)}d` : `${Math.max(0, Math.floor((Date.now() - ticket.lastActivityAt.getTime()) / 3_600_000))}h`} since activity</time>{ticket.messages[0] && <span>Latest customer message: {formatDateTime(ticket.messages[0].createdAt, displayPreferences)}{["OPEN", "WAITING_ON_SUPPORT"].includes(ticket.status) ? ` · waiting ${Math.max(0, Math.floor((Date.now() - ticket.messages[0].createdAt.getTime()) / 3600_000))}h for support` : ""}</span>}</div>
             </Link>
           );
         })}

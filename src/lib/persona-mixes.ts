@@ -83,7 +83,7 @@ export const PERSONAS: Persona[] = [
       {
         id: "proposal-sent", label: "Proposal sent", description: "A prospect reviewing your proposal · Give the decision a next step, at their pace.",
         steps: [
-          { title: "Confirm the review date", timing: "Immediate", channel: "email", subject: "Next steps on the proposal", message: "Hi {{First Name}},\n\nThanks for the conversation today—the proposal is attached. You mentioned reviewing it with your colleagues this week, so I'll check in after that rather than before. If a question comes up sooner, just reply.\n\n{{Your Name}}" },
+          { title: "Confirm the review date", timing: "Immediate", channel: "email", subject: "Next steps on the proposal", message: "Hi {{First Name}},\n\nThanks for the conversation today—I’m following up on the proposal we discussed. You mentioned reviewing it with your colleagues this week, so I'll check in after that rather than before. If a question comes up sooner, just reply.\n\n{{Your Name}}" },
           { title: "Check in after the review", planned: true, timing: "Agreed date", channel: "email", subject: "Any questions before you decide?", message: "Hi {{First Name}}—you mentioned reviewing the proposal this week. What questions would be useful to work through before you decide? Happy to clarify the scope or the timing." },
           { title: "Still the right time?", timing: "Day 10 after", channel: "email", subject: "Still the right time?", message: "Hi {{First Name}},\n\nChecking whether the project is still on your calendar. If the timing has changed, no problem at all—just let me know, and I'll check back when it suits you better.\n\n{{Your Name}}" }
         ]

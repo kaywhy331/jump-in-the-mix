@@ -9,6 +9,8 @@ const destinations = [
   ["/calendar", "Calendar", "Schedule meetings and protect your time."],
   ["/settings/connections", "Lead connections", "Bring contacts in from forms, messages, and other tools."],
   ["/settings", "Settings", "Business details, saved messages, dates, and personal preferences."],
+  ["/account/preferences", "Personal preferences", "Your display name, timezone, follow-up time, and quiet hours."],
+  ["/settings/notifications", "Notifications", "Email summaries and reminders on this device."],
   ["/account", "My Account", "Profile, password, active sessions, export, and account deletion."],
   ["/help", "Help", "Plain-language answers and ways to get assistance."]
 ] as const;

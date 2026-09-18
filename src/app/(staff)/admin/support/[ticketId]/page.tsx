@@ -179,7 +179,7 @@ export default async function AdminSupportTicketPage({
             </div>
           </section>
 
-          <details className="card">
+          <details className="card" id="case-assignment" open={!ticket.assignedToUserId}>
             <summary>Change assignment</summary><p>Reassignment ends active customer views.</p>
             <AdminDraftForm draftKey={`support-assignment:${ticket.id}`} fields={["assignedToUserId", "reason"]} revision={ticket.assignmentRevision} revisionField="assignmentRevision" saved={query.assignmentSaved ? String(ticket.assignmentRevision) : undefined} action={adminAssignSupportTicketAction}>
               <input type="hidden" name="returnTo" value={returnTo} /><input type="hidden" name="ticketId" value={ticket.id} />
@@ -202,7 +202,7 @@ export default async function AdminSupportTicketPage({
                   <label className="field"><span className="field-label">Support reason</span><textarea name="reason" minLength={10} maxLength={500} required /></label>
                   <button className="button" type="submit">Start view-only session</button>
                 </form>
-              ) : <p>An active ticket must be assigned to you first. Resolve or close the ticket when the investigation is finished.</p>}
+              ) : <p>{["RESOLVED", "CLOSED"].includes(ticket.status) ? "This case is resolved or closed. Reopen it using the case status control before starting a customer view." : <>This case must be assigned to you first. <a href="#case-assignment">Review assignment</a>.</>}</p>}
             </details>
           )}
           <details className="card">

@@ -266,3 +266,16 @@
 @media (max-width: 700px) { .profession-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .profession-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 400px) { .profession-grid { grid-template-columns: 1fr; } }
+
+.public-mobile-menu { display: none; }
+.public-contents, .public-capabilities { margin-block: 24px; padding: 18px; border: 1px solid var(--border); border-radius: 12px; }
+.public-contents ul { display: flex; flex-wrap: wrap; gap: 10px 24px; padding-inline-start: 20px; }
+.public-page h2[id] { scroll-margin-top: 24px; }
+@media (max-width: 760px) {
+  .public-header { flex-wrap: wrap; }
+  .public-mobile-menu { display: block; flex-basis: 100%; }
+  .public-mobile-menu summary { min-height: 44px; padding: 10px 0; cursor: pointer; }
+  .public-mobile-menu nav { display: flex; gap: 12px; flex-wrap: wrap; }
+  .public-mobile-menu a { display: block; padding: 10px 4px; }
+  .public-page .demo-actions { flex-wrap: wrap; }
+}

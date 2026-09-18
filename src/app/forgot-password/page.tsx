@@ -1,8 +1,11 @@
+import { ActionForm } from "@/components/ActionForm";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { PasswordInput } from "@/components/PasswordInput";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
-import { requestPasswordResetAction } from "@/lib/auth-actions";
+import { requestPasswordResetFormAction } from "@/lib/auth-actions";
 import { env } from "@/lib/env";
 import { transactionalEmailConfigured } from "@/lib/transactional-email";
 
@@ -19,16 +22,17 @@ export default async function ForgotPasswordPage({ searchParams }: { searchParam
       <section className="auth-card">
         <Logo />
         <h1>Reset your password</h1>
-        <p>Enter the email used for your account. The response is intentionally the same whether or not an account exists.</p>
+        <p>Enter the email you use to sign in. Check your inbox and spam folder for the next step.</p>
         {params.sent && <Notice type="success">If an account matches that email, a reset link has been sent.</Notice>}
-        {(params.unavailable || !emailAvailable) && <Notice type="info">Password-reset email is not configured for this installation. {env.privateTestMode ? "Ask the site operator for a one-time password reset link." : env.pilotMode ? <>Ask the operator to run <code>npm run pilot:reset-password -- your@email.com</code> on the server.</> : "Ask the site operator to restore email delivery."}</Notice>}
-        {params.delivery === "failed" && <Notice type="error">The reset email could not be delivered. Nothing was reported as sent; please try again or contact the site operator.</Notice>}
+        {(params.unavailable || !emailAvailable) && <Notice type="info">Password-reset email is temporarily unavailable. <Link href="/contact">Contact support for help recovering your account</Link>.</Notice>}
+        {params.delivery === "failed" && <Notice type="error">The reset email could not be delivered. Please try again or contact support using the link below.</Notice>}
         {params.error && <Notice type="error">{params.error}</Notice>}
         {developmentResetUrl && process.env.NODE_ENV !== "production" && <Notice type="info">Development email preview: <Link href={developmentResetUrl}><strong>open the reset link</strong></Link>.</Notice>}
-        {emailAvailable && <form action={requestPasswordResetAction} className="form-stack">
+        {emailAvailable && <ActionForm action={requestPasswordResetFormAction} className="form-stack">
           <div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" inputMode="email" autoComplete="email" maxLength={254} required autoFocus /></div>
-          <button className="button primary" type="submit">Send reset link</button>
-        </form>}
+          <FormSubmitButton label="Send reset link" pendingLabel="Please wait…" />
+        </ActionForm>}
+        <p><Link href="/contact">Contact support</Link> if you cannot recover your account.</p>
         <div className="auth-footer"><Link href="/login"><strong>Back to sign in</strong></Link></div>
       </section>
     </main>

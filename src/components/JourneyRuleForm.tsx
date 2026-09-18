@@ -13,6 +13,7 @@ export function JourneyRuleForm({ fromStageId, stages, rules, initialEventType, 
 }) {
   const descriptionId = useId();
   const router = useRouter();
+  const [example, setExample] = useState("active");
   const [eventType, setEventType] = useState(initialEventType ?? "CONVERSATION_STARTED");
   const [savedRules, setSavedRules] = useState(rules);
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
@@ -56,6 +57,7 @@ export function JourneyRuleForm({ fromStageId, stages, rules, initialEventType, 
       {eventType === "TIME_IN_STAGE" && <p>Time is counted from when each person entered this stage. People already past this time can move on the next automatic check.</p>}
       {eventType === "PLAN_COMPLETED" && <p>Uses the mix assigned by this stage. Separately added mixes do not trigger this rule. If the stage’s mix is already completed, the person can move on the next automatic check.</p>}
     </div>
+    <div className="field full"><label className="field"><span>Try this rule with fictional Alex</span><select value={example} onChange={event => setExample(event.target.value)}><option value="active">Automatic moves enabled</option><option value="paused">Automatic moves paused for Alex</option><option value="blocked">Alex has Do not contact enabled</option></select></label><p role="status">{!target ? "Choose a target stage to preview the result." : !automatic || example === "paused" ? `Alex stays in ${from?.name} because automatic transitions are paused. Resume them to allow future events to move Alex.` : `When the selected event is recorded, Alex moves from ${from?.name} to ${target.name}. The old stage’s managed mix stops. ${target.planName ? example === "blocked" ? "Do not contact prevents new follow-ups from being prepared." : `The ${target.planName} mix starts; other manually added mixes remain.` : "No mix starts in this stage."}`}</p><small>This example changes no person or rule.</small></div>
     <div className="field full form-actions"><button className="button primary" type="submit" disabled={pending || Boolean(conflict) || !target}>{pending ? "Saving…" : existing?.enabled ? "Save rule changes" : "Save rule"}</button></div>
   </form>;
 }

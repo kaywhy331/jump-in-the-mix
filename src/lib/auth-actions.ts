@@ -1,6 +1,8 @@
 "use server";
 
 import bcrypt from "bcryptjs";
+import { captureFormFailure, recoverableFormAction, type FormResult } from "@/lib/form-errors";
+import { customerReturnPath } from "@/lib/customer-return-path";
 import { accountHome } from "@/lib/account-home";
 import { redirect } from "next/navigation";
 import { createSession, destroyAllSessionsForUser, destroyOtherSessions, destroySession, requireSession, requireWorkspace, rotateSession } from "@/lib/auth";
@@ -24,6 +26,7 @@ function value(formData: FormData, key: string): string {
 }
 
 function fail(path: string, message: string): never {
+  captureFormFailure(message);
   const separator = path.includes("?") ? "&" : "?";
   redirect(`${path}${separator}error=${encodeURIComponent(message)}`);
 }
@@ -121,7 +124,8 @@ export async function loginAction(formData: FormData): Promise<void> {
   const metadata = await getRequestMetadata();
   const email = normalizedEmail(value(formData, "email"));
   const password = value(formData, "password");
-  const path = "/login";
+  const returnTo = customerReturnPath(value(formData, "next"));
+  const path = returnTo ? `/login?next=${encodeURIComponent(returnTo)}` : "/login";
 
   await enforceRateLimit(path, { scope: "auth.login.ip", identifiers: [metadata.ipAddress], limit: 30, windowMs: 15 * 60 * 1000, blockMs: 30 * 60 * 1000 });
   await enforceRateLimit(path, { scope: "auth.login.email", identifiers: [email], limit: 10, windowMs: 15 * 60 * 1000, blockMs: 30 * 60 * 1000 });
@@ -144,13 +148,14 @@ export async function loginAction(formData: FormData): Promise<void> {
     where: { userId: user.id },
     include: { workspace: { include: { profile: true } } }
   });
-  redirect(await accountHome(user.id, membership?.workspace.profile?.onboardingDone ? "/jumps" : "/onboarding"));
+  redirect(await accountHome(user.id, membership?.workspace.profile?.onboardingDone ? returnTo ?? "/jumps" : "/onboarding"));
 }
 
 export async function requestMagicLinkAction(formData: FormData): Promise<void> {
   const metadata = await getRequestMetadata();
   const email = normalizedEmail(value(formData, "email"));
-  const path = "/login";
+  const returnTo = customerReturnPath(value(formData, "next"));
+  const path = returnTo ? `/login?next=${encodeURIComponent(returnTo)}` : "/login";
   await enforceRateLimit(path, { scope: "auth.magic.ip", identifiers: [metadata.ipAddress], limit: 12, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 });
   await enforceRateLimit(path, { scope: "auth.magic.email", identifiers: [email], limit: 5, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 });
   if (!validEmail(email)) fail(path, "Enter a valid email address.");
@@ -165,12 +170,13 @@ export async function requestMagicLinkAction(formData: FormData): Promise<void> 
   }
   const token = await issueAuthToken(email, AUTH_TOKEN_PURPOSES.magicLogin, 15 * 60_000);
   try {
-    await sendMagicLoginEmail(email, token);
+    await sendMagicLoginEmail(email, token, returnTo);
   } catch (error) {
     console.error("Magic sign-in email failed", error);
     fail(path, "The sign-in email could not be delivered. Try again or use your password.");
   }
   const params = new URLSearchParams({ magicSent: "1" });
+  if (returnTo) params.set("next", returnTo);
   if (process.env.NODE_ENV !== "production") params.set("devToken", token);
   redirect(`/login?${params.toString()}`);
 }
@@ -329,3 +335,15 @@ export async function signOutEverywhereAction(): Promise<void> {
   await destroySession();
   redirect("/signed-out?everywhere=1");
 }
+
+export async function registerFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => registerAction(data)); }
+
+export async function loginFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => loginAction(data)); }
+
+export async function requestPasswordResetFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => requestPasswordResetAction(data)); }
+
+export async function resetPasswordFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => resetPasswordAction(data)); }
+
+export async function resendVerificationFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => resendVerificationAction(data)); }
+
+export async function requestMagicLinkFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => requestMagicLinkAction(data)); }

@@ -1,3 +1,4 @@
+import { PERSONAS } from "@/lib/persona-mixes";
 import type { ReadyMadePlan } from "@/lib/plan-library-types";
 import { SALES_PLANS } from "@/lib/sales-plan-library";
 import { RELATIONSHIP_MIXES } from "@/lib/relationship-mix-library";
@@ -243,6 +244,15 @@ export function starterPlanForBusinessType(businessType: string | null | undefin
 }
 
 export function starterPlanForMarketingScenario(scenarioId: string): ReadyMadePlan | null {
+  const [profession, demoMix] = scenarioId.split("~");
+  if (demoMix) {
+    const persona = PERSONAS.find(item => item.id === profession);
+    const example = persona?.mixes.find(item => item.id === demoMix);
+    const step = example?.steps[0];
+    if (!persona || !example || !step) return null;
+    const wording = step.message.replaceAll("{{Your Name}}", step.channel === "email" ? "{{Email Signature}}" : "{{SMS Signature}}");
+    return { id: `marketing_${profession}_${demoMix}`, title: `${example.label} — first follow-up`, description: `Start with the first message from the ${example.label.toLowerCase()} example. Review its wording and chosen date; you can add the rest of the sequence later.`, category: "New clients", industry: profession === "real-estate" ? "Real estate" : profession === "painting" ? "Home services" : "Professional services", framework: "Ready-made", triggerMode: "DATE_TRIGGERED", dateTypeName: "Follow-up", dateTypeSlug: "follow-up", durationDays: 0, featured: false, steps: [{ name: step.title, channel: step.channel === "email" ? "EMAIL" : step.channel === "phone" ? "PHONE_CALL" : "SMS", dayOffset: 0, sendTimeMinutes: 600, subject: step.subject, ...(step.channel === "phone" ? { script: wording } : { body: wording }) }] };
+  }
   const plans: Record<string, ReadyMadePlan> = {
     "real-estate": { id: "marketing_real_estate_later", title: "Reconnect at the agreed time", description: "Return to a possible move at the timing the person requested.", category: "New clients", industry: "Real estate", framework: "Ready-made", triggerMode: "DATE_TRIGGERED", dateTypeName: "Follow-up", dateTypeSlug: "follow-up", durationDays: 0, featured: false, steps: [{ name: "Review the later check-in", channel: "SMS", dayOffset: 0, sendTimeMinutes: 600, body: "Hi {{First Name}}—you asked me to check back about a possible move. Is that still on your mind, or has the timing changed? {{SMS Signature}}" }] },
     consulting: { id: "marketing_consulting_milestone", title: "Revisit a business milestone", description: "Reconnect around the milestone discussed with a prospective client.", category: "New customers", industry: "Other", framework: "Ready-made", triggerMode: "DATE_TRIGGERED", dateTypeName: "Follow-up", dateTypeSlug: "follow-up", durationDays: 0, featured: false, steps: [{ name: "Review the milestone follow-up", channel: "EMAIL", dayOffset: 0, sendTimeMinutes: 540, subject: "Picking up our conversation", body: "Hi {{First Name}},\n\nWhen we spoke, you wanted to revisit this after your team milestone. Has that timing changed, or would it be useful to pick up the conversation?\n\n{{Email Signature}}" }] },

@@ -59,7 +59,7 @@ describe("server-enforced route authorization matrix", () => {
     expect(impersonationBranch).toContain("cannot change personal account settings");
     expect(impersonationBranch).not.toContain("changePasswordAction");
     expect(impersonationBranch).not.toContain("revokeSessionAction");
-    expect(account).not.toMatch(/Referral|Billing|Connection/);
+    expect(impersonationBranch).not.toMatch(/AccountExport|AccountDeletionForm|Referral|Billing|Connection/);
   });
 
   it("keeps the administrator identity separate from the viewed user identity", () => {

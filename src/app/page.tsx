@@ -26,8 +26,8 @@ export default function HomePage() {
         <div className="hero-copy">
           <h1 id="hero-title">You meant to follow up. <em>Then work happened.</em></h1>
           <p>A client follow-up app for independent professionals. Put the next check-in on a simple plan, with a message ready to make your own. You choose the timing. You review, edit, and send.</p>
-          <div className="hero-actions"><Link className="button primary" href="/waitlist">Join the waitlist</Link><a className="button" href="#sample" data-demo-trigger>Try the demo</a></div>
-          <p className="hero-note">Explore a sample follow-up with a fictional contact. Nothing goes out unless you open your own messaging app and send it.</p>
+          <div className="hero-actions"><a className="button primary" href="#sample" data-demo-trigger>Try the demo</a><Link className="button" href="/waitlist">Join the waitlist</Link></div>
+          <p className="hero-note">Practice with a fictional contact. Nothing is sent and no messaging app opens. Free accounts, no card; access is by invitation after joining the waitlist.</p>
           <MixesFor current="all" />
         </div>
         <ProductDemo />

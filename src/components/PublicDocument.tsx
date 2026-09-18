@@ -1,3 +1,4 @@
+import { PublicContents } from "@/components/PublicContents";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -15,6 +16,7 @@ export function PublicDocument({ title, children }: { title: string; children: (
       <Link href="/">Back to home</Link>
       <h1>{title}</h1>
       <p className="public-document-date">Effective <time dateTime={PUBLIC_POLICY_DATE}>{PUBLIC_POLICY_DATE}</time></p>
+      <PublicContents />
       {children(details)}
     </main>
     <footer className="public-footer"><p>Jump in the Mix is operated by {details.operatorName}.</p><PublicTrustLinks /></footer>

@@ -1,8 +1,11 @@
+import { ActionForm } from "@/components/ActionForm";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { PasswordInput } from "@/components/PasswordInput";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
-import { resendVerificationAction } from "@/lib/auth-actions";
+import { resendVerificationFormAction } from "@/lib/auth-actions";
 
 export const metadata: Metadata = { title: "Verify email" };
 
@@ -29,10 +32,11 @@ export default async function VerifyEmailPendingPage({ searchParams }: { searchP
         {params.delivery === "failed" && <Notice type="error">The email provider could not deliver the message. You can try again below.</Notice>}
         {params.error && <Notice type="error">{params.error}</Notice>}
         {developmentVerificationUrl && process.env.NODE_ENV !== "production" && <Notice type="info">Development email preview: <Link href={developmentVerificationUrl}><strong>verify this account</strong></Link>.</Notice>}
-        <form action={resendVerificationAction} className="form-stack">
+        <ActionForm action={resendVerificationFormAction} className="form-stack">
           <div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" inputMode="email" autoComplete="email" maxLength={254} defaultValue={email} required /></div>
-          <button className="button primary" type="submit">Send another verification link</button>
-        </form>
+          <FormSubmitButton label="Send another verification link" pendingLabel="Please wait…" />
+        </ActionForm>
+        <p><Link href="/contact">Contact support</Link> if you cannot recover your account.</p>
         <div className="auth-footer"><Link href="/login"><strong>Back to sign in</strong></Link></div>
       </section>
     </main>

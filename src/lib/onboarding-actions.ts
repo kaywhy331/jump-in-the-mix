@@ -1,5 +1,6 @@
 "use server";
 
+import { captureFormFailure, recoverableFormAction, type FormResult } from "@/lib/form-errors";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
@@ -17,6 +18,7 @@ function value(formData: FormData, key: string): string {
 }
 
 function fail(path: string, message: string): never {
+  captureFormFailure(message);
   redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
 }
 
@@ -58,7 +60,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
   const privateContext = value(formData, "privateContext").slice(0, 1000);
   const timezone = value(formData, "timezone");
   const displayName = savedContact?.displayName ?? [firstName, lastName].filter(Boolean).join(" ");
-  if (business && !businessName) fail(path, "Add your business name.");
+
   if (!displayName || !followUpDate) fail(path, "Add a person and choose when you want to follow up.");
   if (!isValidTimezone(timezone)) fail(path, "Choose a valid timezone before creating the first follow-up.");
   let emails;
@@ -145,4 +147,11 @@ export async function skipOnboardingAction(formData: FormData): Promise<void> {
   await ensureStarterMix(workspace.id, null, !business ? onboardingReasons(uses)[0] : undefined);
   await queueJumpReconciliation(workspace.id);
   redirect(welcomePath(null));
+}
+
+export async function completeOnboardingFormAction(_previous: FormResult, data: FormData): Promise<FormResult> {
+  return recoverableFormAction(async () => {
+    if (data.get("starterReviewed") !== "on" || data.get("starterPreviewAvailable") !== "1") fail("/onboarding", "Review your starter and its timing before continuing.");
+    await completeOnboardingAction(data);
+  });
 }

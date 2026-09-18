@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { WaitlistLink } from "@/components/WaitlistLink";
 import { ProductDemo } from "@/components/ProductDemo";
 import { MixesFor } from "@/components/MixesFor";
 import { WaitlistForm } from "@/components/WaitlistForm";
@@ -26,17 +27,18 @@ export default async function ProfessionPage({ params }: { params: Promise<{ pro
   if (!persona || persona.slug !== profession) notFound();
   return <div className="public-page">
     <a className="public-skip-link" href="#main-content">Skip to content</a>
-    <PublicHeader links={[{ href: "#sample", label: "Try the demo", demoTrigger: true }, { href: "/follow-up-templates", label: "Templates" }]} />
+    <PublicHeader scenarioId={persona.id} links={[{ href: "#sample", label: "Try the demo", demoTrigger: true }, { href: "/follow-up-templates", label: "Templates" }]} />
     <main id="main-content" tabIndex={-1}>
       <section className="hero" aria-labelledby="hero-title">
         <div className="hero-copy">
           <h1 id="hero-title">{persona.headline}</h1>
           <p>{persona.supporting}</p>
-          <div className="hero-actions"><Link className="button primary" href="/waitlist">Join the waitlist</Link><a className="button" href="#sample" data-demo-trigger>{persona.demoCta}</a></div>
-          <p className="hero-note">{persona.supportLine} Explore a sample follow-up with a fictional contact; nothing goes out unless you send it yourself.</p>
+          <div className="hero-actions"><a className="button primary" href="#sample" data-demo-trigger>{persona.demoCta}</a><WaitlistLink className="button" scenarioId={persona.id}>Join the waitlist</WaitlistLink></div>
+          <p className="hero-note">Practice only: nothing is sent and no messaging app opens. Free accounts, no card; join the waitlist for an invitation.</p>
+          <p className="hero-note">{persona.boundary}</p>
           <MixesFor current={persona.id} />
         </div>
-        <ProductDemo scenarios={persona.mixes} heading={persona.demoHeading} legend={`Choose a ${persona.label.toLowerCase()} mix`} />
+        <ProductDemo scenarioId={persona.id} scenarios={persona.mixes} heading={persona.demoHeading} legend={`Choose a ${persona.label.toLowerCase()} mix`} />
       </section>
       <section className="section public-route-notes" aria-labelledby="route-notes-title">
         <div className="section-heading"><h2 id="route-notes-title">What this is, and what it isn’t.</h2><p>{persona.boundary}</p></div>

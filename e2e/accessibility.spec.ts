@@ -9,7 +9,7 @@ const coreRoutes = ["/jumps", "/contacts", "/contacts/new", "/mixes/new"] as con
 async function signIn(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(userEmail);
-  await page.getByLabel("Password").fill(userPassword);
+  await page.getByLabel("Password", { exact: true }).fill(userPassword);
   await Promise.all([
     page.waitForURL(/\/(jumps|onboarding)(\?|$)/),
     page.getByRole("button", { name: "Sign in" }).click()

@@ -93,7 +93,8 @@ test("Owner invites a teammate, recipient sets up MFA, and selected permissions 
     await recipientPage.getByLabel("Authenticator code", { exact: true }).fill(generateTotpCode(secret!));
     await recipientPage.getByRole("button", { name: "Enable administrator MFA" }).click();
     await expect(recipientPage.getByRole("heading", { name: "Save your recovery codes" })).toBeVisible();
-    await recipientPage.getByRole("link", { name: "Continue to Admin" }).click();
+    await recipientPage.getByRole("checkbox", { name: "I stored my one-time recovery codes securely." }).check();
+    await recipientPage.getByRole("button", { name: "Continue to Admin" }).click();
     await recipientPage.goto("/admin/waitlist");
     await expect(recipientPage.getByRole("heading", { name: "Waitlist" })).toBeVisible();
     await expect(recipientPage.getByRole("button", { name: /Review .* invitations/ })).toHaveCount(0);

@@ -42,6 +42,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
     where,
     select: {
       id: true, name: true, email: true, emailVerifiedAt: true, createdAt: true, suspendedAt: true, accessRevision: true,
+      sessions: { where: { expiresAt: { gt: new Date() } }, orderBy: { lastSeenAt: "desc" }, take: 1, select: { lastSeenAt: true } },
       staffMembership: { select: { status: true, role: true } },
       _count: { select: { sessions: { where: { expiresAt: { gt: new Date() } } } } },
       memberships: {
@@ -50,6 +51,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
             select: {
               id: true,
               name: true,
+              profile: { select: { onboardingDone: true } },
               _count: { select: { contacts: true, mixes: true, jumps: true } }
             }
           }
@@ -91,7 +93,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
 
       <div className="admin-queue" role="region" aria-label="Results" tabIndex={0}>
         {users.map(user => <article className="admin-queue-row" key={user.id}>
-          <div><h2><Link href={`/admin/users/${user.id}?returnTo=${encodeURIComponent(pageHref(page))}`}>{user.name}</Link></h2><p>{user.email}</p><small>{user.memberships.map(item => item.workspace.name).join(" · ") || "No customer workspace"} · Joined {formatDate(user.createdAt, displayPreferences)}</small></div>
+          <div><h2><Link href={`/admin/users/${user.id}?returnTo=${encodeURIComponent(pageHref(page))}`}>{user.name}</Link></h2><p>{user.email}</p><small>{user.memberships.map(item => item.workspace.name).join(" · ") || "No customer workspace"} · Joined {formatDate(user.createdAt, displayPreferences)}</small><p>{user.memberships.some(item => item.workspace.profile?.onboardingDone) ? "First-use setup complete" : "First-use setup incomplete"} · {user.sessions[0] ? `Last active ${formatDate(user.sessions[0].lastSeenAt, displayPreferences)}` : "No active session"}</p></div>
           <div className="page-actions"><span className="status-pill">{user.suspendedAt ? "Suspended" : "Active"}</span>{user.staffMembership && <span className="status-pill">Staff · {user.staffMembership.role.toLowerCase()}</span>}<span>{user._count.sessions} sessions</span><Link className="button small" href={`/admin/users/${user.id}?returnTo=${encodeURIComponent(pageHref(page))}`}>View account</Link></div>
         </article>)}
       </div>

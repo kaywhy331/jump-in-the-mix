@@ -146,7 +146,7 @@ type DueFollowUp = {
   contact: { displayName: string };
 };
 
-function digestMessage(input: {
+export function digestMessage(input: {
   ownerName: string;
   company: string;
   due: DueFollowUp[];

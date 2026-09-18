@@ -26,13 +26,13 @@ test("account change retains nonsecret fields through password failure and MFA, 
     const reason = "Case 842: investigate the account before restoring access";
     await page.getByLabel("Reason and case reference").fill(reason);
     await page.getByLabel("Your administrator password").fill("Incorrect password");
-    await page.getByRole("button", { name: "Apply account change" }).click();
+    await page.getByRole("button", { name: /^(Suspend account|Restore account access|End all sessions)$/ }).click();
     await expect(page.locator(".notice.error")).toContainText("password");
     await expect(page.getByLabel("Reason and case reference")).toHaveValue(reason);
     await expect(page.getByLabel("Your administrator password")).toHaveValue("");
     await prisma.adminMfaSession.update({ where: { sessionId: f.admin.session.id }, data: { verifiedAt: new Date(Date.now() - 11 * 60_000) } });
     await page.getByLabel("Your administrator password").fill(password);
-    await page.getByRole("button", { name: "Apply account change" }).click();
+    await page.getByRole("button", { name: /^(Suspend account|Restore account access|End all sessions)$/ }).click();
     await expect(page).toHaveURL(/\/account\/admin-mfa\?verify=1/);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: f.customer.user.id } })).suspendedAt).toBeNull();
     await page.getByLabel("Verification code").fill(generateTotpCode(f.secret));
@@ -42,7 +42,7 @@ test("account change retains nonsecret fields through password failure and MFA, 
     await expect(page.getByRole("link", { name: "Back to results" })).toHaveAttribute("href", "/admin/users?q=Private");
     expect((await prisma.user.findUniqueOrThrow({ where: { id: f.customer.user.id } })).suspendedAt).toBeNull();
     await page.getByLabel("Your administrator password").fill(password);
-    await page.getByRole("button", { name: "Apply account change" }).click();
+    await page.getByRole("button", { name: /^(Suspend account|Restore account access|End all sessions)$/ }).click();
     await expect(page).toHaveURL(/updated=suspend/);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: f.customer.user.id } })).suspendedAt).not.toBeNull();
   } finally { await f.cleanup(); }
@@ -61,13 +61,14 @@ test("support reply survives triage, requires template replacement confirmation 
     await expect.poll(() => conversation.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThanOrEqual(1);
     await expect.poll(() => conversation.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
     if (info.project.name === "desktop-chromium") {
-      for (const name of ["Send reply and resolve", "Save triage", "Close ticket"]) {
+      for (const name of ["Save reply and resolve", "Save triage", "Close ticket"]) {
         const button = await page.getByRole("button", { name, exact: true }).boundingBox();
         expect(button!.y + button!.height, name).toBeLessThanOrEqual(768);
       }
     }
     const body = "Keep this prepared response while updating the ticket priority.";
     await page.locator('textarea[name="body"]').fill(body);
+    expect(await page.evaluate(() => { const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; })).toBe(true);
     await page.getByRole("combobox", { name: "Priority", exact: true }).selectOption("URGENT");
     await page.getByRole("button", { name: "Save triage" }).click();
     await expect(page).toHaveURL(/triageSaved=1/);
@@ -77,9 +78,10 @@ test("support reply survives triage, requires template replacement confirmation 
     await page.getByLabel("Response template").selectOption("Resolved");
     await expect(page.locator('textarea[name="body"]')).toHaveValue(body);
     await page.getByRole("button", { name: "Keep my reply" }).click();
-    await page.getByRole("button", { name: "Send reply and resolve" }).click();
+    await page.getByRole("button", { name: "Save reply and resolve" }).click();
     await expect(page.getByText("Reply saved and ticket resolved. The email notification is queued separately.")).toBeVisible();
     await expect(page.locator('textarea[name="body"]')).toHaveValue("");
+    await expect.poll(() => page.evaluate(() => { const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; })).toBe(false);
     await expect.poll(() => conversation.evaluate(el => el.scrollHeight - el.scrollTop - el.clientHeight)).toBeLessThanOrEqual(1);
     await expect(page.getByRole("link", { name: "Support queue", exact: true })).toHaveAttribute("href", "/admin/support?view=mine");
     expect(await prisma.supportTicket.findUnique({ where: { id: f.ticket.id } })).toMatchObject({ status: "RESOLVED", priority: "URGENT" });
@@ -117,7 +119,7 @@ test("an analyst without Overview gets a permitted denial return and fully expir
     await expect(page).toHaveURL(/\/admin\/access-denied\?capability=users.read/);
     await expect(page.getByRole("link", { name: "Return to your workspace", exact: true })).toHaveAttribute("href", "/admin/reports");
     await page.getByRole("link", { name: "Return to your workspace", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Live reports", exact: true })).toBeVisible();
     await prisma.adminMfaSession.update({ where: { sessionId: f.admin.session.id }, data: { expiresAt: new Date(0) } });
     await page.goto("/admin/reports?view=content");
     await expect(page).toHaveURL(/\/account\/admin-mfa/);

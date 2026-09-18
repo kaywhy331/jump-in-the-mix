@@ -27,7 +27,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
     if (!(cause instanceof ReportError)) console.error("Aggregate administration report query failed.");
   }
   return <div className={`page ${styles.page}`}>
-    <header className="page-header"><h1>Reports</h1><nav className="page-actions" aria-label="Report tools"><Link href={adminQuery("/admin/reports/history", { from: range.fromDay, through: range.throughDay })} prefetch={false}>Saved daily reports</Link><Link href={adminQuery("/admin/reports/exports", { from: range.fromDay, through: range.throughDay })} prefetch={false}>Your exports</Link></nav></header>
+    <header className="page-header"><h1>Live reports</h1><nav className="page-actions" aria-label="Report tools"><Link href={adminQuery("/admin/reports/history", { from: range.fromDay, through: range.throughDay })} prefetch={false}>Saved daily reports</Link><Link href={adminQuery("/admin/reports/exports", { from: range.fromDay, through: range.throughDay })} prefetch={false}>Your exports</Link></nav></header>
     <section className="admin-report-toolbar">
       <form data-live-filter="false" key={`${range.fromDay}:${range.throughDay}`} method="get" action="/admin/reports" className={styles.filters}>
         <input name="view" type="hidden" value={view} /><label className="field"><span>From (UTC)</span><input name="from" type="date" defaultValue={range.fromDay} max={now.toISOString().slice(0, 10)} required /></label>

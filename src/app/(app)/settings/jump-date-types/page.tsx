@@ -1,3 +1,5 @@
+import { FormGuard } from "@/components/FormGuard";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
@@ -30,7 +32,7 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
   const [allCustomTypes, systemTypes] = await Promise.all([
     prisma.dateType.findMany({
       where: { workspaceId: workspace.id, isSystem: false },
-      include: { _count: { select: { jumpDates: true, mixes: true } } },
+      include: { _count: { select: { jumpDates: true, mixes: true } }, mixes: { where: { workspaceId: workspace.id, status: { not: "ARCHIVED" } }, select: { id: true, name: true } } },
       orderBy: [{ isActive: "desc" }, { name: "asc" }]
     }),
     prisma.dateType.findMany({ where: { workspaceId: null, isSystem: true, isActive: true }, orderBy: { name: "asc" } })
@@ -57,18 +59,18 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
       </section>
 
       <section className="card">
-        <div className="card-header"><div><h2>Manage custom types</h2><p>Choose which types appear in everyday workflows. Inactive types and their data are preserved.</p></div></div>
+        <div className="card-header"><div><h2>Manage custom types</h2><p>For example, add a Warranty expires date to Alex’s contact and a Mix can prepare a check-in before that day. Turning off a type stops date-triggered preparation; saved dates and completed history remain.</p></div></div>
         <form className="filter-bar" action="/settings/jump-date-types" method="get"><input name="q" defaultValue={q} placeholder="Search custom types" aria-label="Search saved date types" /><button className="button" type="submit">Search</button>{q && <Link className="button" href="/settings/jump-date-types">Clear</Link>}</form>
-        <form id="date-type-activation-form" action={saveActiveDateTypesAction}>{hiddenActiveTypes.map((item) => <input type="hidden" name="activeDateTypeIds" value={item.id} key={item.id} />)}</form>
+        <form id="date-type-activation-form" action={saveActiveDateTypesAction}><FormGuard /><FormSubmitButton label="Save active selection" pendingLabel="Saving date types…" />{hiddenActiveTypes.map((item) => <input type="hidden" name="activeDateTypeIds" value={item.id} key={item.id} />)}</form>
         {customTypes.length ? <div className="date-type-list">{customTypes.map((dateType) => (
           <article className={dateType.isActive ? "date-type-row" : "date-type-row inactive"} key={dateType.id}>
             <label className="date-type-active-choice"><input form="date-type-activation-form" type="checkbox" name="activeDateTypeIds" value={dateType.id} defaultChecked={dateType.isActive} /><span>{dateType.isActive ? "Active" : "Inactive"}</span></label>
-            <div><strong>{dateType.name}</strong><div className="jump-meta"><span>{dateType._count.jumpDates} saved date{dateType._count.jumpDates === 1 ? "" : "s"}</span><span>{dateType._count.mixes} mix{dateType._count.mixes === 1 ? "" : "s"}</span></div></div>
+            <div><strong>{dateType.name}</strong>{dateType.mixes.length > 0 && <p>Used by: {dateType.mixes.map(mix => <Link key={mix.id} href={`/mixes/${mix.id}/edit`}>{mix.name} </Link>)}</p>}<div className="jump-meta"><span>{dateType._count.jumpDates} saved date{dateType._count.jumpDates === 1 ? "" : "s"}</span><span>{dateType._count.mixes} mix{dateType._count.mixes === 1 ? "" : "s"}</span></div></div>
             <Sheet trigger={<button className="button small" type="button">Edit</button>} title={`Rename ${dateType.name}`} description="The saved dates and mixes using this type stay connected."><form action={renameCustomDateTypeAction} className="form-stack"><input type="hidden" name="dateTypeId" value={dateType.id} /><label className="field"><span>Name</span><input name="name" defaultValue={dateType.name} required /></label><button className="button primary" type="submit">Save name</button></form></Sheet>
             <ConfirmDialog trigger="Delete…" title={`Delete ${dateType.name}?`} description="You can delete it only when no saved dates or active mixes use it. Otherwise, turn it off." danger><form action={deleteCustomDateTypeAction}><input type="hidden" name="dateTypeId" value={dateType.id} /><button className="button small danger" type="submit">Confirm delete</button></form></ConfirmDialog>
           </article>
         ))}</div> : <p className="muted-copy">No custom date types match this view.</p>}
-        <div className="form-actions"><button className="button primary" form="date-type-activation-form" type="submit">Save active selection</button></div>
+
       </section>
 
       <section className="card">

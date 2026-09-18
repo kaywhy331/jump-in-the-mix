@@ -1,10 +1,13 @@
+import { ActionForm } from "@/components/ActionForm";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { PasswordInput } from "@/components/PasswordInput";
 import { PublicTrustLinks } from "@/components/PublicTrustLinks";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
 import { SocialSignInOptions } from "@/components/SocialSignInOptions";
-import { demoLoginAction, loginAction, requestMagicLinkAction } from "@/lib/auth-actions";
+import { demoLoginAction, loginFormAction, requestMagicLinkFormAction } from "@/lib/auth-actions";
 import { env } from "@/lib/env";
 import { pilotRegistrationOpen } from "@/lib/pilot-registration";
 import { appleSignInConfigured, googleSignInConfigured } from "@/lib/social-auth";
@@ -14,6 +17,8 @@ export const metadata: Metadata = { title: "Sign in" };
 export const dynamic = "force-dynamic";
 
 type SearchParams = {
+  next?: string;
+  reauth?: string;
   error?: string;
   firstRun?: string;
   reset?: string;
@@ -30,7 +35,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <section className="auth-card">
         <Logo />
         <h1>Welcome back</h1>
-        <p>Sign in and see who needs your attention today.</p>
+        <p>{params.reauth === "deletion" ? "Sign in with your usual method to confirm your identity, then return to Data & privacy to complete deletion." : "Sign in and see who needs your attention today."}</p>
         {params.firstRun && registrationOpen && <Notice type="success">Installation complete. Create the private owner account to begin.</Notice>}
         {params.reset && <Notice type="success">Your password was reset. Sign in with the new password.</Notice>}
         {params.verified && <Notice type="success">Your email is verified. You can sign in securely.</Notice>}
@@ -51,19 +56,20 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             </div>
           </>
         )}
-        <SocialSignInOptions google={googleSignInConfigured()} apple={appleSignInConfigured()} />
-        <form action={loginAction} className="form-stack">
+        <SocialSignInOptions returnTo={params.next} google={googleSignInConfigured()} apple={appleSignInConfigured()} />
+        <ActionForm action={loginFormAction} className="form-stack">
+          <input type="hidden" name="next" value={params.next ?? ""} />
           <div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" autoComplete="email" inputMode="email" required defaultValue={env.demoMode ? env.demoEmail : ""} /></div>
-          <div className="field"><label htmlFor="password">Password</label><input id="password" name="password" type="password" autoComplete="current-password" required defaultValue={env.demoMode ? env.demoPassword : ""} /></div>
+          <div className="field"><label htmlFor="password">Password</label><PasswordInput id="password" name="password"  autoComplete="current-password" required defaultValue={env.demoMode ? env.demoPassword : ""} /></div>
           <div className="auth-inline-actions"><Link href="/forgot-password">Forgot password?</Link></div>
-          <button className="button primary" type="submit">Sign in</button>
-        </form>
+          <FormSubmitButton label="Sign in" pendingLabel="Please wait…" />
+        </ActionForm>
         {transactionalEmailConfigured() && <>
           <div className="auth-divider"><span>or skip the password</span></div>
-          <form action={requestMagicLinkAction} className="form-stack">
+          <ActionForm action={requestMagicLinkFormAction} className="form-stack">
             <div className="field"><label htmlFor="magicEmail">Email me a secure sign-in link</label><input id="magicEmail" name="email" type="email" autoComplete="email" inputMode="email" required /></div>
-            <button className="button" type="submit">Email sign-in link</button>
-          </form>
+            <FormSubmitButton label="Email sign-in link" pendingLabel="Please wait…" />
+          </ActionForm>
         </>}
         <div className="auth-footer">{registrationOpen ? <>New here? <Link href="/waitlist"><strong>Join the waitlist</strong></Link></> : <>Owner setup is complete.</>}</div>
         <PublicTrustLinks />

@@ -48,7 +48,7 @@ test("a saved reply appears for the customer while its notification waits for th
   await page.goto(`/admin/support/${f.ticket.id}`);
   const body = "We checked the Mix. Please confirm its Jump Date in the ticket.";
   await page.getByRole("textbox", { name: "Reply to customer", exact: true }).fill(body);
-  await page.getByRole("button", { name: "Send reply", exact: true }).click();
+  await page.getByRole("button", { name: "Save customer reply", exact: true }).click();
   await expect(page.getByText("Reply saved. Waiting on the customer; email notification is queued separately.")).toBeVisible(); await expect(page.getByText("Email pending", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Reply to customer", exact: true })).toHaveValue("");
   const delivery = await prisma.supportEmailDelivery.findFirstOrThrow({ where: { message: { ticketId: f.ticket.id } } });

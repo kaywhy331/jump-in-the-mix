@@ -40,7 +40,7 @@ export default async function ImportContactsPage({ searchParams }: { searchParam
         <div><h1>Import Contacts</h1><p>Choose a file, review only the rows that need a decision, then let the background worker finish safely.</p></div>
         <div className="page-actions"><Link className="button" href="/contacts">Back to Contacts</Link></div>
       </header>
-      {onboarding && <p>After the import finishes, return to your setup tab and choose “Refresh imported contacts”. Your other setup choices stay in that tab.</p>}
+      {onboarding && <p>After importing, return to your setup tab; saved people refresh automatically and your other choices stay there. <Link href="/onboarding">Open setup</Link> if you closed it.</p>}
       <ContactImportWizardV2
         groups={groups.map((group) => ({ id: group.id, name: group.name, contactCount: group._count.memberships }))}
         customFields={customFields}

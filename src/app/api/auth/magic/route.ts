@@ -1,3 +1,4 @@
+import { customerReturnPath } from "@/lib/customer-return-path";
 import { accountHome } from "@/lib/account-home";
 import { redirect } from "next/navigation";
 import { createBusinessAccount, nameFromEmail } from "@/lib/account-provisioning";
@@ -7,6 +8,7 @@ import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: Request) {
+  const returnTo = customerReturnPath(new URL(request.url).searchParams.get("next"));
   const token = new URL(request.url).searchParams.get("token") ?? "";
   const record = await findUsableAuthToken(token, AUTH_TOKEN_PURPOSES.magicLogin);
   if (!record) redirect("/login?error=That%20sign-in%20link%20is%20invalid%20or%20expired.");
@@ -24,7 +26,7 @@ export async function GET(request: Request) {
         return { userId: created.id, destination: "/onboarding" };
       }
       await tx.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
-      return { userId: user.id, destination: user.memberships[0]?.workspace.profile?.onboardingDone ? "/jumps" : "/onboarding" };
+      return { userId: user.id, destination: user.memberships[0]?.workspace.profile?.onboardingDone ? returnTo ?? "/jumps" : "/onboarding" };
     }, { isolationLevel: "Serializable" });
     await createSession(result.userId);
     redirect(await accountHome(result.userId, result.destination));

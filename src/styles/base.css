@@ -154,7 +154,7 @@ img, svg { max-width: 100%; }
 .auth-card h1 { margin: 28px 0 8px; font-size: 2rem; letter-spacing: -0.04em; }
 .auth-card > p { color: var(--muted); margin-top: 0; }
 .auth-footer { margin-top: 20px; text-align: center; color: var(--muted); }
-.demo-credentials { margin: 18px 0; padding: 14px; background: #f6f4ff; border: 1px solid #ded9ff; border-radius: 12px; font-size: .9rem; }
+.demo-credentials { margin: 18px 0; padding: 14px; background: var(--brand-soft); border: 1px solid var(--line); border-radius: 12px; font-size: .9rem; }
 .demo-credentials code { display: block; color: var(--ink); margin-top: 4px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .form-stack { display: grid; gap: var(--space-4); }

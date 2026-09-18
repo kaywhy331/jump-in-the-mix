@@ -157,7 +157,8 @@ test("contact rules distinguish business pauses, individual pauses and milestone
   await prisma.journeyPreference.update({ where: { workspaceId }, data: { enabled: true } });
   await prisma.contactJourney.update({ where: { contactId }, data: { automatic: false } }); await visit(page, `/contacts/${contactId}`);
   await expect(panel).toContainText("paused for this person");
-  await open(panel.getByText("Stage and automation", { exact: true }));
+  await panel.locator("details > summary").filter({ hasText: "Stage and automation" }).click();
+  await expect(panel.locator("details")).toHaveAttribute("open", "");
   await expect(panel.getByRole("button", { name: "Resume transitions for this person", exact: true })).toBeVisible();
   await expect(panel).toContainText("keeps this person’s current mixes running");
 });

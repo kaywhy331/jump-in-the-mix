@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useActionState, useEffect, useRef, useMemo, useState } from "react";
 import { VoiceNoteButton } from "@/components/VoiceNoteButton";
-import { createContactAction, updateContactAction } from "@/lib/contact-actions";
+import { saveContactFormAction } from "@/lib/contact-actions";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
+import { FormGuard } from "@/components/FormGuard";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { WhenField } from "@/components/WhenPicker";
 
 type GroupOption = { id: string; name: string; color: string | null; isActive: boolean };
@@ -74,6 +76,10 @@ export function ContactForm({
   customFields: CustomFieldOption[];
   followUp?: FollowUpOption | null;
 }) {
+  const [result, formAction] = useActionState(saveContactFormAction, {});
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { if (result.error) errorRef.current?.focus(); }, [result]);
+  const [undoRemoval, setUndoRemoval] = useState<(() => void) | null>(null);
   const startingEmails = useMemo<ContactMethod[]>(() => {
     const values = contact?.emails?.map((item) => ({ value: item.email, label: item.label ?? "" })) ?? [];
     return values.length ? values : [{ value: "", label: "" }];
@@ -110,23 +116,26 @@ export function ContactForm({
   const [scheduleFollowUp, setScheduleFollowUp] = useState(Boolean(followUp?.defaultDate));
 
   const removeEmail = (index: number) => {
+    setUndoRemoval(() => () => { setEmails(current => [...current, emails[index]]); });
     const next = removeAt(emails, index);
     setEmails(next.length ? next : [{ value: "", label: "" }]);
     setPrimaryEmail((current) => current === index ? 0 : current > index ? current - 1 : current);
   };
   const removePhone = (index: number) => {
+    setUndoRemoval(() => () => { setPhones(current => [...current, phones[index]]); });
     const next = removeAt(phones, index);
     setPhones(next.length ? next : [{ value: "", label: "" }]);
     setPrimaryPhone((current) => current === index ? 0 : current > index ? current - 1 : current);
   };
   const removeAddress = (index: number) => {
+    setUndoRemoval(() => () => { setAddresses(current => [...current, addresses[index]]); });
     const next = removeAt(addresses, index);
     setAddresses(next.length ? next : [{ label: "", street1: "", street2: "", city: "", state: "", postalCode: "", country: "" }]);
     setPrimaryAddress((current) => current === index ? 0 : current > index ? current - 1 : current);
   };
 
   return (
-    <form action={mode === "create" ? createContactAction : updateContactAction} className="contact-editor" onFocusCapture={(event) => {
+    <form action={formAction} onReset={(event) => event.preventDefault()} aria-describedby={result.error ? "contact-save-error" : undefined} className="contact-editor" onFocusCapture={(event) => {
       const control = event.target;
       if (!(control instanceof HTMLElement) || control.closest(".sticky-form-actions")) return;
       // Pointer-focused buttons and disclosures must stay put until activation.
@@ -139,13 +148,16 @@ export function ContactForm({
       });
       if (obscured) control.scrollIntoView({ block: "center", behavior: "instant" });
     }}>
+      <FormGuard />
+      {result.error && <p id="contact-save-error" ref={errorRef} tabIndex={-1} className="notice error" role="alert">{result.error} Your entries are still here; correct the details and save again.</p>}
+      {undoRemoval && <p role="status">Contact method removed. Undo adds it back without changing your current primary method. <button type="button" className="text-button" onClick={() => { undoRemoval(); setUndoRemoval(null); }}>Undo removal</button></p>}
       {contact?.id && <input type="hidden" name="contactId" value={contact.id} />}
 
       <section className="card contact-editor-section contact-quick-form">
-        <div className="card-header"><div><h2>{mode === "create" ? "Add a person" : "Contact details"}</h2><p>{mode === "create" ? "A name and one way to reach them is plenty to start." : "Update the basics below."}</p></div></div>
+        <div className="card-header"><div><h2>{mode === "create" ? "Add a person" : "Contact details"}</h2><p>{mode === "create" ? "Enter at least a name, company, email, or phone number. Add a phone or email to prepare messages." : "Enter at least a name, company, email, or phone number."}</p></div></div>
         <div className="form-grid">
-          <div className="field"><label htmlFor="firstName">First name</label><input id="firstName" name="firstName" defaultValue={contact?.firstName ?? ""} autoFocus /></div>
-          <div className="field"><label htmlFor="lastName">Last name</label><input id="lastName" name="lastName" defaultValue={contact?.lastName ?? ""} /></div>
+          <div className="field"><label htmlFor="firstName">First name</label><input id="firstName" name="firstName" autoComplete="given-name" defaultValue={contact?.firstName ?? ""} autoFocus /></div>
+          <div className="field"><label htmlFor="lastName">Last name</label><input id="lastName" name="lastName" autoComplete="family-name" defaultValue={contact?.lastName ?? ""} /></div>
           {mode === "edit" && <div className="field full"><label htmlFor="company">Company</label><input id="company" name="company" defaultValue={contact?.company ?? ""} /></div>}
           {mode === "create" && <>
             <input type="hidden" name="phonePrimaryIndex" value="0" />
@@ -153,7 +165,7 @@ export function ContactForm({
             <input type="hidden" name="emailPrimaryIndex" value="0" />
             {emails.map((item, index) => <div className="field" key={`quick-email-${index}`}><label htmlFor={`quick-email-${index}`}>{index ? `Email ${index + 1}` : <>Email <small>optional</small></>}</label><input id={`quick-email-${index}`} name="emailValue" type="email" inputMode="email" autoComplete={index ? "off" : "email"} value={item.value} onChange={(event) => setEmails((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} /><input type="hidden" name="emailLabel" value={item.label || "Email"} />{index > 0 && <button className="text-button" type="button" onClick={() => removeEmail(index)}>Remove</button>}</div>)}
             {groups.length > 0 && <label className="field"><span>Tag <small>optional</small></span><select name="groupIds" defaultValue=""><option value="">No tag yet</option>{groups.filter((group) => group.isActive).map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>}
-            <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Note <small>optional</small></label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Job, estimate, how you met, or anything worth remembering" /></div>
+            <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Message context <small>optional · may appear in prepared messages</small></label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Job, estimate, how you met, or anything worth remembering" /></div>
           </>}
         </div>
         {mode === "create" && <div className="page-actions"><button className="button small" type="button" onClick={() => setPhones((current) => [...current, { value: "", label: "Other" }])}>Add another phone</button><button className="button small" type="button" onClick={() => setEmails((current) => [...current, { value: "", label: "Other" }])}>Add another email</button></div>}
@@ -262,7 +274,7 @@ export function ContactForm({
 
       <div className="sticky-form-actions">
         <Link className="button" href={contact?.id ? `/contacts/${contact.id}` : "/contacts"}>Cancel</Link>
-        <button className="button primary" type="submit">{mode === "create" ? scheduleFollowUp ? "Save & schedule follow-up" : "Save contact" : "Update contact"}</button>
+        <FormSubmitButton label={mode === "create" ? scheduleFollowUp ? "Save & schedule follow-up" : "Save contact" : "Update contact"} pendingLabel="Saving contact…" />
       </div>
     </form>
   );

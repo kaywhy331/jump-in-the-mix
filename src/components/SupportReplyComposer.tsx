@@ -1,5 +1,6 @@
 "use client";
 
+import { FormGuard } from "@/components/FormGuard";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { adminReplyToSupportTicketFormAction } from "@/lib/support-admin-actions";
 import { SUPPORT_REPLY_TEMPLATES } from "@/lib/support-content";
@@ -16,7 +17,7 @@ export function SupportReplyComposer({ ticketId, requestKey, returnTo }: { ticke
   }, [state.nextKey, draft]);
   const body = draft.value.body;
   function changeBody(body: string) { draft.set({ body, requestKey: draft.dirty ? draft.value.requestKey : state.nextKey ?? requestKey }); }
-  return <form action={action} className="form-stack support-reply-composer">
+  return <form action={action} className="form-stack support-reply-composer"><FormGuard key={state.nextKey ?? "new"} forceDirty={draft.dirty} />
     <input type="hidden" name="ticketId" value={ticketId} />
     <input type="hidden" name="returnTo" value={returnTo} />
     <input type="hidden" name="requestKey" value={draft.dirty ? draft.value.requestKey : state.nextKey ?? requestKey} />
@@ -27,9 +28,9 @@ export function SupportReplyComposer({ ticketId, requestKey, returnTo }: { ticke
     }}><option value="">Choose a starting point</option>{SUPPORT_REPLY_TEMPLATES.map(item => <option value={item.name} key={item.name}>{item.name}</option>)}</select></label>
     {replacement !== null && <div className="notice info" role="status"><p>Replace your current reply with this template?</p><button className="button" type="button" onClick={() => { changeBody(replacement); setReplacement(null); }}>Replace reply</button><button className="button" type="button" onClick={() => { setReplacement(null); setTemplate(""); }}>Keep my reply</button></div>}
     <label className="field"><span className="field-label">Reply to customer</span><textarea name="body" aria-describedby={`support-reply-help-${ticketId}`} value={body} onChange={event => changeBody(event.target.value)} minLength={2} maxLength={5000} rows={4} required /></label>
-    <small id={`support-reply-help-${ticketId}`}>Saves to the ticket; email queues separately. Draft kept for 30 minutes in this tab. Reloading discards it.</small>
+    <small id={`support-reply-help-${ticketId}`}>Saves to the ticket; email queues separately. Draft kept for 30 minutes in this tab. Save before leaving. Reloading asks before discarding unsaved text.</small>
     {state.error && <p className="notice error" role="alert">{state.error}</p>}
     {state.saved && !draft.dirty && <p className="notice success" role="status">{state.saved}</p>}
-    <div className="form-actions"><button className="button primary" type="submit" disabled={pending}>{pending ? "Saving…" : "Send reply"}</button><button className="button" name="resolve" value="true" type="submit" disabled={pending}>Send reply and resolve</button>{draft.dirty && <button className="button" type="button" onClick={() => { if (window.confirm("Discard this unsent reply?")) draft.clear(); }}>Discard draft</button>}</div>
+    <div className="form-actions"><button className="button primary" type="submit" disabled={pending}>{pending ? "Saving…" : "Save customer reply"}</button><button className="button" name="resolve" value="true" type="submit" disabled={pending}>Save reply and resolve</button>{draft.dirty && <button className="button" type="button" onClick={() => { if (window.confirm("Discard this unsent reply?")) draft.clear(); }}>Discard draft</button>}</div>
   </form>;
 }

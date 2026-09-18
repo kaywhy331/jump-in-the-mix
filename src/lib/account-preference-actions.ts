@@ -1,4 +1,5 @@
 "use server";
+import { captureFormFailure, recoverableFormAction, type FormResult } from "@/lib/form-errors";
 
 import { redirect } from "next/navigation";
 import type { WeekendScheduling } from "@/generated/prisma/client";
@@ -12,6 +13,7 @@ function value(formData: FormData, key: string, maximum = 500): string {
 }
 
 function fail(message: string): never {
+  captureFormFailure(message);
   redirect(`/account/preferences?error=${encodeURIComponent(message)}`);
 }
 
@@ -69,3 +71,7 @@ export async function updatePersonalSchedulingAction(formData: FormData): Promis
   });
   redirect("/account/preferences?schedulingSaved=1");
 }
+
+export async function updatePersonalPreferencesFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => updatePersonalPreferencesAction(data)); }
+
+export async function updatePersonalSchedulingFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => updatePersonalSchedulingAction(data)); }

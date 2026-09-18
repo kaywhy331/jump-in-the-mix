@@ -149,7 +149,9 @@ async function queueContactReconciliation(workspaceId: string, contactId: string
   await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId } } });
 }
 
-export async function createContactAction(formData: FormData): Promise<void> {
+type ContactFormState = { error?: string };
+
+async function createContact(formData: FormData): Promise<ContactFormState> {
   const { workspace, user } = await requireWorkspace();
   const timezone = await timezoneForUser(user.id);
   let payload: ReturnType<typeof contactPayload>;
@@ -159,7 +161,7 @@ export async function createContactAction(formData: FormData): Promise<void> {
     await validateContactPayload(workspace.id, payload);
     followUp = await initialFollowUpPayload(workspace.id, formData);
   } catch (error) {
-    fail("/contacts/new", error instanceof Error ? error.message : "The Contact could not be saved.");
+    return { error: error instanceof Error ? error.message : "The contact could not be saved." };
   }
 
   const contact = await prisma.$transaction(async (tx) => {
@@ -233,7 +235,7 @@ export async function createContactAction(formData: FormData): Promise<void> {
   redirect(`/contacts/${contact.id}?${result.toString()}`);
 }
 
-export async function updateContactAction(formData: FormData): Promise<void> {
+async function updateContact(formData: FormData): Promise<ContactFormState> {
   const { workspace, user } = await requireWorkspace();
   const contactId = value(formData, "contactId");
   const path = `/contacts/${contactId}/edit`;
@@ -245,7 +247,7 @@ export async function updateContactAction(formData: FormData): Promise<void> {
     payload = contactPayload(formData);
     await validateContactPayload(workspace.id, payload, contactId);
   } catch (error) {
-    fail(path, error instanceof Error ? error.message : "The Contact could not be updated.");
+    return { error: error instanceof Error ? error.message : "The contact could not be updated." };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -325,4 +327,18 @@ export async function updateContactAction(formData: FormData): Promise<void> {
   });
   await queueContactReconciliation(workspace.id, contactId);
   redirect(`/contacts/${contactId}?updated=1`);
+}
+
+export async function saveContactFormAction(_previous: ContactFormState, formData: FormData): Promise<ContactFormState> {
+  return value(formData, "contactId") ? updateContact(formData) : createContact(formData);
+}
+
+export async function createContactAction(formData: FormData): Promise<void> {
+  const result = await createContact(formData);
+  if (result.error) fail("/contacts/new", result.error);
+}
+
+export async function updateContactAction(formData: FormData): Promise<void> {
+  const result = await updateContact(formData);
+  if (result.error) fail(`/contacts/${value(formData, "contactId")}/edit`, result.error);
 }

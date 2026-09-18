@@ -6,7 +6,6 @@ import AxeBuilder from "@axe-core/playwright";
 import { prisma } from "../src/lib/prisma";
 import { preserveSystemMixFixture } from "../tests/helpers/system-mix-fixture";
 import { openTestAdmission } from "../tests/helpers/admission-fixture";
-import { decryptIntegrationCredentials } from "../src/lib/integration-crypto";
 
 const enabled = process.env.SYSTEM_MIX_E2E === "1" && process.env.AUTH_REQUIRE_ADMIN_MFA === "true" && /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 test.skip(!enabled, "Requires isolated System Mix fixtures and required administrator MFA.");
@@ -56,7 +55,7 @@ test.afterEach(async () => {
   await restoreContent?.(); await restoreAdmission?.(); users.length = 0; emails.length = 0;
 });
 
-test("staff publishes reviewed System Mix wording and rolls back without changing queued member invitations", async ({ page, context, browser }, info) => {
+test("staff publishes reviewed System Mix wording and rolls back without changing prepared member reminders", async ({ page, context, browser }, info) => {
   test.setTimeout(120_000);
   const staff = await identity(), member = await identity(false);
   await context.addCookies([{ name: "jitm_session", value: staff.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
@@ -70,8 +69,9 @@ test("staff publishes reviewed System Mix wording and rolls back without changin
   try {
     await memberContext.addCookies([{ name: "jitm_session", value: member.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
     const memberPage = await memberContext.newPage(); memberPage.setDefaultTimeout(20_000);
+    memberPage.on("dialog", dialog => dialog.accept());
     await memberPage.goto("/mixes/system");
-    await memberPage.getByRole("combobox", { name: "1. Choose someone in your circle" }).selectOption(JSON.stringify({ contactId: contacts[0].id, email: contacts[0].emails[0].email }));
+    await memberPage.getByRole("combobox", { name: "Choose a saved contact (optional)" }).selectOption(JSON.stringify([contacts[0].id, contacts[0].emails[0].email]));
     await expect(memberPage.locator('input[name="systemMixVersion"]')).toHaveValue("1");
     await page.goto("/admin/system-mix"); await saveDraft(page, "Second edition");
     const preview = page.locator("#wording-review");
@@ -83,17 +83,18 @@ test("staff publishes reviewed System Mix wording and rolls back without changin
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
     }
     await release(page, "Publish version 2");
-    await memberPage.getByRole("button", { name: "Send personal invitation" }).click();
+    await memberPage.getByRole("button", { name: "Add invitations to Today" }).click();
     await expect(memberPage.locator(".notice.error")).toContainText("preview changed");
     expect((await prisma.user.findUniqueOrThrow({ where: { id: member.user.id } })).referralInvitesIssued).toBe(0);
     await expect(memberPage.locator('input[name="systemMixVersion"]')).toHaveValue("2");
-    await memberPage.getByRole("combobox", { name: "1. Choose someone in your circle" }).selectOption(JSON.stringify({ contactId: contacts[0].id, email: contacts[0].emails[0].email }));
+    await memberPage.getByRole("combobox", { name: "Choose a saved contact (optional)" }).selectOption(JSON.stringify([contacts[0].id, contacts[0].emails[0].email]));
+    await memberPage.getByText("Preview invitation", { exact: true }).click();
     await expect(memberPage.locator(".speech-bubble")).toContainText("Second edition: a personal invitation from Network Owner");
-    await memberPage.getByRole("button", { name: "Send personal invitation" }).click(); await expect(memberPage).toHaveURL(/queued=1$/);
-    const invitation = await prisma.referralAccessInvite.findUniqueOrThrow({ where: { inviterUserId_contactId: { inviterUserId: member.user.id, contactId: contacts[0].id } }, include: { delivery: true } });
-    expect(invitation.systemMixVersion).toBe(2); expect(invitation.delivery?.status).toBe("QUEUED");
-    expect(decryptIntegrationCredentials<{ subject: string }>(invitation.delivery!.messageCiphertext).subject).toBe("Second edition: a personal invitation from Network Owner");
-    await expect(memberPage.locator("main")).not.toContainText("/register?invite=");
+    await memberPage.getByRole("button", { name: "Add invitations to Today" }).click(); await expect(memberPage).toHaveURL(/\/jumps\?invitations=1$/);
+    const invitation = await prisma.referralAccessInvite.findUniqueOrThrow({ where: { inviterUserId_contactId: { inviterUserId: member.user.id, contactId: contacts[0].id } }, include: { reminder: true, delivery: true } });
+    expect(invitation.systemMixVersion).toBe(2); expect(invitation.delivery).toBeNull(); expect(invitation.reminder?.status).toBe("PENDING");
+    expect((invitation.reminder!.renderedSnapshot as { subject: string }).subject).toBe("Second edition: a personal invitation from Network Owner");
+    expect(invitation.manualDelivery).toBe(true);
     await page.goto("/admin/access?systemMixVersion=2");
     await expect(page.getByRole("heading", { name: contacts[0].emails[0].email, exact: true })).toBeVisible();
     await expect(page.getByLabel("Invitation wording version")).toHaveValue("2");
@@ -103,17 +104,18 @@ test("staff publishes reviewed System Mix wording and rolls back without changin
     await saveDraft(page, "Third edition"); await release(page, "Publish version 3");
     await page.getByRole("link", { name: "Version history", exact: true }).click();
     await page.locator("summary").filter({ hasText: /^Version 1 / }).click(); await release(page, "Roll back to version 1");
-    expect((await prisma.waitlistDelivery.findUniqueOrThrow({ where: { inviteId: invitation.id } })).messageCiphertext).toBe(invitation.delivery!.messageCiphertext);
+    expect((await prisma.jump.findUniqueOrThrow({ where: { id: invitation.reminder!.id } })).renderedSnapshot).toEqual(invitation.reminder!.renderedSnapshot);
     await memberPage.goto("/mixes/system");
-    await memberPage.getByRole("combobox", { name: "1. Choose someone in your circle" }).selectOption(JSON.stringify({ contactId: contacts[1].id, email: contacts[1].emails[0].email }));
-    await memberPage.getByRole("button", { name: "Send personal invitation" }).click(); await expect(memberPage).toHaveURL(/queued=1$/);
+    await memberPage.getByRole("combobox", { name: "Choose a saved contact (optional)" }).selectOption(JSON.stringify([contacts[1].id, contacts[1].emails[0].email]));
+    await memberPage.getByRole("button", { name: "Add invitations to Today" }).click(); await expect(memberPage).toHaveURL(/\/jumps\?invitations=1$/);
     expect((await prisma.referralAccessInvite.findUniqueOrThrow({ where: { inviterUserId_contactId: { inviterUserId: member.user.id, contactId: contacts[1].id } } })).systemMixVersion).toBe(1);
     await page.goto("/admin/access?systemMixVersion=2");
     await page.goto(`/admin/access/${invitation.id}?returnTo=${encodeURIComponent("/admin/access?systemMixVersion=2")}`);
     await page.getByLabel("Reason and case reference").fill("Withdraw this older prepared invitation after review");
     await page.getByRole("button", { name: "Revoke invitation", exact: true }).click();
     await expect(page).toHaveURL(url => url.searchParams.get("done") === "revoke" && url.searchParams.get("returnTo") === "/admin/access?systemMixVersion=2");
-    expect((await prisma.waitlistDelivery.findUniqueOrThrow({ where: { inviteId: invitation.id } })).status).toBe("CANCELED");
+    expect((await prisma.jump.findUniqueOrThrow({ where: { id: invitation.reminder!.id } })).status).toBe("CANCELED");
+    expect(await prisma.waitlistDelivery.count({ where: { inviteId: invitation.id } })).toBe(0);
     expect(await prisma.referralAccessInvite.count({ where: { inviterUserId: member.user.id, revokedAt: null, systemMixVersion: 1 } })).toBe(1);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: member.user.id } })).referralInvitesIssued).toBe(2);
   } finally { await memberContext.close(); }

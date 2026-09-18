@@ -151,7 +151,8 @@ export function JumpOutcomeButton({
   className,
   ariaLabel,
   children,
-  disabled
+  disabled,
+  confirmation
 }: {
   jumpId: string;
   outcome?: Outcome;
@@ -159,11 +160,13 @@ export function JumpOutcomeButton({
   ariaLabel?: string;
   children: ReactNode;
   disabled?: boolean;
+  confirmation?: string;
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const submit = async () => {
+    if (confirmation && !window.confirm(confirmation)) return;
     setSaving(true);
     setError("");
     try {
@@ -230,7 +233,7 @@ export function JumpReturnTray() {
         const next = resolveOpenedJump(scope, { attemptId: current.attemptId, jumpId: detail.jumpId });
         opened.current = next;
         window.clearTimeout(revealTimer.current);
-        if (next) setSession(next); else setVisible(false);
+        if (next) setSession(next); else { setVisible(false); setSession(null); }
       }
     };
 
@@ -267,7 +270,7 @@ export function JumpReturnTray() {
     opened.current = next;
     window.clearTimeout(revealTimer.current);
     setError("");
-    if (next) { setSession(next); setVisible(true); } else setVisible(false);
+    if (next) { setSession(next); setVisible(true); } else { setVisible(false); setSession(null); }
   };
 
   const showNotice = (text: string) => {
@@ -276,7 +279,7 @@ export function JumpReturnTray() {
     noticeTimer.current = window.setTimeout(() => setNotice(""), 12_000);
   };
 
-  const close = () => advance();
+  const close = () => setVisible(false);
 
   const save = async (selected: Outcome, details = false) => {
     if (!session) return;
@@ -309,6 +312,7 @@ export function JumpReturnTray() {
   };
 
   if (!visible || !session) {
+    if (session) return <aside className={styles.returnTray} aria-label="Pending follow-up outcome"><span>Outcome not recorded for {session.contactName}.</span><button className="button small" type="button" onClick={() => setVisible(true)}>Record outcome</button></aside>;
     if (!notice) return null;
     return <aside className={styles.returnTray} aria-label="Follow-up outcome saved"><p role="status">{notice}</p><button className="button small" type="button" onClick={() => setNotice("")}>Dismiss</button></aside>;
   }
@@ -318,9 +322,9 @@ export function JumpReturnTray() {
       <div className={styles.trayHeading}>
         <div>
           <strong>How did the follow-up with {session.contactName} go?</strong>
-          <p>Record what happened, then continue with the next follow-up.</p>
+          <p>Opening an app does not confirm sending. Record what actually happened.</p>
         </div>
-        <button className="button small" type="button" onClick={close} aria-label="Close outcome tray">Close</button>
+        <button className="button small" type="button" onClick={close} aria-label="Record outcome later">Later</button>
       </div>
       <div className={styles.outcomeGrid}>
         {quickOutcomes.map((item) => (

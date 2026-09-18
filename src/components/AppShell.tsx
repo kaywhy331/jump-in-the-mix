@@ -35,9 +35,11 @@ export function AppShell({
 
   return (
     <div className={impersonation ? "app-shell impersonating" : "app-shell"}>
+      <a className="public-skip-link" href="#workspace-main">Skip to content</a>
       <aside className="sidebar">
         <Logo />
         <Nav />
+        <nav className="sidebar-shortcuts" aria-label="Planning shortcuts"><Link href="/calendar">Calendar</Link><Link href="/journey">Customer journey</Link></nav>
         {!impersonation && <QuickAddButton />}
         <div className="sidebar-footer account-sidebar-footer">
           <span className="user-label">{impersonation ? `Viewing as ${userName}` : `Signed in as ${userName}`}</span>
@@ -77,7 +79,7 @@ export function AppShell({
           {endImpersonationForm}
         </section>
       )}
-      <main className="app-main">{children}</main>
+      <main id="workspace-main" tabIndex={-1} className="app-main">{children}</main>
       <div className="mobile-nav"><Nav /></div>
       {!impersonation && <QuickAddDialog timezone={displayPreferences.timeZone} />}
     </div>

@@ -126,6 +126,7 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
       </section>}
 
       {view === "jobs" && <section className="card admin-operation-section">
+        <p className={healthyWorkerCount ? "notice info" : "notice error"} role="status">{healthyWorkerCount ? `${healthyWorkerCount} worker(s) reported within ${staleSeconds} seconds. ${pendingJobs} pending and ${runningJobs} running jobs.` : "No recent running worker is recorded. An empty job list does not establish healthy processing; check the worker service and heartbeats."} <Link href="/admin/operations?view=health">Review worker evidence</Link></p>
         <div className="card-header"><div><h2>Background jobs</h2></div></div>
         <form className="filter-bar admin-operation-filters" method="get">
           <input type="hidden" name="view" value="jobs" />{params.jobId && <input name="jobId" type="hidden" value={params.jobId} />}

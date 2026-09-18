@@ -402,3 +402,12 @@ button.jump-stamp:hover { border-color: currentColor; }
 .jump-stamp-editor input { min-height: 36px; padding: 2px 8px; font-size: .8125rem; }
 .jump-skip-action { display: inline-flex; align-items: center; gap: 6px; }
 .jump-skip-action svg { width: 16px; height: 16px; }
+
+.sidebar-shortcuts { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px; }
+
+.calendar-day-empty { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding-block: .5rem; min-height: 0; }
+.calendar-day-empty h3, .calendar-day-empty p { margin: 0; }
+
+.search-row { display: flex; align-items: end; gap: 8px; margin-bottom: 12px; }
+.search-row > .field { flex: 1; min-width: 0; }
+.search-row > button { flex: 0 0 auto; }

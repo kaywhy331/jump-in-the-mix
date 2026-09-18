@@ -1,0 +1,14 @@
+Command: npx vitest run tests/design-system-accessibility.test.ts tests/product-demo.test.ts tests/public-trust.test.ts tests/when-picker.test.ts tests/format.test.ts tests/marketing-scenarios.test.ts tests/admin-navigation.test.ts tests/contact-input.test.ts
+
+
+ RUN  v4.1.10 /home/trix/home/trix/project/jump-in-the-mix
+
+
+ Test Files  8 passed (8)
+      Tests  45 passed (45)
+   Start at  06:50:56
+   Duration  6.54s (transform 1.82s, setup 0ms, import 2.17s, tests 1.89s, environment 1ms)
+
+
+Audit artifact verification: 184 unique findings; all 36 areas contain 5–7 items; CSV/source/screenshot links checked. Offline HTML search, priority/evidence/area filters, reset, empty state, expanded finding, and 178-image gallery passed browser checks. No board page errors, axe violations in the inspected expanded state, or 390px page overflow.
+Cleanup: disposable database, audit dev server, temporary environment snapshot and isolated build directory removed.

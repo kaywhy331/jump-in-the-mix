@@ -62,7 +62,7 @@ test.afterAll(async () => {
 async function signIn(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(userEmail);
-  await page.getByLabel("Password").fill(userPassword);
+  await page.getByLabel("Password", { exact: true }).fill(userPassword);
   await Promise.all([page.waitForURL(/\/(jumps|onboarding)(\?|$)/), page.getByRole("button", { name: "Sign in" }).click()]);
 }
 async function ready(page: Page) { await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 }); }

@@ -9,13 +9,28 @@ export const MARKETING_SCENARIOS = [
 ] as const;
 
 export type MarketingScenarioId = typeof MARKETING_SCENARIOS[number]["id"];
-export type MarketingScenario = typeof MARKETING_SCENARIOS[number];
-export function marketingScenario(value: string | null | undefined): MarketingScenario | null { return MARKETING_SCENARIOS.find(item => item.id === value || item.slug === value) ?? null; }
-export function marketingScenarioId(value: FormDataEntryValue | string | null | undefined): MarketingScenarioId | null { return typeof value === "string" ? marketingScenario(value)?.id ?? null : null; }
+export const MARKETING_DEMO_MIXES: Record<MarketingScenarioId, Record<string, string>> = {
+  "real-estate": { "not-ready": "Not ready yet", "open-house": "After the open house", "after-closing": "After closing" },
+  consulting: { "proposal-sent": "Proposal sent", milestone: "Revisit a milestone", handover: "After the handover", "went-quiet": "Went quiet" },
+  photography: { "pricing-sent": "Pricing sent", "after-gallery": "After the gallery", "vendor-thanks": "Vendor thank-you" },
+  painting: { "estimate-sent": "Estimate sent", deferred: "Waiting on the flooring", "job-done": "Job done" },
+  recruiting: { "candidate-timing": "Candidate’s timing", "client-plans": "Client’s hiring plans", "honest-update": "Honest update" }
+};
+export type MarketingScenario = Omit<typeof MARKETING_SCENARIOS[number], "id" | "starterTitle"> & { id: string; starterTitle: string };
+export function marketingScenario(value: string | null | undefined): MarketingScenario | null {
+  if (!value) return null;
+  const [base, mix, extra] = value.split("~");
+  const scenario = MARKETING_SCENARIOS.find(item => item.id === base || item.slug === base);
+  if (!scenario || extra !== undefined) return null;
+  if (mix === undefined) return scenario;
+  const title = Object.hasOwn(MARKETING_DEMO_MIXES[scenario.id], mix) ? MARKETING_DEMO_MIXES[scenario.id][mix] : null;
+  return title ? { ...scenario, id: `${scenario.id}~${mix}`, starterTitle: `${title} — first follow-up` } : null;
+}
+export function marketingScenarioId(value: FormDataEntryValue | string | null | undefined): string | null { return typeof value === "string" ? marketingScenario(value)?.id ?? null : null; }
 
-// Stored choices are versioned independently of public route aliases. Retired
-// versions must not silently acquire the meaning of a newly published scenario.
+// Existing version-1 identifiers retain their meaning; new choices are explicitly allowlisted.
 export function storedMarketingScenario(value: unknown, version: unknown): MarketingScenario | null {
   if (version !== MARKETING_SCENARIO_VERSION || typeof value !== "string") return null;
-  return MARKETING_SCENARIOS.find(item => item.id === value) ?? null;
+  const scenario = marketingScenario(value);
+  return scenario?.id === value ? scenario : null;
 }

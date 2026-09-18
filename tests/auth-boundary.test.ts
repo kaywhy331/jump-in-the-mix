@@ -8,13 +8,16 @@ describe("authentication request boundary", () => {
     const shell = readFileSync("src/components/AppShell.tsx", "utf8");
     expect(login).toContain('from "@/lib/auth-actions"');
     expect(register).toContain('from "@/lib/auth-actions"');
-    expect(register).toContain("registerAction");
+    expect(register).toContain("registerFormAction");
     expect(register).toContain("pilotRegistrationOpen");
-    expect(login).toContain("requestMagicLinkAction");
+    expect(login).toContain("requestMagicLinkFormAction");
     expect(login).toContain("SocialSignInOptions");
     expect(register).toContain("validAccessToken");
     expect(register).toContain("referralAccessInvite");
     expect(register).not.toContain("requestInviteAction");
+    const authActions = readFileSync("src/lib/auth-actions.ts", "utf8");
+    expect(authActions).toContain("recoverableFormAction(() => registerAction(data))");
+    expect(authActions).toContain("recoverableFormAction(() => requestMagicLinkAction(data))");
     expect(shell).toContain('from "@/lib/auth-actions"');
   });
 

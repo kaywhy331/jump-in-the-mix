@@ -23,6 +23,8 @@ export function AdminMfaPanel({
   const action = mode === "setup" ? enableAdminMfaAction : verifyAdminMfaAction;
   const [state, formAction, pending] = useActionState(action, INITIAL_ADMIN_MFA_STATE);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState(false);
+  const [codesStored, setCodesStored] = useState(false);
   const admissionDraft = /^\/admin\/admission\?draft=[0-9a-f-]{36}$/.test(returnTo);
 
   useEffect(() => {
@@ -35,8 +37,8 @@ export function AdminMfaPanel({
   const recoveryCodes = state.status === "enabled" ? state.recoveryCodes : [];
   const copyRecoveryCodes = async () => {
     if (!recoveryCodes.length) return;
-    await navigator.clipboard.writeText(recoveryCodes.join("\n"));
-    setCopied(true);
+    try { await navigator.clipboard.writeText(recoveryCodes.join("\n")); setCopied(true); setCopyError(false); }
+    catch { setCopyError(true); setCopied(false); }
   };
 
   if (state.status === "enabled") {
@@ -52,9 +54,11 @@ export function AdminMfaPanel({
         <div className="admin-mfa-recovery-grid" aria-label="Administrator MFA recovery codes">
           {recoveryCodes.map((code) => <code data-testid="mfa-recovery-code" key={code}>{code}</code>)}
         </div>
+        {copyError && <label className="field"><span role="alert">Clipboard unavailable. Select and copy these codes manually, then store them securely.</span><textarea readOnly value={recoveryCodes.join("\n")} rows={recoveryCodes.length} onFocus={event => event.currentTarget.select()} aria-label="Recovery codes for manual copying" /></label>}
+        <label><input type="checkbox" checked={codesStored} onChange={event => setCodesStored(event.target.checked)} /> I stored my one-time recovery codes securely.</label>
         <div className="form-actions">
           <button className="button" type="button" onClick={copyRecoveryCodes}>{copied ? "Copied" : "Copy recovery codes"}</button>
-          <Link className="button primary" href={returnTo}>Continue to Admin</Link>
+          <button type="button" className="button primary" disabled={!codesStored} onClick={() => router.push(returnTo)}>Continue to Admin</button>
         </div>
       </section>
     );

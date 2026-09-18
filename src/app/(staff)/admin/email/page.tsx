@@ -1,3 +1,5 @@
+import { AdminPagination } from "@/components/AdminPagination";
+import { adminPage, adminQuery } from "@/lib/admin-navigation";
 import { AdminRefresh } from "@/components/AdminRefresh";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -10,12 +12,17 @@ import { displayPreferencesForUser } from "@/lib/display-preferences";
 
 export const metadata: Metadata = { title: "Admin · Email" };
 
-export default async function AdminEmailPage() {
+export default async function AdminEmailPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
   const { user, permissions } = await requirePlatformAdmin("operations.read");
   const now = new Date();
+  const params = await searchParams, query = (params.q ?? "").trim().slice(0, 200);
+  const where = query ? { OR: ["id", "type", "providerId"].map(field => ({ [field]: { contains: query, mode: "insensitive" as const } })) } : {};
+  const total = await prisma.emailProviderEvent.count({ where });
+  const page = Math.min(adminPage(params.page), Math.max(1, Math.ceil(total / 30)));
+  const pageHref = (page: number) => adminQuery("/admin/email", { q: query, page });
   const [windows, suppressions, events, reviews, preferences] = await Promise.all([
     readEmailBudget(prisma, now), prisma.emailSuppression.groupBy({ where: { clearedAt: null }, by: ["reason"], _count: { _all: true } }),
-    prisma.emailProviderEvent.findMany({ orderBy: { receivedAt: "desc" }, take: 30, select: { id: true, type: true, providerId: true, occurredAt: true, receivedAt: true, detailsRetiredAt: true } }),
+    prisma.emailProviderEvent.findMany({ where, orderBy: [{ receivedAt: "desc" }, { id: "desc" }], take: 30, skip: (page - 1) * 30, select: { id: true, type: true, providerId: true, occurredAt: true, receivedAt: true, detailsRetiredAt: true } }),
     prisma.waitlistDelivery.count({ where: { status: "REVIEW", inviteId: { not: null } } }), displayPreferencesForUser(user.id)
   ]);
   const [staffReviews, supportReviews] = await Promise.all([
@@ -36,17 +43,17 @@ export default async function AdminEmailPage() {
     <section className="card form-stack"><h2>Delivery health</h2>
       <p>Sender: {env.resendApiKey && env.emailFrom ? "Configured" : "Missing configuration"} · Signed provider events: {env.resendWebhookSecret ? "Secret configured" : "Missing signing secret"}</p>
       <p>{reviews} invitation deliveries need review.</p>
-      {permissions.includes("access.read") && <Link href="/admin/access?review=1">Review invitation deliveries</Link>}
+      {permissions.includes("email.manage") ? <Link href="/admin/email/recovery">Investigate invitation delivery</Link> : permissions.includes("access.read") && <Link href="/admin/access?review=1">Review invitation deliveries</Link>}
       {permissions.includes("staff.manage") && <Link href="/admin/team?view=invitations">{staffReviews} staff invitations need review</Link>}
       {permissions.includes("email.manage") && <Link href="/admin/email/suppressions">Review recipient suppression</Link>}
-      {permissions.includes("email.manage") && <Link href="/admin/email/recovery">Recover invitation delivery</Link>}
       {supportReviews !== null && <Link href="/admin/support?view=all&email=review">{supportReviews} support emails need review</Link>}
       <h3>Suppression records</h3>{suppressions.length ? suppressions.map(row => <p key={row.reason}>{row.reason.replaceAll("_", " ")} · {row._count._all}</p>) : <p>No recipient suppressions recorded.</p>}
       <details><summary>Delivery and suppression rules</summary><p>A signing secret does not confirm the provider connection.</p><p>Provider bounces, complaints and suppressions stop future sends and unused invitations. Rejoining the waitlist cannot clear these records. Removing an address in the provider dashboard requires a separate local review before sending resumes.</p></details>
     </section>
-    </div><details className="card form-stack"><summary>Recent provider events ({events.length}, maximum 30)</summary><p>Delivery means the recipient’s mail server accepted the message. It does not establish inbox placement or that the message was read.</p>
-      {!events.length && <p>No verified events received yet. Rehearse the configured endpoint with a controlled provider test.</p>}
+    </div><section className="card form-stack"><h2>Provider event history</h2><form className="filter-bar" method="get"><label className="field"><span>Event type or identifier</span><input name="q" defaultValue={query} maxLength={200} /></label><button className="button">Search events</button>{query && <Link href="/admin/email">Clear event search</Link>}</form><p>Delivery means the recipient’s mail server accepted the message. It does not establish inbox placement or that the message was read.</p>
+      {!events.length && <p>No events match this view. Clear the search to review other verified events.</p>}
       {events.map(event => <article key={event.id} style={{ overflowWrap: "anywhere" }}><h3>{event.type}</h3><p>{formatDateTime(event.occurredAt, preferences)} · Received {formatDateTime(event.receivedAt, preferences)}</p><p>Event {event.id}{event.providerId ? ` · Provider record ${event.providerId}` : ""}{event.detailsRetiredAt ? " · Private provider details expired; replay protection retained." : ""}</p></article>)}
-    </details>
+      <AdminPagination page={page} total={total} pageSize={30} href={pageHref} />
+    </section>
   </div>;
 }

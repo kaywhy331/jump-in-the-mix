@@ -1,3 +1,4 @@
+import { AdminRefresh } from "@/components/AdminRefresh";
 import { getAdmissionSnapshot, issuanceProblem } from "@/lib/admission";
 import Link from "next/link";
 import { AppIcon } from "@/components/AppIcon";
@@ -38,6 +39,24 @@ export default async function AdminPage() {
     permissions.includes("staff.manage") ? prisma.waitlistDelivery.count({ where: { status: "REVIEW", staffInvitationId: { not: null } } }) : 0,
     canWaitlist || permissions.includes("settings.manage") ? getAdmissionSnapshot() : null
   ]);
+  const [oldDelivery, oldStaffDelivery, oldSupportDelivery, oldJob, oldCustomerMessage] = await Promise.all([
+    deliveryReviews ? prisma.waitlistDelivery.findFirst({ where: { status: "REVIEW", inviteId: { not: null } }, orderBy: { firstAttemptAt: "asc" }, select: { firstAttemptAt: true } }) : null,
+    staffReviews ? prisma.waitlistDelivery.findFirst({ where: { status: "REVIEW", staffInvitationId: { not: null } }, orderBy: { firstAttemptAt: "asc" }, select: { firstAttemptAt: true } }) : null,
+    supportReviews ? prisma.supportTicketMessage.findFirst({ where: { authorType: "ADMIN", emailStatus: "FAILED" }, orderBy: { createdAt: "asc" }, select: { createdAt: true } }) : null,
+    failedJobs ? prisma.job.findFirst({ where: { failedAt: { not: null } }, orderBy: { failedAt: "asc" }, select: { failedAt: true } }) : null,
+    tickets ? prisma.supportTicketMessage.findFirst({ where: { authorType: "USER", ticket: { status: { in: ["OPEN", "WAITING_ON_SUPPORT"] } } }, orderBy: { createdAt: "asc" }, select: { createdAt: true } }) : null
+  ]);
+  const age = (date?: Date | null) => date ? `${Math.max(0, Math.floor((now.getTime() - date.getTime()) / 3600_000))}h ago` : "not recorded";
+  const ages: Record<string, string> = {
+    "Invitation email needs review": `Oldest attempt: ${age(oldDelivery?.firstAttemptAt)}`,
+    "Staff invitation email needs review": `Oldest attempt: ${age(oldStaffDelivery?.firstAttemptAt)}`,
+    "Support notification needs review": `Oldest affected reply: ${age(oldSupportDelivery?.createdAt)}`,
+    "Background work needs attention": `Oldest failure: ${age(oldJob?.failedAt)}`,
+    "Support is waiting on a reply": `Oldest message in open cases: ${age(oldCustomerMessage?.createdAt)}`,
+    "Monitoring needs a check": `Last observation: ${age(monitor?.observedAt)}`,
+    "Review operational alerts": `Last observation: ${age(monitor?.observedAt)}`,
+    "New customer invitations are blocked": `Policy last updated: ${age(admission?.policy.updatedAt)}`
+  };
   const attention: AttentionItem[] = [];
   if (deliveryReviews) attention.push({ title: "Invitation email needs review", detail: "Check delivery before retrying.", href: permissions.includes("email.manage") ? "/admin/email/recovery" : "/admin/access?review=1", count: deliveryReviews });
   if (supportReviews) attention.push({ title: "Support notification needs review", detail: "Reply saved. Check its email delivery.", href: "/admin/support?view=all&email=review", count: supportReviews });
@@ -54,21 +73,22 @@ export default async function AdminPage() {
   ].filter(action => permissions.some(permission => permission === action.permission));
 
   return <div className="page admin-overview-page">
-    <header className="page-header"><div><h1>Overview</h1></div><span className="admin-updated">Updated {formatDateTime(now, display)}</span></header>
+    <header className="page-header"><div><h1>Overview</h1></div><span className="admin-updated">Page loaded {formatDateTime(now, display)}</span></header>
+    <AdminRefresh observedAt={now.toISOString()} /><p>Counts are a live read of retained records at page load. Operational health uses the separate monitoring observation below.</p>
     <section className="admin-pulse" aria-label="Aggregate activity">
-      {[{ label: "Accounts", value: users, note: "Including staff", href: permissions.includes("users.read") ? "/admin/users" : null }, { label: "Follow-ups completed", value: completed, note: "Last 7 days · retained records", href: permissions.includes("reports.read") ? "/admin/reports?days=7&view=engagement" : null }, { label: "Confirmed waiting", value: waiting, note: "Confirmed email · eligibility checked on invite", href: canWaitlist ? "/admin/waitlist?status=WAITING&confirmed=confirmed" : null }].map(metric => <div className="admin-pulse-item" key={metric.label}><span>{metric.href ? <Link href={metric.href}>{metric.label}</Link> : metric.label}</span><strong>{metric.value.toLocaleString("en-US")}</strong><small>{metric.note}</small></div>)}
+      {[{ label: "All accounts, including staff", value: users, note: "Operational total · not customer capacity", href: permissions.includes("users.read") ? "/admin/users" : null }, { label: "Follow-ups completed", value: completed, note: "Last 7 days · retained records", href: permissions.includes("reports.read") ? "/admin/reports?days=7&view=engagement" : null }, { label: "Confirmed waiting", value: waiting, note: "Confirmed email · eligibility checked on invite", href: canWaitlist ? "/admin/waitlist?status=WAITING&confirmed=confirmed" : null }].map(metric => <div className="admin-pulse-item" key={metric.label}><span>{metric.href ? <Link prefetch={false} href={metric.href}>{metric.label}</Link> : metric.label}</span><strong>{metric.value.toLocaleString("en-US")}</strong><small>{metric.note}</small></div>)}
     </section>
     <div className="admin-overview-columns">
       <section className="admin-panel" aria-labelledby="admin-attention-title">
         <header className="admin-panel-heading"><div><h2 id="admin-attention-title">Needs attention</h2></div><span className="admin-count">{attention.length} {attention.length === 1 ? "area" : "areas"}</span></header>
-        {attention.length ? <ul className="admin-action-list">{attention.map(item => <li key={item.href}><Link href={item.href}><span className="admin-action-icon"><AppIcon name="alert" /></span><span className="admin-action-copy"><strong>{item.title}</strong><small>{item.detail}</small></span>{item.count !== undefined && <span className="admin-count">{item.count.toLocaleString("en-US")}</span>}<span aria-hidden="true">→</span></Link></li>)}</ul> : <div className="admin-calm-state"><AppIcon name="check" /><h3>No items flagged in these checks</h3><p>Other queues may still have work.</p></div>}
+        {attention.length ? <ul className="admin-action-list">{attention.map(item => <li key={item.href}><Link prefetch={false} href={item.href}><span className="admin-action-icon"><AppIcon name="alert" /></span><span className="admin-action-copy"><strong>{item.title}</strong><small>{item.title.includes("blocked") || item.title.includes("Monitoring") || item.title.includes("Background") ? "Check now" : "Review queue"} · {item.detail}</small><small>{ages[item.title]}</small></span>{item.count !== undefined && <span className="admin-count">{item.count.toLocaleString("en-US")}</span>}<span aria-hidden="true">→</span></Link></li>)}</ul> : <div className="admin-calm-state"><AppIcon name="check" /><h3>No items flagged in these checks</h3><p>Other queues may still have work. This is not a certification of system health.</p></div>}
         {canOperate && !monitorStale && <p className="admin-panel-footnote">Monitoring checked {formatDateTime(monitor!.observedAt!, display)}.</p>}
       </section>
-      {actions.length > 0 && <section className="admin-panel" aria-labelledby="admin-actions-title"><header className="admin-panel-heading"><h2 id="admin-actions-title">Quick actions</h2></header><ul className="admin-action-list">{actions.map(action => <li key={action.href}><Link href={action.href}><span className="admin-action-icon"><AppIcon name={action.icon} /></span><span className="admin-action-copy"><strong>{action.label}</strong></span><span aria-hidden="true">→</span></Link></li>)}</ul></section>}
+      {actions.length > 0 && <section className="admin-panel" aria-labelledby="admin-actions-title"><header className="admin-panel-heading"><h2 id="admin-actions-title">Quick actions</h2></header><ul className="admin-action-list">{actions.map(action => <li key={action.href}><Link prefetch={false} href={action.href}><span className="admin-action-icon"><AppIcon name={action.icon} /></span><span className="admin-action-copy"><strong>{action.label}</strong></span><span aria-hidden="true">→</span></Link></li>)}</ul></section>}
     </div>
     {(canEdit || canWaitlist) && <section className="admin-next-work" aria-label="Continue your work">
-      {canEdit && <Link href="/admin/templates" className="admin-panel admin-work-link"><AppIcon name="mixes" /><span><strong>Content library</strong><small>{hiddenMixes > 0 ? `${hiddenMixes} drafts or hidden mixes` : "Manage ready-made mixes"}</small></span><span aria-hidden="true">→</span></Link>}
-      {canWaitlist && <Link href="/admin/waitlist" className="admin-panel admin-work-link"><AppIcon name="people" /><span><strong>Customer invitations</strong><small>{schedule ? schedule.paused ? "Weekly waves paused" : `Next wave: ${formatDateTime(schedule.nextRunAt, display)}` : "Weekly waves not scheduled"}</small></span><span aria-hidden="true">→</span></Link>}
+      {canEdit && <Link prefetch={false} href="/admin/templates" className="admin-panel admin-work-link"><AppIcon name="mixes" /><span><strong>Content library</strong><small>{hiddenMixes > 0 ? `${hiddenMixes} drafts or hidden mixes` : "Manage ready-made mixes"}</small></span><span aria-hidden="true">→</span></Link>}
+      {canWaitlist && <Link prefetch={false} href="/admin/waitlist" className="admin-panel admin-work-link"><AppIcon name="people" /><span><strong>Customer invitations</strong><small>{schedule ? schedule.paused ? "Weekly waves paused" : `Next wave: ${formatDateTime(schedule.nextRunAt, display)}` : "Weekly waves not scheduled"}</small></span><span aria-hidden="true">→</span></Link>}
     </section>}
   </div>;
 }

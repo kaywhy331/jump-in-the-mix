@@ -1,3 +1,5 @@
+import { PublicCapabilities } from "@/components/PublicCapabilities";
+import { PublicContents } from "@/components/PublicContents";
 import type { ReactNode } from "react";
 import { PublicHeader, type PublicHeaderLink } from "@/components/PublicHeader";
 import { PublicFooter } from "@/components/PublicFooter";
@@ -13,7 +15,9 @@ export function PublicArticle({ title, deck, links = DEFAULT_LINKS, children }: 
     <main id="main-content" tabIndex={-1}>
       <article className="section public-article">
         <div className="section-heading"><h1>{title}</h1>{deck && <p className="public-article-deck">{deck}</p>}</div>
+        <PublicContents />
         {children}
+        <PublicCapabilities />
       </article>
     </main>
     <PublicFooter />

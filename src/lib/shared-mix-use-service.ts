@@ -59,7 +59,7 @@ export async function useSharedMixTemplate(input: {
     const name = clean(input.name, 160) || shared.title;
     const triggerMode = metadata?.triggerMode ?? "MANUAL_START";
     const groupIds = [...new Set(input.groupIds.filter(Boolean))];
-    if (!input.assignAllContacts && !groupIds.length) throw new Error("Choose everyone or at least one tag.");
+    if (input.status === "ACTIVE" && !input.assignAllContacts && !groupIds.length) throw new Error("Choose everyone or at least one tag.");
     if (groupIds.length) {
       const [groupCount, inactiveCount] = await Promise.all([
         tx.group.count({ where: { workspaceId: input.workspaceId, id: { in: groupIds } } }),

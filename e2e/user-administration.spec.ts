@@ -48,25 +48,25 @@ test("operator suspends and restores a member without restarting their sending",
     await page.goto(`/admin/users/${data.customer.id}?returnTo=${encodeURIComponent(`/admin/users?q=${data.customer.email}`)}`);
     await page.getByLabel("Reason and case reference").fill("Case 501: review a compromised account");
     await page.getByLabel("Your administrator password").fill(password);
-    await page.getByRole("button", { name: "Apply account change" }).click();
+    await page.getByRole("button", { name: /^(Suspend account|Restore account access|End all sessions)$/ }).click();
     await expect(page).toHaveURL(/updated=suspend/);
     await expect(page.locator(".page-header")).toBeVisible();
     await customerPage.goto("/account");
-    await expect(customerPage).toHaveURL(/\/login$/);
+    await expect(customerPage).toHaveURL(/\/login\?next=%2Faccount$/);
     expect(await prisma.session.count({ where: { userId: data.customer.id } })).toBe(0);
     expect((await prisma.automationPreference.findUniqueOrThrow({ where: { workspaceId: data.workspace.id } })).enabled).toBe(false);
 
     await expect(page.getByLabel("Operation")).toHaveValue("restore");
     await page.getByLabel("Reason and case reference").fill("Case 501: access review is complete");
     await page.getByLabel("Your administrator password").fill(password);
-    await page.getByRole("button", { name: "Apply account change" }).click();
+    await page.getByRole("button", { name: /^(Suspend account|Restore account access|End all sessions)$/ }).click();
     await expect(page).toHaveURL(/updated=restore/);
     await expect(page.locator(".page-header")).toBeVisible();
     expect((await prisma.notificationPreference.findUniqueOrThrow({ where: { workspaceId: data.workspace.id } })).emailDigestEnabled).toBe(false);
     expect((await prisma.automationPreference.findUniqueOrThrow({ where: { workspaceId: data.workspace.id } })).enabled).toBe(false);
     expect(await prisma.platformAuditEvent.count({ where: { entityId: data.customer.id, action: { startsWith: "user.access." } } })).toBe(2);
     await customerPage.goto("/account");
-    await expect(customerPage).toHaveURL(/\/login$/);
+    await expect(customerPage).toHaveURL(/\/login\?next=%2Faccount$/);
   } finally { await customerContext.close(); await data.cleanup(); }
 });
 
@@ -87,7 +87,7 @@ test("account controls enforce live permissions and fit phone and desktop screen
     await page.getByLabel("Reason and case reference").fill("Case 502: change from an old browser tab");
     await page.getByLabel("Your administrator password").fill(password);
     await prisma.staffMembership.update({ where: { userId: data.actor.id }, data: { denies: ["users.suspend"] } });
-    await page.getByRole("button", { name: "Apply account change" }).click();
+    await page.getByRole("button", { name: /^(Suspend account|Restore account access|End all sessions)$/ }).click();
     await expect(page).toHaveURL(/\/admin\/access-denied\?/);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: data.customer.id } })).suspendedAt).toBeNull();
     await page.goto(`/admin/users/${data.customer.id}?returnTo=${encodeURIComponent(`/admin/users?q=${data.customer.email}`)}`);
@@ -95,7 +95,7 @@ test("account controls enforce live permissions and fit phone and desktop screen
     await expect(page.getByLabel("Operation")).toHaveValue("revoke_sessions");
     await page.getByLabel("Reason and case reference").fill("Case 502: end the member's old sessions");
     await page.getByLabel("Your administrator password").fill(password);
-    await page.getByRole("button", { name: "Apply account change" }).click();
+    await page.getByRole("button", { name: /^(Suspend account|Restore account access|End all sessions)$/ }).click();
     await expect(page).toHaveURL(/updated=revoke_sessions/);
     expect(await prisma.session.count({ where: { userId: data.customer.id } })).toBe(0);
   } finally { await data.cleanup(); }

@@ -15,9 +15,11 @@ export type ContactRelationshipStateValue = {
 
 export function ContactRelationshipStatePanel({
   contactId,
+  pendingCount,
   state
 }: {
   contactId: string;
+  pendingCount: number;
   state: ContactRelationshipStateValue;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
@@ -30,7 +32,7 @@ export function ContactRelationshipStatePanel({
       <input type="hidden" name="nextCommitmentAt" value={state.nextCommitmentAt?.toISOString() ?? ""} />
       <fieldset><legend>Priority</legend><div className="relationship-chip-row">{(["LOW", "NORMAL", "HIGH", "URGENT"] as const).map((priority) => <label className="relationship-chip" key={priority}><input type="radio" name="priority" value={priority} defaultChecked={state.priority === priority} onChange={save} /><span>{priority === "NORMAL" ? "Normal" : priority[0] + priority.slice(1).toLowerCase()}</span></label>)}</div></fieldset>
       <fieldset><legend>Prefers</legend><div className="relationship-chip-row">{([{ value: "", label: "Any" }, { value: "SMS", label: "Text" }, { value: "PHONE_CALL", label: "Call" }, { value: "EMAIL", label: "Email" }] as const).map((channel) => <label className="relationship-chip" key={channel.value || "any"}><input type="radio" name="preferredChannel" value={channel.value} defaultChecked={(state.preferredChannel ?? "") === channel.value} onChange={save} /><span>{channel.label}</span></label>)}</div></fieldset>
-      <label className="relationship-toggle"><input type="checkbox" name="doNotContact" defaultChecked={state.doNotContact} onChange={save} /><span><strong>Do not contact</strong><small>Stops future follow-ups until turned off.</small></span></label>
+      <label className="relationship-toggle"><input type="checkbox" name="doNotContact" defaultChecked={state.doNotContact} onChange={event => { if (event.target.checked && !window.confirm(`Stop ${pendingCount} pending follow-up${pendingCount === 1 ? "" : "s"} for this person? Saved history stays available. You can still open contact details, but must respect their contact preference. Turning this off can prepare future follow-ups again.`)) { event.target.checked = false; return; } save(); }} /><span><strong>Do not contact</strong><small>{pendingCount} pending follow-up{pendingCount === 1 ? "" : "s"} will stop. Saved drafts and history remain. Manual contact links remain available; respect this preference.</small></span></label>
       <button className="sr-only" type="submit">Save</button>
     </form>
   );

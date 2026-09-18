@@ -144,3 +144,11 @@
   .next-up-section .jump-primary-action .jump-channel-action { min-width: 44px; width: 44px; padding: 0; }
   .next-up-section .jump-primary-action .jump-channel-action span { display: none; }
 }
+
+@media (max-width: 760px) {
+  .contact-row .contact-relationship-state { display: block; }
+  .contact-row .contact-relationship-state span:first-child { display: none; }
+  .contact-row .contact-relationship-state span:last-child { display: grid; }
+  .contact-row .contact-relationship-state small { display: inline; }
+  .contact-row .contact-relationship-state strong { white-space: normal; }
+}

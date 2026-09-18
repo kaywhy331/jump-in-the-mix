@@ -34,7 +34,7 @@ export default async function SuppressionReview({ params, searchParams }: { para
     <header className="page-header"><div><h1>Suppression review</h1><p>{selected.email}</p></div><Link className="button" href={returnTo}>Recipient queue</Link></header>
     {query.error && <Notice type="error">{query.error}</Notice>}
     {query.cleared && <Notice type="success">Provider blocks were cleared locally. No invitations were restored or sent. A new waitlist request requires fresh email confirmation.</Notice>}
-    <div className="admin-detail-columns"><section className="card form-stack"><h2>Recorded blocks</h2>
+    <div className="admin-detail-columns"><section className="card form-stack"><h2>Recipient impact</h2><p>{optout ? "Invitation opt-out controls the next step. Clearing provider blocks cannot authorize another invitation; the recipient must make and confirm a fresh request." : active.length ? `${active.length} active provider block(s) prevent email. Investigate every active reason and record the recipient’s request before local clearance.` : "No active local provider block remains. Check provider state before assuming delivery can resume."}</p><h3>Recorded blocks</h3>
       {rows.map(row => <article key={row.id}><h3>{labels[row.reason]}</h3><p>{row.clearedAt ? `Cleared locally ${formatDateTime(row.clearedAt, preferences)}` : "Active"} · First recorded {formatDateTime(row.createdAt, preferences)}</p>{row.lastTriggeredAt && <p>Latest triggering event {formatDateTime(row.lastTriggeredAt, preferences)}</p>}</article>)}
       <p>Confirm the recipient’s request and clear the provider block first. This changes local records only.</p>
       <p>Account emails may resume. Revoked grants and canceled invitations stay closed.</p>

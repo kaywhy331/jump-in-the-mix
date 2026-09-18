@@ -14,7 +14,7 @@ const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? "AdminJumpInTheMix123!";
 async function signIn(page: Page, email: string, password: string) {
   await page.goto("/login");
   await page.getByLabel("Email", { exact: true }).fill(email);
-  await page.getByLabel("Password").fill(password);
+  await page.getByLabel("Password", { exact: true }).fill(password);
   await Promise.all([
     page.waitForURL(/\/(jumps|onboarding)(\?|$)/),
     page.getByRole("button", { name: "Sign in" }).click()
@@ -268,7 +268,8 @@ test.describe("stateful administrator security journey", () => {
     const firstRecoveryCode = (await recoveryCodes.first().textContent())?.trim();
     expect(firstRecoveryCode).toBeTruthy();
 
-    await page.getByRole("link", { name: "Continue to Admin" }).click();
+    await page.getByRole("checkbox", { name: "I stored my one-time recovery codes securely." }).check();
+    await page.getByRole("button", { name: "Continue to Admin" }).click();
     await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
     await page.context().clearCookies();

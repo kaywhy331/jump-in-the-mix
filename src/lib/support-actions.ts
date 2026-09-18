@@ -1,5 +1,6 @@
 "use server";
 
+import { captureFormFailure, recoverableFormAction, type FormResult } from "@/lib/form-errors";
 import type { SupportTicketCategory } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
@@ -18,10 +19,12 @@ function value(formData: FormData, key: string, maxLength: number): string {
 }
 
 function helpError(message: string): never {
+  captureFormFailure(message);
   redirect(`/help?error=${encodeURIComponent(message)}#contact-support`);
 }
 
 function ticketError(ticketId: string, message: string): never {
+  captureFormFailure(message);
   redirect(`/account/tickets/${encodeURIComponent(ticketId)}?error=${encodeURIComponent(message)}`);
 }
 
@@ -30,7 +33,9 @@ export async function createSupportTicketAction(formData: FormData): Promise<voi
   if (impersonation) helpError("Administrator support sessions are view-only.");
 
   const title = value(formData, "title", 160);
-  const body = value(formData, "body", 5000);
+  const context = value(formData, "supportContext", 100);
+  const safeContext = /^(Today|Contacts|Mixes|Calendar|Journey|Settings|Account|Help); (phone|desktop\/tablet) layout$/.test(context) ? context : "";
+  const body = value(formData, "body", safeContext ? 4800 : 5000) + (safeContext ? `\n\nIncluded context: ${safeContext}` : "");
   const categoryValue = value(formData, "category", 40);
   if (title.length < 5) helpError("Give the ticket a clear title of at least 5 characters.");
   if (body.length < 10) helpError("Add at least 10 characters describing what happened and what you expected.");
@@ -117,3 +122,6 @@ export async function reopenSupportTicketAction(formData: FormData): Promise<voi
   }
   redirect(`/account/tickets/${ticketId}?reopened=1`);
 }
+
+export async function createSupportTicketFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => createSupportTicketAction(data)); }
+export async function replyToSupportTicketFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => replyToSupportTicketAction(data)); }

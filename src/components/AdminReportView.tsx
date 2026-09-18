@@ -20,7 +20,7 @@ export function AdminReportView({ report: r, limits, saved = false, view = "grow
     <div className="admin-report-grid"><div className="admin-report-domain">
 
     {view === "growth" && <section className="card form-stack"><h2>Waitlist</h2>
-      <Metrics items={[[saved ? "Confirmed waiting when observed" : "Confirmed waiting now", w.waitingNow], ["Oldest confirmed request", w.oldestWaitingDays === null ? "—" : `${w.oldestWaitingDays} days`], ["Requests in range", w.requested], ["Those requests joined", `${w.joined} (${reportRatio(w.joined, w.requested)})`]]} />
+      <Metrics items={[[saved ? "Confirmed waiting when observed" : "Confirmed waiting now", w.waitingNow], ["Oldest confirmed request", w.oldestWaitingDays === null ? "—" : `${w.oldestWaitingDays} days`], ["Requests in range", w.requested], ["Those requests joined", <>{w.joined} ({reportRatio(w.joined, w.requested)})<small>of {w.requested} requests created in range</small></>]]} />
       <details><summary>Definitions and scope</summary><p>Of the requests created in this range: {w.confirmed} confirmed their email, {w.granted} received access, {w.joined} joined, and {w.withdrawn} are withdrawn. Outcomes include changes up to this report’s observation time.</p><p>Waiting count and age cover the confirmed waiting list at observation time, across all dates. Suppression and account eligibility checks may reduce the number who can receive a wave.</p></details>
     </section>}
     {view === "growth" && <section className="card form-stack"><h2>New account activation</h2>

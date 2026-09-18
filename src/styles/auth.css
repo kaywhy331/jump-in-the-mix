@@ -78,3 +78,7 @@
 
 .first-win-onboarding .checkbox-card > span { display: grid; gap: 4px; }
 .first-win-onboarding .checkbox-card { align-items: flex-start; }
+
+.password-control { display: flex; gap: 8px; align-items: center; }
+.password-control input { min-width: 0; flex: 1; }
+.password-control button { min-width: 48px; min-height: 44px; }

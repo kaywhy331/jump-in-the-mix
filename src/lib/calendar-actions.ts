@@ -23,7 +23,7 @@ export async function saveCalendarAction(_state: CalendarSaveState, data: FormDa
     if (error instanceof ContactChoiceRequiredError) return { error: "", choice: { candidates: error.candidates } };
     return { error: error instanceof Error ? error.message : "This event could not be saved." };
   }
-  const next = new URLSearchParams({ date: value(data, "startsAt").slice(0, 10), saved: "1" });
+  const next = new URLSearchParams({ date: value(data, "startsAt").slice(0, 10), saved: "1", savedEvent: result.entryId });
   if (result.bindingId) next.set("plan", "1");
   for (const [key, count] of Object.entries(result.outlook ?? {})) if (count > 0) next.set(key, String(count));
   if (result.unscopedEnrollmentKept) next.set("kept", "1");

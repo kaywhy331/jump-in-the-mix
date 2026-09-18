@@ -30,7 +30,7 @@ export function SupportFaq() {
           <h2 id="support-faq-heading">Frequently asked questions</h2>
           <p>Search for a quick, plain-language answer.</p>
         </div>
-        <span className="status-pill">{results.length}</span>
+        <span className="status-pill" role="status" aria-live="polite">{results.length} matching answers</span>
       </div>
 
       <div className="support-faq-filters">
@@ -69,7 +69,7 @@ export function SupportFaq() {
         {!results.length && (
           <div className="support-faq-empty" role="status">
             <strong>No FAQ matched that search.</strong>
-            <span>Clear the filters or use the help option below.</span>
+            <span>Clear the filters or <a href="#contact-support">Message support</a>. You can choose whether to include your search topic in your message.</span>
           </div>
         )}
       </div>

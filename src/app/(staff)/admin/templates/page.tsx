@@ -62,8 +62,8 @@ export default async function AdminTemplatesPage({ searchParams }: { searchParam
         const meta = byId.get(row.id);
         const version = meta?.version ?? 1, draftVersion = meta?.draftVersion ?? 1;
         return <article className="admin-library-row" key={row.id}>
-          <div className="admin-library-title"><h2><Link href={adminQuery(`/admin/templates/${row.id}/edit`, { returnTo })}>{row.title}</Link></h2><p>{row.description}</p><small>{row.category} · {row.industry ?? "Any business"}{draftVersion !== version ? ` · Unpublished changes in draft ${draftVersion}` : ` · Draft ${draftVersion}`}</small></div>
-          <div className="admin-library-visibility"><span className={`admin-content-status ${row.status === "APPROVED" ? "published" : ""}`}>{draftVersion !== version ? "Unpublished changes" : row.status === "APPROVED" ? "Published" : row.releases.length ? "Hidden after publication" : "Never published"}</span>{row.status === "APPROVED" && <small>Version {version}</small>}</div>
+          <div className="admin-library-title"><h2><Link href={adminQuery(`/admin/templates/${row.id}/edit`, { returnTo })}>{row.title}</Link></h2><p>{row.description}</p><small>{row.category} · {row.industry ?? "Any business"}{draftVersion !== version ? ` · Unpublished changes in draft ${draftVersion}` : ` · Latest saved version ${draftVersion}`}</small></div>
+          <div className="admin-library-visibility"><span className={`admin-content-status ${row.status === "APPROVED" ? "published" : ""}`}>{row.status === "APPROVED" ? `Customers see version ${version}` : row.releases.length ? "Hidden after publication" : "Never published"}</span>{draftVersion !== version && <small>Unpublished draft {draftVersion}</small>}</div>
           <span className="admin-library-copies">{row.importCount.toLocaleString("en-US")}<span className="admin-mobile-copy-label"> copies</span></span>
           <Link className="button small" href={adminQuery(`/admin/templates/${row.id}/edit`, { returnTo })} aria-label={`Review and edit ${row.title}`}>Edit<span aria-hidden="true"> →</span></Link>
         </article>;
