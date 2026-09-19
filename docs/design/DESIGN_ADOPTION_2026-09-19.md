@@ -15,7 +15,7 @@ Implemented the supplied [Jump in the Mix design export](jump-in-the-mix-designs
 
 ## Verification
 
-The isolated local database contains fictional fixtures; provider-send credentials were cleared. No staging or customer deployment was made, and no real customer messages were sent.
+The initial implementation checks used an isolated local database with fictional fixtures and cleared provider-send credentials. The subsequent authorized production deployment and hosted verification are recorded in [the production release report](DESIGN_DEPLOYMENT_2026-09-19.md). No real customer messages were sent by these tests.
 
 - Production Next.js build and TypeScript checking pass.
 - 53 focused unit/integration checks pass across the Journey, configuration, authorization, design-accessibility and UI-readiness suites.
