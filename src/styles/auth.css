@@ -55,7 +55,7 @@
 .profile-menu { position: relative; width: 100%; }
 .profile-menu > summary { width: 100%; list-style: none; cursor: pointer; }
 .profile-menu > summary::-webkit-details-marker { display: none; }
-.profile-menu-panel { position: absolute; z-index: 40; left: 0; bottom: calc(100% + 8px); width: 220px; display: grid; gap: 3px; padding: 9px; border: 1px solid var(--line); border-radius: 13px; background: white; box-shadow: var(--shadow); }
+.profile-menu-panel { position: absolute; z-index: 40; left: 0; bottom: calc(100% + 8px); width: 220px; display: grid; gap: 3px; padding: 9px; border: 1px solid var(--line); border-radius: 13px; background: var(--raised); box-shadow: var(--shadow); }
 .profile-menu-panel > a, .profile-menu-panel > form > button { display: flex; width: 100%; min-height: 38px; align-items: center; padding: 8px 9px; border-radius: 8px; color: var(--muted); font-size: .85rem; font-weight: 700; }
 .profile-menu-panel > a:hover, .profile-menu-panel > form > button:hover { background: var(--surface-soft); color: var(--ink); }
 .mobile-profile-link { width: 44px; min-width: 44px; padding: 0; border-radius: 50%; }
@@ -65,7 +65,7 @@
 }
 
 @media (max-width: 900px) {
-  .mobile-app-header { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: 10px 16px; background: rgba(255,255,255,.96); border-bottom: 1px solid var(--line); backdrop-filter: blur(12px); }
+  .mobile-app-header { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 64px; padding: 10px 16px; background: color-mix(in srgb, var(--raised) 96%, transparent); border-bottom: 1px solid var(--line); backdrop-filter: blur(12px); }
   .mobile-app-header .button { min-height: 44px; }
   .session-row { grid-template-columns: 42px minmax(0, 1fr); align-items: start; }
   .session-row form { grid-column: 2; }

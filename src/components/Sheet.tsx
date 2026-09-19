@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
+import { DOCKED_REVIEW_MEDIA, openSheet } from "@/lib/sheet-layout";
 
 export function Sheet({
   trigger,
@@ -10,7 +11,8 @@ export function Sheet({
   description,
   children,
   className = "",
-  initiallyOpen = false
+  initiallyOpen = false,
+  desktopInitiallyOpen = false
 }: {
   trigger: ReactNode;
   title: string;
@@ -18,29 +20,63 @@ export function Sheet({
   children: ReactNode;
   className?: string;
   initiallyOpen?: boolean;
+  desktopInitiallyOpen?: boolean;
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLSpanElement>(null);
   const titleId = useId();
   const descriptionId = useId();
   const [mounted, setMounted] = useState(initiallyOpen);
+  const requestedOpen = useRef(initiallyOpen);
+  const openedOnce = useRef(false);
+  const docked = className.includes("follow-up-review-sheet");
+  const wide = () => docked && window.matchMedia(DOCKED_REVIEW_MEDIA).matches;
+  const show = (preserveFocus = false) => {
+    const dialog = dialogRef.current;
+    if (!dialog || dialog.open) return;
+    openSheet(dialog, preserveFocus);
+  };
+
+  useEffect(() => {
+    if (desktopInitiallyOpen && wide()) setMounted(true);
+    if (!docked) return;
+    const media = window.matchMedia(DOCKED_REVIEW_MEDIA);
+    const adapt = () => {
+      const dialog = dialogRef.current;
+      if (!dialog?.open) return;
+      // The same editor stays mounted when rotating/resizing, retaining its draft.
+      const focused = document.activeElement;
+      dialog.close();
+      openSheet(dialog);
+      if (focused instanceof HTMLElement && dialog.contains(focused)) focused.focus({ preventScroll: true });
+    };
+    media.addEventListener("change", adapt);
+    return () => media.removeEventListener("change", adapt);
+  }, [desktopInitiallyOpen, docked]);
 
   useEffect(() => {
     if (initiallyOpen) {
       setMounted(true);
-      if (dialogRef.current && !dialogRef.current.open) dialogRef.current.showModal();
+      show();
     }
   }, [initiallyOpen]);
   useLayoutEffect(() => {
-    if (mounted && !dialogRef.current?.open) dialogRef.current?.showModal();
+    // Suspense replays layout effects when revealing retained content. Keeping
+    // an editor mounted preserves its draft; it must not reopen a closed sheet.
+    if (mounted && !openedOnce.current) {
+      openedOnce.current = true;
+      show(!requestedOpen.current);
+    }
   }, [mounted]);
 
   const open = () => {
+    requestedOpen.current = true;
     if (!mounted) { setMounted(true); return; }
-    if (!dialogRef.current?.open) dialogRef.current?.showModal();
+    show();
   };
   const close = () => dialogRef.current?.close();
   const restoreTriggerFocus = () => {
+    if (dialogRef.current?.open || (docked && document.querySelector(".follow-up-review-sheet[open]"))) return;
     triggerRef.current?.querySelector<HTMLElement>("button, a, [tabindex]")?.focus();
   };
 
@@ -56,6 +92,12 @@ export function Sheet({
         aria-describedby={description ? descriptionId : undefined}
         onClick={(event) => { if (event.target === event.currentTarget) close(); }}
         onClose={restoreTriggerFocus}
+        onKeyDown={event => {
+          if (event.key === "Escape" && !event.currentTarget.matches(":modal") && (event.target as Element).closest("dialog") === event.currentTarget) {
+            event.preventDefault();
+            close();
+          }
+        }}
       >
         <div className="sheet-panel">
           <header className="sheet-header">

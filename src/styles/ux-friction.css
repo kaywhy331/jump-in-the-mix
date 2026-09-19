@@ -1,6 +1,6 @@
 .contact-first-follow-up {
-  border-color: #d7d1ff;
-  background: linear-gradient(180deg, #fbfaff 0%, #ffffff 100%);
+  border-color: var(--violet-mark);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--raised) 100%);
 }
 
 .contact-first-follow-up-fields { margin-top: 14px; }

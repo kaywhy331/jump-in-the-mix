@@ -2,11 +2,22 @@ import { SupportViewRecovery } from "@/components/SupportViewRecovery";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { connection } from "next/server";
+import { headers } from "next/headers";
+import localFont from "next/font/local";
+import { appearanceScript } from "@/lib/appearance";
 import { GlobalLiveSearch } from "@/components/GlobalLiveSearch";
 import { PwaRegistration } from "@/components/PwaRegistration";
 import { PublicConversionEvents } from "@/components/PublicConversionEvents";
 import { env } from "@/lib/env";
 import "@/styles/index.css";
+
+const uiFont = localFont({ src: [
+  { path: "./fonts/instrument-sans.ttf", weight: "400" },
+  { path: "./fonts/instrument-sans-1.ttf", weight: "500" },
+  { path: "./fonts/instrument-sans-2.ttf", weight: "600" },
+  { path: "./fonts/instrument-sans-3.ttf", weight: "700" }
+], variable: "--font-instrument", display: "swap" });
+const voiceFont = localFont({ src: "./fonts/newsreader.ttf", weight: "400", variable: "--font-newsreader", display: "swap" });
 
 export const metadata: Metadata = {
   title: {
@@ -28,8 +39,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   // The request's CSP nonce must also be present on public-page scripts.
   // A static document cannot carry a fresh nonce for each response.
   await connection();
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
-    <html lang="en" data-scroll-behavior="smooth">
+    <html lang="en" data-scroll-behavior="smooth" className={`${uiFont.variable} ${voiceFont.variable}`} suppressHydrationWarning>
+      <head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: appearanceScript }} /></head>
       <body>
         <PwaRegistration />
         <PublicConversionEvents />

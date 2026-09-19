@@ -1,0 +1,82 @@
+/* The landing mockups use full-width quiet bands and one working demo. */
+.public-page { background: var(--page); color: var(--text); }
+.public-page .public-header, .public-page .hero, .public-page .section, .public-page .public-footer { max-width: 1328px; }
+.public-page .public-header { padding-block: 24px; }
+.public-page .logo { font-size: 1rem; }
+.public-page .logo-mark { width: 32px; height: 32px; }
+.public-page .hero { grid-template-columns: 1.1fr .9fr; gap: clamp(40px, 6vw, 96px); padding-block: 60px 100px; }
+.public-page .hero h1 { font-size: clamp(2.75rem, 4.2vw, 4.75rem); line-height: 1.02; letter-spacing: -.06em; margin-block: 12px 32px; }
+.public-page .hero h1 em { font-style: normal; color: var(--text-3); }
+.public-page .hero-copy > p { font-size: 1.0625rem; line-height: 1.65; }
+.public-page .hero-note { color: var(--text-3); font-size: .8125rem !important; }
+.public-page .product-demo { --bubble-fill: var(--raised); background: var(--bubble-fill); border: 0; box-shadow: var(--shadow); border-radius: 24px; padding: 28px; }
+.public-page .product-demo::after { border: 0; background: var(--bubble-fill); box-shadow: none; }
+.public-page .demo-guided-textarea, .public-page .demo-message-preview { background: var(--surface); color: var(--text); border: 0; border-radius: 16px; font-family: var(--font-voice); font-size: 1.25rem; line-height: 1.5; padding: 20px; }
+.public-page .demo-step-progress { border-bottom: 1px solid var(--track); }
+.public-page .demo-step-progress span { color: var(--text-3); }
+.public-page .demo-step-progress .active { color: var(--violet-text); }
+.public-page .quick-demo { position: relative; }
+.public-page .quick-demo::after { content: ""; position: absolute; width: 26px; height: 24px; left: 44px; bottom: -14px; background: var(--raised); transform: skewY(-32deg); border: 0; border-radius: 0 0 4px 0; }
+.public-page .quick-demo-step textarea, .public-page .quick-demo-step blockquote { font-family: var(--font-voice); font-size: 1.25rem; line-height: 1.5; background: var(--surface); border: 0; border-radius: 16px; padding: 20px; }
+.public-page .quick-demo-step { border-top: 0; }
+.public-page .quick-demo-progress { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.public-page .quick-demo-step > h3 { margin-block: 8px 16px; }
+.demo-rhythm { list-style: none; padding: 0; margin: 12px 0 24px; display: flex; justify-content: space-between; gap: 12px; }
+.demo-rhythm li { position: relative; flex: 1; min-width: 0; display: grid; gap: 8px; color: var(--text-3); font-size: .625rem; }
+.demo-rhythm li:last-child { text-align: right; justify-items: end; }
+.demo-rhythm li:not(:last-child)::after { content: ""; position: absolute; left: 12px; right: -6px; height: 1px; top: 4px; background: var(--track); }
+.demo-rhythm i { display: block; width: 9px; height: 9px; border: 2px solid var(--border); border-radius: 50%; background: var(--raised); z-index: 1; }
+.demo-rhythm li[aria-current="step"] { color: var(--text); font-weight: 600; }
+.demo-rhythm li[aria-current="step"] i { border-color: var(--violet-mark); background: var(--violet-mark); box-shadow: 0 0 0 4px var(--violet-wash); }
+.public-page .section { padding-block: 104px; }
+.public-page .public-workflow { display: block; }
+.public-page .relationship-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; }
+.public-page .relationship-steps li { display: block; position: relative; padding: 0; border: 0; }
+.public-page .relationship-steps li:not(:last-child)::after { content: ""; position: absolute; top: 18px; left: 48px; right: -28px; height: 1px; background: var(--track); }
+.public-page .workflow-number { width: 36px; height: 36px; border-radius: 50%; background: var(--violet); color: var(--on-violet); border: 0; margin-bottom: 20px; display: grid; place-items: center; }
+.public-page .public-definition { max-width: none; border: 0; border-radius: 0; background: var(--surface); padding: 88px max(24px, calc((100% - 1280px) / 2)); display: grid; grid-template-columns: 1fr 1fr; gap: 12px 80px; }
+.public-page .public-definition h2 { grid-row: 1 / 4; font-family: var(--font-voice); font-weight: 400; font-size: clamp(2rem, 3.2vw, 3.25rem); line-height: 1.15; margin: 0; max-width: 16ch; }
+.public-definition p { color: var(--text-2); margin: 0; }
+.public-page .profession-marks { display: grid; grid-template-columns: .8fr 1.2fr; gap: 80px; align-items: start; }
+.public-page .profession-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(6, auto); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }
+.public-page .profession-grid li, .public-page .profession-grid li > a { display: flex; justify-content: space-between; align-items: center; min-height: 54px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 1rem; text-align: left; }
+.public-page .profession-grid li { border-top: 1px solid var(--line); color: var(--text-2); }
+.public-page .profession-grid li > a { width: 100%; color: var(--text); }
+.public-page .profession-grid li > a::after { content: "›"; color: var(--violet-text); }
+.public-page .profession-icon { display: none; }
+.public-page .public-footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px 28px; margin-inline: auto; padding-block: 40px; text-align: left; }
+.public-page .public-footer > p { margin: 0; }
+.public-page .public-footer nav { display: flex; gap: 20px; align-items: center; }
+.public-page .public-trust-links { flex-basis: 100%; border-top: 1px solid var(--line); padding-top: 20px; }
+.homepage > .public-header, .homepage .hero { background: var(--surface); box-shadow: 0 0 0 100vmax var(--surface); clip-path: inset(0 -100vmax); }
+.homepage #waitlist { max-width: none; background: #1a1830; color: #eeedf6; padding-inline: max(24px, calc((100% - 1280px) / 2)); display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+.homepage #waitlist .section-heading { margin: 0; }
+.homepage #waitlist p { color: #b9b7cc; }
+.homepage #waitlist .waitlist-form { max-width: none; }
+.homepage #waitlist input { background: #ffffff; color: #1a1830; border-color: #cfcedb; }
+.homepage #waitlist input::placeholder { color: #6b6a82; }
+.homepage #waitlist .notice { color: var(--text); }
+@media (max-width: 1000px) {
+  .public-page .hero { grid-template-columns: 1fr; max-width: 740px; gap: 48px; }
+  .public-page .hero-copy { max-width: none; }
+  .public-page .product-demo { max-width: 620px; justify-self: center; }
+  .public-page .public-definition { gap: 24px 40px; }
+  .public-page .profession-marks { grid-template-columns: 1fr; gap: 32px; }
+}
+@media (max-width: 600px) {
+  .public-page .hero { padding: 28px 24px 64px; gap: 40px; }
+  .public-page .hero h1 { font-size: clamp(2.65rem, 10vw, 3.5rem); margin-top: 0; }
+  .public-page .section { padding: 64px 24px; }
+  .public-page .product-demo { padding: 20px; }
+  .public-page .relationship-steps { grid-template-columns: 1fr; gap: 28px; }
+  .public-page .relationship-steps li { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 16px; }
+  .public-page .relationship-steps li:not(:last-child)::after { top: 48px; bottom: -16px; left: 18px; width: 1px; height: auto; }
+  .public-page .relationship-steps h3 { margin-top: 4px; }
+  .public-page .public-definition { display: block; padding: 64px 24px; }
+  .public-page .public-definition h2 { margin-bottom: 28px; }
+  .public-page .public-definition p + p { margin-top: 18px; }
+  .public-page .profession-grid { gap: 0 24px; }
+  .public-page .profession-grid li, .public-page .profession-grid li > a { font-size: .875rem; }
+  .homepage #waitlist { grid-template-columns: 1fr; gap: 28px; padding: 64px 24px; }
+  .public-page .public-footer { padding: 32px 24px; }
+}

@@ -229,7 +229,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     : `No Contacts matched${q ? ` “${q}”` : " the current filters"}.`;
 
   return (
-    <div className="page">
+    <div className="page contacts-page">
       {params.created && <Notice type="success">Contact added.</Notice>}
       {params.archived && <Notice type="success">Contact archived.</Notice>}
       {params.groupCreated && <Notice type="success">Tag created.</Notice>}

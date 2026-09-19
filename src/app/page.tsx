@@ -18,7 +18,7 @@ export const metadata: Metadata = publicPageMetadata({
 });
 
 export default function HomePage() {
-  return <div className="public-page">
+  return <div className="public-page homepage">
     <a className="public-skip-link" href="#main-content">Skip to content</a>
     <PublicHeader links={[{ href: "/follow-up-templates", label: "Templates" }, { href: "/faq", label: "Questions" }]} />
     <main id="main-content" tabIndex={-1}>
@@ -41,12 +41,12 @@ export default function HomePage() {
             <li><span className="workflow-number">3</span><div><h3>Make it yours</h3><p>Review the draft, edit it, and send it from your own text or email app. Then record what happened.</p></div></li>
           </ol>
         </div>
-        <div className="public-definition">
-          <h2>Keep the rhythm. Keep your own voice.</h2>
+      </section>
+      <section className="public-definition" aria-labelledby="own-voice-title">
+          <h2 id="own-voice-title">Keep the rhythm. Keep your own voice.</h2>
           <p>A draft is a starting point, not a message you have to send. Review and edit before you send through your usual text or email app. Follow-up planning lives here; the conversation stays with you.</p>
           <p>{PRODUCT_DEFINITION}</p>
           <p className="public-definition-links"><Link href="/follow-up-templates">Client follow-up templates</Link><Link href="/faq">Questions before you jump in</Link></p>
-        </div>
       </section>
       <ProfessionMarks />
       <section id="waitlist" className="section" aria-labelledby="waitlist-title"><div className="section-heading"><h2 id="waitlist-title">Ready to put one follow-up in the mix?</h2><p>Join the waitlist and we’ll email you when your spot is ready. Accounts are free, with no card to enter. Until then, try the demo with a conversation you already need to continue.</p></div><WaitlistForm /></section>

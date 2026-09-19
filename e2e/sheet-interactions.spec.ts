@@ -51,9 +51,9 @@ test("message drafts, snooze fields, nested confirmation and focus survive closi
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto("/jumps"); await ready(page);
   const review = page.getByRole("button", { name: "Review message for Sheet person 2", exact: true });
   await review.focus(); await page.keyboard.press("Enter");
-  const message = page.getByRole("dialog", { name: "Message Sheet person 2", exact: true });
+  const message = page.getByRole("dialog", { name: "Follow up with Sheet person 2", exact: true });
   await expect(message).toBeVisible();
-  const draft = message.getByRole("textbox", { name: "Fine-tune before sending", exact: true });
+  const draft = message.getByRole("textbox", { name: "Your message", exact: true });
   await draft.fill("Keep this unsent estimate draft.");
   for (const colorScheme of ["light", "dark"] as const) { await setTheme(page, colorScheme); await audit(page); }
   await closeSheet(page); await expect(review).toBeFocused();
@@ -96,7 +96,7 @@ test("the contact message shortcut opens automatically and keeps an unscheduled 
   for (const width of [320, 390, 768, 900, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     const actions = page.getByRole("complementary", { name: "Actions for selected contacts" });
-    for (const name of ["Clear", "Select all", "Tags", "Message", "Export CSV", "Archive 1…"]) {
+    for (const name of ["Clear", "Select this page", "Tags", "Message", "Export CSV", "Archive 1…"]) {
       const action = actions.getByRole("button", { name, exact: true });
       await expect(action).toBeVisible();
       expect(await action.evaluate(element => {

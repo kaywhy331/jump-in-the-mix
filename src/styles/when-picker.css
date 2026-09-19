@@ -4,7 +4,7 @@
 .when-picker { display: grid; gap: 8px; min-width: 0; }
 .when-triggers { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 8px; min-width: 0; }
 .when-triggers.single { grid-template-columns: minmax(0, 1fr); }
-.when-trigger { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font-weight: 650; text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease; }
+.when-trigger { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--raised); color: var(--ink); font-weight: 650; text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease, box-shadow .15s ease; }
 .when-trigger > svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--brand-dark); }
 .when-trigger > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .when-trigger:hover:not(:disabled) { border-color: var(--brand); }
@@ -15,22 +15,22 @@
 /* Every control in the panel is at least 44px tall for touch; day cells keep a fluid width so
    seven columns still fit a 320px screen. */
 .when-panel { display: grid; gap: 12px; min-width: 0; }
-.when-picker.inline > .when-panel { padding: 12px; border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--line)); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow-sm); }
+.when-picker.inline > .when-panel { padding: 12px; border: 1px solid color-mix(in srgb, var(--brand) 35%, var(--line)); border-radius: 14px; background: var(--raised); box-shadow: var(--shadow-sm); }
 .when-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .when-panel-title { font-size: .95rem; }
 .when-tabs { display: inline-flex; gap: 4px; padding: 2px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-soft); }
 .when-tab { min-height: 44px; padding: 4px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font-weight: 700; cursor: pointer; }
-.when-tab[aria-pressed="true"] { background: var(--surface); color: var(--brand-dark); box-shadow: var(--shadow-sm); }
+.when-tab[aria-pressed="true"] { background: var(--raised); color: var(--brand-dark); box-shadow: var(--shadow-sm); }
 .when-done { min-height: 44px; }
 
 .when-date-view, .when-time-view { display: grid; gap: 10px; }
 .when-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.when-chip { min-height: 44px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: .875rem; font-weight: 700; cursor: pointer; }
+.when-chip { min-height: 44px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--raised); color: var(--ink); font-size: .875rem; font-weight: 700; cursor: pointer; }
 .when-chip:hover { border-color: var(--brand); }
 .when-chip[aria-pressed="true"] { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-dark); }
 .when-month { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .when-month strong { font-size: .95rem; }
-.when-month-nav { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.when-month-nav { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--raised); color: var(--ink); cursor: pointer; }
 .when-month-nav:hover { border-color: var(--brand); color: var(--brand-dark); }
 .when-month-nav svg { width: 18px; height: 18px; }
 .when-weekdays, .when-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
@@ -44,7 +44,7 @@
 
 .when-time-heading { margin: 0; color: var(--muted); font-size: .875rem; font-weight: 650; }
 .when-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 6px; }
-.when-slot { display: grid; gap: 2px; min-height: 44px; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font-size: .9rem; font-weight: 700; text-align: center; cursor: pointer; }
+.when-slot { display: grid; gap: 2px; min-height: 44px; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--raised); color: var(--ink); font-size: .9rem; font-weight: 700; text-align: center; cursor: pointer; }
 .when-slot small { display: block; overflow: hidden; color: var(--muted); font-size: .7rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .when-slot:hover:not(:disabled) { border-color: var(--brand); }
 .when-slot[aria-pressed="true"] { border-color: var(--brand); background: var(--brand); color: var(--on-brand); }

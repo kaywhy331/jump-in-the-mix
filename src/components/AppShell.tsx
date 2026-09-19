@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
+import { AppearanceControl } from "@/components/Appearance";
+import { AppIcon } from "@/components/AppIcon";
 import { logoutAction } from "@/lib/auth-actions";
 import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
 import { Sheet } from "@/components/Sheet";
@@ -38,10 +40,11 @@ export function AppShell({
       <a className="public-skip-link" href="#workspace-main">Skip to content</a>
       <aside className="sidebar">
         <Logo />
-        <Nav />
-        <nav className="sidebar-shortcuts" aria-label="Planning shortcuts"><Link href="/calendar">Calendar</Link><Link href="/journey">Customer journey</Link></nav>
         {!impersonation && <QuickAddButton />}
+        <Nav />
         <div className="sidebar-footer account-sidebar-footer">
+          <nav className="sidebar-utilities" aria-label="Account and help"><Link href="/settings"><AppIcon name="settings" />Settings</Link><Link href="/help"><AppIcon name="help" />Help</Link><Link href="/account"><AppIcon name="people" />My account</Link></nav>
+          <AppearanceControl compact />
           <span className="user-label">{impersonation ? `Viewing as ${userName}` : `Signed in as ${userName}`}</span>
           <div className="account-sidebar-actions">
             {impersonation ? endImpersonationForm : (

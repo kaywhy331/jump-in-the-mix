@@ -5,7 +5,7 @@
 }
 
 .speech-bubble {
-  --bubble-fill: var(--surface);
+  --bubble-fill: var(--raised);
   position: relative;
   display: block;
   min-width: 0;
@@ -71,7 +71,7 @@
   padding: 14px 16px;
   border: 2px solid var(--conversation-stroke);
   border-radius: 18px;
-  background: var(--surface);
+  background: var(--raised);
   color: var(--ink);
   overflow-wrap: anywhere;
 }
@@ -83,9 +83,6 @@
   .public-page .conversation-panel, .public-page .public-control.speech-bubble { border-radius: 22px; box-shadow: 4px 4px 0 var(--conversation-shadow); }
   .speech-bubble { padding: 12px 14px; }
   .speech-bubble--compose { padding: 0; }
-}
-@media (prefers-color-scheme: dark) {
-  :root { --conversation-stroke: #b8c0d2; --conversation-shadow: #41385f; }
 }
 @media (forced-colors: active) {
   :root { --conversation-stroke: CanvasText; --conversation-shadow: Canvas; }

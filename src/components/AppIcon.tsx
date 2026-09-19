@@ -1,8 +1,10 @@
 import type { SVGProps } from "react";
 
-export type AppIconName = "today" | "contacts" | "add" | "mixes" | "more" | "close" | "calendar" | "bolt" | "import" | "edit" | "external" | "people" | "security" | "privacy" | "archive" | "heart" | "arrowUp" | "arrowDown" | "arrowLeft" | "chevronUp" | "chevronDown" | "trash" | "check" | "refresh" | "email" | "phone" | "message" | "alert" | "circle" | "settings" | "clock";
+export type AppIconName = "journey" | "help" | "today" | "contacts" | "add" | "mixes" | "more" | "close" | "calendar" | "bolt" | "import" | "edit" | "external" | "people" | "security" | "privacy" | "archive" | "heart" | "arrowUp" | "arrowDown" | "arrowLeft" | "chevronUp" | "chevronDown" | "trash" | "check" | "refresh" | "email" | "phone" | "message" | "alert" | "circle" | "settings" | "clock";
 
-const paths: Record<AppIconName, React.ReactNode> = {
+const paths: Record<AppIconName | "journey" | "help", React.ReactNode> = {
+  journey: <><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="5" r="2.5"/><path d="M7.5 18H15a3.25 3.25 0 0 0 0-6.5H9A3.25 3.25 0 0 1 9 5h7.5"/></>,
+  help: <><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 4 2c-1 .5-1.5 1-1.5 2M12 17h.01"/></>,
   today: <><path d="M5 12.5 9.2 17 19 7"/><path d="M7 3.8h10a3 3 0 0 1 3 3v10.4a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6.8a3 3 0 0 1 3-3Z"/></>,
   contacts: <><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19c.5-3.3 2.2-5 5.2-5s4.7 1.7 5.2 5M16 7.5h5M18.5 5v5M16 14h5M16 18h5"/></>,
   add: <><circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></>,

@@ -12,6 +12,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 All testing and staging deployments must publish to https://jump-in-the-mix-test.netlify.app/ (Netlify site ID `8fd20ccd-5c35-47e5-99ce-98e5670d52fe`). Use the explicit test site ID and publish to its stable URL; an unpublished deploy URL is not the staging handoff. https://jumpinthemix.com/ is the published customer site and is a separate deployment target. Verify site identity before deploying; the local Netlify link may point to the customer site.
 
+## Product design authority
+
+All new or changed UI must follow [the supplied design export](docs/design/jump-in-the-mix-designs/index.html) and [the implementation guidelines](docs/design/DESIGN_GUIDELINES.md). Consult the relevant light/dark, phone/tablet/desktop screen before changing a page. Preserve the original export. Use the shared semantic tokens, Instrument Sans for interface text, Newsreader for personal wording, and the responsive patterns; fixed mockup dimensions and fictional records are not production requirements. Pages without a mockup inherit the same components and tokens. Check both themes, keyboard use, narrow-screen reflow, and the actual workflow. Raise design/function conflicts rather than inventing product behavior or copying sample metrics.
+
 ## Jump in the Mix copywriting and marketing
 
 For homepage, profession-page, onboarding, copywriting or marketing strategy work, consult [the asset reference index](assets/README.md), the relevant ICP profiles and the supplied Joanna Wiebe guidance when available. The index records missing references; do not claim to have reviewed unavailable files. Treat the ICPs as fictional planning hypotheses, and verify product/access/pricing claims against current behavior.

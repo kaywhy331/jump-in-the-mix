@@ -34,7 +34,7 @@
   padding: 1rem;
   border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
   border-radius: 1rem;
-  background: var(--surface);
+  background: var(--raised);
   color: var(--ink);
   border: 2px solid var(--brand);
   box-shadow: 0 1rem 3rem rgb(0 0 0 / 22%);
@@ -97,7 +97,7 @@
 
 .error {
   margin-top: 0.65rem;
-  color: #a52222;
+  color: var(--status-danger-ink);
 }
 
 .timeline {

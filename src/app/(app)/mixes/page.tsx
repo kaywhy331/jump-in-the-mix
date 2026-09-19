@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MixLibraryNav } from "@/components/MixLibraryNav";
 import { EmptyState } from "@/components/EmptyState";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { AutoSubmitForm } from "@/components/AutoSubmitForm";
@@ -13,10 +14,12 @@ import { activateMixAction, archiveMixAction, pauseMixAction } from "@/lib/mix-l
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { describeStepTiming } from "@/lib/step-timing";
+import { journeyMixMembers } from "@/lib/journey-view";
 
 export const metadata: Metadata = { title: "Mixes" };
 
 type SearchParams = {
+  mix?: string;
   created?: string;
   updated?: string;
   activated?: string;
@@ -57,8 +60,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
       where,
       include: {
         steps: { where: { isActive: true }, include: { stepVersion: { include: { stepTemplate: true, variants: { select: { family: true } } } } }, orderBy: { sortOrder: "asc" } },
-        dateType: true,
-        _count: { select: { assignments: true } }
+        dateType: true
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: pageSize,
@@ -66,9 +68,12 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
     });
   const broadcastSchedules = mixes.length ? await prisma.mixBroadcastSchedule.findMany({ where: { workspaceId: workspace.id, mixId: { in: mixes.map(mix => mix.id) } } }) : [];
   const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
+  const selectedMix = mixes.find(mix => mix.id === params.mix) ?? mixes[0];
+  const people = await Promise.all(mixes.map(mix => prisma.contact.count({ where: { AND: [{ workspaceId: workspace.id, archivedAt: null }, journeyMixMembers(workspace.id, mix.id)] } })));
+  const peopleByMix = new Map(mixes.map((mix, index) => [mix.id, people[index]]));
 
   return (
-    <div className="page">
+    <div className="page mixes-page">
       {params.created === "starter" && <Notice type="success">Starter mix created.</Notice>}
       {params.created === "manual" && <Notice type="success">Mix created.</Notice>}
       {params.updated === "manual" && <Notice type="success">Mix saved.</Notice>}
@@ -93,7 +98,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
       </div>
 
       {mixes.length ? (
-        <div className="mix-list">
+        <div className="mix-library-workspace"><MixLibraryNav mixes={mixes.map(mix => ({ ...mix, people: peopleByMix.get(mix.id) }))} selected={selectedMix?.id} href={id => `${pageHref(page)}${pageHref(page).includes("?") ? "&" : "?"}mix=${id}`} /><div className="mix-list">
           {mixes.map((mix) => {
             const broadcast = broadcastByMixId.get(mix.id);
             // Beats timed from a visit have no day of their own; they run only for a visit the mix is lined up with.
@@ -106,7 +111,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
             const alternatives = (step: { stepVersion: { variants: Array<{ family: string }> } }) => step.stepVersion.variants.length ? ` · also ${step.stepVersion.variants.map((variant) => variant.family === "EMAIL" ? "email" : variant.family === "CALL" ? "call" : "text").join(", ")}` : "";
             const channelSequence = [...new Set(mix.steps.map((step) => step.stepVersion.stepTemplate.channel.replaceAll("_", " ").toLowerCase()))];
             return (
-              <article className="mix-row mix-card" key={mix.id}>
+              <article className={`mix-row mix-card${mix.id === selectedMix?.id ? " mix-card-selected" : ""}`} key={mix.id}>
                 <div className="card-header">
                   <div>
                     <h3>{mix.name}</h3>
@@ -114,7 +119,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                       <span className={`status-pill ${mix.status === "ACTIVE" ? "done" : ""}`}>{mix.status.toLowerCase()}</span>
                       <span className="mix-trigger">Starts: {mix.dateType ? `when ${mix.dateType.name} is added` : mix.triggerMode === "MANUAL_START" ? "when you choose" : "on one scheduled date"}</span>
                       {broadcast && <span className="mix-broadcast">Scheduled: {formatDateInput(broadcast.localDate)} · {formatTimeInput(broadcast.timeMinutes)} {broadcast.timezone}</span>}
-                      <span className="mix-audience">{mix._count.assignments} {mix._count.assignments === 1 ? "person" : "people"}</span>
+                      <span className="mix-audience" title="People assigned to this Mix or awaiting one of its follow-ups">{peopleByMix.get(mix.id)} {peopleByMix.get(mix.id) === 1 ? "person" : "people"}</span>
                       <span className="mix-timing">{timing}</span>
                       <span className="mix-channels">{channelSequence.join(" → ") || "No channels yet"}</span>
                     </div>
@@ -123,20 +128,21 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                     <div className="sheet-actions vertical"><Link href={`/mixes/${mix.id}/edit`} className="button primary"><AppIcon name="edit"/>Edit mix</Link>{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button" type="submit">Pause mix</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button" type="submit">Start the mix</button></form>}</div><div className="sheet-danger-zone"><ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The mix stops creating new follow-ups. Completed history stays available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button danger" type="submit">Archive mix</button></form></ConfirmDialog></div>
                   </Sheet></div>
                 </div>
+                <Link className="inline-action mix-open-editor" href={`/mixes/${mix.id}/edit`}>Edit mix →</Link>
                 {mix.description && <p className="muted-copy">{mix.description}</p>}
                 <div className="mix-sequence-preview" aria-label={`${mix.name} follow-up sequence`}>
                   {mix.steps.length ? mix.steps.map((step, index) => (
                     <div className="mix-sequence-item" key={step.id}><span className="mix-sequence-number">Beat {index + 1}</span><span className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></span><span><strong>{step.stepVersion.stepTemplate.name}</strong><small>{beatTiming(step)}{alternatives(step)}</small></span></div>
                   )) : <span className="status-pill">No follow-ups yet</span>}
                 </div>
-                <details className="mix-details"><summary>Preview the rhythm</summary><div className="timeline">{mix.steps.map((step, index) => {
+                <details className="mix-details" open={mix.id === selectedMix?.id}><summary>Preview the rhythm</summary><div className="timeline">{mix.steps.map((step, index) => {
                   const content = step.stepVersion.body ?? step.stepVersion.script ?? "No message content";
                   return <div className="timeline-step" key={step.id}><div className="timeline-day">Beat {index + 1}<small>{beatTiming(step)}</small></div><div className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></div><div className="timeline-content"><strong>{step.stepVersion.stepTemplate.name}</strong><span className="channel-pill">{step.stepVersion.stepTemplate.channel.replaceAll("_", " ")}</span><p>{step.stepVersion.subject && `${step.stepVersion.subject}\n`}{content}</p></div></div>;
                 })}</div></details>
               </article>
             );
           })}
-        </div>
+        </div></div>
       ) : (
         q || status
           ? <EmptyState title="No mixes match these filters." description="Try a different search or clear your filters to see your mixes." actionHref="/mixes" actionLabel="Clear search and filters" />

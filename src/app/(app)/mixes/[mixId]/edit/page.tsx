@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { MixEditor } from "@/components/MixEditor";
+import { MixLibraryNav } from "@/components/MixLibraryNav";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
 import { mergeGroupActivity } from "@/lib/group-activity";
@@ -54,15 +55,16 @@ export default async function EditMixPage({
   const groups = mergeGroupActivity(rawGroups, groupStates);
   const groupIds = mix.assignments.flatMap((assignment) => assignment.groupId ? [assignment.groupId] : []);
   const assignAllContacts = mix.assignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:"));
+  const library = await prisma.mix.findMany({ where: { workspaceId: workspace.id, status: { not: "ARCHIVED" } }, select: { id: true, name: true, status: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 100 });
 
   return (
-    <div className="page">
+    <div className="page mix-edit-page">
       <header className="page-header"><div><h1>Edit {mix.name}</h1><p>Saving updates future follow-ups without rewriting completed history.</p></div></header>
       {query.created === "manual" && <Notice type="success">Mix created. Future follow-ups are updating.</Notice>}
       {query.updated && <Notice type="success">Mix updated. Future follow-ups are updating.</Notice>}
       {query.imported && <Notice type="success">Your remix is ready. Fine-tune the beats and tempo, then start it when you’re ready.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
-      <MixEditor
+      <div className="mix-library-workspace"><MixLibraryNav mixes={library} selected={mix.id} /><div className="mix-editor-workspace"><MixEditor
         dateTypes={dateTypes.map((item) => ({ id: item.id, name: item.name, isSystem: item.isSystem }))}
         groups={groups.map((item) => ({ id: item.id, name: item.name, color: item.color, isActive: item.isActive, contactCount: item._count.memberships }))}
         jumps={jumps.flatMap((item) => item.versions[0] ? [{ id: item.id, name: item.name, channel: item.channel, subject: item.versions[0].subject, body: item.versions[0].body, script: item.versions[0].script }] : [])}
@@ -104,7 +106,7 @@ export default async function EditMixPage({
             variants: step.stepVersion.variants.map((variant) => ({ family: variant.family, subject: variant.subject, body: variant.body, script: variant.script }))
           }))
         }}
-      />
+      /></div></div>
     </div>
   );
 }

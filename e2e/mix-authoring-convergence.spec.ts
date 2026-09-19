@@ -26,8 +26,8 @@ test("a plan can be written inline without creating a prerequisite message templ
     await signIn(page);
     await page.goto("/mixes/new?custom=1");
     await page.getByLabel("Mix name").fill(name);
-    await page.getByLabel("Cue · when should it start?").selectOption("MANUAL_START");
-    const dayOffset = page.getByLabel("Tempo · days after start");
+    await page.getByRole("combobox", { name: "When should it start?", exact: true }).selectOption("MANUAL_START");
+    const dayOffset = page.getByRole("spinbutton", { name: "Days after start", exact: true });
     await expect(dayOffset).toHaveAttribute("min", "0");
     await dayOffset.fill("0");
     await page.getByRole("combobox", { name: "Channel", exact: true }).selectOption("EMAIL");
@@ -72,8 +72,10 @@ test("an approved template uses one setup screen and explicit audience", async (
     await page.goto(`/templates/${sharedId}/use`);
     await expect(page.getByRole("heading", { name: "Set up your mix" })).toBeVisible();
     await page.getByLabel("Mix name").fill(mixName);
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByLabel("Everyone").check();
-    await page.getByRole("button", { name: "Create my remix" }).click();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await page.getByRole("button", { name: "Save draft" }).click();
     await page.waitForURL(/\/mixes\/[^/]+\/edit\?imported=1/);
     const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId: "demo_workspace", name: mixName } });
     mixId = mix.id;

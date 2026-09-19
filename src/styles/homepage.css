@@ -4,7 +4,7 @@
 .public-site-nav { display: flex; align-items: center; justify-content: flex-end; gap: 24px; font-size: .9375rem; font-weight: 650; }
 .public-site-nav > a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
 .public-site-nav > a:not(.button):hover, .public-footer nav a:hover { color: var(--brand-dark); text-decoration: underline; text-underline-offset: 5px; }
-.public-skip-link { position: absolute; top: 8px; left: 16px; z-index: 100; padding: 12px 18px; border-radius: 10px; background: var(--surface); color: var(--ink); transform: translateY(-180%); }
+.public-skip-link { position: absolute; top: 8px; left: 16px; z-index: 100; padding: 12px 18px; border-radius: 10px; background: var(--raised); color: var(--ink); transform: translateY(-180%); }
 .public-skip-link:focus { transform: none; }
 .public-page #main-content:focus { outline: none; }
 .public-page :is(#sample, #features, #how-it-works, #questions, #your-data) { scroll-margin-top: 24px; }
@@ -92,7 +92,7 @@
 .workflow-number { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border: 1px solid var(--line); border-radius: 50%; color: var(--brand-dark); font-size: .8125rem; font-weight: 700; }
 .relationship-steps h3 { font-size: 1.0625rem; margin: 3px 0 6px; }
 .relationship-steps p { margin: 0; color: var(--muted); line-height: 1.65; }
-.public-page .today-preview { min-width: 0; margin: 0 0 16px; padding: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow-md); }
+.public-page .today-preview { min-width: 0; margin: 0 0 16px; padding: 28px; background: var(--raised); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow-md); }
 .today-preview-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .today-preview-kicker { color: var(--muted); font-size: .8125rem; }
 .today-preview-heading h3 { font-size: 2rem; letter-spacing: -.04em; margin: 4px 0 0; }
@@ -120,7 +120,7 @@
 /* How it works: the three steps beside a card that keeps the objection and the plain definition. */
 .public-page .public-workflow { border-top: 1px solid var(--line); }
 .public-page .public-workflow .section-heading { margin-bottom: 28px; }
-.public-definition { padding: 28px; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); box-shadow: var(--shadow-md); }
+.public-definition { padding: 28px; border: 1px solid var(--line); border-radius: 24px; background: var(--raised); box-shadow: var(--shadow-md); }
 .public-definition h2 { margin: 0 0 12px; font-size: 1.375rem; line-height: 1.25; letter-spacing: -.03em; }
 .public-definition p { margin: 0 0 14px; color: var(--muted); line-height: 1.65; }
 .public-definition-links { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0; }
@@ -145,7 +145,7 @@
 .public-article > p, .public-article section > p { margin: 0 0 14px; max-width: 68ch; }
 .public-article ul, .public-article ol { margin: 0 0 14px; padding-left: 22px; }
 .public-article li + li { margin-top: 6px; }
-.template-example { margin: 14px 0 22px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.template-example { margin: 14px 0 22px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--raised); }
 .template-example blockquote { margin: 0; }
 .template-example p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .template-example .template-subject { margin: 0 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-weight: 650; font-size: .9375rem; }
@@ -248,13 +248,13 @@
 .mixes-for { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 26px 0 0; font-size: .875rem; }
 .mixes-for-label { color: var(--muted); font-weight: 650; }
 .mixes-for ul { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.mixes-for a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-weight: 650; text-decoration: none; }
+.mixes-for a { display: inline-flex; align-items: center; min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--raised); color: var(--ink); font-weight: 650; text-decoration: none; }
 .mixes-for a:hover { border-color: var(--brand); color: var(--brand-dark); }
 .mixes-for a[aria-current="page"] { color: var(--brand-dark); border-color: var(--brand); background: var(--brand-soft); }
 .profession-marks .section-heading p { max-width: 52ch; }
 /* Two rows of six on desktop; "Coaches & trainers" ends the first row and "And more" the second. */
 .profession-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin: 28px 0 0; padding: 0; list-style: none; }
-.profession-grid li { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); font-weight: 650; font-size: .875rem; }
+.profession-grid li { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--raised); font-weight: 650; font-size: .875rem; }
 .profession-grid li > span:last-child { min-width: 0; overflow-wrap: normal; word-break: normal; hyphens: manual; }
 .profession-icon { width: 34px; height: 34px; flex-shrink: 0; display: grid; place-items: center; border-radius: 10px; color: var(--brand-dark); background: var(--brand-soft); }
 .profession-icon svg { width: 20px; height: 20px; }
@@ -281,7 +281,7 @@
 }
 
 /* The public demo demonstrates one useful follow-up, one decision at a time. */
-.quick-demo { padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: var(--shadow-md); min-width: 0; }
+.quick-demo { padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--raised); box-shadow: var(--shadow-md); min-width: 0; }
 .quick-demo-header h2 { margin: 0; font-size: 1.3rem; }
 .quick-demo-header p { margin: 5px 0 14px; color: var(--muted); font-size: .88rem; }
 .quick-demo-examples { margin-bottom: 12px; font-size: .88rem; }

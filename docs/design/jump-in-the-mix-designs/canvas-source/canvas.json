@@ -1,0 +1,594 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "BubbleKit.dc.html": {
+      "h": 640,
+      "page": "mobile",
+      "title": "Bubble kit",
+      "w": 1920,
+      "x": 2000,
+      "y": 4608
+    },
+    "Calendar.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Calendar",
+      "w": 390,
+      "x": 1410,
+      "y": 964
+    },
+    "Contact.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Contact",
+      "w": 390,
+      "x": 0,
+      "y": 964
+    },
+    "Contacts.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Contacts",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "DarkBubbleKit.dc.html": {
+      "h": 640,
+      "page": "mobile",
+      "title": "Bubble kit (dark)",
+      "w": 1920,
+      "x": 8600,
+      "y": 4608
+    },
+    "DarkCalendar.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Calendar (dark)",
+      "w": 390,
+      "x": 8010,
+      "y": 964
+    },
+    "DarkContact.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Contact (dark)",
+      "w": 390,
+      "x": 6600,
+      "y": 964
+    },
+    "DarkContacts.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Contacts (dark)",
+      "w": 390,
+      "x": 8480,
+      "y": 0
+    },
+    "DarkDesktopCalendar.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Calendar, agenda and event (dark)",
+      "w": 1920,
+      "x": 6600,
+      "y": 4608
+    },
+    "DarkDesktopContacts.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Contacts, wide (dark)",
+      "w": 1920,
+      "x": 10600,
+      "y": 3408
+    },
+    "DarkDesktopJourney.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Journey, the web (dark)",
+      "w": 1920,
+      "x": 6600,
+      "y": 3408
+    },
+    "DarkDesktopJourneyStage.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Journey, inside a stage (dark)",
+      "w": 1920,
+      "x": 8600,
+      "y": 3408
+    },
+    "DarkDesktopMixes.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mixes, library and editor (dark)",
+      "w": 1920,
+      "x": 10600,
+      "y": 2208
+    },
+    "DarkDesktopQuickAdd.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Quick add, command bar (dark)",
+      "w": 1920,
+      "x": 8600,
+      "y": 2208
+    },
+    "DarkDesktopToday.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Today, wide (dark)",
+      "w": 1920,
+      "x": 6600,
+      "y": 2208
+    },
+    "DarkJourney.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Journey (dark)",
+      "w": 390,
+      "x": 7540,
+      "y": 964
+    },
+    "DarkLanding.dc.html": {
+      "h": 3272,
+      "page": "mobile",
+      "title": "Landing page, desktop (dark)",
+      "w": 1920,
+      "x": 6600,
+      "y": 6088
+    },
+    "DarkLandingPhone.dc.html": {
+      "h": 4382,
+      "page": "mobile",
+      "title": "Landing page, phone (dark)",
+      "w": 390,
+      "x": 9514,
+      "y": 6088
+    },
+    "DarkLandingTablet.dc.html": {
+      "h": 3800,
+      "page": "mobile",
+      "title": "Landing page, tablet (dark)",
+      "w": 834,
+      "x": 8600,
+      "y": 6088
+    },
+    "DarkMain.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Today (dark)",
+      "w": 390,
+      "x": 6600,
+      "y": 0
+    },
+    "DarkMixes.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mixes (dark)",
+      "w": 390,
+      "x": 7070,
+      "y": 964
+    },
+    "DarkMore.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "More (dark)",
+      "w": 390,
+      "x": 8480,
+      "y": 964
+    },
+    "DarkQuickAdd.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Quick add (dark)",
+      "w": 390,
+      "x": 8010,
+      "y": 0
+    },
+    "DarkReview.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Review a follow-up (dark)",
+      "w": 390,
+      "x": 7070,
+      "y": 0
+    },
+    "DarkTabletJourney.dc.html": {
+      "h": 1194,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Tablet, Journey (portrait) (dark)",
+      "w": 834,
+      "x": 11388,
+      "y": 0
+    },
+    "DarkTabletToday.dc.html": {
+      "h": 1194,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Tablet, Today (portrait) (dark)",
+      "w": 834,
+      "x": 9200,
+      "y": 0
+    },
+    "DarkTabletTodayWide.dc.html": {
+      "h": 834,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Tablet, Today (landscape) (dark)",
+      "w": 1194,
+      "x": 10114,
+      "y": 0
+    },
+    "DarkTodaySent.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Today, after sending (dark)",
+      "w": 390,
+      "x": 7540,
+      "y": 0
+    },
+    "DesktopCalendar.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Calendar, agenda and event",
+      "w": 1920,
+      "x": 0,
+      "y": 4608
+    },
+    "DesktopContacts.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Contacts, wide",
+      "w": 1920,
+      "x": 4000,
+      "y": 3408
+    },
+    "DesktopJourney.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Journey, the web",
+      "w": 1920,
+      "x": 0,
+      "y": 3408
+    },
+    "DesktopJourneyStage.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Journey, inside a stage",
+      "w": 1920,
+      "x": 2000,
+      "y": 3408
+    },
+    "DesktopMixes.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mixes, library and editor",
+      "w": 1920,
+      "x": 4000,
+      "y": 2208
+    },
+    "DesktopQuickAdd.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Quick add, command bar",
+      "w": 1920,
+      "x": 2000,
+      "y": 2208
+    },
+    "DesktopToday.dc.html": {
+      "h": 1080,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Today, wide",
+      "w": 1920,
+      "x": 0,
+      "y": 2208
+    },
+    "Journey.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Journey",
+      "w": 390,
+      "x": 940,
+      "y": 964
+    },
+    "Landing.dc.html": {
+      "h": 3272,
+      "page": "mobile",
+      "title": "Landing page, desktop",
+      "w": 1920,
+      "x": 0,
+      "y": 6088
+    },
+    "LandingPhone.dc.html": {
+      "h": 4382,
+      "page": "mobile",
+      "title": "Landing page, phone",
+      "w": 390,
+      "x": 2914,
+      "y": 6088
+    },
+    "LandingTablet.dc.html": {
+      "h": 3800,
+      "page": "mobile",
+      "title": "Landing page, tablet",
+      "w": 834,
+      "x": 2000,
+      "y": 6088
+    },
+    "Main.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Today",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "Mixes.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Mixes",
+      "w": 390,
+      "x": 470,
+      "y": 964
+    },
+    "More.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "More",
+      "w": 390,
+      "x": 1880,
+      "y": 964
+    },
+    "QuickAdd.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Quick add",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "Review.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Review a follow-up",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "TabletJourney.dc.html": {
+      "h": 1194,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Tablet, Journey (portrait)",
+      "w": 834,
+      "x": 4788,
+      "y": 0
+    },
+    "TabletToday.dc.html": {
+      "h": 1194,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Tablet, Today (portrait)",
+      "w": 834,
+      "x": 2600,
+      "y": 0
+    },
+    "TabletTodayWide.dc.html": {
+      "h": 834,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Tablet, Today (landscape)",
+      "w": 1194,
+      "x": 3514,
+      "y": 0
+    },
+    "ThemeTokens.dc.html": {
+      "h": 640,
+      "page": "mobile",
+      "title": "Theme tokens, light and dark",
+      "w": 1920,
+      "x": 4000,
+      "y": 4608
+    },
+    "TodaySent.dc.html": {
+      "h": 844,
+      "is_interactive": true,
+      "page": "mobile",
+      "title": "Today, after sending",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-09-18T18:00:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "shape-ecntzl": {
+      "d": "M512 20.3 C487.7 32.5 447.3 35.4 408.7 35.4 C381.7 35.4 355.6 34 336.4 33.3 C332.9 33.1 329.4 33.1 325.8 33.1 C314.4 33.1 302.9 33.6 291.5 33.6 C286.7 33.6 282 33.5 277.3 33.3 C260.9 32.4 243.7 30.9 226.8 30.9 C215.7 30.9 204.8 31.5 194.1 33.3 C168.2 37.5 142.6 49.4 118.3 59.1 C101.3 66 81.6 72.3 66.6 83.2 C42.2 100.8 30.5 130.1 20.4 157.1 C5.1 198.1 0 239.5 0 281.3 C0 316 3.5 351 7.4 386.3 C16.7 468.5 38.5 549.5 44.4 632.1 C46.7 664.1 47.7 696.3 50 728.2 C52.2 760.4 59.7 792.4 62.9 824.3 C69.7 893.1 72.7 964.9 77.7 1033.2 C80.2 1068.1 81 1102.9 81 1137.8 C81 1173.5 80.2 1209.1 79.5 1244.8 C79.2 1265.6 75.9 1284.1 75.9 1303.3 C75.9 1313.4 76.8 1323.6 79.5 1334.5 C99 1335.7 118.5 1336.2 138 1336.2 C181.3 1336.2 224.5 1333.9 268.1 1332.6 C327.7 1330.9 387.7 1331.7 447.3 1330.8 C471.2 1330.4 495.2 1330 519.2 1330 C536.5 1330 553.9 1330.2 571.2 1330.8 C603.6 1331.8 635.5 1333.5 667.3 1333.5 C687.6 1333.5 707.9 1332.8 728.3 1330.8 C728.3 1219.9 704.8 1110.9 687.6 1001.8 C674.6 918.7 666.4 838.2 665.4 754.1 C665.2 733.2 665.1 712.2 665.1 691.3 C665.1 649.4 665.4 607.5 665.4 565.6 C665.4 519.4 665.4 473.2 665.4 427 C665.4 406.4 666.1 385.9 666.1 365.3 C666.1 355.1 665.9 344.8 665.4 334.5 C664.4 312.3 661.9 290.2 659.9 268 C652.3 185.3 629.2 54.8 541.6 18.5 C523.3 10.9 508.1 1.4 488 0",
+      "h": 1336.2,
+      "kind": "pen",
+      "w": 728.3,
+      "x": 2837.6,
+      "y": 9426.2
+    },
+    "shape-nsmafm": {
+      "d": "M76.4 68.9 C54.9 117.3 31.8 165 19.1 216.7 C15.3 232.4 8 290.7 6.2 307.3 C1.6 348.8 0 389.9 0 431 C0 503 5 574.7 8 647.4 C8.6 660.3 8.8 673.4 8.8 686.5 C8.8 757.3 2.2 830.1 2.2 900.9 C2.2 1019.6 20.8 1132.8 120.8 1222.2 C146.8 1245.5 179.4 1260.7 211.4 1274 C253.9 1291.6 302.5 1296.2 348.1 1298 C391 1299.7 433.9 1301.9 476.7 1301.9 C506 1301.9 535.2 1300.9 564.4 1298 C668.7 1287.7 801.5 1269.6 887.8 1205.6 C923.1 1179.4 937.4 1141.6 956.2 1103.9 C967.1 1082.2 978.7 1063.3 985.8 1039.2 C995 1008.2 998.7 975 998.7 940.6 C998.7 827 958.5 700.7 943.3 597.5 C935.6 545 929.6 491.5 926.7 438.5 C922.4 361.7 916.4 286.7 900.8 211.2 C889.7 157.5 885.7 123.5 836.1 87.4 C783.1 48.7 712.1 32.2 649.4 19 C603.5 9.2 555.7 3.5 508.9 0.5 C503.7 0.1 497.8 0 491.4 0 C454.6 0 400.5 4.8 364.8 7.9 C295.2 13.8 225.8 20.8 155.9 20.8 C155.3 23.2 154.7 25.8 154.1 28.2",
+      "h": 1301.9,
+      "kind": "pen",
+      "w": 998.7,
+      "x": 1903.6,
+      "y": 8991.4
+    },
+    "t-dark-desktop": {
+      "kind": "title1",
+      "maxW": 5920,
+      "page": "mobile",
+      "text": "Dark mode: desktop",
+      "w": 240,
+      "x": 6600,
+      "y": 1908
+    },
+    "t-dark-landing": {
+      "kind": "title1",
+      "maxW": 3304,
+      "page": "mobile",
+      "text": "Dark mode: landing page",
+      "w": 240,
+      "x": 6600,
+      "y": 5788
+    },
+    "t-dark-mobile": {
+      "kind": "title1",
+      "maxW": 2270,
+      "page": "mobile",
+      "text": "Dark mode: mobile",
+      "w": 240,
+      "x": 6600,
+      "y": -300
+    },
+    "t-dark-tablet": {
+      "kind": "title1",
+      "maxW": 3022,
+      "page": "mobile",
+      "text": "Dark mode: tablet",
+      "w": 240,
+      "x": 9200,
+      "y": -300
+    },
+    "t-desktop": {
+      "kind": "title1",
+      "maxW": 5920,
+      "page": "mobile",
+      "text": "Desktop, 1920 wide",
+      "w": 240,
+      "x": 0,
+      "y": 1908
+    },
+    "t-landing": {
+      "kind": "title1",
+      "maxW": 3304,
+      "page": "mobile",
+      "text": "Landing page: desktop, tablet, phone",
+      "w": 240,
+      "x": 0,
+      "y": 5788
+    },
+    "t-mobile": {
+      "kind": "title1",
+      "maxW": 2270,
+      "page": "mobile",
+      "text": "Mobile",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "t-tablet": {
+      "kind": "title1",
+      "maxW": 3022,
+      "page": "mobile",
+      "text": "Tablet: portrait and landscape",
+      "w": 240,
+      "x": 2600,
+      "y": -300
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Review.dc.html",
+    "TodaySent.dc.html",
+    "QuickAdd.dc.html",
+    "Contacts.dc.html",
+    "Contact.dc.html",
+    "Mixes.dc.html",
+    "Journey.dc.html",
+    "Calendar.dc.html",
+    "More.dc.html",
+    "DesktopToday.dc.html",
+    "DesktopQuickAdd.dc.html",
+    "DesktopMixes.dc.html",
+    "DesktopJourney.dc.html",
+    "DesktopJourneyStage.dc.html",
+    "DesktopContacts.dc.html",
+    "DesktopCalendar.dc.html",
+    "BubbleKit.dc.html",
+    "ThemeTokens.dc.html",
+    "Landing.dc.html",
+    "LandingTablet.dc.html",
+    "LandingPhone.dc.html",
+    "TabletToday.dc.html",
+    "TabletTodayWide.dc.html",
+    "TabletJourney.dc.html",
+    "DarkMain.dc.html",
+    "DarkReview.dc.html",
+    "DarkTodaySent.dc.html",
+    "DarkQuickAdd.dc.html",
+    "DarkContacts.dc.html",
+    "DarkContact.dc.html",
+    "DarkMixes.dc.html",
+    "DarkJourney.dc.html",
+    "DarkCalendar.dc.html",
+    "DarkMore.dc.html",
+    "DarkDesktopToday.dc.html",
+    "DarkDesktopQuickAdd.dc.html",
+    "DarkDesktopMixes.dc.html",
+    "DarkDesktopJourney.dc.html",
+    "DarkDesktopJourneyStage.dc.html",
+    "DarkDesktopContacts.dc.html",
+    "DarkDesktopCalendar.dc.html",
+    "DarkBubbleKit.dc.html",
+    "DarkLanding.dc.html",
+    "DarkLandingTablet.dc.html",
+    "DarkLandingPhone.dc.html",
+    "DarkTabletToday.dc.html",
+    "DarkTabletTodayWide.dc.html",
+    "DarkTabletJourney.dc.html"
+  ],
+  "pages": [
+    {
+      "id": "mobile",
+      "name": "All screens"
+    }
+  ],
+  "title": "Jump in the Mix — Reimagined"
+}

@@ -48,6 +48,7 @@ export function ProductDemo({ scenarioId, scenarios, heading = "Try one follow-u
     <div className="quick-demo-header"><h2>{heading}</h2><p>Fictional example. Nothing is sent.</p></div>
     {choices.length > 1 && <details className="quick-demo-examples"><summary>Change example</summary><label className="field"><span>Example</span><select value={example.id} disabled={!ready} onChange={event => setSelected(event.target.value)}>{choices.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label></details>}
     <div className="quick-demo-step" aria-labelledby={`${uid}-step`}>
+      <ol className="demo-rhythm" aria-label="Practice progress">{["Make it sound like you", "Preview", "Record what happened"].map((label, index) => <li key={label} aria-current={Math.min(practice.step, 2) === index ? "step" : undefined}><i aria-hidden="true" /><span>{label}</span></li>)}</ol>
       <p className="quick-demo-progress">{practice.step < 3 ? `Step ${practice.step + 1} of 3` : "Practice complete"}</p>
       <h3 id={`${uid}-step`} ref={stepHeading} tabIndex={-1}>{title}</h3>
       {practice.step === 0 && <><p className="quick-demo-context">{example.context}</p><label className="field"><span>Message to {example.person}</span><textarea ref={field} value={practice.message} onChange={event => update({ message: event.target.value })} maxLength={1500} rows={4} disabled={!ready} /></label><button className="button primary" type="button" disabled={!ready || !practice.message.trim()} onClick={() => go(1)}>Preview message</button></>}

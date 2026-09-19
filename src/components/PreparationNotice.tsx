@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { isPreparationStatus, type PreparationStatus } from "@/lib/preparation-types";
 import { todayUpdateBlocker } from "@/lib/today-update-state";
+import { openSheet } from "@/lib/sheet-layout";
 import styles from "./PreparationNotice.module.css";
 
 export function PreparationNotice({ initial, contactId, canRetry = true, deferWhileEditing = false }: { initial: PreparationStatus; contactId?: string; canRetry?: boolean; deferWhileEditing?: boolean }) {
@@ -101,7 +102,7 @@ export function PreparationNotice({ initial, contactId, canRetry = true, deferWh
   const returnToDraft = () => {
     const draft = document.querySelector<HTMLElement>('[data-follow-up-editing="true"], [data-follow-up-draft="true"]');
     const dialog = draft?.closest("dialog");
-    if (dialog && !dialog.open) dialog.showModal();
+    if (dialog) openSheet(dialog);
     draft?.querySelector<HTMLElement>("textarea, input")?.focus();
   };
 
