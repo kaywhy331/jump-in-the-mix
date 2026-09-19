@@ -31,7 +31,7 @@ export default async function EditContactPage({
   const groups = mergeGroupActivity(rawGroups, groupStates);
 
   return (
-    <div className="page">
+    <div className="page page--form">
       <header className="page-header">
         <div><h1>Edit {contact.displayName}</h1><p>Primary contact details are used in prepared follow-ups.</p></div>
         <div className="page-actions contact-detail-header-actions">

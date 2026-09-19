@@ -26,7 +26,7 @@ export default async function AccountPreferencesPage({ searchParams }: { searchP
   const quietHoursStart = schedulingPreference?.quietHoursStart ?? 1200;
   const quietHoursEnd = schedulingPreference?.quietHoursEnd ?? 480;
 
-  return <div className="page account-preferences-page">
+  return <div className="page page--form account-preferences-page">
     {query.error && <Notice type="error">{query.error}</Notice>}
     {query.personalSaved && <Notice type="success">Personal preferences saved.</Notice>}
     {query.schedulingSaved && <Notice type="success">Scheduling defaults saved. Pending follow-ups are updating in the background.</Notice>}

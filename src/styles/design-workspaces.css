@@ -15,6 +15,16 @@
 .sidebar-utilities svg { width: 20px; height: 20px; }
 .app-main { padding: 32px 36px; }
 .page { max-width: 1440px; }
+/* Pages without a dedicated mockup inherit one of the same bounded layouts:
+   a workspace, a reading/detail page, or a focused form with quiet sections. */
+.page.page--content { max-width: 1120px; }
+.page.page--form { max-width: 1040px; }
+.page.settings-page, .page.more-page { max-width: 960px; }
+.page--form > .card, .page--form > .form-stack > .card { background: var(--page); border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 24px 0; }
+.page--form > .card:first-of-type, .page--form > .form-stack > .card:first-of-type { margin-top: 0; }
+.page--form .card-header h2 { font-size: 1.125rem; }
+.page--content .support-faq-item, .page--content .session-row { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: var(--page); }
+.page--content .support-faq-item > summary { font-weight: 600; }
 .mobile-app-header, .mobile-nav { background: var(--page); border-color: var(--line); }
 .jump-task-card, .jump-list .jump-card.next-follow-up { background: var(--page); border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; }
 .today-page .jump-list .jump-task-card { background: var(--page); border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; transform: none; }
@@ -71,11 +81,13 @@
 .review-mix-name { font-weight: 600; margin: 0 0 6px; }
 .today-review-placeholder { display: none; }
 @media (min-width: 1100px) {
-  .today-page:not(:has(.follow-up-review-sheet[open])) .today-review-placeholder { display: block; position: absolute; top: 0; left: 356px; right: 0; padding: 64px 32px; text-align: center; color: var(--text-2); }
+  .today-page:not(:has(.follow-up-review-sheet[open])) .today-review-placeholder { display: block; position: absolute; top: 0; left: calc(var(--today-queue-width) + 32px); right: 0; padding: 64px 32px; text-align: center; color: var(--text-2); }
   .today-review-placeholder h2 { font-family: var(--font-voice); font-weight: 400; font-size: 1.75rem; }
   .app-main:has(.today-page) { padding: 28px 24px; }
-  .today-page { position: relative; min-height: calc(100dvh - 56px); padding-right: calc(100% - 324px); }
-  .today-page > :not(.confirm-dialog) { min-width: 0; }
+  /* Resolve both columns against the bounded page, never its wider parent.
+     Percentage padding used the parent width and erased the queue on ultrawide screens. */
+  .today-page { --today-queue-width: clamp(324px, 26%, 380px); position: relative; display: grid; grid-template-columns: var(--today-queue-width) minmax(0, 1fr); column-gap: 32px; align-content: start; min-height: calc(100dvh - 56px); padding: 0; }
+  .today-page > :not(.confirm-dialog) { grid-column: 1; min-width: 0; }
   .today-page .today-page-header { gap: 12px; }
   .today-page .page-header h1 { font-size: 1.5rem; }
   .today-page .jump-task-card { grid-template-columns: minmax(0, 1fr); padding: 14px 10px; gap: 6px; }
@@ -88,7 +100,7 @@
   .today-page .jump-primary-action { justify-content: flex-end; }
   .today-page .jump-primary-action .button { min-height: 36px; padding: 6px 10px; font-size: .8125rem; }
   .today-page .jump-task-card:has(.follow-up-review-sheet[open]) { background: var(--violet-wash); border-radius: 12px; }
-  .today-page .follow-up-review-sheet { position: absolute; inset: 0 0 auto 356px; width: auto; height: auto; max-width: none; max-height: none; margin: 0; padding: 0; overflow: visible; background: var(--page); border: 0; z-index: 5; }
+  .today-page .follow-up-review-sheet { position: absolute; inset: 0 0 auto calc(var(--today-queue-width) + 32px); width: auto; height: auto; max-width: none; max-height: none; margin: 0; padding: 0; overflow: visible; background: var(--page); border: 0; z-index: 5; }
   .today-page .follow-up-review-sheet .sheet-panel { position: static; inset: auto; transform: none; width: 100%; max-width: none; height: auto; max-height: none; padding: 0 0 24px 28px; border: 0; border-left: 1px solid var(--line); border-radius: 0; box-shadow: none; overflow: visible; background: var(--page); }
   .today-page .follow-up-review-sheet .sheet-header { position: static; background: var(--page); padding: 12px 0 24px; margin: 0; border: 0; }
   .today-page .follow-up-review-sheet .sheet-body { padding: 0; }
@@ -130,12 +142,16 @@
   .mobile-app-header .logo-mark { width: 26px; height: 26px; }
   .page-header { gap: 12px; }
   .page-header h1 { font-size: 1.75rem; }
+  /* The app frame owns phone gutters; legacy negative header margins clipped
+     headings once the redesigned page stopped adding a second set of padding. */
+  .app-main .page-header, .app-main .contacts-page-header { margin: 0 0 20px; padding: 0; border: 0; background: var(--page); }
   .jump-list .jump-task-card { margin: 0; padding: 16px 4px; }
   .jump-list .jump-card.next-follow-up { padding: 16px 12px; }
 }
 
 /* The map is deliberately scrollable; its accessible stage links remain ordinary links. */
-.journey-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 370px); gap: 24px; align-items: start; }
+.journey-page { grid-template-columns: minmax(0, 1fr); }
+.journey-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 370px); gap: 24px; align-items: start; min-width: 0; }
 .journey-canvas { min-width: 0; }
 .journey-view-links { display: flex; gap: 24px; min-height: 44px; font-size: .875rem; color: var(--violet-text); }
 .journey-map-scroll { overflow-x: auto; max-width: 100%; border-radius: 16px; }

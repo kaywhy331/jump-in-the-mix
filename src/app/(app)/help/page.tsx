@@ -45,7 +45,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
 
   if (env.pilotMode) {
     return (
-      <div className="page help-page">
+      <div className="page page--content help-page">
         <header className="page-header"><div><h1>Help</h1><p>Plain-language answers plus operator steps for this self-hosted installation.</p></div></header>
         <SupportFaq />
         <SelfHostedHelp />
@@ -61,7 +61,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
   });
 
   return (
-    <div className="page help-page">
+    <div className="page page--content help-page">
       <header className="page-header">
         <div><h1>Help</h1><p>Find a quick answer or send a private message to the support team.</p></div>
         <div className="page-actions"><Link className="button" href="/account/tickets">My conversations</Link></div>

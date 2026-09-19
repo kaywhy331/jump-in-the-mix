@@ -17,7 +17,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
   const preference = await prisma.notificationPreference.findUnique({ where: { workspaceId: workspace.id } });
   const emailConfigured = transactionalEmailConfigured();
   const pushConfigured = Boolean(env.vapidPublicKey && env.vapidPrivateKey);
-  return <div className="page">
+  return <div className="page page--form">
     <header className="page-header"><div><h1>Notifications</h1><p>Reminders to you, so the next conversation stays on your radar.</p></div><Link className="button" href="/settings">Back</Link></header>
     {params.testAccepted && <Notice type="success">The email service accepted the test reminder for your verified address. Check your inbox and spam folder; acceptance does not guarantee inbox delivery.</Notice>}{params.saved && <Notice type="success">Notifications saved.</Notice>}
     {params.error && <Notice type="error">{params.error}</Notice>}

@@ -20,5 +20,5 @@ const destinations: Array<{ href: string; title: string; description: string; ic
 
 export default async function SettingsPage() {
   await requireWorkspace();
-  return <div className="page"><header className="page-header"><div><h1>Settings</h1><p>Set up your business, messages, schedule, and account.</p></div></header><div className="settings-hub-grid">{destinations.map((item) => <Link className="settings-hub-card" href={item.href} key={item.href}><span className="settings-hub-icon"><AppIcon name={item.icon}/></span><span><strong>{item.title}</strong><small>{item.description}</small></span><span className="settings-row-chevron mobile-only" aria-hidden="true">›</span></Link>)}</div></div>;
+  return <div className="page settings-page"><header className="page-header"><div><h1>Settings</h1><p>Set up your business, messages, schedule, and account.</p></div></header><div className="settings-hub-grid">{destinations.map((item) => <Link className="settings-hub-card" href={item.href} key={item.href}><span className="settings-hub-icon"><AppIcon name={item.icon}/></span><span><strong>{item.title}</strong><small>{item.description}</small></span><span className="settings-row-chevron mobile-only" aria-hidden="true">›</span></Link>)}</div></div>;
 }

@@ -43,5 +43,5 @@ export function FormGuard({ forceDirty, guardOtherForms = false }: { forceDirty?
     document.addEventListener("click", click, true); window.addEventListener("beforeunload", unload); navigation?.addEventListener("navigate", navigate);
     return () => { observer.disconnect(); document.removeEventListener("submit", otherSubmit, true); document.removeEventListener("input", associated); document.removeEventListener("change", associated); form.removeEventListener("reset", reset); document.removeEventListener("click", click, true); window.removeEventListener("beforeunload", unload); navigation?.removeEventListener("navigate", navigate); };
   }, [guardOtherForms]);
-  return <span ref={marker} className="muted-copy" role="status">{pending ? "Saving…" : (forceDirty ?? changed) ? "Unsaved changes. Save before leaving this page." : ""}</span>;
+  return <span ref={marker} className="form-guard-status muted-copy" role="status">{pending ? "Saving…" : (forceDirty ?? changed) ? "Unsaved changes. Save before leaving this page." : ""}</span>;
 }

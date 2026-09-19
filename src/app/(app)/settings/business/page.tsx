@@ -31,7 +31,7 @@ export default async function BusinessSettingsPage({ searchParams }: { searchPar
   const [display, sending] = await Promise.all([displayPreferencesForUser(user.id), prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id } })]);
   const services = records(profile?.products, [profile?.product1, profile?.product2, profile?.product3, profile?.product4, profile?.product5]);
 
-  return <div className="page settings-business-page">
+  return <div className="page page--form settings-business-page">
     {params.saved && <Notice type="success">Business details saved.</Notice>}
     {params.error && <Notice type="error">{params.error}</Notice>}
     <header className="page-header"><div><h1>My business</h1><p>These details make every prepared message sound complete and personal.</p></div><Link className="button" href="/settings">Settings</Link></header>

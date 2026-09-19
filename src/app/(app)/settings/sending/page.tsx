@@ -16,7 +16,7 @@ export default async function SendingSettingsPage({ searchParams }: { searchPara
   const automation = await prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id } });
   const automaticEmailAvailable = automaticEmailConfigured();
   const automaticSmsAvailable = automaticSmsConfigured();
-  return <div className="page sending-settings-page">
+  return <div className="page page--form sending-settings-page">
     <header className="page-header"><div><h1>Sending to customers</h1><p>Choose how your prepared messages reach people.</p></div><Link className="button" href="/settings">Settings</Link></header>
     {params.automationSaved && <Notice type="success">Sending preferences saved.</Notice>}
     {params.error && <Notice type="error">{params.error}</Notice>}

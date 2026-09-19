@@ -44,9 +44,9 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
     : env.requireEmailVerification ? "Verification required" : "Verification not enforced";
   const hasPassword = Boolean(user.passwordHash);
 
-  if (impersonation) return <div className="page account-page"><header className="page-header"><div><h1>My Account</h1><p>Your identity is visible, while personal controls remain private.</p></div></header><Notice type="info">This view-only support session cannot change personal account settings.</Notice><section className="card"><dl className="account-definition-list"><div><dt>Name</dt><dd>{user.name}</dd></div><div><dt>Email</dt><dd>{user.email}<p><Link href="/help#contact-support">Need to change this email?</Link> Contact support before losing access. Identity verification is required; a request alone does not change your sign-in address.</p></dd></div><div><dt>Email status</dt><dd>{emailStatus}</dd></div></dl></section></div>;
+  if (impersonation) return <div className="page page--content account-page"><header className="page-header"><div><h1>My Account</h1><p>Your identity is visible, while personal controls remain private.</p></div></header><Notice type="info">This view-only support session cannot change personal account settings.</Notice><section className="card"><dl className="account-definition-list"><div><dt>Name</dt><dd>{user.name}</dd></div><div><dt>Email</dt><dd>{user.email}<p><Link href="/help#contact-support">Need to change this email?</Link> Contact support before losing access. Identity verification is required; a request alone does not change your sign-in address.</p></dd></div><div><dt>Email status</dt><dd>{emailStatus}</dd></div></dl></section></div>;
 
-  return <div className="page account-page">
+  return <div className="page page--content account-page">
     <header className="page-header"><div><h1>My Account</h1><p>Your profile, security, and personal data.</p></div></header>
     <nav className="account-section-nav" aria-label="Account sections">{[["overview", "Profile"], ["security", "Security"], ["privacy", "Data & privacy"]].map(([key, label]) => <Link aria-current={section === key ? "page" : undefined} className={section === key ? "active" : ""} href={`/account?section=${key}`} key={key}>{label}</Link>)}</nav>
     {params.error && <Notice type="error">{params.error}</Notice>}

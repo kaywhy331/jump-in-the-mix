@@ -22,6 +22,9 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 .page-header h1 { font-size: clamp(1.65rem, 2.3vw, 2rem); letter-spacing: -.04em; }
 .page-header p { color: var(--text-2); font-size: .9375rem; }
 .section-label h2 { font-weight: 600; }
+.form-guard-status, .form-grid > .notice { grid-column: 1 / -1; }
+/* Keep the live region mounted without letting an empty status take a form cell. */
+.form-guard-status:empty { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .status-pill, .channel-pill, .due-pill { font-weight: 500; }
 .notice.info { background: var(--violet-wash); color: var(--violet-ink); border-color: var(--border); }
 .notice.success, .status-pill.done { background: var(--status-success-bg); color: var(--status-success-ink); border-color: var(--success-border); }
@@ -52,14 +55,19 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 .appearance-compact label { font-size: .8125rem; font-weight: 500; }
 .appearance-compact select { font-size: .8125rem; }
 .more-section-label { display: none; }
-.more-page .settings-hub-grid { max-width: 760px; grid-template-columns: 1fr; gap: 0; }
-.more-page .settings-hub-card { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; padding: 18px 0; background: var(--page); }
-.more-page .settings-hub-card:hover { background: var(--surface); transform: none; }
-.more-page .settings-hub-card small { display: block; }
+.settings-hub-grid { grid-template-columns: 1fr; gap: 0; }
+.settings-hub-card { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; padding: 18px 0; background: var(--page); }
+.settings-hub-card:hover { background: var(--surface); transform: none; box-shadow: none; }
+.settings-hub-card small { display: block; }
+.settings-hub-icon { background: transparent; color: var(--text-2); }
+.more-page .settings-hub-grid { max-width: none; grid-template-columns: 1fr; gap: 0; }
+.more-page .settings-hub-card { padding: 18px 0; }
 .more-page > .appearance-control { max-width: 420px; }
 .admin-shell, .admin-main { background: var(--page); }
 .admin-sidebar { background: var(--surface); }
 .admin-card, .admin-panel, .admin-table-wrap { border-color: var(--line); box-shadow: none; }
+.staff-shell .admin-library-editor-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); }
+.staff-shell .admin-library-editor-grid .admin-beat-timing { grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); }
 .admin-mfa-qr { background: white; }
 @media (prefers-contrast: more) { :root { --line: var(--text-3); --border: var(--text-2); } }
 @media (max-width: 600px) {

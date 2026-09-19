@@ -51,7 +51,7 @@ export default async function SupportTicketPage({
   const replyAllowed = ticket.status !== "CLOSED" && !impersonation;
 
   return (
-    <div className="page support-ticket-page">
+    <div className="page page--content support-ticket-page">
       <header className="page-header">
         <div>
           <span className="support-ticket-reference">{ticket.reference}</span>
