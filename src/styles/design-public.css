@@ -4,9 +4,12 @@
 .public-page .public-header { padding-block: 24px; }
 .public-page .logo { font-size: 1rem; }
 .public-page .logo-mark { width: 32px; height: 32px; }
-.public-page .hero { grid-template-columns: 1.1fr .9fr; gap: clamp(40px, 6vw, 96px); padding-block: 60px 100px; }
+.public-page .hero { grid-template-columns: 1.1fr .9fr; grid-template-areas: "copy demo" "situations demo"; gap: 24px clamp(40px, 6vw, 96px); padding-block: 60px 100px; align-items: start; }
+.public-page .hero-copy { grid-area: copy; }
+.public-page .hero > .product-demo { grid-area: demo; }
+.public-page .hero > .mixes-for { grid-area: situations; margin-top: 0; }
 .public-page .hero h1 { font-weight: 700; font-size: clamp(2.75rem, 4.2vw, 4.75rem); line-height: 1.02; letter-spacing: -.06em; margin-block: 12px 32px; }
-.public-page .hero h1 em { font-style: normal; color: var(--text-3); }
+.public-page .hero h1 em { display: inline; font-style: normal; color: var(--text-3); }
 .public-page .hero-copy > p { font-size: 1.0625rem; line-height: 1.65; }
 .public-page .hero-note { color: var(--text-3); font-size: .8125rem !important; }
 .public-page .product-demo { --bubble-fill: var(--raised); background: var(--bubble-fill); border: 0; box-shadow: var(--shadow); border-radius: 24px; padding: 28px; }
@@ -57,7 +60,7 @@
 .homepage #waitlist input::placeholder { color: #6b6a82; }
 .homepage #waitlist .notice { color: var(--text); }
 @media (max-width: 1000px) {
-  .public-page .hero { grid-template-columns: 1fr; max-width: 740px; gap: 48px; }
+  .public-page .hero { grid-template-columns: 1fr; grid-template-areas: "copy" "demo" "situations"; max-width: 740px; gap: 48px; }
   .public-page .hero-copy { max-width: none; }
   .public-page .product-demo { max-width: 620px; justify-self: center; }
   .public-page .public-definition { grid-template-columns: 1fr; gap: 24px; }
@@ -78,7 +81,7 @@
   .public-page .public-definition { display: block; padding: 64px 24px; }
   .public-page .public-definition h2 { margin-bottom: 28px; }
   .public-page .public-definition p + p { margin-top: 18px; }
-  .public-page .profession-grid { grid-auto-flow: row; grid-template-columns: 1fr; grid-template-rows: none; gap: 0; }
+  .public-page .profession-grid { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: none; gap: 0 20px; }
   .public-page .profession-grid li, .public-page .profession-grid li > a { font-size: .875rem; }
   .homepage #waitlist { grid-template-columns: 1fr; gap: 28px; padding: 64px 24px; }
   .public-page .public-footer { padding: 32px 24px; }

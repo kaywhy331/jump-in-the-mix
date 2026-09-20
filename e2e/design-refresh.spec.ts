@@ -85,7 +85,7 @@ test("activation reviews contain focus, restore it, and keep confirmation reacha
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/mixes/new?custom=1");
     await page.getByLabel("Mix name", { exact: true }).fill("Review only");
-    await page.getByLabel("Cue · when should it start?").selectOption("MANUAL_START");
+    await page.getByLabel("When should it start?").selectOption("MANUAL_START");
     await page.getByLabel("After saving").selectOption("ACTIVE");
     await page.getByLabel("Everyone").check();
     await page.getByLabel("Message", { exact: true }).fill("A synthetic review message.");
@@ -93,7 +93,9 @@ test("activation reviews contain focus, restore it, and keep confirmation reacha
     await page.goto(`/templates/${templateId}-0/use`);
     await expect(page.getByLabel("After setup")).toHaveValue("DRAFT");
     await page.getByLabel("After setup").selectOption("ACTIVE");
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByLabel("Everyone").check();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await checkModal(page, page.getByRole("button", { name: "Review and start" }), "Start the mix");
   }
 });

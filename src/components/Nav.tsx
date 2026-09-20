@@ -14,6 +14,22 @@ const links = [
   { href: "/more", label: "More", icon: "more", kind: "primary" }
 ] as const;
 
+const accountLinks = [
+  { href: "/settings", label: "Settings", icon: "settings" },
+  { href: "/help", label: "Help", icon: "help" },
+  { href: "/account", label: "My account", icon: "profile" }
+] as const;
+
+export function AccountNav() {
+  const pathname = usePathname();
+  return <nav className="sidebar-utilities" aria-label="Account and help">
+    {accountLinks.map(({ href, label, icon }) => <Link key={href} href={href} aria-label={label}
+      aria-current={pathname === href || pathname.startsWith(`${href}/`) ? "page" : undefined}>
+      <AppIcon name={icon} />{label}
+    </Link>)}
+  </nav>;
+}
+
 export function Nav() {
   const pathname = usePathname();
   return (

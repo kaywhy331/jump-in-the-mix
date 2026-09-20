@@ -49,7 +49,7 @@ export async function MixWorkspace({ mixId, query = {}, embedded = false }: { mi
   const groups = mergeGroupActivity(rawGroups, groupStates);
   const groupIds = mix.assignments.flatMap((assignment) => assignment.groupId ? [assignment.groupId] : []);
   const assignAllContacts = mix.assignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:"));
-  const library = await prisma.mix.findMany({ where: { workspaceId: workspace.id, status: { not: "ARCHIVED" } }, select: { id: true, name: true, status: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 100 });
+  const library = await prisma.mix.findMany({ where: { workspaceId: workspace.id, status: { not: "ARCHIVED" } }, select: { id: true, name: true, status: true, steps: { where: { isActive: true }, select: { dayOffset: true, anchor: true }, orderBy: { sortOrder: "asc" } } }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 100 });
 
   const [members, memberCount, stages] = await Promise.all([
     prisma.contact.findMany({ where: { AND: [{ workspaceId: workspace.id, archivedAt: null }, journeyMixMembers(workspace.id, mix.id)] }, orderBy: [{ displayName: "asc" }, { id: "asc" }], take: 20, select: { id: true, displayName: true, jumps: { where: { workspaceId: workspace.id, mixId: mix.id, status: "PENDING" }, orderBy: { scheduledAt: "asc" }, take: 1, select: { reason: true } } } }),

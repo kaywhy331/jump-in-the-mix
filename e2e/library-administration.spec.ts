@@ -91,13 +91,17 @@ test("staff drafts, previews, publishes and rolls back while customers retain re
     await expect(page).toHaveURL(/saved=2(?:&|$)/);
     expect((await prisma.sharedMix.findUniqueOrThrow({ where: { id } })).title).toBe("Library browser review");
     await release(page, "Publish version 2");
+    await customerPage.getByRole("button", { name: "Continue", exact: true }).click();
     await customerPage.getByRole("checkbox", { name: /Everyone/ }).check();
-    await customerPage.getByRole("button", { name: "Create my remix" }).click();
+    await customerPage.getByRole("button", { name: "Continue", exact: true }).click();
+    await customerPage.getByRole("button", { name: "Save draft" }).click();
     await expect(customerPage.locator(".notice.error")).toContainText("changed since your preview");
     expect(await prisma.mix.count({ where: { workspaceId: workspace.id } })).toBe(0);
     await expect(customerPage.locator('input[name="expectedVersion"]')).toHaveValue("2");
+    await customerPage.getByRole("button", { name: "Continue", exact: true }).click();
     await customerPage.getByRole("checkbox", { name: /Everyone/ }).check();
-    await customerPage.getByRole("button", { name: "Create my remix" }).click();
+    await customerPage.getByRole("button", { name: "Continue", exact: true }).click();
+    await customerPage.getByRole("button", { name: "Save draft" }).click();
     await expect(customerPage).toHaveURL(/\/mixes\/[a-z0-9-]+\/edit\?imported=1$/);
     const imported = await prisma.mix.findFirstOrThrow({ where: { workspaceId: workspace.id }, include: { steps: { include: { stepVersion: true } } } });
     const history = page.locator("#library-history");
@@ -109,7 +113,7 @@ test("staff drafts, previews, publishes and rolls back while customers retain re
     await release(page, "Hide from customer library");
     await customerPage.goto(`/templates/${id}/use`);
     await expect(customerPage.getByRole("heading", { name: "Let’s get you back on track." })).toBeVisible();
-    await expect(customerPage.getByRole("button", { name: "Create my remix" })).toHaveCount(0);
+    await expect(customerPage.getByRole("button", { name: "Save draft" })).toHaveCount(0);
     expect(await prisma.mix.count({ where: { workspaceId: workspace.id } })).toBe(1);
   } finally { await customerContext.close(); }
 });

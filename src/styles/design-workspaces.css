@@ -12,6 +12,9 @@
 .sidebar-footer { border: 0; padding: 0 8px; gap: 12px; }
 .sidebar-utilities { display: grid; gap: 4px; }
 .sidebar-utilities a { display: flex; gap: 12px; align-items: center; min-height: 44px; font-size: .875rem; color: var(--text-2); }
+.sidebar-utilities a { padding: 8px; border-radius: var(--radius-control); }
+.sidebar-utilities a[aria-current="page"] { color: var(--text); background: var(--raised); }
+.sidebar-utilities a[aria-current="page"] svg { color: var(--violet-mark); }
 .sidebar-utilities svg { width: 20px; height: 20px; }
 .app-main { padding: 32px 36px; }
 .page { max-width: 1440px; }
@@ -309,8 +312,13 @@
 .today-queue-group > summary::after { content: "›"; margin-left: 8px; }
 .today-queue-group[open] > summary::after { transform: rotate(90deg); }
 .today-queue-group > summary > span { margin-left: auto; color: var(--text-3); }
-.review-beat-rhythm { margin: 16px 0 24px; }
-.review-beat-rhythm a { min-height: 44px; }
+.review-beat-rhythm { display: flex; list-style: none; padding: 4px; margin: 16px 0 24px; overflow-x: auto; }
+.review-beat-rhythm li { position: relative; flex: 1; min-width: 70px; }
+.review-beat-rhythm li:not(:last-child)::after { content: ""; position: absolute; top: 8px; left: 8px; right: -8px; height: 1px; background: var(--track); }
+.review-beat-rhythm a { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-height: 44px; padding-top: 3px; font-size: .75rem; color: var(--text-2); }
+.review-beat-rhythm i { display: block; width: 10px; height: 10px; border: 2px solid var(--border); border-radius: 50%; background: var(--page); }
+.review-beat-rhythm li[aria-current="step"] i { border-color: var(--violet-mark); background: var(--violet-mark); box-shadow: 0 0 0 4px var(--violet-wash); }
+.review-beat-rhythm li[aria-current="step"] a { color: var(--violet-text); font-weight: 600; }
 .review-outcome-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; padding-top: 16px; }
 .review-outcome-actions .button { background: transparent; border-color: transparent; color: var(--text-2); }
 .review-send-hint { color: var(--text-3); font-size: .75rem; margin: 16px 0 8px; }
@@ -468,7 +476,7 @@
   .mix-editor-form .mix-editor-jump { gap: 8px; padding-block: 12px 20px; }
   .mix-editor-form .mix-editor-jump .form-grid { gap: 12px; }
   .mix-editor-form .mix-editor-jump .field:not(.full) { font-size: .8125rem; }
-  .mix-editor-form .mix-editor-jump textarea { min-height: 120px; height: 140px; font-size: 1.125rem; }
+  .mix-editor-form .mix-editor-jump textarea { min-height: 120px; font-size: 1.125rem; }
 }
 .calendar-page .calendar-day { gap: 4px; padding-block: 16px; }
 .calendar-page .calendar-follow-up { padding: 10px; gap: 8px; grid-template-columns: 70px minmax(0, 1fr); }
@@ -490,3 +498,14 @@
 .follow-up-channel-choice .when-chip svg { width: 18px; height: 18px; flex: 0 0 18px; }
 .icon-button { border: 1px solid var(--border); background: var(--page); color: var(--text-2); cursor: pointer; }
 .icon-button:disabled { color: var(--quiet); cursor: default; }
+
+/* Keep the phone Journey stage strip and roster ahead of secondary settings. */
+.journey-mobile-options { display: none; }
+@media (max-width: 600px) {
+  .journey-page .page-header { display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; }
+  .journey-page .page-header .journey-header-actions, .journey-view-links { display: none; }
+  .journey-mobile-options { display: block; }
+  .journey-mobile-options .sheet-trigger > .button { width: 44px; padding: 10px; }
+  .journey-mobile-options .sheet-trigger svg { width: 20px; height: 20px; }
+  .journey-workspace { gap: 16px; }
+}

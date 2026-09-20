@@ -84,7 +84,7 @@ test("Today counts the whole view and reaches every open follow-up beyond 300", 
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[270]}`);
   await pager(page).getByRole("link", { name: "First follow-ups", exact: true }).click();
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[0]}`);
-  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Today", exact: true, level: 1 })).toBeFocused();
 });
 
 test("completing earlier work and removing the anchor never skips untouched follow-ups", async ({ page }) => {
@@ -140,7 +140,7 @@ test("filters reset the page and snooze/stop actions preserve the current filter
   await expect(page.locator(".jump-card")).toHaveCount(2); expect(await ids(page)).toEqual(emailIds);
   // Let the native dialog close event and its trigger restoration finish.
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Today", exact: true, level: 1 })).toBeFocused();
 });
 
 test("pagination stays reachable across themes, phone and sidebar breakpoints", async ({ page }) => {
@@ -223,7 +223,6 @@ test.describe("live outcome updates", () => {
       await expect(pager(page)).toContainText("Showing 30 of 323 follow-ups");
       await updates(page).getByRole("button", { name: "Return to message edits", exact: true }).click();
       await expect(draft).toHaveValue("A draft created after the refresh started."); await expect(draft).toBeFocused();
-      await dialog.getByText("Copy or reset", { exact: true }).click();
       await dialog.getByRole("button", { name: "Discard edits", exact: true }).click();
       await expect(pager(page)).toContainText("Showing 30 of 322 follow-ups");
       expect(await ids(page)).toEqual(smsIds.slice(1, 31));
@@ -423,7 +422,6 @@ test("native browser zoom preserves Today drafts, filters and history at 200 and
             await audit(page);
             await guard.getByRole("button", { name: "Keep editing", exact: true }).click();
             await expect(draft).toBeFocused(); await expect(draft).toHaveValue(`Unsent draft at ${zoom * 100}% zoom`);
-            await message.getByText("Copy or reset", { exact: true }).click();
             await message.getByRole("button", { name: "Discard edits", exact: true }).click();
             await expect(draft).toHaveValue(original); await page.keyboard.press("Escape");
             await expect(page.locator('[data-follow-up-draft="true"]')).toHaveCount(0);
@@ -437,7 +435,7 @@ test("native browser zoom preserves Today drafts, filters and history at 200 and
             await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
           }
           await next(page, history ? completedIds[30] : smsIds[30]);
-          await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeFocused();
+          await expect(page.getByRole("heading", { name: "Today", exact: true, level: 1 })).toBeFocused();
           for (const link of await pager(page).getByRole("link").all()) {
             await link.scrollIntoViewIfNeeded();
             const target = await link.evaluate(element => {

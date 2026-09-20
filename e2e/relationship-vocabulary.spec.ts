@@ -18,14 +18,16 @@ test("relationship mixes can be previewed, remixed, fine-tuned, and started with
     await signIn(page);
     await page.goto("/templates?framework=Relationships");
     for (const mix of RELATIONSHIP_MIXES) await expect(page.getByRole("heading", { name: mix.title, exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Preview the rhythm: The First Note", exact: true }).click();
+    await page.getByRole("button", { name: "Preview The First Note", exact: true }).click();
     const preview = page.getByRole("dialog", { name: "The First Note", exact: true });
     await expect(preview).toContainText("Beat 1");
     await expect(preview).toContainText("Cue · starts");
     await preview.getByRole("link", { name: "Remix it", exact: true }).click();
     await page.getByLabel("Mix name", { exact: true }).fill(name);
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByLabel("Everyone", { exact: false }).check();
-    await page.getByRole("button", { name: "Create my remix", exact: true }).click();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
     await page.waitForURL(/\/mixes\/[^/]+\/edit\?imported=1/);
     mixId = page.url().match(/\/mixes\/([^/]+)/)![1];
     const editor = page.locator(".mix-editor-form");

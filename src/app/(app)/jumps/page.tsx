@@ -1,3 +1,4 @@
+import { sameContactSequence } from "@/lib/contact-profile-view";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -214,6 +215,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const phone = followUp.accessInvite?.recipientPhone ?? followUp.contact.phones.find((item) => item.isPrimary)?.phone ?? followUp.contact.phones[0]?.phone;
     const planChannel = followUp.stepVersion.stepTemplate.channel;
     const isPending = pendingStatuses.includes(followUp.status);
+    // The small preview never connects separate runs of a reusable Mix. Keep the
+    // selected Beat visible even when it falls beyond the contact's preview limit.
+    const reviewBeats = [followUp, ...followUp.contact.jumps.filter(beat => beat.id !== followUp.id && sameContactSequence(followUp, beat))]
+      .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.id.localeCompare(b.id));
     // A pending follow-up edits its plan text as a draft; the card shows the draft rendered over the
     // contact and business details, so an edit made yesterday still reads with today's details.
     const planTemplate = isPending ? templateTextOf(followUp.templateSnapshot) : null;
@@ -265,6 +270,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const needsEmail = followUpChannel === "EMAIL";
     const missingMethod = needsEmail ? !email : !phone;
     const directCall = followUpChannel === "PHONE_CALL" || followUpChannel === "VOICEMAIL";
+    const outcomeActions = <div className="review-outcome-actions"><JumpOutcomeButton jumpId={followUp.id} outcome="COMPLETED" className="button small" ariaLabel={`${directCall ? "Mark done" : "Mark sent"} for ${followUp.contact.displayName}`}><AppIcon name="check" />{directCall ? "Mark done" : "Mark sent"}</JumpOutcomeButton><Sheet trigger={<button className="button small" type="button">Snooze</button>} title="Snooze follow-up"><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input name="jumpId" type="hidden" value={followUp.id} /><input name="preset" type="hidden" value={preset} /><input name="returnTo" type="hidden" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div></Sheet><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button small">Skip beat</JumpOutcomeButton></div>;
     const editableAction = <EditableFollowUpAction
       key={family}
       jumpId={followUp.id}
@@ -283,9 +289,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       contextVersions={contextVersions}
       automaticDelivery={automaticForPlan && !alternative}
       channelChoice={choice}
+      outcomeActions={outcomeActions}
       changedDetails={changedDetails}
     />;
-    const prepare = <>{editableAction}<div className="review-outcome-actions"><JumpOutcomeButton jumpId={followUp.id} outcome="COMPLETED" className="button small" ariaLabel={`${directCall ? "Mark done" : "Mark sent"} for ${followUp.contact.displayName}`}><AppIcon name="check" />{directCall ? "Mark done" : "Mark sent"}</JumpOutcomeButton><Sheet trigger={<button className="button small" type="button">Snooze</button>} title="Snooze follow-up"><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input name="jumpId" type="hidden" value={followUp.id} /><input name="preset" type="hidden" value={preset} /><input name="returnTo" type="hidden" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div></Sheet><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button small">Skip beat</JumpOutcomeButton></div></>;
+
 
     const nextScheduled = followUp.contact.jumps.find(beat => beat.id !== followUp.id);
     return (
@@ -299,7 +306,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           </div>
 
           <div className="jump-primary-action">
-            {isPending && <Sheet className="follow-up-review-sheet" desktopInitiallyOpen={isNext} trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review ${directCall ? "call" : "message"} for ${followUp.contact.displayName}`}><AppIcon name={directCall ? "phone" : followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={followUp.contact.displayName} accessibleTitle={`Follow up with ${followUp.contact.displayName}`} description={followUp.contact.journey?.stage.name ?? "Follow-up"}><div className="review-workspace"><div className="review-composer"><p className="review-mix-name">{followUp.mix.name}</p><small className="muted-copy">{dueLabel}</small><ol className="beat-rhythm review-beat-rhythm" aria-label="Scheduled beats">{followUp.contact.jumps.map(beat => <li key={beat.id} aria-current={beat.id === followUp.id ? "step" : undefined}><TodayLink href={`/jumps?jump=${encodeURIComponent(beat.id)}&range=all`} title={beat.reason}><i aria-hidden="true" /><time>{formatDate(beat.scheduledAt, displayPreferences, { year: undefined })}</time></TodayLink></li>)}</ol>{prepare}</div><aside className="review-person-context" aria-label={`About ${followUp.contact.displayName}`}><h3>Reach {followUp.contact.displayName}</h3>{phone && <p>{phone}</p>}{email && <p>{email}</p>}{followUp.contact.publicNotes && <><h3>Contact notes</h3><p className="conversation-note">{followUp.contact.publicNotes}</p></>}<Link className="inline-action" href={`/contacts/${followUp.contactId}`}>Open contact →</Link></aside></div></Sheet>}
+            {isPending && <Sheet className="follow-up-review-sheet" desktopInitiallyOpen={isNext} trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review ${directCall ? "call" : "message"} for ${followUp.contact.displayName}`}><AppIcon name={directCall ? "phone" : followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={followUp.contact.displayName} accessibleTitle={`Follow up with ${followUp.contact.displayName}`} description={followUp.contact.journey?.stage.name ?? "Follow-up"} leading={<span className="review-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>}><div className="review-workspace"><div className="review-composer"><div className="review-mix-heading"><p className="review-mix-name">{followUp.mix.name}</p><small className={followUp.scheduledAt < startToday ? "review-due-late" : "muted-copy"}>{dueLabel}</small></div><ol className="review-beat-rhythm" aria-label="Pending beats in this Mix occurrence">{reviewBeats.map(beat => <li key={beat.id} aria-current={beat.id === followUp.id ? "step" : undefined}><TodayLink href={`/jumps?jump=${encodeURIComponent(beat.id)}&range=all`} title={beat.reason}><i aria-hidden="true" /><time dateTime={beat.scheduledAt.toISOString()}>{formatDate(beat.scheduledAt, displayPreferences, { year: undefined })}</time></TodayLink></li>)}</ol>{editableAction}</div><aside className="review-person-context" aria-label={`About ${followUp.contact.displayName}`}><h3>Reach {followUp.contact.displayName}</h3>{phone && <p>{phone}</p>}{email && <p>{email}</p>}{followUp.contact.publicNotes && <><h3>Contact notes</h3><p className="conversation-note">{followUp.contact.publicNotes}</p></>}<Link className="inline-action" href={`/contacts/${followUp.contactId}`}>Open contact →</Link></aside></div></Sheet>}
             <div className="jump-completion-actions">
               {!isPending && <JumpOutcomeButton jumpId={followUp.id} outcome="REOPENED" className="button small jump-done-action" ariaLabel="Undo"><span>Undo</span></JumpOutcomeButton>}
               {isPending && <Sheet

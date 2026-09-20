@@ -83,7 +83,7 @@ test("three mixed-channel invitations become Today reminders with single-use lin
     const card = page.locator(".jump-task-card:visible").filter({ hasText: name }).first();
     const review = card.getByRole("button", { name: `Review message for ${name}` });
     if (await review.count()) await review.click();
-    await expect(card.getByLabel("Fine-tune before sending")).toHaveValue(/\/register\?invite=[A-Za-z0-9_-]{43}/);
+    await expect(card.getByLabel("Your message")).toHaveValue(/\/register\?invite=[A-Za-z0-9_-]{43}/);
     await expect(card.getByRole("link", { name: new RegExp(`Open .* for ${name}`) })).toHaveAttribute("href", new RegExp(`^${protocol}${name === "Email Guest" ? email : ""}`));
     const dialog = page.getByRole("dialog");
     if (await dialog.count()) {

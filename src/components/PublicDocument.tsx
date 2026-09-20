@@ -1,4 +1,5 @@
 import { PublicContents } from "@/components/PublicContents";
+import { AppearanceControl } from "@/components/Appearance";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -19,6 +20,6 @@ export function PublicDocument({ title, children }: { title: string; children: (
       <PublicContents />
       {children(details)}
     </main>
-    <footer className="public-footer"><p>Jump in the Mix is operated by {details.operatorName}.</p><PublicTrustLinks /></footer>
+    <footer className="public-footer"><p>Jump in the Mix is operated by {details.operatorName}.</p><AppearanceControl compact /><PublicTrustLinks /></footer>
   </div>;
 }

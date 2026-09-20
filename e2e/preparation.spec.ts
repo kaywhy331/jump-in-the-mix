@@ -154,7 +154,8 @@ test("Today refreshes untouched messages and waits for drafts before reordering"
     await prisma.stepVersion.update({ where: { id: versionId }, data: { body: "Original prepared text" } });
     await complete(); await queued();
     await page.goto("/jumps");
-    const message = page.getByRole("textbox", { name: "Fine-tune before sending", exact: true });
+    await page.getByRole("button", { name: "Review message for Preparation sample" }).click();
+    const message = page.getByRole("textbox", { name: "Your message", exact: true });
     await expect(message).toHaveValue("Original prepared text");
     if (edited) {
       await message.fill("My personal unsent draft");
@@ -174,10 +175,11 @@ test("Today refreshes untouched messages and waits for drafts before reordering"
       await notice.getByRole("button", { name: "Return to draft" }).click(); await expect(message).toBeFocused();
       const result = await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
       expect(result.violations.map(item => item.id)).toEqual([]);
+      await page.getByText("Copy or reset", { exact: true }).click();
       await page.getByRole("button", { name: "Discard edits" }).click();
       await expect(notice).toContainText("Follow-up list updated");
       await expect(page.locator(".next-follow-up")).toContainText("Earlier sample");
-      await expect(page.getByRole("textbox", { name: "Fine-tune before sending", exact: true })).toHaveValue("Updated prepared text");
+      await expect(page.getByRole("textbox", { name: "Your message", exact: true })).toHaveValue("Updated prepared text");
     }
   }
 });

@@ -1,14 +1,18 @@
 import type { SVGProps } from "react";
 
-export type AppIconName = "journey" | "help" | "today" | "contacts" | "add" | "mixes" | "more" | "close" | "calendar" | "bolt" | "import" | "edit" | "external" | "people" | "security" | "privacy" | "archive" | "heart" | "arrowUp" | "arrowDown" | "arrowLeft" | "chevronUp" | "chevronDown" | "trash" | "check" | "refresh" | "email" | "phone" | "message" | "alert" | "circle" | "settings" | "clock" | "search" | "filter";
+export type AppIconName = "bell" | "profile" | "link" | "journey" | "help" | "today" | "contacts" | "plus" | "add" | "mixes" | "more" | "close" | "calendar" | "bolt" | "import" | "edit" | "external" | "people" | "security" | "privacy" | "archive" | "heart" | "arrowUp" | "arrowDown" | "arrowLeft" | "chevronUp" | "chevronDown" | "trash" | "check" | "refresh" | "email" | "phone" | "message" | "alert" | "circle" | "settings" | "clock" | "search" | "filter";
 
 const paths: Record<AppIconName | "journey" | "help", React.ReactNode> = {
+  bell: <><path d="M5 17h14l-2-3V9a5 5 0 0 0-10 0v5l-2 3Z"/><path d="M10 20h4"/></>,
+  profile: <><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></>,
+  link: <><path d="m10 13 4-4M8 16l-1 1a4 4 0 0 1-6-6l4-4a4 4 0 0 1 6 0M16 8l1-1a4 4 0 0 1 6 6l-4 4a4 4 0 0 1-6 0" transform="translate(1 0) scale(.9)"/></>,
   search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,
   filter: <><path d="M3 7h8m4 0h6M3 17h3m4 0h11" /><circle cx="13" cy="7" r="2" /><circle cx="8" cy="17" r="2" /></>,
   journey: <><circle cx="5" cy="18" r="2.5"/><circle cx="19" cy="5" r="2.5"/><path d="M7.5 18H15a3.25 3.25 0 0 0 0-6.5H9A3.25 3.25 0 0 1 9 5h7.5"/></>,
   help: <><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 4 2c-1 .5-1.5 1-1.5 2M12 17h.01"/></>,
   today: <><path d="M5 12.5 9.2 17 19 7"/><path d="M7 3.8h10a3 3 0 0 1 3 3v10.4a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V6.8a3 3 0 0 1 3-3Z"/></>,
   contacts: <><circle cx="9" cy="8" r="3.2"/><path d="M3.8 19c.5-3.3 2.2-5 5.2-5s4.7 1.7 5.2 5M16 7.5h5M18.5 5v5M16 14h5M16 18h5"/></>,
+  plus: <path d="M12 5v14M5 12h14"/>,
   add: <><circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/></>,
   mixes: <><path d="M4 6h4c5 0 3 12 8 12h4M4 18h4c5 0 3-12 8-12h4"/><path d="m18 4 2 2-2 2M18 16l2 2-2 2"/></>,
   more: <><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></>,

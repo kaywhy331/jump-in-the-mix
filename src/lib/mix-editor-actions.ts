@@ -269,7 +269,9 @@ export async function saveMixAction(formData: FormData): Promise<void> {
         const template = await tx.stepTemplate.create({
           data: {
             workspaceId: workspace.id,
-            name: `${name} — ${action.name}`,
+            // The editor displays this as the Beat's own name. Repeated saves must
+            // retain that wording, rather than prepend the Mix name each time.
+            name: action.name,
             channel: action.channel,
             isActive: false,
             versions: { create: { version: 1, subject: action.subject, body: action.body, script: action.script, longSms: action.channel === "SMS" && (action.body?.length ?? 0) > 160, variants: { create: action.variants } } }

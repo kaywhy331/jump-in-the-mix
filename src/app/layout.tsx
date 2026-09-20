@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { headers } from "next/headers";
 import localFont from "next/font/local";
 import { appearanceScript } from "@/lib/appearance";
+import { AppearanceSync } from "@/components/Appearance";
 import { GlobalLiveSearch } from "@/components/GlobalLiveSearch";
 import { PwaRegistration } from "@/components/PwaRegistration";
 import { PublicConversionEvents } from "@/components/PublicConversionEvents";
@@ -44,6 +45,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html lang="en" data-scroll-behavior="smooth" className={`${uiFont.variable} ${voiceFont.variable}`} suppressHydrationWarning>
       <head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: appearanceScript }} /></head>
       <body>
+        <AppearanceSync />
         <PwaRegistration />
         <PublicConversionEvents />
         {env.privateTestMode && <aside role="note" style={{ padding: "8px 16px", textAlign: "center", background: "#fff0c2", color: "#4a3500", fontSize: "14px" }}>Private test site. Use sample data only.</aside>}

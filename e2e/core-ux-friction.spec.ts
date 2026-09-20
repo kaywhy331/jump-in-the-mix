@@ -14,13 +14,15 @@ async function signIn(page: Page) {
   ]);
 }
 
-test("mobile Today keeps Done visible for pending follow-ups", async ({ page }, testInfo) => {
+test("mobile Today keeps Review visible and completion in More", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile completion geometry is checked once.");
   const pendingJumpId = await createPendingJumpFixture("Mobile completion geometry");
   try {
     await signIn(page);
     await page.goto("/jumps");
-    const markDone = page.locator(`[data-jump-workflow="${pendingJumpId}"]:visible`).getByRole("button", { name: "Done", exact: true });
+    const card = page.locator(`[data-jump-workflow="${pendingJumpId}"]:visible`);
+    await card.getByRole("button", { name: /^More options for/ }).click();
+    const markDone = card.getByRole("button", { name: /^Mark done for/ });
     await expect(markDone).toBeVisible();
     const box = await markDone.boundingBox();
     expect(box).not.toBeNull();
@@ -39,7 +41,7 @@ test("Quick Add carries recognized fields into Contact and follow-up creation", 
   const dialog = page.getByRole("dialog", { name: "Quick Add" });
   await dialog.getByLabel("What do you want to remember?").fill("Follow up with Jordan Lee next Monday about the proposal");
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
-  await dialog.getByRole("button", { name: "Continue with Contact" }).click();
+  await dialog.getByRole("button", { name: "Add person & follow-up" }).click();
 
   await expect(page).toHaveURL(/\/contacts\/new\?/);
   await expect(page.getByLabel("First name")).toHaveValue("Jordan");
@@ -60,7 +62,7 @@ test("Quick Add carries a recognized phone without folding it into the Contact n
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(dialog.getByText("Sam", { exact: true })).toBeVisible();
   await expect(dialog.getByText("626-555-0100", { exact: true })).toBeVisible();
-  await dialog.getByRole("button", { name: "Continue with Contact" }).click();
+  await dialog.getByRole("button", { name: "Add person & follow-up" }).click();
 
   await expect(page).toHaveURL(/\/contacts\/new\?/);
   await expect(page.getByLabel("First name")).toHaveValue("Sam");

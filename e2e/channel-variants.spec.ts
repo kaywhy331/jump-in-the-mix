@@ -47,19 +47,24 @@ test.afterAll(async () => {
   if (userId) await prisma.user.deleteMany({ where: { id: userId } });
 });
 
-async function ready(page: Page) { await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 }); }
+async function ready(page: Page) {
+  await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 });
+  if (new URL(page.url()).pathname === "/jumps" && !(await page.getByLabel(/^Finish follow-up with/).filter({ visible: true }).isVisible())) {
+    await card(page).getByRole("button", { name: /^Review / }).click();
+  }
+}
 async function audit(page: Page) { expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]); }
 const card = (page: Page) => page.locator(`#jump-${jumpId}`);
 const choice = (page: Page) => card(page).getByRole("group", { name: "How to reach Alex Rivera" });
 const editor = (page: Page) => card(page).locator(".editable-follow-up");
-const field = (page: Page) => editor(page).getByRole("textbox", { name: "Fine-tune before sending", exact: true });
+const field = (page: Page) => editor(page).getByRole("textbox", { name: "Your message", exact: true });
 const selected = () => prisma.jump.findUniqueOrThrow({ where: { id: jumpId }, select: { selectedFamily: true } });
 
 test("the Beat editor authors text, email and call versions, refuses private notes outside the call version, and reads them back", async ({ page }) => {
   const name = `Estimate with alternatives ${randomUUID().slice(0, 8)}`;
   await page.goto("/mixes/new?custom=1"); await ready(page);
   await page.getByLabel("Mix name").fill(name);
-  await page.getByLabel("Cue · when should it start?").selectOption("MANUAL_START");
+  await page.getByLabel("When should it start?").selectOption("MANUAL_START");
   const beat = page.getByRole("group", { name: "Beat 1" });
   await beat.getByLabel("Message").fill(textBody);
   await beat.getByText("Also offer as…").click();
@@ -111,10 +116,11 @@ test("one follow-up switches between its usable versions on Today, keeps each ve
   await expect(choice(page).getByRole("button", { name: "Email" })).toHaveAttribute("aria-pressed", "true");
   await expect(field(page)).toHaveValue(`Hi Alex, the estimate is attached. ${owner} Thanks again.`);
 
-  // Without an email address the email version is not usable: the choice shrinks and the card falls back to the plan's text.
+  // Without an email address the email tab is disabled and the card falls back to the plan's text.
   await prisma.contactEmail.deleteMany({ where: { contactId } });
   await page.goto("/jumps"); await ready(page);
-  await expect(choice(page).getByRole("button")).toHaveText(["Text", "Call"]);
+  await expect(choice(page).getByRole("button")).toHaveText(["Text", "Email", "Call"]);
+  await expect(choice(page).getByRole("button", { name: "Email" })).toBeDisabled();
   await expect(choice(page).getByRole("button", { name: "Text" })).toHaveAttribute("aria-pressed", "true");
   await expect(field(page)).toHaveValue(`Hi Alex, your estimate is ready. ${owner}`);
   expect((await selected()).selectedFamily).toBe("EMAIL");

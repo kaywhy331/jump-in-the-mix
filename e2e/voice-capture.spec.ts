@@ -60,14 +60,15 @@ test("dictated text stays editable and transfers privately until the user explic
   const input = dialog.getByLabel("What do you want to remember?");
   await expect(input).toHaveValue("Typed note.\nAdd MistakenName sam@example.test about a private estimate");
   await input.fill("Add Sam sam@example.test about a private estimate");
-  await dialog.getByRole("button", { name: "Continue with Contact" }).click();
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await dialog.getByRole("button", { name: "Add person & follow-up" }).click();
   await expect(page).toHaveURL(/\/contacts\/new\?draft=[a-f0-9-]{36}$/);
   expect(page.url()).not.toMatch(/private|estimate|sam|example/i);
   await expect(page.getByLabel("First name")).toHaveValue("Sam");
   await expect(page.locator('input[name="emailValue"]').first()).toHaveValue("sam@example.test");
   await expect(page.locator('textarea[name="publicNotes"]')).toHaveValue("Add Sam sam@example.test about a private estimate");
   expect(await prisma.contact.count({ where: { workspaceId: data.workspace.id } })).toBe(0);
-  expect(await page.evaluate(() => Object.keys(sessionStorage).some(key => key.endsWith(":capture-draft")))).toBe(false);
+  expect(await page.evaluate(() => Object.keys(sessionStorage).some(key => key.endsWith(":capture-draft")))).toBe(true);
   const draftPath = new URL(page.url()).pathname + new URL(page.url()).search;
   await page.getByRole("button", { name: "Save contact", exact: true }).click();
   await expect(page).toHaveURL(/\/contacts\/[a-z0-9]{20,}(?:\?|$)/);
@@ -75,6 +76,10 @@ test("dictated text stays editable and transfers privately until the user explic
   expect(saved).toMatchObject({ firstName: "Sam", publicNotes: "Add Sam sam@example.test about a private estimate" });
   expect(saved.emails[0].email).toBe("sam@example.test");
   await page.goto(draftPath);
+  await expect(page.getByLabel("First name")).toHaveValue("Sam");
+  expect(await prisma.contact.count({ where: { workspaceId: data.workspace.id } })).toBe(1);
+  await page.evaluate(() => { for (const key of Object.keys(sessionStorage).filter(key => key.endsWith(":capture-draft"))) { const entry = JSON.parse(sessionStorage.getItem(key)!); entry.expiresAt = Date.now() - 1; sessionStorage.setItem(key, JSON.stringify(entry)); } });
+  await page.reload();
   await expect(page.getByText(/temporary draft is no longer available/)).toBeVisible();
   await expect(page.getByLabel("First name")).toHaveValue("");
 });
@@ -118,7 +123,8 @@ test("typing works without speech support and storage failure preserves the draf
   await expect(dialog.getByText("Type here, or use your keyboard’s dictation.")).toBeVisible();
   await dialog.getByLabel("What do you want to remember?").fill("Call Sam tomorrow about the estimate");
   await page.evaluate(() => { Storage.prototype.setItem = () => { throw new Error("Blocked storage"); }; });
-  await dialog.getByRole("button", { name: "Continue with Contact" }).click();
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await dialog.getByRole("button", { name: "Add person & follow-up" }).click();
   await expect(dialog.getByRole("alert")).toContainText("could not keep this temporary draft");
   await expect(dialog.getByLabel("What do you want to remember?")).toHaveValue("Call Sam tomorrow about the estimate");
   expect(page.url()).toMatch(/\/jumps$/);
@@ -127,7 +133,7 @@ test("typing works without speech support and storage failure preserves the draf
 test("Today speaks only on request with a local voice and stops when its summary closes", async ({ page, context }, info) => {
   const data = await fixture(); await mockSpeech(page);
   await context.addCookies([{ name: "jitm_session", value: data.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
-  await page.goto("/jumps"); await page.getByText("Today at a glance", { exact: true }).click();
+  await page.goto("/jumps"); await page.getByText("This week & completed follow-ups", { exact: true }).click(); await page.getByText("Today at a glance", { exact: true }).click();
   const summary = page.locator("details.today-briefing");
   await expect(summary).toContainText("0 follow-ups are due today, with none overdue");
   await expect(summary.getByRole("button", { name: "Listen to summary" })).toHaveCount(0);
@@ -162,7 +168,8 @@ test("voice capture and contact drafts fit phone and desktop layouts in both the
     expect(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
-  await dialog.getByRole("button", { name: "Continue with Contact" }).click();
+  await dialog.getByRole("button", { name: "Continue", exact: true }).click();
+  await dialog.getByRole("button", { name: "Add person & follow-up" }).click();
   await expect(page.getByLabel("First name")).toHaveValue("Sam");
   for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {
     await applyRenderedTheme(page, colorScheme, { width, height: 900 });
@@ -188,13 +195,13 @@ test("briefing uses this workspace and timezone, excludes skipped work, and warn
     ].map(item => ({ ...item, workspaceId, contactId: contact.id, mixId: mix.id, mixStepId: mix.steps[0].id, stepVersionId: version.id, reason: "Summary fixture", uniquenessKey: randomUUID(), templateSnapshot: {}, renderedSnapshot: {} })) });
   }
   await context.addCookies([{ name: "jitm_session", value: data.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
-  await page.goto("/jumps"); await page.getByText("Today at a glance", { exact: true }).click();
+  await page.goto("/jumps"); await page.getByText("This week & completed follow-ups", { exact: true }).click(); await page.getByText("Today at a glance", { exact: true }).click();
   await expect(page.locator("details.today-briefing")).toContainText("1 follow-up is due today, and 1 is overdue. 1 was marked done today.");
   await expect(page.locator("body")).not.toContainText("Other workspace private contact");
   await page.getByRole("link", { name: "1 completed today", exact: true }).click();
   await expect(page.locator(".jump-task-card")).toHaveCount(1);
   await page.goto("/jumps");
   await prisma.job.create({ data: { workspaceId: data.workspace.id, task: "generate-jumps", payload: {} } });
-  await page.reload(); await page.getByText("Today at a glance", { exact: true }).click();
+  await page.reload(); await page.getByText("This week & completed follow-ups", { exact: true }).click(); await page.getByText("Today at a glance", { exact: true }).click();
   await expect(page.locator("details.today-briefing")).toContainText("not ready yet");
 });

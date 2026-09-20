@@ -10,6 +10,7 @@ export function Sheet({
   title,
   accessibleTitle,
   description,
+  leading,
   children,
   className = "",
   initiallyOpen = false,
@@ -19,6 +20,7 @@ export function Sheet({
   title: string;
   accessibleTitle?: string;
   description?: string;
+  leading?: ReactNode;
   children: ReactNode;
   className?: string;
   initiallyOpen?: boolean;
@@ -104,7 +106,8 @@ export function Sheet({
       >
         <div className="sheet-panel">
           <header className="sheet-header">
-            <div>
+            {leading}
+            <div className="sheet-heading-copy">
               <h2 id={titleId}>{title}</h2>
               {description && <p id={descriptionId}>{description}</p>}
             </div>

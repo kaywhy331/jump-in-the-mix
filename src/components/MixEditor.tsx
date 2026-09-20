@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AppIcon } from "@/components/AppIcon";
 import { SchedulePreview } from "@/components/SchedulePreview";
 import { type FormEvent, useMemo, useRef, useState } from "react";
 import { useAudiencePreview } from "@/components/useAudiencePreview";
@@ -178,33 +179,39 @@ export function MixEditor({
       </div></details>
     </details>
     <ol className="mix-beat-timeline" aria-label="Mix beat timing">{sequence.map((item, index) => <li key={item.key}><a href={`#mix-beat-${item.key}`}><span>{item.anchor === "CALENDAR_DAY" ? `Day ${item.dayOffset}` : describeStepTiming({ anchor: item.anchor, offsetMinutes: Number(signedMinutes(item)) || 0 })}</span><i aria-hidden="true" /><strong>Beat {index + 1}</strong></a></li>)}</ol>
-    <section className="card mix-editor-section">
-      <div className="card-header"><div><h2>Beats</h2><p>Each beat is one follow-up. Choose when it appears and what you want to say. Day 0 is the start date; day 2 is two days later.</p></div><button className="button primary" type="button" onClick={addStep}>Add a beat</button></div>
+    <section className="card mix-editor-section mix-beats-section" aria-label="Beats">
+      <p className="mix-beats-help">Day 0 is the start date. Each beat prepares one follow-up.</p>
       {removedStep && <p role="status">Beat removed. <button type="button" className="text-button" onClick={() => { setSequence(current => { const next = [...current]; next.splice(Math.min(removedStep.index, next.length), 0, removedStep.item); return next; }); setRemovedStep(null); }}>Undo beat removal</button></p>}
       <div className={styles.sequenceList}>{sequence.map((item, index) => {
         const written = ["SMS", "EMAIL", "WHATSAPP"].includes(item.channel);
         const signedOffset = item.dayOffset;
         const fieldId = (field: string) => `plan-step-${index}-${field}`;
         return <fieldset id={`mix-beat-${item.key}`} className={`mix-editor-jump ${styles.sequenceCard}`} key={item.key}>
-          <legend>Beat {index + 1}</legend>
+          <legend className="sr-only">Beat {index + 1}</legend>
           <input type="hidden" name="mixStepId" value={item.id ?? ""} />
-          <input type="hidden" name={`inlineName-${index}`} value={`${CHANNELS.find((channel) => channel.value === item.channel)?.label ?? "Follow-up"} ${index + 1}`} />
           <input type="hidden" name="dayOffset" value={signedOffset} />
           <input type="hidden" name="sendTimeMinutes" value={item.sendTimeMinutes ?? ""} />
           <input type="hidden" name="plannedAt" value={item.plannedAt} />
           <input type="hidden" name="anchor" value={item.anchor} />
           <input type="hidden" name="offsetMinutes" value={signedMinutes(item)} />
-          <div className={styles.sequenceHeading}><div className="page-actions"><button className="icon-button small" type="button" onClick={() => moveStep(index, -1)} disabled={index === 0} aria-label={`Move beat ${index + 1} up`}>↑</button><button className="icon-button small" type="button" onClick={() => moveStep(index, 1)} disabled={index === sequence.length - 1} aria-label={`Move beat ${index + 1} down`}>↓</button></div><button className="button small danger" type="button" onClick={() => removeStep(index)} disabled={sequence.length === 1}>Remove</button></div>
-          <div className="form-grid">
-            <label className="field"><span>Channel</span><select id={fieldId("channel")} name={`inlineChannel-${index}`} value={item.channel} onChange={(event) => updateStep(index, { channel: event.target.value as Channel })}>{CHANNELS.map((channel) => <option value={channel.value} key={channel.value}>{channel.label}</option>)}</select></label>
+
+          <div className="mix-beat-heading">
+            <span className="mix-beat-number" aria-hidden="true">{index + 1}</span>
+            <label className="field mix-beat-name"><span className="sr-only">Beat name</span><input name={`inlineName-${index}`} value={item.name} maxLength={160} onChange={event => updateStep(index, { name: event.target.value })} required /></label>
+            <label className="field mix-beat-channel"><span className="sr-only">Channel</span><select id={fieldId("channel")} name={`inlineChannel-${index}`} value={item.channel} onChange={(event) => updateStep(index, { channel: event.target.value as Channel })}>{CHANNELS.map((channel) => <option value={channel.value} key={channel.value}>{channel.label}</option>)}</select></label>
             {item.anchor === "CALENDAR_DAY"
-              ? <label className="field"><span>{signedOffset < 0 ? "Days before start" : "Days after start"}</span><input id={fieldId("day")} type="number" min={0} max={MAX_STEP_OFFSET_DAYS} value={Math.abs(signedOffset)} onChange={(event) => updateStep(index, { dayOffset: (signedOffset < 0 ? -1 : 1) * Number(event.target.value) })} required /></label>
-              : <label className="field"><span>{item.anchor === "VISIT_COMPLETED" ? "Minutes after it is marked completed" : "Minutes"}</span><input id={fieldId("minutes")} type="number" step={1} min={0} max={MAX_STEP_OFFSET_MINUTES} value={item.offsetMinutes} onChange={(event) => updateStep(index, { offsetMinutes: event.target.value })} required /></label>}
+              ? <label className="field mix-beat-day"><span>{signedOffset < 0 ? "Before" : "Day"}</span><input aria-label={signedOffset < 0 ? "Days before start" : "Days after start"} id={fieldId("day")} type="number" min={0} max={MAX_STEP_OFFSET_DAYS} value={Math.abs(signedOffset)} onChange={(event) => updateStep(index, { dayOffset: (signedOffset < 0 ? -1 : 1) * Number(event.target.value) })} required /></label>
+              : <label className="field mix-beat-minutes"><span>{item.anchor === "VISIT_COMPLETED" ? "Minutes after completion" : "Minutes"}</span><input id={fieldId("minutes")} type="number" step={1} min={0} max={MAX_STEP_OFFSET_MINUTES} value={item.offsetMinutes} onChange={(event) => updateStep(index, { offsetMinutes: event.target.value })} required /></label>}
             {item.anchor !== "CALENDAR_DAY" && item.anchor !== "VISIT_COMPLETED" && <label className="field"><span>Before or after</span><select id={fieldId("direction")} value={item.before ? "before" : "after"} onChange={(event) => updateStep(index, { before: event.target.value === "before" })}><option value="before">{item.anchor === "APPOINTMENT_END" ? "Before it ends" : "Before it starts"}</option><option value="after">{item.anchor === "APPOINTMENT_END" ? "After it ends" : "After it starts"}</option></select></label>}
-            <details className="field"><summary>Appointment timing (optional)</summary><label className="field"><span>Count from</span><select id={fieldId("timing")} value={item.anchor} onChange={(event) => { const anchor = event.target.value as StepAnchor; updateStep(index, { anchor, offsetMinutes: anchor === "CALENDAR_DAY" ? "" : item.offsetMinutes || "0", before: anchor === "VISIT_COMPLETED" ? false : item.before }); }}>{STEP_ANCHORS.map((anchor) => <option value={anchor} key={anchor}>{STEP_ANCHOR_LABELS[anchor]}</option>)}</select>{item.anchor !== "CALENDAR_DAY" && <small>{signedMinutes(item) && Number.isInteger(Number(signedMinutes(item))) ? `Becomes due ${describeStepTiming({ anchor: item.anchor, offsetMinutes: Number(signedMinutes(item)) })}. ${describeStepReadiness({ anchor: item.anchor, offsetMinutes: Number(signedMinutes(item)) })}` : "Enter a whole number of minutes."} Elapsed minutes, not calendar days: it runs only for a visit you line this mix up with from the calendar, and a clock change does not move it.</small>}</label></details>
-            {item.channel === "EMAIL" && <label className="field full"><span>Subject</span><input name={`inlineSubject-${index}`} value={item.subject} onChange={(event) => updateStep(index, { subject: event.target.value })} maxLength={300} required /></label>}
-            {written ? <label className="field full"><span>Message</span><textarea name={`inlineBody-${index}`} value={item.body} onChange={(event) => updateStep(index, { body: event.target.value })} rows={5} placeholder="Hi {{First Name}}, ... {{SMS Signature}}" required /></label> : <label className="field full"><span>{item.channel === "VOICEMAIL" ? "Voicemail" : "Call notes"}</span><textarea name={`inlineScript-${index}`} value={item.script} onChange={(event) => updateStep(index, { script: event.target.value })} rows={5} placeholder="What should you remember to ask?" required /></label>}
+
           </div>
+          <div className="form-grid mix-beat-message">
+            {item.channel === "EMAIL" && <label className="field full"><span>Subject</span><input name={`inlineSubject-${index}`} value={item.subject} onChange={(event) => updateStep(index, { subject: event.target.value })} maxLength={300} required /></label>}
+            {written ? <label className="field full"><span className="sr-only">Message</span><textarea name={`inlineBody-${index}`} value={item.body} onChange={(event) => updateStep(index, { body: event.target.value })} rows={3} placeholder="Hi {{First Name}}, ... {{SMS Signature}}" required /></label> : <label className="field full"><span className="sr-only">{item.channel === "VOICEMAIL" ? "Voicemail" : "Call notes"}</span><textarea name={`inlineScript-${index}`} value={item.script} onChange={(event) => updateStep(index, { script: event.target.value })} rows={3} placeholder="What should you remember to ask?" required /></label>}
+          </div>
+          <details className="mix-beat-options"><summary aria-label={`Options for beat ${index + 1}`} title={`Options for beat ${index + 1}`}><AppIcon name="more" /><span className="sr-only">Beat options</span></summary>
+          <div className="mix-beat-options-body">
+            <details className="field"><summary>Appointment timing (optional)</summary><label className="field"><span>Count from</span><select id={fieldId("timing")} value={item.anchor} onChange={(event) => { const anchor = event.target.value as StepAnchor; updateStep(index, { anchor, offsetMinutes: anchor === "CALENDAR_DAY" ? "" : item.offsetMinutes || "0", before: anchor === "VISIT_COMPLETED" ? false : item.before }); }}>{STEP_ANCHORS.map((anchor) => <option value={anchor} key={anchor}>{STEP_ANCHOR_LABELS[anchor]}</option>)}</select>{item.anchor !== "CALENDAR_DAY" && <small>{signedMinutes(item) && Number.isInteger(Number(signedMinutes(item))) ? `Becomes due ${describeStepTiming({ anchor: item.anchor, offsetMinutes: Number(signedMinutes(item)) })}. ${describeStepReadiness({ anchor: item.anchor, offsetMinutes: Number(signedMinutes(item)) })}` : "Enter a whole number of minutes."} Elapsed minutes, not calendar days: it runs only for a visit you line this mix up with from the calendar, and a clock change does not move it.</small>}</label></details>
           {(() => {
             const primary = familyOf(item.channel);
             const setVariant = (patch: Partial<Variants>) => updateStep(index, { variants: { ...item.variants, ...patch } });
@@ -221,8 +228,11 @@ export function MixEditor({
             </div></details>;
           })()}
           {item.anchor === "CALENDAR_DAY" && <details className="step-advanced-settings"><summary>More timing options</summary><div className="form-grid"><label className="field"><span>Position</span><select value={signedOffset < 0 ? "before" : "after"} onChange={(event) => updateStep(index, { dayOffset: event.target.value === "before" ? -Math.abs(item.dayOffset) : Math.abs(item.dayOffset) })} disabled={triggerMode === "MANUAL_START"}><option value="after">On or after the start</option><option value="before">Before the date</option></select></label><label className="field"><span>Specific time</span><input type="time" value={timeValue(item.sendTimeMinutes)} onChange={(event) => updateStep(index, { sendTimeMinutes: minutesValue(event.target.value) })} /></label><label className="field full"><span>Planned date (optional)</span><input type="datetime-local" value={item.plannedAt} onChange={(event) => updateStep(index, { plannedAt: event.target.value })} /><small>Becomes due at this date and time, in your timezone, for every contact who has reached this beat.</small></label></div></details>}
+          <div className="mix-beat-reorder"><button className="button small" type="button" onClick={() => moveStep(index, -1)} disabled={index === 0} aria-label={`Move beat ${index + 1} up`}><AppIcon name="arrowUp" />Move up</button><button className="button small" type="button" onClick={() => moveStep(index, 1)} disabled={index === sequence.length - 1} aria-label={`Move beat ${index + 1} down`}><AppIcon name="arrowDown" />Move down</button><button className="button small danger" type="button" onClick={() => removeStep(index)} disabled={sequence.length === 1}>Remove</button></div>
+          </div></details>
         </fieldset>;
       })}</div>
+      <button className="text-button mix-add-beat" type="button" onClick={addStep}><AppIcon name="plus" />Add a beat</button>
     </section>
 
     <SchedulePreview timezone={workspaceTimezone} steps={sequence.map(item => ({ anchor: item.anchor, offsetMinutes: signedMinutes(item), dayOffset: item.dayOffset, sendTimeMinutes: item.sendTimeMinutes, plannedAt: item.plannedAt }))} />

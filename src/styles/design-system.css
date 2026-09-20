@@ -77,8 +77,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
   .auth-card, .onboarding-card { padding: 24px 20px; }
 }
 
-.more-destination:nth-of-type(4), .more-destination:nth-of-type(7) { margin-top: 24px; }
-.more-page .settings-hub-icon { display: grid; width: 28px; min-width: 28px; padding: 0; }
+.more-destination--group-start { margin-top: 24px; }
+.more-page .settings-hub-icon { display: grid; width: 28px; min-width: 28px; height: 24px; min-height: 24px; padding: 0; }
 .more-page .settings-hub-icon svg { width: 20px; height: 20px; }
 .more-page .settings-hub-card { display: flex; align-items: center; gap: 16px; }
 .more-page .settings-hub-card > span:nth-child(2) { flex: 1; }
@@ -89,3 +89,31 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 .quick-add-item legend svg { width: 20px; height: 20px; color: var(--violet-text); }
 .quick-add-item input { font-family: var(--font-ui); }
 .quick-add-proposal > p { color: var(--text-2); font-size: .8125rem; }
+
+/* Unmocked support and account screens share the flat rows and voice treatment. */
+.support-faq-list, .support-ticket-list, .session-list { gap: 0; }
+.support-faq-item, .support-ticket-row, .session-row { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; }
+.support-faq-item > summary { font-weight: 600; }
+.support-message { --message-fill: var(--surface); background: var(--message-fill); border: 0; border-radius: var(--radius-bubble); }
+.support-message.user { --message-fill: var(--violet-wash); background: var(--message-fill); }
+.support-message.admin { background: var(--message-fill); }
+.support-message > p { font-family: var(--font-voice); font-size: 1.125rem; line-height: 1.55; }
+.app-shell .support-thread { gap: 24px; padding-bottom: 12px; }
+.app-shell .support-message { position: relative; }
+.app-shell .support-message::after { content: ""; position: absolute; bottom: -7px; left: 18px; width: 12px; height: 12px; background: var(--message-fill); transform: skewY(-35deg); }
+.app-shell .support-message.user::after { left: auto; right: 18px; transform: skewY(35deg); }
+.account-definition-list dd { text-transform: none; font-weight: 500; }
+.account-section-nav { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; padding: 0; background: var(--page); }
+.account-section-nav a { display: flex; align-items: center; min-height: 44px; border-radius: var(--radius-control) var(--radius-control) 0 0; font-weight: 500; }
+
+/* More extends the supplied compact, grouped destination list. */
+@media (max-width: 900px) {
+  .more-page .settings-hub-card { min-height: 56px; padding: 12px 0; }
+  .more-page .settings-hub-card strong { font-size: 1rem; font-weight: 500; }
+  .more-page .settings-row-chevron { line-height: 1; }
+  .more-page .settings-hub-card small { display: none; }
+  .more-page .page-header { margin-bottom: 12px; }
+  .more-destination--group-start { margin-top: 0; border-top: 10px solid var(--surface); }
+  .more-page > .appearance-control { margin-block: 16px 0; }
+  .more-page .more-sign-out { margin-top: 8px; }
+}

@@ -65,11 +65,17 @@ async function signIn(page: Page) {
   await page.getByLabel("Password", { exact: true }).fill(userPassword);
   await Promise.all([page.waitForURL(/\/(jumps|onboarding)(\?|$)/), page.getByRole("button", { name: "Sign in" }).click()]);
 }
-async function ready(page: Page) { await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 }); }
+async function ready(page: Page) {
+  await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 });
+  if (new URL(page.url()).pathname === "/jumps" && !(await page.getByLabel(/^Finish follow-up with/).filter({ visible: true }).isVisible())) {
+    await card(page).getByRole("button", { name: /^Review / }).click();
+    await card(page).getByText("Change contact method", { exact: true }).click();
+  }
+}
 const card = (page: Page) => page.locator(`#jump-${jumpId}`);
 const choice = (page: Page) => card(page).getByRole("group", { name: `How to reach ${displayName}` });
 const editor = (page: Page) => card(page).locator(".editable-follow-up");
-const field = (page: Page) => editor(page).getByRole("textbox", { name: "Fine-tune before sending", exact: true });
+const field = (page: Page) => editor(page).getByRole("textbox", { name: "Your message", exact: true });
 const tray = (page: Page) => page.getByLabel(/^Finish follow-up with/).filter({ visible: true });
 const selected = () => prisma.jump.findUniqueOrThrow({ where: { id: jumpId }, select: { selectedFamily: true } });
 

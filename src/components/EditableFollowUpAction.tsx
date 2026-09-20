@@ -87,6 +87,7 @@ export function EditableFollowUpAction({
   contextVersions,
   automaticDelivery = false,
   channelChoice,
+  outcomeActions,
   changedDetails = []
 }: {
   jumpId: string;
@@ -109,6 +110,7 @@ export function EditableFollowUpAction({
   automaticDelivery?: boolean;
   /** Details the owner wrote over by hand that have changed since; shown, never rewritten. */
   channelChoice?: React.ReactNode;
+  outcomeActions?: React.ReactNode;
   changedDetails?: DetachedChange[];
 }) {
   const persists = template !== null;
@@ -359,7 +361,7 @@ export function EditableFollowUpAction({
       </div>}
       {channel === "EMAIL" && <label className="field"><span>Subject</span><input disabled={!ready || busy} value={subject} maxLength={DRAFT_LIMITS.subject} onChange={(event) => editSubject(event.target.value)} /></label>}
       {(channel === "SMS" || channel === "EMAIL" || channel === "WHATSAPP") ? (
-        <label className="field"><span>Your message</span><span className="speech-bubble speech-bubble--compose"><textarea disabled={!ready || busy} value={content} maxLength={DRAFT_LIMITS.body} onChange={(event) => editContent(event.target.value)} rows={5} /></span></label>
+        <label className="field review-message-field"><span className="sr-only">Your message</span><span className="speech-bubble speech-bubble--compose"><textarea disabled={!ready || busy} value={content} maxLength={DRAFT_LIMITS.body} onChange={(event) => editContent(event.target.value)} rows={4} /></span></label>
       ) : <div className="prepared-call-notes conversation-note"><small>Call notes</small><p>{content}</p></div>}
       {conflict && <div className="notice warning compact" role="alert" data-follow-up-conflict={conflict.kind}>
         <p>{conflict.theirs
@@ -374,7 +376,8 @@ export function EditableFollowUpAction({
       </div>}
       {longSms && <p className="notice warning compact" role="status">This text is over 900 characters and may be cut off by some phones. Copy it instead, or shorten it.</p>}
       {channelChoice}
-      <p className="review-send-hint">Open your app to send, then record what happened.</p>
+      <p className="review-send-hint">{url ? `To ${channel === "EMAIL" ? email : phone}. ` : ""}Open your app to send, then record what happened.</p>
+      <div className="review-action-bar">
       <div className="editable-follow-up-actions">
         {url ? <JumpActionLink
           jumpId={jumpId}
@@ -392,11 +395,15 @@ export function EditableFollowUpAction({
         )}
         <div className="workflow-option-actions">
         {copyContent && <span className={longSms ? "copy-primary" : ""}><JumpCopyButton jumpId={jumpId} text={copyContent} label="Copy" /></span>}
-        {hasDraft && !conflict && <button type="button" className="button" disabled={busy} onClick={() => { void discard(); }}>{status === "discard-failed" ? "Try discarding again" : "Discard edits"}</button>}
         </div>
         {unsaved && <button type="button" hidden data-discard-follow-up-draft onClick={revertUnsaved} tabIndex={-1} aria-hidden="true">Keep the saved version</button>}
-        {label && <small className="muted-copy" role="status" data-draft-status={status}>{label}</small>}
       </div>
+      {outcomeActions}
+      </div>
+      {(label || (hasDraft && !conflict)) && <div className="review-draft-status">
+        {label && <small className="muted-copy" role="status" data-draft-status={status}>{label}</small>}
+        {hasDraft && !conflict && <button type="button" className="text-button" disabled={busy} onClick={() => { void discard(); }}>{status === "discard-failed" ? "Try discarding again" : "Discard edits"}</button>}
+      </div>}
       {automaticDelivery && hasDraft && <p className="muted-copy" data-follow-up-held>Because you edited it, this one waits for you and won’t send automatically.</p>}
     </div>
   );

@@ -23,9 +23,9 @@ export function PublicLanding({ persona }: { persona?: Pick<Persona, "id" | "hea
           <p>{persona?.supporting ?? "A client follow-up app for independent professionals. Put the next check-in on a simple plan, with a message ready to make your own. You choose the timing. You review, edit, and send."}</p>
           <div className="hero-actions"><a className="button primary" href="#sample" data-demo-trigger>{persona?.demoCta ?? "Try the demo"}</a><WaitlistLink className="button" scenarioId={persona?.id}>Join the waitlist</WaitlistLink></div>
           <p className="hero-note">Practice with a fictional contact. Nothing is sent and no messaging app opens. Free accounts, no card; access is by invitation after joining the waitlist.</p>
-          <MixesFor current={persona?.id} />
         </div>
         <ProductDemo scenarioId={persona?.id} />
+        <MixesFor current={persona?.id} />
       </section>
       <section id="how-it-works" className="section public-workflow" aria-labelledby="how-it-works-title">
         <div>

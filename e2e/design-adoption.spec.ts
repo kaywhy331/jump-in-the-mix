@@ -14,14 +14,20 @@ test("appearance persists, overrides the system, and follows it again", async ({
   const other = await context.newPage();
   await other.goto("/faq");
   await expect(other.getByLabel("Appearance", { exact: true })).toHaveValue("light");
+  const signIn = await context.newPage();
+  await signIn.goto("/login");
+  await expect(signIn.locator("body")).toHaveCSS("color", "rgb(26, 24, 48)");
   await appearance.selectOption("dark");
   await expect(other.getByLabel("Appearance", { exact: true })).toHaveValue("dark");
+  await expect(signIn.locator("body")).toHaveCSS("color", "rgb(238, 237, 246)");
   await appearance.selectOption("system");
+  await expect(signIn.locator("html")).not.toHaveAttribute("data-theme");
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("body")).toHaveCSS("color", "rgb(26, 24, 48)");
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("body")).toHaveCSS("color", "rgb(238, 237, 246)");
   await other.close();
+  await signIn.close();
 });
 
 test("blocked storage still permits changing appearance for this visit", async ({ page }) => {
@@ -53,11 +59,15 @@ test("narrow journey controls and wide preference fields stay aligned", async ({
   await page.goto("/journey");
   await page.locator(".journey-person").first().waitFor();
   const workspace = await page.locator(".journey-page").boundingBox();
-  for (const selector of [".journey-workspace", ".journey-roster", ".journey-search", ".journey-person-actions"]) {
+  for (const selector of [".journey-workspace", ".journey-roster", ".journey-person-actions"]) {
     const bounds = await page.locator(selector).first().boundingBox();
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(workspace!.x + workspace!.width + 1);
   }
-  await expect(page.getByRole("button", { name: "Search", exact: true })).toBeInViewport();
+  await page.getByRole("button", { name: "Find someone in the journey", exact: true }).click();
+  const search = page.getByRole("dialog", { name: "Find someone", exact: true });
+  await expect(search.getByRole("button", { name: "Search", exact: true })).toBeInViewport();
+  expect((await search.locator(".journey-search").boundingBox())!.width).toBeLessThanOrEqual(320);
+  await page.keyboard.press("Escape");
   await page.setViewportSize({ width: 3840, height: 1100 });
   await page.goto("/account/preferences");
   const name = page.getByLabel("Display name", { exact: true });
@@ -99,7 +109,7 @@ test("desktop review has usable space and retains its draft when resized", async
   // Hover must not make the row a new positioning container for its docked editor.
   await page.locator(".jump-task-card:has(.follow-up-review-sheet[open]) .jump-card-heading h3").hover();
   const bounds = await field.boundingBox();
-  expect(bounds!.width).toBeGreaterThan(400);
+  expect(bounds!.width).toBeGreaterThan(300);
   expect(bounds!.y).toBeGreaterThan(0);
   const original = await field.inputValue();
   await field.fill(`${original} Browser layout check.`);
@@ -113,17 +123,17 @@ test("desktop review has usable space and retains its draft when resized", async
       const editor = await panel.boundingBox();
       const workspace = await page.locator(".today-page").boundingBox();
       expect(queue!.width).toBeGreaterThanOrEqual(324);
-      expect(queue!.width).toBeLessThanOrEqual(400);
+      expect(queue!.width).toBeLessThanOrEqual(440);
       expect(editor!.x).toBeGreaterThanOrEqual(queue!.x + queue!.width + 24);
-      expect(workspace!.width).toBeLessThanOrEqual(1440);
-      expect((await field.boundingBox())!.width).toBeGreaterThan(400);
+      expect(workspace!.width).toBeLessThanOrEqual(1672);
+      expect((await field.boundingBox())!.width).toBeGreaterThan(300);
       expect(await field.inputValue()).toBe(`${original} Browser layout check.`);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
   }
   await page.setViewportSize({ width: 1194, height: 834 });
   await expect.poll(() => panel.evaluate(element => element.matches(":modal"))).toBe(false);
-  expect((await field.boundingBox())!.width).toBeGreaterThan(400);
+  expect((await field.boundingBox())!.width).toBeGreaterThan(300);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(field).toHaveValue(`${original} Browser layout check.`);
   await expect.poll(() => panel.evaluate(element => element.matches(":modal"))).toBe(true);

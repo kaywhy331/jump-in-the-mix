@@ -67,13 +67,14 @@ test("follow-up outcomes complete in place and appear on the Contact timeline", 
     await page.goto("/jumps?range=all&status=pending");
     const workflow = page.locator(`[data-jump-workflow="${jumpId}"]:visible`);
     await expect(workflow).toBeVisible();
-    await workflow.getByRole("button", { name: "Done", exact: true }).click();
+    await workflow.getByRole("button", { name: /^Review (message|call) for/ }).click();
+    await workflow.getByRole("button", { name: /Mark (done|sent) for/ }).click();
     await expect(workflow.getByText("Follow-up completed")).toBeVisible({ timeout: 30_000 });
     await expect.poll(async () => (await prisma.jump.findUniqueOrThrow({ where: { id: jumpId } })).status).toBe("DONE");
     await expect.poll(async () => prisma.contactActivity.count({ where: { jumpId, outcome: "COMPLETED" } })).toBe(1);
 
     await workflow.getByRole("button", { name: "Undo" }).click();
-    await expect(workflow.getByRole("button", { name: "Done", exact: true })).toBeVisible();
+    await expect(workflow.getByRole("button", { name: /^Review (message|call) for/ })).toBeVisible();
     await expect.poll(async () => (await prisma.jump.findUniqueOrThrow({ where: { id: jumpId } })).status).toBe("PENDING");
 
     await page.evaluate(({ jumpId: id, contactName }) => {
@@ -84,7 +85,7 @@ test("follow-up outcomes complete in place and appear on the Contact timeline", 
     }, { jumpId, contactName: displayName });
     await expect(page.getByText(`How did the follow-up with ${displayName} go?`)).toBeVisible();
     const tray = page.getByLabel(`Finish follow-up with ${displayName}`).filter({ visible: true });
-    await tray.getByText("Add a note, detailed outcome, or next follow-up", { exact: true }).click();
+    await tray.getByText("Add a note or next follow-up", { exact: true }).click();
     const outcomeForm = tray.locator("form");
     await outcomeForm.getByRole("combobox").first().selectOption("NO_ANSWER");
     await outcomeForm.locator("textarea").fill("No answer; try again tomorrow morning.");
@@ -99,6 +100,7 @@ test("follow-up outcomes complete in place and appear on the Contact timeline", 
     await page.goto(`/contacts/${contactId}`);
     const timeline = page.locator(".contact-timeline-card");
     await expect(timeline.getByText("No answer; try again tomorrow morning.", { exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Note", exact: true }).click();
     await timeline.getByLabel("Add a note").fill("Met through the regional business association.");
     await timeline.getByRole("button", { name: "Add update" }).click();
     await expect(timeline.getByText("Met through the regional business association.")).toBeVisible();

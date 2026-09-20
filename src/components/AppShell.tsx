@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
-import { Nav } from "@/components/Nav";
+import { AccountNav, Nav } from "@/components/Nav";
 import { AppearanceControl } from "@/components/Appearance";
-import { AppIcon } from "@/components/AppIcon";
 import { logoutAction } from "@/lib/auth-actions";
 import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
 import { Sheet } from "@/components/Sheet";
@@ -43,7 +42,7 @@ export function AppShell({
         {!impersonation && <QuickAddButton />}
         <Nav />
         <div className="sidebar-footer account-sidebar-footer">
-          <nav className="sidebar-utilities" aria-label="Account and help"><Link href="/settings" aria-label="Settings"><AppIcon name="settings" />Settings</Link><Link href="/help" aria-label="Help"><AppIcon name="help" />Help</Link><Link href="/account" aria-label="My account"><AppIcon name="people" />My account</Link></nav>
+          <AccountNav />
           <AppearanceControl compact />
           <span className="user-label">{impersonation ? `Viewing as ${userName}` : `Signed in as ${userName}`}</span>
           <div className="account-sidebar-actions">

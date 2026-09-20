@@ -161,7 +161,7 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   const firstFollowUp = page.locator(".jump-task-card:visible").filter({ hasText: "Jordan First Win" }).first();
   await expect(firstFollowUp).toBeVisible();
   await firstFollowUp.getByRole("button", { name: "Review message for Jordan First Win" }).click();
-  const preparedMessage = firstFollowUp.getByLabel("Fine-tune before sending");
+  const preparedMessage = firstFollowUp.getByLabel("Your message");
   await expect(preparedMessage).toBeVisible();
   const renderedBody = await preparedMessage.inputValue();
   expect(renderedBody).not.toContain("{{");

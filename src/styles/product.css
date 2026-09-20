@@ -38,7 +38,6 @@
 .jump-card.next-follow-up .jump-primary-action { justify-content: flex-end; }
 .jump-card.next-follow-up .jump-completion-actions { margin-left: auto; }
 .jump-card.next-follow-up .editable-follow-up { margin-top: 4px; }
-.jump-card.next-follow-up .editable-follow-up textarea { background: var(--raised, var(--raised)); }
 .contacts-title-search { display: grid; grid-template-columns: auto minmax(220px, 440px); gap: 18px; align-items: center; flex: 1 1 auto; }
 .contacts-title-search h1 { margin: 0; }
 .contact-header-search input { width: 100%; min-height: 44px; }
