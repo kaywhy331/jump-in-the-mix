@@ -4,7 +4,7 @@ import { PERSONAS } from "../src/lib/persona-mixes";
 
 test.use({ screenshot: "off", video: "off", trace: "off" });
 
-test("each profession has one short follow-up example", async ({ page }) => {
+test("each profession starts with a short SMS draft", async ({ page }) => {
   for (const persona of PERSONAS) {
     await page.goto(`/for/${persona.slug}`);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(persona.headline);
@@ -34,9 +34,9 @@ test("the homepage links to every profession page and keeps its trimmed sections
   await expect(page.locator("#waitlist, #sample")).toHaveCount(2);
 });
 
-test("the profession grid keeps two rows of six from small laptops up", async ({ page }, testInfo) => {
+test("the profession grid follows the supplied two-column desktop and single-column phone design", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Explicit viewport matrix.");
-  for (const [width, columns] of [[1440, 6], [1200, 6], [1100, 6], [1024, 4], [900, 4], [768, 4], [600, 3], [480, 2]] as const) {
+  for (const [width, columns] of [[1440, 2], [1200, 2], [1100, 2], [1024, 2], [900, 2], [768, 2], [600, 1], [480, 1]] as const) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
     const perRow = await page.locator(".profession-grid li").evaluateAll(items => { const top = items[0].getBoundingClientRect().top; return items.filter(item => item.getBoundingClientRect().top === top).length; });

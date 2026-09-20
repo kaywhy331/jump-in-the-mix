@@ -49,7 +49,7 @@ export default function HomePage() {
           <p className="public-definition-links"><Link href="/follow-up-templates">Client follow-up templates</Link><Link href="/faq">Questions before you jump in</Link></p>
       </section>
       <ProfessionMarks />
-      <section id="waitlist" className="section" aria-labelledby="waitlist-title"><div className="section-heading"><h2 id="waitlist-title">Ready to put one follow-up in the mix?</h2><p>Join the waitlist and we’ll email you when your spot is ready. Accounts are free, with no card to enter. Until then, try the demo with a conversation you already need to continue.</p></div><WaitlistForm /></section>
+      <section id="waitlist" className="section" aria-labelledby="waitlist-title"><div className="section-heading"><h2 id="waitlist-title">Ready to put one follow-up in the mix?</h2><p>Join the waitlist and we’ll email you when your spot is ready. Accounts are free, with no card to enter. Until then, try a three-Beat Mix with a fictional contact: text today, email tomorrow, and a call in one week.</p></div><WaitlistForm /></section>
     </main>
     <PublicFooter />
     <StructuredData data={publicStructuredData()} />

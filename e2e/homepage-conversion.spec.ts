@@ -3,7 +3,7 @@ import { axeInPage } from "./axe-in-page";
 
 test.use({ screenshot: "off", video: "off", trace: "off" });
 
-test("homepage keeps signup prominent, navigation spaced, and the first demo compact", async ({ page }, testInfo) => {
+test("homepage keeps signup prominent, navigation spaced, and the three-Beat demo usable", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Explicit viewport matrix.");
   for (const [width, height] of [[320, 568], [390, 844], [768, 1024], [1000, 900], [1024, 768], [1280, 800], [1440, 900], [1920, 1080]]) {
     await page.setViewportSize({ width, height });
@@ -17,7 +17,7 @@ test("homepage keeps signup prominent, navigation spaced, and the first demo com
         headerHeight: box(".public-header").height,
         signupBottom: box(".hero-actions .primary").bottom,
         sampleHeight: box(".product-demo").height,
-        sampleActionTop: box(".quick-demo-step .primary").top,
+        sampleActionTop: box("#sample .primary").top,
         spaced: navLinks.every((link, index) => index === 0 || link.left - navLinks[index - 1].right >= 7),
         logoFits: box(".public-header > .logo").right < navLinks[0].left,
       };
@@ -28,8 +28,8 @@ test("homepage keeps signup prominent, navigation spaced, and the first demo com
     expect(geometry.headerHeight, `${width}px header height`).toBeLessThan(95);
     if ([390, 1024, 1280, 1440].includes(width)) expect(geometry.signupBottom).toBeLessThan(height);
     if (width === 390) {
-      expect(geometry.sampleHeight).toBeLessThan(600);
-      expect(geometry.sampleActionTop).toBeLessThan(1350);
+      expect(geometry.sampleHeight).toBeLessThan(850);
+      expect(geometry.sampleActionTop).toBeLessThan(1650);
     }
     await expect(page.locator('.hero-actions a[href="/waitlist"]')).toHaveAttribute("href", "/waitlist");
   }
@@ -89,7 +89,7 @@ test("conversion hooks record engagement without claiming a send or collecting d
   // Demo controls are disabled until hydration; the adapter attaches in the same commit.
   await expect(page.locator("#sample textarea")).toBeEnabled();
   await page.locator("#sample textarea").fill("Private draft content must never reach analytics");
-  await page.locator("#sample").getByRole("button", { name: "Preview message", exact: true }).click();
+  await page.locator("#sample").getByRole("button", { name: "Preview SMS", exact: true }).click();
   await page.locator('.hero-actions a[href="/waitlist"]').click();
   await expect(page).toHaveURL(/\/waitlist$/);
   const events = await page.evaluate(() => (window as Window & { conversionTestEvents?: Record<string, unknown>[] }).conversionTestEvents ?? []);
@@ -112,7 +112,7 @@ test("conversion hooks respect browser privacy signals", async ({ browser }, tes
     const page = await context.newPage();
     try {
       await page.goto("/");
-      await page.locator("#sample").getByRole("button", { name: "Preview message", exact: true }).click();
+      await page.locator("#sample").getByRole("button", { name: "Preview SMS", exact: true }).click();
       await page.locator('.hero-actions a[href="/waitlist"]').click();
       await expect(page).toHaveURL(/\/waitlist$/);
       expect(await page.evaluate(() => (window as unknown as Window & { conversionTestEvents: unknown[] }).conversionTestEvents)).toEqual([]);

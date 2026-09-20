@@ -77,11 +77,10 @@ test("the demo uses the two design fonts and stays accessible through all steps"
   await page.goto("/");
   await page.locator("#sample textarea").fill("Hi Alex, is Tuesday still a good time to catch up?");
   expect(await page.locator("#sample textarea").evaluate(element => getComputedStyle(element).fontFamily)).toMatch(/newsreader/i);
-  await page.getByRole("button", { name: "Preview message", exact: true }).click();
+  await page.getByRole("button", { name: "Preview SMS", exact: true }).click();
   await expect(page.locator("#sample blockquote")).toContainText("Tuesday");
-  await page.getByRole("button", { name: "Choose next step" }).click();
-  await page.getByRole("button", { name: "Finish practice" }).click();
-  await expect(page.locator("#sample")).toContainText("Nothing was sent or scheduled");
+  await page.getByRole("button", { name: "Mark sent (demo)", exact: true }).click();
+  await expect(page.locator("#sample")).toContainText("Nothing was sent.");
   expect((await new AxeBuilder({ page }).include("#sample").analyze()).violations).toEqual([]);
 });
 

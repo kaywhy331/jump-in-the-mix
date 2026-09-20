@@ -38,7 +38,7 @@ export default async function ProfessionPage({ params }: { params: Promise<{ pro
           <p className="hero-note">{persona.boundary}</p>
           <MixesFor current={persona.id} />
         </div>
-        <ProductDemo scenarioId={persona.id} scenarios={persona.mixes} heading="Try one quick follow-up" legend={`Choose a ${persona.label.toLowerCase()} mix`} />
+        <ProductDemo scenarioId={persona.id} />
       </section>
       <section className="section public-route-notes" aria-labelledby="route-notes-title">
         <div className="section-heading"><h2 id="route-notes-title">What this is, and what it isn’t.</h2><p>{persona.boundary}</p></div>
@@ -48,7 +48,7 @@ export default async function ProfessionPage({ params }: { params: Promise<{ pro
           <li><Link href="/follow-up-templates">More client follow-up templates</Link></li>
         </ul>
       </section>
-      <section id="waitlist" className="section" aria-labelledby="waitlist-title"><div className="section-heading"><h2 id="waitlist-title">Ready to put one follow-up in the mix?</h2><p>Join the waitlist and we’ll email you when your spot is ready. Accounts are free, with no card to enter. Until then, try the demo with a conversation you already need to continue.</p></div><WaitlistForm scenarioId={persona.id} /></section>
+      <section id="waitlist" className="section" aria-labelledby="waitlist-title"><div className="section-heading"><h2 id="waitlist-title">Ready to put one follow-up in the mix?</h2><p>Join the waitlist and we’ll email you when your spot is ready. Accounts are free, with no card to enter. Until then, try a three-Beat Mix with a fictional contact: text today, email tomorrow, and a call in one week.</p></div><WaitlistForm scenarioId={persona.id} /></section>
     </main>
     <PublicFooter />
   </div>;
