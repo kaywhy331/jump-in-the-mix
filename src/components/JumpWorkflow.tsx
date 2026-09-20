@@ -3,7 +3,7 @@ import { AppIcon } from "@/components/AppIcon";
 
 import type { ReactNode } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import styles from "@/components/JumpWorkflow.module.css";
 import { useBrowserScope } from "@/components/BrowserAccountBoundary";
 import { readOpenedJump, readUnresolvedAttempts, resolveOpenedJump, validOpenedJump, type OpenedAttemptPayload, type OpenedJumpDetail } from "@/lib/opened-jump-state";
@@ -73,11 +73,13 @@ async function saveOutcome(
 export function JumpWorkflowCard({
   jumpId,
   contactName,
+  nextScheduledLabel,
   revision,
   children
 }: {
   jumpId: string;
   contactName: string;
+  nextScheduledLabel?: string;
   revision: string;
   children: ReactNode;
 }) {
@@ -129,18 +131,21 @@ export function JumpWorkflowCard({
 
   if (state === "HIDDEN") return null;
   if (state !== "ACTIVE") {
-    return (
+    const confirmation = (
       <div className={styles.cardWrapper} data-jump-workflow={jumpId} data-follow-up-undo="true">
         <div className={styles.completedPlaceholder} role="status">
           <span>
             <strong>{state === "SKIPPED" ? "Follow-up skipped" : "Follow-up completed"}</strong>
             <small>{contactName} · you can undo this for a moment</small>
+            {nextScheduledLabel && <small>Next scheduled: {nextScheduledLabel}</small>}
           </span>
           <button className="button small" type="button" onClick={undo} disabled={undoing}>{undoing ? "Restoring…" : "Undo"}</button>
         </div>
         {error && <p className={styles.error} role="alert">{error}</p>}
       </div>
     );
+    const target = typeof document !== "undefined" ? document.getElementById("follow-up-confirmations") : null;
+    return target ? createPortal(confirmation, target) : confirmation;
   }
   return <div className={styles.cardWrapper} data-jump-workflow={jumpId}>{children}</div>;
 }

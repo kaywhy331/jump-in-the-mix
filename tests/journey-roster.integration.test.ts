@@ -49,7 +49,7 @@ describe.skipIf(!local)("Journey roster with real memberships and pagination", (
       const count = await prisma.contact.count({ where }); counts.push(count);
       expect(await journeyRosterIds({ ...input(), stageId: undefined, mixId, due })).toHaveLength(count);
     }
-    expect(counts).toEqual([1, 1, 6, 44, 1]);
+    expect(counts).toEqual([1, 1, 1, 0, 7, 42, 1]);
     expect(await journeyRosterIds({ ...input(), stageId: undefined, mixId, due: "quiet" })).toEqual([{ id: id(52) }]);
     await prisma.mixAssignment.updateMany({ where: { workspaceId, mixId }, data: { isActive: false } });
     expect(await journeyRosterIds({ ...input(), stageId: undefined, mixId, due: "quiet" })).toEqual([]);

@@ -1,3 +1,4 @@
+import { MixWorkspace } from "@/components/MixWorkspace";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { MixLibraryNav } from "@/components/MixLibraryNav";
@@ -82,12 +83,14 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
       {params.archived && <Notice type="success">Mix archived.</Notice>}
       {params.starter === "exists" && <Notice type="info">Your starter mix is below.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
+      <div className="mixes-layout"><section className="mixes-directory">
       <header className="page-header">
         <div><h1>Mixes</h1><p>Your reusable follow-up plans.</p></div>
         <div className="page-actions">
-          <Link className="button primary" href="/templates">Find a follow-up plan</Link>
+          <Link className="button primary" href="/mixes/new"><AppIcon name="add" />New mix</Link>
         </div>
       </header>
+      <nav className="mix-mobile-tabs mix-library-tabs" aria-label="Mix library"><Link href="/mixes" aria-current="page">My mixes</Link><Link href="/templates">Ready-made</Link></nav>
       <details className="workflow-options"><summary>More options</summary><div className="page-actions"><Link className="button" href="/mixes/new">Create a mix from scratch</Link><Link className="button" href="/mixes/system">My invitations</Link></div></details>
       <div className="mix-filter-row">
         <form className="filter-bar mix-filter-bar" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search mixes" aria-label="Search mixes"/>{status && <input type="hidden" name="status" value={status}/>}<button className="sr-only" type="submit">Search mixes</button></form>
@@ -97,8 +100,10 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
         </Sheet>
       </div>
 
+      {mixes.length > 0 && <MixLibraryNav mixes={mixes.map(mix => ({ ...mix, people: peopleByMix.get(mix.id) }))} selected={selectedMix?.id} href={id => `${pageHref(page)}${pageHref(page).includes("?") ? "&" : "?"}mix=${id}`} />}
+      </section>
       {mixes.length ? (
-        <div className="mix-library-workspace"><MixLibraryNav mixes={mixes.map(mix => ({ ...mix, people: peopleByMix.get(mix.id) }))} selected={selectedMix?.id} href={id => `${pageHref(page)}${pageHref(page).includes("?") ? "&" : "?"}mix=${id}`} /><div className="mix-list">
+        <div className="mixes-content">{selectedMix && <div className="mix-desktop-editor"><MixWorkspace key={selectedMix.id} mixId={selectedMix.id} embedded /></div>}<div className="mix-list mix-mobile-list">
           {mixes.map((mix) => {
             const broadcast = broadcastByMixId.get(mix.id);
             // Beats timed from a visit have no day of their own; they run only for a visit the mix is lined up with.
@@ -114,7 +119,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
               <article className={`mix-row mix-card${mix.id === selectedMix?.id ? " mix-card-selected" : ""}`} key={mix.id}>
                 <div className="card-header">
                   <div>
-                    <h3>{mix.name}</h3>
+                    <h3><Link href={`/mixes/${mix.id}/edit`}>{mix.name}</Link></h3>
                     <div className="mix-meta">
                       <span className={`status-pill ${mix.status === "ACTIVE" ? "done" : ""}`}>{mix.status.toLowerCase()}</span>
                       <span className="mix-trigger">Starts: {mix.dateType ? `when ${mix.dateType.name} is added` : mix.triggerMode === "MANUAL_START" ? "when you choose" : "on one scheduled date"}</span>
@@ -128,13 +133,15 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                     <div className="sheet-actions vertical"><Link href={`/mixes/${mix.id}/edit`} className="button primary"><AppIcon name="edit"/>Edit mix</Link>{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button" type="submit">Pause mix</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button" type="submit">Start the mix</button></form>}</div><div className="sheet-danger-zone"><ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The mix stops creating new follow-ups. Completed history stays available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button danger" type="submit">Archive mix</button></form></ConfirmDialog></div>
                   </Sheet></div>
                 </div>
-                <Link className="inline-action mix-open-editor" href={`/mixes/${mix.id}/edit`}>Edit mix →</Link>
                 {mix.description && <p className="muted-copy">{mix.description}</p>}
-                <div className="mix-sequence-preview" aria-label={`${mix.name} follow-up sequence`}>
+                <div className="mix-sequence-preview" role="group" aria-label={`${mix.name} follow-up sequence`}>
                   {mix.steps.length ? mix.steps.map((step, index) => (
-                    <div className="mix-sequence-item" key={step.id}><span className="mix-sequence-number">Beat {index + 1}</span><span className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></span><span><strong>{step.stepVersion.stepTemplate.name}</strong><small>{beatTiming(step)}{alternatives(step)}</small></span></div>
+                    <Link key={step.id} href={`/mixes/${mix.id}/edit`} className="mix-sequence-item" title={`Beat ${index + 1} · ${beatTiming(step)} · ${step.stepVersion.stepTemplate.channel.replaceAll("_", " ").toLowerCase()}${alternatives(step)}`}>
+                      <span className="timeline-icon" aria-hidden="true" /><span className="sr-only">Beat {index + 1}: {beatTiming(step)}</span>
+                    </Link>
                   )) : <span className="status-pill">No follow-ups yet</span>}
                 </div>
+                <p className="mix-row-timing">{timing}</p>
                 <details className="mix-details" open={mix.id === selectedMix?.id}><summary>Preview the rhythm</summary><div className="timeline">{mix.steps.map((step, index) => {
                   const content = step.stepVersion.body ?? step.stepVersion.script ?? "No message content";
                   return <div className="timeline-step" key={step.id}><div className="timeline-day">Beat {index + 1}<small>{beatTiming(step)}</small></div><div className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></div><div className="timeline-content"><strong>{step.stepVersion.stepTemplate.name}</strong><span className="channel-pill">{step.stepVersion.stepTemplate.channel.replaceAll("_", " ")}</span><p>{step.stepVersion.subject && `${step.stepVersion.subject}\n`}{content}</p></div></div>;
@@ -158,6 +165,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
         </div>
       </nav>}
       {!totalCount && !q && !status && <form action={createStarterMixAction} className="starter-mix-inline"><button className="button" type="submit">Create a basic starter mix</button></form>}
+      </div>
     </div>
   );
 }

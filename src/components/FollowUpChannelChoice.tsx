@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import type { PreparationFamily } from "@/lib/preparation-family";
 
-export type ChannelChoiceOption = { family: PreparationFamily; label: string; icon: AppIconName };
+export type ChannelChoiceOption = { family: PreparationFamily; label: string; icon: AppIconName; unavailable?: string };
 
 /**
  * The compact choice between a follow-up's usable variants, shown on its Today card only when
@@ -52,7 +52,7 @@ export function FollowUpChannelChoice({ jumpId, contactName, options, selected, 
     <div className="follow-up-channel-choice" data-follow-up-channel-choice={current} aria-busy={busy || refreshing}>
       <div className="when-chips" role="group" aria-label={`How to reach ${contactName}`}>
         {options.map((option) => (
-          <button key={option.family} type="button" className="when-chip" aria-pressed={option.family === current} disabled={busy} onClick={() => { void choose(option.family); }}>
+          <button key={option.family} type="button" className="when-chip" aria-pressed={option.family === current} disabled={busy || Boolean(option.unavailable)} title={option.unavailable} onClick={() => { void choose(option.family); }}>
             <AppIcon name={option.icon} /><span>{option.label}</span>
           </button>
         ))}

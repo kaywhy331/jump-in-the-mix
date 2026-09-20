@@ -92,7 +92,8 @@ export async function changeContactJourneyAction(data: FormData) {
     if (eventType !== "MANUAL" && !JOURNEY_EVENTS.some(item => item.value === eventType && !["TIME_IN_STAGE", "PLAN_COMPLETED", "CONTACT_RECEIVED"].includes(item.value))) throw new Error("Choose a business milestone.");
     await recordJourneyEvent({ workspaceId: workspace.id, contactId, eventType: eventType as JourneyEventType, eventKey: `manual:${value(data, "requestId") || randomUUID()}`, source: "Recorded by you", actorUserId: user.id, targetStageId: value(data, "stageId"), expectedVersion: Number(value(data, "version") || 0) });
   } catch (error) { failure(path, error); }
-  redirect(`${path}?stateUpdated=1`);
+  revalidatePath("/contacts");
+  redirect(value(data, "directory") === "true" ? `/contacts?person=${encodeURIComponent(contactId)}&stateUpdated=1` : `${path}?stateUpdated=1`);
 }
 
 export async function toggleContactJourneyAction(data: FormData) {

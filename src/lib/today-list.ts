@@ -47,6 +47,8 @@ const select = {
   id: true, contactId: true, mixId: true, scheduledAt: true, baseScheduledAt: true, status: true, updatedAt: true, reason: true, renderedSnapshot: true, templateSnapshot: true, stepVersionId: true, completedAt: true, selectedFamily: true,
   // The contact fields the message tokens resolve from, so an owner's draft renders on the card.
   contact: { select: {
+    journey: { select: { stage: { select: { name: true } } } },
+    jumps: { where: { status: "PENDING" }, orderBy: [{ scheduledAt: "asc" }, { id: "asc" }], take: 6, select: { id: true, scheduledAt: true, reason: true } },
     displayName: true, updatedAt: true, firstName: true, lastName: true, company: true, publicNotes: true, privateNotes: true,
     emails: { select: { email: true, isPrimary: true } }, phones: { select: { phone: true, isPrimary: true } },
     addresses: { select: { street1: true, street2: true, city: true, state: true, postalCode: true, country: true, isPrimary: true } },

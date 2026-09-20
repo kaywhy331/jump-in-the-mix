@@ -76,3 +76,16 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
   .auth-shell, .onboarding-shell { padding: 16px; }
   .auth-card, .onboarding-card { padding: 24px 20px; }
 }
+
+.more-destination:nth-of-type(4), .more-destination:nth-of-type(7) { margin-top: 24px; }
+.more-page .settings-hub-icon { display: grid; width: 28px; min-width: 28px; padding: 0; }
+.more-page .settings-hub-icon svg { width: 20px; height: 20px; }
+.more-page .settings-hub-card { display: flex; align-items: center; gap: 16px; }
+.more-page .settings-hub-card > span:nth-child(2) { flex: 1; }
+
+.quick-add-original { padding: 24px; margin: 0 0 28px; background: var(--surface); border: 0; border-radius: 20px 20px 4px 20px; font-family: var(--font-voice); font-size: 1.375rem; line-height: 1.5; }
+.quick-add-item { min-width: 0; border: 0; border-bottom: 1px solid var(--line); padding: 16px 0 24px; }
+.quick-add-item legend { display: flex; gap: 8px; align-items: center; font-weight: 600; }
+.quick-add-item legend svg { width: 20px; height: 20px; color: var(--violet-text); }
+.quick-add-item input { font-family: var(--font-ui); }
+.quick-add-proposal > p { color: var(--text-2); font-size: .8125rem; }

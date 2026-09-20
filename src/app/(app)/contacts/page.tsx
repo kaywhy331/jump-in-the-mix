@@ -1,3 +1,5 @@
+import { contactDueLabel } from "@/lib/contact-profile-view";
+import { ContactProfile } from "@/components/ContactProfile";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { Prisma } from "@/generated/prisma/client";
@@ -16,6 +18,9 @@ export const metadata: Metadata = { title: "Contacts" };
 const PAGE_SIZE = 50;
 
 type SearchParams = {
+  stateUpdated?: string;
+  people?: string;
+  person?: string;
   q?: string;
   group?: string;
   priority?: string;
@@ -104,8 +109,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const permission = ["contactable", "do-not-contact"].includes(requestedPermission) ? requestedPermission : "";
   const importBatchId = params.importBatch?.trim() ?? "";
   const requestedPage = Number(params.page ?? "1");
-  const requestedSort = params.sort ?? (selectedView ? savedViewValue(selectedView.query, "sort") : "name");
-  const sort = ["updated", "newest"].includes(requestedSort) ? requestedSort : "name";
+  const requestedSort = params.sort ?? (selectedView ? savedViewValue(selectedView.query, "sort") : "last-name");
+  const sort = ["last-name", "updated", "newest"].includes(requestedSort) ? requestedSort : "name";
   let page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10_000) : 1;
   const intent = params.intent === "important-date" || params.intent === "one-time-jump" || params.intent === "log-note" ? params.intent : undefined;
 
@@ -124,10 +129,11 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       ? { relationshipState: { is: { doNotContact: true } } }
       : { OR: [{ relationshipState: { is: null } }, { relationshipState: { is: { doNotContact: false } } }] });
   }
+  const selectedPeople = [...new Set((params.people ?? "").split(",").filter(id => id && id.length <= 120))].slice(0, 50);
   const contactWhere: Prisma.ContactWhereInput = {
     workspaceId: workspace.id,
     archivedAt: null,
-    ...(relationshipFilters.length ? { AND: relationshipFilters } : {}),
+    ...((relationshipFilters.length || selectedPeople.length) ? { AND: [...relationshipFilters, ...(selectedPeople.length ? [{ id: { in: selectedPeople } }] : [])] } : {}),
     ...(importBatchId ? { id: { in: importedContactIds.length ? importedContactIds : ["__no-imported-contacts__"] } } : {}),
     ...(groupId ? { groupMemberships: { some: { groupId } } } : {}),
     ...(q ? {
@@ -149,6 +155,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     prisma.contact.findMany({
       where: contactWhere,
       include: {
+        journey: { include: { stage: true } },
         emails: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
         phones: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
         addresses: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
@@ -157,7 +164,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         jumpDates: { where: { isActive: true }, include: { dateType: true }, orderBy: { dateValue: "asc" } },
         relationshipState: { select: { preferredChannel: true, priority: true, doNotContact: true } }
       },
-      orderBy: sort === "updated" ? [{ updatedAt: "desc" }, { id: "asc" }] : sort === "newest" ? [{ createdAt: "desc" }, { id: "asc" }] : [{ displayName: "asc" }, { id: "asc" }],
+      orderBy: sort === "last-name" ? [{ lastName: { sort: "asc", nulls: "last" } }, { displayName: "asc" }, { id: "asc" }] : sort === "updated" ? [{ updatedAt: "desc" }, { id: "asc" }] : sort === "newest" ? [{ createdAt: "desc" }, { id: "asc" }] : [{ displayName: "asc" }, { id: "asc" }],
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE
     }),
@@ -181,6 +188,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     return {
       id: contact.id,
       displayName: contact.displayName,
+      stageName: contact.journey?.stage.name ?? null,
       firstName: contact.firstName,
       lastName: contact.lastName,
       company: contact.company,
@@ -212,7 +220,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         recurrence: item.recurrence.toLowerCase()
       })),
       lastInteraction: summary?.lastInteraction ? formatDateTime(summary.lastInteraction, displayPreferences) : null,
-      nextJump: summary?.nextJump ? formatDateTime(summary.nextJump, displayPreferences) : null,
+      nextJump: summary?.nextJump ? contactDueLabel(summary.nextJump, new Date(), displayPreferences) : null,
       nextJumpOverdue: Boolean(summary?.nextJump && summary.nextJump < new Date()),
       relationshipType: custom.get("relationship-type") ?? custom.get("relationship") ?? null,
       preferredChannel: contact.relationshipState?.preferredChannel ?? custom.get("preferred-channel") ?? null,
@@ -221,6 +229,9 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     };
   });
 
+  const retainedSelection = params.person && !contacts.some(contact => contact.id === params.person)
+    ? await prisma.contact.findFirst({ where: { AND: [contactWhere, { id: params.person.slice(0, 120) }] }, select: { id: true } }) : null;
+  const selectedContactId = contacts.find(contact => contact.id === params.person)?.id ?? retainedSelection?.id ?? contacts[0]?.id;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const resultStart = totalCount ? (page - 1) * PAGE_SIZE + 1 : 0;
   const resultEnd = Math.min(page * PAGE_SIZE, totalCount);
@@ -230,6 +241,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="page contacts-page">
+      {params.stateUpdated && <Notice type="success">Journey stage updated.</Notice>}
       {params.created && <Notice type="success">Contact added.</Notice>}
       {params.archived && <Notice type="success">Contact archived.</Notice>}
       {params.groupCreated && <Notice type="success">Tag created.</Notice>}
@@ -249,8 +261,12 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         selectedViewId={selectedView?.id ?? ""}
         filters={{ q, group: groupId, priority, permission, sort }}
       />}
+      <div className="contacts-workspace"><section className="contacts-directory" aria-label="Contact directory">
       <ContactsBulkWorkspace
         contacts={contactDtos}
+        totalCount={totalCount}
+        initialSelected={selectedPeople}
+        selectedContactId={selectedContactId}
         groups={groups.map((group) => ({ id: group.id, name: group.name, description: group.description, color: group.color, contactCount: group._count.memberships, isActive: group.isActive }))}
         sort={sort}
         query={q}
@@ -267,6 +283,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
           {page < totalPages && <Link className="button" href={pageHref({ page: page + 1, q, groupId, priority, permission, viewId: selectedView?.id ?? "", intent, importBatchId, sort })}>Next</Link>}
         </div>
       </nav>
+      </section>{selectedContactId && <section className="contacts-selected" aria-label="Selected contact"><ContactProfile key={selectedContactId} contactId={selectedContactId} embedded /></section>}</div>
     </div>
   );
 }

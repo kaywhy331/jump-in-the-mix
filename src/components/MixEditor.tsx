@@ -144,15 +144,15 @@ export function MixEditor({
     formRef.current?.requestSubmit();
   };
 
-  return <form ref={formRef} action={saveMixAction} className="mix-editor-form simple-plan-editor" onSubmit={submit}>
+  return <form ref={formRef} action={saveMixAction} className="mix-editor-form simple-plan-editor" onSubmit={submit} onInvalid={event => { let parent = event.target instanceof HTMLElement ? event.target.parentElement : null; while (parent) { if (parent instanceof HTMLDetailsElement) parent.open = true; parent = parent.parentElement; } }}>
     <FormGuard />
     {mix?.id && <input type="hidden" name="mixId" value={mix.id} />}
     <input ref={activationInputRef} type="hidden" name="activationConfirmed" defaultValue="0" />
 
-    <section className="card mix-editor-section">
-      <div className="card-header"><div><h2>Name and start</h2><p>Choose what cues this mix and who it is for.</p></div></div>
+    <details className="card mix-editor-section mix-start-settings" open={!mix?.id}>
+      <summary><strong>Name and start</strong><span>{name || "Set up this mix"}</span></summary>
       <div className="form-grid">
-        <label className="field full"><span>Mix name</span><input name="name" maxLength={160} value={name} onChange={(event) => setName(event.target.value)} placeholder="Estimate follow-up" required autoFocus /></label>
+        <label className="field full"><span>Mix name</span><input name="name" maxLength={160} value={name} onChange={(event) => setName(event.target.value)} placeholder="Estimate follow-up" required autoFocus={!mix?.id} /></label>
         <label className="field"><span>When should it start?</span><select name="triggerMode" value={triggerMode} onChange={(event) => setTriggerMode(event.target.value as TriggerMode)}><option value="DATE_TRIGGERED">When I add a date</option><option value="MANUAL_START">When I start it for someone</option><option value="BROADCAST">On one fixed date</option></select></label>
         {triggerMode === "DATE_TRIGGERED" && <label className="field"><span>Which date?</span><select name="dateTypeId" defaultValue={mix?.dateTypeId ?? dateTypes[0]?.id ?? ""} required>{dateTypes.map((dateType) => <option key={dateType.id} value={dateType.id}>{dateType.name}</option>)}</select><small><Link href="/settings/jump-date-types">Manage date types</Link></small></label>}
         {triggerMode === "BROADCAST" && <div className="field full broadcast-fields"><div className="broadcast-field-grid"><label className="field"><span>Date</span><input name="broadcastDate" type="date" defaultValue={mix?.broadcastDate ?? ""} required /></label><label className="field"><span>Time</span><input name="broadcastTime" type="time" defaultValue={mix?.broadcastTime ?? "10:00"} required /></label><label className="field"><span>Timezone</span><TimezonePicker name="broadcastTimezone" id="broadcastTimezone" label="Timezone" defaultValue={mix?.broadcastTimezone ?? workspaceTimezone} /></label></div></div>}
@@ -176,8 +176,8 @@ export function MixEditor({
         <label className="field"><span>Business type</span><select name="industry" defaultValue={mix?.industry ?? ""}><option value="">Any</option>{industries.map((industry) => <option key={industry}>{industry}</option>)}</select></label>
         <label className="field full"><span>Internal approach</span><input name="framework" maxLength={160} defaultValue={mix?.framework ?? ""} placeholder="Optional" /></label>
       </div></details>
-    </section>
-
+    </details>
+    <ol className="mix-beat-timeline" aria-label="Mix beat timing">{sequence.map((item, index) => <li key={item.key}><a href={`#mix-beat-${item.key}`}><span>{item.anchor === "CALENDAR_DAY" ? `Day ${item.dayOffset}` : describeStepTiming({ anchor: item.anchor, offsetMinutes: Number(signedMinutes(item)) || 0 })}</span><i aria-hidden="true" /><strong>Beat {index + 1}</strong></a></li>)}</ol>
     <section className="card mix-editor-section">
       <div className="card-header"><div><h2>Beats</h2><p>Each beat is one follow-up. Choose when it appears and what you want to say. Day 0 is the start date; day 2 is two days later.</p></div><button className="button primary" type="button" onClick={addStep}>Add a beat</button></div>
       {removedStep && <p role="status">Beat removed. <button type="button" className="text-button" onClick={() => { setSequence(current => { const next = [...current]; next.splice(Math.min(removedStep.index, next.length), 0, removedStep.item); return next; }); setRemovedStep(null); }}>Undo beat removal</button></p>}
@@ -185,7 +185,7 @@ export function MixEditor({
         const written = ["SMS", "EMAIL", "WHATSAPP"].includes(item.channel);
         const signedOffset = item.dayOffset;
         const fieldId = (field: string) => `plan-step-${index}-${field}`;
-        return <fieldset className={`mix-editor-jump ${styles.sequenceCard}`} key={item.key}>
+        return <fieldset id={`mix-beat-${item.key}`} className={`mix-editor-jump ${styles.sequenceCard}`} key={item.key}>
           <legend>Beat {index + 1}</legend>
           <input type="hidden" name="mixStepId" value={item.id ?? ""} />
           <input type="hidden" name={`inlineName-${index}`} value={`${CHANNELS.find((channel) => channel.value === item.channel)?.label ?? "Follow-up"} ${index + 1}`} />

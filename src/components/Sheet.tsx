@@ -8,6 +8,7 @@ import { DOCKED_REVIEW_MEDIA, openSheet } from "@/lib/sheet-layout";
 export function Sheet({
   trigger,
   title,
+  accessibleTitle,
   description,
   children,
   className = "",
@@ -16,6 +17,7 @@ export function Sheet({
 }: {
   trigger: ReactNode;
   title: string;
+  accessibleTitle?: string;
   description?: string;
   children: ReactNode;
   className?: string;
@@ -88,7 +90,8 @@ export function Sheet({
       {mounted && <dialog
         ref={dialogRef}
         className={`sheet ${className}`.trim()}
-        aria-labelledby={titleId}
+        aria-labelledby={accessibleTitle ? undefined : titleId}
+        aria-label={accessibleTitle}
         aria-describedby={description ? descriptionId : undefined}
         onClick={(event) => { if (event.target === event.currentTarget) close(); }}
         onClose={restoreTriggerFocus}
@@ -105,7 +108,7 @@ export function Sheet({
               <h2 id={titleId}>{title}</h2>
               {description && <p id={descriptionId}>{description}</p>}
             </div>
-            <button className="icon-button" type="button" onClick={close} aria-label={`Close ${title}`}><AppIcon name="close" /></button>
+            <button className="icon-button" type="button" onClick={close} aria-label={`Close ${accessibleTitle ?? title}`}><AppIcon name="close" /></button>
           </header>
           <div className="sheet-body">{children}</div>
         </div>

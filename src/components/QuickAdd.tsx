@@ -19,7 +19,7 @@ function requestQuickAdd() {
 }
 
 export function QuickAddButton({ mobile = false }: { mobile?: boolean }) {
-  return <button type="button" className={mobile ? "nav-link nav-quick-add" : "button primary global-quick-add"} onClick={requestQuickAdd} aria-label="Quick Add">
+  return <button type="button" className={mobile ? "nav-link nav-quick-add" : "button primary global-quick-add"} onClick={requestQuickAdd} aria-label="Quick Add" aria-keyshortcuts="N">
     <AppIcon name="add" /> <span>Quick Add</span>
   </button>;
 }
@@ -37,7 +37,7 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
 
   useEffect(() => {
     if (dialogRef.current?.open) (preview ? reviewRef.current : inputRef.current)?.focus();
-  }, [preview]);
+  }, [Boolean(preview)]);
 
   const closeDialog = () => {
     if (capture.trim() && !window.confirm("Discard this Quick Add draft?")) return;
@@ -53,9 +53,11 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
       dialogRef.current?.showModal();
       window.setTimeout(() => inputRef.current?.focus(), 0);
     };
+    const shortcut = (event: KeyboardEvent) => { if (event.key.toLowerCase() !== "n" || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || document.querySelector("dialog:modal")) return; const target = event.target; if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select"))) return; event.preventDefault(); open(); };
+    window.addEventListener("keydown", shortcut);
     window.addEventListener(OPEN_QUICK_ADD, open);
     if ((window as QuickAddWindow).__jitmQuickAddPending) open();
-    return () => window.removeEventListener(OPEN_QUICK_ADD, open);
+    return () => { window.removeEventListener(OPEN_QUICK_ADD, open); window.removeEventListener("keydown", shortcut); };
   }, []);
 
   const continueWithContact = () => {
@@ -74,7 +76,7 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
       <button className="button primary quick-add-review" type="submit" disabled={!capture.trim()}>Continue</button>
     </form>
     {error && <p role="alert">{error}</p>}
-    {preview && <section className="quick-add-proposal" aria-live="polite"><strong ref={reviewRef} tabIndex={-1}>Check the details</strong><dl><div><dt>Person</dt><dd>{preview.name ?? "Choose a contact"}</dd></div>{preview.email && <div><dt>Email</dt><dd>{preview.email}</dd></div>}{preview.phone && <div><dt>Phone</dt><dd>{preview.phone}</dd></div>}<div><dt>When</dt><dd>{preview.dateValue ? `${preview.dateValue} · ${timezone}` : preview.timing}</dd></div><div><dt>Reason</dt><dd>{preview.reason}</dd></div></dl><p>{preview.confidence}</p><div className="card-actions"><button className="button primary" type="button" onClick={continueWithContact}>Add person & follow-up</button><button className="button" type="button" onClick={() => setPreview(null)}>Edit capture</button></div></section>}
+    {preview && <section className="quick-add-proposal"><blockquote className="quick-add-original">{capture}</blockquote><strong ref={reviewRef} tabIndex={-1}>Saving as</strong><p>Check the recognized details. The next screen lets you choose the follow-up plan before saving.</p><form className="form-stack" onSubmit={event => { event.preventDefault(); continueWithContact(); }}><fieldset className="quick-add-item"><legend><AppIcon name="contacts" />Person</legend><label className="field"><span>Name</span><input value={preview.name ?? ""} maxLength={200} onChange={event => setPreview({ ...preview, name: event.target.value })} /></label><div className="form-grid"><label className="field"><span>Phone</span><input type="tel" value={preview.phone ?? ""} onChange={event => setPreview({ ...preview, phone: event.target.value })} /></label><label className="field"><span>Email</span><input type="email" value={preview.email ?? ""} onChange={event => setPreview({ ...preview, email: event.target.value })} /></label></div></fieldset><fieldset className="quick-add-item"><legend><AppIcon name="today" />Follow-up</legend><label className="field"><span>When · {timezone}</span><input type="date" value={preview.dateValue ?? ""} onChange={event => setPreview({ ...preview, dateValue: event.target.value || null })} /></label><label className="field"><span>Reason</span><input value={preview.reason} maxLength={300} onChange={event => setPreview({ ...preview, reason: event.target.value })} /></label></fieldset><div className="card-actions"><button className="button primary" type="submit">Review person & follow-up</button><button className="button" type="button" onClick={() => setPreview(null)}>Edit capture</button></div></form></section>}
     {!preview && <><details className="workflow-options"><summary>Other ways to add</summary>
     <nav className="quick-add-grid" aria-label="Quick Add options">
       <Link href="/contacts/new" onClick={() => dialogRef.current?.close()}><AppIcon name="contacts"/><span><strong>Add a person</strong><small>Name, phone, and optional follow-up</small></span></Link>

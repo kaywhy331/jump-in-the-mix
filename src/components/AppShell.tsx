@@ -43,7 +43,7 @@ export function AppShell({
         {!impersonation && <QuickAddButton />}
         <Nav />
         <div className="sidebar-footer account-sidebar-footer">
-          <nav className="sidebar-utilities" aria-label="Account and help"><Link href="/settings"><AppIcon name="settings" />Settings</Link><Link href="/help"><AppIcon name="help" />Help</Link><Link href="/account"><AppIcon name="people" />My account</Link></nav>
+          <nav className="sidebar-utilities" aria-label="Account and help"><Link href="/settings" aria-label="Settings"><AppIcon name="settings" />Settings</Link><Link href="/help" aria-label="Help"><AppIcon name="help" />Help</Link><Link href="/account" aria-label="My account"><AppIcon name="people" />My account</Link></nav>
           <AppearanceControl compact />
           <span className="user-label">{impersonation ? `Viewing as ${userName}` : `Signed in as ${userName}`}</span>
           <div className="account-sidebar-actions">

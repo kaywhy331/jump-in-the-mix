@@ -5,7 +5,7 @@
 .public-page .logo { font-size: 1rem; }
 .public-page .logo-mark { width: 32px; height: 32px; }
 .public-page .hero { grid-template-columns: 1.1fr .9fr; gap: clamp(40px, 6vw, 96px); padding-block: 60px 100px; }
-.public-page .hero h1 { font-size: clamp(2.75rem, 4.2vw, 4.75rem); line-height: 1.02; letter-spacing: -.06em; margin-block: 12px 32px; }
+.public-page .hero h1 { font-weight: 700; font-size: clamp(2.75rem, 4.2vw, 4.75rem); line-height: 1.02; letter-spacing: -.06em; margin-block: 12px 32px; }
 .public-page .hero h1 em { font-style: normal; color: var(--text-3); }
 .public-page .hero-copy > p { font-size: 1.0625rem; line-height: 1.65; }
 .public-page .hero-note { color: var(--text-3); font-size: .8125rem !important; }
@@ -60,7 +60,10 @@
   .public-page .hero { grid-template-columns: 1fr; max-width: 740px; gap: 48px; }
   .public-page .hero-copy { max-width: none; }
   .public-page .product-demo { max-width: 620px; justify-self: center; }
-  .public-page .public-definition { gap: 24px 40px; }
+  .public-page .public-definition { grid-template-columns: 1fr; gap: 24px; }
+  .public-page .public-definition h2 { grid-row: auto; max-width: 22ch; }
+  .homepage #waitlist { grid-template-columns: 1fr; gap: 32px; }
+  .public-page .hero h1 { font-size: clamp(3.5rem, 7.92vw, 4.125rem); }
   .public-page .profession-marks { grid-template-columns: 1fr; gap: 32px; }
 }
 @media (max-width: 600px) {
@@ -75,8 +78,10 @@
   .public-page .public-definition { display: block; padding: 64px 24px; }
   .public-page .public-definition h2 { margin-bottom: 28px; }
   .public-page .public-definition p + p { margin-top: 18px; }
-  .public-page .profession-grid { gap: 0 24px; }
+  .public-page .profession-grid { grid-auto-flow: row; grid-template-columns: 1fr; grid-template-rows: none; gap: 0; }
   .public-page .profession-grid li, .public-page .profession-grid li > a { font-size: .875rem; }
   .homepage #waitlist { grid-template-columns: 1fr; gap: 28px; padding: 64px 24px; }
   .public-page .public-footer { padding: 32px 24px; }
 }
+
+.homepage .section-heading h2, .homepage .profession-marks h2 { font-weight: 700; }

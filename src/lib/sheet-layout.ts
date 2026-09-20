@@ -1,4 +1,4 @@
-export const DOCKED_REVIEW_MEDIA = "(min-width: 1100px)";
+export const DOCKED_REVIEW_MEDIA = "(min-width: 768px)";
 
 export function isDockedReview(dialog: HTMLDialogElement) {
   return dialog.classList.contains("follow-up-review-sheet") && window.matchMedia(DOCKED_REVIEW_MEDIA).matches;

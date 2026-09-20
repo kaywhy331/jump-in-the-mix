@@ -19,7 +19,7 @@ import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { projectDraftSource, type DraftValues } from "@/lib/draft-segments";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { readJumpDrafts } from "@/lib/jump-drafts";
 import { buildJumpReplacementValues } from "@/lib/jump-render";
 import { detachedChanges, preparationFamilyForChannel, type PreparationFamily } from "@/lib/preparation-family";
@@ -152,7 +152,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     prisma.jump.count({ where: { AND: [where, { status: "PENDING" }] } }),
     prisma.jump.count({ where: { AND: [where, { status: "PENDING", scheduledAt: { lt: endToday } }] } }),
     prisma.jump.count({ where: { AND: [where, { status: "PENDING", scheduledAt: { lt: startToday } }] } }),
-    prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: pendingStatuses }, scheduledAt: { gte: startToday, lt: endWeek } } }),
+    prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: pendingStatuses }, scheduledAt: { gte: endToday, lt: endWeek } } }),
     prisma.jump.count({ where: { workspaceId: workspace.id, status: "DONE", completedAt: { gte: startToday, lt: endToday } } })
   ]);
   const followUps = list.items;
@@ -205,7 +205,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const upcoming = pending.filter((followUp) => followUp.scheduledAt >= endToday);
   const completed = ordered.filter((followUp) => completedStatuses.includes(followUp.status));
   const upcomingCount = pendingCount - attentionCount;
-  const nextUp = needsAttention[0] ?? null;
+  const nextUp = needsAttention[0] ?? upcoming[0] ?? null;
   const activeFilterCount = Number(range !== "due") + Number(status !== "all") + Number(channel !== "all") + Number(Boolean(query)) + Number(priority !== "all") + Number(Boolean(params.jump));
 
   const renderCard = (followUp: (typeof ordered)[number]) => {
@@ -246,10 +246,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const heldNote = !heldByChoice || !active ? null : chosen
       ? `Because you chose ${choiceOption(active.family, active.channel).label.toLowerCase()} instead of the plan’s ${channelLabel(planChannel)}, this one waits for you and won’t send automatically.`
       : `The plan’s ${channelLabel(planChannel)} needs ${planChannel === "EMAIL" ? "an email address" : "a phone number"} this person doesn’t have, so this one waits for you and won’t send automatically.`;
-    const choice = isPending && active && offersChoice(usable) ? <FollowUpChannelChoice
+    const choice = isPending && active ? <FollowUpChannelChoice
       jumpId={followUp.id}
       contactName={followUp.contact.displayName}
-      options={usable.map((item) => choiceOption(item.family, item.channel))}
+      options={(["TEXT", "EMAIL", "CALL"] as const).map(optionFamily => { const item = usable.find(item => item.family === optionFamily); return item ? choiceOption(item.family, item.channel) : { ...choiceOption(optionFamily, optionFamily === "EMAIL" ? "EMAIL" : optionFamily === "CALL" ? "PHONE_CALL" : "SMS"), unavailable: optionFamily === "EMAIL" && !email ? "Add an email address to use email" : optionFamily !== "EMAIL" && !phone ? "Add a phone number to use this method" : "This Mix has no prepared version for this method" }; })}
       selected={active.family}
       heldNote={heldNote}
     /> : null;
@@ -282,22 +282,24 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       stepVersionId={followUp.stepVersionId}
       contextVersions={contextVersions}
       automaticDelivery={automaticForPlan && !alternative}
+      channelChoice={choice}
       changedDetails={changedDetails}
     />;
-    const prepare = <><p className="workflow-step-label">Step 1 · Review your follow-up</p>{choice && <details className="workflow-options"><summary>Change contact method</summary>{choice}</details>}{editableAction}</>;
+    const prepare = <>{editableAction}<div className="review-outcome-actions"><JumpOutcomeButton jumpId={followUp.id} outcome="COMPLETED" className="button small" ariaLabel={`${directCall ? "Mark done" : "Mark sent"} for ${followUp.contact.displayName}`}><AppIcon name="check" />{directCall ? "Mark done" : "Mark sent"}</JumpOutcomeButton><Sheet trigger={<button className="button small" type="button">Snooze</button>} title="Snooze follow-up"><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input name="jumpId" type="hidden" value={followUp.id} /><input name="preset" type="hidden" value={preset} /><input name="returnTo" type="hidden" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div></Sheet><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button small">Skip beat</JumpOutcomeButton></div></>;
 
+    const nextScheduled = followUp.contact.jumps.find(beat => beat.id !== followUp.id);
     return (
-      <JumpWorkflowCard jumpId={followUp.id} contactName={followUp.contact.displayName} revision={followUp.updatedAt.toISOString()} key={followUp.id}>
+      <JumpWorkflowCard nextScheduledLabel={nextScheduled ? formatDateTime(nextScheduled.scheduledAt, displayPreferences) : undefined} jumpId={followUp.id} contactName={followUp.contact.displayName} revision={followUp.updatedAt.toISOString()} key={followUp.id}>
         <article id={`jump-${followUp.id}`} className={`jump-card jump-task-card ${isNext ? "next-follow-up" : ""} ${isPending ? "" : "jump-task-complete"}`}>
-          <div className="jump-card-main">
+          <div className="jump-card-main"><span className="person-initials jump-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>
             {isNext && <span className="eyebrow">Next up</span>}
-            <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span className={followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{dueLabel}</span><span className="channel-pill">{channelLabel(followUpChannel)}</span></div>
+            <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span title={dueLabel} className={followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{followUp.scheduledAt >= startToday && followUp.scheduledAt < endToday ? new Intl.DateTimeFormat(displayPreferences.locale, { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(followUp.scheduledAt) : dueLabel}</span><span className="channel-pill">{channelLabel(followUpChannel)}</span></div>
             <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}<span>{followUp.mix.name}</span>{followUp.reason && followUp.reason.trim().toLowerCase() !== followUp.mix.name.trim().toLowerCase() && <span>{followUp.reason}</span>}{isPending && <span className="status-pill">{automaticForPlan && !heldByChoice && !drafts.get(followUp.id) && !followUp.accessInvite && (!followUp.appointmentBinding || followUp.appointmentBinding.automaticDelivery) && !missingMethod ? "Automatic sending enabled" : automaticForPlan ? "Held for your review" : "Manual · you send"}</span>}</div>
             <p className="jump-snippet">{snippet}</p>
           </div>
 
           <div className="jump-primary-action">
-            {isPending && <Sheet className="follow-up-review-sheet" desktopInitiallyOpen={isNext} trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review ${directCall ? "call" : "message"} for ${followUp.contact.displayName}`}><AppIcon name={directCall ? "phone" : followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={`Follow up with ${followUp.contact.displayName}`} description="Review, open your app, then come back to record what happened."><div className="review-workspace"><div className="review-composer"><p className="review-mix-name">{followUp.mix.name}</p><small className="muted-copy">{dueLabel}</small>{prepare}</div><aside className="review-person-context" aria-label={`About ${followUp.contact.displayName}`}><h3>Reach {followUp.contact.displayName}</h3>{phone && <p>{phone}</p>}{email && <p>{email}</p>}{followUp.contact.publicNotes && <><h3>Contact notes</h3><p className="conversation-note">{followUp.contact.publicNotes}</p></>}<Link className="inline-action" href={`/contacts/${followUp.contactId}`}>Open contact →</Link></aside></div></Sheet>}
+            {isPending && <Sheet className="follow-up-review-sheet" desktopInitiallyOpen={isNext} trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review ${directCall ? "call" : "message"} for ${followUp.contact.displayName}`}><AppIcon name={directCall ? "phone" : followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={followUp.contact.displayName} accessibleTitle={`Follow up with ${followUp.contact.displayName}`} description={followUp.contact.journey?.stage.name ?? "Follow-up"}><div className="review-workspace"><div className="review-composer"><p className="review-mix-name">{followUp.mix.name}</p><small className="muted-copy">{dueLabel}</small><ol className="beat-rhythm review-beat-rhythm" aria-label="Scheduled beats">{followUp.contact.jumps.map(beat => <li key={beat.id} aria-current={beat.id === followUp.id ? "step" : undefined}><TodayLink href={`/jumps?jump=${encodeURIComponent(beat.id)}&range=all`} title={beat.reason}><i aria-hidden="true" /><time>{formatDate(beat.scheduledAt, displayPreferences, { year: undefined })}</time></TodayLink></li>)}</ol>{prepare}</div><aside className="review-person-context" aria-label={`About ${followUp.contact.displayName}`}><h3>Reach {followUp.contact.displayName}</h3>{phone && <p>{phone}</p>}{email && <p>{email}</p>}{followUp.contact.publicNotes && <><h3>Contact notes</h3><p className="conversation-note">{followUp.contact.publicNotes}</p></>}<Link className="inline-action" href={`/contacts/${followUp.contactId}`}>Open contact →</Link></aside></div></Sheet>}
             <div className="jump-completion-actions">
               {!isPending && <JumpOutcomeButton jumpId={followUp.id} outcome="REOPENED" className="button small jump-done-action" ariaLabel="Undo"><span>Undo</span></JumpOutcomeButton>}
               {isPending && <Sheet
@@ -355,12 +357,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       </header>
 
       <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
-      <details className="today-overview"><summary>This week & completed follow-ups</summary>      <p className="today-week-line"><TodayLink href="/jumps?range=week&status=pending">This week: {dueThisWeekCount} open</TodayLink><span>·</span><TodayLink href="/jumps?range=due&status=done">{completedTodayCount} completed today</TodayLink></p>
-      {!activeFilterCount && <TodayBriefing text={todayBriefing({ attention: attentionCount, overdue: overdueCount, markedDone: completedTodayCount, ready: preparation.state === "ready" })} />}
-</details>
-      {needsAttention.length > 0 && <section aria-labelledby="needs-attention"><div className="section-label urgent"><h2 id="needs-attention">Needs attention</h2><span>{needsAttention.length < attentionCount ? `${needsAttention.length} of ${attentionCount.toLocaleString()}` : needsAttention.length}</span></div><div className="jump-list">{needsAttention.map(renderCard)}</div></section>}
-      {upcoming.length > 0 && <section aria-labelledby="upcoming-follow-ups"><div className="section-label"><h2 id="upcoming-follow-ups">Up next</h2><span>{upcoming.length < upcomingCount ? `${upcoming.length} of ${upcomingCount.toLocaleString()}` : upcoming.length}</span></div><div className="jump-list">{upcoming.map(renderCard)}</div></section>}
-      {completed.length > 0 && <section aria-labelledby="completed-follow-ups"><div className="completed-divider"><span id="completed-follow-ups">Completed</span></div><div className="jump-list">{completed.map(renderCard)}</div></section>}
+      {needsAttention.filter(item => item.scheduledAt < startToday).length > 0 && <section aria-labelledby="overdue-follow-ups"><div className="section-label urgent"><h2 id="overdue-follow-ups">Overdue</h2><span>{overdueCount}</span></div><div className="jump-list">{needsAttention.filter(item => item.scheduledAt < startToday).map(renderCard)}</div></section>}
+      {needsAttention.filter(item => item.scheduledAt >= startToday).length > 0 && <section aria-labelledby="today-follow-ups"><div className="section-label"><h2 id="today-follow-ups">Today</h2><span>{attentionCount - overdueCount}</span></div><div className="jump-list">{needsAttention.filter(item => item.scheduledAt >= startToday).map(renderCard)}</div></section>}
+      <details className="today-queue-group" open={upcoming.length > 0 || undefined}><summary>{range === "due" || range === "week" ? "Later this week" : "Upcoming"} <span>{upcomingCount || dueThisWeekCount}</span></summary>{upcoming.length ? <div className="jump-list">{upcoming.map(renderCard)}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
+      <details className="today-queue-group" open={status === "done" || status === "skipped" || pendingCount === 0 || undefined}><summary>Done <span>{completed.length || completedTodayCount}</span></summary>{completed.length ? <div className="jump-list">{completed.map(renderCard)}</div> : <TodayLink href="/jumps?range=due&status=done">View completed follow-ups</TodayLink>}</details>
       {totalCount > 0 && <nav className="pagination-bar today-pagination" aria-label="Follow-up pages">
         <span role="status">Showing {ordered.length} of {totalCount.toLocaleString()} follow-up{totalCount === 1 ? "" : "s"} in this view.</span>
         <div className="page-actions">

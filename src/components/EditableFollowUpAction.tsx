@@ -86,6 +86,7 @@ export function EditableFollowUpAction({
   stepVersionId,
   contextVersions,
   automaticDelivery = false,
+  channelChoice,
   changedDetails = []
 }: {
   jumpId: string;
@@ -107,6 +108,7 @@ export function EditableFollowUpAction({
   /** True when automatic delivery would otherwise send this follow-up; a draft holds it for the owner. */
   automaticDelivery?: boolean;
   /** Details the owner wrote over by hand that have changed since; shown, never rewritten. */
+  channelChoice?: React.ReactNode;
   changedDetails?: DetachedChange[];
 }) {
   const persists = template !== null;
@@ -341,7 +343,15 @@ export function EditableFollowUpAction({
       data-follow-up-draft={unsaved}
       data-follow-up-editing={editing}
       data-follow-up-saved={persists && saved.revision !== null}
-      onFocusCapture={() => { setFocused(true); touch(); }}
+      onFocusCapture={(event) => {
+        // Choosing another method is an explicit request to replace this editor. Saved
+        // wording must not hold that refresh; unsaved wording still waits for autosave.
+        if ((event.target as HTMLElement).closest("[data-follow-up-channel-choice]")) {
+          setFocused(false);
+          setRecentlyActive(false);
+          window.clearTimeout(idleTimer.current);
+        } else { setFocused(true); touch(); }
+      }}
       onBlurCapture={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { setFocused(false); touch(); } }}
     >
       {changedDetails.length > 0 && <div className="notice warning compact" role="status" data-follow-up-changed-details>
@@ -363,7 +373,8 @@ export function EditableFollowUpAction({
         </div>
       </div>}
       {longSms && <p className="notice warning compact" role="status">This text is over 900 characters and may be cut off by some phones. Copy it instead, or shorten it.</p>}
-      <p className="workflow-step-label">Step 2 · Open your app to send</p>
+      {channelChoice}
+      <p className="review-send-hint">Open your app to send, then record what happened.</p>
       <div className="editable-follow-up-actions">
         {url ? <JumpActionLink
           jumpId={jumpId}
@@ -379,10 +390,10 @@ export function EditableFollowUpAction({
         ><AppIcon name={channelIcon(channel)} /><span>{actionLabel(channel)}</span></JumpActionLink> : (
           <a className="button primary" href={`/contacts/${contactId}/edit`}><AppIcon name="add" />Add {methodLabel}</a>
         )}
-        <details className="workflow-options" open={longSms || undefined}><summary>Copy or reset</summary><div className="workflow-option-actions">
+        <div className="workflow-option-actions">
         {copyContent && <span className={longSms ? "copy-primary" : ""}><JumpCopyButton jumpId={jumpId} text={copyContent} label="Copy" /></span>}
         {hasDraft && !conflict && <button type="button" className="button" disabled={busy} onClick={() => { void discard(); }}>{status === "discard-failed" ? "Try discarding again" : "Discard edits"}</button>}
-        </div></details>
+        </div>
         {unsaved && <button type="button" hidden data-discard-follow-up-draft onClick={revertUnsaved} tabIndex={-1} aria-hidden="true">Keep the saved version</button>}
         {label && <small className="muted-copy" role="status" data-draft-status={status}>{label}</small>}
       </div>

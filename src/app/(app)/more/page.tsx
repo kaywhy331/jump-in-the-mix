@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { AppearanceControl } from "@/components/Appearance";
 import { logoutAction } from "@/lib/auth-actions";
 
@@ -16,6 +17,8 @@ const destinations = [
   ["/help", "Help", "Plain-language answers and ways to get assistance."]
 ] as const;
 
+const icons: AppIconName[] = ["journey", "calendar", "import", "settings", "people", "alert", "security", "help"];
+
 export default async function MorePage() {
-  return <div className="page more-page"><header className="page-header"><div><h1>More</h1><p>Business settings, account controls, and help.</p></div></header><div className="settings-hub-grid"><Link className="settings-hub-card desktop-only" href="/jumps"><span className="settings-hub-icon">→</span><span><strong>Today</strong><small>Who to contact next and what to say.</small></span></Link><Link className="settings-hub-card desktop-only" href="/templates"><span className="settings-hub-icon">→</span><span><strong>Ready-made mixes</strong><small>Start with follow-ups written for your business.</small></span></Link>{destinations.map(([href, title, description]) => <div className="more-destination" key={href}><span className="more-section-label">{title}</span><Link className="settings-hub-card" href={href}><span className="settings-hub-icon desktop-only">→</span><span><strong>{title}</strong><small>{description}</small></span><span className="settings-row-chevron mobile-only" aria-hidden="true">›</span></Link></div>)}</div><AppearanceControl /><form action={logoutAction} className="more-sign-out"><button className="button" type="submit">Sign out</button></form></div>;
+  return <div className="page more-page"><header className="page-header"><div><h1>More</h1><p>Business settings, account controls, and help.</p></div></header><div className="settings-hub-grid"><Link className="settings-hub-card desktop-only" href="/jumps"><span className="settings-hub-icon">→</span><span><strong>Today</strong><small>Who to contact next and what to say.</small></span></Link><Link className="settings-hub-card desktop-only" href="/templates"><span className="settings-hub-icon">→</span><span><strong>Ready-made mixes</strong><small>Start with follow-ups written for your business.</small></span></Link>{destinations.map(([href, title, description], index) => <div className="more-destination" key={href}><span className="more-section-label">{title}</span><Link className="settings-hub-card" href={href}><span className="settings-hub-icon"><AppIcon name={icons[index]} /></span><span><strong>{title}</strong><small>{description}</small></span><span className="settings-row-chevron mobile-only" aria-hidden="true">›</span></Link></div>)}</div><AppearanceControl /><form action={logoutAction} className="more-sign-out"><button className="button" type="submit">Sign out</button></form></div>;
 }

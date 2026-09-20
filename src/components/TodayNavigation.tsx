@@ -11,9 +11,9 @@ const DraftGuard = createContext<(href: string) => boolean>(() => false);
 // intent outside that instance so its first effect can honor keyboard navigation.
 let focusNextTodayPage = false;
 
-export function TodayLink({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
+export function TodayLink({ href, children, className, title, "aria-current": current }: { href: string; children: ReactNode; className?: string; title?: string; "aria-current"?: "page" }) {
   const blocked = useContext(DraftGuard);
-  return <Link href={href} className={className} prefetch={false} onNavigate={event => {
+  return <Link href={href} className={className} title={title} aria-current={current} prefetch={false} onNavigate={event => {
     if (blocked(href)) event.preventDefault();
     else focusNextTodayPage = true;
   }}>{children}</Link>;
@@ -97,6 +97,7 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     if (blocked(href)) form.reset();
     else { focusNextTodayPage = true; router.push(href); }
   }}>
+    <div id="follow-up-confirmations" className="follow-up-confirmations" aria-label="Recent follow-up results" />
     {updateState && updateState !== "undo" && <aside className="notice info" aria-label="Today updates">
       <p role="status">{updateState === "draft" ? "There are updates for this list. Finish or discard your message edits to show them."
         : updateState === "offline" ? "Your progress is saved. Reconnect to update this list."
