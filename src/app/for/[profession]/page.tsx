@@ -1,12 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { WaitlistLink } from "@/components/WaitlistLink";
-import { ProductDemo } from "@/components/ProductDemo";
-import { MixesFor } from "@/components/MixesFor";
-import { WaitlistForm } from "@/components/WaitlistForm";
-import { PublicHeader } from "@/components/PublicHeader";
-import { PublicFooter } from "@/components/PublicFooter";
+import { PublicLanding } from "@/components/PublicLanding";
 import { publicPageMetadata } from "@/lib/public-seo";
 import { PERSONAS, persona as findPersona } from "@/lib/persona-mixes";
 
@@ -19,37 +13,9 @@ export async function generateMetadata({ params }: { params: Promise<{ professio
   return publicPageMetadata({ path: `/for/${persona.slug}`, title: persona.seoTitle, description: persona.description });
 }
 
-// Same page composition and styling as the homepage; only the hero copy, the mixes in the demo
-// and the short boundary note belong to this profession.
 export default async function ProfessionPage({ params }: { params: Promise<{ profession: string }> }) {
   const { profession } = await params;
   const persona = findPersona(profession);
   if (!persona || persona.slug !== profession) notFound();
-  return <div className="public-page">
-    <a className="public-skip-link" href="#main-content">Skip to content</a>
-    <PublicHeader scenarioId={persona.id} links={[{ href: "#sample", label: "Try the demo", demoTrigger: true }, { href: "/follow-up-templates", label: "Templates" }]} />
-    <main id="main-content" tabIndex={-1}>
-      <section className="hero" aria-labelledby="hero-title">
-        <div className="hero-copy">
-          <h1 id="hero-title">{persona.headline}</h1>
-          <p>{persona.supporting}</p>
-          <div className="hero-actions"><a className="button primary" href="#sample" data-demo-trigger>{persona.demoCta}</a><WaitlistLink className="button" scenarioId={persona.id}>Join the waitlist</WaitlistLink></div>
-          <p className="hero-note">Practice only: nothing is sent and no messaging app opens. Free accounts, no card; join the waitlist for an invitation.</p>
-          <p className="hero-note">{persona.boundary}</p>
-          <MixesFor current={persona.id} />
-        </div>
-        <ProductDemo scenarioId={persona.id} />
-      </section>
-      <section className="section public-route-notes" aria-labelledby="route-notes-title">
-        <div className="section-heading"><h2 id="route-notes-title">What this is, and what it isn’t.</h2><p>{persona.boundary}</p></div>
-        <ul className="public-related-links">
-          {persona.templates.map(template => <li key={template.href}><Link href={template.href}>{template.label}</Link></li>)}
-          <li><Link href="/features/follow-up-reminders">How follow-up reminders work</Link></li>
-          <li><Link href="/follow-up-templates">More client follow-up templates</Link></li>
-        </ul>
-      </section>
-      <section id="waitlist" className="section" aria-labelledby="waitlist-title"><div className="section-heading"><h2 id="waitlist-title">Ready to put one follow-up in the mix?</h2><p>Join the waitlist and we’ll email you when your spot is ready. Accounts are free, with no card to enter. Until then, try a three-Beat Mix with a fictional contact: text today, email tomorrow, and a call in one week.</p></div><WaitlistForm scenarioId={persona.id} /></section>
-    </main>
-    <PublicFooter />
-  </div>;
+  return <PublicLanding persona={persona} />;
 }
