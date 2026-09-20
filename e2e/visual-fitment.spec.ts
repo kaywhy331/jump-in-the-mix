@@ -250,8 +250,8 @@ test("public single-user product story remains focused and responsive", async ({
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "You meant to follow up. Then work happened." })).toBeVisible();
-    await expect(page.locator(".mixes-for a[aria-current='page']")).toHaveText("All");
-    await expect(page.locator(".mixes-for a")).toHaveCount(6);
+    await expect(page.locator(".mixes-for a[aria-current='page']")).toHaveCount(0);
+    await expect(page.locator(".mixes-for a")).toHaveCount(5);
     await expect(page.locator(".hero-actions").getByRole("link", { name: "Join the waitlist" })).toHaveAttribute("href", "/waitlist");
     await expect(page.locator("main")).not.toContainText(/\b(?:pricing|billing|subscription|upgrade|downgrade|team|organization|stripe|google contacts|ai provider)\b/i);
     await expectNoHorizontalOverflow(page);
