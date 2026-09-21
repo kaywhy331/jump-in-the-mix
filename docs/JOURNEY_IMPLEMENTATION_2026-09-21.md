@@ -2,6 +2,8 @@
 
 September 21, 2026. Implementation and verification record for the owner's requested account-defined Mix/Beat graph. This follows the earlier proposal and forensic review; those documents remain historical design analysis, not proof that every proposed scenario has been qualified.
 
+Subsequently deployed to the live customer site under the owner's explicit instruction. See [the production release record](JOURNEY_PRODUCTION_RELEASE_2026-09-21.md) for the final revision, migration, live workflow checks and the account-time-zone rendering correction.
+
 ## Delivered behavior
 
 - Journey reads actual account Mixes, Beats and saved connections. Setup, Progress and Results share the same graph, with expandable Beats, labeled paths, parallel branches, joins, bounded returns, zoom, a readable overview and a structured list. Archived definitions remain discoverable. The original design export is preserved; the implementation uses the redesign's shared tokens, typography, themes and responsive shell.
