@@ -281,3 +281,80 @@ test("advanced paths retain outcomes, waits and join settings behind the compact
   expect(graph.configuration.rules[0]).toMatchObject({ enabled: false, mode: "CHOICE", join: { mode: "ALL", target: { mixId: mixes[1] } } });
   expect(graph.configuration.rules[0].routes).toEqual(expect.arrayContaining([expect.objectContaining({ when: "OUTCOME", outcome: "Ready" }), expect.objectContaining({ when: "TIMEOUT", delayMinutes: 60 })]));
 });
+
+async function seedRemovablePaths(page: Page, branches = false, join = false) {
+  const rule = { id: randomUUID(), name: "Connection to review", enabled: false, mode: "PARALLEL" as const, source: { mixId: mixes[0], stepId: null }, join: join ? { mode: "ALL" as const, target: { mixId: mixes[1], stepId: beats[1] }, cancelRemaining: false } : null, routes: [{ id: randomUUID(), label: "First path", when: "FINISHED" as const, outcome: "", delayMinutes: 0, target: { mixId: mixes[1], stepId: null as string | null }, maxVisits: null, replace: false }] };
+  if (branches) rule.routes.push({ ...rule.routes[0], id: randomUUID(), label: "Second path", target: { mixId: mixes[1], stepId: beats[1] } });
+  const saved = await page.request.post("/api/mix-workflow", { data: { action: "save-rule", rule, expectedRule: null } }); expect(saved.ok()).toBe(true);
+  await page.reload({ waitUntil: "networkidle" }); await page.getByRole("button", { name: "Reset zoom to 100%", exact: true }).click();
+  return rule;
+}
+const pathActions = (page: Page) => page.getByRole("region", { name: "Selected path", exact: true });
+async function selectSavedPath(page: Page, id: string) { await page.locator(`[data-workflow-path="${id}"]`).focus(); await page.keyboard.press("Enter"); await expect(pathActions(page)).toBeVisible(); }
+async function confirmPathDeletion(page: Page) { await pathActions(page).getByRole("button", { name: "Delete path", exact: true }).click(); await page.getByRole("dialog").getByRole("button", { name: "Delete path", exact: true }).click(); }
+
+test("select a canvas line, cancel deletion, then delete and reload without removing its Mixes", async ({ page }) => {
+  const rule = await seedRemovablePaths(page);
+  const line = page.locator(`[data-workflow-path="${rule.routes[0].id}"] path`).last();
+  const point = await line.evaluate(element => { const path = element as SVGPathElement, point = path.getPointAtLength(path.getTotalLength() / 2), matrix = path.getScreenCTM()!; return { x: matrix.a * point.x + matrix.c * point.y + matrix.e, y: matrix.b * point.x + matrix.d * point.y + matrix.f }; });
+  await page.mouse.click(point.x, point.y); await expect(pathActions(page)).toContainText("First path");
+  await expect(page.locator(`[data-workflow-path="${rule.routes[0].id}"]`)).toHaveAttribute("data-selected", "true");
+  await pathActions(page).getByRole("button", { name: "Delete path", exact: true }).click(); const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("button", { name: "Cancel", exact: true })).toBeFocused(); await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect((await (await page.request.get("/api/mix-workflow")).json()).configuration.rules).toHaveLength(1);
+  await confirmPathDeletion(page); await expect(page.getByRole("status").filter({ hasText: "Path deleted" })).toBeVisible(); await expect(canvas(page)).toBeFocused();
+  await expect(page.locator("[data-workflow-path]")).toHaveCount(0); await expect(page.locator("[data-workflow-node]")).toHaveCount(2);
+  await page.reload({ waitUntil: "networkidle" }); await expect(page.locator("[data-workflow-path]")).toHaveCount(0);
+});
+
+test("delete an individual branch and a shared join while preserving other paths", async ({ page }) => {
+  const rule = await seedRemovablePaths(page, true, true);
+  await selectSavedPath(page, rule.routes[0].id); await confirmPathDeletion(page);
+  await expect(page.locator(`[data-workflow-path="${rule.routes[0].id}"]`)).toHaveCount(0);
+  await expect(page.locator(`[data-workflow-path="${rule.routes[1].id}"]`)).toHaveCount(1);
+  const joinedId = `${rule.id}:join:${rule.routes[1].id}`; await selectSavedPath(page, joinedId);
+  await pathActions(page).getByRole("button", { name: "Delete path", exact: true }).click(); await expect(page.getByRole("dialog")).toContainText("every branch");
+  await page.getByRole("dialog").getByRole("button", { name: "Delete path", exact: true }).click(); await expect(page.locator(`[data-workflow-path="${joinedId}"]`)).toHaveCount(0);
+  const saved = await (await page.request.get("/api/mix-workflow")).json(); expect(saved.configuration.rules[0].routes).toEqual([rule.routes[1]]); expect(saved.configuration.rules[0].join).toBeNull(); expect(saved.configuration.gatedStepIds).toContain(beats[1]);
+});
+
+test("path deletion survives an unconfirmed response and failed refresh without duplicates", async ({ page }) => {
+  const rule = await seedRemovablePaths(page); await selectSavedPath(page, rule.routes[0].id);
+  let lost = false; await page.route("**/api/mix-workflow", async route => { if (route.request().method() === "POST" && route.request().postDataJSON().action === "remove-path" && !lost) { lost = true; await route.fetch(); await route.abort("failed"); } else await route.continue(); });
+  await confirmPathDeletion(page); await expect(page.getByRole("dialog").getByRole("alert")).toContainText("confirm the deletion");
+  const committed = await (await page.request.get("/api/mix-workflow")).json(); expect(committed.configuration.rules).toEqual([]);
+  await page.route("**/api/mix-workflow?*", route => route.fulfill({ status: 503, json: { error: "Synthetic read failure" } }));
+  await page.getByRole("dialog").getByRole("button", { name: "Delete path", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Mix and Beat journey", exact: true }).getByRole("alert")).toContainText("Path deleted");
+  expect((await (await page.request.get("/api/mix-workflow")).json()).revision).toBe(committed.revision);
+  await page.unroute("**/api/mix-workflow?*"); await page.unroute("**/api/mix-workflow"); await page.getByRole("button", { name: "Retry", exact: true }).click(); await expect(page.locator("[data-workflow-path]")).toHaveCount(0);
+});
+
+test("a changed path needs review before deletion and retains unrelated configuration", async ({ page }) => {
+  const rule = await seedRemovablePaths(page); await selectSavedPath(page, rule.routes[0].id);
+  const changed = { ...rule, routes: [{ ...rule.routes[0], label: "Updated destination path" }] };
+  expect((await page.request.post("/api/mix-workflow", { data: { action: "save-rule", rule: changed, expectedRule: rule } })).ok()).toBe(true);
+  await confirmPathDeletion(page); await expect(page.getByRole("dialog").getByRole("alert")).toContainText("changed in another window");
+  await page.getByRole("dialog").getByRole("button", { name: "Review updated path", exact: true }).click(); await expect(pathActions(page)).toContainText("Updated destination path");
+  const current = await (await page.request.get("/api/mix-workflow")).json();
+  expect((await page.request.post("/api/mix-workflow", { data: { action: "configure", expectedRevision: current.revision, configuration: { ...current.configuration, intentionalEnds: [`mix:${mixes[1]}`] } } })).ok()).toBe(true);
+  await confirmPathDeletion(page); await expect(page.locator("[data-workflow-path]")).toHaveCount(0);
+  expect((await (await page.request.get("/api/mix-workflow")).json()).configuration.intentionalEnds).toEqual([`mix:${mixes[1]}`]);
+});
+
+test("path actions work in both themes, narrow layouts and read-only maps", async ({ page }) => {
+  const rule = await seedRemovablePaths(page);
+  for (const width of [320, 834, 1440]) for (const theme of ["light", "dark"]) {
+    await page.setViewportSize({ width, height: 1000 }); await page.evaluate(value => document.documentElement.dataset.theme = value, theme); await page.getByRole("button", { name: "Fit map", exact: true }).click();
+    await selectSavedPath(page, rule.routes[0].id); await expect(pathActions(page).getByRole("button", { name: "Edit path", exact: true })).toBeFocused();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await pathActions(page).getByRole("button", { name: "Delete path", exact: true }).click();
+    const scan = await axeInPage(page).include(".confirm-dialog[open]").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze(); expect(scan.violations).toEqual([]);
+    if (process.env.CONNECTION_ARTIFACTS) await page.screenshot({ path: `${process.env.CONNECTION_ARTIFACTS}/delete-path-${width}-${theme}.png` });
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel", exact: true }).click();
+    if (process.env.CONNECTION_ARTIFACTS) await page.screenshot({ path: `${process.env.CONNECTION_ARTIFACTS}/selected-path-${width}-${theme}.png` });
+    await pathActions(page).getByRole("button", { name: "Deselect path", exact: true }).click();
+  }
+  await page.route("**/api/mix-workflow?*", async route => { const response = await route.fetch(); await route.fulfill({ response, json: { ...await response.json(), canEdit: false } }); });
+  await page.reload({ waitUntil: "networkidle" }); await selectSavedPath(page, rule.routes[0].id); await expect(pathActions(page).getByRole("button", { name: "Delete path", exact: true })).toHaveCount(0);
+});

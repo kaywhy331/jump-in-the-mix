@@ -63,3 +63,11 @@
 @media(min-width:768px) and (max-width:900px){.page>header{display:flex;align-items:center;min-height:44px;padding:0;margin:0 0 16px}.page>header :global(.page-actions){display:flex;width:auto;gap:8px}.page>header :global(.page-actions)>*{width:auto}}
 @media(max-width:600px){.countStrip button{flex:0 0 78px}.countStrip span{white-space:normal;min-height:26px;line-height:13px}}
 @media(max-width:600px){.toolbar .tabs button{padding-inline:6px}.toolbar>:global(.button){font-size:11px}}
+
+.pathActions{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--violet-wash);flex-wrap:wrap;scroll-margin:16px}
+.pathSummary{min-width:0;flex:1 1 180px;overflow-wrap:anywhere}.pathSummary strong{display:block;font-size:13px}.pathSummary span{display:block;font-size:12px;color:var(--text-3);margin-top:4px}
+.pathButtons{display:flex;flex-wrap:wrap;gap:8px;border:0;padding:0;margin:0;min-width:0}.pathButtons>button{min-height:44px}.pathButtons :global(.confirm-dialog-actions)>p{flex:1 0 100%;margin:0;font-size:13px}.pathButtons :global(.confirm-dialog-actions)>:global(.notice){white-space:normal}
+.edge[data-selected=true] path:not(.edgeHit){stroke:var(--violet-mark);stroke-width:3}.edge[data-selected=true] text{fill:var(--violet-text);font-weight:600}.edge .edgeHit{vector-effect:non-scaling-stroke;stroke-width:24}
+@media(max-width:600px){.pathActions{padding:12px}.pathSummary{flex-basis:100%}.pathButtons{width:100%}.pathButtons>button{flex:1}}
+
+.pathButtons>button[aria-label="Deselect path"]{flex:0 0 44px;width:44px;padding:10px}

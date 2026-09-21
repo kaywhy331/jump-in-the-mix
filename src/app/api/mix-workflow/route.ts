@@ -7,9 +7,10 @@ import { wakeWorkerAfterResponse } from "@/lib/worker-dispatch-after";
 import { workflowDecisionRulesForVisit } from "@/lib/mix-workflow-engine";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { workflowRuleSchema } from "@/lib/mix-workflow-config";
-import { saveWorkflowRule, WorkflowRuleConflict } from "@/lib/mix-workflow-rule-save";
+import { removeWorkflowPath, saveWorkflowRule, WorkflowRuleConflict } from "@/lib/mix-workflow-rule-save";
 
 const command = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("remove-path"), expectedRule: workflowRuleSchema, removal: z.discriminatedUnion("kind", [z.object({ kind: z.literal("route"), routeId: z.string().min(1).max(160) }), z.object({ kind: z.literal("join") }), z.object({ kind: z.literal("rule") })]) }),
   z.object({ action: z.literal("save-rule"), rule: workflowRuleSchema, expectedRule: workflowRuleSchema.nullable() }),
   z.object({ action: z.literal("configure"), configuration: z.unknown(), expectedRevision: z.number().int().min(0) }),
   z.object({ action: z.literal("start"), contactId: z.string().min(1).max(160), mixId: z.string().min(1).max(160), requestId: z.string().uuid(), label: z.string().max(160).optional() }),
@@ -44,6 +45,11 @@ export async function POST(request: Request) {
     const raw = await request.text();
     if (raw.length > 1000000) return response({ error: "This configuration is too large." }, 413);
     const input = command.parse(JSON.parse(raw));
+    if (input.action === "remove-path") {
+      const saved = await prisma.$transaction(db => removeWorkflowPath(db, membership.workspaceId, input.expectedRule, input.removal, session.user.id), { timeout: 30000 });
+      wakeWorkerAfterResponse(membership.workspaceId);
+      return response(saved);
+    }
     if (input.action === "save-rule") {
       const saved = await prisma.$transaction(db => saveWorkflowRule(db, membership.workspaceId, input.rule, input.expectedRule, session.user.id), { timeout: 30000 });
       wakeWorkerAfterResponse(membership.workspaceId);
