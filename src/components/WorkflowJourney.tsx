@@ -26,9 +26,11 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
   const [startRequestId, setStartRequestId] = useState(() => crypto.randomUUID());
   const [target, setTarget] = useState(""), [minimum, setMinimum] = useState(10);
   const [startOpen, setStartOpen] = useState(false), [starting, setStarting] = useState(false);
+  const refreshSequence = useRef(0);
   const refresh = async () => {
+    const sequence = ++refreshSequence.current;
     const response = await fetch(`/api/mix-workflow?${new URLSearchParams({ contactId, q: query, offset: String(offset), instanceId: savedView ? selectedInstance : "" })}`);
-    const result = await response.json(); if (!response.ok) throw new Error(result.error ?? "Journey could not refresh."); setData(result); setError("");
+    const result = await response.json(); if (sequence !== refreshSequence.current) return; if (!response.ok) throw new Error(result.error ?? "Journey could not refresh."); setData(current => !current.historical && !result.historical && result.revision < current.revision ? current : result); setError("");
   };
   const mixes = useMemo(() => data.mixes.filter(mix => archived || mix.status !== "ARCHIVED" || mix.pending > 0), [data.mixes, archived]);
   const layout = useMemo(() => layoutWorkflow(mixes, data.configuration.rules, expanded), [mixes, data.configuration.rules, expanded]);
@@ -64,12 +66,20 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
   const instance = data.instances.find(item => item.id === selectedInstance);
   const activeMixIds = new Set(instance?.state.runs.filter(run => run.status === "ACTIVE").map(run => run.mixId) ?? data.mixes.filter(mix => mix.pending > 0).map(mix => mix.id));
   const selectedRules = data.configuration.rules.filter(rule => rule.source.mixId === selected || rule.routes.some(route => route.target?.mixId === selected) || rule.join?.target.mixId === selected);
-  const saveConfiguration = async (configuration: WorkflowConfiguration) => { await saveWorkflowChange({ action: "configure", expectedRevision: data.revision, configuration }); await refresh(); setNotice("Configuration saved. Existing instances keep their saved route; paused connections stop further progression."); };
-  const saveRule = async (rule: WorkflowRule) => {
-    const gated = new Set(data.configuration.gatedStepIds);
-    for (const path of rule.routes) if (path.target?.stepId) gated.add(path.target.stepId);
-    if (rule.join?.target.stepId) gated.add(rule.join.target.stepId);
-    await saveConfiguration({ ...data.configuration, rules: [...data.configuration.rules.filter(item => item.id !== rule.id), rule], gatedStepIds: [...gated] }); closeEditor();
+  const acknowledgeSave = (revision: number, configuration: WorkflowConfiguration) => {
+    setData(current => ({ ...current, revision, configuration, updatedAt: new Date().toISOString() }));
+    setNotice("Configuration saved. Existing instances keep their saved route; paused connections stop further progression.");
+    setError("");
+    // A failed read must never turn an acknowledged write into a failed save.
+    void refresh().catch(() => setError("Your connection is saved, but the latest progress could not refresh. Retry refreshing; you do not need to save again."));
+  };
+  const saveConfiguration = async (configuration: WorkflowConfiguration) => {
+    const result = await saveWorkflowChange({ action: "configure", expectedRevision: data.revision, configuration });
+    acknowledgeSave(result.revision, configuration);
+  };
+  const saveRule = async (rule: WorkflowRule, expectedRule: WorkflowRule | null) => {
+    const result = await saveWorkflowChange({ action: "save-rule", rule, expectedRule });
+    acknowledgeSave(result.revision, result.configuration); closeEditor();
   };
   const toggle = (id: string) => setExpanded(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const paths = data.configuration.rules.flatMap(rule => rule.routes.flatMap(route => route.target ? [{ id: route.id, rule, source: rule.source.mixId, sourceStep: rule.source.stepId, destination: route.target.mixId, destinationStep: route.target.stepId, label: `${route.label}${route.when === "TIMEOUT" ? ` · wait ${route.delayMinutes}m` : route.delayMinutes ? ` · ${route.delayMinutes}m later` : ""}` }] : []));
@@ -103,7 +113,7 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
       {notice && <p className="notice" role="status">{notice}</p>}{error && <p className="notice error" role="alert">{error} <button type="button" className="text-button" onClick={() => void refresh().catch(reason => setError(reason.message))}>Retry</button></p>}
     </section>
     <aside className={styles.sidebar} aria-label="Journey details">
-      {editing ? <WorkflowRuleEditor key={editing === "new" ? `new:${selected}` : editing.id} initial={editing === "new" ? undefined : editing} isNew={editing === "new" || !data.configuration.rules.some(rule => rule.id === editing.id)} mixes={data.mixes} sourceMixId={selected} onSave={saveRule} onDelete={editing === "new" || !data.configuration.rules.some(rule => rule.id === editing.id) ? undefined : async () => { await saveConfiguration({ ...data.configuration, rules: data.configuration.rules.filter(rule => rule.id !== editing.id) }); setEditing(null); }} onCancel={closeEditor} /> : <>
+      {editing ? <WorkflowRuleEditor key={editing === "new" ? `new:${selected}` : editing.id} initial={editing === "new" ? undefined : editing} isNew={editing === "new" || !data.configuration.rules.some(rule => rule.id === editing.id)} mixes={data.mixes} configuration={data.configuration} sourceMixId={selected} onSave={saveRule} onDelete={editing === "new" || !data.configuration.rules.some(rule => rule.id === editing.id) ? undefined : async () => { await saveConfiguration({ ...data.configuration, rules: data.configuration.rules.filter(rule => rule.id !== editing.id) }); setEditing(null); }} onCancel={closeEditor} /> : <>
         {chosen && <section className={styles.selection}><div className={styles.instanceHeading}><h2>{chosen.name}</h2>{chosen.source !== "ONE_TIME" && chosen.status !== "ARCHIVED" && <Link href={`/mixes/${chosen.id}/edit`} className="button small">Edit Mix</Link>}</div><p>{chosen.steps.length} Beats · {chosen.pending} pending follow-ups</p>{canConfigure && chosen.source !== "ONE_TIME" && chosen.status !== "ARCHIVED" && <div className={styles.actions}><button className="button primary" type="button" onClick={() => setEditing("new")}>Connect next</button><button className="button" type="button" onClick={() => { setStartOpen(!startOpen); setStartRequestId(crypto.randomUUID()); }}>Start for someone</button></div>}
           {startOpen && <form className={styles.editor} onSubmit={async event => { event.preventDefault(); const form = new FormData(event.currentTarget); setStarting(true); try { const result = await saveWorkflowChange({ action: "start", requestId: startRequestId, contactId: form.get("person"), mixId: chosen.id, label: form.get("label") }); setSelectedInstance(result.instanceId); setStartOpen(false); setMode("Progress"); await refresh(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not start."); } finally { setStarting(false); } }}><label className="field"><span>Person</span><select name="person" required defaultValue={contactId}><option value="">Choose someone</option>{data.people.map(person => <option value={person.id} key={person.id}>{person.displayName}</option>)}</select></label><small>Use the people search below to find someone else.</small><label className="field"><span>Name this piece of work (optional)</span><input name="label" maxLength={160} placeholder={chosen.name} /></label><p className="muted-copy">Starts a separate instance. Your sending preferences and review window apply.</p><button className="button primary" disabled={starting || chosen.status !== "ACTIVE"}>{starting ? "Starting…" : "Start this Mix"}</button></form>}
           <ul className={styles.connectionList}>{selectedRules.map(rule => <li key={rule.id}><button type="button" disabled={!canConfigure} onClick={() => setEditing(rule)}><strong>{rule.name}</strong><small>{rule.mode === "CHOICE" ? "Choose one path" : "Matching paths together"} · {rule.enabled ? "on" : "off"}</small>{rule.routes.map(route => <small key={route.id}>{route.label} → {route.target ? data.mixes.find(mix => mix.id === route.target?.mixId)?.name ?? "Unavailable Mix" : "Finish this path"}{route.target?.stepId ? ` · ${data.mixes.flatMap(mix => mix.steps).find(step => step.id === route.target?.stepId)?.name ?? "Beat"}` : ""}</small>)}{rule.join && <small>Then join after {rule.join.mode === "ALL" ? "all selected paths" : "the first path"} finish.</small>}</button></li>)}</ul>

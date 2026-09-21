@@ -7,13 +7,8 @@ import { useEffect, useState } from "react";
 import type { WorkflowGraphView, WorkflowInstanceView } from "@/lib/mix-workflow-view";
 import styles from "@/components/WorkflowJourney.module.css";
 
-export async function saveWorkflowChange(input: unknown) {
-  const response = await fetch("/api/mix-workflow", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error ?? "The change could not be saved.");
-  window.dispatchEvent(new CustomEvent("jitm:workflow-updated"));
-  return data;
-}
+import { saveWorkflowChange } from "@/lib/mix-workflow-client";
+export { saveWorkflowChange } from "@/lib/mix-workflow-client";
 
 export function WorkflowInstanceCard({ instance, displayPreferences, canEdit, onUpdate }: { instance: WorkflowInstanceView; displayPreferences: DisplayFormatPreferences; canEdit: boolean; onUpdate: () => void }) {
   const [error, setError] = useState(""), [busy, setBusy] = useState(false);

@@ -35,3 +35,5 @@
 .connectionPreview{fill:none;stroke:var(--violet-mark);stroke-width:2.5;stroke-dasharray:6 4;pointer-events:none}
 .connectionPreview[data-ready=true]{stroke-dasharray:none;stroke-width:3}
 @media(max-width:600px){.connectionHint{padding:10px 12px}}
+
+.editorFields{display:contents;border:0;margin:0;padding:0;min-width:0}.saveConflict{padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--raised);font-size:13px;line-height:1.5}.saveConflict p{margin:8px 0}.saveConflict ul{padding-left:18px}.saveConflict li{margin:8px 0}.saveConflict .actions{margin-bottom:0}

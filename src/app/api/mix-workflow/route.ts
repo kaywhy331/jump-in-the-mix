@@ -6,8 +6,11 @@ import { processWorkflowInstance, saveWorkflowConfiguration, startWorkflowInstan
 import { wakeWorkerAfterResponse } from "@/lib/worker-dispatch-after";
 import { workflowDecisionRulesForVisit } from "@/lib/mix-workflow-engine";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { workflowRuleSchema } from "@/lib/mix-workflow-config";
+import { saveWorkflowRule, WorkflowRuleConflict } from "@/lib/mix-workflow-rule-save";
 
 const command = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("save-rule"), rule: workflowRuleSchema, expectedRule: workflowRuleSchema.nullable() }),
   z.object({ action: z.literal("configure"), configuration: z.unknown(), expectedRevision: z.number().int().min(0) }),
   z.object({ action: z.literal("start"), contactId: z.string().min(1).max(160), mixId: z.string().min(1).max(160), requestId: z.string().uuid(), label: z.string().max(160).optional() }),
   z.object({ action: z.literal("progress"), instanceId: z.string().min(1).max(160), requestId: z.string().uuid(), expectedRevision: z.number().int().min(1), calendarEntryId: z.string().min(1).max(160).optional(), evaluationId: z.string().max(160).optional(), outcome: z.string().max(160).optional(), status: z.enum(["ACTIVE", "PAUSED", "STOPPED"]).optional() })
@@ -41,6 +44,11 @@ export async function POST(request: Request) {
     const raw = await request.text();
     if (raw.length > 1000000) return response({ error: "This configuration is too large." }, 413);
     const input = command.parse(JSON.parse(raw));
+    if (input.action === "save-rule") {
+      const saved = await prisma.$transaction(db => saveWorkflowRule(db, membership.workspaceId, input.rule, input.expectedRule, session.user.id), { timeout: 30000 });
+      wakeWorkerAfterResponse(membership.workspaceId);
+      return response(saved);
+    }
     if (input.action === "configure") {
       const revision = await prisma.$transaction(db => saveWorkflowConfiguration(db, membership.workspaceId, input.configuration, input.expectedRevision, session.user.id), { timeout: 30000 });
       wakeWorkerAfterResponse(membership.workspaceId);
@@ -54,6 +62,7 @@ export async function POST(request: Request) {
     await processWorkflowInstance(membership.workspaceId, input.instanceId, new Date(), input);
     return response({ saved: true });
   } catch (error) {
+    if (error instanceof WorkflowRuleConflict) return response({ error: error.message, code: "CONNECTION_CHANGED", currentRule: error.currentRule }, 409);
     return response({ error: error instanceof z.ZodError ? "Check the connection's fields and try again." : error instanceof Error ? error.message : "The change could not be saved." }, 400);
   }
 }

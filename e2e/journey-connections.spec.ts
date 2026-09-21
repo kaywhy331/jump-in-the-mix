@@ -89,6 +89,84 @@ test("save an enabled Beat connection, reload it, and reopen instead of duplicat
   expect(await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /Continue our conversation/ }).count()).toBe(1);
 });
 
+test("saving a drawn connection preserves unrelated changes made in another window", async ({ page, context }) => {
+  await expand(page);
+  await drag(page, port(page, 0, true, "output"), port(page, 1, true, "input"));
+  await editor(page).getByLabel("Connection name").fill("My new Beat connection");
+  const graph = await (await context.request.get("/api/mix-workflow")).json();
+  const other = { id: randomUUID(), name: "Another window", source: { mixId: mixes[1], stepId: null }, enabled: false, mode: "PARALLEL", join: null, routes: [{ id: randomUUID(), label: "Later", when: "FINISHED", outcome: "", delayMinutes: 0, target: { mixId: mixes[0], stepId: null }, maxVisits: null, replace: false }] };
+  const concurrent = await context.request.post("/api/mix-workflow", { headers: { Origin: process.env.APP_URL! }, data: { action: "configure", expectedRevision: graph.revision, configuration: { ...graph.configuration, rules: [other] } } });
+  expect(concurrent.status()).toBe(200);
+  await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Configuration saved" })).toBeVisible();
+  const saved = await (await context.request.get("/api/mix-workflow")).json();
+  expect(saved.configuration.rules.map((rule: { name: string }) => rule.name).sort()).toEqual(["Another window", "My new Beat connection"]);
+  expect(saved.configuration.gatedStepIds).toContain(beats[1]);
+});
+
+test("a failed refresh after saving keeps the saved connection and offers refresh recovery", async ({ page, context }) => {
+  await port(page, 0, false, "output").click(); await port(page, 1, false, "input").click();
+  await page.route("**/api/mix-workflow?*", route => route.fulfill({ status: 503, json: { error: "Temporary read failure" } }));
+  await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Configuration saved" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Connect what happens next" })).toHaveCount(0);
+  expect((await (await context.request.get("/api/mix-workflow")).json()).configuration.rules).toHaveLength(1);
+  await expect(page.getByRole("region", { name: "Mix and Beat journey", exact: true }).getByRole("alert")).toContainText("saved");
+  await page.unroute("**/api/mix-workflow?*"); await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Mix and Beat journey", exact: true }).getByRole("alert")).toHaveCount(0);
+});
+
+test("retrying after a lost save response does not duplicate a connection", async ({ page, context }) => {
+  await port(page, 0, false, "output").click(); await port(page, 1, false, "input").click();
+  await editor(page).getByLabel("Connection name").fill("Retry the same connection");
+  let intercepted = false;
+  await page.route("**/api/mix-workflow", async route => {
+    if (route.request().method() !== "POST" || intercepted) return route.continue();
+    intercepted = true; const response = await route.fetch(); expect(response.status()).toBe(200); await route.abort("connectionfailed");
+  });
+  await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
+  await expect(editor(page).getByRole("alert")).toBeVisible();
+  const once = await (await context.request.get("/api/mix-workflow")).json();
+  await expect(editor(page).getByLabel("Connection name")).toHaveValue("Retry the same connection");
+  await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Configuration saved" })).toBeVisible();
+  const twice = await (await context.request.get("/api/mix-workflow")).json();
+  expect(twice.revision).toBe(once.revision); expect(twice.configuration.rules).toHaveLength(1);
+});
+
+test("same-connection conflicts preserve the draft and support review or an explicit replacement", async ({ page, context }) => {
+  const graph = async () => (await context.request.get("/api/mix-workflow")).json();
+  const changeElsewhere = async (name: string) => {
+    const current = (await graph()).configuration.rules[0];
+    const result = await context.request.post("/api/mix-workflow", { headers: { Origin: process.env.APP_URL! }, data: { action: "save-rule", rule: { ...current, name }, expectedRule: current } });
+    expect(result.status()).toBe(200);
+  };
+  await port(page, 0, false, "output").click(); await port(page, 1, false, "input").click();
+  await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Configuration saved" })).toBeVisible();
+  await port(page, 0, false, "output").click(); await port(page, 1, false, "input").click();
+  await editor(page).getByLabel("Connection name").fill("My unsaved changes"); await changeElsewhere("Saved in another window");
+  await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
+  await expect(editor(page).getByRole("alert")).toContainText("changed in another window");
+  await expect(editor(page).getByLabel("Connection name")).toHaveValue("My unsaved changes");
+  await expect(editor(page).getByRole("button", { name: "Save connection", exact: true })).toBeDisabled();
+  await page.setViewportSize({ width: 390, height: 1000 });
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(value => document.documentElement.dataset.theme = value, theme);
+    expect((await axeInPage(page).include('[aria-label="Journey details"]').withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
+    if (process.env.CONNECTION_ARTIFACTS) await page.screenshot({ path: `${process.env.CONNECTION_ARTIFACTS}/save-conflict-${theme}.png`, fullPage: true });
+  }
+  await editor(page).getByRole("button", { name: "Use saved version", exact: true }).click();
+  await expect(editor(page).getByLabel("Connection name")).toHaveValue("Saved in another window");
+  await editor(page).getByLabel("Connection name").fill("My reviewed version"); await changeElsewhere("Changed once more");
+  await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
+  await expect(editor(page).getByRole("alert")).toContainText("changed in another window");
+  expect((await graph()).configuration.rules[0].name).toBe("Changed once more");
+  await editor(page).getByRole("button", { name: "Save my version", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Edit connection" })).toHaveCount(0);
+  expect((await graph()).configuration.rules[0].name).toBe("My reviewed version");
+});
+
 test("keyboard and reverse-direction selection create a bounded return path", async ({ page }) => {
   const input = port(page, 0, false, "input"), output = port(page, 0, false, "output");
   await input.focus(); await page.keyboard.press("Enter"); await output.focus(); await page.keyboard.press("Space");
@@ -97,6 +175,11 @@ test("keyboard and reverse-direction selection create a bounded return path", as
   await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
   await expect(editor(page).getByRole("alert")).toContainText("repeat limit");
   await expect(editor(page).getByLabel("Maximum traversals in one journey instance")).toBeVisible();
+  await editor(page).getByLabel("Maximum traversals in one journey instance").fill("0");
+  await editor(page).getByText("Return paths and source work", { exact: true }).click();
+  await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
+  await expect(editor(page).getByLabel("Maximum traversals in one journey instance")).toBeVisible();
+  await expect(editor(page).getByLabel("Maximum traversals in one journey instance")).toBeFocused();
   await editor(page).getByLabel("Maximum traversals in one journey instance").fill("2");
   await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Configuration saved" })).toBeVisible();
