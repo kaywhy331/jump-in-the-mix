@@ -133,8 +133,8 @@ export function useWorkflowConnections({ graphRef, canvasRef, enabled, zoom, onC
 
   return {
     port, active: Boolean(selection),
-    hint: <div className={styles.connectionHint}>
-      <span id={hintId}>{enabled ? "Drag an output (+) to an input (→), or select both points. Expand a Mix for Beat connections." : "Save or cancel this connection before drawing another."}</span>
+    hint: <div className={styles.connectionHint} data-active={Boolean(selection)}>
+      <span id={hintId}>{enabled ? "Drag points to connect." : "Save or cancel to connect again."}</span>
       <button type="button" className="text-button" style={{ visibility: selection ? "visible" : "hidden" }} disabled={!selection} onClick={() => cancelRef.current()}>Cancel connection</button>
       <span className="sr-only" role="status" aria-live="polite">{message}</span>
     </div>,

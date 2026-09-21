@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     const definition = workflowDefinition(instance.definition), state = workflowState(instance.state);
     return response({ instanceId: instance.id, label: instance.label, decisions: workflowDecisionRulesForVisit(definition, state, jump.workflowVisitId).map(rule => ({ id: rule.id, name: rule.name, choices: [...new Set(rule.routes.filter(route => route.when === "OUTCOME").map(route => route.outcome))] })).filter(rule => rule.choices.length) });
   }
-  try { return response(await readWorkflowGraph(membership.workspaceId, { contactId: query.get("contactId") || undefined, instanceId: query.get("instanceId") || undefined, query: query.get("q")?.slice(0, 160), offset: Math.max(0, Math.min(100000, Number(query.get("offset")) || 0)), canEdit: !session.impersonation })); }
+  try { return response(await readWorkflowGraph(membership.workspaceId, { contactId: query.get("contactId") || undefined, instanceId: query.get("instanceId") || undefined, query: query.get("q")?.slice(0, 160), offset: Math.max(0, Math.min(100000, Math.floor(Number(query.get("offset")) || 0))), days: Number(query.get("days")) || 30, focusedInstance: query.get("focusedInstance")?.slice(0, 160), node: query.get("node")?.slice(0, 180), status: query.get("status")?.slice(0, 30), stage: query.get("stage")?.slice(0, 160), peopleOffset: Math.max(0, Math.min(1000000, Math.floor(Number(query.get("peopleOffset")) || 0))), canEdit: !session.impersonation })); }
   catch { return response({ error: "Journey could not be loaded. Refresh to try again." }, 400); }
 }
 

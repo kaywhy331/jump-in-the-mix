@@ -32,7 +32,7 @@ test.beforeEach(async ({ context, page }) => {
   await context.addCookies([{ name: "jitm_session", value: token, url: process.env.APP_URL!, httpOnly: true, sameSite: "Strict" }]);
   await page.setViewportSize({ width: 1440, height: 1200 });
   await page.goto("/journey", { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: "100%", exact: true }).click();
+  await page.getByRole("button", { name: "Reset zoom to 100%", exact: true }).click();
 });
 test.afterEach(() => expect(failures).toEqual([]));
 test.afterAll(async () => {
@@ -79,7 +79,7 @@ test("save an enabled Beat connection, reload it, and reopen instead of duplicat
   await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
   expect((await response).status()).toBe(200);
   await expect(page.getByRole("status").filter({ hasText: "Configuration saved" })).toBeVisible();
-  await page.reload({ waitUntil: "networkidle" }); await page.getByRole("button", { name: "100%", exact: true }).click(); await expand(page);
+  await page.reload({ waitUntil: "networkidle" }); await page.getByRole("button", { name: "Reset zoom to 100%", exact: true }).click(); await expand(page);
   await port(page, 0, true, "output").click(); await port(page, 1, true, "input").click();
   await expect(editor(page).getByRole("heading", { name: "Edit connection" })).toBeVisible();
   await expect(editor(page).getByLabel("Connection name")).toHaveValue("Continue our conversation");
@@ -174,13 +174,13 @@ test("keyboard and reverse-direction selection create a bounded return path", as
   await editor(page).getByLabel("Enable this connection").check();
   await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
   await expect(editor(page).getByRole("alert")).toContainText("repeat limit");
-  await expect(editor(page).getByLabel("Maximum traversals in one journey instance")).toBeVisible();
-  await editor(page).getByLabel("Maximum traversals in one journey instance").fill("0");
-  await editor(page).getByText("Return paths and source work", { exact: true }).click();
+  await expect(editor(page).getByLabel("Repeat limit")).toBeVisible();
+  await editor(page).getByLabel("Repeat limit").fill("0");
+  await editor(page).getByText("Repeat and replace", { exact: true }).click();
   await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
-  await expect(editor(page).getByLabel("Maximum traversals in one journey instance")).toBeVisible();
-  await expect(editor(page).getByLabel("Maximum traversals in one journey instance")).toBeFocused();
-  await editor(page).getByLabel("Maximum traversals in one journey instance").fill("2");
+  await expect(editor(page).getByLabel("Repeat limit")).toBeVisible();
+  await expect(editor(page).getByLabel("Repeat limit")).toBeFocused();
+  await editor(page).getByLabel("Repeat limit").fill("2");
   await editor(page).getByRole("button", { name: "Save connection", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Configuration saved" })).toBeVisible();
 });
@@ -197,8 +197,8 @@ test("invalid drops, Escape, pointer cancellation, and view changes leave no dra
   await expect(source).toHaveAttribute("aria-pressed", "false");
   await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(10, 10); await page.mouse.up();
   await expect(page.getByRole("heading", { name: "Connect what happens next" })).toHaveCount(0);
-  await source.click(); await page.getByRole("button", { name: "Show list", exact: true }).click(); await page.getByRole("button", { name: "Show diagram", exact: true }).click();
-  await page.getByRole("button", { name: "100%", exact: true }).click(); await expect(source).toHaveAttribute("aria-pressed", "false");
+  await source.click(); await page.getByRole("button", { name: "Map options", exact: true }).click(); await page.getByRole("button", { name: "Show list", exact: true }).click(); await page.getByRole("button", { name: "Show diagram", exact: true }).click();
+  await page.getByRole("button", { name: "Reset zoom to 100%", exact: true }).click(); await expect(source).toHaveAttribute("aria-pressed", "false");
   await page.getByRole("button", { name: "Progress", exact: true }).click(); await expect(page.locator("[data-workflow-port]")).toHaveCount(0);
 });
 
@@ -206,7 +206,7 @@ test("zoomed dragging follows screen coordinates and touch selection works after
   await page.getByRole("button", { name: "Zoom out", exact: true }).click(); await page.getByRole("button", { name: "Zoom out", exact: true }).click();
   await expand(page); await drag(page, port(page, 0, true, "output"), port(page, 1, true, "input"));
   await editor(page).getByRole("button", { name: "Cancel", exact: true }).click();
-  await page.getByRole("button", { name: "100%", exact: true }).click();
+  await page.getByRole("button", { name: "Reset zoom to 100%", exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   // Real touch events, including the click synthesized after a drag.
   const cdp = await context.newCDPSession(page);
@@ -234,7 +234,7 @@ test("dragging near the canvas edge pans to a destination outside the initial vi
   const source = port(page, 1, false, "output"), destination = port(page, 0, true, "input");
   const start = await center(source), bounds = await canvas(page).boundingBox();
   await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(start.x + 35, bounds!.y + bounds!.height - 8, { steps: 10 });
-  await expect.poll(() => canvas(page).evaluate(element => element.scrollTop)).toBeGreaterThan(220);
+  await expect.poll(async () => { const point = await center(destination); return point.y > bounds!.y + 32 && point.y < bounds!.y + bounds!.height - 32; }).toBe(true);
   await page.mouse.move(start.x + 35, bounds!.y + bounds!.height / 2);
   const end = await center(destination); await page.mouse.move(end.x, end.y, { steps: 6 }); await page.mouse.up();
   await expect(editor(page).getByRole("combobox", { name: /^Continue to/ })).toHaveValue(`beat:${beats[0]}`);
@@ -252,6 +252,25 @@ test("handles follow themes, keyboard focus, narrow layouts, and read-only state
     if (process.env.CONNECTION_ARTIFACTS) await page.screenshot({ path: `${process.env.CONNECTION_ARTIFACTS}/journey-${width}-${theme}.png`, fullPage: true });
   }
   await page.route("**/api/mix-workflow?*", async route => { const response = await route.fetch(); const json = await response.json(); await route.fulfill({ response, json: { ...json, canEdit: false } }); });
-  await page.reload({ waitUntil: "networkidle" }); await page.getByRole("button", { name: "100%", exact: true }).click();
+  await page.reload({ waitUntil: "networkidle" }); await page.getByRole("button", { name: "Reset zoom to 100%", exact: true }).click();
   await expect(page.locator("[data-workflow-port]")).toHaveCount(0);
+});
+
+test("advanced paths retain outcomes, waits and join settings behind the compact editor", async ({ page, context }) => {
+  await port(page, 0, false, "output").click(); await port(page, 1, false, "input").click();
+  const form = editor(page);
+  await expect(form.getByLabel("Wait before continuing (minutes)")).not.toBeVisible();
+  await form.getByRole("button", { name: "Add a path", exact: true }).click();
+  await form.getByLabel("How should the paths work?").selectOption("CHOICE");
+  const paths = form.locator("fieldset:has(> legend)");
+  const first = paths.nth(0), second = paths.nth(1);
+  await first.getByLabel("Continue when").selectOption("OUTCOME"); await first.getByLabel("Recorded outcome").fill("Ready");
+  await second.getByLabel("Continue when").selectOption("TIMEOUT"); await second.getByLabel("Wait for an outcome (minutes)").fill("60");
+  await form.getByText("Bring paths back together", { exact: true }).click(); await form.getByLabel("Continue after these paths join").check();
+  await form.getByLabel("Then continue to").selectOption(`mix:${mixes[1]}`);
+  await form.getByRole("button", { name: "Save connection", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Configuration saved" })).toBeVisible();
+  const graph = await (await context.request.get("/api/mix-workflow")).json();
+  expect(graph.configuration.rules[0]).toMatchObject({ enabled: false, mode: "CHOICE", join: { mode: "ALL", target: { mixId: mixes[1] } } });
+  expect(graph.configuration.rules[0].routes).toEqual(expect.arrayContaining([expect.objectContaining({ when: "OUTCOME", outcome: "Ready" }), expect.objectContaining({ when: "TIMEOUT", delayMinutes: 60 })]));
 });

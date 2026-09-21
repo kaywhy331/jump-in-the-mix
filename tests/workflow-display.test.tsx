@@ -1,5 +1,6 @@
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { summarizeWorkflowPeople } from "@/lib/workflow-analytics";
 import { WorkflowJourney } from "@/components/WorkflowJourney";
 import { emptyWorkflow, emptyWorkflowState } from "@/lib/mix-workflow-types";
 import type { WorkflowGraphView } from "@/lib/mix-workflow-view";
@@ -10,6 +11,7 @@ describe("Journey dates across server and browser time zones", () => {
   it("renders the account's dates identically before hydration in different host zones", () => {
     const instant = "2026-01-01T00:30:00.000Z";
     const initial: WorkflowGraphView = {
+      analytics: summarizeWorkflowPeople([{ id: "person", displayName: "Example person", stageId: "unassigned", stageName: "No stage", positions: [] }]),
       revision: 1, historical: false, configuration: emptyWorkflow(), mixes: [], canEdit: false,
       metrics: {}, instanceTotal: 1, people: [], issues: [], updatedAt: instant,
       instances: [{
@@ -26,7 +28,7 @@ describe("Journey dates across server and browser time zones", () => {
     try {
       const render = (hostZone: string) => {
         process.env.TZ = hostZone;
-        return renderToString(<WorkflowJourney initial={initial} displayPreferences={{ locale: "en-US", timeZone: "America/New_York" }} />);
+        return renderToString(<WorkflowJourney initial={initial} initialContactId="person" displayPreferences={{ locale: "en-US", timeZone: "America/New_York" }} />);
       };
       const server = render("UTC");
       expect(server).toContain("Dec 31, 7:30 PM");

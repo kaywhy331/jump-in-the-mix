@@ -29,8 +29,8 @@ export function layoutWorkflow(mixes: Array<{ id: string; steps: Array<{ id: str
   }
   const heights = new Map<number, number>();
   const nodes = mixes.map(mix => {
-    const rank = ranks[componentOf.get(mix.id)!], height = 150 + (expanded.has(mix.id) ? mix.steps.length * 44 : 0) + rules.filter(rule => rule.source.mixId === mix.id).length * 28;
-    const node = { id: mix.id, x: 60 + rank * 390, y: heights.get(rank) ?? 70, width: 280, height };
+    const rank = ranks[componentOf.get(mix.id)!], height = 195 + (expanded.has(mix.id) ? mix.steps.length * 62 : 0) + rules.filter(rule => rule.source.mixId === mix.id).length * 28;
+    const node = { id: mix.id, x: 60 + rank * 390, y: heights.get(rank) ?? 35, width: 280, height };
     heights.set(rank, node.y + height + 100);
     return node;
   });
