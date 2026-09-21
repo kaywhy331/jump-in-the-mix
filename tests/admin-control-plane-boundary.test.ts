@@ -48,7 +48,8 @@ describe("administration and observability boundaries", () => {
     const mixNew = read("src/app/(app)/mixes/new/page.tsx");
     const mixEdit = read("src/app/(app)/mixes/[mixId]/edit/page.tsx");
     expect(mixNew).toContain('getPlatformStringList("mix.categories")');
-    expect(mixEdit).toContain('getPlatformStringList("mix.industries")');
+    expect(mixEdit).toContain("<MixWorkspace");
+    expect(read("src/components/MixWorkspace.tsx")).toContain('getPlatformStringList("mix.industries")');
     expect(read("src/app/(app)/templates/page.tsx")).toContain('getPlatformStringList("mix.categories")');
   });
 

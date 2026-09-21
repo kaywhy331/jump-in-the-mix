@@ -4,11 +4,12 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(path, "utf8");
 
 describe("Help and support boundaries", () => {
-  it("places Help under More and separates hosted from self-hosted support", () => {
+  it("keeps Help in More and the desktop utilities, and separates hosted from self-hosted support", () => {
     const nav = read("src/components/Nav.tsx");
     const more = read("src/app/(app)/more/page.tsx");
     const help = read("src/app/(app)/help/page.tsx");
-    expect(nav).not.toContain('href: "/help", label: "Help"');
+    expect(nav.split("const accountLinks")[0]).not.toContain('href: "/help", label: "Help"');
+    expect(nav.split("const accountLinks")[1]).toContain('href: "/help", label: "Help"');
     expect(nav).toContain('href: "/more", label: "More"');
     expect(more).toContain('["/help", "Help"');
     expect(help).toContain("<SupportFaq />");
