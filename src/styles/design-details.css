@@ -308,5 +308,5 @@
   .public-page .profession-grid { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
 }
 
-.calendar-entry-fields { display: contents; border: 0; margin: 0; padding: 0; min-width: 0; }
-.relationship-save-fields { display: contents; border: 0; margin: 0; padding: 0; min-width: 0; }
+.calendar-entry-fields { display: grid; grid-template-columns: inherit; grid-column: 1 / -1; gap: inherit; border: 0; margin: 0; padding: 0; min-width: 0; }
+.relationship-save-fields { display: grid; gap: inherit; border: 0; margin: 0; padding: 0; min-width: 0; }
