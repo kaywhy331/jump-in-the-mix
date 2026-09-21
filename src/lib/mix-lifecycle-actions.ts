@@ -18,13 +18,16 @@ async function queueMixReconciliation(workspaceId: string, mixId: string): Promi
 }
 
 export async function activateMixAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Administrator support sessions are view-only.");
   const mixId = value(formData, "mixId");
   const mix = await prisma.mix.findFirst({
     where: { id: mixId, workspaceId: workspace.id, status: { in: ["DRAFT", "PAUSED"] }, source: { not: "ONE_TIME" } },
     select: { id: true, name: true }
   });
   if (!mix) fail("Mix not found or already active.");
+  const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
+  if (preference?.reviewMixActivation !== false) redirect(`/mixes/${mix.id}/edit?activate=1`);
   await prisma.$transaction(async tx => {
     await startDraftMix(tx, { workspaceId: workspace.id, mixId: mix.id, now: new Date() });
     await tx.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } });

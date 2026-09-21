@@ -9,6 +9,7 @@ model UserPreference {
   userId    String   @unique
   locale    String   @default("en-US")
   timezone  String   @default("UTC")
+  reviewMixActivation Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -22,6 +23,8 @@ model WorkspacePreference {
   weekendScheduling      WeekendScheduling @default(KEEP)
   // Minutes kept free before and after each appointment when checking for conflicts.
   appointmentBufferMinutes Int             @default(0)
+  quietDaysEnabled       Boolean           @default(false)
+  quietDays              Int               @default(60)
   nextReconcileAt        DateTime          @default(now())
   lastReconciledAt       DateTime?
   createdAt              DateTime          @default(now())

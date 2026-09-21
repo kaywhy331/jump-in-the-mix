@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Create a mix" };
 
 export default async function NewMixPage({ searchParams }: { searchParams: Promise<{ error?: string; custom?: string }> }) {
   const [query, { workspace, user }] = await Promise.all([searchParams, requireWorkspace()]);
-  const timezone = await timezoneForUser(user.id);
+  const [timezone, activationPreference] = await Promise.all([timezoneForUser(user.id), prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } })]);
   if (query.custom !== "1" && !query.error) {
     const businessType = workspace.profile?.industry ?? "Other";
     const recommended = !workspace.profile?.industry
@@ -39,7 +39,7 @@ export default async function NewMixPage({ searchParams }: { searchParams: Promi
     <div className="page">
       <header className="page-header"><div><h1>Create a mix</h1><p>Every relationship starts with a first beat. Add messages and reminders, then set the tempo.</p></div></header>
       {query.error && <Notice type="error">{query.error}</Notice>}
-      <MixEditor
+      <MixEditor reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
         dateTypes={dateTypes.map((item) => ({ id: item.id, name: item.name, isSystem: item.isSystem }))}
         groups={groups.map((item) => ({ id: item.id, name: item.name, color: item.color, isActive: item.isActive, contactCount: item._count.memberships }))}
         jumps={jumps.flatMap((item) => item.versions[0] ? [{ id: item.id, name: item.name, channel: item.channel, subject: item.versions[0].subject, body: item.versions[0].body, script: item.versions[0].script }] : [])}

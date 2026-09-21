@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { BROWSER_CHANGE_CHANNEL, BROWSER_CHANGE_KEY, browserChangeMarker, clearForeignNotifications, clearPrivateBrowserState, signalBrowserChange } from "@/lib/private-browser-state";
+import { revealObscuredFocus } from "@/lib/focus-visibility";
 
 const AccountScope = createContext<string | null>(null);
 export function useBrowserScope() { return useContext(AccountScope); }
@@ -100,7 +101,7 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
   }, [scope]);
 
   return <AccountScope.Provider value={scope}>
-    <div ref={content} data-browser-scope={scope} inert={state !== "ready"} style={{ visibility: state === "ready" ? "visible" : "hidden" }}>
+    <div ref={content} data-browser-scope={scope} inert={state !== "ready"} style={{ visibility: state === "ready" ? "visible" : "hidden" }} onFocusCapture={event => revealObscuredFocus(event.target)}>
       {!discarded && children}
     </div>
     <dialog ref={gate} className="browser-account-gate" aria-labelledby="browser-account-title" onCancel={event => event.preventDefault()} onKeyDown={event => {

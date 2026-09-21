@@ -26,7 +26,7 @@ test("review then handoff then outcome stays attached to the correct person", as
   await prisma.contact.create({ data: { id, workspaceId: "demo_workspace", firstName: "Clarity", displayName: "Clarity Person", phones: { create: { phone: "+14155550123", normalized: "14155550123", isPrimary: true } } } });
   await prisma.jump.create({ data: { id, workspaceId: "demo_workspace", contactId: id, mixId: step.mixId, mixStepId: step.id, stepVersionId: step.stepVersionId, scheduledAt: new Date(), status: "PENDING", reason: "Check in", uniquenessKey: id, templateSnapshot: { channel: "SMS", body: "Hi {{First Name}}, is Friday a good time?" }, renderedSnapshot: { body: "Hi Clarity, is Friday a good time?" } } });
   try {
-    await page.goto(`/jumps?jump=${id}`);
+    await page.goto("/jumps?range=all&q=Clarity%20Person");
     const card = page.locator(`[id="jump-${id}"]`);
     await expect(card.getByRole("textbox")).toHaveCount(0);
     await expect(card.getByRole("button")).toHaveCount(2);

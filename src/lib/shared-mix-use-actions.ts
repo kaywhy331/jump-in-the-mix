@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { useSharedMixTemplate } from "@/lib/shared-mix-use-service";
+import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
 
 function value(formData: FormData, key: string, maximum = 4000): string {
@@ -23,6 +24,10 @@ export async function useSharedMixTemplateAction(formData: FormData): Promise<vo
   if (!sharedMixId) redirect("/templates?error=Choose%20a%20ready-made%20mix.");
   if (impersonation) fail(sharedMixId, "Administrator support sessions are view-only.");
   const status = value(formData, "status", 20) === "ACTIVE" ? "ACTIVE" : "DRAFT";
+  if (status === "ACTIVE" && value(formData, "activationConfirmed", 4) !== "1") {
+    const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
+    if (preference?.reviewMixActivation !== false) fail(sharedMixId, "Review who gets the mix before turning it on.");
+  }
   const workspaceTimezone = await timezoneForUser(user.id);
   let result: Awaited<ReturnType<typeof useSharedMixTemplate>>;
   try {

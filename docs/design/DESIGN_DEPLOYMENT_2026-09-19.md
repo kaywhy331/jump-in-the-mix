@@ -1,5 +1,7 @@
 # Production design release — September 19, 2026
 
+This records the initial design release. The later [responsive follow-up](RESPONSIVE_AUDIT_2026-09-19.md) contains the current live revision and ultrawide corrections.
+
 The supplied redesign is live at https://jumpinthemix.com/. The owner explicitly requested the live customer site. Both Render services run the same release. No Netlify deployment was published during this release.
 
 | Item | Verified value |

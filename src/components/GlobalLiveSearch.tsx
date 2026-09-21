@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { allowFormNavigation } from "@/lib/form-navigation";
 
 const FILTER_FORM_SELECTOR = [
   "form.filter-bar",
@@ -52,6 +53,11 @@ export function GlobalLiveSearch() {
       timers.current.delete(form);
       const href = targetHref(form);
       if (href === `${window.location.pathname}${window.location.search}`) return;
+      if (!allowFormNavigation(href)) {
+        form.reset();
+        setAnnouncement("Kept your unsaved changes. Results were not changed.");
+        return;
+      }
       form.dataset.livePending = "true";
       form.setAttribute("aria-busy", "true");
       setAnnouncement("Updating results…");

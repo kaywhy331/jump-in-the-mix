@@ -1,5 +1,7 @@
 # Design adoption — 2026-09-19
 
+**Historical report:** the subsequent [gap analysis](DESIGN_GAP_ANALYSIS_2026-09-19.md) found that this pass overstated visual completion. See [the correction pass](DESIGN_CORRECTION_2026-09-19.md) for later implementation and its remaining product decisions.
+
 Implemented the supplied [Jump in the Mix design export](jump-in-the-mix-designs/index.html) throughout the shared application and public site. The original export remains unchanged. [AGENTS.md](../../AGENTS.md) now requires future UI changes to follow it and [DESIGN_GUIDELINES.md](DESIGN_GUIDELINES.md).
 
 ## Implemented

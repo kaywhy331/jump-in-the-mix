@@ -146,9 +146,9 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   await page.getByLabel("Phone recommended").fill("+1 (555) 010-0123");
   // Onboarding asks for free text about the conversation rather than a fixed reason.
   await page.getByLabel("What should you remember?").fill("Follow up about an estimate");
-  await page.getByRole("button", { name: "Change", exact: true }).click();
-  const timezonePicker = page.getByRole("dialog", { name: "Choose your city" });
-  await timezonePicker.getByLabel("Search cities").fill("Chicago");
+  await page.getByRole("button", { name: "Change timezone", exact: true }).click();
+  const timezonePicker = page.getByRole("dialog", { name: "Choose a timezone" });
+  await timezonePicker.getByLabel("Search timezones").fill("Chicago");
   await timezonePicker.getByRole("button", { name: /Chicago.*America\/Chicago/ }).click();
   const followUpDate = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
   // Exact, because the reason select's label text also contains "Follow up on a quote".

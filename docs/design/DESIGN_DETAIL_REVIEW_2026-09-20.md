@@ -39,3 +39,5 @@ These checks do not claim pixel equivalence, a manual sign-off of every unmocked
 The public three-Beat demo, browser-local appearance preference, real Journey counts and manual touchpoints retain their previously documented contracts.
 
 The subsequent [test-site deployment receipt](DESIGN_DEPLOYMENT_2026-09-20.md) records publication and the database quota outage that already affected staging before deployment.
+
+The owner then requested the main site. The [production release receipt](DESIGN_PRODUCTION_2026-09-20.md) records the successful customer-site publication, healthy production database and live workflow checks.

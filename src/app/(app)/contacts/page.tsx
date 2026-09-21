@@ -256,13 +256,13 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {importBatchId && <Notice type={importBatch ? "info" : "error"}>{importBatch ? `Showing Contacts touched by the selected ${importBatch.status.toLowerCase()} import.` : "That import batch is unavailable in your personal data."}</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
       <p className="sr-only" role="status" aria-live="polite">{resultMessage}</p>
-      {totalCount > 200 && <ContactSavedViewsBar
-        views={savedViews.map(({ id, name, isDefault }) => ({ id, name, isDefault }))}
-        selectedViewId={selectedView?.id ?? ""}
-        filters={{ q, group: groupId, priority, permission, sort }}
-      />}
       <div className="contacts-workspace"><section className="contacts-directory" aria-label="Contact directory">
       <ContactsBulkWorkspace
+        savedViews={<ContactSavedViewsBar
+          views={savedViews.map(({ id, name, isDefault }) => ({ id, name, isDefault }))}
+          selectedViewId={selectedView?.id ?? ""}
+          filters={{ q, group: groupId, priority, permission, sort }}
+        />}
         contacts={contactDtos}
         totalCount={totalCount}
         initialSelected={selectedPeople}

@@ -20,7 +20,7 @@ type SearchParams = { error?: string };
 
 export default async function UseMixTemplatePage({ params, searchParams }: { params: Promise<{ sharedMixId: string }>; searchParams: Promise<SearchParams> }) {
   const [{ sharedMixId }, query, { workspace, user }] = await Promise.all([params, searchParams, requireWorkspace()]);
-  const workspaceTimezone = await timezoneForUser(user.id);
+  const [workspaceTimezone, preference] = await Promise.all([timezoneForUser(user.id), prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } })]);
   const [published, rawGroups, groupStates, activeContactCount] = await Promise.all([
     prisma.$transaction(async tx => {
       await lockLibrary(tx);
@@ -44,7 +44,7 @@ export default async function UseMixTemplatePage({ params, searchParams }: { par
       {query.error && <Notice type="error">{query.error}</Notice>}
       <header className="page-header"><div><h1>Set up your mix</h1><p>{shared.title}</p></div><Link className="button" href="/templates">Mix library</Link></header>
       <div className="template-use-grid">
-        <TemplateUseForm expectedVersion={metadata?.version ?? 1} sharedMixId={shared.id} requestId={`use-${randomUUID()}`} title={shared.title} description={shared.description} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} stepCount={steps.length} durationDays={durationDays} groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, contactCount: group._count.memberships }))} activeContactCount={activeContactCount} workspaceTimezone={workspaceTimezone} />
+        <TemplateUseForm reviewBeforeActivation={preference?.reviewMixActivation ?? true} expectedVersion={metadata?.version ?? 1} sharedMixId={shared.id} requestId={`use-${randomUUID()}`} title={shared.title} description={shared.description} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} stepCount={steps.length} durationDays={durationDays} groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, contactCount: group._count.memberships }))} activeContactCount={activeContactCount} workspaceTimezone={workspaceTimezone} />
         <details className="card template-use-reference"><summary>Plan details & messages</summary><p className="library-goal">Your starting point</p><h2>{shared.title}</h2><p>{shared.description}</p><p className="library-plan-facts"><span>{steps.length} beats</span><span>{durationDays} days</span></p><details className="plan-message-reference"><summary>Preview the rhythm</summary><SharedMixPreview title={shared.title} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} durationDays={durationDays} steps={steps} expanded /></details>{salesPlan && <details><summary>About this approach</summary><PlanApproachGuide plan={salesPlan}/></details>}<p className="muted-copy">When someone replies, pause their mix and continue the conversation. Replies are not detected automatically.</p></details>
       </div>
     </div>

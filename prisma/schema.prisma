@@ -522,6 +522,8 @@ model MixAssignment {
 
 model Jump {
   id               String                 @id @default(cuid())
+  // Explicit review-only captures never enter automatic delivery.
+  manualOnly       Boolean                @default(false)
   accessInviteId   String?                @unique
   accessInvite     ReferralAccessInvite?  @relation(fields: [accessInviteId], references: [id], onDelete: SetNull)
   workspaceId      String

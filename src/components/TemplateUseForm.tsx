@@ -23,7 +23,8 @@ export function TemplateUseForm({
   durationDays,
   groups,
   activeContactCount,
-  workspaceTimezone
+  workspaceTimezone,
+  reviewBeforeActivation = true
 }: {
   sharedMixId: string;
   expectedVersion: number;
@@ -37,6 +38,7 @@ export function TemplateUseForm({
   groups: GroupOption[];
   activeContactCount: number;
   workspaceTimezone: string;
+  reviewBeforeActivation?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [setupStep, setSetupStep] = useState(0);
@@ -70,7 +72,7 @@ export function TemplateUseForm({
     <form ref={formRef} action={useSharedMixTemplateAction} className="mix-editor-form template-setup-form" onSubmit={(event) => {
       if (setupStep < 2) { event.preventDefault(); move(setupStep + 1); return; }
       const submitter = (event.nativeEvent as SubmitEvent).submitter;
-      if (status === "ACTIVE" && submitter?.getAttribute("data-activation") !== "confirm") {
+      if (status === "ACTIVE" && reviewBeforeActivation && submitter?.getAttribute("data-activation") !== "confirm") {
         event.preventDefault();
         setReviewOpen(true);
       }
@@ -100,18 +102,19 @@ export function TemplateUseForm({
 
       <section className="card ai-publish-review" data-setup-step="2" hidden={setupStep !== 2}>
         <h2 tabIndex={-1}>Review your plan</h2>
-        <p><strong>{name}</strong> · {status === "DRAFT" ? "Save as a draft" : "Start after confirmation"}</p>
+        <p><strong>{name}</strong> · {status === "DRAFT" ? "Save as a draft" : (reviewBeforeActivation ? "Start after confirmation" : "Activate when saved")}</p>
         {audience.error && <p className="notice error" role="alert">{audience.error} <button type="button" onClick={audience.retry}>Retry audience check</button></p>}
         <div className="import-summary-grid"><div><strong>{audienceEstimate?.toLocaleString() ?? "Checking…"}</strong><span>people</span></div><div><strong>{stepCount}</strong><span>beats each</span></div><div><strong>{projectedFollowUps?.toLocaleString() ?? "Checking…"}</strong><span>potential follow-ups</span></div><div><strong>{durationDays}</strong><span>days</span></div></div>
         <p>People in multiple tags count once. These are potential follow-ups: saved dates, pauses, contact details and scheduling rules determine what is prepared. A draft schedules nothing until you start it.</p>
-        <div className="sticky-form-actions"><button className="button" type="button" onClick={() => move(1)}>Back</button><button className="button primary" type="submit" disabled={status === "ACTIVE" && (!hasAudience || !audience.data)}>{status === "ACTIVE" ? "Review and start" : "Save draft"}</button></div>
+        <p>{reviewBeforeActivation ? "Review before activating is on." : "Saving activates this mix using your audience and sending settings."} <Link href="/account/preferences">Change preference</Link></p>
+        <div className="sticky-form-actions">{status === "ACTIVE" && !reviewBeforeActivation && <button className="button" type="button" disabled={!hasAudience || !audience.data} onClick={() => setReviewOpen(true)}>Review first</button>}<button className="button" type="button" onClick={() => move(1)}>Back</button><button className="button primary" type="submit" disabled={status === "ACTIVE" && (!hasAudience || !audience.data)}>{status === "ACTIVE" ? (reviewBeforeActivation ? "Review and start" : "Save and activate") : "Save draft"}</button></div>
       </section>
       {setupStep < 2 && <div className="guided-setup-actions">{setupStep > 0 ? <button className="button" type="button" onClick={() => move(setupStep - 1)}>Back</button> : <Link className="button" href="/templates">Cancel</Link>}<button className="button primary" type="button" onClick={() => move(setupStep + 1)}>Continue</button></div>}
       <ReviewDialog open={reviewOpen} onClose={() => setReviewOpen(false)} title={`Start ${name || "this mix"}?`} description="Check your audience and sending preferences before starting.">
         <p>{assignAll ? "Everyone" : selected.map(group => group.name).join(", ")} will receive this mix: {stepCount} prepared {stepCount === 1 ? "follow-up" : "follow-ups"} {durationDays === 0 ? "on the cue day" : `over ${durationDays} ${durationDays === 1 ? "day" : "days"}`}.</p>
         <p>{triggerMode === "DATE_TRIGGERED" ? `Follow-ups are scheduled around each person’s ${dateTypeName || "chosen date"}.` : triggerMode === "BROADCAST" ? "The mix starts on the date and time you selected." : "Day 0 is today. The first follow-ups may appear in Today immediately."}</p>
         <p className="notice info">If automatic sending is enabled, eligible messages can send after your review window. Calls and voicemails stay manual.</p>
-        <div className="form-actions"><button className="button" type="button" onClick={() => setReviewOpen(false)}>Keep editing</button><button className="button primary" type="submit" data-activation="confirm">Start the mix</button></div>
+        <div className="form-actions"><button className="button" type="button" onClick={() => setReviewOpen(false)}>Keep editing</button><button className="button primary" type="submit" data-activation="confirm" name="activationConfirmed" value="1">Start the mix</button></div>
       </ReviewDialog>
     </form>
   );

@@ -138,7 +138,42 @@ test("Mix library exposes editable beats, real membership, and mobile library ta
   await page.setViewportSize({ width: 390, height: 844 }); await expect(page.locator(".mix-mobile-tabs").getByRole("link", { name: "Ready-made", exact: true })).toBeVisible();
 });
 
-test("Quick Add shortcut avoids typing fields and corrected proposals reach the save form", async ({ page }) => {
+test("Journey keeps a selected touchpoint visible beyond the first six", async ({ page }) => {
+  const mixes = await Promise.all(Array.from({ length: 7 }, (_, index) => prisma.mix.create({ data: { workspaceId, name: `Touchpoint ${index + 1}`, status: "ACTIVE", triggerMode: "MANUAL_START" } })));
+  const preference = await prisma.workspacePreference.findUnique({ where: { workspaceId } });
+  try {
+    for (const enabled of [false, true]) {
+      await prisma.workspacePreference.upsert({ where: { workspaceId }, create: { workspaceId, quietDaysEnabled: enabled }, update: { quietDaysEnabled: enabled } });
+      await page.setViewportSize({ width: 1920, height: 1080 });
+      await page.emulateMedia({ colorScheme: enabled ? "dark" : "light" });
+      await page.goto("/journey");
+      await page.locator(".touchpoint-row").filter({ hasText: "Touchpoint 7" }).click();
+      const selected = page.locator(".journey-touch-node.selected");
+      await expect(selected).toBeVisible();
+      await expect(selected).toHaveAttribute("href", new RegExp(mixes[6].id));
+      await expect(page.locator(".journey-roster").getByRole("heading", { name: "Touchpoint 7", exact: true })).toBeVisible();
+      await expect(page.locator(".journey-touch-node")).toHaveCount(6);
+      if (enabled) await expect(page.locator(".journey-touch-node").filter({ hasText: "Just saying hello" })).toBeVisible();
+      const bounds = await page.locator(".journey-page").boundingBox();
+      expect(bounds!.x).toBeLessThan(300);
+      expect(bounds!.width).toBeGreaterThan(1500);
+      await page.screenshot({ path: `.artifacts/design-page-review-20260920/Journey-selected-${enabled ? "dark" : "light"}.png` });
+      await selected.focus();
+      await expect(selected).toBeFocused();
+      for (const width of [834, 390]) {
+        await page.setViewportSize({ width, height: width === 834 ? 1194 : 844 });
+        await expect(page.locator(".touchpoint-row[aria-current=page]")).toContainText("Touchpoint 7");
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      }
+    }
+  } finally {
+    await prisma.mix.deleteMany({ where: { id: { in: mixes.map(mix => mix.id) } } });
+    if (preference) await prisma.workspacePreference.update({ where: { workspaceId }, data: { quietDaysEnabled: preference.quietDaysEnabled } });
+    else await prisma.workspacePreference.deleteMany({ where: { workspaceId } });
+  }
+});
+
+test("Quick Add shortcut avoids typing fields and saves corrected proposals together", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 }); await page.goto("/jumps");
   await expect(page.locator(".follow-up-review-sheet[open]")).toBeVisible();
   await page.getByRole("heading", { name: "Today", exact: true, level: 1 }).click(); await page.keyboard.press("n");
@@ -149,11 +184,13 @@ test("Quick Add shortcut avoids typing fields and corrected proposals reach the 
   await page.getByRole("heading", { name: "Contacts", exact: true }).click(); await page.keyboard.press("n"); await expect(page.locator(".quick-add-dialog")).toBeVisible();
   await page.locator("#quick-add-capture").fill("Text Morgan Friday about the estimate"); await page.getByRole("button", { name: "Continue", exact: true }).click();
   const proposal = page.locator(".quick-add-proposal"); await expect(proposal.locator("blockquote")).toContainText("Text Morgan Friday");
-  await proposal.getByLabel("Name", { exact: true }).fill("Morgan Reed"); await proposal.getByLabel("Reason", { exact: true }).fill("Review the revised estimate");
-  await proposal.getByRole("button", { name: "Review person & follow-up" }).click(); await expect(page).toHaveURL(/\/contacts\/new\?draft=/);
-  await expect(page.getByLabel("First name", { exact: true })).toHaveValue("Morgan");
-  await expect(page.getByLabel("Last name", { exact: true })).toHaveValue("Reed");
-  await expect(page.getByLabel("Reason", { exact: true })).toHaveValue("Review the revised estimate");
+  await proposal.getByLabel("Name or search for someone", { exact: true }).fill("Morgan Reed"); await proposal.getByLabel("Reason", { exact: true }).fill("Review the revised estimate");
+  await proposal.getByLabel("Follow-up time", { exact: true }).fill("10:00");
+  await proposal.getByLabel("Draft message", { exact: true }).fill("Hi Morgan, shall we review the revised estimate?");
+  await proposal.getByRole("button", { name: "Save all 3", exact: true }).click();
+  await expect(page.getByText("Saved together", { exact: true })).toBeVisible();
+  const saved = await prisma.contact.findFirstOrThrow({ where: { workspaceId, displayName: "Morgan Reed" } });
+  expect(await prisma.jump.count({ where: { contactId: saved.id, reason: "Review the revised estimate", manualOnly: true } })).toBe(1);
 });
 
 test("More keeps compact destinations reachable and secondary navigation tracks the current page", async ({ page }) => {
@@ -191,6 +228,18 @@ test("More keeps compact destinations reachable and secondary navigation tracks 
   await expect(dialog.getByRole("link", { name: "The whole journey" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(options).toBeFocused();
+  for (const width of [601, 834, 900]) {
+    await page.setViewportSize({ width, height: 1194 });
+    await expect(page.locator(".mobile-app-header")).not.toBeVisible();
+    await expect(page.locator(".journey-header-actions")).not.toBeVisible();
+    await expect(page.locator(".journey-person").first()).toBeInViewport({ ratio: 1 });
+    const search = page.getByRole("button", { name: "Find someone in the journey", exact: true });
+    await search.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog", { name: "Find someone", exact: true }).getByRole("searchbox")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(search).toBeFocused();
+  }
 });
 
 test("Calendar saves a selected person's event and opens it for editing from the phone agenda", async ({ page }) => {
@@ -213,13 +262,75 @@ test("Calendar saves a selected person's event and opens it for editing from the
   await expect.poll(() => prisma.calendarEntry.count({ where: { workspaceId, title: "Revised planning visit", contactId, version: 2 } })).toBe(1);
 });
 
+test("short laptop rails keep account controls reachable by keyboard", async ({ page }) => {
+  for (const width of [1024, 1440]) {
+    await page.setViewportSize({ width, height: 600 });
+    await page.goto("/contacts");
+    const rail = page.locator(".sidebar");
+    const quickAdd = rail.getByRole("button", { name: "Quick Add", exact: true });
+    const profile = rail.getByRole("button", { name: "Profile", exact: true });
+    await quickAdd.focus();
+    // Follow the real tab order so the browser must reveal each focused control.
+    for (let step = 0; step < 20; step++) {
+      if (await profile.evaluate(node => node === document.activeElement)) break;
+      await page.keyboard.press("Tab");
+    }
+    await expect(profile).toBeFocused();
+    await expect(profile).toBeInViewport({ ratio: 1 });
+    expect(await rail.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("dialog", { name: "Profile and settings", exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(profile).toBeFocused();
+    await expect(profile).toBeInViewport({ ratio: 1 });
+  }
+});
+
+test("Journey movement arrows stay outside stage circles and expose their direction", async ({ page }) => {
+  const prospect = await prisma.journeyStage.create({ data: { workspaceId, name: "Prospect", position: 1 } });
+  const client = await prisma.journeyStage.create({ data: { workspaceId, name: "Client", position: 2 } });
+  const moves = [[stageId, prospect.id], [stageId, client.id], [client.id, stageId]];
+  const ids = moves.map(() => randomUUID());
+  try {
+    await prisma.contactActivity.createMany({ data: moves.map(([from, to], i) => ({
+      id: ids[i], workspaceId, contactId, kind: "SYSTEM", summary: "Recorded stage move",
+      metadata: { previousStageId: from, stageId: to }
+    })) });
+    for (const colorScheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await page.goto("/journey");
+      const movements = page.getByRole("list", { name: "Recorded stage moves in the last 30 days" });
+      await expect(movements).toContainText("Lead to Prospect: 1 move.");
+      await expect(movements).toContainText("Lead to Client: 1 move.");
+      await expect(movements).toContainText("Client to Lead: 1 move.");
+      await expect(page.locator(".journey-move-path")).toHaveCount(3);
+      const collisions = await page.locator(".journey-map").evaluate(map => {
+        const circles = [...map.querySelectorAll(".journey-node")].map(node => node.getBoundingClientRect());
+        return [...map.querySelectorAll<SVGPathElement>(".journey-move-path")].flatMap(path => {
+          const matrix = path.getScreenCTM()!;
+          const length = path.getTotalLength();
+          return Array.from({ length: 21 }, (_, i) => {
+            const point = path.getPointAtLength(length * i / 20).matrixTransform(matrix);
+            return circles.some(circle => Math.hypot(point.x - circle.x - circle.width / 2, point.y - circle.y - circle.height / 2) <= circle.width / 2 + 8);
+          }).filter(Boolean);
+        });
+      });
+      expect(collisions).toEqual([]);
+    }
+  } finally {
+    await prisma.contactActivity.deleteMany({ where: { id: { in: ids } } });
+    await prisma.journeyStage.deleteMany({ where: { id: { in: [prospect.id, client.id] } } });
+  }
+});
+
 test("phone review keeps send and outcome controls visible together in either theme", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme });
     await page.goto(`/jumps?jump=${jumpId}&range=all`);
-    await page.getByRole("button", { name: "Review message for Ava Zoom" }).click();
     const review = page.locator(".follow-up-review-sheet[open]");
+    await expect(review).toBeVisible();
     const send = review.getByRole("link", { name: "Open text for Ava Zoom" });
     const done = review.getByRole("button", { name: "Mark sent for Ava Zoom" });
     for (const control of [send, done, review.getByRole("button", { name: "Snooze", exact: true }), review.getByRole("button", { name: "Skip beat", exact: true })]) {
@@ -281,4 +392,22 @@ test("short-phone activation dialog keeps both decisions inside its scroll bound
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Review and start", exact: true })).toBeFocused();
+});
+
+test("expanded Journey stage actions stay reachable on a narrow phone", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 }); await page.goto(`/settings/journey?stage=${stageId}`);
+  const stage = page.locator(`#stage-${stageId}`);
+  await expect(stage).toHaveAttribute("open", "");
+  const actions = stage.locator(":scope > form > .form-actions button");
+  await expect(actions).toHaveCount(4);
+  for (const theme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: theme });
+    for (const action of await actions.all()) {
+      await action.scrollIntoViewIfNeeded();
+      const bounds = (await action.boundingBox())!;
+      expect(bounds.x).toBeGreaterThanOrEqual(0); expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
+      expect(bounds.height).toBeGreaterThanOrEqual(44);
+      expect(await action.evaluate(element => { const r = element.getBoundingClientRect(); const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return hit === element || element.contains(hit); })).toBe(true);
+    }
+  }
 });

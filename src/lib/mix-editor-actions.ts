@@ -121,7 +121,10 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   if (!name) fail(path, "Give the mix a name.");
   if (!allowedTriggers.includes(triggerMode)) fail(path, "Choose a valid cue.");
   if (!allowedStatuses.includes(status)) fail(path, "Choose Draft, Active, or Paused.");
-  if (status === "ACTIVE" && value(formData, "activationConfirmed", 4) !== "1") fail(path, "Review who gets the mix before turning it on.");
+  if (status === "ACTIVE" && value(formData, "activationConfirmed", 4) !== "1") {
+    const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
+    if (preference?.reviewMixActivation !== false) fail(path, "Review who gets the mix before turning it on.");
+  }
 
   if (triggerMode === "DATE_TRIGGERED") {
     const dateType = await prisma.dateType.findFirst({

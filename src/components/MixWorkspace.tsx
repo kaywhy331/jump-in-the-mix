@@ -13,11 +13,11 @@ import { timezoneForUser } from "@/lib/display-preferences";
 import { plannedAtInput } from "@/lib/planned-step";
 
 
-export type MixWorkspaceSearchParams = { error?: string; created?: string; updated?: string; imported?: string };
+export type MixWorkspaceSearchParams = { activate?: string; error?: string; created?: string; updated?: string; imported?: string };
 
 export async function MixWorkspace({ mixId, query = {}, embedded = false }: { mixId: string; query?: MixWorkspaceSearchParams; embedded?: boolean }) {
   const { workspace, user } = await requireWorkspace();
-  const timezone = await timezoneForUser(user.id);
+  const [timezone, activationPreference] = await Promise.all([timezoneForUser(user.id), prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } })]);
   const [mix, broadcastSchedule] = await Promise.all([
     prisma.mix.findFirst({
       where: { id: mixId, workspaceId: workspace.id, status: { not: "ARCHIVED" } },
@@ -63,7 +63,7 @@ export async function MixWorkspace({ mixId, query = {}, embedded = false }: { mi
       {query.updated && <Notice type="success">Mix updated. Future follow-ups are updating.</Notice>}
       {query.imported && <Notice type="success">Your remix is ready. Fine-tune the beats and tempo, then start it when you’re ready.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
-      <div className={embedded ? "mix-edit-columns" : "mix-library-workspace"}>{!embedded && <MixLibraryNav mixes={library} selected={mix.id} />}<div className="mix-editor-workspace"><MixEditor
+      <div className={embedded ? "mix-edit-columns" : "mix-library-workspace"}>{!embedded && <MixLibraryNav mixes={library} selected={mix.id} />}<div className="mix-editor-workspace"><MixEditor reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
         dateTypes={dateTypes.map((item) => ({ id: item.id, name: item.name, isSystem: item.isSystem }))}
         groups={groups.map((item) => ({ id: item.id, name: item.name, color: item.color, isActive: item.isActive, contactCount: item._count.memberships }))}
         jumps={jumps.flatMap((item) => item.versions[0] ? [{ id: item.id, name: item.name, channel: item.channel, subject: item.versions[0].subject, body: item.versions[0].body, script: item.versions[0].script }] : [])}
@@ -82,7 +82,7 @@ export async function MixWorkspace({ mixId, query = {}, embedded = false }: { mi
           industry: mix.industry,
           triggerMode: mix.triggerMode,
           dateTypeId: mix.dateTypeId,
-          status: mix.status === "ARCHIVED" ? "DRAFT" : mix.status,
+          status: query.activate === "1" ? "ACTIVE" : mix.status === "ARCHIVED" ? "DRAFT" : mix.status,
           groupIds,
           assignAllContacts,
           broadcastDate: formatDateInput(broadcastSchedule?.localDate),

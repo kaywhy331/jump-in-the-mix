@@ -75,3 +75,33 @@ export async function updatePersonalSchedulingAction(formData: FormData): Promis
 export async function updatePersonalPreferencesFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => updatePersonalPreferencesAction(data)); }
 
 export async function updatePersonalSchedulingFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => updatePersonalSchedulingAction(data)); }
+
+export async function updateMixActivationPreferenceAction(formData: FormData): Promise<void> {
+  const { user, workspace, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Personal settings are unavailable during a view-only support session.");
+  const mode = value(formData, "mixActivation", 20);
+  if (mode !== "REVIEW" && mode !== "DIRECT") fail("Choose how you want to activate mixes.");
+  const reviewMixActivation = mode === "REVIEW";
+  await prisma.$transaction([
+    prisma.userPreference.upsert({ where: { userId: user.id }, create: { userId: user.id, reviewMixActivation }, update: { reviewMixActivation } }),
+    prisma.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "personal.mix-activation.update", entityType: "User", entityId: user.id, source: "account.preferences", metadata: { reviewMixActivation } } })
+  ]);
+  redirect("/account/preferences?mixActivationSaved=1");
+}
+
+export async function updateMixActivationPreferenceFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => updateMixActivationPreferenceAction(data)); }
+
+export async function updateQuietDayPreferenceAction(formData: FormData): Promise<void> {
+  const { workspace, user, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Personal settings are unavailable during a view-only support session.");
+  const quietDays = Number(value(formData, "quietDays", 10));
+  if (!Number.isInteger(quietDays) || quietDays < 1 || quietDays > 365) fail("Choose between 1 and 365 quiet days.");
+  const quietDaysEnabled = formData.get("quietDaysEnabled") === "on";
+  await prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR NO KEY UPDATE`;
+    await tx.workspacePreference.upsert({ where: { workspaceId: workspace.id }, create: { workspaceId: workspace.id, quietDays, quietDaysEnabled }, update: { quietDays, quietDaysEnabled } });
+    await tx.auditLog.create({ data: { workspaceId: workspace.id, actorUserId: user.id, actorType: "USER", action: "quiet-day.preferences.update", entityType: "WorkspacePreference", entityId: workspace.id, source: "account.preferences", metadata: { quietDays, quietDaysEnabled } } });
+  });
+  redirect("/account/preferences?quietDaysSaved=1#quiet-days");
+}
+export async function updateQuietDayPreferenceFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => updateQuietDayPreferenceAction(data)); }

@@ -44,7 +44,7 @@ function withinGroup(cursor: Cursor, direction: Direction): Prisma.JumpWhereInpu
 const select = {
   appointmentBinding: { select: { automaticDelivery: true } },
   accessInvite: { select: { recipientEmail: true, recipientPhone: true, acceptedAt: true, revokedAt: true } },
-  id: true, contactId: true, mixId: true, mixStepId: true, jumpDateId: true, appointmentBindingId: true,
+  manualOnly: true, id: true, contactId: true, mixId: true, mixStepId: true, jumpDateId: true, appointmentBindingId: true,
   mixStep: { select: { dayOffset: true, plannedAt: true } },
   scheduledAt: true, baseScheduledAt: true, status: true, updatedAt: true, reason: true, renderedSnapshot: true, templateSnapshot: true, stepVersionId: true, completedAt: true, selectedFamily: true,
   // The contact fields the message tokens resolve from, so an owner's draft renders on the card.

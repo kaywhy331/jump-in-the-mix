@@ -7,6 +7,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { formatDate, formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 
 type TimelineItem = {
+  conversation?: boolean;
   id: string;
   source: "activity" | "jump";
   kind: "JUMP_OUTCOME" | "CUSTOMER_NOTE" | "PRIVATE_UPDATE" | "SYSTEM";
@@ -29,6 +30,7 @@ function requestId(): string {
 }
 
 function label(item: TimelineItem): string {
+  if (item.conversation) return item.visibility === "PRIVATE" ? "Private conversation" : "Conversation";
   if (item.kind === "CUSTOMER_NOTE") return "Note";
   if (item.kind === "PRIVATE_UPDATE") return "Private note";
   if (item.kind === "SYSTEM") return "System update";
@@ -51,7 +53,7 @@ export function ContactTimeline({
   displayPreferences: DisplayFormatPreferences;
 }) {
   const noteDetails = useRef<HTMLDetailsElement>(null);
-  useEffect(() => { const openNote = () => { if (location.hash === "#add-note" && noteDetails.current) { noteDetails.current.open = true; noteDetails.current.querySelector("textarea")?.focus(); } }; openNote(); window.addEventListener("hashchange", openNote); return () => window.removeEventListener("hashchange", openNote); }, []);
+  useEffect(() => { const openNote = () => { if (["#add-note", "#log-conversation"].includes(location.hash) && noteDetails.current) { noteDetails.current.open = true; if (location.hash === "#log-conversation") setConversation(true); noteDetails.current.querySelector("textarea")?.focus(); } }; openNote(); window.addEventListener("hashchange", openNote); return () => window.removeEventListener("hashchange", openNote); }, []);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [correction, setCorrection] = useState("");
@@ -59,6 +61,7 @@ export function ContactTimeline({
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
+  const [conversation, setConversation] = useState(false);
   const [privateNote, setPrivateNote] = useState(false);
   const [summary, setSummary] = useState("");
   const [saving, setSaving] = useState(false);
@@ -88,7 +91,7 @@ export function ContactTimeline({
   useEffect(() => { setReady(true); void load(); return () => { requestVersion.current++; }; }, [contactId, filter]);
 
   const visibleItems = useMemo(() => items.filter((item) => {
-    if (filter === "COMMUNICATIONS") return item.kind === "JUMP_OUTCOME";
+    if (filter === "COMMUNICATIONS") return item.kind === "JUMP_OUTCOME" || item.conversation === true;
     if (filter === "NOTES") return item.kind === "CUSTOMER_NOTE" || item.kind === "PRIVATE_UPDATE";
     return true;
   }), [filter, items]);
@@ -100,7 +103,7 @@ export function ContactTimeline({
       const response = await fetch(`/api/contacts/${encodeURIComponent(contactId)}/activity`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: item.id, expectedSummary: item.summary ?? "", summary: correction, remove }) });
       const body = await response.json(); if (!response.ok) throw new Error(body.error ?? "The note could not be changed.");
       setItems(current => remove ? current.filter(value => value.id !== item.id) : current.map(value => value.id === item.id ? { ...value, summary: correction } : value));
-      setEditing(null); setCorrection("");
+      setEditing(null); setCorrection(""); window.dispatchEvent(new Event("jitm:contact-activity"));
     } catch (cause) { setError(cause instanceof Error ? cause.message : "The note could not be changed. Your correction is still here."); }
     finally { setSaving(false); }
   };
@@ -114,12 +117,13 @@ export function ContactTimeline({
       const response = await fetch(`/api/contacts/${encodeURIComponent(contactId)}/activity`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ kind: privateNote ? "PRIVATE_UPDATE" : "CUSTOMER_NOTE", summary, requestId: requestId() })
+        body: JSON.stringify({ kind: privateNote ? "PRIVATE_UPDATE" : "CUSTOMER_NOTE", summary, conversation, requestId: requestId() })
       });
       const payload = await response.json().catch(() => ({})) as { item?: TimelineItem; error?: string };
       if (!response.ok || !payload.item) throw new Error(payload.error || "The note could not be saved.");
       setItems((current) => [{ ...payload.item!, source: "activity", outcome: null, channel: null, nextCommitmentAt: null }, ...current]);
-      setSummary("");
+      setSummary(""); setConversation(false);
+      window.dispatchEvent(new Event("jitm:contact-activity"));
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The note could not be saved.");
     } finally {
@@ -142,6 +146,7 @@ export function ContactTimeline({
           <textarea disabled={!ready} value={summary} onChange={(event) => setSummary(event.target.value)} maxLength={4000} placeholder="What should you remember about this person or conversation?" required />
         </label>
         <div>
+          <label className="checkbox-row"><input type="checkbox" disabled={!ready} checked={conversation} onChange={event => setConversation(event.target.checked)} /><span>This records a conversation</span></label>
           <label className="checkbox-row"><input type="checkbox" disabled={!ready} checked={privateNote} onChange={(event) => setPrivateNote(event.target.checked)} /><span>Keep private (never used in messages)</span></label>
           <button className="button primary" type="submit" disabled={!ready || saving}>{saving ? "Saving…" : "Add update"}</button>
         </div>
@@ -158,7 +163,7 @@ export function ContactTimeline({
               <time className={styles.timelineDate} dateTime={item.occurredAt} title={formatDateTime(item.occurredAt, displayPreferences)}>{formatDate(item.occurredAt, displayPreferences, { year: undefined })}</time>
               <div className={styles.timelineBody}>
                 <div className={styles.timelineMeta}>
-                  {(!item.summary || item.kind === "JUMP_OUTCOME") && <strong>{label(item)}</strong>}
+                  {(!item.summary || item.kind === "JUMP_OUTCOME" || item.conversation) && <strong>{label(item)}</strong>}
                   {item.channel && <span>{item.channel.replaceAll("_", " ").toLowerCase()}</span>}
                   {item.visibility === "PRIVATE" && <span className={styles.privateBadge}>Private</span>}
 

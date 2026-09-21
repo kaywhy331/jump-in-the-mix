@@ -37,3 +37,18 @@ Regression checks measure actual queue/editor widths, retain an edited draft thr
 Final local results: production build and typecheck passed; seven unit/readiness tests passed; all 30 browser scenarios passed across the combined run and a focused rerun correcting the test's Locale locator. All 400 accepted route/viewport checks and 83 boundary/expanded-control checks passed. The accepted scans found no unintended horizontal overflow, clipped controls, browser errors or automated WCAG A/AA violations. Source comparison matched all 655 release-manifest files to the tested workspace.
 
 These are browser and engineering checks, not physical-device acceptance or measured customer outcomes. Appearance remains browser-local; Journey uses existing Mixes and real contact state. No new automation, sending behavior, migration or dependency change is included.
+
+## Production verification
+
+The corrections are live at https://jumpinthemix.com/. Both Render services run code commit `6482a700c42ac0bb2c4d163088580a90aecf2779` from `fix/ultrawide-layout-20260919`.
+
+| Service | Deployment | Live at (UTC) |
+| --- | --- | --- |
+| Web | `dep-dande3uk1f9s738c14q0` | 2026-09-19 18:43:28 |
+| Worker | `dep-dandd38ae00c73ed9ur0` | 2026-09-19 18:39:25 |
+
+Final verification at 18:46 UTC passed all four health endpoints, matched 655 source files and 19 served assets to the release, and confirmed all 61 migrations. The worker completed a scoped no-op job; its test record was removed. The initial rollout check reached the retiring worker, so verification was repeated after the new worker heartbeat appeared.
+
+Nine public browser checks and 48 authenticated checks passed on the live site. The latter covered twelve customer pages at 390, 1440, 3440 and 3840px in light/dark themes, including direct queue/editor width assertions on desktop. Actual password sign-in and onboarding passed. The temporary account, workspace, contact and follow-up were removed; final checks found no release-test users, workspaces or jobs, and the six baseline table counts were unchanged.
+
+The same-schema rollback target for both services is `2c029bccdb4704c24bb2d66c138687f6624398bb`. No rollback was needed. No Netlify deployment was published by this follow-up.

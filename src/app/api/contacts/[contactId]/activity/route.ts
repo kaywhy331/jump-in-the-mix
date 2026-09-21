@@ -12,9 +12,11 @@ type NotePayload = {
   kind?: string;
   summary?: string;
   requestId?: string;
+  conversation?: boolean;
 };
 
 type NoteResponse = {
+  conversation: boolean;
   id: string;
   kind: ContactActivityKind;
   visibility: ContactActivityVisibility;
@@ -31,6 +33,7 @@ function storedNote(value: Prisma.JsonValue | null): NoteResponse | null {
   const object = value as Record<string, unknown>;
   if (!NOTE_KINDS.includes(object.kind as ContactActivityKind)) return null;
   return {
+    conversation: object.conversation === true,
     id: String(object.id ?? ""),
     kind: object.kind as ContactActivityKind,
     visibility: object.visibility === "PRIVATE" ? "PRIVATE" : "WORKSPACE",
@@ -72,7 +75,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ cont
       if (Number.isNaN(+cursor.at)) throw new Error();
     }
   } catch { return NextResponse.json({ error: "The history position is invalid. Refresh the timeline." }, { status: 400 }); }
-  const kind = filter === "NOTES" ? Prisma.sql`AND a.kind IN ('CUSTOMER_NOTE', 'PRIVATE_UPDATE')` : filter === "COMMUNICATIONS" ? Prisma.sql`AND a.kind = 'JUMP_OUTCOME'` : Prisma.empty;
+  const kind = filter === "NOTES" ? Prisma.sql`AND a.kind IN ('CUSTOMER_NOTE', 'PRIVATE_UPDATE')` : filter === "COMMUNICATIONS" ? Prisma.sql`AND (a.kind = 'JUMP_OUTCOME' OR (a.kind IN ('CUSTOMER_NOTE', 'PRIVATE_UPDATE') AND a.metadata->>'conversation' = 'true'))` : Prisma.empty;
   const workspaceId = scoped.membership.workspaceId;
   const keys = await prisma.$queryRaw<Array<{ id: string; key: string; source: string; occurredAt: Date }>>(Prisma.sql`
     SELECT * FROM (
@@ -93,9 +96,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ cont
   ]);
   const items = selected.flatMap(row => {
     const activity = activities.find(item => row.source === "activity" && item.id === row.id);
-    if (activity) return [{ id: activity.id, source: "activity", kind: activity.kind, outcome: activity.outcome, channel: activity.channel, visibility: activity.visibility, summary: activity.summary, nextCommitmentAt: activity.nextCommitmentAt?.toISOString() ?? null, occurredAt: activity.occurredAt.toISOString() }];
+    if (activity) return [{ id: activity.id, source: "activity", kind: activity.kind, outcome: activity.outcome, channel: activity.channel, visibility: activity.visibility, summary: activity.summary, conversation: (activity.metadata as Record<string, unknown> | null)?.conversation === true, nextCommitmentAt: activity.nextCommitmentAt?.toISOString() ?? null, occurredAt: activity.occurredAt.toISOString() }];
     const jump = completedJumps.find(item => row.source === "jump" && item.id === row.id);
-    return jump ? [{ id: `jump:${jump.id}`, source: "jump", kind: "JUMP_OUTCOME" as const, outcome: jump.status === "SKIPPED" ? "SKIPPED" as const : "COMPLETED" as const, channel: jump.stepVersion.stepTemplate.channel, visibility: "WORKSPACE" as const, summary: `${jump.mix.name} · ${jump.reason}`, nextCommitmentAt: null, occurredAt: jump.completedAt!.toISOString() }] : [];
+    return jump ? [{ id: `jump:${jump.id}`, source: "jump", kind: "JUMP_OUTCOME" as const, outcome: jump.status === "SKIPPED" ? "SKIPPED" as const : "COMPLETED" as const, channel: jump.stepVersion.stepTemplate.channel, visibility: "WORKSPACE" as const, summary: `${jump.mix.name} · ${jump.reason}`, conversation: false, nextCommitmentAt: null, occurredAt: jump.completedAt!.toISOString() }] : [];
   });
   const last = selected.at(-1);
   const nextCursor = keys.length > 50 && last ? Buffer.from(JSON.stringify({ at: last.occurredAt.toISOString(), key: last.key })).toString("base64url") : null;
@@ -154,7 +157,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
           kind,
           visibility,
           summary,
-          metadata: { userAgent: requestMetadata.userAgent }
+          metadata: { userAgent: requestMetadata.userAgent, conversation: payload?.conversation === true }
         }
       });
       await tx.auditLog.create({
@@ -170,6 +173,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
         }
       });
       const response: NoteResponse = {
+        conversation: payload?.conversation === true,
         id: activity.id,
         kind,
         visibility,

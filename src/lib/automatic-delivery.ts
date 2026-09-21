@@ -134,6 +134,7 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
       where: {
         workspaceId: workspace.id,
         status: "PENDING",
+        manualOnly: false, // Quick Add captures wait for an explicit owner action.
         accessInviteId: null, // Personal invitations are always sent by the member.
         scheduledAt: { lte: threshold },
         stepVersion: { stepTemplate: { channel: { in: channels } } },
@@ -191,7 +192,7 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
         const channelStillEnabled = channel === "EMAIL" ? currentPreference?.emailEnabled : currentPreference?.smsEnabled;
         // A draft saved since the candidate read also holds the follow-up: the claim is released, not sent.
         // A switch to another family since the candidate read also holds it: the claim is released, not sent.
-        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", drafts: { none: {} }, OR: [{ appointmentBindingId: null }, { appointmentBinding: { automaticDelivery: true } }], AND: [{ OR: [{ selectedFamily: null }, { selectedFamily: preparationFamilyForChannel(channel) }] }], workspace: { owner: { suspendedAt: null } } }, select: { id: true } });
+        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", manualOnly: false, drafts: { none: {} }, OR: [{ appointmentBindingId: null }, { appointmentBinding: { automaticDelivery: true } }], AND: [{ OR: [{ selectedFamily: null }, { selectedFamily: preparationFamilyForChannel(channel) }] }], workspace: { owner: { suspendedAt: null } } }, select: { id: true } });
         if (!currentPreference?.enabled || !channelStillEnabled || !currentJump) {
           await prisma.automatedDelivery.updateMany({ where: { id: deliveryId, lockedBy: workerId, status: "PROCESSING" }, data: { status: "CANCELED", lockedAt: null, lockedBy: null } });
           continue;

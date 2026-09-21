@@ -22,7 +22,7 @@ export async function saveContactViewAction(formData: FormData): Promise<void> {
   const priority = value(formData, "priority", 40);
   const permission = value(formData, "permission", 40);
   if (!name) fail("Give the saved view a name.");
-  const sort = ["updated", "newest"].includes(value(formData, "sort", 20)) ? value(formData, "sort", 20) : "name";
+  const sort = ["last-name", "updated", "newest"].includes(value(formData, "sort", 20)) ? value(formData, "sort", 20) : "name";
   const query = { sort, q: q || null, group: group || null, priority: priority || null, permission: permission || null } satisfies Prisma.InputJsonObject;
   const saved = await prisma.contactSavedView.upsert({
     where: { userId_workspaceId_name: { userId: user.id, workspaceId: workspace.id, name } },

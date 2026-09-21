@@ -50,8 +50,13 @@ export function Sheet({
       if (!dialog?.open) return;
       // The same editor stays mounted when rotating/resizing, retaining its draft.
       const focused = document.activeElement;
+      // Reopening the parent puts it above its children in the native top layer.
+      // Rebuild the modal stack from the outside in so a nested picker stays usable.
+      const nested = Array.from(dialog.querySelectorAll<HTMLDialogElement>("dialog:modal"));
+      for (const child of [...nested].reverse()) child.close();
       dialog.close();
       openSheet(dialog);
+      for (const child of nested) child.showModal();
       if (focused instanceof HTMLElement && dialog.contains(focused)) focused.focus({ preventScroll: true });
     };
     media.addEventListener("change", adapt);

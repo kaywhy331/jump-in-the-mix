@@ -77,6 +77,7 @@ export function MixEditor({
   categories,
   industries,
   workspaceTimezone,
+  reviewBeforeActivation = true,
   activeContactCount,
   missingEmailCount,
   missingPhoneCount
@@ -88,6 +89,7 @@ export function MixEditor({
   categories: string[];
   industries: string[];
   workspaceTimezone: string;
+  reviewBeforeActivation?: boolean;
   activeContactCount: number;
   missingEmailCount: number;
   missingPhoneCount: number;
@@ -135,7 +137,7 @@ export function MixEditor({
     return next;
   });
   const submit = (event: FormEvent<HTMLFormElement>) => {
-    if (status !== "ACTIVE" || activationInputRef.current?.value === "1") return;
+    if (status !== "ACTIVE" || !reviewBeforeActivation || activationInputRef.current?.value === "1") return;
     event.preventDefault();
     setReviewOpen(true);
   };
@@ -238,6 +240,7 @@ export function MixEditor({
     <SchedulePreview timezone={workspaceTimezone} steps={sequence.map(item => ({ anchor: item.anchor, offsetMinutes: signedMinutes(item), dayOffset: item.dayOffset, sendTimeMinutes: item.sendTimeMinutes, plannedAt: item.plannedAt }))} />
     <ReviewDialog open={reviewOpen} onClose={() => setReviewOpen(false)} title="Start this mix?" description="Check the audience and schedule before starting."><div className={styles.reviewGrid}><div><strong>{audience.data ? audienceEstimate.toLocaleString() : "Checking…"}</strong><span>people</span></div><div><strong>{sequence.length}</strong><span>beats each</span></div><div><strong>{audience.data ? projectedFollowUps.toLocaleString() : "Checking…"}</strong><span>potential follow-ups</span></div>{visitBeats > 0 && <div><strong>{visitBeats}</strong><span>{visitBeats === 1 ? "beat waits for a visit" : "beats wait for a visit"}</span></div>}</div><div className={styles.reviewWarnings}>{audience.error && <p className="notice error" role="alert">{audience.error} <button type="button" onClick={audience.retry}>Retry audience check</button></p>}<p>People in multiple tags count once. Dates, pauses and scheduling rules determine the actual prepared follow-ups.</p>{!audienceChosen && (triggerMode === "MANUAL_START" ? <p>No one is enrolled yet. Line this mix up with a visit from the calendar, or start it from one person’s page.</p> : <p className="notice error">Choose who gets this mix.</p>)}{visitBeats > 0 && audienceEstimate > 0 && <p>{visitBeats === sequence.length ? "Every beat is timed from an appointment, so these people get nothing until you line this mix up with one of their visits from the calendar." : `The ${visitBeats} ${visitBeats === 1 ? "beat" : "beats"} timed from an appointment ${visitBeats === 1 ? "runs" : "run"} only for a visit you line up from the calendar; these people get the ${calendarBeats} calendar-day ${calendarBeats === 1 ? "beat" : "beats"}.`}</p>}{channels.includes("EMAIL") && (audience.data?.missingEmail ?? 0) > 0 && <p>{audience.data?.missingEmail} selected people have no email.</p>}{channels.some((channel) => channel !== "EMAIL") && (audience.data?.missingPhone ?? 0) > 0 && <p>{audience.data?.missingPhone} selected people have no phone.</p>}</div><div className="form-actions"><button className="button" type="button" onClick={() => setReviewOpen(false)}>Keep editing</button><button className="button primary" type="button" disabled={!canStart} onClick={confirmActivation}>Start the mix</button></div></ReviewDialog>
 
-    <div className="sticky-form-actions"><Link className="button" href="/mixes">Cancel</Link><button className="button primary" type="submit">{status === "ACTIVE" ? "Review and start" : mix?.id ? "Save mix" : "Create a mix"}</button></div>
+    {status === "ACTIVE" && <p className="mix-activation-preference">{reviewBeforeActivation ? "You’ll review who gets this mix before activating." : "Saving activates this mix using your audience and sending settings."} <Link href="/account/preferences">Change preference</Link></p>}
+    <div className="sticky-form-actions">{status === "ACTIVE" && !reviewBeforeActivation && <button className="button" type="button" onClick={() => { if (formRef.current?.reportValidity()) setReviewOpen(true); }}>Review first</button>}<Link className="button" href="/mixes">Cancel</Link><button className="button primary" type="submit">{status === "ACTIVE" ? (reviewBeforeActivation ? "Review and start" : "Save and activate") : mix?.id ? "Save mix" : "Create a mix"}</button></div>
   </form>;
 }

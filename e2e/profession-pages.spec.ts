@@ -35,9 +35,9 @@ test("the homepage links to every profession page and keeps its trimmed sections
   await expect(page.locator("#waitlist, #sample")).toHaveCount(2);
 });
 
-test("the profession grid follows the supplied two-column desktop and single-column phone design", async ({ page }, testInfo) => {
+test("the profession grid follows the supplied two-column desktop and phone design", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Explicit viewport matrix.");
-  for (const [width, columns] of [[1440, 2], [1200, 2], [1100, 2], [1024, 2], [900, 2], [768, 2], [600, 1], [480, 1]] as const) {
+  for (const [width, columns] of [[1440, 2], [1200, 2], [1100, 2], [1024, 2], [900, 2], [768, 2], [600, 2], [480, 2], [390, 2], [320, 2]] as const) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
     const perRow = await page.locator(".profession-grid li").evaluateAll(items => { const top = items[0].getBoundingClientRect().top; return items.filter(item => item.getBoundingClientRect().top === top).length; });

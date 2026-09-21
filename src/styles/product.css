@@ -42,8 +42,9 @@
 .contacts-title-search h1 { margin: 0; }
 .contact-header-search input { width: 100%; min-height: 44px; }
 .contact-list-controls { display: flex; justify-content: flex-end; gap: 8px; align-items: center; }
-.contact-tools-links { display: grid; gap: 2px; }
-.contact-tools-links a { min-height: 46px; display: flex; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--line); }
+.contact-tools-links { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+.contact-tools-links > :is(a, button) { min-width: 0; min-height: 48px; display: flex; align-items: center; justify-content: flex-start; padding: 12px 4px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; text-align: left; font-size: .875rem; font-weight: 500; overflow-wrap: anywhere; }
+.contact-tools-links > :last-child { border-bottom: 0; }
 .tag-manager { display: grid; gap: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
 .contact-relationship-chips { display: grid; gap: 14px; }
 .contact-relationship-chips fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
@@ -84,6 +85,8 @@
 .timezone-current small { color: var(--muted); }
 .timezone-city-list { max-height: 48dvh; display: grid; overflow-y: auto; border: 1px solid var(--line); border-radius: 12px; }
 .timezone-city { min-height: 52px; display: grid; gap: 2px; padding: 8px 12px; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); background: var(--raised, var(--raised)); text-align: left; cursor: pointer; }
+.timezone-city strong { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.timezone-selected-label { font-size: .75rem; font-weight: 500; }
 .timezone-city:last-child { border-bottom: 0; }
 .timezone-city small { color: var(--muted); }
 .timezone-city.selected { color: var(--brand-dark); background: var(--brand-soft); }
@@ -353,6 +356,7 @@
 .journey-stage-settings > summary { min-height: 44px; cursor: pointer; }
 .journey-stage-settings > summary > span { display: block; margin: 6px 0; color: var(--muted); font-size: .875rem; }
 .journey-stage-settings[open] > form { margin-top: 20px; }
+.journey-stage-settings .form-actions { flex-wrap: wrap; }
 .journey-stage-settings details > summary, .contact-journey-panel summary, .inline-action { min-height: 44px; display: inline-flex; align-items: center; cursor: pointer; }
 .journey-rule-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .journey-rule-row > div { flex: 1; min-width: 0; }

@@ -109,7 +109,8 @@
 .staff-shell .admin-filter-options { flex-basis: 100%; }
 .staff-shell .admin-filter-options > div { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; padding-top: 8px; }
 .staff-shell .admin-filter-options[open] { padding-bottom: 4px; }
-.staff-shell .admin-filter-options .field { flex: 1 1 140px; }
+.staff-shell .admin-filter-options .field { flex: 1 1 140px; grid-template-columns: minmax(0, 1fr); }
+.staff-shell .admin-filter-options .field input { width: 100%; min-width: 0; }
 .staff-shell .admin-filter-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; padding-block: 8px; }
 .staff-shell .admin-filter-toolbar > .field { flex: 1 1 180px; }
 .staff-shell .admin-filter-toolbar > .field:has(input[type=search]) { flex: 2 1 260px; }

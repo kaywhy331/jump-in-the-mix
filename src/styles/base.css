@@ -157,12 +157,12 @@ img, svg { max-width: 100%; }
 .demo-credentials { margin: 18px 0; padding: 14px; background: var(--brand-soft); border: 1px solid var(--line); border-radius: 12px; font-size: .9rem; }
 .demo-credentials code { display: block; color: var(--ink); margin-top: 4px; }
 .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
-.form-stack { display: grid; gap: var(--space-4); }
+.form-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
 .field { display: grid; gap: var(--space-2); min-width: 0; }
 .field.full { grid-column: 1 / -1; }
 .field label, .field-label { font-weight: 720; font-size: .91rem; }
 .field small { color: var(--muted); }
-input, select, textarea { width: 100%; color: var(--ink); background: var(--raised); border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; outline: none; }
+input, select, textarea { width: 100%; min-width: 0; color: var(--ink); background: var(--raised); border: 1px solid var(--border); border-radius: 10px; padding: 11px 12px; outline: none; }
 input:focus, select:focus, textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(93, 76, 242, 0.12); }
 textarea { resize: vertical; min-height: 110px; }
 .checkbox-row { display: flex; gap: 12px; flex-wrap: wrap; }
@@ -171,7 +171,7 @@ textarea { resize: vertical; min-height: 110px; }
 .contact-choice { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .contact-choice legend { padding: 0; margin-bottom: 4px; font-weight: 600; }
 .contact-choice .checkbox-card span { display: grid; }
-.form-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-5); }
+.form-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-5); }
 .notice { padding: 13px 15px; border-radius: 11px; border: 1px solid; margin: 0 0 18px; }
 .notice.success { color: var(--status-success-ink); background: var(--status-success-bg); border-color: var(--success-border); }
 .notice.error { color: var(--status-danger-ink); background: var(--status-danger-bg); border-color: var(--danger-border); }

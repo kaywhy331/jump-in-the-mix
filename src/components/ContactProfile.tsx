@@ -203,7 +203,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
         <section className="contact-timeline-card" id="contact-history"><ContactTimeline key={contact.id} contactId={contact.id} displayPreferences={displayPreferences} /></section>
         <details className="contact-notes-card"><summary>Notes to remember</summary><div><p className="note-copy">{contact.publicNotes || "No notes yet."}</p>{contact.privateNotes && <div className="private-note"><strong>Private</strong><p>{contact.privateNotes}</p></div>}<Link className="contact-inline-action" href={`/contacts/${contact.id}/edit#contact-notes`}>Edit contact notes</Link></div></details>
       </div>
-      <details className="card contact-detail-more" id="dates-and-mixes">
+      <details className="card contact-detail-more" id="dates-and-mixes" open={Boolean(query.stateUpdated || query.error)}>
         <summary><span><strong>More</strong><small>Dates, mixes, and custom fields</small></span><AppIcon name="chevronDown" /></summary>
         <div className="contact-more-sections">
           <section className="contact-mobile-journey">{journeyTrack}</section>

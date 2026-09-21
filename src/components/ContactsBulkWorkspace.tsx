@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DeviceContactQuickAdd } from "@/components/DeviceContactQuickAdd";
@@ -50,6 +50,7 @@ export function ContactsBulkWorkspace({
   groupFilter,
   priorityFilter,
   permissionFilter,
+  savedViews,
   intent
 }: {
   contacts: ContactBulkDto[];
@@ -62,6 +63,7 @@ export function ContactsBulkWorkspace({
   groupFilter: string;
   priorityFilter: string;
   permissionFilter: string;
+  savedViews?: ReactNode;
   intent?: "important-date" | "one-time-jump" | "log-note";
 }) {
   const router = useRouter();
@@ -126,6 +128,7 @@ export function ContactsBulkWorkspace({
             <label className="field"><span>Contact permission</span><select name="permission" defaultValue={permissionFilter}><option value="">Everyone</option><option value="contactable">Can contact</option><option value="do-not-contact">Do not contact</option></select></label>
           </form>
           {(query || activeFilterCount) && <Link className="button" href="/contacts">Clear filters</Link>}
+          {savedViews}
         </Sheet>;
   useEffect(() => { setSelected(current => new Set([...current].filter(id => contacts.some(contact => contact.id === id)))); }, [contacts]);
 

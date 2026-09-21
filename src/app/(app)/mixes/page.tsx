@@ -41,7 +41,8 @@ function channelIcon(channel: string): AppIconName {
 
 export default async function MixesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
-  const { workspace } = await requireWorkspace();
+  const { workspace, user } = await requireWorkspace();
+  const activationPreference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
   const q = typeof params.q === "string" ? params.q.trim().slice(0, 160) : "";
   const status = ["ACTIVE", "PAUSED", "DRAFT"].includes(params.status ?? "") ? params.status : "";
   const where: Prisma.MixWhereInput = { workspaceId: workspace.id, status: status ? status as "ACTIVE" | "PAUSED" | "DRAFT" : { not: "ARCHIVED" }, ...(q ? { name: { contains: q, mode: "insensitive" } } : {}) };
@@ -130,7 +131,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
                     </div>
                   </div>
                   <div className="mix-card-actions"><Sheet trigger={<button className="button small" type="button" aria-label={`Manage ${mix.name}`}><AppIcon name="more"/><span>Manage</span></button>} title={mix.name} description="Edit this mix, change whether it is running, or archive it.">
-                    <div className="sheet-actions vertical"><Link href={`/mixes/${mix.id}/edit`} className="button primary"><AppIcon name="edit"/>Edit mix</Link>{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button" type="submit">Pause mix</button></form> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button" type="submit">Start the mix</button></form>}</div><div className="sheet-danger-zone"><ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The mix stops creating new follow-ups. Completed history stays available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button danger" type="submit">Archive mix</button></form></ConfirmDialog></div>
+                    <div className="sheet-actions vertical"><Link href={`/mixes/${mix.id}/edit`} className="button primary"><AppIcon name="edit"/>Edit mix</Link>{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button" type="submit">Pause mix</button></form> : activationPreference?.reviewMixActivation !== false ? <Link href={`/mixes/${mix.id}/edit?activate=1`} className="button">Review and start</Link> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button" type="submit">Start the mix</button></form>}</div><div className="sheet-danger-zone"><ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The mix stops creating new follow-ups. Completed history stays available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button danger" type="submit">Archive mix</button></form></ConfirmDialog></div>
                   </Sheet></div>
                 </div>
                 {mix.description && <p className="muted-copy">{mix.description}</p>}
