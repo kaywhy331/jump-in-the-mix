@@ -26,4 +26,12 @@ Analytics reads are scoped to the account and process database records in bounde
 
 ## Verification
 
-Local evidence is retained in ignored `.artifacts/journey-analytics-20260921/`. All 52 focused tests across six suites and all 17 browser scenarios passed. The production build, TypeScript checks, schema/syntax/import checks passed. Screenshots were inspected at phone, tablet and desktop widths in both themes; scoped Axe checks found no violations. Browser coverage includes counts, filters, pagination, exact person/node drill-down, pausing and starting work, advanced outcomes/waits/joins, all four connection endpoint combinations, retries/conflicts, bounded loops, keyboard, touch, zoom and auto-pan. Production results follow after deployment. Fixtures are synthetic and isolated from customer contacts and delivery providers.
+Local evidence is retained in ignored `.artifacts/journey-analytics-20260921/`. All 52 focused tests across six suites and all 17 browser scenarios passed. The production build, TypeScript checks, schema/syntax/import checks passed. Screenshots were inspected at phone, tablet and desktop widths in both themes; scoped Axe checks found no violations. Browser coverage includes counts, filters, pagination, exact person/node drill-down, pausing and starting work, advanced outcomes/waits/joins, all four connection endpoint combinations, retries/conflicts, bounded loops, keyboard, touch, zoom and auto-pan. Fixtures are synthetic and isolated from customer contacts and delivery providers.
+
+## Production verification
+
+Published to https://jumpinthemix.com/journey on September 21, 2026. The web service is pinned to application commit `48272e1cd407f973b4aa05a1b6c3cf999d17b4c3`, Render deployment `dep-daop44942hec73fj62p0`, build `5edaMvsj8ruLicrgmslJd`. The worker remains unchanged at `334d59d366254285e9b1aba4f2e8041f5744a2e9`; automatic deployment remains disabled.
+
+Post-deployment verification passed 13 health/public/protected-route checks, matched 783 hosted source files and 20 served assets to the release, and confirmed database readiness. All 18 live browser checks passed, completing at 2026-09-21T20:28:28.806Z. These include real password sign-in, connection save/reload/retry/conflict handling, quantity counts, configured-stage filtering, exact Mix drill-down, and light/dark phone/desktop screenshots with no page errors, overflow or scoped Axe violations. Beat links remain visible after expanding and fitting the phone overview.
+
+The synthetic workspace, user and three contacts were removed and their absence verified. No workflow instances or automated deliveries were created by the live checks. The disposable local database and its private environment file were also removed.
