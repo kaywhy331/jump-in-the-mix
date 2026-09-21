@@ -1,5 +1,6 @@
 "use client";
 import { AppIcon } from "@/components/AppIcon";
+import { WorkflowOutcomeFields, useWorkflowChoices } from "@/components/WorkflowOutcomeFields";
 
 import type { ReactNode } from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -56,7 +57,7 @@ function dispatchJumpState(detail: JumpStateDetail): void {
 async function saveOutcome(
   jumpId: string,
   outcome: Outcome,
-  details: { note?: string; visibility?: "WORKSPACE" | "PRIVATE"; nextDate?: string; nextTime?: string } = {},
+  details: { note?: string; visibility?: "WORKSPACE" | "PRIVATE"; nextDate?: string; nextTime?: string; workflowDecisions?: Array<{ ruleId: string; outcome: string }> } = {},
   attempt?: OutcomeAttempt
 ): Promise<OutcomeResponse> {
   const response = await fetch(`/api/jumps/${encodeURIComponent(jumpId)}/outcome`, {
@@ -169,13 +170,18 @@ export function JumpOutcomeButton({
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const choices = useWorkflowChoices(outcome === "REOPENED" ? undefined : jumpId);
+  const [decisions, setDecisions] = useState<Record<string, string>>({});
+  const [showDecisions, setShowDecisions] = useState(false);
 
   const submit = async () => {
+    if (choices.length && !showDecisions) { setShowDecisions(true); return; }
     if (confirmation && !window.confirm(confirmation)) return;
     setSaving(true);
     setError("");
     try {
-      await saveOutcome(jumpId, outcome);
+      await saveOutcome(jumpId, outcome, { workflowDecisions: Object.entries(decisions).filter(([, outcome]) => outcome).map(([ruleId, outcome]) => ({ ruleId, outcome })) });
+      setShowDecisions(false);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The follow-up could not be updated.");
     } finally {
@@ -186,6 +192,7 @@ export function JumpOutcomeButton({
   return (
     <span>
       <button className={className} type="button" aria-label={ariaLabel} onClick={submit} disabled={saving || disabled}>{saving ? "Saving…" : children}</button>
+      {showDecisions && <span role="group" aria-label="Record journey outcome"><WorkflowOutcomeFields choices={choices} values={decisions} onChange={setDecisions} /><button className="button primary" type="button" disabled={saving} onClick={submit}>Save outcome</button><button className="button" type="button" onClick={() => setShowDecisions(false)}>Cancel</button></span>}
       {error && <small className={styles.error} role="alert">{error}</small>}
     </span>
   );
@@ -196,6 +203,9 @@ export function JumpReturnTray() {
   const opened = useRef<OpenedJumpDetail | null>(null);
   const revealTimer = useRef<number | undefined>(undefined);
   const [session, setSession] = useState<OpenedJumpDetail | null>(null);
+  const workflowChoices = useWorkflowChoices(session?.jumpId);
+  const [workflowDecisions, setWorkflowDecisions] = useState<Record<string, string>>({});
+  useEffect(() => setWorkflowDecisions({}), [session?.jumpId]);
   const [visible, setVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -296,12 +306,12 @@ export function JumpReturnTray() {
       const stored = scope && session.attemptId ? readUnresolvedAttempts(scope).find((item) => item.attemptId === session.attemptId) : undefined;
       const acknowledged = stored?.acknowledged ?? session.acknowledged ?? false;
       const attempt: OutcomeAttempt | undefined = session.attemptId ? { attemptId: session.attemptId, payload: acknowledged ? undefined : stored?.attempt ?? session.attempt } : undefined;
-      const result = await saveOutcome(session.jumpId, selected, details ? {
+      const result = await saveOutcome(session.jumpId, selected, { ...(details ? {
         note,
         visibility,
         nextDate: wantsNext ? nextDate : undefined,
         nextTime: wantsNext ? nextTime : undefined
-      } : {}, attempt);
+      } : {}), workflowDecisions: Object.entries(workflowDecisions).filter(([, outcome]) => outcome).map(([ruleId, outcome]) => ({ ruleId, outcome })) }, attempt);
       if (result.attempt?.evidence === "mismatch") showNotice("Your outcome is saved. The message recorded when you opened it differs from what this device holds, so that record was not attached.");
       advance();
       setNote("");
@@ -331,6 +341,7 @@ export function JumpReturnTray() {
         </div>
         <button className="button small" type="button" onClick={close} aria-label="Record outcome later">Later</button>
       </div>
+      <WorkflowOutcomeFields choices={workflowChoices} values={workflowDecisions} onChange={setWorkflowDecisions} />
       <div className={styles.outcomeGrid}>
         {quickOutcomes.map((item) => (
           <button className={["COMPLETED", "CONNECTED"].includes(item.value) ? "button primary" : "button"} type="button" key={item.value} disabled={saving} onClick={() => save(item.value)}>{item.label}</button>

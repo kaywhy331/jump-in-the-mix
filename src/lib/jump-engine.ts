@@ -26,6 +26,8 @@ import { anchoredStepInstant, boundStepIsPreparation, type BoundStepTiming } fro
 import { variantTemplatesOf } from "@/lib/preparation-variants";
 import { isValidTimezone } from "@/lib/mix-broadcast";
 import type { AppointmentContext } from "@/lib/appointment-context";
+import { ensureLegacyWorkflow, readWorkflowDefinition } from "@/lib/mix-workflow";
+import type { WorkflowDefinition } from "@/lib/mix-workflow-types";
 
 const STALE_CANCELLATION_STATUSES: JumpStatus[] = ["PENDING"];
 // Holds scoped to one appointment binding. Each is cleared only by the event that set it: the
@@ -40,6 +42,7 @@ const RECONCILABLE_CANCELLATION_METHODS = new Set([
   "mix_paused",
   "contact_archived",
   "do_not_contact",
+  "workflow_held",
   ...Object.values(APPOINTMENT_HOLD_METHODS)
 ]);
 // Owner-initiated holds. Their rows come back when the hold is lifted, so they keep the window open
@@ -69,6 +72,8 @@ export type JumpReconciliationResult = {
 };
 
 type DesiredJump = {
+  workflowInstanceId: string | null;
+  workflowVisitId: string | null;
   uniquenessKey: string;
   workspaceId: string;
   contactId: string;
@@ -85,6 +90,8 @@ type DesiredJump = {
 };
 
 type ExistingJump = {
+  workflowInstanceId: string | null;
+  workflowVisitId: string | null;
   id: string;
   uniquenessKey: string;
   status: JumpStatus;
@@ -140,7 +147,9 @@ function jsonEqual(left: Prisma.JsonValue | Prisma.InputJsonValue, right: Prisma
 }
 
 function sameDesired(existing: ExistingJump, desired: DesiredJump): boolean {
-  return existing.workspaceId === desired.workspaceId
+  return existing.workflowInstanceId === desired.workflowInstanceId
+    && existing.workflowVisitId === desired.workflowVisitId
+    && existing.workspaceId === desired.workspaceId
     && existing.contactId === desired.contactId
     && existing.jumpDateId === desired.jumpDateId
     && existing.mixId === desired.mixId
@@ -162,6 +171,7 @@ function canReconcile(existing: ExistingJump): boolean {
 
 function baseJumpWhere(filters: ReconciliationFilters): Prisma.JumpWhereInput {
   return {
+    workflowManaged: false,
     ...(filters.workspaceId ? { workspaceId: filters.workspaceId } : {}),
     ...(filters.contactId ? { contactId: filters.contactId } : {}),
     ...(filters.mixId ? { mixId: filters.mixId } : {}),
@@ -327,6 +337,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const stopped = new Set(stops.map((item) => stopKey(item.mixId, item.contactId)));
   const stoppedByJourneyOnly = new Set(stops.filter((item) => item.reason === JOURNEY_STAGE_EXIT_STOP).map((item) => stopKey(item.mixId, item.contactId)));
   const desired = new Map<string, DesiredJump>();
+  const workflowDefinitions = new Map<string, WorkflowDefinition>();
   // Appointment bindings this pass evaluated. A hold keeps the binding's pending rows out of the
   // desired set and cancels them with its own reason, so they return when the reason lifts and are
   // never mistaken for stale work.
@@ -453,8 +464,18 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       }
 
       for (const trigger of triggers) {
+        if (!workflowDefinitions.has(assignment.workspaceId)) workflowDefinitions.set(assignment.workspaceId, await readWorkflowDefinition(prisma, assignment.workspaceId));
+        const definition = workflowDefinitions.get(assignment.workspaceId)!;
+        const workflow = definition.rules.length || definition.gatedStepIds.length ? await ensureLegacyWorkflow({ workspaceId: assignment.workspaceId, contactId: contact.id, mixId: assignment.mixId,
+          occurrenceKey: trigger.occurrenceKey, startedAt: zonedDateTimeToUtc(trigger.logicalDate, trigger.timeMinutes ?? 0, trigger.timezone), timezone: trigger.timezone,
+          appointmentBindingId: binding?.id ?? null, definition }) : null;
+        if (workflow && (!workflow.legacy || workflow.status === "PAUSED" || workflow.status === "STOPPED")) continue;
+        const savedSteps = (workflow?.mix ?? definition.mixes.find(mix => mix.id === assignment.mixId)!).steps.filter(step => !(workflow?.gatedStepIds ?? definition.gatedStepIds).includes(step.id)).map(step => ({ ...step, plannedAt: step.plannedAt ? new Date(step.plannedAt) : null,
+          stepVersionId: step.versionId, stepVersion: { subject: step.subject, body: step.body, script: step.script, stepTemplate: { channel: step.channel } } }));
         let previousScheduledAt: Date | null = null;
-        for (const mixStep of assignment.mix.steps) {
+        for (const mixStep of savedSteps) {
+          const workflowVisit = workflow?.visits.find(visit => visit.stepId === mixStep.id);
+          if (workflow && (!workflowVisit || workflowVisit.status === "CANCELED")) continue;
           // Beats a completed visit made moot, or that wait for the visit's outcome, are held, not desired.
           if (binding && bindingHolds.get(binding.id)?.some((hold) => hold.mixStepIds?.includes(mixStep.id))) continue;
           let originalLogicalDate: LogicalDate;
@@ -519,6 +540,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
           );
 
           desired.set(uniquenessKey, {
+            workflowInstanceId: workflow?.id ?? null,
+            workflowVisitId: workflowVisit?.id ?? null,
             uniquenessKey,
             workspaceId: assignment.workspaceId,
             contactId: contact.id,
@@ -530,12 +553,13 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
             baseScheduledAt: scheduledAt,
             reason: trigger.reason,
             templateSnapshot: {
+              ...(workflow ? { workflowRunKey: `${workflow.id}:${workflow.runId}` } : {}),
               subject: mixStep.stepVersion.subject,
               body: mixStep.stepVersion.body,
               script: mixStep.stepVersion.script,
               channel,
               // Authored wording for the other channel families (Slice 3); absent on a single-channel beat.
-              ...(variantTemplatesOf(mixStep.stepVersion.variants) ? { variants: variantTemplatesOf(mixStep.stepVersion.variants) } : {}),
+              ...(mixStep.variants ? { variants: mixStep.variants as Prisma.InputJsonObject } : {}),
               localDateTime,
               timezone: trigger.timezone,
               originalLocalDate: logicalDateKey(originalLogicalDate),
@@ -556,6 +580,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       where: { uniquenessKey: { in: batch } },
       select: {
         id: true,
+        workflowInstanceId: true,
+        workflowVisitId: true,
         uniquenessKey: true,
         status: true,
         completionMethod: true,
@@ -641,6 +667,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       // outcome recorded in the meantime is never overwritten. The next pass sees the new state.
       where: { id: existing.id, status: existing.status, updatedAt: existing.updatedAt },
       data: {
+        workflowInstanceId: desiredJump.workflowInstanceId,
+        workflowVisitId: desiredJump.workflowVisitId,
         workspaceId: desiredJump.workspaceId,
         contactId: desiredJump.contactId,
         jumpDateId: desiredJump.jumpDateId,

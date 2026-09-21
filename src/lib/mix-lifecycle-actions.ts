@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { startDraftMix } from "@/lib/mix-start";
+import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -29,8 +30,12 @@ export async function activateMixAction(formData: FormData): Promise<void> {
   const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
   if (preference?.reviewMixActivation !== false) redirect(`/mixes/${mix.id}/edit?activate=1`);
   await prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR UPDATE`;
     await startDraftMix(tx, { workspaceId: workspace.id, mixId: mix.id, now: new Date() });
     await tx.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } });
+    const definition = await readWorkflowDefinition(tx, workspace.id);
+    const connectionId = `mix-start:${mix.id}`;
+    if (definition.rules.some(rule => rule.id === connectionId && !rule.enabled)) await saveWorkflowConfiguration(tx, workspace.id, { rules: definition.rules.map(rule => rule.id === connectionId ? { ...rule, enabled: true } : rule), gatedStepIds: definition.gatedStepIds, intentionalEnds: definition.intentionalEnds }, definition.revision, user.id);
     await tx.auditLog.create({
       data: {
         workspaceId: workspace.id,

@@ -11,12 +11,14 @@ import { getPlatformStringList } from "@/lib/platform-settings";
 import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { plannedAtInput } from "@/lib/planned-step";
+import { workflowEditorData } from "@/lib/mix-workflow";
 
 
 export type MixWorkspaceSearchParams = { activate?: string; error?: string; created?: string; updated?: string; imported?: string };
 
 export async function MixWorkspace({ mixId, query = {}, embedded = false }: { mixId: string; query?: MixWorkspaceSearchParams; embedded?: boolean }) {
   const { workspace, user } = await requireWorkspace();
+  const workflow = await workflowEditorData(workspace.id);
   const [timezone, activationPreference] = await Promise.all([timezoneForUser(user.id), prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } })]);
   const [mix, broadcastSchedule] = await Promise.all([
     prisma.mix.findFirst({
@@ -64,6 +66,9 @@ export async function MixWorkspace({ mixId, query = {}, embedded = false }: { mi
       {query.imported && <Notice type="success">Your remix is ready. Fine-tune the beats and tempo, then start it when you’re ready.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
       <div className={embedded ? "mix-edit-columns" : "mix-library-workspace"}>{!embedded && <MixLibraryNav mixes={library} selected={mix.id} />}<div className="mix-editor-workspace"><MixEditor reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
+        workflowSources={workflow.mixes.filter(item => item.status !== "ARCHIVED" && item.source !== "ONE_TIME").map(({ id, name }) => ({ id, name }))}
+        workflowRevision={workflow.revision}
+        completionSourceId={workflow.configuration.rules.find(rule => rule.id === `mix-start:${mix.id}`)?.source.mixId}
         dateTypes={dateTypes.map((item) => ({ id: item.id, name: item.name, isSystem: item.isSystem }))}
         groups={groups.map((item) => ({ id: item.id, name: item.name, color: item.color, isActive: item.isActive, contactCount: item._count.memberships }))}
         jumps={jumps.flatMap((item) => item.versions[0] ? [{ id: item.id, name: item.name, channel: item.channel, subject: item.versions[0].subject, body: item.versions[0].body, script: item.versions[0].script }] : [])}

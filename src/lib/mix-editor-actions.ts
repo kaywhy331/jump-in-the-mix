@@ -11,6 +11,7 @@ import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/
 import { preparationFamilyForChannel, type PreparationFamily } from "@/lib/preparation-family";
 import { variantFieldsForFamily } from "@/lib/preparation-variants";
 import { prisma } from "@/lib/prisma";
+import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
 import { startDraftMix } from "@/lib/mix-start";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
@@ -110,9 +111,11 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   const framework = value(formData, "framework", 160);
   const category = value(formData, "category", 120);
   const industry = value(formData, "industry", 120);
-  const triggerMode = value(formData, "triggerMode", 40) as MixTriggerMode;
+  const afterMix = value(formData, "triggerMode", 40) === "AFTER_MIX";
+  const previousCue = afterMix && mixIdRaw ? await prisma.mix.findFirst({ where: { id: mixIdRaw, workspaceId: workspace.id }, select: { triggerMode: true, dateTypeId: true } }) : null;
+  const triggerMode = (afterMix ? previousCue?.triggerMode ?? "MANUAL_START" : value(formData, "triggerMode", 40)) as MixTriggerMode;
   const status = value(formData, "status", 40) as MixStatus;
-  const dateTypeId = value(formData, "dateTypeId", 100);
+  const dateTypeId = afterMix ? previousCue?.dateTypeId ?? "" : value(formData, "dateTypeId", 100);
   const path = mixIdRaw ? `/mixes/${mixIdRaw}/edit` : "/mixes/new";
   const allowedTriggers: MixTriggerMode[] = ["DATE_TRIGGERED", "MANUAL_START", "BROADCAST"];
   const allowedStatuses: MixStatus[] = ["DRAFT", "ACTIVE", "PAUSED"];
@@ -137,7 +140,8 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   let broadcastSchedule: ReturnType<typeof parseBroadcastScheduleInput> | null = null;
   if (triggerMode === "BROADCAST") {
     try {
-      broadcastSchedule = parseBroadcastScheduleInput(
+      const savedBroadcast = afterMix && mixIdRaw ? await prisma.mixBroadcastSchedule.findFirst({ where: { mixId: mixIdRaw, workspaceId: workspace.id } }) : null;
+      broadcastSchedule = savedBroadcast ? { ...savedBroadcast, dateInput: savedBroadcast.localDate.toISOString().slice(0, 10), timeInput: `${String(Math.floor(savedBroadcast.timeMinutes / 60)).padStart(2, "0")}:${String(savedBroadcast.timeMinutes % 60).padStart(2, "0")}` } : parseBroadcastScheduleInput(
         value(formData, "broadcastDate", 10),
         value(formData, "broadcastTime", 5),
         value(formData, "broadcastTimezone", 120) || workspaceTimezone
@@ -219,7 +223,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   // A mix that starts when the owner chooses needs no audience to be on: it is started from one
   // person's page or lined up with a visit from the calendar. Elapsed beats never count as scheduled
   // for an enrollment without an appointment, so the projection below counts calendar-day beats only.
-  if (status === "ACTIVE" && triggerMode !== "MANUAL_START" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the mix.");
+  if (status === "ACTIVE" && !afterMix && triggerMode !== "MANUAL_START" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the mix.");
   const calendarStepCount = parsedTimings.filter((timing) => timing.anchor === "CALENDAR_DAY").length;
   if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) fail(path, "Choose who gets the mix.");
 
@@ -233,6 +237,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
 
   try {
     await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR UPDATE`;
       const freshStart = Boolean(existingMix && status === "ACTIVE" && triggerMode === "MANUAL_START"
         && await startDraftMix(tx, { workspaceId: workspace.id, mixId, now }));
       const mixData = {
@@ -295,9 +300,12 @@ export async function saveMixAction(formData: FormData): Promise<void> {
       }
 
       for (const [index, oldStep] of (existingMix?.steps ?? []).filter((step) => !retainedIds.has(step.id)).entries()) {
-        const historyCount = await tx.jump.count({ where: { mixStepId: oldStep.id } });
-        if (historyCount) await tx.mixStep.update({ where: { id: oldStep.id }, data: { isActive: false, sortOrder: 20_000 + index } });
-        else await tx.mixStep.delete({ where: { id: oldStep.id } });
+        const workflow = await readWorkflowDefinition(tx, workspace.id);
+        if (workflow.rules.some(rule => rule.source.stepId === oldStep.id || rule.routes.some(route => route.target?.stepId === oldStep.id) || rule.join?.target.stepId === oldStep.id)) throw new Error(`Remove the Journey connections for this Beat before removing it from the Mix.`);
+        if (workflow.gatedStepIds.includes(oldStep.id)) throw new Error("Restore this Beat’s scheduled start in Journey before removing it from the Mix.");
+        // Saved workflow snapshots can refer to a future Beat before its Jump exists.
+        // Retire its definition so those exact runs can still fulfill their obligations.
+        await tx.mixStep.update({ where: { id: oldStep.id }, data: { isActive: false, sortOrder: 20_000 + index } });
         if (!oldStep.stepVersion.stepTemplate.isActive) replacedInternalTemplateIds.add(oldStep.stepVersion.stepTemplateId);
       }
       for (const templateId of replacedInternalTemplateIds) {
@@ -319,6 +327,18 @@ export async function saveMixAction(formData: FormData): Promise<void> {
         await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, contactId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
       }
 
+      if (afterMix) {
+        const sourceId = value(formData, "completionSourceId", 160);
+        if (!sourceId || sourceId === mixId) throw new Error("Choose another Mix as the start. Configure deliberate loops in Journey with a repeat limit.");
+        const definition = await readWorkflowDefinition(tx, workspace.id);
+        const id = `mix-start:${mixId}`;
+        await saveWorkflowConfiguration(tx, workspace.id, { rules: [...definition.rules.filter(rule => rule.id !== id), { id, name: `Start ${name}`, source: { mixId: sourceId, stepId: null }, enabled: status === "ACTIVE", mode: "PARALLEL", routes: [{ id: `${id}:next`, label: "After this Mix finishes", when: "FINISHED", outcome: "", delayMinutes: 0, target: { mixId, stepId: null }, maxVisits: null, replace: false }], join: null }], gatedStepIds: definition.gatedStepIds, intentionalEnds: definition.intentionalEnds }, Number(value(formData, "workflowRevision", 20)), user.id);
+      }
+      if (!afterMix && existingMix) {
+        const definition = await readWorkflowDefinition(tx, workspace.id);
+        const id = `mix-start:${mixId}`;
+        if (definition.rules.some(rule => rule.id === id)) await saveWorkflowConfiguration(tx, workspace.id, { rules: definition.rules.filter(rule => rule.id !== id), gatedStepIds: definition.gatedStepIds, intentionalEnds: definition.intentionalEnds }, Number(value(formData, "workflowRevision", 20)), user.id);
+      }
       await tx.auditLog.create({
         data: {
           workspaceId: workspace.id,

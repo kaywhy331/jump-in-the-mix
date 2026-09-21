@@ -1,4 +1,5 @@
 import { runJourneyMaintenance } from "@/lib/journey";
+import { processWorkflowInstance, runMixWorkflowMaintenance, type WorkflowCommand } from "@/lib/mix-workflow";
 import { runCalendarSync } from "@/lib/calendar";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
@@ -126,6 +127,12 @@ function retryDelayMs(attempts: number): number {
 }
 
 async function executeJob(job: ClaimedJob): Promise<void> {
+  if (job.task === "mix-workflow") {
+    const payload = job.payload as { instanceId?: string } & Partial<WorkflowCommand>;
+    if (!job.workspaceId || typeof payload.instanceId !== "string") throw new PermanentJobError("Workflow job is missing its instance.");
+    await processWorkflowInstance(job.workspaceId, payload.instanceId, new Date(), payload.requestId ? payload as WorkflowCommand : undefined);
+    return;
+  }
   if (job.task === REPORT_EXPORT_TASK || job.task === REPORT_SNAPSHOT_TASK) {
     const payload = job.payload as { exportId?: unknown; snapshotId?: unknown };
     const id = job.task === REPORT_EXPORT_TASK ? payload?.exportId : payload?.snapshotId;
@@ -253,6 +260,7 @@ async function runDueWorkspaceReconciliations(now = new Date()): Promise<void> {
 async function runMaintenanceIfDue(state: MaintenanceState): Promise<void> {
   const now = Date.now();
   if (now - state.automaticDelivery >= notificationIntervalMs) {
+    try { await runMixWorkflowMaintenance(new Date(now)); } catch (error) { console.error("Mix workflow pass failed", error); }
     try { await runJourneyMaintenance({ now: new Date(now), limit: 25 }); } catch (error) { console.error("Customer journey pass failed", error); }
     try { await runAutomaticDeliveries(workerId, new Date(now)); } catch (error) { console.error("Automatic delivery pass failed", error); }
     state.automaticDelivery = Date.now();

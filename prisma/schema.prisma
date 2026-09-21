@@ -139,6 +139,8 @@ model VerificationToken {
 }
 
 model Workspace {
+  mixWorkflow MixWorkflow?
+  mixWorkflowInstances MixWorkflowInstance[]
   accessInvites ReferralAccessInvite[]
   journeyPreference      JourneyPreference?
   journeyStages          JourneyStage[]
@@ -233,6 +235,7 @@ model WorkspaceMarketingPreference {
 }
 
 model Contact {
+  mixWorkflowInstances MixWorkflowInstance[]
   accessInvites ReferralAccessInvite[]
   journey             ContactJourney?
   journeyEvents       JourneyEvent[]
@@ -521,6 +524,10 @@ model MixAssignment {
 }
 
 model Jump {
+  workflowInstanceId String?
+  workflowVisitId String?
+  workflowManaged Boolean @default(false)
+  workflowInstance MixWorkflowInstance? @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
   id               String                 @id @default(cuid())
   // Explicit review-only captures never enter automatic delivery.
   manualOnly       Boolean                @default(false)
@@ -570,6 +577,7 @@ model Jump {
   @@index([mixStepId])
   @@index([stepVersionId])
   @@index([appointmentBindingId])
+  @@index([workflowInstanceId, workflowVisitId])
 }
 
 model SharedMix {

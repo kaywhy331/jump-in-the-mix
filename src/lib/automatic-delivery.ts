@@ -4,6 +4,7 @@ import { env } from "@/lib/env";
 import { isQuietTime, notificationClock } from "@/lib/notification-delivery";
 import { isValidTimezone } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
+import { processWorkflowInstance, queueWorkflowForJump } from "@/lib/mix-workflow";
 import { preparationFamilyForChannel } from "@/lib/preparation-family";
 import { escapeHtml, sendTransactionalEmail, transactionalEmailConfigured } from "@/lib/transactional-email";
 
@@ -134,6 +135,7 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
       where: {
         workspaceId: workspace.id,
         status: "PENDING",
+        mix: { status: "ACTIVE" },
         manualOnly: false, // Quick Add captures wait for an explicit owner action.
         accessInviteId: null, // Personal invitations are always sent by the member.
         scheduledAt: { lte: threshold },
@@ -156,6 +158,7 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
     });
 
     for (const jump of candidates) {
+      if (jump.workflowInstanceId) await processWorkflowInstance(workspace.id, jump.workflowInstanceId, now);
       const eligibleAt = automaticDeliveryEligibleAt(jump.scheduledAt, jump.createdAt, preference.reviewWindowMinutes);
       if (eligibleAt > now || jump.contact.relationshipState?.doNotContact) continue;
       const channel = jump.stepVersion.stepTemplate.channel;
@@ -166,7 +169,16 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
       const prepared = preparedDelivery(jump.renderedSnapshot, channel);
       let deliveryId: string;
       try {
-        const claimed = await prisma.automatedDelivery.create({
+        const claimed = await prisma.$transaction(async tx => {
+          await tx.$queryRaw`SELECT id FROM "Contact" WHERE id = ${jump.contactId} AND "workspaceId" = ${workspace.id} FOR UPDATE`;
+          const busy = await tx.$queryRaw<Array<{ id: string }>>`SELECT d.id FROM "AutomatedDelivery" d JOIN "Jump" j ON j.id = d."jumpId" WHERE j."workspaceId" = ${workspace.id} AND j."contactId" = ${jump.contactId} AND d.status = 'PROCESSING' LIMIT 1`;
+          if (busy.length) return null;
+          const previous = await tx.automatedDelivery.findUnique({ where: { jumpId: jump.id } });
+          if (previous) {
+            if (previous.status !== "CANCELED" || previous.providerId) return null;
+            return tx.automatedDelivery.update({ where: { id: previous.id }, data: { status: "PROCESSING", lockedAt: now, lockedBy: workerId, reviewEligibleAt: eligibleAt }, select: { id: true } });
+          }
+          return tx.automatedDelivery.create({
           data: {
             workspaceId: workspace.id,
             jumpId: jump.id,
@@ -177,7 +189,9 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
             lockedBy: workerId
           },
           select: { id: true }
+          });
         });
+        if (!claimed) continue;
         deliveryId = claimed.id;
       } catch (error) {
         if (errorCode(error) === "P2002") continue;
@@ -192,13 +206,17 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
         const channelStillEnabled = channel === "EMAIL" ? currentPreference?.emailEnabled : currentPreference?.smsEnabled;
         // A draft saved since the candidate read also holds the follow-up: the claim is released, not sent.
         // A switch to another family since the candidate read also holds it: the claim is released, not sent.
-        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", manualOnly: false, drafts: { none: {} }, OR: [{ appointmentBindingId: null }, { appointmentBinding: { automaticDelivery: true } }], AND: [{ OR: [{ selectedFamily: null }, { selectedFamily: preparationFamilyForChannel(channel) }] }], workspace: { owner: { suspendedAt: null } } }, select: { id: true } });
-        if (!currentPreference?.enabled || !channelStillEnabled || !currentJump) {
+        const currentThreshold = new Date(now.getTime() - (currentPreference?.reviewWindowMinutes ?? preference.reviewWindowMinutes) * 60_000);
+        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", scheduledAt: { lte: currentThreshold }, createdAt: { lte: currentThreshold }, mix: { status: "ACTIVE" }, contact: { archivedAt: null, OR: [{ relationshipState: null }, { relationshipState: { doNotContact: false } }] }, manualOnly: false, drafts: { none: {} }, OR: [{ appointmentBindingId: null }, { appointmentBinding: { automaticDelivery: true } }], AND: [{ OR: [{ selectedFamily: null }, { selectedFamily: preparationFamilyForChannel(channel) }] }, { OR: [{ workflowInstanceId: null }, { workflowInstance: { status: "ACTIVE" } }] }], workspace: { owner: { suspendedAt: null } } }, select: { id: true, renderedSnapshot: true } });
+        const stop = await prisma.mixStop.findUnique({ where: { workspaceId_mixId_contactId: { workspaceId: workspace.id, mixId: jump.mixId, contactId: jump.contactId } } });
+        if (!currentPreference?.enabled || !channelStillEnabled || !currentJump || (stop && !(jump.appointmentBindingId && stop.reason === "journey.stage.exit"))) {
           await prisma.automatedDelivery.updateMany({ where: { id: deliveryId, lockedBy: workerId, status: "PROCESSING" }, data: { status: "CANCELED", lockedAt: null, lockedBy: null } });
           continue;
         }
 
-        const providerId = await deliver(channel, recipient, prepared, jump.id, workspace.profile?.company || workspace.name);
+        const currentPrepared = preparedDelivery(currentJump.renderedSnapshot, channel);
+        if (!currentPrepared) throw new Error("The prepared message is empty or cannot be sent automatically.");
+        const providerId = await deliver(channel, recipient, currentPrepared, jump.id, workspace.profile?.company || workspace.name);
         await prisma.automatedDelivery.updateMany({
           where: { id: deliveryId, lockedBy: workerId, status: "PROCESSING" },
           data: { providerId }
@@ -213,6 +231,7 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
             data: { status: "DELIVERED", deliveredAt: now, lockedAt: null, lockedBy: null, error: null }
           });
           if (settled.count !== 1) throw new Error("The automatic-delivery lease was lost before completion.");
+          if (completed.count) await queueWorkflowForJump(tx, workspace.id, jump.id);
           await tx.contactActivity.create({
             data: {
               workspaceId: workspace.id,

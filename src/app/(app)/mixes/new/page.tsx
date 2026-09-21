@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { RELATIONSHIP_MIXES } from "@/lib/relationship-mix-library";
 import { READY_MADE_PLANS } from "@/lib/vertical-plan-library";
 import { timezoneForUser } from "@/lib/display-preferences";
+import { workflowEditorData } from "@/lib/mix-workflow";
 
 export const metadata: Metadata = { title: "Create a mix" };
 
@@ -34,12 +35,15 @@ export default async function NewMixPage({ searchParams }: { searchParams: Promi
     prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null, phones: { none: {} } } })
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates);
+  const workflow = await workflowEditorData(workspace.id);
 
   return (
     <div className="page">
       <header className="page-header"><div><h1>Create a mix</h1><p>Every relationship starts with a first beat. Add messages and reminders, then set the tempo.</p></div></header>
       {query.error && <Notice type="error">{query.error}</Notice>}
       <MixEditor reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
+        workflowSources={workflow.mixes.filter(item => item.status !== "ARCHIVED" && item.source !== "ONE_TIME").map(({ id, name }) => ({ id, name }))}
+        workflowRevision={workflow.revision}
         dateTypes={dateTypes.map((item) => ({ id: item.id, name: item.name, isSystem: item.isSystem }))}
         groups={groups.map((item) => ({ id: item.id, name: item.name, color: item.color, isActive: item.isActive, contactCount: item._count.memberships }))}
         jumps={jumps.flatMap((item) => item.versions[0] ? [{ id: item.id, name: item.name, channel: item.channel, subject: item.versions[0].subject, body: item.versions[0].body, script: item.versions[0].script }] : [])}

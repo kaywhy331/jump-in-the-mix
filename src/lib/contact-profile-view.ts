@@ -20,8 +20,9 @@ type SequenceJump = {
 
 /** Group a real occurrence, not all follow-ups sharing a reusable Mix. */
 export function contactSequenceKey(jump: SequenceJump): string | null {
-  if (jump.appointmentBindingId) return `appointment:${jump.appointmentBindingId}`;
   const snapshot = jump.templateSnapshot && typeof jump.templateSnapshot === "object" && !Array.isArray(jump.templateSnapshot) ? jump.templateSnapshot as Record<string, unknown> : {};
+  if (typeof snapshot.workflowRunKey === "string") return `workflow:${snapshot.workflowRunKey}`;
+  if (jump.appointmentBindingId) return `appointment:${jump.appointmentBindingId}`;
   if (snapshot.oneTime) return `one-time:${typeof snapshot.batchId === "string" ? snapshot.batchId : jump.id}`;
   const date = snapshot.originalLocalDate;
   if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date) || jump.mixStep.plannedAt) return null;

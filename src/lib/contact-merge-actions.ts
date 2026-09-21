@@ -5,6 +5,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
 import { originalLocalDateOf } from "@/lib/jump-engine";
 import { prisma } from "@/lib/prisma";
+import { mergeWorkflowContact } from "@/lib/mix-workflow";
 
 function value(formData: FormData, key: string, maximum = 500): string {
   return String(formData.get(key) ?? "").trim().slice(0, maximum);
@@ -121,6 +122,8 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
     await tx.intakeIdentity.updateMany({ where: { contactId: source.id, connection: { workspaceId: workspace.id } }, data: { contactId: survivor.id } });
     await tx.intakeReceipt.updateMany({ where: { contactId: source.id, connection: { workspaceId: workspace.id } }, data: { contactId: survivor.id } });
     await tx.journeyEvent.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id } });
+    // Keep separate pieces of work distinct after their person identities merge.
+    await mergeWorkflowContact(tx, workspace.id, source.id, survivor.id);
     const [survivorJourney, sourceJourney] = await Promise.all([tx.contactJourney.findUnique({ where: { contactId: survivor.id } }), tx.contactJourney.findUnique({ where: { contactId: source.id } })]);
     if (sourceJourney) {
       if (!survivorJourney) await tx.contactJourney.update({ where: { contactId: source.id }, data: { contactId: survivor.id, version: { increment: 1 } } });

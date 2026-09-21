@@ -15,7 +15,7 @@ import { STEP_ANCHORS, STEP_ANCHOR_LABELS, MAX_STEP_OFFSET_MINUTES, describeStep
 import type { StepAnchor } from "@/generated/prisma/client";
 import type { PreparationFamily } from "@/lib/preparation-family";
 
-type TriggerMode = "DATE_TRIGGERED" | "MANUAL_START" | "BROADCAST";
+type TriggerMode = "DATE_TRIGGERED" | "MANUAL_START" | "BROADCAST" | "AFTER_MIX";
 type MixStatus = "DRAFT" | "ACTIVE" | "PAUSED";
 type Channel = "SMS" | "EMAIL" | "PHONE_CALL" | "VOICEMAIL" | "WHATSAPP";
 type DateTypeOption = { id: string; name: string; isSystem: boolean };
@@ -78,6 +78,9 @@ export function MixEditor({
   industries,
   workspaceTimezone,
   reviewBeforeActivation = true,
+  workflowSources = [],
+  completionSourceId = "",
+  workflowRevision = 0,
   activeContactCount,
   missingEmailCount,
   missingPhoneCount
@@ -90,6 +93,9 @@ export function MixEditor({
   industries: string[];
   workspaceTimezone: string;
   reviewBeforeActivation?: boolean;
+  workflowSources?: Array<{ id: string; name: string }>;
+  completionSourceId?: string;
+  workflowRevision?: number;
   activeContactCount: number;
   missingEmailCount: number;
   missingPhoneCount: number;
@@ -98,7 +104,8 @@ export function MixEditor({
   const activationInputRef = useRef<HTMLInputElement>(null);
   const [name, setName] = useState(mix?.name ?? "");
   const [status, setStatus] = useState<MixStatus>(mix?.status ?? "DRAFT");
-  const [triggerMode, setTriggerMode] = useState<TriggerMode>(mix?.triggerMode ?? "DATE_TRIGGERED");
+  const [triggerMode, setTriggerMode] = useState<TriggerMode>(completionSourceId ? "AFTER_MIX" : mix?.triggerMode ?? "DATE_TRIGGERED");
+  const [sourceMixId, setSourceMixId] = useState(completionSourceId);
   const [assignAllContacts, setAssignAllContacts] = useState(mix?.assignAllContacts ?? false);
   const [selectedGroupIds, setSelectedGroupIds] = useState(() => new Set(mix?.groupIds ?? []));
   const [reviewOpen, setReviewOpen] = useState(false);
@@ -117,7 +124,7 @@ export function MixEditor({
   const projectedFollowUps = audienceEstimate * calendarBeats;
   // A mix that starts when the owner chooses can be on with no one enrolled: it is started from a
   // person's page or attached to a visit the owner picks on the calendar.
-  const canStart = Boolean(audience.data) && (audienceChosen || triggerMode === "MANUAL_START");
+  const canStart = triggerMode === "AFTER_MIX" ? Boolean(sourceMixId) : Boolean(audience.data) && (audienceChosen || triggerMode === "MANUAL_START");
   const channels = [...new Set(sequence.map((item) => item.channel))];
 
   const updateStep = (index: number, patch: Partial<SequenceItem>) => setSequence((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
@@ -151,19 +158,22 @@ export function MixEditor({
     <FormGuard />
     {mix?.id && <input type="hidden" name="mixId" value={mix.id} />}
     <input ref={activationInputRef} type="hidden" name="activationConfirmed" defaultValue="0" />
+    <input type="hidden" name="workflowRevision" value={workflowRevision} />
 
     <details className="card mix-editor-section mix-start-settings" open={!mix?.id}>
       <summary><strong>Name and start</strong><span>{name || "Set up this mix"}</span></summary>
       <div className="form-grid">
         <label className="field full"><span>Mix name</span><input name="name" maxLength={160} value={name} onChange={(event) => setName(event.target.value)} placeholder="Estimate follow-up" required autoFocus={!mix?.id} /></label>
-        <label className="field"><span>When should it start?</span><select name="triggerMode" value={triggerMode} onChange={(event) => setTriggerMode(event.target.value as TriggerMode)}><option value="DATE_TRIGGERED">When I add a date</option><option value="MANUAL_START">When I start it for someone</option><option value="BROADCAST">On one fixed date</option></select></label>
+        <label className="field"><span>When should it start?</span><select name="triggerMode" value={triggerMode} onChange={(event) => setTriggerMode(event.target.value as TriggerMode)}><option value="DATE_TRIGGERED">When I add a date</option><option value="MANUAL_START">When I start it for someone</option><option value="BROADCAST">On one fixed date</option><option value="AFTER_MIX">After another Mix finishes</option></select></label>
+        {triggerMode === "AFTER_MIX" && <label className="field"><span>Which Mix?</span><select name="completionSourceId" value={sourceMixId} required onChange={event => setSourceMixId(event.target.value)}><option value="">Choose a Mix</option>{workflowSources.filter(item => item.id !== mix?.id).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select><small>The same person continues automatically. Existing start conditions stay available. <Link href="/journey">Manage additional triggers and paths in Journey</Link>.</small></label>}
         {triggerMode === "DATE_TRIGGERED" && <label className="field"><span>Which date?</span><select name="dateTypeId" defaultValue={mix?.dateTypeId ?? dateTypes[0]?.id ?? ""} required>{dateTypes.map((dateType) => <option key={dateType.id} value={dateType.id}>{dateType.name}</option>)}</select><small><Link href="/settings/jump-date-types">Manage date types</Link></small></label>}
         {triggerMode === "BROADCAST" && <div className="field full broadcast-fields"><div className="broadcast-field-grid"><label className="field"><span>Date</span><input name="broadcastDate" type="date" defaultValue={mix?.broadcastDate ?? ""} required /></label><label className="field"><span>Time</span><input name="broadcastTime" type="time" defaultValue={mix?.broadcastTime ?? "10:00"} required /></label><label className="field"><span>Timezone</span><TimezonePicker name="broadcastTimezone" id="broadcastTimezone" label="Timezone" defaultValue={mix?.broadcastTimezone ?? workspaceTimezone} /></label></div></div>}
         {triggerMode !== "BROADCAST" && <input type="hidden" name="broadcastTimezone" value={workspaceTimezone} />}
         <label className="field"><span>After saving</span><select name="status" value={status} onChange={(event) => setStatus(event.target.value as MixStatus)}><option value="DRAFT">Keep as a draft</option><option value="ACTIVE">Start the mix</option>{mix?.id && <option value="PAUSED">Keep paused</option>}</select></label>
       </div>
 
-      <div className="audience-options">
+      {triggerMode === "AFTER_MIX" && <p className="muted-copy">For the person who finishes {workflowSources.find(item => item.id === sourceMixId)?.name ?? "the selected Mix"}. This connection starts future runs; it does not enroll everyone or replay previous completions.</p>}
+      <div className="audience-options" hidden={triggerMode === "AFTER_MIX" && !mix?.id}>
         <h3>Who is this mix for?</h3>
         <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" checked={assignAllContacts} onChange={(event) => setAssignAllContacts(event.target.checked)} /><span><strong>Everyone</strong><small>{activeContactCount.toLocaleString()} active people</small></span></label>
         {groups.length > 0 && <div className="group-choice-grid">{groups.map((group) => {

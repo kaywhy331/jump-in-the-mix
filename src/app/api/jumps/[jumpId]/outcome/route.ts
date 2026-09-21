@@ -1,5 +1,6 @@
 import { applyJourneyEvent } from "@/lib/journey";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { NextResponse } from "next/server";
 import { timezoneForUser } from "@/lib/display-preferences";
 import type { ContactActivityVisibility, JumpOutcome, Prisma } from "@/generated/prisma/client";
@@ -7,6 +8,8 @@ import { getCurrentSession } from "@/lib/auth";
 import { attachAttemptOutcome, parseAttemptPayload, recordJumpAttempt } from "@/lib/jump-attempts";
 import { logicalDateKey, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { prisma } from "@/lib/prisma";
+import { queueWorkflowForJump, workflowDefinition, workflowState } from "@/lib/mix-workflow";
+import { workflowDecisionRulesForVisit } from "@/lib/mix-workflow-engine";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 
@@ -40,6 +43,7 @@ type OutcomePayload = {
   requestId?: string;
   attemptId?: unknown;
   attempt?: unknown;
+  workflowDecisions?: Array<{ ruleId: string; outcome: string }>;
 };
 
 // What the recorded outcome can say about the preparation behind it. "attempt" links the exact
@@ -144,6 +148,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
   });
   if (!jump) return NextResponse.json({ error: "Follow-up not found." }, { status: 404 });
   if (jump.status === "CANCELED") return NextResponse.json({ error: "This follow-up is no longer active." }, { status: 409 });
+  const decisionInput = z.array(z.object({ ruleId: z.string().min(1).max(160), outcome: z.string().min(1).max(160) }).strict()).max(50).safeParse(payload?.workflowDecisions ?? []);
+  if (!decisionInput.success) return NextResponse.json({ error: "Choose valid journey outcomes." }, { status: 400 });
+  const decisions = decisionInput.data;
+  if (decisions.length) {
+    const instance = jump.workflowInstanceId ? await prisma.mixWorkflowInstance.findFirst({ where: { id: jump.workflowInstanceId, workspaceId: membership.workspaceId } }) : null;
+    const state = instance ? workflowState(instance.state) : null, definition = instance ? workflowDefinition(instance.definition) : null;
+    const rules = definition && state ? workflowDecisionRulesForVisit(definition, state, jump.workflowVisitId) : [];
+    if (!instance || instance.status !== "ACTIVE" || new Set(decisions.map(item => item.ruleId)).size !== decisions.length || decisions.some(choice => !rules.some(rule => rule.id === choice.ruleId && rule.routes.some(route => route.when === "OUTCOME" && route.outcome === choice.outcome)))) return NextResponse.json({ error: "These outcomes do not belong to this active Beat. Refresh its journey choices." }, { status: 400 });
+  }
 
   const timezone = await timezoneForUser(session.user.id);
   const rawNextDate = clean(payload?.nextDate, 10);
@@ -201,6 +214,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
         });
         if (updated.count !== 1) throw new Error("This follow-up is not available to reopen.");
         nextStatus = "PENDING";
+      } else if (outcome === "RESCHEDULED" && jump.workflowInstanceId && nextCommitmentAt) {
+        const updated = await tx.jump.updateMany({ where: { id: jump.id, workspaceId: membership.workspaceId, status: "PENDING" }, data: { scheduledAt: nextCommitmentAt, snoozedUntil: nextCommitmentAt, completedAt: null, completionMethod: null } });
+        if (updated.count !== 1) throw new Error("This follow-up is no longer pending.");
+        nextStatus = "PENDING";
       } else if (outcome === "NOT_SENT") {
         if (jump.status !== "PENDING") throw new Error("This follow-up is no longer pending.");
         nextStatus = "PENDING";
@@ -221,9 +238,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
       }
 
       if (outcome === "CONNECTED") await applyJourneyEvent(tx, { workspaceId: membership.workspaceId, contactId: jump.contactId, eventKey: `call:${jump.id}:${requestId}`, eventType: "CONVERSATION_STARTED", source: "Connected call", actorUserId: session.user.id });
+      await queueWorkflowForJump(tx, membership.workspaceId, jump.id, nextStatus === "DONE" || nextStatus === "SKIPPED" ? decisions : undefined, requestId);
 
       let jumpDateId: string | null = null;
-      if (nextLogicalDate && nextCommitmentAt && nextMinutes !== null) {
+      if (nextLogicalDate && nextCommitmentAt && nextMinutes !== null && !(outcome === "RESCHEDULED" && jump.workflowInstanceId)) {
         const followUpType = await tx.dateType.findFirst({
           where: { scopeKey: "system", slug: "follow-up", isActive: true },
           select: { id: true }
@@ -263,6 +281,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
           nextCommitmentAt,
           metadata: {
             jumpReason: jump.reason,
+            ...(decisions.length && ["DONE", "SKIPPED"].includes(nextStatus) ? { workflowDecisions: decisions } : {}),
             contactName: jump.contact.displayName,
             previousStatus: jump.status,
             nextStatus,

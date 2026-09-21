@@ -37,6 +37,19 @@ describe.skipIf(!local).sequential("persisted Mix activation policy", () => {
     await expect(saveMixAction(direct)).rejects.toThrow(/redirect:\/mixes\/[^/]+\/edit\?created=manual/);
     expect(await prisma.mix.count({ where: { workspaceId, status: "ACTIVE" } })).toBe(2);
   });
+  it("saves a completion trigger without an audience and enables it when the Mix starts", async () => {
+    const source = await prisma.mix.findFirstOrThrow({ where: { workspaceId, status: "ACTIVE" } });
+    const data = form(); data.set("name", "After another Mix"); data.set("status", "DRAFT"); data.set("triggerMode", "AFTER_MIX"); data.set("completionSourceId", source.id); data.set("workflowRevision", "0");
+    await expect(saveMixAction(data)).rejects.toThrow(/redirect:.*created=manual/);
+    const target = await prisma.mix.findFirstOrThrow({ where: { workspaceId, name: "After another Mix" } });
+    expect(await prisma.mixAssignment.count({ where: { mixId: target.id } })).toBe(0);
+    const saved = await prisma.mixWorkflow.findUniqueOrThrow({ where: { workspaceId } });
+    expect((saved.configuration as unknown as { rules: Array<{ enabled: boolean }> }).rules[0].enabled).toBe(false);
+    const start = new FormData(); start.set("mixId", target.id);
+    await expect(activateMixAction(start)).rejects.toThrow("redirect:/mixes?activated=1");
+    const active = await prisma.mixWorkflow.findUniqueOrThrow({ where: { workspaceId } });
+    expect((active.configuration as unknown as { rules: Array<{ enabled: boolean }> }).rules[0].enabled).toBe(true);
+  });
   it("routes list activation through review when the preference changes back", async () => {
     await prisma.userPreference.update({ where: { userId }, data: { reviewMixActivation: true } });
     const mix = await prisma.mix.create({ data: { workspaceId, name: "Paused fixture", status: "PAUSED", triggerMode: "MANUAL_START" } });

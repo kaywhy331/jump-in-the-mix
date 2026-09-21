@@ -1,5 +1,6 @@
 import { ContactAnchorReveal } from "@/components/ContactAnchorReveal";
 import { contactDueLabel, recordedStageChanges, sameContactSequence } from "@/lib/contact-profile-view";
+import { ContactWorkflowProgress } from "@/components/WorkflowProgress";
 import { getJumpDateOccurrences, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { ContactJourneyPanel } from "@/components/ContactJourneyPanel";
 import Link from "next/link";
@@ -199,6 +200,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
         <section className="contact-coming-up"><div className="contact-section-heading"><h2>Coming up</h2></div>{upcoming.length ? <ol>{upcoming.map(item => <li key={item.id}><time dateTime={item.date.toISOString()}>{shortDate(item.date)}</time><Link href={item.href}>{item.title}</Link></li>)}</ol> : <p className="contact-empty-copy">Nothing else scheduled.</p>}</section>
       </aside>
       <div className="contact-detail-primary">
+        <ContactWorkflowProgress key={contact.id} contactId={contact.id} />
         <section className="contact-priority-card">{journeyTrack}</section>
         <section className="contact-timeline-card" id="contact-history"><ContactTimeline key={contact.id} contactId={contact.id} displayPreferences={displayPreferences} /></section>
         <details className="contact-notes-card"><summary>Notes to remember</summary><div><p className="note-copy">{contact.publicNotes || "No notes yet."}</p>{contact.privateNotes && <div className="private-note"><strong>Private</strong><p>{contact.privateNotes}</p></div>}<Link className="contact-inline-action" href={`/contacts/${contact.id}/edit#contact-notes`}>Edit contact notes</Link></div></details>
