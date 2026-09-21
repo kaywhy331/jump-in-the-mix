@@ -1,6 +1,8 @@
 # Remaining interaction issues — September 20, 2026
 
-Review of the local production build `T3DLxu4rLnSSxeSTmURDg`, following the [stress review](DESIGN_STRESS_REVIEW_2026-09-20.md). Five additional issues were reproduced in Chromium using a disposable workspace and synthetic records. This is a findings report: application code was not changed and nothing was deployed.
+**Resolved and deployed:** the five findings and stalled-request recovery were corrected in the [save-recovery release](SAVE_RECOVERY_RELEASE_2026-09-20.md). The original reproduction notes below are retained as evidence.
+
+Review of the local production build `T3DLxu4rLnSSxeSTmURDg`, following the [stress review](DESIGN_STRESS_REVIEW_2026-09-20.md). Five additional issues were reproduced in Chromium using a disposable workspace and synthetic records. At the time of this findings review, application code had not been changed and nothing was deployed.
 
 ## Confirmed findings, in priority order
 
