@@ -6,6 +6,7 @@ import { MixWorkspace } from "@/components/MixWorkspace";
 import { MixLibraryNav } from "@/components/MixLibraryNav";
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
+import { Sheet } from "@/components/Sheet";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -30,18 +31,36 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
   if (params.mix && !requested) notFound();
   const selected = requested?.id ?? mixes[0]?.id;
   return <div className="page mixes-page mix-workspace-page">
-    <header className="page-header"><h1>Mixes</h1><div className="page-actions"><Link className="button" href="/templates"><AppIcon name="mixes" />Ready-made</Link><Link className="button primary" href="/mixes/new?custom=1"><AppIcon name="plus" />Create a mix</Link></div></header>
     {params.error && <Notice type="error">{params.error}</Notice>}
     {(params.activated || params.paused || params.archived) && <Notice type="success">{params.activated ? "Mix started." : params.paused ? "Mix paused." : "Mix archived."}</Notice>}
     <MixLibraryShell selectedMixId={selected} explicitSelection={Boolean(params.mix)}>
       <aside className="mix-library-directory" aria-label="Mix library">
+        <header className="mix-directory-header">
+          <h1>Mixes</h1>
+          <div className="mix-directory-actions">
+            <Link className="icon-button" href="/mixes/new?custom=1" aria-label="Create a mix" title="Create a mix"><AppIcon name="plus" /></Link>
+            <Sheet trigger={<button className="icon-button" type="button" aria-label="More Mix tools" title="More Mix tools"><AppIcon name="more" /></button>} title="Mix tools">
+              <nav className="contact-tools-links"><Link href="/templates"><AppIcon name="import" />Ready-made mixes</Link><Link href="/mixes/system"><AppIcon name="people" />My invitations</Link></nav>
+            </Sheet>
+          </div>
+        </header>
         <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes" aria-current="page"><AppIcon name="mixes" />My mixes</Link><Link href="/templates"><AppIcon name="import" />Ready-made</Link></nav>
-        <form className="mix-library-search" key={`${q}:${status}:${favorites}`} action="/mixes"><label className="sr-only" htmlFor="mix-search">Search mixes</label><input id="mix-search" type="search" name="q" defaultValue={q} placeholder="Search mixes" /><button className="icon-button" type="submit" aria-label="Search mixes"><AppIcon name="search" /></button>{favorites && <input type="hidden" name="favorites" value="1" />}{status && <input type="hidden" name="status" value={status} />}</form>
-        <div className="mix-library-filters"><Link className={`button small${favorites ? " active" : ""}`} href={href({ favorites: favorites ? undefined : "1", page: undefined })} aria-current={favorites ? "page" : undefined}><AppIcon name="heart" />Favorites</Link><details><summary><AppIcon name="filter" />Status{status ? " · 1" : ""}</summary><form action="/mixes"><input type="hidden" name="q" value={q}/>{favorites && <input type="hidden" name="favorites" value="1" />}<label className="sr-only" htmlFor="mix-status">Filter mixes by status</label><select id="mix-status" name="status" defaultValue={status}><option value="">All statuses</option><option value="ACTIVE">On</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select><button className="button small" type="submit"><AppIcon name="check" />Apply</button></form></details></div>
-        <p className="mix-library-total" role="status">{total} {total === 1 ? "mix" : "mixes"}{(q || status || favorites) && <Link href="/mixes">Clear filters</Link>}</p>
+        <div className="mix-directory-search">
+          <form className="mix-library-search" key={`${q}:${status}:${favorites}`} action="/mixes">
+            <button className="icon-button" type="submit" aria-label="Search mixes"><AppIcon name="search" /></button><label className="sr-only" htmlFor="mix-search">Search mixes</label><input id="mix-search" type="search" name="q" defaultValue={q} placeholder="Search mixes" />
+            {favorites && <input type="hidden" name="favorites" value="1" />}{status && <input type="hidden" name="status" value={status} />}
+          </form>
+          <Sheet trigger={<button className="icon-button" type="button" aria-label="Filter mixes" title="Filter mixes"><AppIcon name="filter" />{status && <span className="mix-filter-count">1</span>}</button>} title="Filter mixes">
+            <form className="form-grid" action="/mixes"><input name="q" type="hidden" value={q} />{favorites && <input name="favorites" type="hidden" value="1" />}
+              <label className="field full"><span>Status</span><select name="status" defaultValue={status}><option value="">All statuses</option><option value="ACTIVE">On</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select></label>
+              <button className="button primary" type="submit"><AppIcon name="check" />Apply filters</button>
+            </form>
+          </Sheet>
+        </div>
+        <div className="mix-library-total"><span role="status">{total} {total === 1 ? "mix" : "mixes"}</span><Link className="mix-favorites-filter" href={href({ favorites: favorites ? undefined : "1", page: undefined })} aria-current={favorites ? "page" : undefined}><AppIcon name="heart" />Favorites</Link></div>
+        {(q || status || favorites) && <Link className="mix-clear-filters" href="/mixes"><AppIcon name="close" />Clear filters</Link>}
         {mixes.length ? <MixLibraryNav showTabs={false} mixes={mixes.map(mix => ({ ...mix, favorite: mix.favorites.length > 0 }))} selected={selected} href={id => `${href({ mix: id })}#selected-mix`} canEdit={!impersonation} /> : <p className="muted-copy">{favorites ? "Favorite a Mix to find it here." : "No mixes found."}</p>}
         {pages > 1 && <nav className="mix-library-pagination" aria-label="Mix result pages">{page > 1 && <Link className="icon-button" href={href({ page: String(page - 1) })} aria-label="Previous mixes"><AppIcon name="arrowLeft" /></Link>}<span>{page} / {pages}</span>{page < pages && <Link className="icon-button" href={href({ page: String(page + 1) })} aria-label="Next mixes"><AppIcon name="arrowLeft" style={{ transform: "rotate(180deg)" }} /></Link>}</nav>}
-        <Link className="mix-library-invitations" href="/mixes/system"><AppIcon name="people" />My invitations</Link>
       </aside>
       {selected ? <MixWorkspace key={selected} mixId={selected} embedded query={params} libraryHref={href({ mix: selected })} /> : <EmptyState title={q || status || favorites ? "No matching mixes" : "Create your first mix"} description={q || status || favorites ? "Try another search or clear your filters." : "Choose a ready-made mix or create your own."} actionHref={q || status || favorites ? "/mixes" : "/templates"} actionLabel={q || status || favorites ? "Clear filters" : "Browse ready-made mixes"} />}
     </MixLibraryShell>
