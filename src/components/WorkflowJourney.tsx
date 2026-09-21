@@ -74,7 +74,7 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
   useLayoutEffect(() => {
     const graph = graphRef.current; if (!graph) return;
     const origin = graph.getBoundingClientRect(); const next: Record<string, number> = {};
-    graph.querySelectorAll<HTMLElement>("[data-workflow-beat]").forEach(element => { const rect = element.getBoundingClientRect(); next[element.dataset.workflowBeat!] = (rect.top - origin.top + rect.height / 2) / zoom; });
+    graph.querySelectorAll<HTMLElement>("[data-workflow-beat]").forEach(element => { const rect = element.getBoundingClientRect(); if (!rect.width || !rect.height) return; next[element.dataset.workflowBeat!] = (rect.top - origin.top + rect.height / 2) / zoom; });
     setPorts(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
   }, [layout, zoom, list]);
   useEffect(() => { const node = layout.nodes.find(item => item.id === selected); if (node && canvasRef.current) canvasRef.current.scrollTo({ left: Math.max(0, node.x * zoom - 30), top: Math.max(0, node.y * zoom - 45) }); }, [selected, list]);

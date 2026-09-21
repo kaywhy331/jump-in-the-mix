@@ -87,6 +87,13 @@ test("save an enabled Beat connection, reload it, and reopen instead of duplicat
   expect(JSON.stringify(saved)).toContain(beats[1]);
   await editor(page).getByRole("button", { name: "Cancel", exact: true }).click();
   expect(await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /Continue our conversation/ }).count()).toBe(1);
+  await page.setViewportSize({ width: 390, height: 844 }); await page.getByRole("button", { name: "Fit map", exact: true }).click();
+  const visibleEdge = page.locator('svg[aria-label="Configured connections"] > g').first().locator("path").last();
+  await expect.poll(() => visibleEdge.evaluate(element => (element as SVGGraphicsElement).getBBox().y)).toBeGreaterThanOrEqual(0);
+  // A straight SVG stroke has zero geometry height, so Playwright visibility is not applicable.
+  expect(await visibleEdge.evaluate(element => (element as SVGGraphicsElement).getBBox().width)).toBeGreaterThan(0);
+  expect(await visibleEdge.evaluate(element => getComputedStyle(element).stroke)).not.toBe("none");
+  if (process.env.CONNECTION_ARTIFACTS) await page.screenshot({ path: `${process.env.CONNECTION_ARTIFACTS}/overview-beat-connections.png` });
 });
 
 test("saving a drawn connection preserves unrelated changes made in another window", async ({ page, context }) => {
