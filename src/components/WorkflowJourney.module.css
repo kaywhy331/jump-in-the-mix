@@ -15,3 +15,23 @@
 .graph[data-overview=true] .nodeHeading>span:last-child{width:100%}.graph[data-overview=true] .nodeHeading strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
 
 .edge[data-progress=STARTED] path:not(.edgeHit),.edge[data-progress=FINISHED] path:not(.edgeHit){stroke:var(--violet-mark);stroke-width:3}.edge[data-progress=WAITING] path:not(.edgeHit){stroke:var(--violet-mark);stroke-dasharray:6 5}.edge[data-progress=HELD] path:not(.edgeHit){stroke:var(--danger);stroke-dasharray:4 5}
+
+.connectionHint{display:flex;align-items:center;gap:8px 16px;flex-wrap:wrap;margin:0;padding:10px 20px;font-size:12px;line-height:1.5;color:var(--text-3);background:var(--violet-wash)}
+.connectionHint>span:first-child{flex:1;min-width:180px}
+.connectionHint button{flex-shrink:0;min-height:44px}
+.mixNode .connectionPort{position:absolute;z-index:2;top:65px;display:grid;place-items:center;width:44px;height:44px;min-width:44px;padding:0;border:0;background:transparent;color:var(--violet-text);cursor:crosshair;touch-action:none;user-select:none;transform:translate(-50%,-50%);border-radius:50%}
+.mixNode .connectionPort[data-workflow-port=input]{left:0}
+.mixNode .connectionPort[data-workflow-port=output]{left:100%}
+.mixNode .connectionPort>span{display:grid;place-items:center;width:18px;height:18px;border:2px solid var(--violet-mark);border-radius:50%;background:var(--surface);font:600 12px/1 var(--font-ui);box-shadow:0 0 0 3px var(--surface)}
+.mixNode .connectionPort:hover>span,.mixNode .connectionPort[data-compatible=true]>span{background:var(--violet-wash)}
+.mixNode .connectionPort[data-hover=true]>span,.mixNode .connectionPort[data-chosen=true]>span{background:var(--violet);color:var(--on-violet);box-shadow:0 0 0 5px var(--violet-wash)}
+.mixNode .connectionPort:focus-visible{outline:2px solid var(--violet-mark);outline-offset:-3px}
+.mixNode .connectionPort:disabled{cursor:default;opacity:.4}
+.nodeBeats li{position:relative}
+.nodeBeats .connectionPort{top:50%}
+.nodeBeats .connectionPort[data-workflow-port=input]{left:-15px}
+.nodeBeats .connectionPort[data-workflow-port=output]{left:calc(100% + 15px)}
+.nodeBeats .beatHeading{flex:1;padding-right:8px}
+.connectionPreview{fill:none;stroke:var(--violet-mark);stroke-width:2.5;stroke-dasharray:6 4;pointer-events:none}
+.connectionPreview[data-ready=true]{stroke-dasharray:none;stroke-width:3}
+@media(max-width:600px){.connectionHint{padding:10px 12px}}
