@@ -56,9 +56,9 @@ test("preview and editing stay in the workspace and protect an unsaved Beat", as
 });
 
 test("both ready-made entry points use one library with preview and personal favorites", async ({ page }) => {
-  await page.goto("/mixes/new", { waitUntil: "networkidle" }); await expect(page).toHaveURL(/\/templates$/); await expect(page.getByRole("heading", { name: "Ready-made mixes", exact: true })).toBeVisible(); await expect(page.getByText("Find a starting rhythm", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Add A friendly starting rhythm to favorites", exact: true }).click(); await page.getByRole("link", { name: "Favorites", exact: true }).click(); await expect(page.locator(".library-plan-card")).toHaveCount(1);
-  await page.getByRole("button", { name: "Preview the rhythm: A friendly starting rhythm", exact: true }).click(); await expect(page.getByRole("dialog")).toContainText("Say hello"); await page.getByRole("button", { name: "Close A friendly starting rhythm", exact: true }).click();
+  await page.goto("/mixes/new", { waitUntil: "networkidle" }); await expect(page).toHaveURL(/\/templates$/); await expect(page.getByRole("heading", { name: "Mixes", exact: true })).toBeVisible(); await expect(page.getByText("Find a starting rhythm", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Add A friendly starting rhythm to favorites", exact: true }).click(); await page.getByRole("link", { name: "Favorites", exact: true }).click(); await expect(page.locator(".mix-library-row")).toHaveCount(1);
+  await expect(page.getByRole("region", { name: "Selected ready-made Mix", exact: true })).toContainText("Say hello");
   await page.reload({ waitUntil: "networkidle" }); await expect(page.getByRole("button", { name: "Remove A friendly starting rhythm from favorites", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("link", { name: "Create your own", exact: true }).click(); await expect(page).toHaveURL(/\/mixes\/new\?custom=1$/); await expect(page.getByLabel("Mix name", { exact: true })).toBeVisible();
 });

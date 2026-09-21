@@ -100,36 +100,33 @@ test("activation reviews contain focus, restore it, and keep confirmation reacha
   }
 });
 
-test("library is compact and preview preserves filters, scroll, and keyboard focus", async ({ page }) => {
+test("library selection preserves filters and keyboard tools stay accessible", async ({ page }) => {
   await page.goto("/templates");
-  await expect(page.locator(".library-plan-card")).toHaveCount(9);
-  await page.getByRole("link", { name: "Next", exact: true }).click();
+  await expect(page.locator(".mix-library-row")).toHaveCount(20);
+  await page.getByRole("link", { name: "Next ready-made mixes", exact: true }).click();
   await expect(page).toHaveURL(/page=2/);
-  await expect(page.locator(".library-plan-card")).toHaveCount(9);
+  await expect(page.locator(".mix-library-row")).toHaveCount(20);
   await page.goto(`/templates?category=New+customers&industry=Home+services&framework=${encodeURIComponent(framework)}`);
-  await expect(page.locator(".library-plan-card")).toHaveCount(2);
-  const trigger = page.getByRole("button", { name: "Preview the rhythm: Design sample 0", exact: true });
-  await trigger.scrollIntoViewIfNeeded();
-  const scroll = await page.evaluate(() => scrollY);
-  const url = page.url();
-  await trigger.click();
-  await expect(page.getByRole("dialog").getByRole("link", { name: "Remix it" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(trigger).toBeFocused();
-  expect(page.url()).toBe(url);
-  expect(Math.abs(await page.evaluate(() => scrollY) - scroll)).toBeLessThan(3);
-  await page.locator(".library-refinements > summary").click();
+  await expect(page.locator(".mix-library-row")).toHaveCount(2);
+  await page.locator(".mix-library-item").filter({ hasText: "Design sample 0" }).click();
+  await expect(page.getByRole("region", { name: "Selected ready-made Mix" })).toContainText("Check in");
+  await expect(page).toHaveURL(/category=New\+customers/);
+  const filter = page.getByRole("button", { name: "Filter ready-made mixes", exact: true });
+  await filter.focus(); await page.keyboard.press("Enter");
   const goals = await page.getByLabel("Filter by goal").locator("option").allTextContents();
-  expect(goals).toContain("New customers");
-  expect(goals).not.toContain("New clients");
+  expect(goals).toContain("New customers"); expect(goals).not.toContain("New clients");
+  await page.keyboard.press("Escape"); await expect(filter).toBeFocused();
   await page.getByRole("link", { name: "Clear filters", exact: true }).click();
   await expect(page).toHaveURL(/\/templates$/, { timeout: 60_000 });
+  await filter.click();
   await expect(page.getByLabel("Filter by goal")).toHaveValue("");
   await expect(page.getByLabel("Filter by business type")).toHaveValue("");
   await expect(page.getByLabel("Filter by approach")).toHaveValue("");
+  await page.keyboard.press("Escape");
   await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill("Jeremy Miner");
+  await page.getByRole("button", { name: "Search ready-made mixes", exact: true }).click();
   await expect(page).toHaveURL(/q=Jeremy\+Miner|q=Jeremy%20Miner/, { timeout: 60_000 });
-  await expect(page.locator(".library-plan-card").first()).toContainText("NEPQ");
+  await expect(page.getByRole("complementary", { name: "Ready-made Mix details" })).toContainText("NEPQ");
 });
 
 test("collapsed contact details retain address identity and notes on save", async ({ page }) => {

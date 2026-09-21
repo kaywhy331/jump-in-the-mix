@@ -135,3 +135,15 @@
   .mix-beat-wording { padding: 14px 16px; }
   .mix-workspace-page .mix-editor-workspace .form-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Ready-made uses the same directory, Beat preview and context panes. */
+.ready-made-directory-note { margin: 0 0 12px; color: var(--text-3); font-size: .8125rem; line-height: 1.5; }
+.ready-made-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; margin: 0; }
+.ready-made-facts dt { color: var(--text-3); }
+.ready-made-facts dd { margin: 0; overflow-wrap: anywhere; }
+.ready-made-context .ready-made-use > .button { padding: 10px 16px; background: var(--violet); color: var(--on-violet); }
+.ready-made-context .plan-approach-guide { min-width: 0; margin: 12px 0 0; padding: 0; border: 0; background: transparent; }
+.ready-made-context .plan-approach-guide dl { display: block; }
+.ready-made-context .plan-approach-guide dt { margin-top: 12px; }
+.ready-made-context .plan-approach-guide dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+@media (min-width: 1700px) { .ready-made-preview-use { display: none; } }
