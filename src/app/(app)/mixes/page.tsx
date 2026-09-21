@@ -1,172 +1,49 @@
-import { MixWorkspace } from "@/components/MixWorkspace";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { MixLibraryShell } from "@/components/MixLibraryShell";
+import { MixWorkspace } from "@/components/MixWorkspace";
 import { MixLibraryNav } from "@/components/MixLibraryNav";
+import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
-import { AppIcon, type AppIconName } from "@/components/AppIcon";
-import { AutoSubmitForm } from "@/components/AutoSubmitForm";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Notice } from "@/components/Notice";
-import { Sheet } from "@/components/Sheet";
-import { createStarterMixAction } from "@/lib/actions";
 import { requireWorkspace } from "@/lib/auth";
-import { formatDateInput, formatTimeInput } from "@/lib/mix-broadcast";
-import { activateMixAction, archiveMixAction, pauseMixAction } from "@/lib/mix-lifecycle-actions";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
-import { describeStepTiming } from "@/lib/step-timing";
-import { journeyMixMembers } from "@/lib/journey-view";
 
 export const metadata: Metadata = { title: "Mixes" };
-
-type SearchParams = {
-  mix?: string;
-  created?: string;
-  updated?: string;
-  activated?: string;
-  paused?: string;
-  archived?: string;
-  starter?: string;
-  error?: string;
-  q?: string;
-  status?: string;
-  page?: string;
-};
-
-function channelIcon(channel: string): AppIconName {
-  if (channel === "EMAIL") return "email";
-  if (channel === "PHONE_CALL" || channel === "VOICEMAIL") return "phone";
-  return "message";
-}
+type SearchParams = { mix?: string; view?: string; activate?: string; imported?: string; created?: string; updated?: string; activated?: string; paused?: string; archived?: string; error?: string; q?: string; status?: string; page?: string; favorites?: string };
 
 export default async function MixesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams;
-  const { workspace, user } = await requireWorkspace();
-  const activationPreference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
-  const q = typeof params.q === "string" ? params.q.trim().slice(0, 160) : "";
-  const status = ["ACTIVE", "PAUSED", "DRAFT"].includes(params.status ?? "") ? params.status : "";
-  const where: Prisma.MixWhereInput = { workspaceId: workspace.id, status: status ? status as "ACTIVE" | "PAUSED" | "DRAFT" : { not: "ARCHIVED" }, ...(q ? { name: { contains: q, mode: "insensitive" } } : {}) };
-  const totalCount = await prisma.mix.count({ where });
-  const pageSize = 20;
-  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-  const requestedPage = Number(params.page ?? "1");
-  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, totalPages) : 1;
-  const pageHref = (nextPage: number) => {
-    const query = new URLSearchParams();
-    if (q) query.set("q", q);
-    if (status) query.set("status", status);
-    if (nextPage > 1) query.set("page", String(nextPage));
-    return `/mixes${query.size ? `?${query}` : ""}`;
+  const params = await searchParams, { workspace, user, impersonation } = await requireWorkspace();
+  const q = params.q?.trim().slice(0, 160) ?? "", favorites = params.favorites === "1";
+  const status = ["ACTIVE", "PAUSED", "DRAFT"].includes(params.status ?? "") ? params.status as "ACTIVE" | "PAUSED" | "DRAFT" : "";
+  const where: Prisma.MixWhereInput = { workspaceId: workspace.id, source: { not: "ONE_TIME" }, status: status || { not: "ARCHIVED" }, ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { description: { contains: q, mode: "insensitive" } }] } : {}), ...(favorites ? { favorites: { some: { workspaceId: workspace.id, userId: user.id } } } : {}) };
+  const total = await prisma.mix.count({ where }), pageSize = 20, pages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(pages, Math.max(1, Math.floor(Number(params.page) || 1)));
+  const href = (patch: Record<string, string | undefined> = {}) => {
+    const values: Record<string, string | undefined> = { q: q || undefined, status: status || undefined, favorites: favorites ? "1" : undefined, page: page > 1 ? String(page) : undefined, ...patch };
+    const query = new URLSearchParams(Object.entries(values).filter((entry): entry is [string, string] => Boolean(entry[1]))); return `/mixes${query.size ? `?${query}` : ""}`;
   };
-  const mixes = await prisma.mix.findMany({
-      where,
-      include: {
-        steps: { where: { isActive: true }, include: { stepVersion: { include: { stepTemplate: true, variants: { select: { family: true } } } } }, orderBy: { sortOrder: "asc" } },
-        dateType: true
-      },
-      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: pageSize,
-      skip: (page - 1) * pageSize
-    });
-  const broadcastSchedules = mixes.length ? await prisma.mixBroadcastSchedule.findMany({ where: { workspaceId: workspace.id, mixId: { in: mixes.map(mix => mix.id) } } }) : [];
-  const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
-  const selectedMix = mixes.find(mix => mix.id === params.mix) ?? mixes[0];
-  const people = await Promise.all(mixes.map(mix => prisma.contact.count({ where: { AND: [{ workspaceId: workspace.id, archivedAt: null }, journeyMixMembers(workspace.id, mix.id)] } })));
-  const peopleByMix = new Map(mixes.map((mix, index) => [mix.id, people[index]]));
-
-  return (
-    <div className="page mixes-page">
-      {params.created === "starter" && <Notice type="success">Starter mix created.</Notice>}
-      {params.created === "manual" && <Notice type="success">Mix created.</Notice>}
-      {params.updated === "manual" && <Notice type="success">Mix saved.</Notice>}
-      {params.activated && <Notice type="success">Mix started.</Notice>}
-      {params.paused && <Notice type="success">Mix paused.</Notice>}
-      {params.archived && <Notice type="success">Mix archived.</Notice>}
-      {params.starter === "exists" && <Notice type="info">Your starter mix is below.</Notice>}
-      {params.error && <Notice type="error">{params.error}</Notice>}
-      <div className="mixes-layout"><section className="mixes-directory">
-      <header className="page-header">
-        <div><h1>Mixes</h1><p>Your reusable follow-up plans.</p></div>
-        <div className="page-actions">
-          <Link className="button primary" href="/mixes/new"><AppIcon name="add" />New mix</Link>
-        </div>
-      </header>
-      <nav className="mix-mobile-tabs mix-library-tabs" aria-label="Mix library"><Link href="/mixes" aria-current="page">My mixes</Link><Link href="/templates">Ready-made</Link></nav>
-      <details className="workflow-options"><summary>More options</summary><div className="page-actions"><Link className="button" href="/mixes/new">Create a mix from scratch</Link><Link className="button" href="/mixes/system">My invitations</Link></div></details>
-      <div className="mix-filter-row">
-        <form className="filter-bar mix-filter-bar" action="/mixes" method="get"><input name="q" defaultValue={q} placeholder="Search mixes" aria-label="Search mixes"/>{status && <input type="hidden" name="status" value={status}/>}<button className="sr-only" type="submit">Search mixes</button></form>
-        <Sheet trigger={<button className={status ? "button filter-trigger active" : "button filter-trigger"} type="button"><AppIcon name="settings"/><span>Filter{status ? " 1" : ""}</span></button>} title="Filter mixes" description="Changes apply as soon as you choose them.">
-          <AutoSubmitForm className="form-stack" action="/mixes" ariaLabel="Mix filters"><input type="hidden" name="q" value={q}/><label className="field"><span>Status</span><select name="status" defaultValue={status} aria-label="Filter mixes by status"><option value="">All statuses</option><option value="ACTIVE">On</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select></label></AutoSubmitForm>
-          {(q || status) && <Link className="button" href="/mixes">Clear search and filters</Link>}
-        </Sheet>
-      </div>
-
-      {mixes.length > 0 && <MixLibraryNav mixes={mixes.map(mix => ({ ...mix, people: peopleByMix.get(mix.id) }))} selected={selectedMix?.id} href={id => `${pageHref(page)}${pageHref(page).includes("?") ? "&" : "?"}mix=${id}`} />}
-      </section>
-      {mixes.length ? (
-        <div className="mixes-content">{selectedMix && <div className="mix-desktop-editor"><MixWorkspace key={selectedMix.id} mixId={selectedMix.id} embedded /></div>}<div className="mix-list mix-mobile-list">
-          {mixes.map((mix) => {
-            const broadcast = broadcastByMixId.get(mix.id);
-            // Beats timed from a visit have no day of their own; they run only for a visit the mix is lined up with.
-            const calendarSteps = mix.steps.filter((step) => step.anchor === "CALENDAR_DAY");
-            const visitBeats = mix.steps.length - calendarSteps.length;
-            const lastDay = Math.max(0, ...calendarSteps.map((step) => step.dayOffset));
-            const timing = [`${mix.steps.length} beat${mix.steps.length === 1 ? "" : "s"}`, ...(calendarSteps.length ? [`${lastDay + 1} day${lastDay ? "s" : ""}`] : []), ...(visitBeats ? [`${visitBeats} timed from a visit`] : [])].join(" · ");
-            const beatTiming = (step: { anchor: string; dayOffset: number; offsetMinutes: number | null }) => step.anchor === "CALENDAR_DAY" ? `Day ${step.dayOffset}` : describeStepTiming({ anchor: step.anchor as "APPOINTMENT_START" | "APPOINTMENT_END" | "VISIT_COMPLETED", offsetMinutes: step.offsetMinutes });
-            // A beat with authored alternatives can be sent another way from Today; say which.
-            const alternatives = (step: { stepVersion: { variants: Array<{ family: string }> } }) => step.stepVersion.variants.length ? ` · also ${step.stepVersion.variants.map((variant) => variant.family === "EMAIL" ? "email" : variant.family === "CALL" ? "call" : "text").join(", ")}` : "";
-            const channelSequence = [...new Set(mix.steps.map((step) => step.stepVersion.stepTemplate.channel.replaceAll("_", " ").toLowerCase()))];
-            return (
-              <article className={`mix-row mix-card${mix.id === selectedMix?.id ? " mix-card-selected" : ""}`} key={mix.id}>
-                <div className="card-header">
-                  <div>
-                    <h3><Link href={`/mixes/${mix.id}/edit`}>{mix.name}</Link></h3>
-                    <div className="mix-meta">
-                      <span className={`status-pill ${mix.status === "ACTIVE" ? "done" : ""}`}>{mix.status.toLowerCase()}</span>
-                      <span className="mix-trigger">Starts: {mix.dateType ? `when ${mix.dateType.name} is added` : mix.triggerMode === "MANUAL_START" ? "when you choose" : "on one scheduled date"}</span>
-                      {broadcast && <span className="mix-broadcast">Scheduled: {formatDateInput(broadcast.localDate)} · {formatTimeInput(broadcast.timeMinutes)} {broadcast.timezone}</span>}
-                      <span className="mix-audience" title="People assigned to this Mix or awaiting one of its follow-ups">{peopleByMix.get(mix.id)} {peopleByMix.get(mix.id) === 1 ? "person" : "people"}</span>
-                      <span className="mix-timing">{timing}</span>
-                      <span className="mix-channels">{channelSequence.join(" → ") || "No channels yet"}</span>
-                    </div>
-                  </div>
-                  <div className="mix-card-actions"><Sheet trigger={<button className="button small" type="button" aria-label={`Manage ${mix.name}`}><AppIcon name="more"/><span>Manage</span></button>} title={mix.name} description="Edit this mix, change whether it is running, or archive it.">
-                    <div className="sheet-actions vertical"><Link href={`/mixes/${mix.id}/edit`} className="button primary"><AppIcon name="edit"/>Edit mix</Link>{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button" type="submit">Pause mix</button></form> : activationPreference?.reviewMixActivation !== false ? <Link href={`/mixes/${mix.id}/edit?activate=1`} className="button">Review and start</Link> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button" type="submit">Start the mix</button></form>}</div><div className="sheet-danger-zone"><ConfirmDialog trigger="Archive…" title={`Archive ${mix.name}?`} description="The mix stops creating new follow-ups. Completed history stays available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button danger" type="submit">Archive mix</button></form></ConfirmDialog></div>
-                  </Sheet></div>
-                </div>
-                {mix.description && <p className="muted-copy">{mix.description}</p>}
-                <div className="mix-sequence-preview" role="group" aria-label={`${mix.name} follow-up sequence`}>
-                  {mix.steps.length ? mix.steps.map((step, index) => (
-                    <Link key={step.id} href={`/mixes/${mix.id}/edit`} className="mix-sequence-item" title={`Beat ${index + 1} · ${beatTiming(step)} · ${step.stepVersion.stepTemplate.channel.replaceAll("_", " ").toLowerCase()}${alternatives(step)}`}>
-                      <span className="timeline-icon" aria-hidden="true" /><span className="sr-only">Beat {index + 1}: {beatTiming(step)}</span>
-                    </Link>
-                  )) : <span className="status-pill">No follow-ups yet</span>}
-                </div>
-                <p className="mix-row-timing">{timing}</p>
-                <details className="mix-details" open={mix.id === selectedMix?.id}><summary>Preview the rhythm</summary><div className="timeline">{mix.steps.map((step, index) => {
-                  const content = step.stepVersion.body ?? step.stepVersion.script ?? "No message content";
-                  return <div className="timeline-step" key={step.id}><div className="timeline-day">Beat {index + 1}<small>{beatTiming(step)}</small></div><div className="timeline-icon"><AppIcon name={channelIcon(step.stepVersion.stepTemplate.channel)} /></div><div className="timeline-content"><strong>{step.stepVersion.stepTemplate.name}</strong><span className="channel-pill">{step.stepVersion.stepTemplate.channel.replaceAll("_", " ")}</span><p>{step.stepVersion.subject && `${step.stepVersion.subject}\n`}{content}</p></div></div>;
-                })}</div></details>
-              </article>
-            );
-          })}
-        </div></div>
-      ) : (
-        q || status
-          ? <EmptyState title="No mixes match these filters." description="Try a different search or clear your filters to see your mixes." actionHref="/mixes" actionLabel="Clear search and filters" />
-          : <EmptyState title="Every relationship starts with a first beat." description="Create a mix to keep in touch with a customer, a friend, or someone you would like to know better." actionHref="/mixes/new" actionLabel="Create a mix" />
-      )}
-
-      {totalCount > 0 && <nav className="today-pagination" aria-label="Mix result pages">
-        <span>{(page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalCount)} of {totalCount} {totalCount === 1 ? "mix" : "mixes"}</span>
-        <div className="page-actions">
-          {page > 1 && <Link className="button" href={pageHref(page - 1)}>Previous</Link>}
-          <span>Page {page} of {totalPages}</span>
-          {page < totalPages && <Link className="button" href={pageHref(page + 1)}>Next</Link>}
-        </div>
-      </nav>}
-      {!totalCount && !q && !status && <form action={createStarterMixAction} className="starter-mix-inline"><button className="button" type="submit">Create a basic starter mix</button></form>}
-      </div>
-    </div>
-  );
+  const mixes = await prisma.mix.findMany({ where, include: { steps: { where: { isActive: true }, select: { dayOffset: true, anchor: true }, orderBy: { sortOrder: "asc" } }, favorites: { where: { workspaceId: workspace.id, userId: user.id }, select: { id: true } } }, orderBy: [{ name: "asc" }, { id: "asc" }], take: pageSize, skip: (page - 1) * pageSize });
+  const requested = params.mix ? await prisma.mix.findFirst({ where: { id: params.mix, workspaceId: workspace.id, status: { not: "ARCHIVED" }, source: { not: "ONE_TIME" } }, select: { id: true } }) : null;
+  if (params.mix && !requested) notFound();
+  const selected = requested?.id ?? mixes[0]?.id;
+  return <div className="page mixes-page mix-workspace-page">
+    <header className="page-header"><h1>Mixes</h1><div className="page-actions"><Link className="button" href="/templates"><AppIcon name="mixes" />Ready-made</Link><Link className="button primary" href="/mixes/new?custom=1"><AppIcon name="plus" />Create a mix</Link></div></header>
+    {params.error && <Notice type="error">{params.error}</Notice>}
+    {(params.activated || params.paused || params.archived) && <Notice type="success">{params.activated ? "Mix started." : params.paused ? "Mix paused." : "Mix archived."}</Notice>}
+    <MixLibraryShell selectedMixId={selected} explicitSelection={Boolean(params.mix)}>
+      <aside className="mix-library-directory" aria-label="Mix library">
+        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes" aria-current="page"><AppIcon name="mixes" />My mixes</Link><Link href="/templates"><AppIcon name="import" />Ready-made</Link></nav>
+        <form className="mix-library-search" key={`${q}:${status}:${favorites}`} action="/mixes"><label className="sr-only" htmlFor="mix-search">Search mixes</label><input id="mix-search" type="search" name="q" defaultValue={q} placeholder="Search mixes" /><button className="icon-button" type="submit" aria-label="Search mixes"><AppIcon name="search" /></button>{favorites && <input type="hidden" name="favorites" value="1" />}{status && <input type="hidden" name="status" value={status} />}</form>
+        <div className="mix-library-filters"><Link className={`button small${favorites ? " active" : ""}`} href={href({ favorites: favorites ? undefined : "1", page: undefined })} aria-current={favorites ? "page" : undefined}><AppIcon name="heart" />Favorites</Link><details><summary><AppIcon name="filter" />Status{status ? " · 1" : ""}</summary><form action="/mixes"><input type="hidden" name="q" value={q}/>{favorites && <input type="hidden" name="favorites" value="1" />}<label className="sr-only" htmlFor="mix-status">Filter mixes by status</label><select id="mix-status" name="status" defaultValue={status}><option value="">All statuses</option><option value="ACTIVE">On</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select><button className="button small" type="submit"><AppIcon name="check" />Apply</button></form></details></div>
+        <p className="mix-library-total" role="status">{total} {total === 1 ? "mix" : "mixes"}{(q || status || favorites) && <Link href="/mixes">Clear filters</Link>}</p>
+        {mixes.length ? <MixLibraryNav showTabs={false} mixes={mixes.map(mix => ({ ...mix, favorite: mix.favorites.length > 0 }))} selected={selected} href={id => `${href({ mix: id })}#selected-mix`} canEdit={!impersonation} /> : <p className="muted-copy">{favorites ? "Favorite a Mix to find it here." : "No mixes found."}</p>}
+        {pages > 1 && <nav className="mix-library-pagination" aria-label="Mix result pages">{page > 1 && <Link className="icon-button" href={href({ page: String(page - 1) })} aria-label="Previous mixes"><AppIcon name="arrowLeft" /></Link>}<span>{page} / {pages}</span>{page < pages && <Link className="icon-button" href={href({ page: String(page + 1) })} aria-label="Next mixes"><AppIcon name="arrowLeft" style={{ transform: "rotate(180deg)" }} /></Link>}</nav>}
+        <Link className="mix-library-invitations" href="/mixes/system"><AppIcon name="people" />My invitations</Link>
+      </aside>
+      {selected ? <MixWorkspace key={selected} mixId={selected} embedded query={params} libraryHref={href({ mix: selected })} /> : <EmptyState title={q || status || favorites ? "No matching mixes" : "Create your first mix"} description={q || status || favorites ? "Try another search or clear your filters." : "Choose a ready-made mix or create your own."} actionHref={q || status || favorites ? "/mixes" : "/templates"} actionLabel={q || status || favorites ? "Clear filters" : "Browse ready-made mixes"} />}
+    </MixLibraryShell>
+  </div>;
 }

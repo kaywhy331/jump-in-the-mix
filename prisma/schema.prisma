@@ -85,6 +85,7 @@ enum AuthProvider {
 }
 
 model User {
+  favorites MixFavorite[]
   assignedSupportTickets SupportTicket[] @relation("SupportAssignee")
   reportExports ReportExport[]
   staffMembership StaffMembership?
@@ -139,6 +140,7 @@ model VerificationToken {
 }
 
 model Workspace {
+  favorites MixFavorite[]
   mixWorkflow MixWorkflow?
   mixWorkflowInstances MixWorkflowInstance[]
   accessInvites ReferralAccessInvite[]
@@ -450,6 +452,7 @@ model StepVersion {
 }
 
 model Mix {
+  favorites MixFavorite[]
   journeyStages             JourneyStage[]
   id                        String          @id @default(cuid())
   workspaceId               String
@@ -581,6 +584,7 @@ model Jump {
 }
 
 model SharedMix {
+  favorites MixFavorite[]
   revisions    SharedMixRevision[]
   releases     SharedMixRelease[]
   id           String            @id @default(cuid())

@@ -2,7 +2,10 @@ import Link from "next/link";
 import { journeyMixMembers } from "@/lib/journey-view";
 import { notFound } from "next/navigation";
 import { MixEditor } from "@/components/MixEditor";
-import { MixLibraryNav } from "@/components/MixLibraryNav";
+import { MixBeatPreview } from "@/components/MixBeatPreview";
+import { AppIcon } from "@/components/AppIcon";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { activateMixAction, pauseMixAction, archiveMixAction } from "@/lib/mix-lifecycle-actions";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
 import { mergeGroupActivity } from "@/lib/group-activity";
@@ -14,12 +17,12 @@ import { plannedAtInput } from "@/lib/planned-step";
 import { workflowEditorData } from "@/lib/mix-workflow";
 
 
-export type MixWorkspaceSearchParams = { activate?: string; error?: string; created?: string; updated?: string; imported?: string };
+export type MixWorkspaceSearchParams = { view?: string; activate?: string; error?: string; created?: string; updated?: string; imported?: string };
 
-export async function MixWorkspace({ mixId, query = {}, embedded = false }: { mixId: string; query?: MixWorkspaceSearchParams; embedded?: boolean }) {
-  const { workspace, user } = await requireWorkspace();
+export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: string; query?: MixWorkspaceSearchParams; embedded?: boolean; libraryHref?: string }) {
+  const { workspace, user, impersonation } = await requireWorkspace();
   const workflow = await workflowEditorData(workspace.id);
-  const [timezone, activationPreference] = await Promise.all([timezoneForUser(user.id), prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } })]);
+  const [timezone, activationPreference] = await Promise.all([timezoneForUser(user.id), prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true, locale: true } })]);
   const [mix, broadcastSchedule] = await Promise.all([
     prisma.mix.findFirst({
       where: { id: mixId, workspaceId: workspace.id, status: { not: "ARCHIVED" } },
@@ -51,21 +54,27 @@ export async function MixWorkspace({ mixId, query = {}, embedded = false }: { mi
   const groups = mergeGroupActivity(rawGroups, groupStates);
   const groupIds = mix.assignments.flatMap((assignment) => assignment.groupId ? [assignment.groupId] : []);
   const assignAllContacts = mix.assignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:"));
-  const library = await prisma.mix.findMany({ where: { workspaceId: workspace.id, status: { not: "ARCHIVED" } }, select: { id: true, name: true, status: true, steps: { where: { isActive: true }, select: { dayOffset: true, anchor: true }, orderBy: { sortOrder: "asc" } } }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 100 });
+
 
   const [members, memberCount, stages] = await Promise.all([
     prisma.contact.findMany({ where: { AND: [{ workspaceId: workspace.id, archivedAt: null }, journeyMixMembers(workspace.id, mix.id)] }, orderBy: [{ displayName: "asc" }, { id: "asc" }], take: 20, select: { id: true, displayName: true, jumps: { where: { workspaceId: workspace.id, mixId: mix.id, status: "PENDING" }, orderBy: { scheduledAt: "asc" }, take: 1, select: { reason: true } } } }),
     prisma.contact.count({ where: { AND: [{ workspaceId: workspace.id, archivedAt: null }, journeyMixMembers(workspace.id, mix.id)] } }),
     prisma.journeyStage.findMany({ where: { workspaceId: workspace.id, planId: mix.id, isActive: true }, select: { id: true, name: true }, orderBy: { position: "asc" } })
   ]);
-  return (
-    <div className={embedded ? "mix-inline-workspace" : "page mix-edit-page"}>
-      <header className="page-header"><div>{embedded ? <h2>{mix.name}</h2> : <h1>Edit {mix.name}</h1>}<p>Saving updates future follow-ups without rewriting completed history.</p></div></header>
-      {query.created === "manual" && <Notice type="success">Mix created. Future follow-ups are updating.</Notice>}
-      {query.updated && <Notice type="success">Mix updated. Future follow-ups are updating.</Notice>}
-      {query.imported && <Notice type="success">Your remix is ready. Fine-tune the beats and tempo, then start it when you’re ready.</Notice>}
+  const editing = query.view === "edit" || query.activate === "1" || Boolean(query.error);
+  const baseHref = libraryHref ?? `/mixes?mix=${encodeURIComponent(mix.id)}`;
+  const related = workflow.configuration.rules.filter(rule => rule.source.mixId === mix.id || rule.routes.some(route => route.target?.mixId === mix.id) || rule.join?.target.mixId === mix.id);
+  return <div className="mix-edit-columns">
+    <section id="selected-mix" className="mix-editor-workspace" aria-label="Selected Mix">
+      <header className="mix-selected-header"><div><h2>{mix.name}</h2><span className="status-pill">{mix.status.toLowerCase()}</span></div>
+        <nav className="mix-view-tabs" aria-label="Mix view"><Link className="button small" href={baseHref} aria-current={!editing ? "page" : undefined}><AppIcon name="mixes" />Preview</Link>{!impersonation && <Link className="button small" href={`${baseHref}&view=edit`} aria-current={editing ? "page" : undefined}><AppIcon name="edit" />Edit</Link>}</nav>
+      </header>
+      {query.created === "manual" && <Notice type="success">Mix created.</Notice>}
+      {query.updated && <Notice type="success">Mix saved.</Notice>}
+      {query.imported && <Notice type="success">Your remix is ready to edit.</Notice>}
       {query.error && <Notice type="error">{query.error}</Notice>}
-      <div className={embedded ? "mix-edit-columns" : "mix-library-workspace"}>{!embedded && <MixLibraryNav mixes={library} selected={mix.id} />}<div className="mix-editor-workspace"><MixEditor reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
+      {!editing && mix.description && <p className="mix-selected-description">{mix.description}</p>}
+      {editing && !impersonation ? <MixEditor reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
         workflowSources={workflow.mixes.filter(item => item.status !== "ARCHIVED" && item.source !== "ONE_TIME").map(({ id, name }) => ({ id, name }))}
         workflowRevision={workflow.revision}
         completionSourceId={workflow.configuration.rules.find(rule => rule.id === `mix-start:${mix.id}`)?.source.mixId}
@@ -110,7 +119,13 @@ export async function MixWorkspace({ mixId, query = {}, embedded = false }: { mi
             variants: step.stepVersion.variants.map((variant) => ({ family: variant.family, subject: variant.subject, body: variant.body, script: variant.script }))
           }))
         }}
-      /></div><aside className="mix-people-context" aria-label="People and journey usage"><h3>In this mix</h3><p>{memberCount} {memberCount === 1 ? "person" : "people"}</p>{members.length ? <ul>{members.map(person => <li key={person.id}><Link href={`/contacts/${person.id}`}><strong>{person.displayName}</strong><small>{person.jumps[0]?.reason ?? "No pending beat"}</small></Link></li>)}</ul> : <p>No one is in this mix yet.</p>}<Link className="button small" href={`/journey?mix=${mix.id}`}>View people / start for someone</Link><h3>Used in Journey</h3>{stages.length ? stages.map(stage => <p key={stage.id}><Link href={`/journey?stage=${stage.id}`}>{stage.name}</Link></p>) : <p>Independent touchpoint</p>}</aside></div>
-    </div>
-  );
+      /> : <MixBeatPreview steps={mix.steps} gatedStepIds={workflow.configuration.gatedStepIds} timezone={timezone} locale={activationPreference?.locale ?? "en-US"} />}
+    </section>
+    <aside className="mix-context-pane" aria-label="People and Journey connections">
+      <section><h3><AppIcon name="clock" />Starts</h3><p>{mix.triggerMode === "MANUAL_START" ? "When you start it or a connected path arrives." : mix.triggerMode === "BROADCAST" ? "On a scheduled date." : "When its date is added."}</p>{broadcastSchedule && <p>{formatDateInput(broadcastSchedule.localDate)} · {formatTimeInput(broadcastSchedule.timeMinutes)} {broadcastSchedule.timezone}</p>}</section>
+      <section><h3><AppIcon name="people" />People</h3><strong className="mix-context-count">{memberCount}</strong>{members.length ? <ul>{members.slice(0, 5).map(person => <li key={person.id}><Link href={`/contacts/${person.id}`}><strong>{person.displayName}</strong><small>{person.jumps[0]?.reason ?? "No pending Beat"}</small></Link></li>)}</ul> : <p>No one in this Mix yet.</p>}<Link className="button small" href={`/journey?mix=${mix.id}`}><AppIcon name="people" />{memberCount ? "View people" : "Start for someone"}</Link></section>
+      <section><h3><AppIcon name="journey" />Connections</h3>{related.length ? <ul>{related.map(rule => <li key={rule.id}><Link href={`/journey?mix=${mix.id}`}><strong>{rule.name}</strong><small>{rule.source.mixId === mix.id ? "Continues from here" : "Connects into this Mix"}{!rule.enabled ? " · off" : ""}</small></Link></li>)}</ul> : <p>No connected paths yet.</p>}<Link className="button small" href={`/journey?mix=${mix.id}`}><AppIcon name="journey" />Open Journey</Link>{stages.length > 0 && <details><summary>Contact stages</summary>{stages.map(stage => <p key={stage.id}>{stage.name}</p>)}</details>}</section>
+      {!impersonation && <details className="mix-manage"><summary><AppIcon name="settings" />Manage Mix</summary><div>{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small" type="submit"><AppIcon name="clock" />Pause Mix</button></form> : activationPreference?.reviewMixActivation !== false ? <Link className="button small" href={`${baseHref}&view=edit&activate=1`}><AppIcon name="check" />Review and start</Link> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small" type="submit"><AppIcon name="check" />Start Mix</button></form>}<ConfirmDialog trigger={<><AppIcon name="archive" />Archive Mix</>} title={`Archive ${mix.name}?`} description="This Mix stops creating new follow-ups. Completed history stays available." danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button danger" type="submit">Archive Mix</button></form></ConfirmDialog></div></details>}
+    </aside>
+  </div>;
 }
