@@ -1,7 +1,7 @@
 import type { WorkflowRule } from "@/lib/mix-workflow-types";
 
 /** Collapse strongly connected components before ranking; returns never break layout. */
-export function layoutWorkflow(mixes: Array<{ id: string; steps: Array<{ id: string }> }>, rules: WorkflowRule[], expanded: Set<string>) {
+export function layoutWorkflow(mixes: Array<{ id: string; steps: Array<{ id: string }> }>, rules: WorkflowRule[], expanded: Set<string>, minimumNodeHeight = 0) {
   const ids = new Set(mixes.map(mix => mix.id));
   const edges = new Map(mixes.map(mix => [mix.id, [] as string[]]));
   for (const rule of rules) for (const route of rule.routes) {
@@ -29,7 +29,7 @@ export function layoutWorkflow(mixes: Array<{ id: string; steps: Array<{ id: str
   }
   const heights = new Map<number, number>();
   const nodes = mixes.map(mix => {
-    const rank = ranks[componentOf.get(mix.id)!], height = 195 + (expanded.has(mix.id) ? mix.steps.length * 62 : 0) + rules.filter(rule => rule.source.mixId === mix.id).length * 28;
+    const rank = ranks[componentOf.get(mix.id)!], height = Math.max(minimumNodeHeight, 195 + (expanded.has(mix.id) ? mix.steps.length * 62 : 0) + rules.filter(rule => rule.source.mixId === mix.id).length * 28);
     const node = { id: mix.id, x: 60 + rank * 390, y: heights.get(rank) ?? 35, width: 280, height };
     heights.set(rank, node.y + height + 100);
     return node;

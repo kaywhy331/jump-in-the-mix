@@ -127,7 +127,22 @@ test("Mix selection preserves scroll and zoom while revealing incoming and outgo
     await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     await page.screenshot({ path: `${out}/journey-selected-${theme}.png`, fullPage: true });
     expect((await axeInPage(page).analyze()).violations).toEqual([]);
+    expect((await axeInPage(page).withRules(["target-size"]).analyze()).violations).toEqual([]);
   }
+  for (const size of [1440, 390]) {
+    await page.setViewportSize({ width: size, height: 1000 });
+    await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+    await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Reset zoom to 100%", exact: true })).toHaveText("15%");
+    expect((await axeInPage(page).withRules(["target-size"]).analyze()).violations).toEqual([]);
+    const overlaps = await page.locator('[data-workflow-node]').evaluateAll(nodes => {
+      const rects = nodes.map(node => node.getBoundingClientRect());
+      return rects.some((a, i) => rects.slice(0, i).some(b => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top));
+    });
+    expect(overlaps).toBe(false);
+    await page.screenshot({ path: `${out}/journey-minimum-zoom-${size}.png`, fullPage: true });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole("button", { name: "Reset zoom to 100%", exact: true }).click();
   await central.scrollIntoViewIfNeeded(); await central.click();
   for (const theme of ["light", "dark"]) {
