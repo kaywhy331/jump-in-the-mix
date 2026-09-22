@@ -11,6 +11,7 @@ let userId: string, workspaceId: string, token: string;
 const errors: string[] = [];
 test.beforeEach(async ({ context, page }) => {
   errors.length = 0; page.on("pageerror", error => errors.push(error.message));
+  page.on("console", message => { if (message.type() === "error") console.log("Browser error:", message.text()); });
   userId = (await prisma.user.create({ data: { name: "Journey fixture", email: `mega-browser-${randomUUID()}@example.invalid`, emailVerifiedAt: new Date() } })).id;
   workspaceId = (await prisma.workspace.create({ data: { ownerId: userId, name: "Journey fixture", slug: randomUUID(), members: { create: { userId, role: "OWNER" } }, profile: { create: { onboardingDone: true } } } })).id;
   await prisma.userPreference.create({ data: { userId, timezone: "UTC" } });
@@ -30,8 +31,10 @@ test("browse a whole journey, install it once, open its actual map and editable 
   await page.getByRole("link", { name: "Choose a complete mega-mix", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Contractor mega-mix", exact: true })).toBeVisible();
   await expect(page.getByRole("list", { name: "Included mixes and connections" })).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "Mega-mix setup" })).toContainText("enrolls nobody and sends nothing");
-  await page.getByRole("checkbox", { name: "I’ve reviewed the mixes, timing and connections." }).check();
+  await expect(page.getByRole("complementary", { name: "Mega-mix setup" })).toContainText("Make this fit your day");
+  await page.getByRole("heading", { name: "Make this fit your day", exact: true }).waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Review my setup", exact: true }).click();
+  await page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." }).check();
   await page.getByRole("button", { name: "Add Contractor mega-mix", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your journey is connected" })).toBeVisible();
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(13);
@@ -42,7 +45,7 @@ test("browse a whole journey, install it once, open its actual map and editable 
   await expect(page.getByText("Estimate follow-up", { exact: true }).first()).toBeVisible();
   const map = await prisma.mixWorkflow.findUniqueOrThrow({ where: { workspaceId } });
   expect((map.configuration as { rules: unknown[] }).rules).toHaveLength(13);
-  await page.screenshot({ path: ".artifacts/mega-mixes-20260922/installed-journey-1920.png" });
+  await page.screenshot({ path: ".artifacts/onboarding-journey-20260922/installed-journey-1920.png" });
   const person = await prisma.contact.create({ data: { workspaceId, displayName: "Pipeline customer", firstName: "Pipeline" } });
   await page.goto("/templates/journeys?journey=contractor");
   await expect(page.getByRole("heading", { name: "Already in your Journey" })).toBeVisible();
@@ -63,17 +66,24 @@ test("onboarding can prepare a full journey without adding a contact, while keep
   await page.setViewportSize({ width: 390, height: 844 });
   await prisma.workspaceProfile.update({ where: { workspaceId }, data: { onboardingDone: false } });
   await page.goto("/onboarding");
+  await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
+  await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("Unfinished person");
-  await page.getByRole("radio", { name: /A complete journey/ }).check();
-  await page.getByRole("radio", { name: /One person/ }).check();
+  await page.getByRole("radio", { name: /A complete mega-mix/ }).check();
+  await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
+  await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("Unfinished person");
-  await page.getByRole("radio", { name: /A complete journey/ }).check();
+  await page.getByRole("radio", { name: /A complete mega-mix/ }).check();
   await page.getByRole("combobox", { name: "Your mega-mix", exact: true }).selectOption("photographer");
+  await page.getByText("Business name and message signature", { exact: true }).click();
   await page.getByRole("textbox", { name: "Business name (optional)", exact: true }).fill("Studio fixture");
+  await page.getByRole("button", { name: "Review my setup", exact: true }).click();
   await page.getByText("Preview the Photographer journey", { exact: true }).click();
   await expect(page.getByRole("heading", { name: "Photographer mega-mix" })).toBeVisible();
   await page.getByText("Preview the Photographer journey", { exact: true }).click();
-  await page.getByRole("checkbox", { name: "I’ve reviewed the mixes, timing and connections." }).check();
+  await page.getByRole("heading", { name: /^(Make this fit your day|Ready when you are)$/ }).waitFor({ state: "visible" });
+  if (await page.getByRole("button", { name: "Review my setup", exact: true }).isVisible()) await page.getByRole("button", { name: "Review my setup", exact: true }).click();
+  await page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." }).check();
   await page.getByRole("button", { name: "Add Photographer mega-mix", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your journey is connected" })).toBeVisible();
   expect(await prisma.workspaceProfile.findUnique({ where: { workspaceId } })).toMatchObject({ onboardingDone: true, company: "Studio fixture" });
@@ -82,7 +92,7 @@ test("onboarding can prepare a full journey without adding a contact, while keep
 });
 
 test("both themes reflow, allow keyboard preview and keep setup reachable", async ({ page }) => {
-  const dir = ".artifacts/mega-mixes-20260922"; await mkdir(dir, { recursive: true });
+  const dir = ".artifacts/onboarding-journey-20260922"; await mkdir(dir, { recursive: true });
   await page.goto("/templates/journeys?journey=contractor");
   for (const theme of ["light", "dark"]) {
     await page.evaluate(theme => { localStorage.setItem("jitm-appearance", theme); document.documentElement.dataset.theme = theme; }, theme);
@@ -99,7 +109,7 @@ test("both themes reflow, allow keyboard preview and keep setup reachable", asyn
       expect((await axeInPage(page).analyze()).violations).toEqual([]);
       if (width < 1200) {
         await page.getByRole("button", { name: "Add journey", exact: true }).click();
-        await expect(page.getByRole("button", { name: "Add Contractor mega-mix", exact: true })).toBeVisible();
+        await expect(page.getByRole("button", { name: "Review my setup", exact: true })).toBeVisible();
         await page.screenshot({ path: `${dir}/setup-${width}-${theme}.png` });
         expect((await axeInPage(page).analyze()).violations).toEqual([]);
         expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
@@ -111,12 +121,14 @@ test("both themes reflow, allow keyboard preview and keep setup reachable", asyn
 test("a stale preview saves nothing and keeps the setup available for correction", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto("/templates/journeys?journey=contractor");
-  await page.getByRole("checkbox", { name: "I’ve reviewed the mixes, timing and connections." }).check();
+  await page.getByRole("heading", { name: /^(Make this fit your day|Ready when you are)$/ }).waitFor({ state: "visible" });
+  if (await page.getByRole("button", { name: "Review my setup", exact: true }).isVisible()) await page.getByRole("button", { name: "Review my setup", exact: true }).click();
+  await page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." }).check();
   await page.locator('input[name="version"]').evaluate((input: HTMLInputElement) => { input.value = "0"; });
   await page.getByRole("button", { name: "Add Contractor mega-mix" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "This mega-mix has changed" })).toBeVisible();
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(0);
-  await expect(page.getByRole("checkbox", { name: "I’ve reviewed the mixes, timing and connections." })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." })).toBeChecked();
   await page.locator('input[name="version"]').evaluate((input: HTMLInputElement) => { input.value = "1"; });
   await page.getByRole("button", { name: "Add Contractor mega-mix" }).click();
   await expect(page.getByRole("heading", { name: "Your journey is connected" })).toBeVisible();
@@ -128,6 +140,7 @@ test("switching professions uses the matching setup and invalid choices are unav
   await page.goto("/templates/journeys?journey=contractor");
   await page.getByRole("navigation", { name: "Choose a mega-mix" }).getByRole("link", { name: /Recruiter/ }).click();
   await expect(page.getByRole("heading", { name: "Recruiter mega-mix" })).toBeVisible();
+  await page.getByRole("button", { name: "Review my setup", exact: true }).click();
   await expect(page.getByRole("button", { name: "Add Recruiter mega-mix" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Candidate conversation", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Hiring client conversation", exact: true })).toBeVisible();

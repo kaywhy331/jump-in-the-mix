@@ -23,6 +23,8 @@ model WorkspacePreference {
   weekendScheduling      WeekendScheduling @default(KEEP)
   // Minutes kept free before and after each appointment when checking for conflicts.
   appointmentBufferMinutes Int             @default(0)
+  // Reviewed onboarding choices; null preserves existing scheduling behavior.
+  journeyPreferences     Json?
   quietDaysEnabled       Boolean           @default(false)
   quietDays              Int               @default(60)
   nextReconcileAt        DateTime          @default(now())

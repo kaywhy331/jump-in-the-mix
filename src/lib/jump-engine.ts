@@ -1,3 +1,5 @@
+import { nextJourneyAvailability } from "@/lib/journey-availability";
+import { readJourneyPreferences } from "@/lib/journey-preferences";
 import { isDeepStrictEqual } from "node:util";
 import type { JumpStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -330,6 +332,9 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       : [],
     ownerIds.length ? prisma.userPreference.findMany({ where: { userId: { in: ownerIds } }, select: { userId: true, timezone: true } }) : []
   ]);
+  const availableWorkspaces = [...schedulingByDataSpace].filter(([, rule]) => readJourneyPreferences(rule.journeyPreferences)?.avoidAppointments).map(([id]) => id);
+  const busyEntries = availableWorkspaces.length ? await prisma.calendarEntry.findMany({ where: { workspaceId: { in: availableWorkspaces }, canceledAt: null, startsAt: { lte: addUtcDays(horizonEnd, 400) }, endsAt: { gte: addUtcDays(horizonStart, -1) } }, select: { workspaceId: true, startsAt: true, endsAt: true, kind: true }, orderBy: { startsAt: "asc" } }) : [];
+  const busyByWorkspace = new Map(availableWorkspaces.map(id => [id, busyEntries.filter(entry => entry.workspaceId === id)]));
   const inactiveGroupIds = new Set(inactiveGroupStates.map((state) => state.groupId));
   const doNotContactIds = new Set(doNotContactStates.map((state) => state.contactId));
   const broadcastByMixId = new Map(broadcastSchedules.map((schedule) => [schedule.mixId, schedule]));
@@ -510,6 +515,12 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
             const requestedMinutes = mixStep.sendTimeMinutes ?? trigger.timeMinutes ?? personalRule.defaultFollowUpMinutes;
             sendTimeMinutes = outsideQuietHours(requestedMinutes, personalRule.quietHoursStart, personalRule.quietHoursEnd);
             scheduledAt = zonedDateTimeToUtc(scheduledLogicalDate, sendTimeMinutes, trigger.timezone);
+            if (personalRule.journeyPreferences) {
+              // Start from the requested time so overnight quiet hours never move a reminder backward.
+              scheduledAt = nextJourneyAvailability(zonedDateTimeToUtc(scheduledLogicalDate, requestedMinutes, trigger.timezone), trigger.timezone, personalRule, busyByWorkspace.get(assignment.workspaceId));
+              scheduledLogicalDate = logicalDateInTimezone(scheduledAt, trigger.timezone);
+              sendTimeMinutes = minutesInTimezone(scheduledAt, trigger.timezone);
+            }
           }
           previousScheduledAt = scheduledAt;
           if (scheduledAt < horizonStart || scheduledAt > horizonEnd) continue;

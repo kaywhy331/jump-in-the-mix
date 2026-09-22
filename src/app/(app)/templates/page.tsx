@@ -19,7 +19,7 @@ import { salesPlanSearchIds } from "@/lib/sales-plan-library";
 export const metadata: Metadata = { title: "Ready-made mixes" };
 const PAGE_SIZE = 20;
 
-type SearchParams = { mix?: string; favorites?: string; q?: string; category?: string; industry?: string; framework?: string; page?: string; error?: string };
+type SearchParams = { setup?: string; mix?: string; favorites?: string; q?: string; category?: string; industry?: string; framework?: string; page?: string; error?: string };
 
 export default async function TemplatesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, { workspace, user, impersonation }, configuredCategories, configuredIndustries, options] = await Promise.all([
@@ -68,13 +68,14 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
     prisma.mix.findMany({ where: { workspaceId: workspace.id, source: `SHARED_MIX:${selected.id}`, status: { not: "ARCHIVED" } }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 5, select: { id: true, name: true, status: true } })
   ]) : [null, []];
   const href = (patch: Partial<SearchParams> = {}) => {
-    const values: SearchParams = { q: query || undefined, category: category || undefined, industry: industry || undefined, framework: framework || undefined, favorites: favorites ? "1" : undefined, page: currentPage > 1 ? String(currentPage) : undefined, ...patch };
+    const values: SearchParams = { setup: params.setup === "individual" ? "individual" : undefined, q: query || undefined, category: category || undefined, industry: industry || undefined, framework: framework || undefined, favorites: favorites ? "1" : undefined, page: currentPage > 1 ? String(currentPage) : undefined, ...patch };
     const search = new URLSearchParams(Object.entries(values).filter((entry): entry is [string, string] => Boolean(entry[1])));
     return `/templates${search.size ? `?${search}` : ""}`;
   };
   const filterCount = [category, industry, framework].filter(Boolean).length;
 
   return <div className="page mix-workspace-page ready-made-workspace">
+    {params.setup === "individual" && <Notice type="success">Your preferences are saved. Choose a Mix below, preview its follow-ups, then add it to your account. Return here to add more, or open Journey to connect them.</Notice>}
     {params.error && <Notice type="error">{params.error}</Notice>}
     <MixLibraryShell selectedMixId={selected?.id} explicitSelection={Boolean(params.mix)}>
       <aside className="mix-library-directory" aria-label="Ready-made Mix library">

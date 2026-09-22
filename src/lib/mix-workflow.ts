@@ -1,3 +1,5 @@
+import { nextJourneyAvailability } from "@/lib/journey-availability";
+import { readJourneyPreferences } from "@/lib/journey-preferences";
 import { createHash } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -176,6 +178,11 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
     const scheduling = preference ?? DEFAULT_PERSONAL_SCHEDULING;
     const binding = state.context?.appointmentBindingId ? await db.appointmentBinding.findFirst({ where: { id: state.context.appointmentBindingId, workspaceId, contactId: instance.contactId }, include: { calendarEntry: true } }) : null;
     const appointment = binding?.calendarEntry ?? (state.context?.calendarEntryId ? await db.calendarEntry.findFirst({ where: { id: state.context.calendarEntryId, workspaceId, contactId: instance.contactId } }) : null);
+    const flexibleTimes = state.visits.filter(visit => !["DONE", "SKIPPED", "CANCELED"].includes(visit.status)).flatMap(visit => {
+      const step = definition.mixes.flatMap(mix => mix.steps).find(step => step.id === visit.stepId);
+      return step?.anchor === "CALENDAR_DAY" && !step.plannedAt ? [Date.parse(visit.readyAt) + step.dayOffset * 86_400_000] : [];
+    });
+    const busy = flexibleTimes.length && readJourneyPreferences(preference?.journeyPreferences)?.avoidAppointments ? await db.calendarEntry.findMany({ where: { workspaceId, canceledAt: null, endsAt: { gte: new Date(Math.min(...flexibleTimes) - 2 * 86_400_000) }, startsAt: { lte: new Date(Math.max(...flexibleTimes) + 400 * 86_400_000) } }, select: { startsAt: true, endsAt: true, kind: true }, orderBy: { startsAt: "asc" } }) : [];
     for (const visit of state.visits) {
       const run = state.runs.find(item => item.id === visit.runId)!;
       const existing = jumps.find(jump => jump.workflowVisitId === visit.id);
@@ -213,15 +220,16 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
       } else if (step.plannedAt) scheduledAt = new Date(step.plannedAt);
       else {
         const logical = shiftWeekend(addLogicalDays(logicalDateInTimezone(new Date(visit.readyAt), timezone), step.dayOffset), scheduling.weekendScheduling);
-        scheduledAt = zonedDateTimeToUtc(logical, outsideQuietHours(step.sendTimeMinutes ?? scheduling.defaultFollowUpMinutes, scheduling.quietHoursStart, scheduling.quietHoursEnd), timezone);
+        scheduledAt = zonedDateTimeToUtc(logical, preference?.journeyPreferences ? step.sendTimeMinutes ?? scheduling.defaultFollowUpMinutes : outsideQuietHours(step.sendTimeMinutes ?? scheduling.defaultFollowUpMinutes, scheduling.quietHoursStart, scheduling.quietHoursEnd), timezone);
       }
       // A connected Beat is never due before its actual entry. Keep a user's snooze.
       scheduledAt = new Date(Math.max(scheduledAt.getTime(), Date.parse(visit.readyAt), existing?.snoozedUntil?.getTime() ?? 0));
+      if (step.anchor === "CALENDAR_DAY" && !step.plannedAt && !existing?.snoozedUntil) scheduledAt = nextJourneyAvailability(scheduledAt, timezone, scheduling, busy);
       const snapshot = { workflowRunKey: `${instance.id}:${run.id}`, subject: step.subject, body: step.body, script: step.script, channel: step.channel, ...(step.variants ? { variants: step.variants } : {}), timezone, originalLocalDate: logicalDateKey(logicalDateInTimezone(scheduledAt, timezone)) };
       if (!existing) await db.jump.create({ data: { workspaceId, contactId: instance.contactId, mixId: run.mixId, mixStepId: step.id, stepVersionId: step.versionId, workflowInstanceId: instance.id, workflowVisitId: visit.id, workflowManaged: true, manualOnly: Boolean(state.context?.calendarEntryId && !binding),
         uniquenessKey: `workflow:${instance.id}:${visit.id}`, reason: `${instance.label} · ${step.name}`, scheduledAt, baseScheduledAt: scheduledAt, templateSnapshot: workflowJson(snapshot), renderedSnapshot: workflowJson(renderJumpSnapshot(step, instance.contact, instance.workspace.profile, instance.workspace.owner, step.channel, appointment)), appointmentBindingId: binding?.id ?? null } });
       else if (existing.status === "CANCELED" && ["workflow_held", "mix_paused", "do_not_contact", "contact_archived"].includes(existing.completionMethod ?? "")) await db.jump.update({ where: { id: existing.id }, data: { status: "PENDING", completionMethod: null, scheduledAt } });
-      else if (existing.status === "PENDING" && step.anchor !== "CALENDAR_DAY" && existing.scheduledAt.getTime() !== scheduledAt.getTime()) await db.jump.update({ where: { id: existing.id }, data: { scheduledAt, baseScheduledAt: scheduledAt } });
+      else if (existing.status === "PENDING" && (step.anchor !== "CALENDAR_DAY" || Boolean(preference?.journeyPreferences) && !step.plannedAt && !existing.snoozedUntil && existing.scheduledAt >= now) && existing.scheduledAt.getTime() !== scheduledAt.getTime()) await db.jump.update({ where: { id: existing.id }, data: { scheduledAt, baseScheduledAt: scheduledAt } });
       if (visit.status === "HELD") { visit.status = "PENDING"; visit.reason = null; }
     }
     if (command && !state.commands.includes(command.requestId)) state.commands.push(command.requestId);

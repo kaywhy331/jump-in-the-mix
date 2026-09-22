@@ -1,3 +1,5 @@
+import { nextJourneyAvailability } from "@/lib/journey-availability";
+import { readJourneyPreferences } from "@/lib/journey-preferences";
 import { createHash } from "node:crypto";
 import type { Channel } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
@@ -125,6 +127,11 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
     const timeZone = isValidTimezone(display?.timezone ?? "") ? display!.timezone : "UTC";
     const clock = notificationClock(now, timeZone);
     if (scheduling && isQuietTime(clock.hour * 60 + clock.minute, scheduling.quietHoursStart, scheduling.quietHoursEnd)) continue;
+
+    if (scheduling && readJourneyPreferences(scheduling.journeyPreferences)) {
+      const busy = readJourneyPreferences(scheduling.journeyPreferences)?.avoidAppointments ? await prisma.calendarEntry.findMany({ where: { workspaceId: workspace.id, canceledAt: null, startsAt: { lte: new Date(now.getTime() + 240 * 60_000) }, endsAt: { gte: new Date(now.getTime() - 240 * 60_000) } }, select: { startsAt: true, endsAt: true, kind: true } }) : [];
+      if (nextJourneyAvailability(now, timeZone, scheduling, busy).getTime() > now.getTime()) continue;
+    }
 
     const channels: Channel[] = [
       ...(preference.emailEnabled ? ["EMAIL" as const] : []),

@@ -14,12 +14,13 @@ import { completeOnboardingFormAction, skipOnboardingAction } from "@/lib/onboar
 import { ONBOARDING_USES, onboardingReasons, type OnboardingUse } from "@/lib/onboarding-options";
 import { MegaMixSetup } from "@/components/MegaMixSetup";
 import { suggestedMegaMix } from "@/lib/mega-mixes";
+import type { JourneySetupValues } from "@/lib/journey-preferences";
 import { marketingScenario } from "@/lib/marketing-scenarios";
 
 type ContactOption = { id: string; displayName: string };
-export function OnboardingForm({ userName, industry, initialUses, timezone, today, scenarioId, contacts }: { userName: string; industry: string | null; initialUses: OnboardingUse[]; timezone: string; today: string; scenarioId?: string; contacts: ContactOption[] }) {
+export function OnboardingForm({ userName, industry, initialUses, timezone, today, scenarioId, contacts, initialSetup, company, smsSignature }: { userName: string; industry: string | null; initialUses: OnboardingUse[]; timezone: string; today: string; scenarioId?: string; contacts: ContactOption[]; initialSetup: JourneySetupValues; company?: string; smsSignature?: string }) {
   const router = useRouter();
-  const [setupMode, setSetupMode] = useState<"person" | "journey">("person");
+  const [setupMode, setSetupMode] = useState<"person" | "journey" | "individual">("journey");
   const [purposes, setPurposes] = useState<OnboardingUse[]>(initialUses);
   const [businessType, setBusinessType] = useState(industry ?? "Home services");
   const [selectedTimezone, setSelectedTimezone] = useState(timezone);
@@ -31,8 +32,9 @@ export function OnboardingForm({ userName, industry, initialUses, timezone, toda
   const reasons = onboardingReasons(purposes);
   const [choice, setChoice] = useState(scenario && business ? "suggested" : reasons[0] ?? "");
   const selected = choice === "suggested" && scenario && business || reasons.includes(choice) ? choice : reasons[0] ?? "";
-  return <><fieldset className="onboarding-step-card"><legend>How would you like to start?</legend><div className="form-stack"><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "person"} onChange={() => setSetupMode("person")} /><span><strong>One person, one follow-up</strong><small>Start with a conversation you want to remember.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "journey"} onChange={() => setSetupMode("journey")} /><span><strong>A complete journey for my business</strong><small>Choose a mega-mix with connected follow-ups for your whole pipeline. Add people when you’re ready.</small></span></label></div></fieldset>
-  <div hidden={setupMode !== "journey"}><MegaMixSetup initialId={suggestedMegaMix(industry, scenarioId)} onboarding={{ userName, timezone }} active={setupMode === "journey"} /></div><div hidden={setupMode !== "person"}><ActionForm action={completeOnboardingFormAction} className="form-stack" protect={setupMode === "person"}>
+  return <><fieldset className="onboarding-step-card"><legend>Choose your starting point</legend><div className="form-stack"><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "journey"} onChange={() => setSetupMode("journey")} /><span><strong>A complete mega-mix · Recommended</strong><small>Connected mixes for your whole journey, tailored to how you work.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "individual" || setupMode === "person"} onChange={() => setSetupMode("individual")} /><span><strong>Choose individual mixes</strong><small>Build your journey one Mix at a time. Preview and customize each one.</small></span></label></div></fieldset>
+  <div hidden={setupMode === "person"}><MegaMixSetup initialId={suggestedMegaMix(industry, scenarioId)} initialSetup={initialSetup} onboarding={{ userName, company, smsSignature }} individual={setupMode === "individual"} active={setupMode !== "person"} />{setupMode === "individual" && <button type="button" className="text-button" onClick={() => setSetupMode("person")}>Start with one person and one follow-up instead</button>}</div>
+  <div hidden={setupMode !== "person"}><ActionForm action={completeOnboardingFormAction} className="form-stack" protect={setupMode === "person"}>
     <fieldset className="onboarding-step-card">
       <legend><span>1</span> Make this fit your life</legend>
       <div className="form-stack">

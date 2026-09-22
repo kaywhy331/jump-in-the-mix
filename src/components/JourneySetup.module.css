@@ -1,0 +1,14 @@
+.progress{font-size:13px;color:var(--text-2);margin:8px 0 16px}
+.days{margin:0;padding:0;border:0;min-width:0}
+.days legend{font-size:14px;font-weight:600;margin-bottom:8px}
+.days>div{display:flex;flex-wrap:wrap;gap:8px}
+.days label{display:flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:10px;min-height:44px;padding:8px 10px;font-size:13px;cursor:pointer}
+.days label:has(:checked){background:var(--violet-wash);border-color:var(--violet-mark)}
+.summary{margin:0;display:grid;gap:12px}
+.summary>div{display:grid;grid-template-columns:minmax(100px,1fr) minmax(0,3fr);gap:12px}
+.summary dt{font-size:13px;color:var(--text-2)}
+.summary dd{margin:0;font-size:14px;overflow-wrap:anywhere}
+.review{border:1px solid var(--border);border-radius:16px;padding:18px;background:var(--surface)}
+.review h3{margin-top:0}
+.review button{margin-top:16px}
+@media(max-width:600px){.summary>div{grid-template-columns:1fr;gap:4px}.review{padding:14px}}

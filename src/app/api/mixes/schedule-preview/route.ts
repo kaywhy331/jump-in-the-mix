@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     if (body.rules) {
       const numbers = ["defaultFollowUpMinutes", "quietHoursStart", "quietHoursEnd"].map(key => Number(body.rules[key]));
       if (numbers.some(value => !Number.isInteger(value) || value < 0 || value > 1439) || !["KEEP", "NEXT_MONDAY", "PREVIOUS_FRIDAY"].includes(body.rules.weekendScheduling)) throw new Error("Check your scheduling defaults.");
-      rules = { defaultFollowUpMinutes: numbers[0], quietHoursStart: numbers[1], quietHoursEnd: numbers[2], weekendScheduling: body.rules.weekendScheduling };
+      rules = { ...saved, defaultFollowUpMinutes: numbers[0], quietHoursStart: numbers[1], quietHoursEnd: numbers[2], weekendScheduling: body.rules.weekendScheduling };
     }
     return NextResponse.json({ items: previewSchedule(steps, start, end, body.timezone, rules, body.appointment === true), timezone: body.timezone }, { headers });
   } catch (cause) { return NextResponse.json({ error: cause instanceof Error ? cause.message : "The schedule could not be previewed." }, { status: 400, headers }); }

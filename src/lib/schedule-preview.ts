@@ -1,3 +1,4 @@
+import { nextJourneyAvailability } from "@/lib/journey-availability";
 import { addLogicalDays, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { outsideQuietHours, shiftWeekend, type PersonalSchedulingRule } from "@/lib/personal-scheduling";
 import { anchoredStepInstant, type BoundStepTiming } from "@/lib/step-timing";
@@ -19,8 +20,8 @@ export function previewSchedule(steps: BoundStepTiming[], start: Date, end: Date
     } else {
       const date = shiftWeekend(addLogicalDays(logicalDateInTimezone(start, timezone), step.dayOffset), rules.weekendScheduling);
       const minutes = outsideQuietHours(step.sendTimeMinutes ?? (appointment ? minutesInTimezone(start, timezone) : rules.defaultFollowUpMinutes), rules.quietHoursStart, rules.quietHoursEnd);
-      at = zonedDateTimeToUtc(date, minutes, timezone);
-      note = "Includes your weekend and quiet-hour rules.";
+      at = rules.journeyPreferences ? nextJourneyAvailability(zonedDateTimeToUtc(date, step.sendTimeMinutes ?? (appointment ? minutesInTimezone(start, timezone) : rules.defaultFollowUpMinutes), timezone), timezone, rules) : zonedDateTimeToUtc(date, minutes, timezone);
+      note = rules.journeyPreferences ? "Includes working days and quiet times. Calendar conflicts are checked when the follow-up is scheduled." : "Includes your weekend and quiet-hour rules.";
     }
     if (at) previous = at;
     return { at: at?.toISOString() ?? null, note };

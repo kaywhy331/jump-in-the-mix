@@ -5,11 +5,14 @@ import { AppIcon } from "@/components/AppIcon";
 import { MegaMixPreview } from "@/components/MegaMixPreview";
 import { MegaMixSetup } from "@/components/MegaMixSetup";
 import { MEGA_MIXES, megaMixById } from "@/lib/mega-mixes";
+import type { JourneySetupValues } from "@/lib/journey-preferences";
+import { tailorMegaMix } from "@/lib/journey-preferences";
 import styles from "./MegaMix.module.css";
 
 export type InstalledMegaMix = { blueprintId: string; version: number; mixes: Array<{ id: string; name: string; status: string }> };
-export function MegaMixLibrary({ selectedId, installed, added, canEdit }: { selectedId: string; installed: InstalledMegaMix[]; added: boolean; canEdit: boolean }) {
-  const blueprint = megaMixById(selectedId) ?? MEGA_MIXES[0];
+export function MegaMixLibrary({ selectedId, installed, added, canEdit, initialSetup }: { selectedId: string; installed: InstalledMegaMix[]; added: boolean; canEdit: boolean; initialSetup: JourneySetupValues }) {
+  const [setup, setSetup] = useState(initialSetup);
+  const blueprint = tailorMegaMix(megaMixById(selectedId) ?? MEGA_MIXES[0], setup);
   const installation = installed.find(item => item.blueprintId === blueprint.id);
   const [pane, setPane] = useState<"library" | "preview" | "setup">(added ? "setup" : "preview");
   return <div className={styles.workspace} data-pane={pane}>
@@ -26,7 +29,7 @@ export function MegaMixLibrary({ selectedId, installed, added, canEdit }: { sele
         <ul className={styles.installed}>{installation.mixes.map(mix => <li key={mix.id}><Link href={`/mixes?mix=${mix.id}`}><strong>{mix.name}</strong><small>{mix.status.toLowerCase()}</small></Link>{canEdit && mix.status === "ACTIVE" && <Link className="button small" href={`/journey?mix=${mix.id}&start=1`} aria-label={`Start ${mix.name} for someone`}>Start</Link>}</li>)}</ul>
         {installation.mixes.length < blueprint.nodes.length && <p>Some included mixes have been removed. Adding this mega-mix again preserves those changes; it does not recreate them.</p>}
         <p className={styles.boundary}>The preview shows the supplied starting point. Your Journey shows your current, editable setup.</p>
-      </> : <><h2>Make it yours</h2>{canEdit ? <MegaMixSetup initialId={blueprint.id} /> : <p>Administrator support sessions are view-only.</p>}</>}
+      </> : <><h2>Make it yours</h2>{canEdit ? <MegaMixSetup key={blueprint.id} initialId={blueprint.id} initialSetup={setup} onSetupChange={setSetup} /> : <p>Administrator support sessions are view-only.</p>}</>}
     </aside>
   </div>;
 }

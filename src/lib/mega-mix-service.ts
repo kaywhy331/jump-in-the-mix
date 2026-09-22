@@ -1,3 +1,5 @@
+import { tailorMegaMix, validateJourneySetup, type JourneySetupValues } from "@/lib/journey-preferences";
+import { saveJourneySetup } from "@/lib/journey-preference-service";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { megaMixById, megaMixConfiguration } from "@/lib/mega-mixes";
@@ -5,9 +7,12 @@ import { readWorkflowDefinition, saveWorkflowConfiguration, workflowJson } from 
 
 export async function installMegaMix(input: {
   workspaceId: string; actorUserId: string; blueprintId: string; expectedVersion: number;
+  setup?: JourneySetupValues;
   onboarding?: { timezone: string; company: string; smsSignature: string; userName: string };
 }) {
-  const blueprint = megaMixById(input.blueprintId);
+  const original = megaMixById(input.blueprintId);
+  if (input.setup) { const error = validateJourneySetup(input.setup); if (error) throw new Error(error); }
+  const blueprint = original && input.setup ? tailorMegaMix(original, input.setup) : original;
   if (!blueprint || blueprint.version !== input.expectedVersion) throw new Error("This mega-mix has changed. Reload its preview before adding it.");
   return prisma.$transaction(async db => {
     // Share the Journey writer lock: concurrent installs/edits must merge the latest graph.
@@ -27,6 +32,7 @@ export async function installMegaMix(input: {
     const existing = await db.megaMixInstallation.findUnique({ where: { workspaceId_blueprintId: { workspaceId: input.workspaceId, blueprintId: blueprint.id } } });
     if (existing) { await finishOnboarding(); return { id: existing.id, repeated: true, mixIds: existing.mixIds as Record<string, string> }; }
 
+    if (input.setup) await saveJourneySetup(db, input.workspaceId, input.actorUserId, input.setup);
     const id = randomUUID(), mixIds: Record<string, string> = {};
     for (const node of blueprint.nodes) {
       const mix = await db.mix.create({ data: {

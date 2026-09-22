@@ -1,3 +1,4 @@
+import { initialJourneySetup, tailorMegaMix } from "@/lib/journey-preferences";
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
@@ -29,6 +30,28 @@ describe.skipIf(!local)("mega-mix installation", () => {
     expect(await prisma.mixWorkflowInstance.count({ where: { workspaceId } })).toBe(0);
     expect(await prisma.jump.count({ where: { workspaceId } })).toBe(0);
     expect(await prisma.automatedDelivery.count({ where: { workspaceId } })).toBe(0);
+  });
+
+  it("saves the reviewed preferences and exactly the tailored preview, then schedules around appointments", async () => {
+    const setup = initialJourneySetup(null, "UTC");
+    setup.preferences.communication = "EMAIL"; setup.preferences.pace = "RELAXED";
+    const blueprint = tailorMegaMix(MEGA_MIXES[0], setup);
+    const result = await installMegaMix({ workspaceId, actorUserId: userId, blueprintId: blueprint.id, expectedVersion: blueprint.version, setup });
+    const graph = await readWorkflowDefinition(prisma, workspaceId);
+    for (const node of blueprint.nodes) {
+      const actual = graph.mixes.find(mix => mix.id === result.mixIds[node.key])!;
+      expect(actual.steps.map(step => ({ channel: step.channel, dayOffset: step.dayOffset, body: step.body, script: step.script, sendTimeMinutes: step.sendTimeMinutes }))).toEqual(node.steps.map(step => ({ channel: step.channel, dayOffset: step.dayOffset, body: step.body ?? null, script: step.script ?? null, sendTimeMinutes: step.sendTimeMinutes })));
+    }
+    expect(await prisma.workspacePreference.findUnique({ where: { workspaceId } })).toMatchObject({ journeyPreferences: { communication: "EMAIL", pace: "RELAXED", workDays: [1,2,3,4,5] }, appointmentBufferMinutes: 15 });
+    const contact = await prisma.contact.create({ data: { workspaceId, displayName: "Scheduled customer", firstName: "Scheduled" } });
+    await prisma.calendarEntry.create({ data: { workspaceId, title: "Existing appointment", kind: "MEETING", startsAt: new Date("2026-09-21T09:00Z"), endsAt: new Date("2026-09-21T11:00Z"), timezone: "UTC" } });
+    const instance = await startWorkflowInstance({ workspaceId, contactId: contact.id, mixId: result.mixIds.inquiry, requestId: randomUUID(), now: new Date("2026-09-18T23:00Z") });
+    await processWorkflowInstance(workspaceId, instance, new Date("2026-09-18T23:00Z"));
+    const due = await prisma.jump.findFirstOrThrow({ where: { workspaceId, workflowInstanceId: instance }, orderBy: { scheduledAt: "asc" } });
+    expect(due.scheduledAt.toISOString()).toBe("2026-09-21T11:15:00.000Z");
+    await prisma.workspacePreference.update({ where: { workspaceId }, data: { quietHoursStart: 1140 } });
+    await installMegaMix({ workspaceId, actorUserId: userId, blueprintId: blueprint.id, expectedVersion: blueprint.version, setup });
+    expect((await prisma.workspacePreference.findUniqueOrThrow({ where: { workspaceId } })).quietHoursStart).toBe(1140);
   });
 
   it("deduplicates concurrent installation and preserves edited, paused and removed mixes on retry", async () => {
@@ -67,7 +90,8 @@ describe.skipIf(!local)("mega-mix installation", () => {
 
   it("rolls back copies when the existing graph cannot accept the installation", async () => {
     await prisma.mixWorkflow.create({ data: { workspaceId, configuration: { invalid: true } } });
-    await expect(install()).rejects.toThrow();
+    await expect(installMegaMix({ workspaceId, actorUserId: userId, blueprintId: "contractor", expectedVersion: 1, setup: initialJourneySetup(null, "UTC") })).rejects.toThrow();
+    expect(await prisma.workspacePreference.count({ where: { workspaceId } })).toBe(0);
     expect(await prisma.mix.count({ where: { workspaceId } })).toBe(0);
     expect(await prisma.stepTemplate.count({ where: { workspaceId } })).toBe(0);
     expect(await prisma.megaMixInstallation.count({ where: { workspaceId } })).toBe(0);

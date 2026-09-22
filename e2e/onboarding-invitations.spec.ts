@@ -17,6 +17,9 @@ async function account(page: Page, onboardingDone = false) {
   await page.request.get("/api/auth/browser-context");
   return { user, workspace };
 }
+test.beforeAll(async () => {
+  await prisma.dateType.upsert({ where: { scopeKey_slug: { scopeKey: "system", slug: "follow-up" } }, create: { scopeKey: "system", slug: "follow-up", name: "Follow-up", isSystem: true }, update: {} });
+});
 test.afterEach(async () => {
   await prisma.contactActivity.deleteMany({ where: { actorUserId: { in: users } } });
   await prisma.workspace.deleteMany({ where: { ownerId: { in: users } } });
@@ -26,6 +29,8 @@ test.afterEach(async () => {
 test("onboarding supports multiple purposes, a single starting-point dropdown, and imported contacts", async ({ page }) => {
   const { workspace } = await account(page);
   await page.goto("/onboarding");
+  await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
+  await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await page.getByRole("checkbox", { name: /Personal connections/ }).check();
   await page.getByRole("checkbox", { name: /Networking and business development/ }).check();
   await expect(page.getByRole("checkbox", { name: /^Business/ })).toBeChecked();
@@ -35,11 +40,11 @@ test("onboarding supports multiple purposes, a single starting-point dropdown, a
   await expect(page.getByLabel("Phone recommended")).toBeVisible();
   await expect(page.getByRole("link", { name: "Import contacts from a file" })).toHaveAttribute("href", "/contacts/import?onboarding=1");
   await page.getByText("Optional business details and signature", { exact: true }).click();
-  await page.getByLabel("Business name (optional)").fill("Saved Business");
+  await page.getByRole("textbox", { name: "Business name (optional)", exact: true }).fill("Saved Business");
   const contact = await prisma.contact.create({ data: { workspaceId: workspace.id, displayName: "Imported Friend", firstName: "Imported", source: "CSV", emails: { create: { email: "friend@example.test", normalized: "friend@example.test", isPrimary: true } } } });
   await page.getByRole("button", { name: "Refresh imported contacts" }).click();
   await page.getByLabel("Choose a saved person").selectOption(contact.id);
-  await expect(page.getByLabel("Business name (optional)")).toHaveValue("Saved Business");
+  await expect(page.getByRole("textbox", { name: "Business name (optional)", exact: true })).toHaveValue("Saved Business");
   await expect(page.getByLabel("What do you want to do?")).toHaveValue("Check in with a friend");
   const accessibility = await axeInPage(page).include(".onboarding-card").analyze();
   expect(accessibility.violations.filter(item => ["serious", "critical"].includes(item.impact ?? ""))).toEqual([]);

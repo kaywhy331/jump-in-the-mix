@@ -140,6 +140,8 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
 
   await signIn(page, email, password);
   await expect(page).toHaveURL(/\/onboarding/);
+  await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
+  await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await expect(page.getByRole("heading", { name: "Jump in the mix." })).toBeVisible();
   await page.getByLabel("Business name").fill("Browser Test Plumbing");
   await page.getByLabel("Name", { exact: true }).fill("Jordan First Win");

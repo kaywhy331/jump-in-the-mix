@@ -3,6 +3,8 @@ import { addLogicalDays, type LogicalDate } from "@/lib/jump-schedule";
 import { prisma } from "@/lib/prisma";
 
 export type PersonalSchedulingRule = {
+  journeyPreferences?: unknown;
+  appointmentBufferMinutes?: number;
   defaultFollowUpMinutes: number;
   quietHoursStart: number;
   quietHoursEnd: number;
@@ -23,7 +25,8 @@ export async function personalSchedulingRules(dataSpaceIds: string[]): Promise<M
     defaultFollowUpMinutes: row.defaultFollowUpMinutes,
     quietHoursStart: row.quietHoursStart,
     quietHoursEnd: row.quietHoursEnd,
-    weekendScheduling: row.weekendScheduling
+    weekendScheduling: row.weekendScheduling,
+    journeyPreferences: row.journeyPreferences, appointmentBufferMinutes: row.appointmentBufferMinutes
   }]));
 }
 
