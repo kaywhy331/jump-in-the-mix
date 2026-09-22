@@ -32,7 +32,7 @@ There is no supplied mega-mix screen. The new library adapts the supplied Mix wo
 
 ## Local qualification and release requirements
 
-The additive migration `20260922120000_mega_mix_installations` creates the receipt table and unique workspace/blueprint key. The generated release contains 67 migrations and 107 models. Apply this migration before publishing application code that reads receipts. No hosted database was modified and no deployment was performed.
+The additive migration `20260922120000_mega_mix_installations` creates the receipt table and unique workspace/blueprint key. The generated release contains 67 migrations and 107 models. This migration must precede application code that reads receipts. Local qualification did not modify a hosted database; the subsequent production publication is recorded below.
 
 Local evidence is retained under `.artifacts/mega-mixes-20260922/`. Qualification includes blueprint reachability and loop validation; real database installation, rollback, concurrent retries, preserved customization, account boundaries and contact-free onboarding; and a worker execution from estimate acceptance into booked-job preparation. Browser scenarios cover preview/install/map/edit/start, account export, onboarding draft preservation, invalid selections and recoverable stale-preview errors. Both themes were checked with keyboard interaction, Axe and horizontal-overflow assertions at 320, 390, 834, 1440 and 1920px. Screenshots were compared with supplied light/dark Mix/Journey desktop, tablet and phone references.
 
@@ -46,4 +46,18 @@ The complete source/test TypeScript check also passed in the isolated copy after
 
 On September 22 at 14:26 UTC, the designated Netlify test site's identity and private-test environment were verified. Its existing Neon database still refused a direct connection with SQLSTATE `53000` (account or project quota exceeded). The published site's liveness returned 200, readiness and worker health returned 503, and its recovery probe reported `unavailable`. No hosted migration or publication was attempted. Evidence is recorded in `.artifacts/mega-mixes-20260922/deployment-preflight.json`.
 
-The test release requires restored database access, a pre-migration backup, verified migration history and application of pending migrations before publication to the stable test URL. The owner subsequently selected deployment to `https://jumpinthemix.com/`; that separate Render release is being prepared from the currently deployed application revision.
+The test release requires restored database access, a pre-migration backup, verified migration history and application of pending migrations before publication to the stable test URL. The owner subsequently selected deployment to `https://jumpinthemix.com/`; that separate Render release was prepared from the previously deployed application revision.
+
+## Production publication
+
+The mega-mix release is live at `https://jumpinthemix.com/templates/journeys`. Both the web app and worker run commit `ef87c3cf9e6015483a2567f27467ea6501533782`, on branch `release/mega-mixes-20260922`. The web deployment `dep-dap9gou0tbcc738snr30` became live at 15:06:42 UTC on September 22; worker deployment `dep-dap9cq0ae00c739hl0f0` became live at 14:54:52 UTC. Automatic deployments remain off.
+
+A fresh encrypted backup was stored at 14:42:28 UTC. All 66 existing migration checksums matched before the isolated migration job applied the new receipt table. The successful job, `job-dap9bmegekts7388jdgg`, verified 67 migrations, 107 models, the unique installation key, workspace deletion cascade, restricted application DML and read-only backup access. It removed its temporary source files. The owner credential was confined to the isolated job. Existing customer record counts were unchanged by the migration.
+
+Hosted verification matched all 917 source/schema/configuration files in the release manifest and 20 served assets. The production build and pre-deployment checks passed. Liveness, readiness and worker health returned 200; authenticated routes, including the new journey library, retained their sign-in boundary. The new worker processed a scoped synthetic queue job successfully.
+
+Live browser qualification passed real password sign-in; Contractor installation with 13 mixes, 24 Beats and 13 saved rules; the populated Journey map; duplicate prevention on repeat visits; opening an included Mix and explicitly starting one synthetic person; and installation receipts in account export. Phone onboarding preserved the one-person draft and completed an 11-mix Photographer journey without contacts. Preview and setup were checked in light/dark themes at 390, 834, 1440 and 1920px, including keyboard operation, Axe and horizontal reflow. Representative live screenshots were inspected. No page errors or automated deliveries were recorded.
+
+All temporary accounts, workspaces, installation receipts and scoped jobs were removed. Final verification at 15:09:24 UTC found the original customer record counts and healthy web/worker endpoints. Evidence remains under `.artifacts/mega-mixes-20260922/`.
+
+The first isolated migration job stalled and was canceled; a read-only check confirmed unchanged migration history and no receipt table before retrying. The first web build stalled while restoring its cache and was canceled; rebuilding the same commit with a fresh cache succeeded. Neither canceled attempt is counted as a passing check. Retain the additive schema for an application rollback; the preceding web release was `def2e96ed80dd5dc6062b5f76f0400da3e377077`, and the preceding worker was `334d59d366254285e9b1aba4f2e8041f5744a2e9`.
