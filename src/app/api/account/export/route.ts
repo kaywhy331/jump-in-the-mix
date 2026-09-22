@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     automatedDeliveries,
     authIdentities,
     journeyPreference, journeyStages, journeys, journeyEvents,
-    mixWorkflow, mixWorkflowInstances, mixFavorites,
+    mixWorkflow, mixWorkflowInstances, mixFavorites, megaMixInstallations,
     calendarEntries, calendarConnections, intakeConnections, intakeReceipts, intakeIdentities
   ] = await Promise.all([
     prisma.workspaceProfile.findUnique({ where: { workspaceId } }),
@@ -61,6 +61,7 @@ export async function GET(request: Request) {
     prisma.mixWorkflow.findUnique({ where: { workspaceId } }),
     prisma.mixWorkflowInstance.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
     prisma.mixFavorite.findMany({ where: { workspaceId, userId: user.id }, orderBy: { createdAt: "asc" } }),
+    prisma.megaMixInstallation.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
     prisma.calendarEntry.findMany({ where: { workspaceId }, orderBy: { startsAt: "asc" } }),
     prisma.calendarConnection.findMany({ where: { workspaceId }, select: { id: true, name: true, enabled: true, lastSyncedAt: true, lastAttemptAt: true, lastError: true, createdAt: true } }),
     prisma.intakeConnection.findMany({ where: { workspaceId }, select: { id: true, name: true, kind: true, enabled: true, createdAt: true } }),
@@ -118,6 +119,7 @@ export async function GET(request: Request) {
     journey: { preference: journeyPreference, stages: journeyStages, contacts: journeys, events: journeyEvents },
     mixWorkflow: { configuration: mixWorkflow, instances: mixWorkflowInstances },
     mixFavorites,
+    megaMixInstallations,
     calendar: { entries: calendarEntries, connections: calendarConnections },
     leadIntake: { connections: intakeConnections, receipts: intakeReceipts, identities: intakeIdentities },
     excludedSecurityMaterial: ["password hashes", "session tokens", "provider credentials", "provider webhook payloads", "connection keys and private calendar URLs"]

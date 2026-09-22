@@ -1,0 +1,13 @@
+// A durable receipt keeps repeated setup from duplicating or overwriting a journey.
+// Copies remain ordinary editable Mixes; deleting one does not reinstall it.
+model MegaMixInstallation {
+  id          String    @id @default(cuid())
+  workspaceId String
+  blueprintId String
+  version     Int
+  mixIds      Json
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, blueprintId])
+}

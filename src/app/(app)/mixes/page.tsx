@@ -45,6 +45,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
           </div>
         </header>
         <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes" aria-current="page"><AppIcon name="mixes" />My mixes</Link><Link href="/templates"><AppIcon name="import" />Ready-made</Link></nav>
+        <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Choose a complete mega-mix</Link>
         <div className="mix-directory-search">
           <form className="mix-library-search" key={`${q}:${status}:${favorites}`} action="/mixes">
             <button className="icon-button" type="submit" aria-label="Search mixes"><AppIcon name="search" /></button><label className="sr-only" htmlFor="mix-search">Search mixes</label><input id="mix-search" type="search" name="q" defaultValue={q} placeholder="Search mixes" />

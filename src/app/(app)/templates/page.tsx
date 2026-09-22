@@ -87,6 +87,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
           </Sheet>
         </div></header>
         <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My mixes</Link><Link href="/templates" aria-current="page"><AppIcon name="import" />Ready-made</Link></nav>
+        <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Choose a complete mega-mix</Link>
         <div className="mix-directory-search">
           <form className="mix-library-search" action="/templates" key={`${query}:${category}:${industry}:${framework}:${favorites}`}>
             <button className="icon-button" type="submit" aria-label="Search ready-made mixes"><AppIcon name="search" /></button><label className="sr-only" htmlFor="ready-made-search">Search ready-made mixes</label><input id="ready-made-search" name="q" type="search" defaultValue={query} placeholder="Search mixes" />

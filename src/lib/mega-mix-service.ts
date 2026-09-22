@@ -1,0 +1,62 @@
+import { randomUUID } from "node:crypto";
+import { prisma } from "@/lib/prisma";
+import { megaMixById, megaMixConfiguration } from "@/lib/mega-mixes";
+import { readWorkflowDefinition, saveWorkflowConfiguration, workflowJson } from "@/lib/mix-workflow";
+
+export async function installMegaMix(input: {
+  workspaceId: string; actorUserId: string; blueprintId: string; expectedVersion: number;
+  onboarding?: { timezone: string; company: string; smsSignature: string; userName: string };
+}) {
+  const blueprint = megaMixById(input.blueprintId);
+  if (!blueprint || blueprint.version !== input.expectedVersion) throw new Error("This mega-mix has changed. Reload its preview before adding it.");
+  return prisma.$transaction(async db => {
+    // Share the Journey writer lock: concurrent installs/edits must merge the latest graph.
+    await db.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${input.workspaceId} FOR UPDATE`;
+    const owner = await db.workspace.findFirst({ where: { id: input.workspaceId, ownerId: input.actorUserId }, select: { id: true } });
+    if (!owner) throw new Error("This workspace is unavailable.");
+    const finishOnboarding = async () => {
+      if (input.onboarding) {
+        const setup = input.onboarding;
+        const profile = { industry: blueprint.industry, company: setup.company || null, smsSignature: setup.smsSignature,
+          primaryGoal: `${blueprint.name} mega-mix`, onboardingStep: 5, onboardingDone: true, useCases: ["business"] };
+        await db.workspaceProfile.upsert({ where: { workspaceId: input.workspaceId }, create: { workspaceId: input.workspaceId, ...profile, emailSignature: setup.userName }, update: profile });
+        await db.userPreference.upsert({ where: { userId: input.actorUserId }, create: { userId: input.actorUserId, timezone: setup.timezone }, update: { timezone: setup.timezone } });
+        if (setup.company) await db.workspace.update({ where: { id: input.workspaceId }, data: { name: setup.company } });
+      }
+    };
+    const existing = await db.megaMixInstallation.findUnique({ where: { workspaceId_blueprintId: { workspaceId: input.workspaceId, blueprintId: blueprint.id } } });
+    if (existing) { await finishOnboarding(); return { id: existing.id, repeated: true, mixIds: existing.mixIds as Record<string, string> }; }
+
+    const id = randomUUID(), mixIds: Record<string, string> = {};
+    for (const node of blueprint.nodes) {
+      const mix = await db.mix.create({ data: {
+        workspaceId: input.workspaceId, name: node.name, description: node.purpose,
+        industry: blueprint.industry, category: "Customer journey", framework: "Mega-mix",
+        triggerMode: "MANUAL_START", status: "ACTIVE", source: `MEGA_MIX:${blueprint.id}:${node.key}`,
+        durationDays: Math.max(...node.steps.map(step => step.dayOffset)), includeFutureGroupMembers: false
+      } });
+      mixIds[node.key] = mix.id;
+      for (const [index, step] of node.steps.entries()) {
+        const template = await db.stepTemplate.create({ data: {
+          workspaceId: input.workspaceId, name: step.name, channel: step.channel, isActive: false,
+          versions: { create: { version: 1, subject: step.subject, body: step.body, script: step.script } }
+        }, include: { versions: true } });
+        await db.mixStep.create({ data: { mixId: mix.id, stepVersionId: template.versions[0].id,
+          dayOffset: step.dayOffset, sendTimeMinutes: step.sendTimeMinutes, sortOrder: index + 1 } });
+      }
+    }
+    const current = await readWorkflowDefinition(db, input.workspaceId);
+    const addition = megaMixConfiguration(blueprint, mixIds, id);
+    await saveWorkflowConfiguration(db, input.workspaceId, {
+      rules: [...current.rules, ...addition.rules], gatedStepIds: current.gatedStepIds,
+      intentionalEnds: [...current.intentionalEnds, ...addition.intentionalEnds]
+    }, current.revision, input.actorUserId);
+    await db.megaMixInstallation.create({ data: { id, workspaceId: input.workspaceId, blueprintId: blueprint.id, version: blueprint.version, mixIds: workflowJson(mixIds) } });
+    await db.auditLog.create({ data: { workspaceId: input.workspaceId, actorType: "USER", actorUserId: input.actorUserId,
+      action: "mega-mix.install", entityType: "MegaMixInstallation", entityId: id, source: input.onboarding ? "onboarding" : "templates.journeys",
+      metadata: { blueprintId: blueprint.id, version: blueprint.version, mixCount: blueprint.nodes.length, enrolledContacts: 0 } } });
+    await finishOnboarding();
+    // No assignment or workflow instance is created by installation. Starting people is explicit.
+    return { id, repeated: false, mixIds };
+  }, { timeout: 30_000 });
+}

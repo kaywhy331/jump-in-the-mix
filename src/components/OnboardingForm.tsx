@@ -12,11 +12,14 @@ import { TimezonePicker } from "@/components/TimezonePicker";
 import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
 import { completeOnboardingFormAction, skipOnboardingAction } from "@/lib/onboarding-actions";
 import { ONBOARDING_USES, onboardingReasons, type OnboardingUse } from "@/lib/onboarding-options";
+import { MegaMixSetup } from "@/components/MegaMixSetup";
+import { suggestedMegaMix } from "@/lib/mega-mixes";
 import { marketingScenario } from "@/lib/marketing-scenarios";
 
 type ContactOption = { id: string; displayName: string };
 export function OnboardingForm({ userName, industry, initialUses, timezone, today, scenarioId, contacts }: { userName: string; industry: string | null; initialUses: OnboardingUse[]; timezone: string; today: string; scenarioId?: string; contacts: ContactOption[] }) {
   const router = useRouter();
+  const [setupMode, setSetupMode] = useState<"person" | "journey">("person");
   const [purposes, setPurposes] = useState<OnboardingUse[]>(initialUses);
   const [businessType, setBusinessType] = useState(industry ?? "Home services");
   const [selectedTimezone, setSelectedTimezone] = useState(timezone);
@@ -28,7 +31,8 @@ export function OnboardingForm({ userName, industry, initialUses, timezone, toda
   const reasons = onboardingReasons(purposes);
   const [choice, setChoice] = useState(scenario && business ? "suggested" : reasons[0] ?? "");
   const selected = choice === "suggested" && scenario && business || reasons.includes(choice) ? choice : reasons[0] ?? "";
-  return <ActionForm action={completeOnboardingFormAction} className="form-stack" protect>
+  return <><fieldset className="onboarding-step-card"><legend>How would you like to start?</legend><div className="form-stack"><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "person"} onChange={() => setSetupMode("person")} /><span><strong>One person, one follow-up</strong><small>Start with a conversation you want to remember.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "journey"} onChange={() => setSetupMode("journey")} /><span><strong>A complete journey for my business</strong><small>Choose a mega-mix with connected follow-ups for your whole pipeline. Add people when you’re ready.</small></span></label></div></fieldset>
+  <div hidden={setupMode !== "journey"}><MegaMixSetup initialId={suggestedMegaMix(industry, scenarioId)} onboarding={{ userName, timezone }} active={setupMode === "journey"} /></div><div hidden={setupMode !== "person"}><ActionForm action={completeOnboardingFormAction} className="form-stack" protect={setupMode === "person"}>
     <fieldset className="onboarding-step-card">
       <legend><span>1</span> Make this fit your life</legend>
       <div className="form-stack">
@@ -75,5 +79,5 @@ export function OnboardingForm({ userName, industry, initialUses, timezone, toda
     <p>If you save someone without a phone or email, we save the reminder and ask you to add their contact details before sending.</p>
     <FormSubmitButton label="Prepare my first follow-up" pendingLabel="Preparing your follow-up…" />
     <div className="skip-setup-form"><button className="text-button" type="submit" formAction={skipOnboardingAction} formNoValidate>Skip for now</button></div>
-  </ActionForm>;
+  </ActionForm></div></>;
 }

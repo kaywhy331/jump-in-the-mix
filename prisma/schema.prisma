@@ -142,6 +142,7 @@ model VerificationToken {
 model Workspace {
   favorites MixFavorite[]
   mixWorkflow MixWorkflow?
+  megaMixInstallations MegaMixInstallation[]
   mixWorkflowInstances MixWorkflowInstance[]
   accessInvites ReferralAccessInvite[]
   journeyPreference      JourneyPreference?
