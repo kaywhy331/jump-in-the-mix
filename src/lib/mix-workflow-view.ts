@@ -30,7 +30,8 @@ export async function readWorkflowGraph(workspaceId: string, options: { contactI
     prisma.mixWorkflowInstance.findMany({ where, orderBy: [{ updatedAt: "desc" }, { id: "asc" }], skip: options.offset ?? 0, take: 50, include: { contact: { select: { displayName: true } }, jumps: { select: { id: true, workflowVisitId: true, scheduledAt: true, status: true } } } }),
     prisma.mixWorkflowInstance.count({ where }),
     prisma.contact.findMany({ where: { workspaceId, archivedAt: null, ...(options.query ? { displayName: { contains: options.query, mode: "insensitive" as const } } : {}) }, select: { id: true, displayName: true }, orderBy: [{ displayName: "asc" }, { id: "asc" }], take: 50 }),
-    readWorkflowAnalytics(workspaceId, { contactId: options.contactId, node: options.node, status: options.status, stage: options.stage, query: options.query, offset: options.peopleOffset })
+    // Selecting work changes the map focus and details, while the directory stays browsable.
+    readWorkflowAnalytics(workspaceId, { node: options.node, status: options.status, stage: options.stage, query: options.query, offset: options.peopleOffset })
   ]);
   if (options.focusedInstance && !instances.some(instance => instance.id === options.focusedInstance)) {
     const focused = await prisma.mixWorkflowInstance.findFirst({ where: { ...where, id: options.focusedInstance }, include: { contact: { select: { displayName: true } }, jumps: { select: { id: true, workflowVisitId: true, scheduledAt: true, status: true } } } });

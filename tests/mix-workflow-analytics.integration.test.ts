@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { readWorkflowAnalytics } from "@/lib/mix-workflow-analytics";
+import { readWorkflowGraph } from "@/lib/mix-workflow-view";
 import { readWorkflowDefinition, workflowJson } from "@/lib/mix-workflow";
 import { emptyWorkflowState } from "@/lib/mix-workflow-types";
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
@@ -42,5 +43,16 @@ describe.skipIf(!local)("Journey analytics database scope", () => {
     const data = await readWorkflowAnalytics(workspaceId, { node: `beat:${stepId}` });
     expect(data.summary).toMatchObject({ total: 260, waiting: 1, active: 0, completed: 0 });
     expect(data.roster[0].positions).toHaveLength(1); expect(data.roster[0].positions[0].reason).toBe("Awaiting an outcome");
+  });
+  it("keeps the directory account-wide while selected work stays scoped to its person and workspace", async () => {
+    const selected = await readWorkflowGraph(workspaceId, { contactId: selectedId, canEdit: true });
+    expect(selected.analytics.summary.total).toBe(260);
+    expect(selected.analytics.roster).toHaveLength(10);
+    expect(selected.instances).toHaveLength(1);
+    expect(selected.instances.every(instance => instance.contactId === selectedId)).toBe(true);
+    const other = await readWorkflowGraph(otherId, { contactId: selectedId, canEdit: false });
+    expect(other.analytics.summary.total).toBe(1);
+    expect(other.instances).toEqual([]);
+    expect(other.people.some(person => person.id === selectedId)).toBe(false);
   });
 });
