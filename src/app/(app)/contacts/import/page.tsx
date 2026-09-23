@@ -1,3 +1,4 @@
+import { workflowContinuation } from "@/lib/workflow-continuation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ContactImportWizardV2 } from "@/components/ContactImportWizardV2";
@@ -7,8 +8,10 @@ import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Import Contacts" };
 
-export default async function ImportContactsPage({ searchParams }: { searchParams: Promise<{ onboarding?: string }> }) {
-  const onboarding = (await searchParams).onboarding === "1";
+export default async function ImportContactsPage({ searchParams }: { searchParams: Promise<{ onboarding?: string; returnTo?: string }> }) {
+  const query = await searchParams;
+  const onboarding = query.onboarding === "1";
+  const returnTo = workflowContinuation(query.returnTo);
   const { workspace } = await requireWorkspace();
   const [rawGroups, groupStates, customFields, dateTypes, activeContacts] = await Promise.all([
     prisma.group.findMany({
@@ -41,6 +44,7 @@ export default async function ImportContactsPage({ searchParams }: { searchParam
         <div className="page-actions"><Link className="button" href="/contacts">Back to Contacts</Link></div>
       </header>
       {onboarding && <p>After importing, return to your setup tab; saved people refresh automatically and your other choices stay there. <Link href="/onboarding">Open setup</Link> if you closed it.</p>}
+      {returnTo && <p className="notice">After importing, <Link href={returnTo}>return to your selected Mix and choose a person</Link>. Importing does not start this Mix.</p>}
       <ContactImportWizardV2
         groups={groups.map((group) => ({ id: group.id, name: group.name, contactCount: group._count.memberships }))}
         customFields={customFields}

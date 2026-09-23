@@ -47,6 +47,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
     return (
       <div className="page page--content help-page">
         <header className="page-header"><div><h1>Help</h1><p>Plain-language answers plus operator steps for this self-hosted installation.</p></div></header>
+        <div className="page-actions"><Link className="button" href="/onboarding">Getting started</Link><Link className="button" href="/journey">Review my Journey</Link></div>
         <SupportFaq />
         <SelfHostedHelp />
       </div>
@@ -70,7 +71,8 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
       {query.error && <Notice type="error">{query.error}</Notice>}
       {impersonation && <Notice type="info">This view is read-only. End the support session before submitting or replying.</Notice>}
 
-      <SupportFaq />
+      <div className="page-actions"><Link className="button" href="/onboarding">Getting started</Link><Link className="button" href="/journey">Review my Journey</Link></div>
+        <SupportFaq />
 
       <section className="support-contact-grid" id="contact-support">
         <section className="card support-contact-card">

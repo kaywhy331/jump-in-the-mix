@@ -1,3 +1,6 @@
+import { parseCalendarTime } from "@/lib/calendar-time";
+import { previewWorkflowStart } from "@/lib/workflow-start-preview";
+import { previewBusinessUpdate } from "@/lib/workflow-business-preview";
 import { z } from "zod";
 import { getCurrentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -9,12 +12,15 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import { workflowRuleSchema } from "@/lib/mix-workflow-config";
 import { removeWorkflowPath, saveWorkflowRule, WorkflowRuleConflict } from "@/lib/mix-workflow-rule-save";
 
+const businessUpdateSchema = z.object({ kind: z.enum(["OUTCOME", "WAIT"]), runId: z.string().min(1).max(160), scope: z.literal("SOURCE_MIX_REMAINDER"), ruleId: z.string().max(160).optional(), outcome: z.string().max(160).optional(), dueAt: z.string().datetime().optional(), localTime: z.string().max(30).optional(), timezone: z.string().max(100).optional(), source: z.enum(["CUSTOMER", "OWNER"]).optional() }).transform(({ localTime, ...input }) => ({ ...input, ...(localTime ? { dueAt: parseCalendarTime(localTime, input.timezone ?? "").toISOString() } : {}) }));
+
 const command = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("preview-update"), instanceId: z.string().min(1).max(160), expectedRevision: z.number().int().min(1), businessUpdate: businessUpdateSchema }),
   z.object({ action: z.literal("remove-path"), expectedRule: workflowRuleSchema, removal: z.discriminatedUnion("kind", [z.object({ kind: z.literal("route"), routeId: z.string().min(1).max(160) }), z.object({ kind: z.literal("join") }), z.object({ kind: z.literal("rule") })]) }),
   z.object({ action: z.literal("save-rule"), rule: workflowRuleSchema, expectedRule: workflowRuleSchema.nullable() }),
   z.object({ action: z.literal("configure"), configuration: z.unknown(), expectedRevision: z.number().int().min(0) }),
-  z.object({ action: z.literal("start"), contactId: z.string().min(1).max(160), mixId: z.string().min(1).max(160), requestId: z.string().uuid(), label: z.string().max(160).optional() }),
-  z.object({ action: z.literal("progress"), instanceId: z.string().min(1).max(160), requestId: z.string().uuid(), expectedRevision: z.number().int().min(1), calendarEntryId: z.string().min(1).max(160).optional(), evaluationId: z.string().max(160).optional(), outcome: z.string().max(160).optional(), status: z.enum(["ACTIVE", "PAUSED", "STOPPED"]).optional() })
+  z.object({ action: z.literal("start"), contactId: z.string().min(1).max(160), mixId: z.string().min(1).max(160), requestId: z.string().uuid(), label: z.string().max(160).optional(), expectedDefinitionRevision: z.number().int().min(0).optional() }),
+  z.object({ action: z.literal("progress"), instanceId: z.string().min(1).max(160), requestId: z.string().uuid(), expectedRevision: z.number().int().min(1), retry: z.boolean().optional(), businessUpdate: businessUpdateSchema.optional(), undoUpdateId: z.string().max(160).optional(), calendarEntryId: z.string().min(1).max(160).optional(), evaluationId: z.string().max(160).optional(), outcome: z.string().max(160).optional(), status: z.enum(["ACTIVE", "PAUSED", "STOPPED"]).optional() })
 ]);
 const response = (body: unknown, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "private, no-store" } });
 
@@ -22,6 +28,10 @@ export async function GET(request: Request) {
   const session = await getCurrentSession(), membership = session?.user.memberships[0];
   if (!session || !membership) return response({ error: "Sign in to view your journey." }, 401);
   const query = new URL(request.url).searchParams;
+  if (query.get("previewStart") === "1") {
+    try { return response(await previewWorkflowStart(membership.workspaceId, query.get("contactId") ?? "", query.get("mixId") ?? "", new Date(), query.get("requestId")?.slice(0, 160))); }
+    catch (error) { return response({ error: error instanceof Error ? error.message : "This start could not be checked." }, 400); }
+  }
   const jumpId = query.get("jumpId");
   if (jumpId) {
     const jump = await prisma.jump.findFirst({ where: { id: jumpId, workspaceId: membership.workspaceId }, include: { workflowInstance: true } });
@@ -45,6 +55,7 @@ export async function POST(request: Request) {
     const raw = await request.text();
     if (raw.length > 1000000) return response({ error: "This configuration is too large." }, 413);
     const input = command.parse(JSON.parse(raw));
+    if (input.action === "preview-update") return response(await previewBusinessUpdate(membership.workspaceId, input.instanceId, input.businessUpdate, input.expectedRevision));
     if (input.action === "remove-path") {
       const saved = await prisma.$transaction(db => removeWorkflowPath(db, membership.workspaceId, input.expectedRule, input.removal, session.user.id), { timeout: 30000 });
       wakeWorkerAfterResponse(membership.workspaceId);
@@ -66,6 +77,7 @@ export async function POST(request: Request) {
       return response({ instanceId });
     }
     await processWorkflowInstance(membership.workspaceId, input.instanceId, new Date(), input);
+    wakeWorkerAfterResponse(membership.workspaceId);
     return response({ saved: true });
   } catch (error) {
     if (error instanceof WorkflowRuleConflict) return response({ error: error.message, code: "CONNECTION_CHANGED", currentRule: error.currentRule }, 409);

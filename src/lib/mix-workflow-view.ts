@@ -1,3 +1,5 @@
+import { workflowPreparationFailures } from "@/lib/workflow-attention";
+import { businessUpdateRules, workflowFingerprint } from "@/lib/workflow-business-update";
 import { readWorkflowAnalytics } from "@/lib/mix-workflow-analytics";
 import type { WorkflowAnalytics } from "@/lib/workflow-analytics";
 import { prisma } from "@/lib/prisma";
@@ -8,6 +10,8 @@ export type WorkflowGraphMix = Pick<WorkflowMix, "id" | "name" | "status" | "sou
 export type WorkflowInstanceView = {
   id: string; contactId: string; contactName: string; label: string; status: string; revision: number; definitionRevision: number; updatedAt: string;
   state: WorkflowState;
+  preparationFailed?: boolean;
+  updateRuns?: Array<{ id: string; name: string; choices: Array<{ ruleId: string; outcome: string; label: string }> }>;
   appointments: Array<{ id: string; title: string; startsAt: string }>;
   decisions: Array<{ id: string; name: string; outcome: string | null; status: string; choices: Array<{ value: string; label: string }> }>;
   beats: Array<{ visitId: string; jumpId: string | null; mixName: string; name: string; status: string; scheduledAt: string | null }>;
@@ -72,6 +76,7 @@ export async function readWorkflowGraph(workspaceId: string, options: { contactI
     if (page.length < 250) break;
     cursor = page.at(-1)!.id;
   }
+  const preparationFailures = await workflowPreparationFailures(workspaceId, instances);
   const issues: WorkflowGraphView["issues"] = [];
   for (const mix of definition.mixes.filter(item => item.status !== "ARCHIVED")) {
     if (!mix.steps.length) issues.push({ node: `mix:${mix.id}`, message: `${mix.name} has no Beats.` });
@@ -88,8 +93,9 @@ export async function readWorkflowGraph(workspaceId: string, options: { contactI
     analytics, metrics, instanceTotal, people, issues, updatedAt: new Date().toISOString(),
     instances: instances.map(instance => {
       const saved = workflowDefinition(instance.definition), state = workflowState(instance.state);
-      return { id: instance.id, contactId: instance.contactId, contactName: instance.contact.displayName, label: instance.label, status: instance.status, revision: instance.revision, definitionRevision: saved.revision, appointments: appointments.filter(entry => entry.contactId === instance.contactId).slice(0, 30).map(entry => ({ id: entry.id, title: entry.title, startsAt: entry.startsAt.toISOString() })), state: { ...state, commands: [], context: undefined }, updatedAt: instance.updatedAt.toISOString(),
-        decisions: state.evaluations.filter(evaluation => evaluation.status !== "CANCELED").flatMap(evaluation => {
+      return { preparationFailed: preparationFailures.has(instance.id), id: instance.id, contactId: instance.contactId, contactName: instance.contact.displayName, label: instance.label, status: instance.status, revision: instance.revision, definitionRevision: saved.revision, appointments: appointments.filter(entry => entry.contactId === instance.contactId).slice(0, 30).map(entry => ({ id: entry.id, title: entry.title, startsAt: entry.startsAt.toISOString() })), state: { ...state, commands: [], context: undefined, updates: state.updates?.map(({ before: _before, afterFingerprint, ...record }) => ({ ...record, canUndo: Boolean(!record.reversedAt && afterFingerprint === workflowFingerprint(state)) })) }, updatedAt: instance.updatedAt.toISOString(),
+        updateRuns: state.runs.filter(run => run.status !== "CANCELED").map(run => ({ id: run.id, name: saved.mixes.find(mix => mix.id === run.mixId)?.name ?? "Previous Mix", choices: businessUpdateRules(saved, state, run.id).flatMap(rule => [...new Set(rule.routes.filter(route => route.when === "OUTCOME").map(route => route.outcome))].map(outcome => ({ ruleId: rule.id, outcome, label: `${outcome} · ${rule.name}` }))) })),
+        decisions: state.evaluations.filter(evaluation => evaluation.status !== "CANCELED" && !state.runs.find(run => run.id === evaluation.runId)?.resolution && !state.commitments?.some(item => item.runId === evaluation.runId && item.status === "OPEN")).flatMap(evaluation => {
           const rule = saved.rules.find(rule => rule.id === evaluation.ruleId);
           const choices = [...new Map(rule?.routes.filter(route => route.when === "OUTCOME").map(route => [route.outcome, { value: route.outcome, label: route.outcome }])).values()];
           return rule && choices.length ? [{ id: evaluation.id, name: rule.name, outcome: evaluation.outcome, status: evaluation.status, choices }] : [];

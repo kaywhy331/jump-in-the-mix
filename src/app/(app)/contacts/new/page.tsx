@@ -1,3 +1,4 @@
+import { workflowContinuation } from "@/lib/workflow-continuation";
 import type { Metadata } from "next";
 import { NewContactForm } from "@/components/NewContactForm";
 import { Notice } from "@/components/Notice";
@@ -9,6 +10,7 @@ export const metadata: Metadata = { title: "Add contact" };
 
 type SearchParams = {
   error?: string;
+  returnTo?: string;
   quickAddFallback?: string;
   draft?: string;
 };
@@ -41,7 +43,9 @@ export default async function NewContactPage({ searchParams }: { searchParams: P
       <header className="page-header"><div><h1>Add a contact</h1><p>Add the essentials now, then schedule the first follow-up without returning to the Contacts list.</p></div></header>
       {query.error && <Notice type="error">{query.error}</Notice>}
       {query.quickAddFallback && <Notice type="info">Your browser does not expose the native Contact Picker. Use this compact form instead; supported browsers also offer optional voice dictation for Public Notes.</Notice>}
+      {workflowContinuation(query.returnTo) && <Notice type="info">Save this person to return to your selected Mix. You will choose when to start it.</Notice>}
       <NewContactForm
+        returnTo={workflowContinuation(query.returnTo)}
         draftId={query.draft?.slice(0, 100)}
         groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, isActive: group.isActive }))}
         customFields={customFields.map((field) => ({ id: field.id, name: field.name, key: field.key }))}

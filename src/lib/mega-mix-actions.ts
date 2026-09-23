@@ -67,3 +67,20 @@ export async function saveJourneyPreferencesAction(_previous: FormResult, data: 
   revalidatePath("/account/preferences"); revalidatePath("/templates/journeys");
   redirect("/account/preferences?journeySaved=1");
 }
+
+export async function saveSetupForLaterAction(_previous: FormResult, data: FormData): Promise<FormResult> {
+  const { workspace, user, impersonation } = await requireWorkspace();
+  if (impersonation) return { error: "Administrator support sessions are view-only." };
+  try {
+    const setup = parseJourneySetup(data);
+    await prisma.$transaction(async db => {
+      await db.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR UPDATE`;
+      await saveJourneySetup(db, workspace.id, user.id, setup);
+      await db.workspacePreference.update({ where: { workspaceId: workspace.id }, data: { journeyPreferences: { ...setup.preferences, draftBlueprintId: String(data.get("blueprintId") ?? ""), draftSetupMode: data.get("individual") === "1" ? "individual" : "journey" } } });
+      const company = String(data.get("company") ?? "").trim().slice(0, 200), smsSignature = String(data.get("smsSignature") ?? "").trim().slice(0, 160) || user.name;
+      const profile = { onboardingDone: true, onboardingStep: 1, company: company || null, smsSignature };
+      await db.workspaceProfile.upsert({ where: { workspaceId: workspace.id }, create: { workspaceId: workspace.id, ...profile, useCases: ["business"], emailSignature: user.name }, update: profile });
+    });
+  } catch (error) { return { error: error instanceof Error ? error.message : "Your answers could not be saved. They are still here." }; }
+  redirect("/jumps?setupLater=1");
+}

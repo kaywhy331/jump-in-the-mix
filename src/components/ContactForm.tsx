@@ -68,13 +68,15 @@ export function ContactForm({
   contact,
   groups,
   customFields,
-  followUp
+  followUp,
+  returnTo
 }: {
   mode: "create" | "edit";
   contact?: ContactFormValue;
   groups: GroupOption[];
   customFields: CustomFieldOption[];
   followUp?: FollowUpOption | null;
+  returnTo?: string | null;
 }) {
   const [result, formAction] = useActionState(saveContactFormAction, {});
   const errorRef = useRef<HTMLParagraphElement>(null);
@@ -149,6 +151,7 @@ export function ContactForm({
       if (obscured) control.scrollIntoView({ block: "center", behavior: "instant" });
     }}>
       <FormGuard />
+      {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
       {result.error && <p id="contact-save-error" ref={errorRef} tabIndex={-1} className="notice error" role="alert">{result.error} Your entries are still here; correct the details and save again.</p>}
       {undoRemoval && <p role="status">Contact method removed. Undo adds it back without changing your current primary method. <button type="button" className="text-button" onClick={() => { undoRemoval(); setUndoRemoval(null); }}>Undo removal</button></p>}
       {contact?.id && <input type="hidden" name="contactId" value={contact.id} />}
@@ -273,7 +276,7 @@ export function ContactForm({
       </details>
 
       <div className="sticky-form-actions">
-        <Link className="button" href={contact?.id ? `/contacts/${contact.id}` : "/contacts"}>Cancel</Link>
+        <Link className="button" href={returnTo || (contact?.id ? `/contacts/${contact.id}` : "/contacts")}>Cancel</Link>
         <FormSubmitButton label={mode === "create" ? scheduleFollowUp ? "Save & schedule follow-up" : "Save contact" : "Update contact"} pendingLabel="Saving contact…" />
       </div>
     </form>

@@ -1,3 +1,7 @@
+import { workflowCalendarStepTime } from "@/lib/workflow-scheduling";
+import { applyBusinessUpdate, undoBusinessUpdate, workflowFingerprint } from "@/lib/workflow-business-update";
+import type { WorkflowBusinessUpdate, WorkflowUpdateRecord } from "@/lib/mix-workflow-types";
+import { assertMixStartEligible } from "@/lib/mix-start-eligibility";
 import { nextJourneyAvailability } from "@/lib/journey-availability";
 import { readJourneyPreferences } from "@/lib/journey-preferences";
 import { createHash } from "node:crypto";
@@ -78,13 +82,17 @@ export async function queueWorkflowForJump(db: DB, workspaceId: string, jumpId: 
   // instance-then-Jump lock order used by the worker.
 }
 
-export async function startWorkflowInstance(input: { workspaceId: string; contactId: string; mixId: string; requestId: string; label?: string; now?: Date }) {
+export async function startWorkflowInstance(input: { workspaceId: string; contactId: string; mixId: string; requestId: string; label?: string; expectedDefinitionRevision?: number; now?: Date }) {
   const now = input.now ?? new Date();
   return prisma.$transaction(async db => {
     await db.$queryRaw`SELECT id FROM "Contact" WHERE id = ${input.contactId} AND "workspaceId" = ${input.workspaceId} FOR UPDATE`;
     const contact = await db.contact.findFirst({ where: { id: input.contactId, workspaceId: input.workspaceId, archivedAt: null } });
     if (!contact) throw new Error("Choose a person in this account.");
+    const receipt = await db.mixWorkflowInstance.findUnique({ where: { workspaceId_admissionKey: { workspaceId: input.workspaceId, admissionKey: `manual:${input.contactId}:${input.mixId}:${input.requestId}` } } });
+    if (receipt) return receipt.id;
+    await assertMixStartEligible(db, input.workspaceId, input.contactId, input.mixId);
     const definition = await readWorkflowDefinition(db, input.workspaceId);
+    if (input.expectedDefinitionRevision !== undefined && input.expectedDefinitionRevision !== definition.revision) throw new Error("This Mix changed. Review the current schedule before starting.");
     const mix = definition.mixes.find(item => item.id === input.mixId && item.status === "ACTIVE" && item.source !== "ONE_TIME");
     if (!mix) throw new Error("Choose an active Mix.");
     const instance = await db.mixWorkflowInstance.upsert({ where: { workspaceId_admissionKey: { workspaceId: input.workspaceId, admissionKey: `manual:${input.contactId}:${input.mixId}:${input.requestId}` } },
@@ -94,10 +102,13 @@ export async function startWorkflowInstance(input: { workspaceId: string; contac
   });
 }
 
-export type WorkflowCommand = { requestId: string; expectedRevision?: number; calendarEntryId?: string; evaluationId?: string; outcome?: string; visitId?: string; sourceCompletedAt?: string; decisions?: Array<{ ruleId: string; outcome: string }>; status?: "ACTIVE" | "PAUSED" | "STOPPED" };
+export type WorkflowCommand = { retry?: boolean; businessUpdate?: WorkflowBusinessUpdate; undoUpdateId?: string; requestId: string; expectedRevision?: number; calendarEntryId?: string; evaluationId?: string; outcome?: string; visitId?: string; sourceCompletedAt?: string; decisions?: Array<{ ruleId: string; outcome: string }>; status?: "ACTIVE" | "PAUSED" | "STOPPED" };
 
 export async function processWorkflowInstance(workspaceId: string, instanceId: string, now = new Date(), command?: WorkflowCommand): Promise<void> {
   await prisma.$transaction(async db => {
+    const identity = await db.mixWorkflowInstance.findFirst({ where: { id: instanceId, workspaceId }, select: { contactId: true } });
+    if (!identity) throw new Error("This piece of work is unavailable.");
+    await db.$queryRaw`SELECT id FROM "Contact" WHERE id = ${identity.contactId} AND "workspaceId" = ${workspaceId} FOR UPDATE`;
     await db.$queryRaw`SELECT id FROM "MixWorkflowInstance" WHERE id = ${instanceId} AND "workspaceId" = ${workspaceId} FOR UPDATE`;
     const instance = await db.mixWorkflowInstance.findFirst({ where: { id: instanceId, workspaceId }, include: { contact: { include: { emails: true, phones: true, addresses: true, customFieldValues: { include: { definition: true } } } }, workspace: { include: { profile: true, owner: true } } } });
     if (!instance) throw new Error("This journey instance is unavailable.");
@@ -116,6 +127,25 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
       db.userPreference.findUnique({ where: { userId: instance.workspace.ownerId } }),
       db.job.findMany({ where: { workspaceId, task: "mix-workflow", completedAt: null, failedAt: null, payload: { path: ["instanceId"], equals: instanceId } }, select: { payload: true }, orderBy: { createdAt: "asc" }, take: 1000 })
     ]);
+    const businessRecordedAt = state.pendingBusinessUpdate?.recordedAt ?? now.toISOString();
+    if (command?.businessUpdate) applyBusinessUpdate(structuredClone(state), definition, command.businessUpdate, command.requestId, businessRecordedAt);
+    const deliveries = await db.automatedDelivery.findMany({ where: { workspaceId, jumpId: { in: jumps.map(jump => jump.id) } } });
+    if (state.pendingBusinessUpdate && command) throw new Error("Your previous update is saved. Wait for the message already being processed before making another change.");
+    if (command?.businessUpdate || state.pendingBusinessUpdate) {
+      if (deliveries.some(delivery => delivery.status === "PROCESSING")) {
+        if (command?.businessUpdate) {
+          state.pendingBusinessUpdate = { requestId: command.requestId, input: command.businessUpdate, recordedAt: now.toISOString() };
+          state.commands.push(command.requestId);
+          await db.contactActivity.create({ data: { workspaceId, contactId: instance.contactId, kind: "CUSTOMER_NOTE", visibility: "WORKSPACE", summary: `${instance.label}: update saved; waiting for an already-processing message.`, metadata: { workflowInstanceId: instanceId, requestId: command.requestId, update: workflowJson(command.businessUpdate) } } });
+        }
+        await db.mixWorkflowInstance.update({ where: { id: instanceId }, data: { state: workflowJson(state), ...(command ? { revision: { increment: 1 } } : {}), nextCheckAt: new Date(now.getTime() + 10000) } });
+        return;
+      }
+      if (state.pendingBusinessUpdate) {
+        command = { requestId: state.pendingBusinessUpdate.requestId, businessUpdate: state.pendingBusinessUpdate.input };
+        delete state.pendingBusinessUpdate;
+      }
+    }
     if (command?.calendarEntryId) {
       const entry = await db.calendarEntry.findFirst({ where: { id: command.calendarEntryId, workspaceId, contactId: instance.contactId, canceledAt: null } });
       if (!entry) throw new Error("Choose an appointment for this person in this account.");
@@ -145,6 +175,19 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
       if (!queued?.requestId || state.commands.includes(queued.requestId) || !Array.isArray(queued.decisions) || !queued.decisions.length || !queued.visitId || !queued.sourceCompletedAt) continue;
       state.pendingChoices ??= [];
       if (!state.pendingChoices.some(item => item.requestId === queued.requestId)) state.pendingChoices.push({ requestId: queued.requestId, visitId: queued.visitId, sourceCompletedAt: queued.sourceCompletedAt, decisions: queued.decisions });
+    }
+    let businessRecord: WorkflowUpdateRecord | undefined;
+    if (command?.undoUpdateId) {
+      const record = state.updates?.find(item => item.id === command?.undoUpdateId);
+      if (deliveries.some(delivery => delivery.createdAt >= new Date(record?.at ?? 0) && delivery.status !== "CANCELED")) throw new Error("A message may already have been sent. Record a correction; Undo cannot recall messages.");
+      undoBusinessUpdate(state, command.undoUpdateId, command.requestId, now.toISOString());
+    }
+    if (command?.businessUpdate) {
+      if (command.businessUpdate.ruleId && disabledRules.has(command.businessUpdate.ruleId)) throw new Error("This connection is paused or removed. Choose a check-back date to end this Mix’s pending follow-ups, or restore the connection first.");
+      businessRecord = applyBusinessUpdate(state, definition, command.businessUpdate, command.requestId, businessRecordedAt);
+      // Old scheduled roots must not be recreated by the legacy scheduler after an explicit update.
+      for (const run of state.runs) if (run.id === command.businessUpdate.runId) run.legacy = false;
+      await db.jump.updateMany({ where: { workspaceId, workflowInstanceId: instanceId, workflowVisitId: { in: state.visits.filter(visit => visit.runId === command?.businessUpdate?.runId).map(visit => visit.id) } }, data: { workflowManaged: true } });
     }
     if (status === "STOPPED") {
       state.pendingChoices = [];
@@ -190,7 +233,7 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
       const held = blocked || status === "PAUSED" || unavailableMixes.has(run.mixId) || blockedRunIds.has(run.id);
       if (canceled || held) {
         if (!canceled && !["DONE", "SKIPPED"].includes(visit.status)) { visit.status = "HELD"; visit.reason = blocked ? "Contact is archived or marked do not contact." : status === "PAUSED" ? "This instance is paused." : "This Mix or the Mix that started this path is paused or stopped."; }
-        if (existing?.status === "PENDING") await db.jump.updateMany({ where: { id: existing.id, status: "PENDING" }, data: { status: "CANCELED", completionMethod: canceled ? "workflow_stopped" : "workflow_held", completedAt: null } });
+        if (existing?.status === "PENDING") await db.jump.updateMany({ where: { id: existing.id, status: "PENDING" }, data: { status: "CANCELED", completionMethod: canceled ? (state.updates?.length ? "workflow_updated" : "workflow_stopped") : "workflow_held", completedAt: null } });
         continue;
       }
       if (visit.status === "DONE" || visit.status === "SKIPPED") continue;
@@ -217,26 +260,23 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
           continue;
         }
         scheduledAt = instant;
-      } else if (step.plannedAt) scheduledAt = new Date(step.plannedAt);
-      else {
-        const logical = shiftWeekend(addLogicalDays(logicalDateInTimezone(new Date(visit.readyAt), timezone), step.dayOffset), scheduling.weekendScheduling);
-        scheduledAt = zonedDateTimeToUtc(logical, preference?.journeyPreferences ? step.sendTimeMinutes ?? scheduling.defaultFollowUpMinutes : outsideQuietHours(step.sendTimeMinutes ?? scheduling.defaultFollowUpMinutes, scheduling.quietHoursStart, scheduling.quietHoursEnd), timezone);
-      }
-      // A connected Beat is never due before its actual entry. Keep a user's snooze.
-      scheduledAt = new Date(Math.max(scheduledAt.getTime(), Date.parse(visit.readyAt), existing?.snoozedUntil?.getTime() ?? 0));
-      if (step.anchor === "CALENDAR_DAY" && !step.plannedAt && !existing?.snoozedUntil) scheduledAt = nextJourneyAvailability(scheduledAt, timezone, scheduling, busy);
+      } else scheduledAt = workflowCalendarStepTime(step, new Date(visit.readyAt), timezone, scheduling, busy, existing?.snoozedUntil);
+      // Appointment steps retain their anchor and any deliberate snooze.
+      if (step.anchor !== "CALENDAR_DAY") scheduledAt = new Date(Math.max(scheduledAt.getTime(), Date.parse(visit.readyAt), existing?.snoozedUntil?.getTime() ?? 0));
       const snapshot = { workflowRunKey: `${instance.id}:${run.id}`, subject: step.subject, body: step.body, script: step.script, channel: step.channel, ...(step.variants ? { variants: step.variants } : {}), timezone, originalLocalDate: logicalDateKey(logicalDateInTimezone(scheduledAt, timezone)) };
       if (!existing) await db.jump.create({ data: { workspaceId, contactId: instance.contactId, mixId: run.mixId, mixStepId: step.id, stepVersionId: step.versionId, workflowInstanceId: instance.id, workflowVisitId: visit.id, workflowManaged: true, manualOnly: Boolean(state.context?.calendarEntryId && !binding),
         uniquenessKey: `workflow:${instance.id}:${visit.id}`, reason: `${instance.label} · ${step.name}`, scheduledAt, baseScheduledAt: scheduledAt, templateSnapshot: workflowJson(snapshot), renderedSnapshot: workflowJson(renderJumpSnapshot(step, instance.contact, instance.workspace.profile, instance.workspace.owner, step.channel, appointment)), appointmentBindingId: binding?.id ?? null } });
-      else if (existing.status === "CANCELED" && ["workflow_held", "mix_paused", "do_not_contact", "contact_archived"].includes(existing.completionMethod ?? "")) await db.jump.update({ where: { id: existing.id }, data: { status: "PENDING", completionMethod: null, scheduledAt } });
+      else if (existing.status === "CANCELED" && ["workflow_held", "workflow_updated", "mix_paused", "do_not_contact", "contact_archived"].includes(existing.completionMethod ?? "")) await db.jump.update({ where: { id: existing.id }, data: { status: "PENDING", completionMethod: null, scheduledAt } });
       else if (existing.status === "PENDING" && (step.anchor !== "CALENDAR_DAY" || Boolean(preference?.journeyPreferences) && !step.plannedAt && !existing.snoozedUntil && existing.scheduledAt >= now) && existing.scheduledAt.getTime() !== scheduledAt.getTime()) await db.jump.update({ where: { id: existing.id }, data: { scheduledAt, baseScheduledAt: scheduledAt } });
       if (visit.status === "HELD") { visit.status = "PENDING"; visit.reason = null; }
     }
+    if (businessRecord) businessRecord.afterFingerprint = workflowFingerprint(state);
     if (command && !state.commands.includes(command.requestId)) state.commands.push(command.requestId);
     if (status === "ACTIVE" && workflowFinished(state)) status = "FINISHED";
     const changed = originalState !== JSON.stringify(state) || status !== instance.status;
     await db.mixWorkflowInstance.update({ where: { id: instanceId }, data: { status, state: workflowJson(state), ...(changed ? { revision: { increment: 1 } } : { updatedAt: instance.updatedAt }), nextCheckAt: new Date(now.getTime() + 60_000) } });
-    if (command) await db.contactActivity.create({ data: { workspaceId, contactId: instance.contactId, kind: "CUSTOMER_NOTE", visibility: "WORKSPACE", summary: command.calendarEntryId ? `${instance.label}: linked appointment updated.` : command.status ? `${instance.label}: ${command.status.toLowerCase()}.` : `${instance.label}: decision recorded.`, metadata: { workflowInstanceId: instanceId, requestId: command.requestId, outcome: command.outcome ?? null } } });
+    if (businessRecord?.kind === "OUTCOME") await db.job.create({ data: { workspaceId, task: "mix-workflow", runAt: new Date(now.getTime() + 10050), payload: { instanceId } } });
+    if (command) await db.contactActivity.create({ data: { workspaceId, contactId: instance.contactId, kind: "CUSTOMER_NOTE", visibility: "WORKSPACE", summary: command.retry ? `${instance.label}: preparation retried.` : businessRecord ? `${instance.label}: ${businessRecord.summary}.` : command.undoUpdateId ? `${instance.label}: update undone; history retained.` : command.calendarEntryId ? `${instance.label}: linked appointment updated.` : command.status ? `${instance.label}: ${command.status.toLowerCase()}.` : `${instance.label}: decision recorded.`, metadata: { workflowInstanceId: instanceId, requestId: command.requestId, outcome: command.outcome ?? command.businessUpdate?.outcome ?? null, businessUpdate: command.businessUpdate ? workflowJson(command.businessUpdate) : null, undoUpdateId: command.undoUpdateId ?? null } } });
   }, { timeout: 30_000 });
 }
 

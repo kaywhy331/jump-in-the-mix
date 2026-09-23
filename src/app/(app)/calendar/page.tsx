@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { workflowContinuation } from "@/lib/workflow-continuation";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -18,8 +19,9 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { describeBoundPlanOutlook } from "@/lib/step-timing";
 export const metadata = { title: "Calendar" };
 
-export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ new?: string; page?: string; days?: string; eventq?: string; savedEvent?: string; date?: string; contact?: string; edit?: string; q?: string; saved?: string; error?: string; plan?: string; kept?: string; person?: string; ready?: string; awaitingOutcome?: string; awaitingCompletion?: string; lapsed?: string; held?: string }> }) {
+export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ returnTo?: string; new?: string; page?: string; days?: string; eventq?: string; savedEvent?: string; date?: string; contact?: string; edit?: string; q?: string; saved?: string; error?: string; plan?: string; kept?: string; person?: string; ready?: string; awaitingOutcome?: string; awaitingCompletion?: string; lapsed?: string; held?: string }> }) {
   const [{ workspace, user, impersonation }, query] = await Promise.all([requireWorkspace(), searchParams]);
+  const returnTo = workflowContinuation(query.returnTo);
   const preference = await prisma.userPreference.findUnique({ where: { userId: user.id } });
   const timezone = preference?.timezone || "UTC";
   const requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(query.date ?? "") ? new Date(`${query.date}T12:00:00Z`) : null;
@@ -64,6 +66,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     prisma.jump.count({ where: followUpWhere })
   ]);
   return <div className="page calendar-page">
+    {returnTo && <Notice type="info"><Link href={returnTo}>{query.saved ? "Return to this work and link the saved appointment" : "Return to this work"}</Link></Notice>}
     {query.saved && <Notice>{query.person ? "Person added and calendar updated." : "Calendar updated."}{planNotice ? ` ${planNotice}` : ""}{query.kept ? " This person already had that plan running on its own; both continue." : ""}</Notice>}{query.savedEvent && <Notice type="info">No invitation was sent. <a className="inline-action" href={`/api/calendar/export?id=${encodeURIComponent(query.savedEvent)}`}>Download the saved event</a> and share it through your calendar provider.</Notice>}{query.error && <Notice type="error">{query.error}</Notice>}
     {connections.some(connection => connection.lastError || !connection.lastSyncedAt || Date.now()-connection.lastSyncedAt.getTime() > 24*3_600_000) && <Notice type="info">Some connected availability may be out of date. Review <a href="#calendar-connections" className="inline-action">calendar connections</a> before booking.</Notice>}
     <div className="calendar-workspace"><section className="calendar-directory"><header className="page-header"><div><h1>Calendar</h1><p>Make space for conversations and the work between them.</p></div><div className="page-actions"><Link className="button primary" href={`/calendar?date=${date}&new=1#schedule-event`}>New event</Link><a className="button" href="/api/calendar/export">Download calendar</a></div></header>
@@ -77,7 +80,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     </section>
     <section className="card calendar-editor-panel" data-requested={query.edit || query.new || query.contact ? "true" : undefined} id="schedule-event"><h2 className={editing ? "sr-only" : undefined}>{editing ? `Edit ${editing.title}` : chosen ? `Make time for ${chosen.displayName}` : "New event"}</h2>
 
-      <CalendarEntryForm key={`${editing?.id ?? "new"}:${editing?.version ?? 0}:${date}:${chosen?.id ?? ""}`} plans={plans} contacts={contacts} contactId={chosen?.id} timezone={editing?.timezone ?? timezone} locale={preference?.locale || undefined} date={date} entry={editing ? { id: editing.id, version: editing.version, title: editing.title, kind: editing.kind, contactId: editing.contactId, location: editing.location, link: editing.link, details: editing.details, startsAt: localCalendarTime(editing.startsAt, editing.timezone), endsAt: localCalendarTime(editing.endsAt, editing.timezone) } : undefined} />
+      <CalendarEntryForm returnTo={returnTo} key={`${editing?.id ?? "new"}:${editing?.version ?? 0}:${date}:${chosen?.id ?? ""}`} plans={plans} contacts={contacts} contactId={chosen?.id} timezone={editing?.timezone ?? timezone} locale={preference?.locale || undefined} date={date} entry={editing ? { id: editing.id, version: editing.version, title: editing.title, kind: editing.kind, contactId: editing.contactId, location: editing.location, link: editing.link, details: editing.details, startsAt: localCalendarTime(editing.startsAt, editing.timezone), endsAt: localCalendarTime(editing.endsAt, editing.timezone) } : undefined} />
       <details><summary>Find a contact for this event</summary><form className="filter-bar" action="/calendar#schedule-event"><input type="hidden" name="date" value={date} />{editing ? <input type="hidden" name="edit" value={editing.id} /> : <input type="hidden" name="new" value="1" />}{chosen && <input type="hidden" name="contact" value={chosen.id} />}<input name="q" type="search" aria-label="Find a calendar contact" placeholder="Search contact names" defaultValue={query.q} /><button className="button">Find contacts</button></form><p className="muted-copy">The contact menu shows up to 200 matches. You can also schedule directly from any contact’s page.</p></details>
     </section>
     {context && <aside className="calendar-contact-context" aria-label={`About ${context.displayName}`}><h2>{context.displayName}</h2><p>{context.journey?.stage.name ?? "No journey stage"}</p><h3>Reach them</h3>{context.phones[0] && <p><a href={`tel:${context.phones[0].phone}`}>{context.phones[0].phone}</a></p>}{context.emails[0] && <p><a href={`mailto:${context.emails[0].email}`}>{context.emails[0].email}</a></p>}{context.publicNotes && <><h3>Last note</h3><p className="conversation-note">{context.publicNotes}</p></>}<Link className="inline-action" href={`/contacts/${context.id}`}>Open contact →</Link></aside>}

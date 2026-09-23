@@ -180,6 +180,8 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
           await tx.$queryRaw`SELECT id FROM "Contact" WHERE id = ${jump.contactId} AND "workspaceId" = ${workspace.id} FOR UPDATE`;
           const busy = await tx.$queryRaw<Array<{ id: string }>>`SELECT d.id FROM "AutomatedDelivery" d JOIN "Jump" j ON j.id = d."jumpId" WHERE j."workspaceId" = ${workspace.id} AND j."contactId" = ${jump.contactId} AND d.status = 'PROCESSING' LIMIT 1`;
           if (busy.length) return null;
+          const eligibleJump = await tx.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING" }, select: { workflowInstance: { select: { state: true, status: true } } } });
+          if (!eligibleJump || eligibleJump.workflowInstance && (eligibleJump.workflowInstance.status !== "ACTIVE" || (eligibleJump.workflowInstance.state as { pendingBusinessUpdate?: unknown }).pendingBusinessUpdate)) return null;
           const previous = await tx.automatedDelivery.findUnique({ where: { jumpId: jump.id } });
           if (previous) {
             if (previous.status !== "CANCELED" || previous.providerId) return null;

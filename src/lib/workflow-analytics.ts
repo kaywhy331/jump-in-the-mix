@@ -26,6 +26,11 @@ export function workflowPositions(id: string, status: string, state: WorkflowSta
   const override = status === "PAUSED" ? "paused" : status === "STOPPED" ? "stopped" : null;
   const add = (mixId: string, stepId: string | null, value: WorkflowStatus, reason: string, dueAt: string | null = null) => positions.push({ mixId, stepId, instanceId: id, status: unfinished.includes(value) ? override ?? value : value, reason: unfinished.includes(value) && override === "paused" ? "Work paused" : unfinished.includes(value) && override === "stopped" ? "Work stopped" : reason, dueAt });
   for (const run of state.runs) {
+    for (const commitment of state.commitments ?? []) if (commitment.runId === run.id && commitment.status === "OPEN") {
+      const due = Date.parse(commitment.dueAt) <= now;
+      add(run.mixId, null, due ? "attention" : "waiting", commitment.source === "CUSTOMER" ? due ? "Customer callback is due" : "Customer requested a callback" : due ? "Your check-in is due" : "Your planned check-in", commitment.dueAt);
+    }
+    if (state.pendingBusinessUpdate?.input.runId === run.id) add(run.mixId, null, "waiting", "Update saved; waiting for an already-processing message");
     const visits = state.visits.filter(visit => visit.runId === run.id);
     for (const visit of visits) {
       if (visit.status === "CANCELED") { add(run.mixId, visit.stepId, "stopped", "Beat canceled"); continue; }

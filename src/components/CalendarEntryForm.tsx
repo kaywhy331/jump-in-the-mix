@@ -22,7 +22,7 @@ function initialDuration(entry: Entry | undefined): Duration {
   return (DURATIONS as readonly number[]).includes(minutes) ? minutes as Duration : "custom";
 }
 
-export function CalendarEntryForm({ contacts, contactId = "", timezone, date, entry, locale, plans = [] }: { plans?: Array<{ id: string; name: string }>; contacts: Array<{ id: string; displayName: string }>; contactId?: string; timezone: string; date: string; entry?: Entry; locale?: string }) {
+export function CalendarEntryForm({ contacts, contactId = "", timezone, date, entry, locale, plans = [], returnTo }: { returnTo?: string | null; plans?: Array<{ id: string; name: string }>; contacts: Array<{ id: string; displayName: string }>; contactId?: string; timezone: string; date: string; entry?: Entry; locale?: string }) {
   const starts = splitLocal(entry?.startsAt ?? "") ?? { date, time: "09:00" };
   // Every field is controlled so a returned error or an inline person choice never clears what was typed.
   const [values, setValues] = useState({ title: entry?.title ?? "", kind: entry?.kind ?? "MEETING", contactId: entry?.contactId ?? contactId, date: starts.date, time: starts.time, duration: initialDuration(entry), customEnd: entry?.endsAt ?? `${date}T09:30`, timezone, allowOverlap: false, location: entry?.location ?? "", link: entry?.link ?? "", details: entry?.details ?? "", newContactName: "", newContactPhone: "", newContactEmail: "", resolvedContactId: "", planId: "" });
@@ -72,7 +72,7 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
   return <form action={action} onSubmit={submit} onInvalid={event => {
     let details = (event.target as HTMLElement).closest("details");
     while (details) { details.open = true; details = details.parentElement?.closest("details") ?? null; }
-  }} className="form-grid calendar-entry-form"><FormGuard preservedQuery={{ date, ...(entry ? { edit: entry.id } : { new: "1", contact: contactId }) }} />{state.error && <div ref={errorRef} tabIndex={-1} className="field full"><Notice type="error">{state.error}</Notice></div>}<fieldset disabled={pending} className="calendar-entry-fields" aria-label="Event details"><input type="hidden" name="id" value={entry?.id ?? ""} /><input type="hidden" name="version" value={entry?.version ?? 0} />
+  }} className="form-grid calendar-entry-form"><FormGuard preservedQuery={{ ...(returnTo ? { returnTo } : {}), date, ...(entry ? { edit: entry.id } : { new: "1", contact: contactId }) }} />{state.error && <div ref={errorRef} tabIndex={-1} className="field full"><Notice type="error">{state.error}</Notice></div>}<fieldset disabled={pending} className="calendar-entry-fields" aria-label="Event details"><input type="hidden" name="id" value={entry?.id ?? ""} /><input type="hidden" name="version" value={entry?.version ?? 0} />{returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
     <input type="hidden" name="startsAt" value={startsAt} /><input type="hidden" name="endsAt" value={endsAt} />
     <label className="field full calendar-title"><span className="sr-only">Title</span><input name="title" maxLength={160} value={values.title} onChange={event => update("title", event.target.value)} placeholder="For example, Discovery call or Focus time" required /></label>
     <label className="field calendar-kind"><span className="sr-only">Event type</span><select name="kind" value={values.kind} onChange={event => update("kind", event.target.value)}><option value="MEETING">Meeting</option><option value="BLOCK">Time block</option></select></label>

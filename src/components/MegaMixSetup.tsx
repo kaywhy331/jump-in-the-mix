@@ -6,7 +6,7 @@ import { MegaMixPreview } from "@/components/MegaMixPreview";
 import { JourneyPreferenceFields, JourneyPreferenceSummary } from "@/components/JourneyPreferenceFields";
 import { MEGA_MIXES, megaMixById } from "@/lib/mega-mixes";
 import { tailorMegaMix, validateJourneySetup, type JourneySetupValues } from "@/lib/journey-preferences";
-import { installMegaMixAction, saveIndividualMixSetupAction } from "@/lib/mega-mix-actions";
+import { installMegaMixAction, saveIndividualMixSetupAction, saveSetupForLaterAction } from "@/lib/mega-mix-actions";
 import styles from "./JourneySetup.module.css";
 
 export function MegaMixSetup({ initialId, initialSetup, onboarding, active = true, individual = false, onSetupChange }: { initialId: string; initialSetup: JourneySetupValues; active?: boolean; individual?: boolean; onSetupChange?: (value: JourneySetupValues) => void; onboarding?: { userName: string; company?: string; smsSignature?: string } }) {
@@ -18,7 +18,9 @@ export function MegaMixSetup({ initialId, initialSetup, onboarding, active = tru
   const heading = useRef<HTMLHeadingElement>(null);
   const blueprint = tailorMegaMix(megaMixById(selected) ?? MEGA_MIXES[0], setup);
   const showReview = () => { const issue = validateJourneySetup(setup); setError(issue ?? ""); if (!issue) setReview(true); requestAnimationFrame(() => heading.current?.focus()); };
-  return <ActionForm action={individual ? saveIndividualMixSetupAction : installMegaMixAction} protect={active}>
+  return <ActionForm action={(previous, data) => data.get("finishLater") === "1" ? saveSetupForLaterAction(previous, data) : individual ? saveIndividualMixSetupAction(previous, data) : installMegaMixAction(previous, data)} protect={active}>
+    {onboarding && <div className="skip-setup-form"><span><button className="text-button" name="finishLater" value="1" formNoValidate>Save answers and finish later</button>{" "}<small>Your answers are kept. No Mix is installed and no person is enrolled.</small></span></div>}
+    <input type="hidden" name="individual" value={individual ? "1" : "0"} />
     <input type="hidden" name="blueprintId" value={blueprint.id} /><input type="hidden" name="version" value={blueprint.version} /><input type="hidden" name="tailored" value="1" />
     {onboarding && <input type="hidden" name="onboarding" value="1" />}
     {onboarding && !individual && <><label className="field"><span>Your mega-mix</span><select aria-label="Your mega-mix" value={selected} onChange={event => setSelected(event.target.value)}>{MEGA_MIXES.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><p>{blueprint.description} Includes {blueprint.nodes.length} connected mixes.</p></>}

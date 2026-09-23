@@ -1,5 +1,6 @@
 "use server";
 
+import { assertMixStartEligible } from "@/lib/mix-start-eligibility";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -24,7 +25,8 @@ export async function assignMixToContactAction(formData: FormData): Promise<void
   if (!mix || !contact) fail(contactId, "Choose an active mix.");
 
   const assignmentKey = `${workspace.id}:${mix.id}:${contact.id}`;
-  await prisma.$transaction(async (tx) => {
+  try { await prisma.$transaction(async (tx) => {
+    await assertMixStartEligible(tx, workspace.id, contact.id, mix.id);
     const assignment = await tx.mixAssignment.upsert({
       where: { assignmentKey },
       create: {
@@ -51,6 +53,7 @@ export async function assignMixToContactAction(formData: FormData): Promise<void
       }
     });
   });
+  } catch (error) { fail(contactId, error instanceof Error ? error.message : "This Mix could not be started."); }
   // Beats timed from an appointment have nothing to count from here; the confirmation says so
   // rather than presenting them as scheduled. The visit is chosen explicitly on the calendar.
   redirect(`/contacts/${contact.id}?mixAssigned=${mix.steps.length ? "visit" : "1"}`);

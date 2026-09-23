@@ -1,3 +1,5 @@
+import { WorkflowAttention, UpcomingWorkflowCommitments } from "@/components/WorkflowAttention";
+import { readWorkflowAttention } from "@/lib/workflow-attention";
 import { QuietDaySuggestions } from "@/components/QuietDaySuggestions";
 import { readQuietDays } from "@/lib/quiet-days";
 import { sameContactSequence } from "@/lib/contact-profile-view";
@@ -55,6 +57,7 @@ function pickTokens(values: Record<string, string>, sources: Array<string | null
   return picked;
 }
 type SearchParams = {
+  attentionPage?: string; callbackPage?: string; setupLater?: string;
   q?: string;
   jump?: string;
   priority?: string;
@@ -108,8 +111,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const query = (params.q ?? "").trim().slice(0, 160);
   const priority = params.priority === "overdue" ? "overdue" : "all";
   const compact = params.view === "compact";
-  const range = ["due", "week", "month", "all"].includes(params.range ?? "") ? params.range! : "due";
-  const status = ["all", "pending", "done", "skipped"].includes(params.status ?? "") ? params.status! : "all";
+  const range = params.jump ? "all" : ["due", "week", "month", "all"].includes(params.range ?? "") ? params.range! : "due";
+  const status = params.jump ? "all" : ["all", "pending", "done", "skipped"].includes(params.status ?? "") ? params.status! : "all";
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
   const { workspace, user, impersonation } = await requireWorkspace();
   const displayPreferences = await displayPreferencesForUser(user.id);
@@ -140,12 +143,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   } else if (range === "week") dateWhere = { scheduledAt: { gte: startToday, lt: endWeek } };
   else if (range === "month") dateWhere = { scheduledAt: { gte: startToday, lt: endMonth } };
 
-  const where: Prisma.JumpWhereInput = { workspaceId: workspace.id, ...(params.jump ? { id: params.jump.slice(0, 120) } : {}), AND: [statusWhere, dateWhere, channelWhere,
+  const where: Prisma.JumpWhereInput = params.jump ? { workspaceId: workspace.id, id: params.jump.slice(0, 120) } : { workspaceId: workspace.id, ...(params.jump ? { id: params.jump.slice(0, 120) } : {}), AND: [statusWhere, dateWhere, channelWhere,
     ...(priority === "overdue" ? [{ status: "PENDING" as const, scheduledAt: { lt: startToday } }] : []),
     ...(query ? [{ OR: [{ contact: { displayName: { contains: query, mode: "insensitive" as const } } }, { mix: { name: { contains: query, mode: "insensitive" as const } } }, { reason: { contains: query, mode: "insensitive" as const } }] }] : [])
   ] };
   // Observe preparation first so a just-finished job cannot report ready beside an older list.
   const preparation = await readPreparationStatus(workspace.id);
+  const exactRecord = params.jump ? await prisma.jump.findFirst({ where: { id: params.jump.slice(0, 120), workspaceId: workspace.id }, select: { id: true, contactId: true, status: true, completionMethod: true, workflowInstanceId: true } }) : null;
   const [list, totalCount, pendingCount, attentionCount, overdueCount, dueThisWeekCount, completedTodayCount] = await Promise.all([
     readTodayPage(workspace.id, where, params, range === "due" ? {
       pending: { scheduledAt: { lt: endToday } },
@@ -160,11 +164,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   ]);
   const followUps = list.items;
   const pendingIds = followUps.filter((followUp) => followUp.status === "PENDING").map((followUp) => followUp.id);
-  const [drafts, owner, automation, quietDays] = await Promise.all([
+  const [drafts, owner, automation, quietDays, workflowAttention] = await Promise.all([
     readJumpDrafts(workspace.id, pendingIds),
     prisma.user.findUnique({ where: { id: workspace.ownerId }, select: { name: true, email: true } }),
     prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id }, select: { enabled: true, emailEnabled: true, smsEnabled: true } }),
-    readQuietDays({ workspaceId: workspace.id, timezone })
+    readQuietDays({ workspaceId: workspace.id, timezone }),
+    readWorkflowAttention(workspace.id, 30, Math.max(0, Math.min(100000, Math.floor(Number(params.attentionPage) || 0))) * 30, new Date(), Math.max(0, Math.min(100000, Math.floor(Number(params.callbackPage) || 0))) * 30).catch(() => null)
   ]);
   // A drafted follow-up is held from automatic delivery; the card says so only where delivery would otherwise apply.
   const automaticFor = (followUpChannel: Channel) => Boolean(automation?.enabled && ((followUpChannel === "EMAIL" && automation.emailEnabled) || (followUpChannel === "SMS" && automation.smsEnabled)));
@@ -265,7 +270,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const isNext = !compact && followUp.id === nextUp?.id;
     const recentEvents = eventsByFollowUp.get(followUp.id) ?? [];
     const daysOverdue = Math.max(1, Math.floor((startToday.getTime() - followUp.scheduledAt.getTime()) / 86_400_000) + 1);
-    const dueLabel = followUp.scheduledAt < startToday
+    const dueLabel = !isPending ? `Originally due ${formatDateTime(followUp.scheduledAt, displayPreferences)}` : followUp.scheduledAt < startToday
       ? `${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue`
       : followUp.scheduledAt < endToday
         ? `Today · ${formatDateTime(followUp.scheduledAt, displayPreferences)}`
@@ -303,7 +308,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         <article id={`jump-${followUp.id}`} className={`jump-card jump-task-card ${isNext ? "next-follow-up" : ""} ${isPending ? "" : "jump-task-complete"}`}>
           <div className="jump-card-main"><span className="person-initials jump-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>
             {isNext && <span className="eyebrow">Next up</span>}
-            <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span title={dueLabel} className={followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{followUp.scheduledAt >= startToday && followUp.scheduledAt < endToday ? new Intl.DateTimeFormat(displayPreferences.locale, { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(followUp.scheduledAt) : dueLabel}</span><span className="channel-pill">{channelLabel(followUpChannel)}</span></div>
+            <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span title={dueLabel} className={isPending && followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{isPending && followUp.scheduledAt >= startToday && followUp.scheduledAt < endToday ? new Intl.DateTimeFormat(displayPreferences.locale, { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(followUp.scheduledAt) : dueLabel}</span><span className="channel-pill">{channelLabel(followUpChannel)}</span></div>
             <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}<span>{followUp.mix.name}</span>{followUp.reason && followUp.reason.trim().toLowerCase() !== followUp.mix.name.trim().toLowerCase() && <span>{followUp.reason}</span>}{isPending && <span className="status-pill">{automaticForPlan && !heldByChoice && !drafts.get(followUp.id) && !followUp.accessInvite && (!followUp.appointmentBinding || followUp.appointmentBinding.automaticDelivery) && !missingMethod ? "Automatic sending enabled" : automaticForPlan ? "Held for your review" : "Manual · you send"}</span>}</div>
             <p className="jump-snippet">{snippet}</p>
           </div>
@@ -340,6 +345,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
       <JumpReturnTray />
+      {params.setupLater && <Notice type="success">Your setup answers are saved. <Link href="/onboarding">Return to setup</Link> whenever you’re ready.</Notice>}
       {params.invitations && <Notice type="success">Your invitations are ready in Today. Review each message and send it from your own text or email app.</Notice>}
     {params.welcome && <Notice type="success">{welcomeMessage} Tap Review to begin.</Notice>}
       {params.demo && <Notice type="info">Using local demo data.</Notice>}
@@ -351,7 +357,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       {params.error && <Notice type="error">{params.error}</Notice>}
 
       <header className="page-header today-page-header">
-        <div><h1 tabIndex={-1}>Today</h1><p>{attentionCount ? `${attentionCount.toLocaleString()} follow-up${attentionCount === 1 ? " needs" : "s need"} your attention${overdueCount ? ` · ${overdueCount.toLocaleString()} overdue` : ""}.` : preparation.state !== "ready" ? "Your follow-up list is awaiting preparation." : upcomingCount ? `${upcomingCount.toLocaleString()} upcoming follow-up${upcomingCount === 1 ? "" : "s"}.` : activeFilterCount ? "No open follow-ups in this view." : "You’re caught up."}</p></div>
+        <div><h1 tabIndex={-1}>Today</h1><p>{attentionCount ? `${attentionCount.toLocaleString()} follow-up${attentionCount === 1 ? " needs" : "s need"} your attention${overdueCount ? ` · ${overdueCount.toLocaleString()} overdue` : ""}.` : !workflowAttention ? "Your next steps could not be checked." : workflowAttention.total ? `${workflowAttention.total} item${workflowAttention.total === 1 ? " needs" : "s need"} your input.` : workflowAttention.preparing || preparation.state !== "ready" ? "Your follow-up list is awaiting preparation." : (upcomingCount + (workflowAttention.futureTotal ?? 0)) ? `${(upcomingCount + (workflowAttention.futureTotal ?? 0)).toLocaleString()} upcoming follow-up${upcomingCount === 1 ? "" : "s"}.` : activeFilterCount ? "No open follow-ups in this view." : "You’re caught up."}</p>{(!workflowAttention || workflowAttention.total > 0) && <a className="text-button" href="#needs-your-input">Needs your input{workflowAttention ? ` · ${workflowAttention.total}` : ""}</a>}</div>
         <Sheet trigger={<button className={activeFilterCount ? "button filter-trigger active" : "button filter-trigger"} type="button"><AppIcon name="settings" />Filter{activeFilterCount ? ` ${activeFilterCount}` : ""}</button>} title="Filter Today" description="Changes apply as soon as you choose them.">
           <AutoSubmitForm key={viewParams.toString()} className="form-stack" action="/jumps" ariaLabel="Today filters">
             <input type="hidden" name="q" value={query} /><input type="hidden" name="view" value={compact ? "compact" : "focus"} /><label className="field"><span>Priority</span><select name="priority" defaultValue={priority}><option value="all">All priorities</option><option value="overdue">Overdue commitments</option></select></label>
@@ -369,8 +375,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
       {needsAttention.filter(item => item.scheduledAt < startToday).length > 0 && <section aria-labelledby="overdue-follow-ups"><div className="section-label urgent"><h2 id="overdue-follow-ups">Overdue</h2><span>{overdueCount}</span></div><div className="jump-list">{needsAttention.filter(item => item.scheduledAt < startToday).map(renderCard)}</div></section>}
       {needsAttention.filter(item => item.scheduledAt >= startToday).length > 0 && <section aria-labelledby="today-follow-ups"><div className="section-label"><h2 id="today-follow-ups">Today</h2><span>{attentionCount - overdueCount}</span></div><div className="jump-list">{needsAttention.filter(item => item.scheduledAt >= startToday).map(renderCard)}</div></section>}
+      <WorkflowAttention attention={workflowAttention} />
       <QuietDaySuggestions locale={displayPreferences.locale} initial={quietDays} canResolve={!impersonation} compact />
-      <details className="today-queue-group" open={upcoming.length > 0 || undefined}><summary>{range === "due" || range === "week" ? "Later this week" : "Upcoming"} <span>{upcomingCount || dueThisWeekCount}</span></summary>{upcoming.length ? <div className="jump-list">{upcoming.map(renderCard)}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
+      <details className="today-queue-group" open={upcoming.length > 0 || Boolean(workflowAttention?.future?.length) || undefined}><summary>{range === "due" || range === "week" ? "Later this week" : "Upcoming"} <span>{(upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0)}</span></summary><UpcomingWorkflowCommitments attention={workflowAttention} displayPreferences={displayPreferences} />{upcoming.length ? <div className="jump-list">{upcoming.map(renderCard)}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
       <details className="today-queue-group" open={status === "done" || status === "skipped" || pendingCount === 0 || undefined}><summary>Done <span>{completed.length || completedTodayCount}</span></summary>{completed.length ? <div className="jump-list">{completed.map(renderCard)}</div> : <TodayLink href="/jumps?range=due&status=done">View completed follow-ups</TodayLink>}</details>
       {totalCount > 0 && <nav className="pagination-bar today-pagination" aria-label="Follow-up pages">
         <span role="status">Showing {ordered.length} of {totalCount.toLocaleString()} follow-up{totalCount === 1 ? "" : "s"} in this view.</span>
@@ -379,7 +386,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           {list.next && <TodayLink className="button primary" href={pageHref("after", list.next)}>Next follow-ups</TodayLink>}
         </div>
       </nav>}
-      {!ordered.length && preparation.state === "ready" && (activeFilterCount
+      {!ordered.length && params.jump && <Notice type="info">{!exactRecord ? "This follow-up is unavailable. It may have been removed or belong to another account." : <>This follow-up is no longer pending{exactRecord.completionMethod ? `: ${exactRecord.completionMethod.replaceAll("_", " ")}` : "."} <Link href={exactRecord.workflowInstanceId ? `/journey?${new URLSearchParams({ contactId: exactRecord.contactId, work: exactRecord.workflowInstanceId })}` : `/contacts/${exactRecord.contactId}`}>Review its current context</Link>.</>}</Notice>}
+      {!ordered.length && !params.jump && workflowAttention && !workflowAttention.total && !workflowAttention.preparing && preparation.state === "ready" && (activeFilterCount
         ? <EmptyState title="No follow-ups match these filters" description="Try clearing the filters to see what needs your attention today." actionHref="/jumps" actionLabel="Clear filters" />
         : <EmptyState title="Nothing due right now" description="A little hello goes a long way. Add a person and choose a follow-up date; your next action will appear here." actionHref="/contacts/new" actionLabel="Add a person" />)}
       {!ordered.length && <div className="page-actions"><TodayLink className="button" href="/jumps?range=month&status=pending">Review upcoming</TodayLink><Link className="button" href="/contacts">Schedule with an existing person</Link></div>}

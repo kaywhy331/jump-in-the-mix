@@ -34,6 +34,7 @@ export type WorkflowRun = {
   id: string; mixId: string; startedAt: string; completedAt: string | null;
   status: "ACTIVE" | "FINISHED" | "CANCELED";
   parentTransitionId: string | null; legacy: boolean;
+  resolution?: { updateId: string; kind: "OUTCOME" | "WAIT" };
 };
 export type WorkflowVisit = {
   id: string; runId: string; stepId: string; readyAt: string;
@@ -58,8 +59,28 @@ export type WorkflowState = {
   sequence: number; runs: WorkflowRun[]; visits: WorkflowVisit[];
   evaluations: WorkflowEvaluation[]; transitions: WorkflowTransition[];
   commands: string[]; issue: string | null;
+  commitments?: WorkflowCommitment[];
+  updates?: WorkflowUpdateRecord[];
+  pendingBusinessUpdate?: { requestId: string; input: WorkflowBusinessUpdate; recordedAt: string };
   pendingChoices?: Array<{ requestId: string; visitId: string; sourceCompletedAt: string; decisions: Array<{ ruleId: string; outcome: string }> }>;
   context?: { timezone: string; appointmentBindingId: string | null; calendarEntryId?: string; completionCutoff?: string; occurrenceKey?: string; admissionAlias?: string };
 };
 export const emptyWorkflowState = (): WorkflowState => ({ sequence: 0, runs: [], visits: [], evaluations: [], transitions: [], commands: [], issue: null });
 export const workflowNodeKey = (target: WorkflowTarget) => target.stepId ? `beat:${target.stepId}` : `mix:${target.mixId}`;
+
+/** An owner-reviewed change applies to one run, never every Mix for a person. */
+export type WorkflowBusinessUpdate = {
+  kind: "OUTCOME" | "WAIT"; runId: string; scope: "SOURCE_MIX_REMAINDER";
+  ruleId?: string; outcome?: string;
+  dueAt?: string; timezone?: string; source?: "CUSTOMER" | "OWNER";
+};
+export type WorkflowCommitment = {
+  id: string; updateId: string; runId: string; dueAt: string; timezone: string;
+  source: "CUSTOMER" | "OWNER"; recordedAt: string; status: "OPEN" | "RESOLVED" | "CANCELED";
+};
+export type WorkflowCheckpoint = Pick<WorkflowState, "runs" | "visits" | "evaluations" | "transitions" | "pendingChoices" | "commitments" | "issue">;
+export type WorkflowUpdateRecord = {
+  id: string; runId: string; kind: "OUTCOME" | "WAIT" | "UNDO"; at: string; summary: string;
+  ruleId?: string; outcome?: string; reverses?: string; reversedAt?: string;
+  before?: WorkflowCheckpoint; afterFingerprint?: string; canUndo?: boolean;
+};

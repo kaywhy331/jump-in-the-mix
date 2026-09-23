@@ -7,7 +7,7 @@ export const journeyPreferencesSchema = z.object({
   version: z.literal(1), communication: z.enum(["RECOMMENDED", "SMS", "EMAIL", "PHONE_CALL"]),
   pace: z.enum(["RECOMMENDED", "RELAXED"]), workDays: z.array(z.number().int().min(0).max(6)).min(1).max(7),
   workStart: z.number().int().min(0).max(1439), workEnd: z.number().int().min(1).max(1440),
-  avoidAppointments: z.boolean(), reviewedAt: z.string().optional()
+  avoidAppointments: z.boolean(), reviewedAt: z.string().optional(), draftBlueprintId: z.string().max(160).optional(), draftSetupMode: z.enum(["journey", "individual"]).optional()
 }).refine(value => value.workStart < value.workEnd, { message: "Choose closing hours after opening hours." });
 export type JourneyPreferences = z.infer<typeof journeyPreferencesSchema>;
 export type JourneySetupValues = { preferences: JourneyPreferences; timezone: string; defaultFollowUpMinutes: number; quietHoursStart: number; quietHoursEnd: number; appointmentBufferMinutes: number };

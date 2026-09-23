@@ -31,7 +31,7 @@ export function startWorkflow(definition: WorkflowDefinition, target: WorkflowTa
 /** The final ordinary Beat can collect a whole-Mix decision in the same interaction. */
 export function workflowDecisionRulesForVisit(definition: WorkflowDefinition, state: WorkflowState, visitId: string | null) {
   const visit = state.visits.find(item => item.id === visitId), run = state.runs.find(item => item.id === visit?.runId);
-  if (!visit || !run) return [];
+  if (!visit || !run || run.resolution) return [];
   const rules = definition.rules.filter(rule => rule.enabled && rule.source.mixId === run.mixId);
   const lastBeat = state.visits.filter(item => item.runId === run.id && item.id !== visit.id && item.status !== "CANCELED").every(terminal)
     && !rules.some(rule => rule.source.stepId === visit.stepId)
@@ -83,7 +83,7 @@ export type WorkflowObservation = { visitId: string; status: WorkflowVisit["stat
 export function observeWorkflow(state: WorkflowState, observations: WorkflowObservation[]): void {
   for (const observation of observations) {
     const visit = state.visits.find(item => item.id === observation.visitId);
-    if (!visit || visit.status === "CANCELED") continue;
+    if (!visit || (visit.status === "CANCELED" && !["DONE", "SKIPPED"].includes(observation.status))) continue;
     if (terminal(visit) && !["DONE", "SKIPPED"].includes(observation.status)) {
       const run = state.runs.find(item => item.id === visit.runId)!;
       run.status = "ACTIVE"; run.completedAt = null;
@@ -93,7 +93,7 @@ export function observeWorkflow(state: WorkflowState, observations: WorkflowObse
   }
 }
 
-function evaluationFor(state: WorkflowState, ruleId: string, runId: string, visitId: string | null, at: string): WorkflowEvaluation {
+export function evaluationFor(state: WorkflowState, ruleId: string, runId: string, visitId: string | null, at: string): WorkflowEvaluation {
   const existing = state.evaluations.find(item => item.ruleId === ruleId && item.runId === runId && item.visitId === visitId);
   if (existing) {
     if (existing.status === "CANCELED") { existing.status = "WAITING"; existing.occurredAt = at; }
@@ -117,6 +117,7 @@ export function advanceWorkflow(state: WorkflowState, definition: WorkflowDefini
       for (const visit of state.visits.filter(item => item.runId === run.id && terminal(item) && eligible(item.completedAt))) {
         for (const rule of activeRules.filter(item => item.source.mixId === run.mixId && item.source.stepId === visit.stepId)) evaluationFor(state, rule.id, run.id, visit.id, visit.completedAt!);
       }
+      if (run.resolution) continue; // An early business update is not completion of every Beat.
       const visits = state.visits.filter(item => item.runId === run.id && item.status !== "CANCELED");
       const waiting = state.evaluations.some(item => item.runId === run.id && item.visitId && item.status === "WAITING");
       const activeBeatRoutes = state.transitions.some(item => item.target?.mixId === run.mixId && item.target.stepId && state.evaluations.some(evaluation => evaluation.id === item.evaluationId && evaluation.runId === run.id && evaluation.visitId) && ["WAITING", "HELD"].includes(item.status));
@@ -130,7 +131,8 @@ export function advanceWorkflow(state: WorkflowState, definition: WorkflowDefini
       const rule = activeRules.find(item => item.id === evaluation.ruleId);
       const run = state.runs.find(item => item.id === evaluation.runId)!;
       if (!rule || run.status === "CANCELED" || options.unavailableMixes?.has(run.mixId) || options.blockedRunIds?.has(run.id)) continue;
-      let matching = rule.routes.filter(route => route.when === "FINISHED" || (route.when === "OUTCOME" && route.outcome === evaluation.outcome));
+      if (state.commitments?.some(item => item.runId === run.id && item.status === "OPEN")) continue;
+      let matching = rule.routes.filter(route => (route.when === "FINISHED" && !run.resolution) || (route.when === "OUTCOME" && route.outcome === evaluation.outcome));
       if (!evaluation.outcome && !matching.length) matching = rule.routes.filter(route => route.when === "TIMEOUT" && Date.parse(evaluation.occurredAt) + route.delayMinutes * 60_000 <= now);
       if (!matching.length) continue;
       if (rule.mode === "CHOICE" && matching.length > 1) { state.issue = `More than one path matches “${rule.name}”. Review its conditions.`; continue; }
@@ -188,6 +190,7 @@ export function advanceWorkflow(state: WorkflowState, definition: WorkflowDefini
 }
 
 export function workflowFinished(state: WorkflowState): boolean {
+  if (state.pendingBusinessUpdate || state.commitments?.some(item => item.status === "OPEN")) return false;
   return !state.issue && !state.pendingChoices?.length && state.runs.length > 0 && state.runs.every(run => run.status !== "ACTIVE")
     && !state.evaluations.some(item => item.status === "WAITING")
     && !state.transitions.some(item => ["WAITING", "HELD", "STARTED"].includes(item.status));

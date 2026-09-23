@@ -32,13 +32,14 @@ export async function GET(request: Request) {
     automatedDeliveries,
     authIdentities,
     journeyPreference, journeyStages, journeys, journeyEvents,
-    mixWorkflow, mixWorkflowInstances, mixFavorites, megaMixInstallations,
-    calendarEntries, calendarConnections, intakeConnections, intakeReceipts, intakeIdentities
+    mixWorkflow, mixWorkflowInstances, mixFavorites, megaMixInstallations, mixStops, contactGroupStates, customFieldDefinitions,
+    calendarEntries, calendarConnections, intakeConnections, intakeReceipts, intakeIdentities,
+    savedContactViews, contactMergeRecords, handoffEvents, broadcastSchedules, marketingPreference, sharedMixImports, supportTickets, reminderDeliveries, reminderDevices, accessInvitations
   ] = await Promise.all([
     prisma.workspaceProfile.findUnique({ where: { workspaceId } }),
     prisma.userPreference.findUnique({ where: { userId: user.id } }),
     prisma.workspacePreference.findUnique({ where: { workspaceId } }),
-    prisma.contact.findMany({ where: { workspaceId }, include: { emails: true, phones: true, addresses: true, jumpDates: { include: { dateType: true } }, customFieldValues: { include: { definition: true } }, groupMemberships: { include: { group: true } } }, orderBy: { createdAt: "asc" } }),
+    prisma.contact.findMany({ where: { workspaceId }, include: { relationshipState: true, emails: true, phones: true, addresses: true, jumpDates: { include: { dateType: true } }, customFieldValues: { include: { definition: true } }, groupMemberships: { include: { group: true } } }, orderBy: { createdAt: "asc" } }),
     prisma.contactActivity.findMany({ where: { workspaceId }, orderBy: { occurredAt: "asc" } }),
     prisma.group.findMany({ where: { workspaceId }, include: { memberships: true }, orderBy: { createdAt: "asc" } }),
     prisma.dateType.findMany({ where: { OR: [{ workspaceId }, { workspaceId: null, isSystem: true }] }, orderBy: { createdAt: "asc" } }),
@@ -62,11 +63,24 @@ export async function GET(request: Request) {
     prisma.mixWorkflowInstance.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
     prisma.mixFavorite.findMany({ where: { workspaceId, userId: user.id }, orderBy: { createdAt: "asc" } }),
     prisma.megaMixInstallation.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
+    prisma.mixStop.findMany({ where: { workspaceId }, orderBy: [{ stoppedAt: "asc" }, { id: "asc" }] }),
+    prisma.contactGroupState.findMany({ where: { workspaceId } }),
+    prisma.contactCustomFieldDefinition.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
     prisma.calendarEntry.findMany({ where: { workspaceId }, orderBy: { startsAt: "asc" } }),
     prisma.calendarConnection.findMany({ where: { workspaceId }, select: { id: true, name: true, enabled: true, lastSyncedAt: true, lastAttemptAt: true, lastError: true, createdAt: true } }),
     prisma.intakeConnection.findMany({ where: { workspaceId }, select: { id: true, name: true, kind: true, enabled: true, createdAt: true } }),
     prisma.intakeReceipt.findMany({ where: { connection: { workspaceId } }, orderBy: { createdAt: "asc" } }),
-    prisma.intakeIdentity.findMany({ where: { connection: { workspaceId } } })
+    prisma.intakeIdentity.findMany({ where: { connection: { workspaceId } } }),
+    prisma.contactSavedView.findMany({ where: { workspaceId, userId: user.id }, orderBy: { createdAt: "asc" } }),
+    prisma.contactMergeRecord.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
+    prisma.jumpActionEvent.findMany({ where: { workspaceId }, orderBy: { occurredAt: "asc" } }),
+    prisma.mixBroadcastSchedule.findMany({ where: { workspaceId } }),
+    prisma.workspaceMarketingPreference.findUnique({ where: { workspaceId } }),
+    prisma.sharedMixImport.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
+    prisma.supportTicket.findMany({ where: { workspaceId, requesterUserId: user.id }, select: { id: true, reference: true, title: true, category: true, priority: true, status: true, createdAt: true, updatedAt: true, resolvedAt: true, closedAt: true, messages: { select: { id: true, authorType: true, body: true, createdAt: true, emailStatus: true }, orderBy: { createdAt: "asc" } } }, orderBy: { createdAt: "asc" } }),
+    prisma.notificationDelivery.findMany({ where: { workspaceId, userId: user.id }, orderBy: { createdAt: "asc" } }),
+    prisma.pushSubscription.findMany({ where: { workspaceId, userId: user.id }, select: { id: true, userAgent: true, lastUsedAt: true, createdAt: true, followUpDeliveries: { select: { jumpId: true, scheduledAt: true, status: true, deliveredAt: true, createdAt: true } } } }),
+    prisma.referralAccessInvite.findMany({ where: { workspaceId, inviterUserId: user.id }, select: { id: true, contactId: true, recipientEmail: true, recipientPhone: true, manualDelivery: true, lastSentAt: true, acceptedAt: true, revokedAt: true, createdAt: true } })
   ]);
   const exportedAt = new Date();
   if (new URL(request.url).searchParams.get("format") === "csv") {
@@ -87,7 +101,7 @@ export async function GET(request: Request) {
       "contacts.csv": strToU8(contactsCsv),
       "timeline.csv": strToU8(createTimelineCsv(activities, contactNames)),
       "follow-ups.csv": strToU8(createFollowUpsCsv(jumps)),
-      "README.txt": strToU8("Jump in the Mix spreadsheet export\n\ncontacts.csv contains people and customer-facing contact details.\ntimeline.csv contains notes and recorded outcomes, including entries marked private.\nfollow-ups.csv contains scheduled and completed follow-ups.\n\nThe complete JSON export contains every account field. Store either export securely.\n")
+      "README.txt": strToU8("Jump in the Mix spreadsheet export\n\ncontacts.csv contains people and customer-facing contact details.\ntimeline.csv contains notes and recorded outcomes, including entries marked private.\nfollow-ups.csv contains scheduled and completed follow-ups.\n\nThe JSON export also includes relationship preferences, stopped mixes, configuration and other account records. Security credentials and private connection URLs are excluded. Store either export securely.\n")
     }, { level: 6 });
     return new NextResponse(Buffer.from(archive), {
       headers: {
@@ -120,9 +134,14 @@ export async function GET(request: Request) {
     mixWorkflow: { configuration: mixWorkflow, instances: mixWorkflowInstances },
     mixFavorites,
     megaMixInstallations,
+    mixStops,
+    contactGroupStates,
+    customFieldDefinitions,
+    savedContactViews, contactMergeRecords, handoffEvents, broadcastSchedules, marketingPreference, sharedMixImports, supportTickets, reminderDeliveries, reminderDevices, accessInvitations,
     calendar: { entries: calendarEntries, connections: calendarConnections },
     leadIntake: { connections: intakeConnections, receipts: intakeReceipts, identities: intakeIdentities },
-    excludedSecurityMaterial: ["password hashes", "session tokens", "provider credentials", "provider webhook payloads", "connection keys and private calendar URLs"]
+    excludedSecurityMaterial: ["password hashes", "session tokens", "provider credentials", "provider webhook payloads", "connection keys and private calendar URLs", "push endpoints and authentication keys", "invitation tokens"],
+    excludedOperationalData: ["platform staff administration and analytics", "shared system-catalog source records", "internal job, transport and audit queues"]
   };
   return new NextResponse(JSON.stringify(document, null, 2), {
     headers: {

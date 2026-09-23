@@ -1,4 +1,5 @@
 "use server";
+import { workflowContinuation } from "@/lib/workflow-continuation";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -24,6 +25,8 @@ export async function saveCalendarAction(_state: CalendarSaveState, data: FormDa
     return { error: error instanceof Error ? error.message : "This event could not be saved." };
   }
   const next = new URLSearchParams({ date: value(data, "startsAt").slice(0, 10), saved: "1", savedEvent: result.entryId });
+  const returnTo = workflowContinuation(value(data, "returnTo"));
+  if (returnTo) next.set("returnTo", returnTo);
   if (result.bindingId) next.set("plan", "1");
   for (const [key, count] of Object.entries(result.outlook ?? {})) if (count > 0) next.set(key, String(count));
   if (result.unscopedEnrollmentKept) next.set("kept", "1");

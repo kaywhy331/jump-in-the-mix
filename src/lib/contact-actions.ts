@@ -2,6 +2,7 @@
 
 import { applyJourneyEvent } from "@/lib/journey";
 
+import { workflowContinuation } from "@/lib/workflow-continuation";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import {
@@ -232,7 +233,7 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
   const result = new URLSearchParams({ created: "1" });
   if (followUp) result.set("dateCreated", "1");
   if (followUp?.mixId) result.set("mixAssigned", "1");
-  redirect(`/contacts/${contact.id}?${result.toString()}`);
+  redirect(workflowContinuation(value(formData, "returnTo"), contact.id) ?? `/contacts/${contact.id}?${result.toString()}`);
 }
 
 async function updateContact(formData: FormData): Promise<ContactFormState> {

@@ -144,7 +144,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
       {!query.created && query.dateCreated && <Notice type="success">Date added.</Notice>}
       {query.dateUpdated && <Notice type="success">Date updated.</Notice>}
       {query.dateDeleted && <Notice type="success">Date removed.</Notice>}
-      {!query.created && query.mixAssigned && <Notice type="success">Mix started.{query.mixAssigned === "visit" && <> Its beats timed from an appointment wait until you <Link href={`/calendar?contact=${contact.id}`}>line it up with a visit</Link> from the calendar.</>}</Notice>}
+      {!query.created && query.mixAssigned && <Notice type="success">Start saved. Follow-ups are being prepared. <Link href="/settings/notifications">Set up reminders for me (optional)</Link>.{query.mixAssigned === "visit" && <> Its beats timed from an appointment wait until you <Link href={`/calendar?contact=${contact.id}`}>line it up with a visit</Link> from the calendar.</>}</Notice>}
       {query.mixRemoved && <Notice type="success">Mix removed.</Notice>}
       {query.mixStopped && <Notice type="success">Mix stopped.</Notice>}
       {query.mixResumed && <Notice type="success">Mix resumed.</Notice>}

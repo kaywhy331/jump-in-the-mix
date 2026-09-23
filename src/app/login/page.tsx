@@ -67,6 +67,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         {transactionalEmailConfigured() && <>
           <div className="auth-divider"><span>or skip the password</span></div>
           <ActionForm action={requestMagicLinkFormAction} className="form-stack">
+            <input type="hidden" name="next" value={params.next ?? ""} />
             <div className="field"><label htmlFor="magicEmail">Email me a secure sign-in link</label><input id="magicEmail" name="email" type="email" autoComplete="email" inputMode="email" required /></div>
             <FormSubmitButton label="Email sign-in link" pendingLabel="Please wait…" />
           </ActionForm>
