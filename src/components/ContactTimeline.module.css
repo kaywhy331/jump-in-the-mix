@@ -21,3 +21,4 @@
 .error { color: var(--late); }
 .loading { font-size: .875rem; color: var(--text-2); padding-block: 12px; }
 @media (max-width: 600px) { .timelineItem { grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding-block: 14px; } }
+@media (max-width: 900px) { .noteActions > summary { min-width: 44px; min-height: 44px; } }

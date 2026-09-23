@@ -4,6 +4,7 @@ import { TimezonePicker } from "@/components/TimezonePicker";
 import { FormGuard } from "@/components/FormGuard";
 import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { saveCalendarAction, type CalendarSaveState } from "@/lib/calendar-actions";
+import { UNCONFIRMED_SAVE, isNavigationSignal } from "@/lib/unconfirmed-save";
 import type { ContactCandidate } from "@/lib/appointment-bindings";
 import { Notice } from "@/components/Notice";
 import { WhenPicker, type WhenAvailability } from "@/components/WhenPicker";
@@ -28,7 +29,10 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
   const [values, setValues] = useState({ title: entry?.title ?? "", kind: entry?.kind ?? "MEETING", contactId: entry?.contactId ?? contactId, date: starts.date, time: starts.time, duration: initialDuration(entry), customEnd: entry?.endsAt ?? `${date}T09:30`, timezone, allowOverlap: false, location: entry?.location ?? "", link: entry?.link ?? "", details: entry?.details ?? "", newContactName: "", newContactPhone: "", newContactEmail: "", resolvedContactId: "", planId: "" });
   const [availability, setAvailability] = useState<WhenAvailability | null>(null);
   const [newPersonOpen, setNewPersonOpen] = useState(false);
-  const [state, action, pending] = useActionState<CalendarSaveState, FormData>(saveCalendarAction, { error: "" });
+  const [state, action, pending] = useActionState<CalendarSaveState, FormData>(async (previous, data) => {
+    try { return await saveCalendarAction(previous, data); }
+    catch (cause) { if (isNavigationSignal(cause)) throw cause; return { error: UNCONFIRMED_SAVE }; }
+  }, { error: "" });
   // Directory searches must not remove an already selected option from this draft.
   const selectedContact = useRef(contacts.find(contact => contact.id === values.contactId));
   const matchingContact = contacts.find(contact => contact.id === values.contactId);
@@ -69,7 +73,7 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
   // React resets a form submitted through its action prop once the action settles, which blanks
   // controlled fields too. Dispatching the same action from the submit event keeps what was typed
   // while a returned error or person choice is shown; the action prop remains for no-script submits.
-  return <form action={action} onSubmit={submit} onInvalid={event => {
+  return <form action={action} onReset={event => event.preventDefault()} onSubmit={submit} onInvalid={event => {
     let details = (event.target as HTMLElement).closest("details");
     while (details) { details.open = true; details = details.parentElement?.closest("details") ?? null; }
   }} className="form-grid calendar-entry-form"><FormGuard preservedQuery={{ ...(returnTo ? { returnTo } : {}), date, ...(entry ? { edit: entry.id } : { new: "1", contact: contactId }) }} />{state.error && <div ref={errorRef} tabIndex={-1} className="field full"><Notice type="error">{state.error}</Notice></div>}<fieldset disabled={pending} className="calendar-entry-fields" aria-label="Event details"><input type="hidden" name="id" value={entry?.id ?? ""} /><input type="hidden" name="version" value={entry?.version ?? 0} />{returnTo && <input type="hidden" name="returnTo" value={returnTo} />}

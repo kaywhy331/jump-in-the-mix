@@ -252,6 +252,7 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
     return { error: error instanceof Error ? error.message : "The contact could not be updated." };
   }
 
+  try {
   await prisma.$transaction(async (tx) => {
     await tx.contact.update({
       where: { id: contactId },
@@ -327,6 +328,12 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
       }
     });
   });
+  } catch (error) {
+    // Keep the owner's entries on screen: a concurrent edit or duplicate is recoverable, not a crash.
+    if (error instanceof Error && error.message.startsWith("One or more addresses")) return { error: `${error.message} Reload the contact, then save again.` };
+    if (error && typeof error === "object" && "code" in error && error.code === "P2002") return { error: "Another contact already uses one of these email addresses or phone numbers. Your entries are kept." };
+    return { error: "The contact could not be saved. Your entries are kept. Reload to see the latest version, then try again." };
+  }
   await queueContactReconciliation(workspace.id, contactId);
   // Editing from a Today review (e.g. "Add phone") returns to that follow-up.
   const todayReturn = customerReturnPath(value(formData, "returnTo"));

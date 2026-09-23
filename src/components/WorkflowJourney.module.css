@@ -216,3 +216,4 @@
 .connectionFocus li button{display:flex;flex-direction:column;gap:5px;width:100%;text-align:left;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--text);font:inherit;cursor:pointer;overflow-wrap:anywhere}
 .connectionFocus li button span,.connectionFocus p{font-size:12px;color:var(--text-2)}
 @media(max-width:600px){.connectionLegend{padding-inline:16px}.connectionFocus{margin-inline:12px}.connectionFocus>div{grid-template-columns:1fr}}
+@media (max-width:900px){.canvasControls button{min-height:44px}.nodePopulation button{min-height:44px;padding:10px 0}.connectionHint[data-active=true] button{min-height:44px}}

@@ -19,6 +19,9 @@ export function MegaMixSetup({ initialId, initialSetup, onboarding, active = tru
   const blueprint = tailorMegaMix(megaMixById(selected) ?? MEGA_MIXES[0], setup);
   const showReview = () => { const issue = validateJourneySetup(setup); setError(issue ?? ""); if (!issue) setReview(true); requestAnimationFrame(() => heading.current?.focus()); };
   return <ActionForm action={(previous, data) => data.get("finishLater") === "1" ? saveSetupForLaterAction(previous, data) : individual ? saveIndividualMixSetupAction(previous, data) : installMegaMixAction(previous, data)} protect={active}>
+    {/* The first submit button is the form's default for Enter. Browsers skip disabled ones, so this enabled, hidden
+        default cancels its own click: Enter can never fall through to "finish later". */}
+    <button type="submit" hidden aria-hidden="true" tabIndex={-1} onClick={event => event.preventDefault()} />
     {onboarding && <div className="skip-setup-form"><span><button className="text-button" name="finishLater" value="1" formNoValidate>Save answers and finish later</button>{" "}<small>Your answers are kept. No Mix is installed and no person is enrolled.</small></span></div>}
     <input type="hidden" name="individual" value={individual ? "1" : "0"} />
     <input type="hidden" name="blueprintId" value={blueprint.id} /><input type="hidden" name="version" value={blueprint.version} /><input type="hidden" name="tailored" value="1" />
@@ -27,7 +30,7 @@ export function MegaMixSetup({ initialId, initialSetup, onboarding, active = tru
     <p className={styles.progress}>{review ? "Review your setup" : "A few preferences, then review"}</p>
     <h2 ref={heading} tabIndex={-1}>{review ? "Ready when you are" : "Make this fit your day"}</h2>
     {error && <p role="alert" className="notice error">{error}</p>}
-    <div hidden={review} className="form-stack">
+    <div hidden={review} className="form-stack" onKeyDown={event => { if (event.key === "Enter" && event.target instanceof HTMLInputElement && !["checkbox", "radio", "button", "submit"].includes(event.target.type)) { event.preventDefault(); showReview(); } }}>
       <JourneyPreferenceFields id={id} value={setup} onChange={value => { setSetup(value); onSetupChange?.(value); }} />
       {onboarding && <details className="onboarding-step-card"><summary>Business name and message signature</summary><div className="form-grid"><label className="field"><span>Business name (optional)</span><input name="company" defaultValue={onboarding.company} autoComplete="organization" maxLength={200} /></label><label className="field"><span>How do you sign texts?</span><input name="smsSignature" defaultValue={onboarding.smsSignature || onboarding.userName} maxLength={160} /></label></div></details>}
       <button className="button primary" type="button" onClick={showReview}>Review my setup</button>

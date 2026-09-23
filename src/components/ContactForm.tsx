@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useMemo, useState } from "react";
 import { VoiceNoteButton } from "@/components/VoiceNoteButton";
 import { saveContactFormAction } from "@/lib/contact-actions";
+import { UNCONFIRMED_SAVE, isNavigationSignal } from "@/lib/unconfirmed-save";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { FormGuard } from "@/components/FormGuard";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
@@ -78,7 +79,10 @@ export function ContactForm({
   followUp?: FollowUpOption | null;
   returnTo?: string | null;
 }) {
-  const [result, formAction] = useActionState(saveContactFormAction, {});
+  const [result, formAction] = useActionState(async (previous: { error?: string }, data: FormData): Promise<{ error?: string }> => {
+    try { return await saveContactFormAction(previous, data); }
+    catch (cause) { if (isNavigationSignal(cause)) throw cause; return { error: UNCONFIRMED_SAVE }; }
+  }, {});
   const errorRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => { if (result.error) errorRef.current?.focus(); }, [result]);
   const [undoRemoval, setUndoRemoval] = useState<(() => void) | null>(null);
