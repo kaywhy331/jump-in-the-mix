@@ -33,3 +33,21 @@
     - The Mix editor shows the generated placeholders and can edit them.
   - The phone layout at 390px has no horizontal scroll.
   - The final email layout and subject capitalization were fixed after the browser pass and are covered by exact unit tests.
+
+## Production release
+
+This feature is live at https://jumpinthemix.com/ as commit `be4698a292eb15292edcf47ca063d40cfc4662fb`. The previous production commit was `0b175a5`.
+
+| Item | Value |
+| --- | --- |
+| Worker deploy | `dep-daq57n7lk1mc73br41t0`, live 22:35:23 UTC |
+| Web deploy | `dep-daq58fd9fdbs7386ea1g`, live 22:39:12 UTC |
+| Build ID | `hdSDNpsM4N4LE7bzfaJ1B` |
+
+- **Preflight (read-only):** passed. All 68 migrations matched and none was run.
+- **Worker:** its queue probe passed and was removed.
+- **Postflight:** health checks and public pages passed, and all 12 release files and 20 served assets matched on the live instance.
+- **Live smoke:** 9 of 9 checks passed with a synthetic account. The new check confirmed that an installed mega-mix Beat's Mix editor offers "Text, email and call versions · generated for you".
+- **Final check:** the synthetic data was removed and record counts matched the baseline. No jobs failed, health returned 200, and both services are on the release commit.
+
+Evidence: `.artifacts/channels-live-20260923/` in the release checkout. Not established: behavior on physical devices, and a live Today switch on a real contact with scheduled follow-ups. The Today switch was verified in the isolated build.
