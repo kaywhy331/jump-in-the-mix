@@ -391,7 +391,7 @@ export function EditableFollowUpAction({
           channel={channel}
           attempt={attempt}
         ><AppIcon name={channelIcon(channel)} /><span>{actionLabel(channel)}</span></JumpActionLink> : (
-          <a className="button primary" href={`/contacts/${contactId}/edit`}><AppIcon name="add" />Add {methodLabel}</a>
+          <a className="button primary" href={`/contacts/${contactId}/edit?returnTo=${encodeURIComponent(`/jumps?jump=${jumpId}`)}`}><AppIcon name="add" />Add {methodLabel}</a>
         )}
         <div className="workflow-option-actions">
         {copyContent && <span className={longSms ? "copy-primary" : ""}><JumpCopyButton jumpId={jumpId} text={copyContent} label="Copy" /></span>}

@@ -13,6 +13,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { APPOINTMENT_BUFFER_CHOICES, normalizeBufferMinutes } from "@/lib/calendar-availability";
 import { formatTimeInput } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Personal preferences" };
 
@@ -35,7 +36,7 @@ export default async function AccountPreferencesPage({ searchParams }: { searchP
     {query.mixActivationSaved && <Notice type="success">Mix activation preference saved.</Notice>}
     {query.personalSaved && <Notice type="success">Personal preferences saved.</Notice>}
     {query.schedulingSaved && <Notice type="success">Scheduling defaults saved. Pending follow-ups are updating in the background.</Notice>}
-    <header className="page-header"><div><h1>Personal preferences</h1><p>Choose how your account identifies you and schedules relationship work.</p></div><Link className="button" href="/account">Account</Link></header>
+    <BackLink href="/account" label="My Account" /><header className="page-header"><div><h1>Personal preferences</h1><p>Choose how your account identifies you and schedules relationship work.</p></div></header>
 
     <p><Link href="/settings/business">Review message signatures</Link> · <Link href="/settings/sending">Review sending defaults</Link></p>
     <section className="card"><h2>Make yourself at home</h2><AppearanceControl /></section>

@@ -5,6 +5,7 @@ import { AppearanceControl } from "@/components/Appearance";
 import { logoutAction } from "@/lib/auth-actions";
 import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
 import { Sheet } from "@/components/Sheet";
+import { AppIcon } from "@/components/AppIcon";
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 
 export function AppShell({
@@ -48,7 +49,7 @@ export function AppShell({
           <div className="account-sidebar-actions">
             {impersonation ? endImpersonationForm : (
               <Sheet
-                trigger={<button className="button small" type="button">Profile</button>}
+                trigger={<button className="button small" type="button"><AppIcon name="profile" />Profile</button>}
                 title="Profile and settings"
                 description={`Signed in as ${userName}`}
                 className="profile-sheet"
@@ -59,7 +60,7 @@ export function AppShell({
                   <Link className="button" href="/templates">Ready-made mixes</Link>
                   <Link className="button" href="/help">Help</Link>
                 </nav>
-                <form action={logoutAction}><button className="button danger" type="submit">Sign out</button></form>
+                <form action={logoutAction}><button className="button" type="submit">Sign out</button></form>
               </Sheet>
             )}
           </div>

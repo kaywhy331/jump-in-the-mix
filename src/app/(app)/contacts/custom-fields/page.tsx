@@ -11,6 +11,7 @@ import {
 import { requireWorkspace } from "@/lib/auth";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { prisma } from "@/lib/prisma";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Contact custom fields" };
 
@@ -39,9 +40,9 @@ export default async function ContactCustomFieldsPage({ searchParams }: { search
       {params.updated && <Notice type="success">Contact custom field renamed. Its placeholder key stayed stable.</Notice>}
       {params.deleted && <Notice type="success">Custom field deleted{params.values && params.values !== "0" ? ` with ${params.values} saved value${params.values === "1" ? "" : "s"}` : ""}.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
-      <header className="page-header">
+      <BackLink href="/contacts" label="Contacts" /><header className="page-header">
         <div><h1>Custom contact fields</h1><p>Add customer details you can reuse in prepared messages.</p></div>
-        <div className="page-actions"><Link className="button" href="/contacts">Contacts</Link><Link className="button" href="/mixes">Mixes</Link></div>
+        <div className="page-actions"><Link className="button" href="/mixes">Mixes</Link></div>
       </header>
 
       <section className="card">

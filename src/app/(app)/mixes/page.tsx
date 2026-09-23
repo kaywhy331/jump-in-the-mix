@@ -11,6 +11,7 @@ import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
+import { BrandTermsHelp } from "@/components/BrandTermsHelp";
 
 export const metadata: Metadata = { title: "Mixes" };
 type SearchParams = { mix?: string; view?: string; activate?: string; imported?: string; created?: string; updated?: string; activated?: string; paused?: string; archived?: string; error?: string; q?: string; status?: string; page?: string; favorites?: string };
@@ -38,6 +39,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
         <header className="mix-directory-header">
           <h1>Mixes</h1>
           <div className="mix-directory-actions">
+            <BrandTermsHelp />
             <Link className="icon-button" href="/mixes/new?custom=1" aria-label="Create a mix" title="Create a mix"><AppIcon name="plus" /></Link>
             <Sheet trigger={<button className="icon-button" type="button" aria-label="More Mix tools" title="More Mix tools"><AppIcon name="more" /></button>} title="Mix tools">
               <nav className="contact-tools-links"><Link href="/templates"><AppIcon name="import" />Ready-made mixes</Link><Link href="/mixes/system"><AppIcon name="people" />My invitations</Link></nav>

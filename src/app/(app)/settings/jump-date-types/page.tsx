@@ -13,6 +13,7 @@ import {
 } from "@/lib/date-type-actions";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Saved date types" };
 
@@ -48,9 +49,9 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
       {params.activationSaved && <Notice type="success">Date types saved.</Notice>}
       {params.deleted && <Notice type="success">Date type deleted.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
-      <header className="page-header">
+      <BackLink href="/settings" label="Settings" /><header className="page-header">
         <div><h1>Saved date types</h1><p>Name the moments that can start a follow-up mix.</p></div>
-        <div className="page-actions"><Link className="button" href="/mixes">Mixes</Link><Link className="button" href="/settings">Settings</Link></div>
+        <div className="page-actions"><Link className="button" href="/mixes">Mixes</Link></div>
       </header>
 
       <section className="card">

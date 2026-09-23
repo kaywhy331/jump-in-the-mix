@@ -166,8 +166,8 @@ export function DeviceContactQuickAdd({ onboarding = false }: { onboarding?: boo
     return (
       <div className="device-contact-quick-add">
         <button className="settings-hub-card device-contact-picker" type="button" disabled>
-          <span className="settings-hub-icon"><AppIcon name="contacts" /></span>
-          <span><strong>Quick Add</strong><small>Checking device support…</small></span>
+          <span className="settings-hub-icon"><AppIcon name="smartphone" /></span>
+          <span><strong>Add from phone contacts</strong><small>Checking device support…</small></span>
         </button>
       </div>
     );
@@ -179,8 +179,8 @@ export function DeviceContactQuickAdd({ onboarding = false }: { onboarding?: boo
     return (
       <div className="device-contact-quick-add">
         <Link className="settings-hub-card device-contact-picker" href="/contacts/new?quickAddFallback=1">
-          <span className="settings-hub-icon"><AppIcon name="contacts" /></span>
-          <span><strong>Quick Add</strong><small>Use the fast manual form on this browser.</small></span>
+          <span className="settings-hub-icon"><AppIcon name="smartphone" /></span>
+          <span><strong>Add from phone contacts</strong><small>Not available in this browser. Use the fast manual form instead.</small></span>
         </Link>
       </div>
     );
@@ -195,9 +195,9 @@ export function DeviceContactQuickAdd({ onboarding = false }: { onboarding?: boo
         disabled={phase !== "idle"}
         aria-busy={phase !== "idle"}
       >
-        <span className="settings-hub-icon"><AppIcon name="contacts" /></span>
+        <span className="settings-hub-icon"><AppIcon name="smartphone" /></span>
         <span>
-          <strong>{summary ? "Pick more from device" : "Pick from device"}</strong>
+          <strong>{summary ? "Add more from phone contacts" : "Add from phone contacts"}</strong>
           <small>{phase === "picking" ? "Opening your address book…" : phase === "saving" ? "Adding selected Contacts…" : "Choose one or more without leaving the app."}</small>
         </span>
       </button>

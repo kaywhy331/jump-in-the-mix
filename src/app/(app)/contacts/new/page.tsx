@@ -5,6 +5,7 @@ import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
 import { mergeGroupActivity } from "@/lib/group-activity";
 import { prisma } from "@/lib/prisma";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Add contact" };
 
@@ -40,7 +41,7 @@ export default async function NewContactPage({ searchParams }: { searchParams: P
 
   return (
     <div className="page page--form">
-      <header className="page-header"><div><h1>Add a contact</h1><p>Add the essentials now, then schedule the first follow-up without returning to the Contacts list.</p></div></header>
+      <BackLink href="/contacts" label="Contacts" /><header className="page-header"><div><h1>Add a contact</h1><p>Add the essentials now, then schedule the first follow-up without returning to the Contacts list.</p></div></header>
       {query.error && <Notice type="error">{query.error}</Notice>}
       {query.quickAddFallback && <Notice type="info">Your browser does not expose the native Contact Picker. Use this compact form instead; supported browsers also offer optional voice dictation for Public Notes.</Notice>}
       {workflowContinuation(query.returnTo) && <Notice type="info">Save this person to return to your selected Mix. You will choose when to start it.</Notice>}

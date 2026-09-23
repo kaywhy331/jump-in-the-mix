@@ -7,6 +7,7 @@ import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
 import { mergeGroupActivity } from "@/lib/group-activity";
 import { prisma } from "@/lib/prisma";
+import { customerReturnPath } from "@/lib/customer-return-path";
 
 export const metadata: Metadata = { title: "Edit contact" };
 
@@ -15,7 +16,7 @@ export default async function EditContactPage({
   searchParams
 }: {
   params: Promise<{ contactId: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; returnTo?: string }>;
 }) {
   const [{ contactId }, query, { workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
   const [contact, rawGroups, groupStates, customFields] = await Promise.all([
@@ -28,6 +29,8 @@ export default async function EditContactPage({
     prisma.contactCustomFieldDefinition.findMany({ where: { workspaceId: workspace.id }, orderBy: [{ createdAt: "asc" }, { name: "asc" }] })
   ]);
   if (!contact) notFound();
+  const todayReturn = customerReturnPath(query.returnTo);
+  const returnTo = todayReturn?.startsWith("/jumps") ? todayReturn : null;
   const groups = mergeGroupActivity(rawGroups, groupStates);
 
   return (
@@ -35,12 +38,13 @@ export default async function EditContactPage({
       <header className="page-header">
         <div><h1>Edit {contact.displayName}</h1><p>Primary contact details are used in prepared follow-ups.</p></div>
         <div className="page-actions contact-detail-header-actions">
-          <Link className="button mobile-header-action" href={`/contacts/${contact.id}`} aria-label="Back to Contact"><AppIcon name="arrowLeft" /><span>Back to Contact</span></Link>
+          <Link className="button mobile-header-action" href={returnTo ?? `/contacts/${contact.id}`} aria-label={returnTo ? "Back to follow-up" : "Back to Contact"}><AppIcon name="chevronLeft" /><span>{returnTo ? "Back to follow-up" : "Back to Contact"}</span></Link>
         </div>
       </header>
       {query.error && <Notice type="error">{query.error}</Notice>}
       <ContactForm
         mode="edit"
+        returnTo={returnTo}
         groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, isActive: group.isActive }))}
         customFields={customFields.map((field) => ({ id: field.id, name: field.name, key: field.key }))}
         contact={{

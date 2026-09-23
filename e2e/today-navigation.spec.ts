@@ -195,7 +195,7 @@ test.describe("live outcome updates", () => {
     await expect(pager(page)).toContainText("Showing 30 of 320 follow-ups");
     expect(await ids(page)).toEqual(smsIds.slice(31, 61)); expect(page.url()).toBe(location);
     await page.getByRole("button", { name: "More options for Queue person 032", exact: true }).click();
-    await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).getByRole("button", { name: "Skip this follow-up", exact: true }).click();
+    await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).filter({ hasText: "Move it to a better day" }).getByRole("button", { name: "Skip beat", exact: true }).click();
     await expect(undoFor(page, smsIds[31])).toBeVisible(); await page.clock.runFor(10_500);
     await expect(pager(page)).toContainText("Showing 30 of 319 follow-ups");
     expect(await ids(page)).toEqual(smsIds.slice(32, 62)); expect(page.url()).toBe(location);

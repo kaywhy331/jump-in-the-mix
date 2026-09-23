@@ -145,7 +145,7 @@ export function VoiceNoteButton({ targetId, label = "Dictate" }: { targetId: str
         aria-describedby={descriptionId}
         title={`Use your microphone to ${label.toLowerCase()}`}
       >
-        <AppIcon name="circle" />
+        <AppIcon name={listening ? "pause" : "mic"} />
         <span>{listening ? "Stop dictation" : label}</span>
       </button>
       <small id={descriptionId}>Your browser’s speech service may process audio. Review the text before saving.</small>

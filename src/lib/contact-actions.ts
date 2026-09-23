@@ -3,6 +3,7 @@
 import { applyJourneyEvent } from "@/lib/journey";
 
 import { workflowContinuation } from "@/lib/workflow-continuation";
+import { customerReturnPath } from "@/lib/customer-return-path";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import {
@@ -327,6 +328,9 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
     });
   });
   await queueContactReconciliation(workspace.id, contactId);
+  // Editing from a Today review (e.g. "Add phone") returns to that follow-up.
+  const todayReturn = customerReturnPath(value(formData, "returnTo"));
+  if (todayReturn?.startsWith("/jumps")) redirect(todayReturn);
   redirect(`/contacts/${contactId}?updated=1`);
 }
 

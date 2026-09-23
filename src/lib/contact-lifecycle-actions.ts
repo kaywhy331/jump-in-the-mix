@@ -43,12 +43,13 @@ export async function archiveContactAction(formData: FormData): Promise<void> {
       }
     });
   });
-  redirect("/contacts?archived=1");
+  redirect(`/contacts?archived=1&archivedContact=${encodeURIComponent(contact.id)}`);
 }
 
 export async function restoreContactAction(formData: FormData): Promise<void> {
   const { workspace, user, impersonation } = await requireWorkspace();
-  const path = "/contacts/archived";
+  // "Undo" on the Contacts list restores in place; the Archived page keeps its own return.
+  const path = value(formData, "returnTo") === "/contacts" ? "/contacts" : "/contacts/archived";
   if (impersonation) fail("View-only support sessions cannot restore Contacts.", path);
   const contactId = value(formData, "contactId");
   const contact = await prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: { not: null } }, select: { id: true, displayName: true, archivedAt: true } });

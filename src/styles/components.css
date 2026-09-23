@@ -370,6 +370,7 @@
   .more-page .settings-hub-card { min-height: 58px; padding: 8px 0; border-width: 0 0 1px; border-radius: 0; box-shadow: none; justify-content: space-between; }
   .more-page .settings-hub-card small { display: none; }
   .settings-row-chevron { color: var(--muted); font-size: 1.5rem; }
+  .settings-row-chevron svg { display: block; width: 18px; height: 18px; }
 
   .quick-add-dialog { width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); border: 0; border-radius: 0; overflow-y: auto; }
   .quick-add-dialog-header { position: sticky; top: 0; z-index: 2; min-height: 52px; margin: 0; padding-bottom: 8px; background: var(--raised); align-items: center; }

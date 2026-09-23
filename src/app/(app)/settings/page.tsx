@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { requireWorkspace } from "@/lib/auth";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -9,7 +10,7 @@ const destinations: Array<{ href: string; title: string; description: string; ic
   { href: "/settings/journey", title: "Customer journey", description: "Your stages, automatic transitions, and stage mixes.", icon: "journey" },
   { href: "/settings/connections", title: "Lead connections", description: "Forms and connections that bring people into your business.", icon: "link" },
   { href: "/calendar", title: "Calendar & time blocks", description: "Meetings, availability, and calendar connections.", icon: "calendar" },
-  { href: "/settings/business", title: "My business", description: "Business name, services, contact details, and message signatures.", icon: "edit" },
+  { href: "/settings/business", title: "My business", description: "Business name, services, contact details, and message signatures.", icon: "business" },
   { href: "/account/preferences", title: "Personal preferences", description: "Display name, timezone, follow-up time, quiet hours, and weekends.", icon: "filter" },
   { href: "/settings/notifications", title: "Notifications", description: "Morning email, weekly report, and push reminders.", icon: "bell" },
   { href: "/settings/sending", title: "Sending to customers", description: "Review each message or choose optional automatic sending.", icon: "message" },
@@ -20,5 +21,5 @@ const destinations: Array<{ href: string; title: string; description: string; ic
 
 export default async function SettingsPage() {
   await requireWorkspace();
-  return <div className="page settings-page"><header className="page-header"><div><h1>Settings</h1><p>Set up your business, messages, schedule, and account.</p></div></header><div className="settings-hub-grid">{destinations.map((item) => <Link className="settings-hub-card" href={item.href} key={item.href}><span className="settings-hub-icon"><AppIcon name={item.icon}/></span><span><strong>{item.title}</strong><small>{item.description}</small></span><span className="settings-row-chevron mobile-only" aria-hidden="true">›</span></Link>)}</div></div>;
+  return <div className="page settings-page"><BackLink href="/more" label="More" phoneOnly /><header className="page-header"><div><h1>Settings</h1><p>Set up your business, messages, schedule, and account.</p></div></header><div className="settings-hub-grid">{destinations.map((item) => <Link className="settings-hub-card" href={item.href} key={item.href}><span className="settings-hub-icon"><AppIcon name={item.icon}/></span><span><strong>{item.title}</strong><small>{item.description}</small></span><span className="settings-row-chevron mobile-only" aria-hidden="true"><AppIcon name="chevronRight" /></span></Link>)}</div></div>;
 }

@@ -155,8 +155,8 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
 
       <header className="contact-profile-header">
         <div className="contact-detail-header-actions">
-          <ContactsBackLink className="contact-inline-action" ariaLabel="Back to contacts"><AppIcon name="arrowLeft" />Contacts</ContactsBackLink>
-          <Link href={`/contacts/${contact.id}/edit`} className="contact-inline-action">Edit</Link>
+          <ContactsBackLink className="contact-inline-action" ariaLabel="Back to contacts"><AppIcon name="chevronLeft" />Contacts</ContactsBackLink>
+          <Link href={`/contacts/${contact.id}/edit`} className="contact-inline-action"><AppIcon name="edit" />Edit</Link>
         </div>
         <span className="person-initials profile-avatar" aria-hidden="true">{contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>
         <div className="profile-identity">{embedded ? <h2>{contact.displayName}</h2> : <h1>{contact.displayName}</h1>}
@@ -168,6 +168,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
           {primaryPhone && !state.doNotContact ? <a className="button" href={`tel:${primaryPhone}`}><AppIcon name="phone" />Call</a> : <button className="button" disabled title={state.doNotContact ? "Do not contact is on" : "Add a phone number in Details"}><AppIcon name="phone" />Call</button>}
           <a className="button" href="#add-note"><AppIcon name="edit" />Note</a>
         </nav>
+        {(state.doNotContact || !primaryPhone || !primaryEmail) && <p className="contact-quick-action-hint">{state.doNotContact ? "Do not contact is on, so Text, Email and Call are off." : !primaryPhone && !primaryEmail ? "Add a phone number or email in Details to reach them." : !primaryPhone ? "Add a phone number in Details to text or call." : "Add an email address in Details to email."}</p>}
       </header>
 
       <section className="contact-next-line" aria-label="Next follow-up">
@@ -188,12 +189,12 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
       })}</div>}
 
       <aside className="contact-profile-details">
-        <div className="contact-section-heading"><h2>Details</h2><Link className="contact-details-edit contact-inline-action" href={`/contacts/${contact.id}/edit`}>Edit</Link></div>
+        <div className="contact-section-heading"><h2>Details</h2><Link className="contact-details-edit contact-inline-action" href={`/contacts/${contact.id}/edit`}><AppIcon name="edit" />Edit</Link></div>
         <div className="contact-details-rows">
-          {contact.company && <div className="contact-detail-row"><AppIcon name="people" /><span>{contact.company}</span><small>company</small></div>}
+          {contact.company && <div className="contact-detail-row"><AppIcon name="business" /><span>{contact.company}</span><small>company</small></div>}
           {contact.phones.map(item => <div className="contact-detail-row" key={item.id}><AppIcon name="phone" />{state.doNotContact ? <span>{item.phone}</span> : <a href={`tel:${item.phone}`}>{item.phone}</a>}<small>{item.label || "phone"}</small></div>)}
           {contact.emails.map(item => <div className="contact-detail-row" key={item.id}><AppIcon name="email" />{state.doNotContact ? <span>{item.email}</span> : <a href={`mailto:${item.email}`}>{item.email}</a>}<small>{item.label || "email"}</small></div>)}
-          {contact.addresses.map(item => <div className="contact-detail-row" key={item.id}><AppIcon name="contacts" /><span>{addressText(item) || "Address incomplete"}</span><small>{item.label || "address"}</small></div>)}
+          {contact.addresses.map(item => <div className="contact-detail-row" key={item.id}><AppIcon name="mapPin" />{addressText(item) ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressText(item))}`} target="_blank" rel="noopener noreferrer">{addressText(item)}</a> : <span>Address incomplete</span>}<small>{item.label || "address"}</small></div>)}
           {importantDates.filter(date => /birthday/i.test(date.type)).slice(0, 1).map(date => <div className="contact-detail-row contact-birthday" key={date.id}><AppIcon name="calendar" /><span>{shortDate(date.date)}</span><small>birthday</small></div>)}
         </div>
         <Link className="contact-add-details contact-inline-action" href={`/contacts/${contact.id}/edit`}><AppIcon name="add" />Add company, phone or email</Link>

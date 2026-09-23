@@ -13,6 +13,7 @@ import { prisma } from "@/lib/prisma";
 import { createSupportTicketFormAction } from "@/lib/support-actions";
 import { SUPPORT_CATEGORIES, supportCategoryLabel, supportStatusLabel } from "@/lib/support-content";
 import { SUPPORT_RETENTION_NOTICE } from "@/lib/data-retention-policy";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Help" };
 
@@ -46,7 +47,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
   if (env.pilotMode) {
     return (
       <div className="page page--content help-page">
-        <header className="page-header"><div><h1>Help</h1><p>Plain-language answers plus operator steps for this self-hosted installation.</p></div></header>
+        <BackLink href="/more" label="More" phoneOnly /><header className="page-header"><div><h1>Help</h1><p>Plain-language answers plus operator steps for this self-hosted installation.</p></div></header>
         <div className="page-actions"><Link className="button" href="/onboarding">Getting started</Link><Link className="button" href="/journey">Review my Journey</Link></div>
         <SupportFaq />
         <SelfHostedHelp />
@@ -63,7 +64,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
 
   return (
     <div className="page page--content help-page">
-      <header className="page-header">
+      <BackLink href="/more" label="More" phoneOnly /><header className="page-header">
         <div><h1>Help</h1><p>Find a quick answer or send a private message to the support team.</p></div>
         <div className="page-actions"><Link className="button" href="/account/tickets">My conversations</Link></div>
       </header>

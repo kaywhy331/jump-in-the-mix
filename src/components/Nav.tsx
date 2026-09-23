@@ -6,7 +6,7 @@ import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { QuickAddButton } from "@/components/QuickAdd";
 
 const links = [
-  { href: "/jumps", label: "Today", icon: "today", kind: "primary" },
+  { href: "/jumps", label: "Today", icon: "home", kind: "primary" },
   { href: "/contacts", label: "Contacts", icon: "contacts", kind: "primary" },
   { href: "/mixes", label: "Mixes", icon: "mixes", kind: "primary" },
   { href: "/journey", label: "Journey", icon: "journey", kind: "desktop" },

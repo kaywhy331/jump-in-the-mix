@@ -266,13 +266,13 @@ test("handles follow themes, keyboard focus, narrow layouts, and read-only state
 test("advanced paths retain outcomes, waits and join settings behind the compact editor", async ({ page, context }) => {
   await port(page, 0, false, "output").click(); await port(page, 1, false, "input").click();
   const form = editor(page);
-  await expect(form.getByLabel("Wait before continuing (minutes)")).not.toBeVisible();
+  await expect(form.getByLabel("Wait before continuing", { exact: true })).not.toBeVisible();
   await form.getByRole("button", { name: "Add a path", exact: true }).click();
   await form.getByLabel("How should the paths work?").selectOption("CHOICE");
   const paths = form.locator("fieldset:has(> legend)");
   const first = paths.nth(0), second = paths.nth(1);
   await first.getByLabel("Continue when").selectOption("OUTCOME"); await first.getByLabel("Recorded outcome").fill("Ready");
-  await second.getByLabel("Continue when").selectOption("TIMEOUT"); await second.getByLabel("Wait for an outcome (minutes)").fill("60");
+  await second.getByLabel("Continue when").selectOption("TIMEOUT"); await second.getByLabel("Wait for an outcome unit", { exact: true }).selectOption({ label: "hours" }); await second.getByLabel("Wait for an outcome", { exact: true }).fill("1");
   await form.getByText("Bring paths back together", { exact: true }).click(); await form.getByLabel("Continue after these paths join").check();
   await form.getByLabel("Then continue to").selectOption(`mix:${mixes[1]}`);
   await form.getByRole("button", { name: "Save connection", exact: true }).click();

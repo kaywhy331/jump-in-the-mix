@@ -36,7 +36,7 @@ test("browse a whole journey, install it once, open its actual map and editable 
   await page.getByRole("button", { name: "Review my setup", exact: true }).click();
   await page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." }).check();
   await page.getByRole("button", { name: "Add Contractor mega-mix", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your journey is connected" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your pipeline is ready" })).toBeVisible();
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(13);
   expect(await prisma.mixAssignment.count({ where: { workspaceId } })).toBe(0);
   expect(await prisma.jump.count({ where: { workspaceId } })).toBe(0);
@@ -85,7 +85,7 @@ test("onboarding can prepare a full journey without adding a contact, while keep
   if (await page.getByRole("button", { name: "Review my setup", exact: true }).isVisible()) await page.getByRole("button", { name: "Review my setup", exact: true }).click();
   await page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." }).check();
   await page.getByRole("button", { name: "Add Photographer mega-mix", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your journey is connected" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your pipeline is ready" })).toBeVisible();
   expect(await prisma.workspaceProfile.findUnique({ where: { workspaceId } })).toMatchObject({ onboardingDone: true, company: "Studio fixture" });
   expect(await prisma.contact.count({ where: { workspaceId } })).toBe(0);
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(11);
@@ -131,7 +131,7 @@ test("a stale preview saves nothing and keeps the setup available for correction
   await expect(page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." })).toBeChecked();
   await page.locator('input[name="version"]').evaluate((input: HTMLInputElement) => { input.value = "1"; });
   await page.getByRole("button", { name: "Add Contractor mega-mix" }).click();
-  await expect(page.getByRole("heading", { name: "Your journey is connected" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your pipeline is ready" })).toBeVisible();
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(13);
 });
 

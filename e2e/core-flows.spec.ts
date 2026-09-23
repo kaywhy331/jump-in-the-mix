@@ -109,7 +109,7 @@ test("supported mobile browsers can Quick Add a selected device Contact", async 
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "More contact tools" }).click();
   const tools = page.getByRole("dialog", { name: "Contact tools" });
-  await tools.getByRole("button", { name: /Pick from device/ }).click();
+  await tools.getByRole("button", { name: /Add from phone contacts/ }).click();
   await expect(tools.getByText(/\d+ added · \d+ merged/)).toBeVisible();
 });
 

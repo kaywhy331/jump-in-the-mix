@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { QuietDayPage, QuietDaySuggestion } from "@/lib/quiet-day-types";
 import { formatDate } from "@/lib/format";
+import { AppIcon } from "@/components/AppIcon";
 
 export function QuietDaySuggestions({ initial, canResolve = true, compact = false, initialQuery = "", locale = "en-US" }: { initial: QuietDayPage; canResolve?: boolean; compact?: boolean; initialQuery?: string; locale?: string }) {
   const router = useRouter();
@@ -62,7 +63,7 @@ export function QuietDaySuggestions({ initial, canResolve = true, compact = fals
       </li>)}</ul>
       {!data.items.length && !loading && <p>{query ? "No check-ins match this search." : "No quiet-day check-ins are due. Completed follow-ups, logged conversations and your check-in decisions restart the period."}</p>}
       {!compact && data.pages > 1 && <nav className="quiet-day-pagination" aria-label="Quiet-day check-in pages"><button className="button small" type="button" disabled={data.page <= 1 || loading} onClick={() => setPage(data.page - 1)}>Previous</button><span>{data.page} of {data.pages}</span><button className="button small" type="button" disabled={data.page >= data.pages || loading} onClick={() => setPage(data.page + 1)}>Next</button></nav>}
-      {compact && <Link className="inline-action" href="/journey?touchpoint=quiet-days">View all check-ins →</Link>}
+      {compact && <Link className="inline-action" href="/journey?touchpoint=quiet-days">View all check-ins<AppIcon name="chevronRight" className="inline-action-icon" /></Link>}
     </>}
   </section>;
 }

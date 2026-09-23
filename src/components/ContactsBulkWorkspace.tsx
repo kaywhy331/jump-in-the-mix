@@ -137,17 +137,18 @@ export function ContactsBulkWorkspace({
       <header className="contacts-page-header">
         <h1>Contacts</h1>
         <div className="contacts-page-actions">
-          <Link className="button contact-import-action" href="/contacts/import" onClick={saveContactListState}>Import</Link>
+          <Link className="button contact-import-action" href="/contacts/import" onClick={saveContactListState}><AppIcon name="import" />Import</Link>
+          <Link className="button mobile-header-action contact-add-action" href="/contacts/new" aria-label="Add contact" title="Add contact" onClick={saveContactListState}><AppIcon name="userPlus" /></Link>
           <Sheet trigger={<button className="button mobile-header-action" type="button" aria-label="More contact tools"><AppIcon name="more" /></button>} title="Contact tools">
             <nav className="contact-tools-links">
-              <Link href="/contacts/new">Add a contact</Link>
-              {contacts.length > 0 && <button type="button" className="text-button" onClick={event => { toggleSelectionMode(); event.currentTarget.closest("dialog")?.close(); }}>{selectionMode ? "Finish selecting contacts" : "Select contacts"}</button>}
-              <Link href="/journey">Customer journey</Link>
-              <Link href="/settings/connections">Lead connections</Link>
-              <Link href="/contacts/import" onClick={saveContactListState}>Import contacts</Link>
-              <Link href="/contacts/custom-fields" onClick={saveContactListState}>Custom fields</Link>
-              <Link href="/contacts/duplicates">Find duplicates</Link>
-              <Link href="/contacts/archived">Archived contacts</Link>
+              <Link href="/contacts/new"><AppIcon name="userPlus" />Add a contact</Link>
+              {contacts.length > 0 && <button type="button" className="text-button" onClick={event => { toggleSelectionMode(); event.currentTarget.closest("dialog")?.close(); }}><AppIcon name="check" />{selectionMode ? "Finish selecting contacts" : "Select contacts"}</button>}
+              <Link href="/journey"><AppIcon name="journey" />Customer journey</Link>
+              <Link href="/settings/connections"><AppIcon name="link" />Lead connections</Link>
+              <Link href="/contacts/import" onClick={saveContactListState}><AppIcon name="import" />Import contacts</Link>
+              <Link href="/contacts/custom-fields" onClick={saveContactListState}><AppIcon name="edit" />Custom fields</Link>
+              <Link href="/contacts/duplicates"><AppIcon name="copy" />Find duplicates</Link>
+              <Link href="/contacts/archived"><AppIcon name="archive" />Archived contacts</Link>
             </nav>
             <DeviceContactQuickAdd />
             <section className="tag-manager">
@@ -225,7 +226,7 @@ export function ContactsBulkWorkspace({
             <button className="button primary" type="submit" disabled={selectedDoNotContact.length > 0}>Schedule message</button>
           </form>
         </Sheet>
-        <button className="button bulk-action-button" type="button" aria-label="Export CSV" onClick={exportSelected}><AppIcon name="import" className="export-icon" /><span className="bulk-action-label">Export CSV</span></button>
+        <button className="button bulk-action-button" type="button" aria-label="Export CSV" onClick={exportSelected}><AppIcon name="export" className="export-icon" /><span className="bulk-action-label">Export CSV</span></button>
         <ConfirmDialog trigger={`Archive ${selectedIds.length}…`} title={`Archive ${selectedIds.length} selected contact${selectedIds.length === 1 ? "" : "s"}?`} description="Future follow-ups will be removed. Completed history stays available." danger><form action={bulkArchiveContactsAction}>{contactIdsInputs(selectedIds)}<button className="button danger" type="submit"><AppIcon name="archive" />Archive</button></form></ConfirmDialog>
       </aside>}
     </>

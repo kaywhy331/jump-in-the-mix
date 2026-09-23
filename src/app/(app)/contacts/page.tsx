@@ -6,6 +6,8 @@ import type { Prisma } from "@/generated/prisma/client";
 import { ContactSavedViewsBar } from "@/components/ContactSavedViewsBar";
 import { ContactsBulkWorkspace, type ContactBulkDto } from "@/components/ContactsBulkWorkspace";
 import { Notice } from "@/components/Notice";
+import { AppIcon } from "@/components/AppIcon";
+import { restoreContactAction } from "@/lib/contact-lifecycle-actions";
 import { requireWorkspace } from "@/lib/auth";
 import { contactFollowUpSummary } from "@/lib/contact-follow-up-summary";
 import { formatDateTime } from "@/lib/format";
@@ -19,6 +21,8 @@ const PAGE_SIZE = 50;
 
 type SearchParams = {
   stateUpdated?: string;
+  archivedContact?: string;
+  restored?: string;
   people?: string;
   person?: string;
   q?: string;
@@ -243,7 +247,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     <div className="page contacts-page">
       {params.stateUpdated && <Notice type="success">Journey stage updated.</Notice>}
       {params.created && <Notice type="success">Contact added.</Notice>}
-      {params.archived && <Notice type="success">Contact archived.</Notice>}
+      {params.archived && <Notice type="success"><span className="notice-with-action">Contact archived.{params.archivedContact && <form action={restoreContactAction}><input type="hidden" name="contactId" value={params.archivedContact} /><input type="hidden" name="returnTo" value="/contacts" /><button className="button small" type="submit"><AppIcon name="undo" />Undo</button></form>}</span></Notice>}
+      {params.restored && <Notice type="success">Contact restored.</Notice>}
       {params.groupCreated && <Notice type="success">Tag created.</Notice>}
       {params.groupDeleted && <Notice type="success">Tag removed.</Notice>}
       {params.groupsActiveSaved && <Notice type="success">Tags saved.</Notice>}

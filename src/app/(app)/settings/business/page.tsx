@@ -10,6 +10,7 @@ import { Notice } from "@/components/Notice";
 import { RepeatableProfileRecords } from "@/components/RepeatableProfileRecords";
 import { requireWorkspace } from "@/lib/auth";
 import { updateWorkspaceProfileFormAction } from "@/lib/workspace-profile-actions";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "My business" };
 
@@ -34,7 +35,7 @@ export default async function BusinessSettingsPage({ searchParams }: { searchPar
   return <div className="page page--form settings-business-page">
     {params.saved && <Notice type="success">Business details saved.</Notice>}
     {params.error && <Notice type="error">{params.error}</Notice>}
-    <header className="page-header"><div><h1>My business</h1><p>These details make every prepared message sound complete and personal.</p></div><Link className="button" href="/settings">Settings</Link></header>
+    <BackLink href="/settings" label="Settings" /><header className="page-header"><div><h1>My business</h1><p>These details make every prepared message sound complete and personal.</p></div></header>
     <section className="notice info"><p>Timezone: {display.timeZone} · {sending?.enabled ? "Automatic sending enabled" : "You review and send"}.</p><Link href="/account/preferences">Timezone and scheduling</Link> · <Link href="/settings/sending">Sending defaults</Link></section>
     <ActionForm protect action={updateWorkspaceProfileFormAction} className="form-stack settings-profile-layout">
       <input type="hidden" name="settingsSection" value="business" />

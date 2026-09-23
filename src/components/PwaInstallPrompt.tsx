@@ -59,7 +59,7 @@ export function PwaInstallPrompt() {
   };
 
   return <aside className="pwa-install-prompt" aria-label="Optional app installation">
-    <div className="install-heading"><span className="install-icon"><AppIcon name="phone" /></span><div><small>Optional shortcut</small><strong>Keep Today on your home screen</strong></div></div>
+    <div className="install-heading"><span className="install-icon"><AppIcon name="smartphone" /></span><div><small>Optional shortcut</small><strong>Keep Today on your home screen</strong></div></div>
     {error ? <><p role="status">{error}</p><button className="button" type="button" onClick={dismiss}>Close</button></> : iosHelp ? <div role="status"><p>In Safari:</p><ol><li>Tap the Share button.</li><li>Choose Add to Home Screen.</li><li>Tap Add.</li></ol><button className="button primary" type="button" onClick={dismiss}>Got it</button></div> : <><p>Open the app with a tap. You can also keep using your browser.</p><div className="install-actions"><button className="button primary" type="button" onClick={install}>{isIos && !installEvent ? "Show me how" : "Install app"}</button><button className="button" type="button" onClick={dismiss}>Not now</button></div></>}
   </aside>;
 }

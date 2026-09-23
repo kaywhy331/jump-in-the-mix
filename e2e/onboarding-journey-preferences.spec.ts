@@ -39,7 +39,7 @@ test("recommended onboarding validates, previews and atomically installs a tailo
   await expect(details).toContainText("Email · 10:30");
   await page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." }).check();
   await page.getByRole("button", { name: "Add Contractor mega-mix", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Your journey is connected" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your pipeline is ready" })).toBeVisible();
   expect(await prisma.workspacePreference.findUnique({ where: { workspaceId } })).toMatchObject({ defaultFollowUpMinutes: 630, journeyPreferences: { communication: "EMAIL", pace: "RELAXED", avoidAppointments: true } });
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(13);
   expect(await prisma.contact.count({ where: { workspaceId } })).toBe(0);

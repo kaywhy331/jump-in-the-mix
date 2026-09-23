@@ -8,6 +8,7 @@ import { automaticEmailConfigured, automaticSmsConfigured } from "@/lib/automati
 import { requireWorkspace } from "@/lib/auth";
 import { updateAutomationPreferencesFormAction } from "@/lib/notification-actions";
 import { prisma } from "@/lib/prisma";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Sending to customers" };
 
@@ -17,7 +18,7 @@ export default async function SendingSettingsPage({ searchParams }: { searchPara
   const automaticEmailAvailable = automaticEmailConfigured();
   const automaticSmsAvailable = automaticSmsConfigured();
   return <div className="page page--form sending-settings-page">
-    <header className="page-header"><div><h1>Sending to customers</h1><p>Choose how your prepared messages reach people.</p></div><Link className="button" href="/settings">Settings</Link></header>
+    <BackLink href="/settings" label="Settings" /><header className="page-header"><div><h1>Sending to customers</h1><p>Choose how your prepared messages reach people.</p></div></header>
     {params.automationSaved && <Notice type="success">Sending preferences saved.</Notice>}
     {params.error && <Notice type="error">{params.error}</Notice>}
     <section className="card sending-status"><span className="status-pill">{automation?.enabled ? "Automatic sending on" : "You review and send"}</span><h2>{automation?.enabled ? "Your mixes can send for you" : "Every message starts with you"}</h2><p>{automation?.enabled ? "Prepared messages send after your review window. Quiet hours still apply." : "Open a follow-up in Today, make it your own, and choose when to send. Automatic sending is optional."}</p><Link className="button" href="/jumps">Open Today</Link></section>

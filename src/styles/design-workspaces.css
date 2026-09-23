@@ -134,6 +134,10 @@
   .mobile-nav .nav-link { color: var(--text-2); font-size: .75rem; font-weight: 500; }
   .mobile-nav .nav-link.active { color: var(--violet-text); background: transparent; }
   .mobile-nav .nav-link.active::after { display: none; }
+  /* Phone-familiar active tab: a tinted pill behind the icon plus a heavier label, so selection never relies on colour alone. */
+  .mobile-nav .nav-link svg { box-sizing: content-box; padding: 3px 14px; border-radius: 999px; }
+  .mobile-nav .nav-link.active svg { background: var(--violet-wash); stroke-width: 2.1; }
+  .mobile-nav .nav-link.active > span { font-weight: 700; }
   .mobile-nav .nav-quick-add { --bubble-fill: var(--violet); position: relative; background: var(--bubble-fill); color: var(--on-violet); border-radius: 16px; width: 56px; height: 48px; margin-inline: auto; box-shadow: 0 5px 18px color-mix(in srgb, var(--violet) 24%, transparent); }
   .mobile-nav .nav-quick-add::after { content: ""; display: block; position: absolute; inset: auto auto -7px 14px; width: 12px; height: 12px; transform: skewY(-35deg); border: 0; background: var(--bubble-fill); }
   .mobile-nav .nav-quick-add > span { display: none; }
