@@ -1,12 +1,15 @@
 import type { Channel } from "@/generated/prisma/client";
 import { PREPARATION_FAMILIES, preparationFamilyForChannel, type DraftContent, type PreparationFamily } from "@/lib/preparation-family";
+import { generateVariant } from "@/lib/variant-generation";
 
 /**
  * One follow-up, channel alternatives. A beat's step version carries its primary channel's
  * wording; authored variants add wording for the other families. On Today the owner may switch
- * between the usable ones: authored, valid for the family, and with a recipient method the
- * contact actually has. Switching selects which wording and channel a handoff freezes; it never
- * creates another scheduled action, never sends anything, and never invents wording.
+ * between the usable ones: valid for the family and with a recipient method the contact actually
+ * has. A family the owner did not write gets a generated template from the Beat's own wording
+ * (variant-generation.ts), so every follow-up offers text, email and a call; owner-written wording
+ * always wins. Switching selects which wording and channel a handoff freezes; it never creates
+ * another scheduled action and never sends anything.
  */
 export type VariantTemplates = Partial<Record<PreparationFamily, DraftContent>>;
 
@@ -42,8 +45,36 @@ export function variantFieldsForFamily(family: PreparationFamily, content: Parti
   };
 }
 
+/**
+ * Every alternative a follow-up offers: the owner's authored variants, plus a generated template for
+ * each other family the owner left unwritten. The primary is the snapshot's own wording and channel
+ * (or `primaryChannel` when the caller knows it); without primary wording nothing is generated.
+ */
+export function variantsOfSnapshot(snapshot: unknown, primaryChannel?: string | null): VariantTemplates {
+  const authored = authoredVariantsOfSnapshot(snapshot);
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return authored;
+  const record = snapshot as Record<string, unknown>;
+  const channel = primaryChannel ?? (typeof record.channel === "string" ? record.channel : null);
+  if (!channel) return authored;
+  const primary = preparationFamilyForChannel(channel);
+  const text = (key: string) => typeof record[key] === "string" ? record[key] as string : null;
+  const content = variantFieldsForFamily(primary, { subject: text("subject"), body: text("body"), script: text("script") });
+  const completed: VariantTemplates = { ...authored };
+  for (const family of PREPARATION_FAMILIES) {
+    if (family === primary || completed[family]) continue;
+    const generated = generateVariant(primary, content, family);
+    if (generated && authoredVariant(family, generated)) completed[family] = generated;
+  }
+  return completed;
+}
+
+/** Whether the follow-up's wording for a family was written by the owner, rather than generated. */
+export function ownerWrittenFamilies(snapshot: unknown): PreparationFamily[] {
+  return PREPARATION_FAMILIES.filter((family) => Boolean(authoredVariantsOfSnapshot(snapshot)[family]));
+}
+
 /** The authored variants recorded on a follow-up's template snapshot; empty for a single-channel row. */
-export function variantsOfSnapshot(snapshot: unknown): VariantTemplates {
+export function authoredVariantsOfSnapshot(snapshot: unknown): VariantTemplates {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return {};
   const raw = (snapshot as Record<string, unknown>).variants;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
@@ -123,7 +154,7 @@ export function offersChoice(usable: PreparedVariant[]): boolean {
 
 /** Families a follow-up accepts a draft or an attempt for: the plan's own and every authored variant. */
 export function authoredFamilies(primaryChannel: Channel, snapshot: unknown): PreparationFamily[] {
-  const variants = variantsOfSnapshot(snapshot);
+  const variants = variantsOfSnapshot(snapshot, primaryChannel);
   return [preparationFamilyForChannel(primaryChannel), ...PREPARATION_FAMILIES.filter((family) => family !== preparationFamilyForChannel(primaryChannel) && Boolean(variants[family]))];
 }
 
@@ -131,6 +162,20 @@ export function authoredFamilies(primaryChannel: Channel, snapshot: unknown): Pr
 export function attemptChannelAllowed(input: { primaryChannel: Channel; snapshot: unknown; channel: Channel; family: PreparationFamily; preferredChannel: Channel | null }): boolean {
   if (input.channel === input.primaryChannel) return input.family === preparationFamilyForChannel(input.primaryChannel);
   if (input.family === preparationFamilyForChannel(input.primaryChannel)) return false;
-  if (!variantsOfSnapshot(input.snapshot)[input.family]) return false;
+  if (!variantsOfSnapshot(input.snapshot, input.primaryChannel)[input.family]) return false;
   return variantChannels(input.family, { preferredChannel: input.preferredChannel }).includes(input.channel);
+}
+
+/**
+ * The version Today opens on and tags "Recommended": the person's stated preference, then the
+ * owner's communication preference, then the plan's own channel; only among usable versions, so a
+ * missing email never recommends email and a missing phone never recommends text or a call. When
+ * the plan would send automatically, its own channel stays recommended, because that is what the
+ * worker delivers unless the owner switches.
+ */
+export function recommendedVariant(usable: PreparedVariant[], input: { contactPreferred: Channel | null | undefined; ownerPreferred: string | null | undefined; automaticPlan: boolean }): PreparedVariant | null {
+  const primary = usable.find((variant) => variant.primary);
+  if (input.automaticPlan && primary) return primary;
+  const byChannel = (channel: string | null | undefined) => channel && channel !== "RECOMMENDED" ? usable.find((variant) => variant.family === preparationFamilyForChannel(channel)) : undefined;
+  return byChannel(input.contactPreferred) ?? byChannel(input.ownerPreferred) ?? primary ?? usable[0] ?? null;
 }

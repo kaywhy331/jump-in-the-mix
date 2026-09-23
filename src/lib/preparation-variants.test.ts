@@ -65,11 +65,14 @@ describe("channel alternatives", () => {
     expect(offersChoice(single)).toBe(false);
   });
 
-  it("accepts drafts and attempts only for the plan's family or an authored alternative, on that alternative's channels", () => {
+  it("accepts drafts and attempts for the plan's family or an authored or generated alternative, on that alternative's channels", () => {
     const snapshot = { body: "primary", variants: { EMAIL: email, CALL: call } };
     expect(authoredFamilies("SMS", snapshot)).toEqual(["TEXT", "EMAIL", "CALL"]);
-    expect(authoredFamilies("SMS", { body: "primary" })).toEqual(["TEXT"]);
-    expect(authoredFamilies("PHONE_CALL", { script: "notes", variants: { TEXT: text } })).toEqual(["CALL", "TEXT"]);
+    // Every family the owner left unwritten gets a generated version from the plan's own wording.
+    expect(authoredFamilies("SMS", { body: "primary" })).toEqual(["TEXT", "EMAIL", "CALL"]);
+    expect(authoredFamilies("PHONE_CALL", { script: "notes", variants: { TEXT: text } })).toEqual(["CALL", "TEXT", "EMAIL"]);
+    // Without primary wording there is nothing to generate from.
+    expect(authoredFamilies("SMS", { body: "  " })).toEqual(["TEXT"]);
     const allowed = (channel: "SMS" | "EMAIL" | "PHONE_CALL" | "VOICEMAIL" | "WHATSAPP", family: "TEXT" | "EMAIL" | "CALL", preferredChannel: "WHATSAPP" | null = null) =>
       attemptChannelAllowed({ primaryChannel: "SMS", snapshot, channel, family, preferredChannel });
     expect(allowed("SMS", "TEXT")).toBe(true);

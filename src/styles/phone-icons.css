@@ -79,3 +79,9 @@
 /* A signed-out draft is a warning the owner must act on, not quiet status text. */
 .draft-status-warning { color: var(--warning); font-weight: 600; }
 .draft-status-warning .text-button { font-size: inherit; }
+
+/* Channel choice: every version visible; the default carries a Recommended tag, unavailable ones are greyed. */
+.follow-up-channel-choice .when-chip { position: relative; flex-wrap: wrap; }
+.channel-recommended { flex-basis: 100%; margin-top: -2px; color: var(--violet-text); font-size: .6875rem; font-weight: 700; line-height: 1.1; text-transform: none; }
+.follow-up-channel-choice .when-chip:disabled { opacity: .45; cursor: not-allowed; }
+.channel-missing { margin: 6px 0 0; font-size: .8125rem; }

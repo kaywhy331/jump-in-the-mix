@@ -58,8 +58,10 @@ describe.sequential("follow-up drafts", () => {
     expect((await prisma.jumpDraft.findUniqueOrThrow({ where: { jumpId_family: { jumpId, family: "TEXT" } } })).body).toBe("Hi {{First Name}}, your estimate is ready to review.");
   });
 
-  it("refuses the wrong family, another workspace, oversized text and a bad revision", async () => {
-    expect(await saveJumpDraft({ workspaceId, jumpId, family: "EMAIL", subject: "S", body: "B", revision: null })).toMatchObject({ ok: false, reason: "unavailable" });
+  it("accepts a generated family's draft, and refuses another workspace, oversized text and a bad revision", async () => {
+    // Every family is offered now: an email version is generated from the plan's text, so its draft is accepted.
+    expect(await saveJumpDraft({ workspaceId, jumpId, family: "EMAIL", subject: "S", body: "B", revision: null })).toMatchObject({ ok: true, draft: { family: "EMAIL" } });
+    await prisma.jumpDraft.deleteMany({ where: { jumpId, family: "EMAIL" } });
     expect(await saveJumpDraft({ workspaceId: "someone-else", jumpId, family: "TEXT", body: "B", revision: null })).toMatchObject({ ok: false, reason: "unavailable" });
     expect(await saveJumpDraft({ workspaceId, jumpId, family: "TEXT", body: "x".repeat(20_001), revision: 2 })).toMatchObject({ ok: false, reason: "invalid" });
     expect(await saveJumpDraft({ workspaceId, jumpId, family: "TEXT", body: "B", revision: "2" })).toMatchObject({ ok: false, reason: "invalid" });

@@ -64,25 +64,26 @@ describe.skipIf(!local).sequential("one follow-up, channel alternatives", () => 
     expect(single.selectedFamily).toBeNull();
   });
 
-  it("keeps a separate draft per family for authored alternatives only, detaching tokens against that family's wording", async () => {
+  it("keeps a separate draft per family for authored and generated alternatives, detaching tokens against that family's wording", async () => {
     expect(await saveJumpDraft({ workspaceId, jumpId, family: "TEXT", body: "Hi {{First Name}}, my own text.", revision: null })).toMatchObject({ ok: true, draft: { family: "TEXT", revision: 1 } });
     const emailDraft = await saveJumpDraft({ workspaceId, jumpId, family: "EMAIL", subject: "Your estimate", body: "Hi Casey, the estimate is attached. Thanks", revision: null });
     expect(emailDraft).toMatchObject({ ok: true, draft: { family: "EMAIL", revision: 1, subject: "Your estimate" } });
     // The email draft dropped the email signature token: recorded against the email variant, not the plan's text.
     expect(emailDraft.ok && emailDraft.draft.detached).toEqual(expect.objectContaining({ "{{First Name}}": "Casey", "{{Email Signature}}": expect.any(String) }));
     expect(await saveJumpDraft({ workspaceId, jumpId, family: "CALL", script: "Ask about the timeline.", revision: null })).toMatchObject({ ok: true, draft: { family: "CALL" } });
-    expect(await saveJumpDraft({ workspaceId, jumpId: singleJumpId, family: "EMAIL", subject: "x", body: "y", revision: null })).toMatchObject({ ok: false, reason: "unavailable" });
+    // A single-channel Beat now offers a generated email version, so its draft is accepted too.
+    expect(await saveJumpDraft({ workspaceId, jumpId: singleJumpId, family: "EMAIL", subject: "x", body: "y", revision: null })).toMatchObject({ ok: true, draft: { family: "EMAIL" } });
     expect(await prisma.jumpDraft.count({ where: { jumpId } })).toBe(3);
   });
 
-  it("records the owner's choice for one follow-up, only among authored families, and never creates another action", async () => {
+  it("records the owner's choice for one follow-up among its authored and generated families, and never creates another action", async () => {
     const before = await prisma.jump.count({ where: { workspaceId } });
     expect(await selectJumpVariant({ workspaceId, jumpId, family: "EMAIL" })).toEqual({ ok: true, selectedFamily: "EMAIL" });
     expect((await prisma.jump.findUniqueOrThrow({ where: { id: jumpId } })).selectedFamily).toBe("EMAIL");
     expect(await selectJumpVariant({ workspaceId, jumpId, family: "TEXT" })).toEqual({ ok: true, selectedFamily: null });
     expect(await selectJumpVariant({ workspaceId, jumpId, family: "CALL" })).toEqual({ ok: true, selectedFamily: "CALL" });
     expect(await selectJumpVariant({ workspaceId, jumpId, family: "FAX" })).toMatchObject({ ok: false, reason: "invalid" });
-    expect(await selectJumpVariant({ workspaceId, jumpId: singleJumpId, family: "EMAIL" })).toMatchObject({ ok: false, reason: "invalid" });
+    expect(await selectJumpVariant({ workspaceId, jumpId: singleJumpId, family: "EMAIL" })).toMatchObject({ ok: true, selectedFamily: "EMAIL" });
     expect(await selectJumpVariant({ workspaceId: "another-workspace", jumpId, family: "EMAIL" })).toMatchObject({ ok: false, reason: "unavailable" });
     expect(await prisma.jump.count({ where: { workspaceId } })).toBe(before);
     expect(await prisma.jump.count({ where: { id: jumpId, status: "PENDING" } })).toBe(1);

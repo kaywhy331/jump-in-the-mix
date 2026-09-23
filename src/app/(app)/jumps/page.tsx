@@ -28,7 +28,8 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { readJumpDrafts } from "@/lib/jump-drafts";
 import { buildJumpReplacementValues } from "@/lib/jump-render";
 import { detachedChanges, preparationFamilyForChannel, type PreparationFamily } from "@/lib/preparation-family";
-import { offersChoice, preparedVariants, selectedVariant, usableVariants, variantsOfSnapshot } from "@/lib/preparation-variants";
+import { offersChoice, preparedVariants, recommendedVariant, selectedVariant, usableVariants, variantsOfSnapshot } from "@/lib/preparation-variants";
+import { readJourneyPreferences } from "@/lib/journey-preferences";
 import { addLogicalDays, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
@@ -184,8 +185,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const returnTo = currentCursor ? pageHref(currentCursor.direction, currentCursor.value) : firstHref;
   const scheduling = await prisma.workspacePreference.findUnique({
     where: { workspaceId: workspace.id },
-    select: { defaultFollowUpMinutes: true, quietHoursStart: true, quietHoursEnd: true }
+    select: { defaultFollowUpMinutes: true, quietHoursStart: true, quietHoursEnd: true, journeyPreferences: true }
   });
+  const ownerPreferred = readJourneyPreferences(scheduling?.journeyPreferences)?.communication ?? null;
   const now = new Date();
   // Only offer snooze times after the follow-up is due, so nothing offered is refused.
   const choicesFor = (followUp: { baseScheduledAt: Date | null; scheduledAt: Date }) => snoozeChoices({
@@ -233,9 +235,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     // One follow-up, channel alternatives: the plan's wording plus any authored variant the person can
     // receive. The owner's choice for this follow-up wins while usable; otherwise the plan's channel.
     const methods = { email: email ?? null, phone: phone ?? null, preferredChannel: followUp.contact.relationshipState?.preferredChannel ?? null };
-    const prepared = planTemplate ? preparedVariants({ channel: planChannel, template: planTemplate }, variantsOfSnapshot(followUp.templateSnapshot), methods) : [];
+    const automaticForPlan = !followUp.manualOnly && !followUp.accessInvite && automaticFor(planChannel);
+    const prepared = planTemplate ? preparedVariants({ channel: planChannel, template: planTemplate }, variantsOfSnapshot(followUp.templateSnapshot, planChannel), methods) : [];
     const usable = usableVariants(prepared, methods);
-    const active = selectedVariant(usable, followUp.selectedFamily) ?? prepared[0] ?? null;
+    // Every Beat offers text, email and a call; the recommended one opens unless the owner chose another.
+    const recommended = recommendedVariant(usable, { contactPreferred: followUp.contact.relationshipState?.preferredChannel, ownerPreferred, automaticPlan: automaticForPlan });
+    const active = selectedVariant(usable, followUp.selectedFamily ?? recommended?.family) ?? prepared[0] ?? null;
     const followUpChannel = active?.channel ?? planChannel;
     const family = active?.family ?? preparationFamilyForChannel(planChannel);
     const template = active?.template ?? null;
@@ -251,7 +256,6 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const content = preparedContent ?? snapshot.body ?? snapshot.script ?? snapshot.subject ?? "No message has been prepared yet.";
     const contextVersions = { contactVersion: followUp.contact.updatedAt.toISOString(), businessProfileVersion: profile?.updatedAt.toISOString() ?? "none" };
     // Switching away from the plan's channel takes this follow-up out of automatic delivery; the card says so.
-    const automaticForPlan = !followUp.manualOnly && !followUp.accessInvite && automaticFor(planChannel);
     const heldByChoice = Boolean(alternative && automaticForPlan);
     // The note gives the real reason: the owner's choice, or the plan's own method missing so the
     // card fell back to an alternative without anyone choosing it.
@@ -262,7 +266,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const choice = isPending && active ? <FollowUpChannelChoice
       jumpId={followUp.id}
       contactName={followUp.contact.displayName}
-      options={(["TEXT", "EMAIL", "CALL"] as const).map(optionFamily => { const item = usable.find(item => item.family === optionFamily); return item ? choiceOption(item.family, item.channel) : { ...choiceOption(optionFamily, optionFamily === "EMAIL" ? "EMAIL" : optionFamily === "CALL" ? "PHONE_CALL" : "SMS"), unavailable: optionFamily === "EMAIL" && !email ? "Add an email address to use email" : optionFamily !== "EMAIL" && !phone ? "Add a phone number to use this method" : "This Mix has no prepared version for this method" }; })}
+      options={(["TEXT", "EMAIL", "CALL"] as const).map(optionFamily => { const item = usable.find(item => item.family === optionFamily); const option = item ? choiceOption(item.family, item.channel) : { ...choiceOption(optionFamily, optionFamily === "EMAIL" ? "EMAIL" : optionFamily === "CALL" ? "PHONE_CALL" : "SMS"), unavailable: optionFamily === "EMAIL" && !email ? "Needs an email address" : optionFamily !== "EMAIL" && !phone ? "Needs a phone number" : "Not prepared for this Beat" }; return { ...option, recommended: optionFamily === recommended?.family }; })}
+      missingMethodHref={!email || !phone ? `/contacts/${followUp.contactId}/edit?returnTo=${encodeURIComponent(`/jumps?jump=${followUp.id}&range=all`)}` : undefined}
       selected={active.family}
       heldNote={heldNote}
     /> : null;
