@@ -341,14 +341,20 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const firstFollowUpReady = firstFollowUp && (firstNeedsEmail ? firstFollowUp.contact.emails.length > 0 : firstFollowUp.contact.phones.length > 0);
   const welcomeMessage = firstFollowUpReady ? `Your first follow-up for ${params.firstContact} is ready.`
     : firstFollowUp ? `Your follow-up for ${params.firstContact} is saved. Add ${firstNeedsEmail ? "an email address" : "a phone number"} to review and send it.`
-    : preparation.state !== "ready" ? "Your details are saved. We’re checking your follow-ups." : "Your follow-up list is ready.";
+    : preparation.state !== "ready" ? "Your details are saved. We’re checking your follow-ups." : pending.length > 0 ? "Your follow-up list is ready." : "You’re set up.";
+  // Only promise a Review when one exists; otherwise point at the step that unblocks the first follow-up.
+  const welcomeNextStep = firstFollowUpReady ? " Tap Review to begin."
+    : firstFollowUp ? <> <Link className="inline-action" href={`/contacts/${firstFollowUp.contactId}/edit?returnTo=${encodeURIComponent(`/jumps?jump=${firstFollowUp.id}&range=all`)}`}>Add {firstNeedsEmail ? "an email address" : "a phone number"}<AppIcon name="chevronRight" className="inline-action-icon" /></Link></>
+    : preparation.state !== "ready" ? null
+    : pending.length > 0 ? " Tap Review to begin."
+    : <> <Link className="inline-action" href="/contacts/new">Add your first person<AppIcon name="chevronRight" className="inline-action-icon" /></Link></>;
 
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
       <JumpReturnTray />
       {params.setupLater && <Notice type="success">Your setup answers are saved. <Link href="/onboarding">Return to setup</Link> whenever you’re ready.</Notice>}
       {params.invitations && <Notice type="success">Your invitations are ready in Today. Review each message and send it from your own text or email app.</Notice>}
-    {params.welcome && <Notice type="success">{welcomeMessage} Tap Review to begin.</Notice>}
+    {params.welcome && <Notice type="success">{welcomeMessage}{welcomeNextStep}</Notice>}
       {params.demo && <Notice type="info">Using local demo data.</Notice>}
       {params.applied && <Notice type="success">Mix changes saved.</Notice>}
       {params.mixStopped && <Notice type="success">Mix stopped.</Notice>}

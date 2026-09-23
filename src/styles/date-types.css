@@ -1,6 +1,7 @@
 /* Important Date type feature composition. */
 .settings-hub-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-.inline-create-form { display: flex; gap: 10px; }
+.inline-create-form { display: flex; gap: 10px; align-items: flex-end; }
+.inline-create-form .field { flex: 1 1 auto; min-width: 0; margin: 0; }
 .inline-create-form input { min-width: 0; }
 .inline-create-form .button { flex: 0 0 auto; }
 .date-type-list { display: grid; gap: 9px; }

@@ -8,7 +8,7 @@ import { DRAFT_LIMITS, type DetachedChange, type DraftContent, type PreparationF
 
 type ActionType = "COMPOSED" | "CALLED" | "VOICEMAIL_STARTED";
 type SavedDraft = DraftContent & { revision: number };
-type SaveStatus = "idle" | "saving" | "saved" | "retrying" | "discard-failed" | "unavailable";
+type SaveStatus = "idle" | "saving" | "saved" | "retrying" | "discard-failed" | "unavailable" | "signed-out";
 type Source = { subject: string; content: string };
 type Saved = Source & { revision: number | null };
 // A newer version exists on the server. "save" arose from an autosave, "discard" from a discard;
@@ -54,6 +54,7 @@ function statusLabel(status: SaveStatus, unsaved: boolean, hasSavedDraft: boolea
   if (status === "retrying") return "Not saved yet. Trying again…";
   if (status === "discard-failed") return "Your edits are still saved; the discard didn't go through.";
   if (status === "unavailable") return "This follow-up changed. Refresh to see it; your wording is still on screen.";
+  if (status === "signed-out") return "You’re signed out, so this wording isn’t saved. Copy it, then sign in again.";
   return !unsaved && hasSavedDraft ? "Saved" : "";
 }
 
@@ -210,6 +211,9 @@ export function EditableFollowUpAction({
       } else if (response.status === 404) {
         setStopped(true);
         setStatus("unavailable");
+      } else if (response.status === 401 || response.status === 403) {
+        setStopped(true);
+        setStatus("signed-out");
       } else {
         throw new Error("The draft could not be saved.");
       }
@@ -307,6 +311,9 @@ export function EditableFollowUpAction({
       } else if (response.status === 404) {
         setStopped(true);
         setStatus("unavailable");
+      } else if (response.status === 401 || response.status === 403) {
+        setStopped(true);
+        setStatus("signed-out");
       } else {
         throw new Error("The draft could not be discarded.");
       }
@@ -401,7 +408,7 @@ export function EditableFollowUpAction({
       {outcomeActions}
       </div>
       {(label || (hasDraft && !conflict)) && <div className="review-draft-status">
-        {label && <small className="muted-copy" role="status" data-draft-status={status}>{label}</small>}
+        {label && <small className={status === "signed-out" ? "draft-status-warning" : "muted-copy"} role="status" data-draft-status={status}>{label}{status === "signed-out" && <> <a className="inline-action" href={`/login?next=${encodeURIComponent(`/jumps?jump=${jumpId}&range=all`)}`} target="_blank" rel="noopener">Sign in in a new tab</a> <button type="button" className="text-button" onClick={() => { setStopped(false); setStatus("idle"); }}>Try saving again</button></>}</small>}
         {hasDraft && !conflict && <button type="button" className="text-button" disabled={busy} onClick={() => { void discard(); }}>{status === "discard-failed" ? "Try discarding again" : "Discard edits"}</button>}
       </div>}
       {automaticDelivery && hasDraft && <p className="muted-copy" data-follow-up-held>Because you edited it, this one waits for you and won’t send automatically.</p>}

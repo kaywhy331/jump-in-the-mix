@@ -154,15 +154,15 @@ export function ContactsBulkWorkspace({
             <section className="tag-manager">
               <div className="section-label"><h2>Tags</h2><span>{activeTags.length}</span></div>
               <form action={createContactGroupAction} className="group-create-form">
-                <input name="name" placeholder="Tag name" aria-label="Tag name" required />
-                <input name="description" placeholder="Optional note" aria-label="Tag note" />
+                <label className="field"><span>Tag name</span><input name="name" placeholder="For example, Kitchen remodels" required /></label>
+                <label className="field"><span>Note (optional)</span><input name="description" /></label>
                 <label className="color-input"><span>Color</span><input name="color" type="color" defaultValue="#5d4cf2" /></label>
                 <button className="button primary" type="submit">Add tag</button>
               </form>
               {groups.length > 0 && <>
                 <form id="tag-activation-form" action={saveActiveGroupsAction} />
                 <div className="group-manage-list">{groups.map((group) => <div className={`group-manage-row ${group.isActive ? "" : "inactive"}`} key={group.id}>
-                  <label className="date-type-active-choice"><input form="tag-activation-form" type="checkbox" name="activeGroupIds" value={group.id} defaultChecked={group.isActive} /><span>{group.isActive ? "On" : "Off"}</span></label>
+                  <label className="date-type-active-choice"><input form="tag-activation-form" type="checkbox" name="activeGroupIds" value={group.id} defaultChecked={group.isActive} /><span>Show<span className="sr-only"> the {group.name} tag</span></span></label>
                   <span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />
                   <span><strong>{group.name}</strong><small>{group.contactCount} contact{group.contactCount === 1 ? "" : "s"}</small></span>
                   <ConfirmDialog trigger="Delete…" title={`Delete ${group.name}?`} description="People and completed history will stay in your account." danger><form action={deleteContactGroupAction}><input type="hidden" name="groupId" value={group.id} /><button className="button small danger" type="submit">Delete tag</button></form></ConfirmDialog>

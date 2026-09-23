@@ -132,3 +132,24 @@ Implemented and verified in an isolated production build with a disposable datab
   - Measured at 390px: all 18 Today Review/"…" controls, contact Back/Edit/stage controls and calendar week navigation were ≥44px, with no horizontal scroll.
 
 Checks: typecheck clean. Unit suite 1,413 passed; the one failure (`shared-mix-boundary`) is the same failure live production already has.
+
+## Status — second fixes (branch `fix/ux-gaps-20260923`)
+
+Implemented and verified in an isolated production build with a disposable database.
+
+- **Item 2: The welcome notice matches reality.** "Tap Review to begin" appears only when something can be reviewed. Otherwise:
+  - If the first person is missing a phone or email, the notice links to add it and return to that follow-up.
+  - An empty account gets "You’re set up." with an **Add your first person** link.
+  - While follow-ups are still preparing, it says so.
+  - Verified for both an empty account and one with follow-ups.
+- **Item 7: An expired session no longer loops.** When a draft save or discard returns 401 or 403, the editor stops retrying and keeps the typed wording. It shows: "You’re signed out, so this wording isn’t saved. Copy it, then sign in again." It also offers **Sign in in a new tab**, which returns to that follow-up, and **Try saving again**.
+  - Verified by clearing the session mid-edit: the status stayed on signed-out for 9 seconds with no retry loop, and the wording stayed intact.
+- **Item 9: Field borders now pass contrast.**
+  - A new `--field-border` token is used by inputs, selects, textareas and the contact selection checkbox.
+  - Light #8C8AA3 measures 3.34:1 on white and 3.07:1 on the input surface. Dark #7A7799 measures 3.58:1 or more.
+  - The focus colour still wins. Computed colours were checked in both themes.
+- **Item 10: Controls say what they control.**
+  - Tag toggles are named "Show the {tag} tag" and date-type toggles "Use {type}". Before, they only said On/Off or Active/Inactive, which also reflected the saved state rather than the current one.
+  - The Tag name, Note and New date type inputs have visible labels.
+
+Checks: typecheck clean. The unit suite has the same 1,413 passing and 1 pre-existing failure. The phone layout reflows without horizontal scroll.

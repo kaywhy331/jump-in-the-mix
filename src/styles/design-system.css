@@ -6,7 +6,7 @@ textarea { font-family: var(--font-voice); font-size: 1.125rem; line-height: 1.5
 h1, h2, h3, h4, .button, .logo { font-weight: 600; }
 h1, h2, h3 { text-wrap: balance; }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
-input, select, textarea { background: var(--surface); border-color: var(--border); border-radius: var(--radius-control); color: var(--text); }
+input, select, textarea { background: var(--surface); border-color: var(--field-border); border-radius: var(--radius-control); color: var(--text); }
 input::placeholder, textarea::placeholder { color: var(--text-3); opacity: 1; }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 .button { background: var(--raised); border-color: var(--border); border-radius: var(--radius-control); font-weight: 600; min-height: 44px; box-shadow: none; }

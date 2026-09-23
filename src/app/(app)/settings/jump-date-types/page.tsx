@@ -56,7 +56,7 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
 
       <section className="card">
         <div className="card-header"><div><h2>+ New custom type</h2><p>Examples: Policy Renewal, Closing Anniversary, Program Start, or Warranty Expiration.</p></div></div>
-        <form action={createCustomDateTypeAction} className="inline-create-form"><input name="name" placeholder="Date type, such as Warranty expires" required /><button className="button primary" type="submit">Create type</button></form>
+        <form action={createCustomDateTypeAction} className="inline-create-form"><label className="field"><span>New date type</span><input name="name" placeholder="For example, Warranty expires" required /></label><button className="button primary" type="submit">Create type</button></form>
       </section>
 
       <section className="card">
@@ -65,7 +65,7 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
         <form id="date-type-activation-form" action={saveActiveDateTypesAction}><FormGuard /><FormSubmitButton label="Save active selection" pendingLabel="Saving date types…" />{hiddenActiveTypes.map((item) => <input type="hidden" name="activeDateTypeIds" value={item.id} key={item.id} />)}</form>
         {customTypes.length ? <div className="date-type-list">{customTypes.map((dateType) => (
           <article className={dateType.isActive ? "date-type-row" : "date-type-row inactive"} key={dateType.id}>
-            <label className="date-type-active-choice"><input form="date-type-activation-form" type="checkbox" name="activeDateTypeIds" value={dateType.id} defaultChecked={dateType.isActive} /><span>{dateType.isActive ? "Active" : "Inactive"}</span></label>
+            <label className="date-type-active-choice"><input form="date-type-activation-form" type="checkbox" name="activeDateTypeIds" value={dateType.id} defaultChecked={dateType.isActive} /><span>Use<span className="sr-only"> {dateType.name}</span></span></label>
             <div><strong>{dateType.name}</strong>{dateType.mixes.length > 0 && <p>Used by: {dateType.mixes.map(mix => <Link key={mix.id} href={`/mixes/${mix.id}/edit`}>{mix.name} </Link>)}</p>}<div className="jump-meta"><span>{dateType._count.jumpDates} saved date{dateType._count.jumpDates === 1 ? "" : "s"}</span><span>{dateType._count.mixes} mix{dateType._count.mixes === 1 ? "" : "s"}</span></div></div>
             <Sheet trigger={<button className="button small" type="button">Edit</button>} title={`Rename ${dateType.name}`} description="The saved dates and mixes using this type stay connected."><form action={renameCustomDateTypeAction} className="form-stack"><input type="hidden" name="dateTypeId" value={dateType.id} /><label className="field"><span>Name</span><input name="name" defaultValue={dateType.name} required /></label><button className="button primary" type="submit">Save name</button></form></Sheet>
             <ConfirmDialog trigger="Delete…" title={`Delete ${dateType.name}?`} description="You can delete it only when no saved dates or active mixes use it. Otherwise, turn it off." danger><form action={deleteCustomDateTypeAction}><input type="hidden" name="dateTypeId" value={dateType.id} /><button className="button small danger" type="submit">Confirm delete</button></form></ConfirmDialog>

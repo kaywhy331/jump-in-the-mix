@@ -8,6 +8,7 @@
   --selected: #FFFFFF;
   --line: #E7E6EE;
   --border: #CFCEDB;
+  --field-border: #8C8AA3; /* input outlines: >=3:1 on page and surface (WCAG 1.4.11) */
   --track: #DDDCE7;
   --text: #1A1830;
   --text-2: #55546B;
@@ -71,6 +72,7 @@
     --selected: #35315A;
     --line: #2B2842;
     --border: #5A5777;
+    --field-border: #7A7799;
     --track: #34314D;
     --text: #EEEDF6;
     --text-2: #B9B7CC;
@@ -103,6 +105,7 @@
   --selected: #35315A;
   --line: #2B2842;
   --border: #5A5777;
+  --field-border: #7A7799;
   --track: #34314D;
   --text: #EEEDF6;
   --text-2: #B9B7CC;

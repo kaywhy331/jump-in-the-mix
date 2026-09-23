@@ -75,3 +75,7 @@
   .calendar-page .calendar-event > .form-actions { gap: 8px; }
   .calendar-page .calendar-event > .form-actions .button { font-size: .8125rem; padding: 8px 12px; }
 }
+
+/* A signed-out draft is a warning the owner must act on, not quiet status text. */
+.draft-status-warning { color: var(--warning); font-weight: 600; }
+.draft-status-warning .text-button { font-size: inherit; }
