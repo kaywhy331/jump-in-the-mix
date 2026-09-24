@@ -143,6 +143,7 @@ model Workspace {
   favorites MixFavorite[]
   mixWorkflow MixWorkflow?
   megaMixInstallations MegaMixInstallation[]
+  megaMixPipelines MegaMixPipeline[]
   mixWorkflowInstances MixWorkflowInstance[]
   accessInvites ReferralAccessInvite[]
   journeyPreference      JourneyPreference?
@@ -454,6 +455,7 @@ model StepVersion {
 
 model Mix {
   favorites MixFavorite[]
+  megaMixMembership MegaMixPipelineMix?
   journeyStages             JourneyStage[]
   id                        String          @id @default(cuid())
   workspaceId               String

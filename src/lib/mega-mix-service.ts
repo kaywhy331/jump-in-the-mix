@@ -4,9 +4,12 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { megaMixById, megaMixConfiguration } from "@/lib/mega-mixes";
 import { readWorkflowDefinition, saveWorkflowConfiguration, workflowJson } from "@/lib/mix-workflow";
+import { availableMegaMixName, cleanMegaMixName } from "@/lib/mega-mix-pipeline-service";
 
 export async function installMegaMix(input: {
   workspaceId: string; actorUserId: string; blueprintId: string; expectedVersion: number;
+  /** The Mega-Mix name; the ready-made name (numbered if taken) when omitted. */
+  name?: string;
   setup?: JourneySetupValues;
   onboarding?: { timezone: string; company: string; smsSignature: string; userName: string };
 }) {
@@ -58,6 +61,9 @@ export async function installMegaMix(input: {
       intentionalEnds: [...current.intentionalEnds, ...addition.intentionalEnds]
     }, current.revision, input.actorUserId);
     await db.megaMixInstallation.create({ data: { id, workspaceId: input.workspaceId, blueprintId: blueprint.id, version: blueprint.version, mixIds: workflowJson(mixIds) } });
+    const name = await availableMegaMixName(db, input.workspaceId, input.name?.trim() ? cleanMegaMixName(input.name) : blueprint.name);
+    await db.megaMixPipeline.create({ data: { id, workspaceId: input.workspaceId, name, description: blueprint.description, origin: `BLUEPRINT:${blueprint.id}`, createdById: input.actorUserId,
+      members: { create: blueprint.nodes.map((node, position) => ({ mixId: mixIds[node.key], position })) } } });
     await db.auditLog.create({ data: { workspaceId: input.workspaceId, actorType: "USER", actorUserId: input.actorUserId,
       action: "mega-mix.install", entityType: "MegaMixInstallation", entityId: id, source: input.onboarding ? "onboarding" : "templates.journeys",
       metadata: { blueprintId: blueprint.id, version: blueprint.version, mixCount: blueprint.nodes.length, enrolledContacts: 0 } } });

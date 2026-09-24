@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     automatedDeliveries,
     authIdentities,
     journeyPreference, journeyStages, journeys, journeyEvents,
-    mixWorkflow, mixWorkflowInstances, mixFavorites, megaMixInstallations, mixStops, contactGroupStates, customFieldDefinitions,
+    mixWorkflow, mixWorkflowInstances, mixFavorites, megaMixInstallations, megaMixPipelines, mixStops, contactGroupStates, customFieldDefinitions,
     calendarEntries, calendarConnections, intakeConnections, intakeReceipts, intakeIdentities,
     savedContactViews, contactMergeRecords, handoffEvents, broadcastSchedules, marketingPreference, sharedMixImports, supportTickets, reminderDeliveries, reminderDevices, accessInvitations
   ] = await Promise.all([
@@ -63,6 +63,7 @@ export async function GET(request: Request) {
     prisma.mixWorkflowInstance.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
     prisma.mixFavorite.findMany({ where: { workspaceId, userId: user.id }, orderBy: { createdAt: "asc" } }),
     prisma.megaMixInstallation.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
+    prisma.megaMixPipeline.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, include: { members: { orderBy: { position: "asc" } } } }),
     prisma.mixStop.findMany({ where: { workspaceId }, orderBy: [{ stoppedAt: "asc" }, { id: "asc" }] }),
     prisma.contactGroupState.findMany({ where: { workspaceId } }),
     prisma.contactCustomFieldDefinition.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
@@ -134,6 +135,7 @@ export async function GET(request: Request) {
     mixWorkflow: { configuration: mixWorkflow, instances: mixWorkflowInstances },
     mixFavorites,
     megaMixInstallations,
+    megaMixPipelines,
     mixStops,
     contactGroupStates,
     customFieldDefinitions,

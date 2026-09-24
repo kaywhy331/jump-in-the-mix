@@ -11,3 +11,35 @@ model MegaMixInstallation {
 
   @@unique([workspaceId, blueprintId])
 }
+
+// A named pipeline of this workspace's Mixes. The Journey stays one saved graph per
+// workspace; a Mega-Mix names the part of it that is shown, numbered, exported and
+// shared together. A Mix belongs to one Mega-Mix at most. Removing a Mega-Mix keeps its Mixes.
+model MegaMixPipeline {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  name              String
+  description       String?
+  // Where it came from: BLUEPRINT:<id>, FILE, COPY:<pipeline id> or MARKETPLACE:<listing id>.
+  origin            String?
+  // Content fingerprint of the source when it was added, so a newer shared version can be offered.
+  originFingerprint String?
+  createdById       String?
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members           MegaMixPipelineMix[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, updatedAt])
+}
+
+model MegaMixPipelineMix {
+  mixId      String          @id
+  pipelineId String
+  position   Int
+  pipeline   MegaMixPipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  mix        Mix             @relation(fields: [mixId], references: [id], onDelete: Cascade)
+
+  @@index([pipelineId, position])
+}

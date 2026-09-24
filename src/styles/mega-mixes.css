@@ -1,0 +1,38 @@
+/* Mega-Mixes: named pipelines, their numbered outline, import and forms. Shared tokens only. */
+.beat-number { display: inline-grid; place-items: center; flex-shrink: 0; min-width: 32px; height: 24px; padding: 0 6px; box-sizing: border-box; border-radius: 6px; background: var(--violet-wash); color: var(--violet-text); font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mega-mix-facts { margin: -12px 0 24px; color: var(--text-3); font-size: .8125rem; }
+.portable-outline { list-style: none; margin: 0; padding: 0; display: grid; gap: 24px; }
+.portable-outline-mix h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); font-size: .9375rem; font-weight: 600; }
+.portable-outline-mix h3 small { display: block; color: var(--text-3); font-size: .75rem; font-weight: 400; margin-top: 2px; }
+.portable-outline-icon { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; border-radius: 10px; background: var(--violet-wash); color: var(--violet-mark); }
+.portable-outline-icon svg { width: 18px; height: 18px; }
+.portable-outline-beats { list-style: none; margin: 0; padding: 0; }
+.portable-outline-beats li { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; }
+.portable-outline-beats li > span { min-width: 0; }
+.portable-outline-beats strong { display: block; font-size: .875rem; font-weight: 500; overflow-wrap: anywhere; }
+.portable-outline-beats small { display: block; color: var(--text-3); font-size: .75rem; margin-top: 2px; }
+.portable-outline-paths { list-style: none; margin: 4px 0 0; padding: 0 0 0 44px; display: grid; gap: 4px; font-size: .8125rem; color: var(--text-2); }
+.portable-outline-paths li { display: flex; gap: 6px; align-items: flex-start; overflow-wrap: anywhere; }
+.portable-outline-paths svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; color: var(--violet-mark); }
+.portable-outline-end { display: flex; gap: 6px; align-items: center; margin: 4px 0 0 44px; color: var(--text-3); font-size: .8125rem; }
+.portable-outline-end svg { width: 14px; height: 14px; }
+.mega-mix-page .mix-library-total small { font-size: .75rem; }
+.mega-mix-form { max-width: 640px; }
+.mega-mix-choices { min-width: 0; margin: 0; padding: 0; border: 0; display: grid; gap: 10px; }
+.mega-mix-choices legend { display: flex; justify-content: space-between; width: 100%; padding: 0; margin-bottom: 8px; font-weight: 600; font-size: .875rem; }
+.mega-mix-choices legend span { color: var(--text-3); font-weight: 400; }
+.mega-mix-choices ul { list-style: none; margin: 0; padding: 0; max-height: 420px; overflow: auto; border-block: 1px solid var(--line); }
+.mega-mix-choices li + li { border-top: 1px solid var(--line); }
+.mega-mix-choices .checkbox-label { display: flex; align-items: flex-start; gap: 12px; min-height: 44px; padding: 10px 0; cursor: pointer; }
+.mega-mix-choices .checkbox-label input { margin-top: 3px; }
+.mega-mix-choices .checkbox-label strong, .mega-mix-choices .checkbox-label small { display: block; overflow-wrap: anywhere; }
+.mega-mix-choices .checkbox-label small { color: var(--text-3); font-size: .75rem; margin-top: 2px; }
+.import-summary { padding: 14px 16px; border-radius: 12px; background: var(--surface); font-size: .875rem; }
+.import-summary ul { margin: 8px 0 0; padding-left: 18px; line-height: 1.6; }
+.import-summary small { color: var(--text-3); }
+/* Three collection tabs share the directory width evenly instead of overflowing it. */
+.mix-library-directory .mix-library-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.mix-library-directory .mix-library-tabs a { justify-content: center; gap: 4px; min-width: 0; padding: 8px 4px; }
+.mix-library-directory .mix-library-tabs a svg { flex-shrink: 0; }
+.import-file .checkbox-label { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; font-size: .875rem; line-height: 1.5; cursor: pointer; }
+.import-file .checkbox-label input { flex: 0 0 18px; width: 18px; height: 18px; min-height: 0; margin: 2px 0 0; }

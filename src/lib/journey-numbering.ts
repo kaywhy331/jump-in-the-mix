@@ -86,3 +86,13 @@ export function beatNumberRange(stepIds: string[], numbers: Record<string, strin
   const consecutive = parts.every((part, index) => part && parts[0] && part[1] === parts[0][1] && part[3] === parts[0][3] && Number(part[2]) === Number(parts[0][2]) + index);
   return values.length >= 2 && consecutive ? `${values[0]}–${values.at(-1)}` : values.join(", ");
 }
+
+/** Numbers for a portable package, keyed "mix/beat", using the same rules as the Journey map. */
+export function numberPortableBeats(value: { mixes: Array<{ key: string; steps: Array<{ key: string }> }>; rules: Array<{ source: { mix: string; beat: string | null }; routes: Array<{ target: { mix: string; beat: string | null } | null; maxVisits: number | null; when: "FINISHED" | "OUTCOME" | "TIMEOUT"; label: string; outcome: string; delayMinutes: number; replace: boolean; key: string }>; join: { mode: "ALL" | "ANY"; target: { mix: string; beat: string | null }; cancelRemaining: boolean } | null; key: string; name: string; enabled: boolean; mode: "CHOICE" | "PARALLEL" }>; waitingBeats: Array<{ mix: string; beat: string }> }) {
+  const point = (entry: { mix: string; beat: string | null }) => ({ mixId: entry.mix, stepId: entry.beat ? `${entry.mix}/${entry.beat}` : null });
+  return numberJourneyBeats(value.mixes.map(mix => ({ id: mix.key, status: "ACTIVE", source: "PORTABLE", steps: mix.steps.map(step => ({ id: `${mix.key}/${step.key}` })) })), {
+    gatedStepIds: value.waitingBeats.map(entry => `${entry.mix}/${entry.beat}`),
+    rules: value.rules.map(rule => ({ id: rule.key, name: rule.name, enabled: rule.enabled, mode: rule.mode, source: point(rule.source), join: rule.join ? { ...rule.join, target: point(rule.join.target) } : null,
+      routes: rule.routes.map(route => ({ id: route.key, label: route.label, when: route.when, outcome: route.outcome, delayMinutes: route.delayMinutes, maxVisits: route.maxVisits, replace: route.replace, target: route.target ? point(route.target) : null })) }))
+  });
+}

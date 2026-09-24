@@ -227,3 +227,8 @@
 .numberedBeats li{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:10px;align-items:start}
 .numberedBeats li>:not(.beatNumber){grid-column:2}
 .numberedBeats .beatNumber{grid-row:1/span 2;margin-top:1px}
+/* Mega-Mix switcher: one named pipeline at a time, numbered on its own. */
+.megaMixSwitch{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--text-3)}
+.megaMixSwitch label{display:flex;align-items:center;gap:8px;min-width:0}
+.megaMixSwitch select{min-width:0;max-width:240px;width:auto}
+.megaMixSwitch a{min-height:44px;display:inline-flex;align-items:center}

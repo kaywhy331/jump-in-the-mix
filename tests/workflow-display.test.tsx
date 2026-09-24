@@ -13,7 +13,7 @@ describe("Journey dates across server and browser time zones", () => {
     const initial: WorkflowGraphView = {
       analytics: summarizeWorkflowPeople([{ id: "person", displayName: "Example person", stageId: "unassigned", stageName: "No stage", positions: [] }]),
       revision: 1, historical: false, configuration: emptyWorkflow(), mixes: [], canEdit: false,
-      metrics: {}, instanceTotal: 1, people: [], issues: [], updatedAt: instant,
+      metrics: {}, instanceTotal: 1, people: [], issues: [], updatedAt: instant, megaMixes: [],
       instances: [{
         id: "instance", contactId: "person", contactName: "Example person", label: "Example work",
         status: "ACTIVE", revision: 1, definitionRevision: 1, updatedAt: instant,

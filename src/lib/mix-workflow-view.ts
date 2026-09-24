@@ -22,6 +22,7 @@ export type WorkflowGraphView = {
   metrics: Record<string, { started: number; eligible: number; waiting: number; held: number; canceled: number; selected: number; decisions: number; undecided: number }>;
   instances: WorkflowInstanceView[]; instanceTotal: number; people: Array<{ id: string; displayName: string }>;
   issues: Array<{ node: string; message: string }>; updatedAt: string;
+  megaMixes: Array<{ id: string; name: string; mixIds: string[] }>;
 };
 
 export async function readWorkflowGraph(workspaceId: string, options: { contactId?: string; query?: string; offset?: number; canEdit: boolean; instanceId?: string; node?: string; status?: string; stage?: string; peopleOffset?: number; days?: number; focusedInstance?: string }): Promise<WorkflowGraphView> {
@@ -29,13 +30,14 @@ export async function readWorkflowGraph(workspaceId: string, options: { contactI
   if (options.instanceId && !snapshot) throw new Error("That journey instance is unavailable.");
   const definition = snapshot ? workflowDefinition(snapshot.definition) : await readWorkflowDefinition(prisma, workspaceId);
   const where = { workspaceId, ...(options.contactId ? { contactId: options.contactId } : {}) };
-  const [counts, instances, instanceTotal, people, analytics] = await Promise.all([
+  const [counts, instances, instanceTotal, people, analytics, megaMixes] = await Promise.all([
     prisma.jump.groupBy({ by: ["mixId", "status"], where, _count: true }),
     prisma.mixWorkflowInstance.findMany({ where, orderBy: [{ updatedAt: "desc" }, { id: "asc" }], skip: options.offset ?? 0, take: 50, include: { contact: { select: { displayName: true } }, jumps: { select: { id: true, workflowVisitId: true, scheduledAt: true, status: true } } } }),
     prisma.mixWorkflowInstance.count({ where }),
     prisma.contact.findMany({ where: { workspaceId, archivedAt: null, ...(options.query ? { displayName: { contains: options.query, mode: "insensitive" as const } } : {}) }, select: { id: true, displayName: true }, orderBy: [{ displayName: "asc" }, { id: "asc" }], take: 50 }),
     // Selecting work changes the map focus and details, while the directory stays browsable.
-    readWorkflowAnalytics(workspaceId, { node: options.node, status: options.status, stage: options.stage, query: options.query, offset: options.peopleOffset })
+    readWorkflowAnalytics(workspaceId, { node: options.node, status: options.status, stage: options.stage, query: options.query, offset: options.peopleOffset }),
+    prisma.megaMixPipeline.findMany({ where: { workspaceId }, orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, members: { orderBy: { position: "asc" }, select: { mixId: true } } } })
   ]);
   if (options.focusedInstance && !instances.some(instance => instance.id === options.focusedInstance)) {
     const focused = await prisma.mixWorkflowInstance.findFirst({ where: { ...where, id: options.focusedInstance }, include: { contact: { select: { displayName: true } }, jumps: { select: { id: true, workflowVisitId: true, scheduledAt: true, status: true } } } });
@@ -91,6 +93,7 @@ export async function readWorkflowGraph(workspaceId: string, options: { contactI
       pending: counts.find(item => item.mixId === mix.id && item.status === "PENDING")?._count ?? 0,
       completed: counts.find(item => item.mixId === mix.id && item.status === "DONE")?._count ?? 0 })),
     analytics, metrics, instanceTotal, people, issues, updatedAt: new Date().toISOString(),
+    megaMixes: megaMixes.map(item => ({ id: item.id, name: item.name, mixIds: item.members.map(member => member.mixId) })),
     instances: instances.map(instance => {
       const saved = workflowDefinition(instance.definition), state = workflowState(instance.state);
       return { preparationFailed: preparationFailures.has(instance.id), id: instance.id, contactId: instance.contactId, contactName: instance.contact.displayName, label: instance.label, status: instance.status, revision: instance.revision, definitionRevision: saved.revision, appointments: appointments.filter(entry => entry.contactId === instance.contactId).slice(0, 30).map(entry => ({ id: entry.id, title: entry.title, startsAt: entry.startsAt.toISOString() })), state: { ...state, commands: [], context: undefined, updates: state.updates?.map(({ before: _before, afterFingerprint, ...record }) => ({ ...record, canUndo: Boolean(!record.reversedAt && afterFingerprint === workflowFingerprint(state)) })) }, updatedAt: instance.updatedAt.toISOString(),
