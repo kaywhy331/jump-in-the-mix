@@ -11,12 +11,12 @@ export const PORTABLE_LIMITS = { mixes: 60, steps: 40, rules: 400, bytes: 900_00
 const key = z.string().regex(/^[a-z0-9-]{1,40}$/);
 const text = (maximum: number) => z.string().max(maximum).nullable();
 const target = z.object({ mix: key, beat: key.nullable() }).strict();
-const variant = z.object({ family: z.enum(["TEXT", "EMAIL", "CALL"]), subject: text(300), body: text(10_000), script: text(10_000) }).strict();
+const variant = z.object({ family: z.enum(["TEXT", "EMAIL", "CALL"]), subject: text(300), body: text(20_000), script: text(20_000) }).strict();
 const step = z.object({
   key, name: z.string().trim().min(1).max(160), channel: z.enum(["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"]),
   dayOffset: z.number().int().min(-3650).max(3650), sendTimeMinutes: z.number().int().min(0).max(1439).nullable(),
   anchor: z.enum(["CALENDAR_DAY", "APPOINTMENT_START", "APPOINTMENT_END", "VISIT_COMPLETED"]), offsetMinutes: z.number().int().min(-525_600).max(525_600).nullable(),
-  subject: text(300), body: text(10_000), script: text(10_000), longSms: z.boolean(), includeOptOut: z.boolean(),
+  subject: text(300), body: text(20_000), script: text(20_000), longSms: z.boolean(), includeOptOut: z.boolean(),
   variants: z.array(variant).max(3)
 }).strict();
 const mix = z.object({

@@ -12,6 +12,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
 import { BrandTermsHelp } from "@/components/BrandTermsHelp";
+import { MarketplaceNotices } from "@/components/MarketplaceShare";
 
 export const metadata: Metadata = { title: "Mixes" };
 type SearchParams = { mix?: string; view?: string; activate?: string; imported?: string; created?: string; updated?: string; activated?: string; paused?: string; archived?: string; error?: string; q?: string; status?: string; page?: string; favorites?: string };
@@ -33,6 +34,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
   const selected = requested?.id ?? mixes[0]?.id;
   return <div className="page mixes-page mix-workspace-page">
     {params.error && <Notice type="error">{params.error}</Notice>}
+    <MarketplaceNotices workspaceId={workspace.id} />
     {(params.activated || params.paused || params.archived) && <Notice type="success">{params.activated ? "Mix started." : params.paused ? "Mix paused." : "Mix archived."}</Notice>}
     <MixLibraryShell selectedMixId={selected} explicitSelection={Boolean(params.mix)}>
       <aside className="mix-library-directory" aria-label="Mix library">
@@ -46,7 +48,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
             </Sheet>
           </div>
         </header>
-        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes" aria-current="page"><AppIcon name="mixes" />My mixes</Link><Link href="/mixes/mega"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/templates"><AppIcon name="import" />Ready-made</Link></nav>
+        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes" aria-current="page"><AppIcon name="mixes" />My mixes</Link><Link href="/mixes/mega"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace"><AppIcon name="store" />Marketplace</Link></nav>
         <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Choose a complete mega-mix</Link>
         <div className="mix-directory-search">
           <form className="mix-library-search" key={`${q}:${status}:${favorites}`} action="/mixes">

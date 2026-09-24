@@ -27,6 +27,7 @@ model MegaMixPipeline {
   createdById       String?
   workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members           MegaMixPipelineMix[]
+  marketplaceListing MarketplaceListing?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

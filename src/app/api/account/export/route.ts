@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     automatedDeliveries,
     authIdentities,
     journeyPreference, journeyStages, journeys, journeyEvents,
-    mixWorkflow, mixWorkflowInstances, mixFavorites, megaMixInstallations, megaMixPipelines, mixStops, contactGroupStates, customFieldDefinitions,
+    mixWorkflow, mixWorkflowInstances, mixFavorites, megaMixInstallations, megaMixPipelines, marketplace, mixStops, contactGroupStates, customFieldDefinitions,
     calendarEntries, calendarConnections, intakeConnections, intakeReceipts, intakeIdentities,
     savedContactViews, contactMergeRecords, handoffEvents, broadcastSchedules, marketingPreference, sharedMixImports, supportTickets, reminderDeliveries, reminderDevices, accessInvitations
   ] = await Promise.all([
@@ -64,6 +64,15 @@ export async function GET(request: Request) {
     prisma.mixFavorite.findMany({ where: { workspaceId, userId: user.id }, orderBy: { createdAt: "asc" } }),
     prisma.megaMixInstallation.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
     prisma.megaMixPipeline.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, include: { members: { orderBy: { position: "asc" } } } }),
+    Promise.all([
+      prisma.marketplaceAuthor.findUnique({ where: { workspaceId } }),
+      prisma.marketplaceListing.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" }, include: { _count: { select: { favorites: true, imports: true } } } }),
+      prisma.marketplaceFavorite.findMany({ where: { workspaceId, userId: user.id }, orderBy: { createdAt: "asc" }, select: { listingId: true, createdAt: true } }),
+      prisma.marketplaceImport.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
+      // Reports this account made; reports about its shares omit who reported them.
+      prisma.marketplaceReport.findMany({ where: { reporterWorkspaceId: workspaceId }, orderBy: { createdAt: "asc" }, select: { listingId: true, reason: true, details: true, status: true, createdAt: true } }),
+      prisma.marketplaceReport.findMany({ where: { listing: { workspaceId } }, orderBy: { createdAt: "asc" }, select: { listingId: true, reason: true, details: true, status: true, reviewNote: true, createdAt: true } })
+    ]).then(([author, listings, favorites, imports, reportsMade, reportsReceived]) => ({ author, listings, favorites, imports, reportsMade, reportsReceived })),
     prisma.mixStop.findMany({ where: { workspaceId }, orderBy: [{ stoppedAt: "asc" }, { id: "asc" }] }),
     prisma.contactGroupState.findMany({ where: { workspaceId } }),
     prisma.contactCustomFieldDefinition.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
@@ -136,6 +145,7 @@ export async function GET(request: Request) {
     mixFavorites,
     megaMixInstallations,
     megaMixPipelines,
+    marketplace,
     mixStops,
     contactGroupStates,
     customFieldDefinitions,

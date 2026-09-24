@@ -85,6 +85,7 @@ enum AuthProvider {
 }
 
 model User {
+  marketplaceFavorites MarketplaceFavorite[]
   favorites MixFavorite[]
   assignedSupportTickets SupportTicket[] @relation("SupportAssignee")
   reportExports ReportExport[]
@@ -144,6 +145,10 @@ model Workspace {
   mixWorkflow MixWorkflow?
   megaMixInstallations MegaMixInstallation[]
   megaMixPipelines MegaMixPipeline[]
+  marketplaceAuthor MarketplaceAuthor?
+  marketplaceListings MarketplaceListing[]
+  marketplaceFavorites MarketplaceFavorite[]
+  marketplaceImports MarketplaceImport[]
   mixWorkflowInstances MixWorkflowInstance[]
   accessInvites ReferralAccessInvite[]
   journeyPreference      JourneyPreference?
@@ -456,6 +461,7 @@ model StepVersion {
 model Mix {
   favorites MixFavorite[]
   megaMixMembership MegaMixPipelineMix?
+  marketplaceListing MarketplaceListing?
   journeyStages             JourneyStage[]
   id                        String          @id @default(cuid())
   workspaceId               String

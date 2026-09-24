@@ -5,7 +5,7 @@ const GROUPS = [
   { label: "Customers", paths: ["/admin/users"] },
   { label: "Access", paths: ["/admin/waitlist", "/admin/access", "/admin/admission"] },
   { label: "Support", paths: ["/admin/support"] },
-  { label: "Content", paths: ["/admin/templates", "/admin/system-mix", "/admin/settings"] },
+  { label: "Content", paths: ["/admin/templates", "/admin/marketplace", "/admin/system-mix", "/admin/settings"] },
   { label: "Reports", paths: ["/admin/reports", "/admin/reports/history", "/admin/reports/exports"] },
   { label: "Operations", paths: ["/admin/operations", "/admin/operations/alerts", "/admin/email", "/admin/email/recovery", "/admin/email/suppressions", "/admin/audit"] },
   { label: "Settings", paths: ["/admin/team"] }

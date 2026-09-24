@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma";
 import { exportMegaMixPipeline } from "@/lib/mega-mix-pipeline-service";
 import { portableSummary } from "@/lib/mix-portable";
 import { megaMixById } from "@/lib/mega-mixes";
+import { MarketplaceNotices, MarketplaceShare } from "@/components/MarketplaceShare";
 
 export const metadata: Metadata = { title: "Mega-Mixes" };
 type SearchParams = { megaMix?: string; q?: string; new?: string; edit?: string; saved?: string; copied?: string; imported?: string; removed?: string };
@@ -28,7 +29,7 @@ const originLabel = (origin: string | null) => {
 };
 
 export default async function MegaMixesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [params, { workspace, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
+  const [params, { workspace, user, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
   const q = params.q?.trim().slice(0, 160) ?? "";
   const [pipelines, mixes] = await Promise.all([
     prisma.megaMixPipeline.findMany({ where: { workspaceId: workspace.id, ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { description: { contains: q, mode: "insensitive" } }] } : {}) }, orderBy: [{ name: "asc" }, { id: "asc" }],
@@ -52,6 +53,7 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
     {params.copied && <Notice type="success">Copy ready. Its Mixes are new and separate from the original.</Notice>}
     {params.imported && <Notice type="success">Imported. No one was started; start people from Journey when you’re ready.</Notice>}
     {params.removed && <Notice type="success">Mega-Mix removed. Its Mixes are still in My mixes.</Notice>}
+    <MarketplaceNotices workspaceId={workspace.id} pipelineId={selected?.id} />
     <MixLibraryShell selectedMixId={selected?.id ?? (creating ? "new" : undefined)} explicitSelection={Boolean(params.megaMix || creating)}>
       <aside className="mix-library-directory" aria-label="Mega-Mix library">
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions">
@@ -61,7 +63,7 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
             <ImportFileForm />
           </Sheet>}
         </div></header>
-        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My mixes</Link><Link href="/mixes/mega" aria-current="page"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/templates"><AppIcon name="import" />Ready-made</Link></nav>
+        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My mixes</Link><Link href="/mixes/mega" aria-current="page"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace"><AppIcon name="store" />Marketplace</Link></nav>
         <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Add a ready-made mega-mix</Link>
         <div className="mix-directory-search"><form className="mix-library-search" action="/mixes/mega" key={q}>
           <button className="icon-button" type="submit" aria-label="Search Mega-Mixes"><AppIcon name="search" /></button><label className="sr-only" htmlFor="mega-mix-search">Search Mega-Mixes</label><input id="mega-mix-search" name="q" type="search" defaultValue={q} placeholder="Search Mega-Mixes" />
@@ -82,7 +84,7 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
       </section></div> : selected ? <div className="mix-edit-columns">
         <section id="selected-mix" className="mix-editor-workspace" aria-label="Selected Mega-Mix">
           <header className="mix-selected-header"><div><h2>{selected.name}</h2><span className="status-pill">{selected.members.length} {selected.members.length === 1 ? "Mix" : "Mixes"}</span></div>
-            <nav className="mix-view-tabs" aria-label="Mega-Mix view"><Link className="button small" href={`/mixes/mega?megaMix=${encodeURIComponent(selected.id)}`} aria-current={!editing ? "page" : undefined}><AppIcon name="eye" />Preview</Link>{!impersonation && <Link className="button small" href={`/mixes/mega?megaMix=${encodeURIComponent(selected.id)}&edit=1`} aria-current={editing ? "page" : undefined}><AppIcon name="edit" />Edit</Link>}</nav>
+            <nav className="mix-view-tabs" aria-label="Mega-Mix view">{!impersonation && <MarketplaceShare kind="MEGA_MIX" targetId={selected.id} targetName={selected.name} workspaceId={workspace.id} canEdit={workspace.ownerId === user.id} />}<Link className="button small" href={`/mixes/mega?megaMix=${encodeURIComponent(selected.id)}`} aria-current={!editing ? "page" : undefined}><AppIcon name="eye" />Preview</Link>{!impersonation && <Link className="button small" href={`/mixes/mega?megaMix=${encodeURIComponent(selected.id)}&edit=1`} aria-current={editing ? "page" : undefined}><AppIcon name="edit" />Edit</Link>}</nav>
           </header>
           {editing ? <MegaMixForm pipeline={{ id: selected.id, name: selected.name, description: selected.description, mixIds: selected.members.map(member => member.mixId) }} mixes={choices} /> : <>
             {selected.description && <p className="mix-selected-description">{selected.description}</p>}

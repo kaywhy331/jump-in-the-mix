@@ -10,7 +10,7 @@ The JSON download is an owner-data export, not a database backup or an import/re
 | Templates, all saved versions and channel variants, Mix steps/assignments, broadcast timing, person-specific stops | `templates`, `mixes`, `broadcastSchedules`, `mixStops` |
 | Due/completed/canceled follow-ups, drafts, attempts with the owner's own decrypted recipient, handoff gestures, delivery receipts | `jumps`, `followUpDrafts`, `followUpAttempts`, `handoffEvents`, `automatedDeliveries` |
 | Stage metadata, actual Mix/Beat connections and saved runs, early updates/corrections/Undo history, dated callback commitments | `journey`, `mixWorkflow` |
-| Mega-mix installations, named Mega-Mixes and their Mixes, favorites, imported template provenance, initial marketing situation | `megaMixInstallations`, `megaMixPipelines`, `mixFavorites`, `sharedMixImports`, `marketingPreference` |
+| Mega-mix installations, named Mega-Mixes and their Mixes, Marketplace public name, shares, favorites, added copies and reports (reports received omit the reporter), favorites, imported template provenance, initial marketing situation | `megaMixInstallations`, `megaMixPipelines`, `marketplace`, `mixFavorites`, `sharedMixImports`, `marketingPreference` |
 | Calendar entries/connections, appointment bindings, intake setup and receipts, contact import batches | `calendar`, `appointmentBindings`, `leadIntake`, `imports` |
 | Review responses and owner-created access invitations | `reviewRequests`, `accessInvitations` |
 | The requesting user's support conversations and visible replies | `supportTickets` |

@@ -3,7 +3,7 @@ import type { SVGProps } from "react";
 // Geometry follows Lucide (ISC License, https://lucide.dev), whose shapes mirror the
 // SF Symbols / Material conventions phone users already recognize. Paths are inlined
 // so the application ships no icon dependency.
-export type AppIconName = "bell" | "profile" | "link" | "journey" | "help" | "home" | "today" | "contacts" | "plus" | "add" | "mixes" | "more" | "close" | "calendar" | "bolt" | "import" | "export" | "edit" | "external" | "people" | "security" | "privacy" | "archive" | "heart" | "arrowUp" | "arrowDown" | "arrowLeft" | "chevronUp" | "chevronDown" | "chevronLeft" | "chevronRight" | "trash" | "check" | "refresh" | "email" | "phone" | "message" | "alert" | "circle" | "settings" | "clock" | "search" | "filter" | "userPlus" | "undo" | "copy" | "mic" | "mapPin" | "play" | "pause" | "eye" | "grip" | "zoomIn" | "zoomOut" | "fit" | "skip" | "snooze" | "business" | "smartphone" | "monitor" | "info";
+export type AppIconName = "bell" | "profile" | "link" | "journey" | "help" | "home" | "today" | "contacts" | "plus" | "add" | "mixes" | "more" | "close" | "calendar" | "bolt" | "import" | "export" | "edit" | "external" | "people" | "security" | "privacy" | "archive" | "heart" | "arrowUp" | "arrowDown" | "arrowLeft" | "chevronUp" | "chevronDown" | "chevronLeft" | "chevronRight" | "trash" | "check" | "refresh" | "email" | "phone" | "message" | "alert" | "circle" | "settings" | "clock" | "search" | "filter" | "userPlus" | "undo" | "copy" | "mic" | "mapPin" | "play" | "pause" | "eye" | "grip" | "zoomIn" | "zoomOut" | "fit" | "skip" | "snooze" | "business" | "smartphone" | "monitor" | "info" | "share" | "flag" | "store";
 
 const house = <><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></>;
 const users = <><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>;
@@ -39,6 +39,9 @@ const paths: Record<AppIconName, React.ReactNode> = {
   security: <><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></>,
   privacy: <><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>,
   archive: <><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></>,
+  share: <><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.59 13.51 6.83 3.98"/><path d="m15.41 6.51-6.82 3.98"/></>,
+  flag: <><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/></>,
+  store: <><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2 2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/></>,
   heart: <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>,
   arrowUp: <><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></>,
   arrowDown: <><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></>,
