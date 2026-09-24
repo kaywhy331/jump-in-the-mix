@@ -18,10 +18,15 @@ describe("Mix Template boundary", () => {
   });
 
   it("uses readable previews instead of exposing raw JSON", () => {
+    // The library page renders the selected Mix through the shared workspace's Beat preview.
     const source = read("src/app/(app)/templates/page.tsx");
-    expect(source).toContain("SharedMixPreview");
-    expect(source).not.toContain("JSON.stringify(template.steps");
-    expect(source).not.toContain("<pre>");
+    const workspace = read("src/components/ReadyMadeMixWorkspace.tsx");
+    expect(source).toContain("ReadyMadeMixWorkspace");
+    expect(workspace).toContain("MixBeatPreview");
+    for (const file of [source, workspace]) {
+      expect(file).not.toContain("JSON.stringify(template.steps");
+      expect(file).not.toContain("<pre>");
+    }
   });
 
   it("imports through one server transaction and creates an editable Draft", () => {
