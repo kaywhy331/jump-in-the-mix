@@ -85,3 +85,31 @@ Kevin asked whether every popup and every expandable section follows one design 
 - **Updated tests:** existing e2e specs were updated for the app confirmation dialog and the 18px popup title.
 - **Existing failures:** related suites were compared against the same live build. Failures that also occur on `ab057b3` are pre-existing and are listed in the release record. They include demo-data-dependent `visual-fitment` checks and the flaky enlarged-text Calendar reachability check.
 - **Not established:** behavior on physical devices and iOS Safari.
+
+## Production release (verified 2026-09-23)
+
+| Item | Value |
+|---|---|
+| Commit | `fad339d` on `fix/design-consistency-20260923` (from `be4698a`) |
+| Web deploy | `dep-daq9ioh7lnhs73c74t8g` (live) |
+| Worker deploy | `dep-daq9hvojo6nc73dks6t0` (live; queue probe passed, probe job removed) |
+| Build ID | `mPXiIFkBnsRBCMWkeyZMV` |
+| Migration | none required |
+
+- **Preflight (read-only):** passed. Production was on `be4698a`, the database was ready, the runtime boundary held, and none of the 68 migrations were pending.
+- **Postflight:** passed.
+  - 16 public, health and redirect checks returned the expected responses.
+  - All 56 changed files and 20 served assets hash-match on the live instance.
+- **Live signed-in smoke:** passed all 11 checks with a synthetic account that was then deleted. The checks include:
+  - the disclosure chevron and 44px target on a live form;
+  - Quick Add discard asking in the app dialog, with Cancel focused and the draft kept on Escape;
+  - Profile sheet flat rows and the 18px title;
+  - the phone bottom-sheet grabber and square bottom corners;
+  - light and dark axe and reflow on Today.
+- **Final check:** passed.
+  - Record counts are unchanged from preflight.
+  - No synthetic users, workspaces or probe jobs remain.
+  - No jobs have failed since the release.
+  - Health endpoints return 200.
+
+Evidence: `.artifacts/design-live-20260923/` in the release checkout. Not established: behavior on physical devices and iOS Safari.
