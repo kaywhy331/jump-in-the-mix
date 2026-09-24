@@ -117,60 +117,16 @@ test("completion shows a floating confirmation and Undo restores the pending fol
   await expect(confirmation).toHaveCount(0); expect(await prisma.jump.findUnique({ where: { id: jumpId }, select: { status: true } })).toEqual({ status: "PENDING" });
 });
 
-test("Journey has seven groups, keyboard person previews and explicit current-page selection", async ({ page }) => {
-  await page.setViewportSize({ width: 1920, height: 1080 }); await page.goto(`/journey?stage=${stageId}`);
-  await expect(page.locator(".journey-person-column")).toHaveCount(7);
-  const dot = page.getByRole("button", { name: "View Ava Zoom", exact: true }); await dot.focus(); await page.keyboard.press("Enter");
-  await expect(page.locator(".person-preview-bubble:popover-open")).toContainText("Ava Zoom");
-  await page.keyboard.press("Escape"); await expect(dot).toBeFocused();
-  await page.getByRole("button", { name: "Select them", exact: true }).click();
-  await expect(page.getByRole("checkbox", { name: "Select Ben Able", exact: true })).toBeChecked();
-  await expect(page.getByRole("checkbox", { name: "Select Ava Zoom", exact: true })).not.toBeChecked();
-  await page.getByRole("link", { name: "Prepare a follow-up for 1", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Message 1 person", exact: true })).toBeVisible();
-});
-
 test("Mix library exposes editable beats, real membership, and mobile library tabs", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 }); await page.goto(`/mixes?mix=${mixId}`);
-  await expect(page.locator(".mix-desktop-editor textarea[name='inlineBody-0']")).toHaveValue("Hi {{First Name}}, shall we catch up?");
-  await expect(page.locator(".mix-people-context")).toContainText("Ava Zoom");
-  await expect(page.getByRole("list", { name: "Mix beat timing" })).toBeVisible();
-  await page.setViewportSize({ width: 390, height: 844 }); await expect(page.locator(".mix-mobile-tabs").getByRole("link", { name: "Ready-made", exact: true })).toBeVisible();
-});
-
-test("Journey keeps a selected touchpoint visible beyond the first six", async ({ page }) => {
-  const mixes = await Promise.all(Array.from({ length: 7 }, (_, index) => prisma.mix.create({ data: { workspaceId, name: `Touchpoint ${index + 1}`, status: "ACTIVE", triggerMode: "MANUAL_START" } })));
-  const preference = await prisma.workspacePreference.findUnique({ where: { workspaceId } });
-  try {
-    for (const enabled of [false, true]) {
-      await prisma.workspacePreference.upsert({ where: { workspaceId }, create: { workspaceId, quietDaysEnabled: enabled }, update: { quietDaysEnabled: enabled } });
-      await page.setViewportSize({ width: 1920, height: 1080 });
-      await page.emulateMedia({ colorScheme: enabled ? "dark" : "light" });
-      await page.goto("/journey");
-      await page.locator(".touchpoint-row").filter({ hasText: "Touchpoint 7" }).click();
-      const selected = page.locator(".journey-touch-node.selected");
-      await expect(selected).toBeVisible();
-      await expect(selected).toHaveAttribute("href", new RegExp(mixes[6].id));
-      await expect(page.locator(".journey-roster").getByRole("heading", { name: "Touchpoint 7", exact: true })).toBeVisible();
-      await expect(page.locator(".journey-touch-node")).toHaveCount(6);
-      if (enabled) await expect(page.locator(".journey-touch-node").filter({ hasText: "Just saying hello" })).toBeVisible();
-      const bounds = await page.locator(".journey-page").boundingBox();
-      expect(bounds!.x).toBeLessThan(300);
-      expect(bounds!.width).toBeGreaterThan(1500);
-      await page.screenshot({ path: `.artifacts/design-page-review-20260920/Journey-selected-${enabled ? "dark" : "light"}.png` });
-      await selected.focus();
-      await expect(selected).toBeFocused();
-      for (const width of [834, 390]) {
-        await page.setViewportSize({ width, height: width === 834 ? 1194 : 844 });
-        await expect(page.locator(".touchpoint-row[aria-current=page]")).toContainText("Touchpoint 7");
-        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      }
-    }
-  } finally {
-    await prisma.mix.deleteMany({ where: { id: { in: mixes.map(mix => mix.id) } } });
-    if (preference) await prisma.workspacePreference.update({ where: { workspaceId }, data: { quietDaysEnabled: preference.quietDaysEnabled } });
-    else await prisma.workspacePreference.deleteMany({ where: { workspaceId } });
-  }
+  // The Mix workspace previews each Beat's wording with readable merge fields; editing is under Edit.
+  const selected = page.getByRole("region", { name: "Selected Mix", exact: true });
+  await expect(selected.getByText(", shall we catch up?")).toBeVisible();
+  await expect(selected.getByTitle("Filled in automatically: First Name", { exact: true })).toBeVisible();
+  await expect(selected.getByRole("link", { name: "Edit", exact: true })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "People and Journey connections", exact: true })).toContainText("Ava Zoom");
+  await page.setViewportSize({ width: 390, height: 844 }); await page.goto("/mixes");
+  await expect(page.locator(".mix-library-tabs").getByRole("link", { name: "Marketplace", exact: true })).toBeVisible();
 });
 
 test("Quick Add shortcut avoids typing fields and saves corrected proposals together", async ({ page }) => {
@@ -214,31 +170,15 @@ test("More keeps compact destinations reachable and secondary navigation tracks 
   await expect(navigation.locator('[aria-current="page"]')).toHaveText("My account");
   await navigation.getByRole("link", { name: "Help", exact: true }).click();
   await expect(navigation.locator('[aria-current="page"]')).toHaveText("Help");
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/journey");
-  const options = page.getByRole("button", { name: "Journey options", exact: true });
-  await expect(page.locator(".journey-header-actions")).not.toBeVisible();
-  const heading = await page.getByRole("heading", { name: "Journey", exact: true, level: 1 }).boundingBox();
-  const optionBounds = await options.boundingBox();
-  expect(Math.abs(heading!.y - optionBounds!.y)).toBeLessThan(12);
-  await options.focus();
-  await page.keyboard.press("Enter");
-  const dialog = page.getByRole("dialog", { name: "Journey options", exact: true });
-  await expect(dialog.getByRole("link", { name: "Edit stages and transitions" })).toBeVisible();
-  await expect(dialog.getByRole("link", { name: "The whole journey" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(options).toBeFocused();
-  for (const width of [601, 834, 900]) {
-    await page.setViewportSize({ width, height: 1194 });
-    await expect(page.locator(".mobile-app-header")).not.toBeVisible();
-    await expect(page.locator(".journey-header-actions")).not.toBeVisible();
-    await expect(page.locator(".journey-person").first()).toBeInViewport({ ratio: 1 });
-    const search = page.getByRole("button", { name: "Find someone in the journey", exact: true });
-    await search.focus();
-    await page.keyboard.press("Enter");
-    await expect(page.getByRole("dialog", { name: "Find someone", exact: true }).getByRole("searchbox")).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(search).toBeFocused();
+  // Journey is the three-pane workflow map (6c8927d); phones and tablets switch panes instead of an options menu.
+  for (const width of [390, 834]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1194 });
+    await page.goto("/journey");
+    const panes = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
+    await expect(panes).toBeVisible();
+    await panes.getByRole("button", { name: "People", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Journey", exact: true, level: 1 })).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   }
 });
 
@@ -286,44 +226,6 @@ test("short laptop rails keep account controls reachable by keyboard", async ({ 
   }
 });
 
-test("Journey movement arrows stay outside stage circles and expose their direction", async ({ page }) => {
-  const prospect = await prisma.journeyStage.create({ data: { workspaceId, name: "Prospect", position: 1 } });
-  const client = await prisma.journeyStage.create({ data: { workspaceId, name: "Client", position: 2 } });
-  const moves = [[stageId, prospect.id], [stageId, client.id], [client.id, stageId]];
-  const ids = moves.map(() => randomUUID());
-  try {
-    await prisma.contactActivity.createMany({ data: moves.map(([from, to], i) => ({
-      id: ids[i], workspaceId, contactId, kind: "SYSTEM", summary: "Recorded stage move",
-      metadata: { previousStageId: from, stageId: to }
-    })) });
-    for (const colorScheme of ["light", "dark"] as const) {
-      await page.emulateMedia({ colorScheme });
-      await page.setViewportSize({ width: 1440, height: 900 });
-      await page.goto("/journey");
-      const movements = page.getByRole("list", { name: "Recorded stage moves in the last 30 days" });
-      await expect(movements).toContainText("Lead to Prospect: 1 move.");
-      await expect(movements).toContainText("Lead to Client: 1 move.");
-      await expect(movements).toContainText("Client to Lead: 1 move.");
-      await expect(page.locator(".journey-move-path")).toHaveCount(3);
-      const collisions = await page.locator(".journey-map").evaluate(map => {
-        const circles = [...map.querySelectorAll(".journey-node")].map(node => node.getBoundingClientRect());
-        return [...map.querySelectorAll<SVGPathElement>(".journey-move-path")].flatMap(path => {
-          const matrix = path.getScreenCTM()!;
-          const length = path.getTotalLength();
-          return Array.from({ length: 21 }, (_, i) => {
-            const point = path.getPointAtLength(length * i / 20).matrixTransform(matrix);
-            return circles.some(circle => Math.hypot(point.x - circle.x - circle.width / 2, point.y - circle.y - circle.height / 2) <= circle.width / 2 + 8);
-          }).filter(Boolean);
-        });
-      });
-      expect(collisions).toEqual([]);
-    }
-  } finally {
-    await prisma.contactActivity.deleteMany({ where: { id: { in: ids } } });
-    await prisma.journeyStage.deleteMany({ where: { id: { in: [prospect.id, client.id] } } });
-  }
-});
-
 test("phone review keeps send and outcome controls visible together in either theme", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   for (const colorScheme of ["light", "dark"] as const) {
@@ -347,19 +249,6 @@ test("phone review keeps send and outcome controls visible together in either th
   }
 });
 
-test("Journey person preview measures its content and stays inside a short viewport", async ({ page }) => {
-  await page.setViewportSize({ width: 834, height: 430 });
-  await page.goto(`/journey?stage=${stageId}`);
-  const dot = page.getByRole("button", { name: "View Ava Zoom", exact: true });
-  await dot.focus(); await page.keyboard.press("Enter");
-  const preview = page.locator(".person-preview-bubble:popover-open");
-  await expect(preview).toBeVisible();
-  await expect.poll(async () => { const box = await preview.boundingBox(); return Boolean(box && box.x >= 15 && box.y >= 15 && box.x + box.width <= 819 && box.y + box.height <= 415); }).toBe(true);
-  await page.keyboard.press("Escape");
-  await expect(preview).toHaveCount(0);
-  await expect(dot).toBeFocused();
-});
-
 test("inline Mix beat names and hidden options survive saving", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto(`/mixes/${mixId}/edit`);
@@ -369,7 +258,7 @@ test("inline Mix beat names and hidden options survive saving", async ({ page })
   await beat.getByLabel("Beat name", { exact: true }).fill("Check the renovation plans");
   await beat.getByLabel("Options for beat 1", { exact: true }).click();
   await beat.locator("[data-beat-alternatives] > summary").click();
-  await beat.getByLabel("Call version · notes for you", { exact: true }).fill("Ask about the next renovation milestone.");
+  await beat.getByRole("textbox", { name: /^Call version · talking points for you/ }).fill("Ask about the next renovation milestone.");
   await beat.getByLabel("Options for beat 1", { exact: true }).click();
   await form.locator(".mix-start-settings > summary").click();
   await form.getByRole("combobox", { name: "After saving", exact: true }).selectOption("PAUSED");
@@ -398,7 +287,8 @@ test("expanded Journey stage actions stay reachable on a narrow phone", async ({
   await page.setViewportSize({ width: 320, height: 568 }); await page.goto(`/settings/journey?stage=${stageId}`);
   const stage = page.locator(`#stage-${stageId}`);
   await expect(stage).toHaveAttribute("open", "");
-  const actions = stage.locator(":scope > form > .form-actions button");
+  // Only visible actions count; "Retire stage" confirms in the app dialog, whose buttons stay hidden until asked.
+  const actions = stage.locator(":scope > form > .form-actions button:visible");
   await expect(actions).toHaveCount(4);
   for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: theme });
