@@ -11,8 +11,8 @@ import styles from "@/components/WorkflowJourney.module.css";
 
 export type WorkflowPathSelection = { id: string; rule: WorkflowRule; removal: WorkflowPathRemoval };
 
-export function WorkflowPathActions({ selection, mixes, canEdit, gatedStepIds, onEdit, onRemove, onReview, onClose }: {
-  selection: WorkflowPathSelection; mixes: WorkflowGraphView["mixes"]; canEdit: boolean; gatedStepIds: string[];
+export function WorkflowPathActions({ selection, mixes, beatNumbers = {}, canEdit, gatedStepIds, onEdit, onRemove, onReview, onClose }: {
+  selection: WorkflowPathSelection; mixes: WorkflowGraphView["mixes"]; beatNumbers?: Record<string, string>; canEdit: boolean; gatedStepIds: string[];
   onEdit: () => void; onRemove: () => Promise<void>; onReview: (rule: WorkflowRule) => void; onClose: () => void;
 }) {
   const [removing, setRemoving] = useState(false), [error, setError] = useState("");
@@ -23,7 +23,7 @@ export function WorkflowPathActions({ selection, mixes, canEdit, gatedStepIds, o
   const { rule, removal } = selection;
   const route = removal.kind === "route" ? rule.routes.find(item => item.id === removal.routeId) : null;
   const target = removal.kind === "join" ? rule.join?.target : route?.target;
-  const name = (point: WorkflowTarget) => { const mix = mixes.find(item => item.id === point.mixId); return point.stepId ? `${mix?.steps.find(step => step.id === point.stepId)?.name ?? "Unavailable Beat"} · ${mix?.name ?? "Unavailable Mix"}` : mix?.name ?? "Unavailable Mix"; };
+  const name = (point: WorkflowTarget) => { const mix = mixes.find(item => item.id === point.mixId); return point.stepId ? `${beatNumbers[point.stepId] ? `${beatNumbers[point.stepId]} · ` : ""}${mix?.steps.find(step => step.id === point.stepId)?.name ?? "Unavailable Beat"} · ${mix?.name ?? "Unavailable Mix"}` : mix?.name ?? "Unavailable Mix"; };
   const wholeConnection = removal.kind === "rule" || removal.kind === "route" && rule.routes.length === 1;
   const label = removal.kind === "join" ? "Shared join" : route?.label ?? rule.name;
   const consequence = wholeConnection ? "Future handoffs through this connection stop. Existing Beats and history stay." : removal.kind === "join" ? "Removes the shared join for every branch. Existing work keeps its saved paths." : "Other branches stay connected. Existing work keeps its saved paths.";
