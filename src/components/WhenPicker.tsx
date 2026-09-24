@@ -257,7 +257,7 @@ export function WhenPicker({ label, date, time, onChange, variant = "sheet", dat
     {variant === "inline" && open && panel}
     {variant === "sheet" && open && <dialog ref={dialogRef} className="sheet when-sheet" aria-label={label} onClick={event => { if (event.target === event.currentTarget) close(); }} onClose={() => { setOpen(null); restoreFocus(); }}>
       <div className="sheet-panel">
-        <header className="sheet-header"><div><h2>{label}</h2></div><button className="icon-button" type="button" onClick={close} aria-label={`Close ${label}`}><AppIcon name="close" /></button></header>
+        <header className="sheet-header"><div className="sheet-heading-copy"><h2>{label}</h2></div><button className="icon-button" type="button" onClick={close} aria-label={`Close ${label}`}><AppIcon name="close" /></button></header>
         <div className="sheet-body">{panel}</div>
       </div>
     </dialog>}

@@ -6,10 +6,12 @@ import { MIX_TEMPLATE_CATEGORIES, MIX_TEMPLATE_INDUSTRIES, normalizeSharedMixSte
 import { EMPTY_LIBRARY_CONTENT, libraryDateKey, type LibraryContent } from "@/lib/library-content";
 import { CONTACT_PLACEHOLDERS, MY_INFO_PLACEHOLDERS, PRIVATE_NOTE_PLACEHOLDERS } from "@/lib/placeholders";
 import { useAdminDraft } from "@/components/AdminDraftProvider";
+import { useConfirmDialog } from "@/components/useConfirmDialog";
 
 export function LibraryDraftForm({ id, revision, content, returnTo = "/admin/templates", sourceKey = "new" }: { id?: string; revision: number; content: LibraryContent; returnTo?: string; sourceKey?: string }) {
   const router = useRouter();
   const [state, action, pending] = useActionState(saveSharedMixDraftFormAction, {});
+  const [confirm, confirmDialog] = useConfirmDialog();
   const draft = useAdminDraft(`library:${id ?? sourceKey}`, { content, revision, reason: "" });
   const { content: current, reason } = draft.value;
   const [expanded, setExpanded] = useState<number | null>(0);
@@ -68,11 +70,11 @@ export function LibraryDraftForm({ id, revision, content, returnTo = "/admin/tem
           <label className="field"><span>Insert placeholder</span><select value="" onChange={e => { const field = script ? "script" : "body"; updateStep(index, { [field]: (step[field] ?? "") + e.target.value }); }}><option value="">Choose a placeholder…</option>{placeholders.map(item => <option key={item}>{item}</option>)}</select></label>
           {step.channel === "SMS" && <label><input type="checkbox" name="stepLongSms" value={index} checked={step.longSms} onChange={e => updateStep(index, { longSms: e.target.checked })} />Allow long text messages</label>}
           {!["PHONE_CALL", "VOICEMAIL"].includes(step.channel) && <label><input type="checkbox" name="stepOptOut" value={index} checked={step.includeOptOut} onChange={e => updateStep(index, { includeOptOut: e.target.checked })} />Include opt-out wording</label>}
-          <div className="form-actions"><button className="button small" type="button" disabled={index === 0} onClick={() => move(index, -1)}>Move earlier</button><button className="button small" type="button" disabled={index === current.steps.length - 1} onClick={() => move(index, 1)}>Move later</button><button className="button small" type="button" disabled={current.steps.length === 1} onClick={() => { if (window.confirm(`Remove beat ${index + 1}?`)) { update({ steps: current.steps.filter((_, position) => position !== index) }); setExpanded(Math.max(0, index - 1)); } }}>Remove beat</button></div>
+          <div className="form-actions"><button className="button small" type="button" disabled={index === 0} onClick={() => move(index, -1)}>Move earlier</button><button className="button small" type="button" disabled={index === current.steps.length - 1} onClick={() => move(index, 1)}>Move later</button><button className="button small" type="button" disabled={current.steps.length === 1} onClick={() => void confirm({ title: `Remove beat ${index + 1}?`, description: "Its wording and timing are removed from this draft.", confirmLabel: "Remove beat", danger: true }).then(ok => { if (ok) { update({ steps: current.steps.filter((_, position) => position !== index) }); setExpanded(Math.max(0, index - 1)); } })}>Remove beat</button></div>
         </div></details>;
       })}
       <button className="button" type="button" disabled={current.steps.length >= 50} onClick={() => { update({ steps: [...current.steps, { ...EMPTY_LIBRARY_CONTENT.steps[0] }] }); setExpanded(current.steps.length); }}>Add beat</button>
     </section>
     </div><section className="card admin-save-bar"><label className="field"><span>Reason for draft change</span><input name="reason" value={reason} onChange={e => draft.set({ ...draft.value, reason: e.target.value })} minLength={10} maxLength={500} required /></label><button className="button primary" type="submit" disabled={pending || conflict}>{pending ? "Saving draft…" : "Save draft for review"}</button></section>
-  </form>;
+  {confirmDialog}</form>;
 }

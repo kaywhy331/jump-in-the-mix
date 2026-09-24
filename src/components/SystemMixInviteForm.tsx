@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FormGuard } from "@/components/FormGuard";
 import { useFormStatus } from "react-dom";
 import { sendSystemInviteAction } from "@/lib/system-mix-actions";
 import { renderSystemMix, type SystemMixContent } from "@/lib/system-mix";
+import { useConfirmDialog } from "@/components/useConfirmDialog";
 
 type Contact = { id: string; displayName: string; emails: { email: string }[]; phones: { phone: string }[] };
 type Recipient = { key: number; contactId: string; name: string; address: string; channel: "email" | "tel" };
@@ -17,8 +18,10 @@ export function SystemMixInviteForm({ contacts, sender, remaining, version, cont
   useEffect(() => { const controller = new AbortController(); setSearching(true); const timer = setTimeout(() => {
     fetch(`/api/contacts/recipient-search?q=${encodeURIComponent(query)}`, { signal: controller.signal }).then(async response => { const data = await response.json(); if (!response.ok) throw new Error(data.error); setMatches(data.contacts); setMore(data.more); setSearchError(""); }).catch(cause => { if (!controller.signal.aborted) setSearchError(cause.message || "Search is unavailable. Enter the recipient directly."); }).finally(() => { if (!controller.signal.aborted) setSearching(false); });
   }, 250); return () => { clearTimeout(timer); controller.abort(); }; }, [query]);
+  const [confirm, confirmDialog] = useConfirmDialog();
+  const approved = useRef(false);
   const update = (key: number, data: Partial<Recipient>) => setRecipients(current => current.map(person => person.key === key ? { ...person, ...data } : person));
-  return <form action={sendSystemInviteAction} className="form-stack" onSubmit={event => { if (!window.confirm(`Prepare ${recipients.length} invitation${recipients.length === 1 ? "" : "s"} for ${recipients.map(person => person.address).join(", ")}? This uses ${recipients.length} of your ${remaining} remaining slots, leaving ${remaining - recipients.length}. Revoking later does not restore slots. Nothing is sent now.`)) event.preventDefault(); }}><FormGuard /><label className="field"><span>Find a saved recipient</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Name, email, or phone" /></label><p role="status">{searching ? "Finding recipients…" : `${matches.length} matches${more ? "; refine the search for more people" : ""}. Your invitation entries stay below.`}</p>{searchError && <p role="alert">{searchError}</p>}
+  return <form action={sendSystemInviteAction} className="form-stack" onSubmit={event => { if (approved.current) { approved.current = false; return; } event.preventDefault(); const form = event.currentTarget, submitter = (event.nativeEvent as SubmitEvent).submitter; void confirm({ title: `Prepare ${recipients.length} invitation${recipients.length === 1 ? "" : "s"} for ${recipients.map(person => person.address).join(", ")}?`, description: `This uses ${recipients.length} of your ${remaining} remaining slots, leaving ${remaining - recipients.length}. Revoking later does not restore slots. Nothing is sent now.`, confirmLabel: "Prepare invitations" }).then(ok => { if (ok) { approved.current = true; form.requestSubmit(submitter instanceof HTMLElement ? submitter : undefined); } }); }}><FormGuard /><label className="field"><span>Find a saved recipient</span><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Name, email, or phone" /></label><p role="status">{searching ? "Finding recipients…" : `${matches.length} matches${more ? "; refine the search for more people" : ""}. Your invitation entries stay below.`}</p>{searchError && <p role="alert">{searchError}</p>}
     <input type="hidden" name="systemMixVersion" value={version} /><input type="hidden" name="previewSender" value={sender} />
     <p>Add up to {remaining} {remaining === 1 ? "person" : "people"}. Each gets a unique link and a reminder in Today. You review the message and send it from your own text or email app.</p>
     {recipients.map((person, index) => {
@@ -39,5 +42,5 @@ export function SystemMixInviteForm({ contacts, sender, remaining, version, cont
     {recipients.length < remaining && <button className="button" type="button" onClick={() => setRecipients(current => [...current, { key: Math.max(...current.map(row => row.key)) + 1, contactId: "", name: "", address: "", channel: "email" }])}>Add another person</button>}
     <p>Preparing a link uses one invitation. You decide when to send it from Today.</p>
     <PrepareButton />
-  </form>;
+  {confirmDialog}</form>;
 }

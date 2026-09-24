@@ -54,6 +54,8 @@
   --success-soft: var(--status-success-bg);
   --warning: var(--status-warning-ink);
   --shadow: 0 20px 64px rgb(26 24 48 / 12%);
+  --scrim: rgb(26 24 48 / 42%);
+  --shadow-sheet: 0 -12px 40px rgb(26 24 48 / 12%);
   --shadow-sm: 0 1px 3px rgb(26 24 48 / 6%);
   --shadow-md: 0 8px 28px rgb(26 24 48 / 8%);
   --conversation-stroke: var(--line);
@@ -95,6 +97,8 @@
     --status-danger-bg: #3b242b;
     --danger-border: #88534f;
     --shadow: 0 20px 64px rgb(0 0 0 / 28%);
+    --scrim: rgb(0 0 0 / 78%);
+    --shadow-sheet: 0 -12px 40px rgb(0 0 0 / 40%);
   }
 }
 
@@ -128,4 +132,6 @@
   --status-danger-bg: #3b242b;
   --danger-border: #88534f;
   --shadow: 0 20px 64px rgb(0 0 0 / 28%);
+  --scrim: rgb(0 0 0 / 78%);
+  --shadow-sheet: 0 -12px 40px rgb(0 0 0 / 40%);
 }

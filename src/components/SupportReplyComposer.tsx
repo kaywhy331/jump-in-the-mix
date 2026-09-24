@@ -5,9 +5,11 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { adminReplyToSupportTicketFormAction } from "@/lib/support-admin-actions";
 import { SUPPORT_REPLY_TEMPLATES } from "@/lib/support-content";
 import { useAdminDraft } from "@/components/AdminDraftProvider";
+import { useConfirmDialog } from "@/components/useConfirmDialog";
 
 export function SupportReplyComposer({ ticketId, requestKey, returnTo }: { ticketId: string; requestKey: string; returnTo: string }) {
   const [state, action, pending] = useActionState(adminReplyToSupportTicketFormAction, {});
+  const [confirm, confirmDialog] = useConfirmDialog();
   const draft = useAdminDraft(`support-reply:${ticketId}`, { body: "", requestKey });
   const [template, setTemplate] = useState("");
   const [replacement, setReplacement] = useState<string | null>(null);
@@ -31,6 +33,6 @@ export function SupportReplyComposer({ ticketId, requestKey, returnTo }: { ticke
     <small id={`support-reply-help-${ticketId}`}>Saves to the ticket; email queues separately. Draft kept for 30 minutes in this tab. Save before leaving. Reloading asks before discarding unsaved text.</small>
     {state.error && <p className="notice error" role="alert">{state.error}</p>}
     {state.saved && !draft.dirty && <p className="notice success" role="status">{state.saved}</p>}
-    <div className="form-actions"><button className="button primary" type="submit" disabled={pending}>{pending ? "Saving…" : "Save customer reply"}</button><button className="button" name="resolve" value="true" type="submit" disabled={pending}>Save reply and resolve</button>{draft.dirty && <button className="button" type="button" onClick={() => { if (window.confirm("Discard this unsent reply?")) draft.clear(); }}>Discard draft</button>}</div>
-  </form>;
+    <div className="form-actions"><button className="button primary" type="submit" disabled={pending}>{pending ? "Saving…" : "Save customer reply"}</button><button className="button" name="resolve" value="true" type="submit" disabled={pending}>Save reply and resolve</button>{draft.dirty && <button className="button" type="button" onClick={() => void confirm({ title: "Discard this unsent reply?", description: "The saved draft in this tab is removed.", confirmLabel: "Discard reply", danger: true }).then(ok => { if (ok) draft.clear(); })}>Discard draft</button>}</div>
+  {confirmDialog}</form>;
 }

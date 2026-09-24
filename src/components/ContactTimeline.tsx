@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/components/ContactTimeline.module.css";
 import { Sheet } from "@/components/Sheet";
 import { AppIcon } from "@/components/AppIcon";
+import { useConfirmDialog } from "@/components/useConfirmDialog";
 import { formatDate, formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 
 type TimelineItem = {
@@ -56,6 +57,7 @@ export function ContactTimeline({
   useEffect(() => { const openNote = () => { if (["#add-note", "#log-conversation"].includes(location.hash) && noteDetails.current) { noteDetails.current.open = true; if (location.hash === "#log-conversation") setConversation(true); noteDetails.current.querySelector("textarea")?.focus(); } }; openNote(); window.addEventListener("hashchange", openNote); return () => window.removeEventListener("hashchange", openNote); }, []);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  const [confirm, confirmDialog] = useConfirmDialog();
   const [correction, setCorrection] = useState("");
   const [items, setItems] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +99,7 @@ export function ContactTimeline({
   }), [filter, items]);
 
   const correctNote = async (item: TimelineItem, remove = false) => {
-    if (remove && !window.confirm("Remove this note from the timeline? This cannot be undone.")) return;
+    if (remove && !(await confirm({ title: "Remove this note from the timeline?", description: "This cannot be undone.", confirmLabel: "Remove note", danger: true }))) return;
     setSaving(true); setError("");
     try {
       const response = await fetch(`/api/contacts/${encodeURIComponent(contactId)}/activity`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: item.id, expectedSummary: item.summary ?? "", summary: correction, remove }) });
@@ -169,7 +171,7 @@ export function ContactTimeline({
 
                 </div>
                 {item.summary && <p className={item.kind === "CUSTOMER_NOTE" || item.kind === "PRIVATE_UPDATE" ? styles.personalWords : undefined}>{item.summary}</p>}
-                {(item.kind === "CUSTOMER_NOTE" || item.kind === "PRIVATE_UPDATE") && <div>{editing === item.id ? <form onSubmit={event => { event.preventDefault(); void correctNote(item); }}><label className="field"><span>Correct note</span><textarea value={correction} onChange={event => setCorrection(event.target.value)} maxLength={4000} required /></label><button className="button primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save correction"}</button><button className="button" type="button" onClick={() => setEditing(null)}>Cancel correction</button></form> : <details className={styles.noteActions}><summary aria-label={`Options for note from ${formatDateTime(item.occurredAt, displayPreferences)}`}>•••</summary><div><button type="button" className="text-button" onClick={() => { setEditing(item.id); setCorrection(item.summary ?? ""); }}>Edit note</button><button type="button" className="text-button" disabled={saving} onClick={() => void correctNote(item, true)}>Remove note</button></div></details>}</div>}
+                {(item.kind === "CUSTOMER_NOTE" || item.kind === "PRIVATE_UPDATE") && <div>{editing === item.id ? <form onSubmit={event => { event.preventDefault(); void correctNote(item); }}><label className="field"><span>Correct note</span><textarea value={correction} onChange={event => setCorrection(event.target.value)} maxLength={4000} required /></label><button className="button primary" type="submit" disabled={saving}>{saving ? "Saving…" : "Save correction"}</button><button className="button" type="button" onClick={() => setEditing(null)}>Cancel correction</button></form> : <details className={`disclosure-menu ${styles.noteActions}`}><summary aria-label={`Options for note from ${formatDateTime(item.occurredAt, displayPreferences)}`}><AppIcon name="more" /></summary><div><button type="button" className="text-button" onClick={() => { setEditing(item.id); setCorrection(item.summary ?? ""); }}>Edit note</button><button type="button" className="text-button" disabled={saving} onClick={() => void correctNote(item, true)}>Remove note</button></div></details>}</div>}
                 {item.nextCommitmentAt && <p><strong>Next follow-up:</strong> {formatDateTime(item.nextCommitmentAt, displayPreferences)}</p>}
               </div>
             </li>
@@ -178,6 +180,7 @@ export function ContactTimeline({
       )}
       <p className="sr-only" role="status">Showing {items.length} events in this view.</p>
       {nextCursor && <button type="button" className="button" disabled={loading} onClick={() => void load(true)}>Load older history</button>}
+      {confirmDialog}
     </div>
   );
 }

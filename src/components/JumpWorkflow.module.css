@@ -32,12 +32,11 @@
   width: min(42rem, calc(100vw - 1.25rem));
   transform: translateX(-50%);
   padding: 1rem;
-  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-  border-radius: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-bubble);
   background: var(--raised);
-  color: var(--ink);
-  border: 2px solid var(--brand);
-  box-shadow: 0 1rem 3rem rgb(0 0 0 / 22%);
+  color: var(--text);
+  box-shadow: var(--shadow);
 }
 
 .trayHeading {
@@ -65,7 +64,6 @@
 
 .detailDisclosure summary {
   cursor: pointer;
-  color: var(--muted);
 }
 
 .detailForm {
@@ -189,14 +187,16 @@
   opacity: 0.66;
 }
 
-@media (max-width: 680px) {
+/* The bottom navigation shows up to 900px; keep the tray above it. */
+@media (max-width: 900px) {
   .returnTray {
     bottom: calc(76px + env(safe-area-inset-bottom));
     max-height: calc(100dvh - 110px - env(safe-area-inset-bottom));
     overflow: auto;
-    border-radius: 0.9rem;
   }
+}
 
+@media (max-width: 680px) {
   .detailForm,
   .noteComposer {
     grid-template-columns: 1fr;

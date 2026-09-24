@@ -19,6 +19,9 @@ export function ReviewDialog({ open, onClose, title, description, children }: {
     if (!open || !dialog) return;
     const previous = document.activeElement;
     dialog.showModal();
+    // Initial focus stays on the non-consequential action ("Keep editing"), as in every confirmation.
+    const cancel = dialog.querySelector<HTMLElement>(".form-actions button:not([type=submit]):not(.primary):not(.danger)");
+    (cancel ?? dialog.querySelector<HTMLElement>(".review-dialog-header .icon-button"))?.focus();
     return () => {
       dialog.close();
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus();
@@ -42,7 +45,7 @@ export function ReviewDialog({ open, onClose, title, description, children }: {
     }}>
     <header className="review-dialog-header">
       <div><h2 id={titleId}>{title}</h2><p id={descriptionId}>{description}</p></div>
-      <button className="icon-button" type="button" autoFocus onClick={onClose} aria-label="Close review"><AppIcon name="close" /></button>
+      <button className="icon-button" type="button" onClick={onClose} aria-label="Close review"><AppIcon name="close" /></button>
     </header>
     <div className="review-dialog-body">{children}</div>
   </dialog>;

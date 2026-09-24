@@ -54,13 +54,13 @@ export function AppShell({
                 description={`Signed in as ${userName}`}
                 className="profile-sheet"
               >
-                <nav className="sheet-link-list" aria-label="Profile and settings">
-                  <Link className="button" href="/account">My Account</Link>
-                  <Link className="button" href="/settings">Settings</Link>
-                  <Link className="button" href="/templates">Ready-made mixes</Link>
-                  <Link className="button" href="/help">Help</Link>
+                <nav className="contact-tools-links" aria-label="Profile and settings">
+                  <Link href="/account"><AppIcon name="profile" />My Account</Link>
+                  <Link href="/settings"><AppIcon name="settings" />Settings</Link>
+                  <Link href="/templates"><AppIcon name="import" />Ready-made mixes</Link>
+                  <Link href="/help"><AppIcon name="help" />Help</Link>
                 </nav>
-                <form action={logoutAction}><button className="button" type="submit">Sign out</button></form>
+                <form action={logoutAction} className="contact-tools-links"><button type="submit"><AppIcon name="arrowLeft" />Sign out</button></form>
               </Sheet>
             )}
           </div>

@@ -53,7 +53,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
             <button className="icon-button" type="submit" aria-label="Search mixes"><AppIcon name="search" /></button><label className="sr-only" htmlFor="mix-search">Search mixes</label><input id="mix-search" type="search" name="q" defaultValue={q} placeholder="Search mixes" />
             {favorites && <input type="hidden" name="favorites" value="1" />}{status && <input type="hidden" name="status" value={status} />}
           </form>
-          <Sheet trigger={<button className="icon-button" type="button" aria-label="Filter mixes" title="Filter mixes"><AppIcon name="filter" />{status && <span className="mix-filter-count">1</span>}</button>} title="Filter mixes">
+          <Sheet trigger={<button className="icon-button" type="button" aria-label="Filter mixes" title="Filter mixes"><AppIcon name="filter" />{status && <span className="mix-filter-count">1</span>}</button>} title="Filter mixes" description="Choose filters, then apply them.">
             <form className="form-grid" action="/mixes"><input name="q" type="hidden" value={q} />{favorites && <input name="favorites" type="hidden" value="1" />}
               <label className="field full"><span>Status</span><select name="status" defaultValue={status}><option value="">All statuses</option><option value="ACTIVE">On</option><option value="PAUSED">Paused</option><option value="DRAFT">Draft</option></select></label>
               <button className="button primary" type="submit"><AppIcon name="check" />Apply filters</button>

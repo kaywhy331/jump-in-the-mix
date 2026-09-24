@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTodayUpdates } from "@/components/useTodayUpdates";
 import { openSheet } from "@/lib/sheet-layout";
+import { AppIcon } from "@/components/AppIcon";
 
 const DraftGuard = createContext<(href: string) => boolean>(() => false);
 // A route transition can mount a new page instance. Keep this data-free focus
@@ -109,9 +110,9 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     {content}
     <div className="today-review-placeholder"><h2>One conversation at a time.</h2><p>Choose a follow-up to review its message and next step.</p></div>
     <dialog ref={dialog} className="confirm-dialog" aria-labelledby={titleId} aria-describedby={descriptionId} onClose={() => setDestination(null)}>
-      <div className="confirm-dialog-header"><div><h2 id={titleId}>Keep your message edits?</h2><p id={descriptionId}>Your newest message edits haven’t finished saving. Keep editing, or discard those edits and continue.</p></div></div>
+      <div className="confirm-dialog-header"><div><h2 id={titleId}>Keep your message edits?</h2><p id={descriptionId}>Your newest message edits haven’t finished saving. Keep editing, or discard those edits and continue.</p></div><button className="icon-button" type="button" onClick={keepEditing} aria-label="Close and keep editing"><AppIcon name="close" /></button></div>
       <div className="confirm-dialog-actions">
-        <button type="button" className="button primary" onClick={keepEditing}>Keep editing</button>
+        <button type="button" className="button" autoFocus onClick={keepEditing}>Keep editing</button>
         <button type="button" className="button danger" onClick={discardAndContinue}>Discard edits and continue</button>
       </div>
     </dialog>

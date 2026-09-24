@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { VoiceNoteButton } from "@/components/VoiceNoteButton";
+import { useConfirmDialog } from "@/components/useConfirmDialog";
 import { inferQuickCaptureReview } from "@/lib/quick-add-capture";
 import type { QuickCaptureContact, QuickCaptureInput, QuickCaptureReceipt } from "@/lib/quick-capture-input";
 
@@ -30,6 +31,7 @@ function CaptureDetails({ initialOpen, children }: { initialOpen: boolean; child
 
 export function QuickAddDialog({ timezone }: { timezone: string }) {
   const router = useRouter();
+  const [confirm, confirmDialog] = useConfirmDialog();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const reviewRef = useRef<HTMLElement>(null);
@@ -77,10 +79,14 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
   useEffect(() => () => saveController.current?.abort(), []);
 
   const reset = () => { setCapture(""); setPreview(null); setError(""); setReceipt(null); setRecoveryReceipt(null); setPerson(null); setContacts([]); setSearch(""); setAllowDuplicate(false); setSaveNote(true); requestId.current = ""; };
-  const closeDialog = () => {
-    if (saving || (!receipt && capture.trim() && !window.confirm(recoveryReceipt ? "Leave without applying your later edits? Your earlier capture is saved." : "Discard this Quick Add draft? If a save was interrupted, it may already have completed."))) return false;
+  const closeDialog = async () => {
+    if (saving) return false;
+    if (!receipt && capture.trim() && !(await confirm(recoveryReceipt
+      ? { title: "Leave without applying your later edits?", description: "Your earlier capture is saved.", confirmLabel: "Leave" }
+      : { title: "Discard this Quick Add draft?", description: "If a save was interrupted, it may already have completed.", confirmLabel: "Discard draft", danger: true }))) return false;
     reset(); dialogRef.current?.close(); return true;
   };
+  const leaveTo = (href: string) => (event: { preventDefault: () => void }) => { event.preventDefault(); void closeDialog().then(closed => { if (closed) router.push(href); }); };
   useEffect(() => {
     const open = () => { (window as QuickAddWindow).__jitmQuickAddPending = false; dialogRef.current?.showModal(); window.setTimeout(() => inputRef.current?.focus(), 0); };
     const shortcut = (event: KeyboardEvent) => { if (event.key.toLowerCase() !== "n" || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || document.querySelector("dialog:modal")) return; const target = event.target; if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select"))) return; event.preventDefault(); open(); };
@@ -125,8 +131,8 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
   const updateFollowUp = (patch: Partial<NonNullable<typeof followUp>>) => setPreview(current => current ? { ...current, followUp: { ...current.followUp, ...patch } } : current);
   const count = (person ? 0 : 1) + Number(saveNote) + Number(event?.enabled) + Number(followUp?.enabled);
 
-  return <dialog ref={dialogRef} className="quick-add-dialog" aria-labelledby="quick-add-title" onCancel={e => { e.preventDefault(); closeDialog(); }}>
-    <div className="quick-add-dialog-header"><h2 id="quick-add-title">Quick Add</h2><button className="icon-button" type="button" disabled={saving} onClick={closeDialog} aria-label="Close Quick Add"><AppIcon name="close" /></button></div>
+  return <><dialog ref={dialogRef} className="quick-add-dialog" aria-labelledby="quick-add-title" onCancel={e => { e.preventDefault(); void closeDialog(); }}>
+    <div className="quick-add-dialog-header"><h2 id="quick-add-title">Quick Add</h2><button className="icon-button" type="button" disabled={saving} onClick={() => void closeDialog()} aria-label="Close Quick Add"><AppIcon name="close" /></button></div>
     <form className="quick-add-composer" hidden={Boolean(preview || receipt)} onSubmit={e => { e.preventDefault(); if (!capture.trim()) return; const result = inferQuickCaptureReview(capture, new Date(), timezone); setPreview(result); setSearch(result.name); setError(""); requestId.current ||= crypto.randomUUID(); }}>
       <label className="field"><span className="sr-only">What do you want to remember?</span><textarea id="quick-add-capture" ref={inputRef} value={capture} maxLength={2000} onChange={e => setCapture(e.target.value)} placeholder="Coffee with Maria Thursday at 9 am, then call Friday about the estimate" rows={2}/></label>
       <VoiceNoteButton targetId="quick-add-capture" label="Speak" /><button className="button primary quick-add-review" type="submit" disabled={!capture.trim()}>Continue</button>
@@ -149,6 +155,6 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
         <section className="quick-add-item"><label className="quick-capture-toggle"><input type="checkbox" checked={followUp.enabled} onChange={e => updateFollowUp({ enabled: e.target.checked })}/><strong>Follow-up</strong></label>{followUp.enabled && <CaptureDetails initialOpen={!followUp.date || !followUp.time || !followUp.wording}><summary>{followUp.reason} <span>{followUp.date} {followUp.time} · Edit</span></summary><div className="form-grid"><label className="field full"><span>Reason</span><input maxLength={300} required value={followUp.reason} onChange={e => updateFollowUp({ reason: e.target.value })}/></label><label className="field"><span>Follow-up date</span><input type="date" required value={followUp.date} onChange={e => updateFollowUp({ date: e.target.value })}/></label><label className="field"><span>Follow-up time</span><input type="time" required value={followUp.time} onChange={e => updateFollowUp({ time: e.target.value })}/></label><label className="field full"><span>How to follow up</span><select required value={followUp.channel} onChange={e => updateFollowUp({ channel: e.target.value, wording: ["PHONE_CALL", "VOICEMAIL"].includes(e.target.value) ? followUp.reason : "" })}><option value="" disabled>Choose a method</option><option value="PHONE_CALL">Call</option><option value="SMS">Text</option><option value="EMAIL">Email</option><option value="WHATSAPP">WhatsApp</option><option value="VOICEMAIL">Voicemail</option></select></label>{followUp.channel === "EMAIL" && <label className="field full"><span>Email subject</span><input value={followUp.subject} maxLength={300} required onChange={e => updateFollowUp({ subject: e.target.value })}/></label>}<label className="field full"><span>{["PHONE_CALL", "VOICEMAIL"].includes(followUp.channel) ? "Call notes" : "Draft message"}</span><textarea value={followUp.wording} required rows={3} maxLength={5000} onChange={e => updateFollowUp({ wording: e.target.value })}/></label></div><p className="muted">Saved for you to review and complete. This follow-up is not sent automatically.</p></CaptureDetails>}</section>
       </fieldset><div className="card-actions"><button className="button" type="button" disabled={saving || Boolean(recoveryReceipt)} onClick={() => { setPreview(null); setPerson(null); setError(""); }}>Edit capture</button><button className="button primary" type="submit" disabled={saving || Boolean(recoveryReceipt) || !count}>{saving ? "Saving…" : `Save all ${count}`}</button>{saving && <button className="button" type="button" onClick={() => saveController.current?.abort()}>Stop waiting</button>}</div>{saving && <p role="status" className="muted-copy">Saving your capture… You can stop waiting and retry safely. Stopping the wait does not cancel a save already received.</p>}</form>
     </section>}
-    {!preview && !receipt && <details className="workflow-options"><summary>Other ways to add</summary><nav className="quick-add-grid" aria-label="Quick Add options"><Link href="/contacts/new" onClick={e => { if (!closeDialog()) e.preventDefault(); }}><AppIcon name="contacts"/><span><strong>Add a person</strong><small>Name, phone, and optional follow-up</small></span></Link><Link href="/contacts?intent=log-note" onClick={e => { if (!closeDialog()) e.preventDefault(); }}><AppIcon name="edit"/><span><strong>Log what happened</strong><small>Choose a person and add a note</small></span></Link></nav></details>}
-  </dialog>;
+    {!preview && !receipt && <details className="workflow-options"><summary>Other ways to add</summary><nav className="quick-add-grid" aria-label="Quick Add options"><Link href="/contacts/new" onClick={leaveTo("/contacts/new")}><AppIcon name="contacts"/><span><strong>Add a person</strong><small>Name, phone, and optional follow-up</small></span></Link><Link href="/contacts?intent=log-note" onClick={leaveTo("/contacts?intent=log-note")}><AppIcon name="edit"/><span><strong>Log what happened</strong><small>Choose a person and add a note</small></span></Link></nav></details>}
+  </dialog>{confirmDialog}</>;
 }

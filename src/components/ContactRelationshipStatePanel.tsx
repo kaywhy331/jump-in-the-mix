@@ -4,6 +4,7 @@ import type { Channel, ContactPriority } from "@/generated/prisma/client";
 import { useRef, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { updateContactBasicsInlineAction, updateContactRelationshipStateAction } from "@/lib/contact-state-actions";
+import { useConfirmDialog } from "@/components/useConfirmDialog";
 
 export type ContactRelationshipStateValue = {
   preferredChannel: Channel | null;
@@ -30,6 +31,7 @@ export function ContactRelationshipStatePanel({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const save = () => formRef.current?.requestSubmit();
+  const [confirm, confirmDialog] = useConfirmDialog();
   return (
     <form ref={formRef} action={updateContactRelationshipStateAction} className="contact-relationship-chips">
       <input type="hidden" name="contactId" value={contactId} />
@@ -38,9 +40,9 @@ export function ContactRelationshipStatePanel({
       <input type="hidden" name="nextCommitmentAt" value={state.nextCommitmentAt?.toISOString() ?? ""} />
       <PreferenceSaveState><fieldset><legend>Priority</legend><div className="relationship-chip-row">{(["LOW", "NORMAL", "HIGH", "URGENT"] as const).map((priority) => <label className="relationship-chip" key={priority}><input type="radio" name="priority" value={priority} defaultChecked={state.priority === priority} onChange={save} /><span>{priority === "NORMAL" ? "Normal" : priority[0] + priority.slice(1).toLowerCase()}</span></label>)}</div></fieldset>
       <fieldset><legend>Prefers</legend><div className="relationship-chip-row">{([{ value: "", label: "Any" }, { value: "SMS", label: "Text" }, { value: "PHONE_CALL", label: "Call" }, { value: "EMAIL", label: "Email" }] as const).map((channel) => <label className="relationship-chip" key={channel.value || "any"}><input type="radio" name="preferredChannel" value={channel.value} defaultChecked={(state.preferredChannel ?? "") === channel.value} onChange={save} /><span>{channel.label}</span></label>)}</div></fieldset>
-      <label className="relationship-toggle"><input type="checkbox" name="doNotContact" defaultChecked={state.doNotContact} onChange={event => { if (event.target.checked && !window.confirm(`Stop ${pendingCount} pending follow-up${pendingCount === 1 ? "" : "s"} for this person? Saved history stays available. You can still open contact details, but must respect their contact preference. Turning this off can prepare future follow-ups again.`)) { event.target.checked = false; return; } save(); }} /><span><strong>Do not contact</strong><small>{pendingCount} pending follow-up{pendingCount === 1 ? "" : "s"} will stop. Saved drafts and history remain. Manual contact links remain available; respect this preference.</small></span></label>
+      <label className="relationship-toggle"><input type="checkbox" name="doNotContact" defaultChecked={state.doNotContact} onChange={event => { const box = event.target; if (!box.checked) { save(); return; } box.checked = false; void confirm({ title: `Stop ${pendingCount} pending follow-up${pendingCount === 1 ? "" : "s"} for this person?`, description: "Saved history stays available. You can still open contact details, but must respect their contact preference. Turning this off can prepare future follow-ups again.", confirmLabel: "Stop follow-ups", danger: true }).then(stop => { if (stop) { box.checked = true; save(); } }); }} /><span><strong>Do not contact</strong><small>{pendingCount} pending follow-up{pendingCount === 1 ? "" : "s"} will stop. Saved drafts and history remain. Manual contact links remain available; respect this preference.</small></span></label>
       <noscript><button className="button small" type="submit">Save preferences</button></noscript></PreferenceSaveState>
-    </form>
+    {confirmDialog}</form>
   );
 }
 

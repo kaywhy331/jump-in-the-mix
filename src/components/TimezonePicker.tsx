@@ -32,6 +32,7 @@ export function TimezonePicker({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const titleId = useId();
+  const descriptionId = useId();
   // ICU lists and abbreviations differ between the server and browsers.
   // The first render is deterministic; discover the browser's full list after hydration.
   const [zones, setZones] = useState(INITIAL_ZONES);
@@ -62,9 +63,9 @@ export function TimezonePicker({
     <input id={id} name={name} value={value} type="hidden" />
     <div className="timezone-current"><span><small>{label}</small><strong>{cityLabel(value)}</strong></span><button ref={triggerRef} className="button" type="button" onClick={open} aria-label={`Change ${label.toLowerCase()}`}>Change</button></div>
     {confirmDetection && <small>Detected automatically for follow-up times.</small>}
-    <dialog ref={dialogRef} className="sheet timezone-sheet" aria-labelledby={titleId} onClose={() => triggerRef.current?.focus({ preventScroll: true })} onClick={(event) => { if (event.target === event.currentTarget) dialogRef.current?.close(); }}>
+    <dialog ref={dialogRef} className="sheet timezone-sheet" aria-labelledby={titleId} aria-describedby={descriptionId} onClose={() => triggerRef.current?.focus({ preventScroll: true })} onClick={(event) => { if (event.target === event.currentTarget) dialogRef.current?.close(); }}>
       <div className="sheet-panel">
-        <header className="sheet-header"><div className="sheet-heading-copy"><h2 id={titleId}>Choose a timezone</h2><p>Search a city or region. Daylight saving changes are handled automatically.</p></div><button className="icon-button" type="button" onClick={() => dialogRef.current?.close()} aria-label="Close timezone picker"><AppIcon name="close" /></button></header>
+        <header className="sheet-header"><div className="sheet-heading-copy"><h2 id={titleId}>Choose a timezone</h2><p id={descriptionId}>Search a city or region. Daylight saving changes are handled automatically.</p></div><button className="icon-button" type="button" onClick={() => dialogRef.current?.close()} aria-label="Close timezone picker"><AppIcon name="close" /></button></header>
         <div className="sheet-body">
           <button className="button" type="button" onClick={detect}>Use device timezone</button>
           <label className="field"><span>Search timezones</span><input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Chicago, London, Tokyo…" autoComplete="off" /></label>

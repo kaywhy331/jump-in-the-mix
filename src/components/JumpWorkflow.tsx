@@ -9,6 +9,7 @@ import styles from "@/components/JumpWorkflow.module.css";
 import { useBrowserScope } from "@/components/BrowserAccountBoundary";
 import { readOpenedJump, readUnresolvedAttempts, resolveOpenedJump, validOpenedJump, type OpenedAttemptPayload, type OpenedJumpDetail } from "@/lib/opened-jump-state";
 import { WhenPicker } from "@/components/WhenPicker";
+import { useConfirmDialog } from "@/components/useConfirmDialog";
 import { addDays, dateKeyOf } from "@/lib/when-picker";
 export type { OpenedJumpDetail } from "@/lib/opened-jump-state";
 
@@ -174,10 +175,11 @@ export function JumpOutcomeButton({
   const { choices } = workflow;
   const [decisions, setDecisions] = useState<Record<string, string>>({});
   const [showDecisions, setShowDecisions] = useState(false);
+  const [confirm, confirmDialog] = useConfirmDialog();
 
   const submit = async (completionOnly = false) => {
     if (!completionOnly && (choices.length || workflow.status !== "ready") && !showDecisions) { setShowDecisions(true); return; }
-    if (confirmation && !window.confirm(confirmation)) return;
+    if (confirmation && !(await confirm({ title: confirmation, description: "This updates the follow-up now.", confirmLabel: "Continue" }))) return;
     setSaving(true);
     setError("");
     try {
@@ -195,6 +197,7 @@ export function JumpOutcomeButton({
       <button className={className} type="button" aria-label={ariaLabel} onClick={() => void submit()} disabled={saving || disabled}>{saving ? "Saving…" : children}</button>
       {showDecisions && <span role="group" aria-label="Record journey outcome"><WorkflowChoicesStatus {...workflow} /><WorkflowOutcomeFields choices={choices} values={decisions} onChange={setDecisions} /><button className="button primary" type="button" disabled={saving || workflow.status !== "ready"} onClick={() => void submit()}>Save outcome</button>{workflow.status !== "ready" && <button className="button" type="button" disabled={saving} onClick={() => void submit(true)}>Record follow-up only</button>}<button className="button" type="button" onClick={() => setShowDecisions(false)}>Cancel</button></span>}
       {error && <small className={styles.error} role="alert">{error}</small>}
+      {confirmDialog}
     </span>
   );
 }
