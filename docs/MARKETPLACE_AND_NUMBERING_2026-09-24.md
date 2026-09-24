@@ -105,10 +105,10 @@ They use only the shared tokens and components.
   - `e2e/mega-mix-pipelines.spec.ts` (3 tests): create, rename, Journey switcher, export, import into another account, duplicate, remove, bad-file refusal.
   - `e2e/marketplace.spec.ts` (2 tests): privacy check, share, favorite count, add, live edit and update notice, report auto-hide, author notice, staff restore, filters.
   - Both specs also cover light and dark themes at 320–1920px with WCAG axe checks and no horizontal overflow.
-- **Existing browser specs:** the journey-analytics, journey-connections, journey-rule-editing, mega-mixes, ready-made-panes and mix-library-workspace specs were run on desktop, and their failures were compared against 5d1b832. `mega-mixes.spec.ts:28` ("Mix started."), `journey-analytics.spec.ts:188` and `journey-rule-editing.spec.ts:149` fail identically there. One dark-theme contrast failure in `mix-library-workspace.spec.ts:66` passed on two reruns. A wider run (adding design-correction, visual-fitment and accessibility) was stopped at test 11 of 81 because the host ran low on memory. It had no failures up to that point, and the rest is NOT RUN.
+- **Existing browser specs:** the journey-analytics, journey-connections, journey-rule-editing, mega-mixes, ready-made-panes and mix-library-workspace specs were run on desktop, and their failures were compared against 5d1b832. `mega-mixes.spec.ts:28` ("Mix started."), `journey-analytics.spec.ts:188` and `journey-rule-editing.spec.ts:149` fail identically there. One dark-theme contrast failure in `mix-library-workspace.spec.ts:66` passed on two reruns. `accessibility.spec.ts` passes (the demo seed is needed). `design-correction.spec.ts` (8 of 18 fail) and `visual-fitment.spec.ts` (6 of 9 fail) have failure sets identical to 5d1b832, run against the same database.
 - Typecheck passes.
 
-Not done: no production build or release, no hosted migration, and no physical-device testing. No customer outcome has been measured.
+The isolated production build (`next build`) passes. Not done: physical-device testing. No customer outcome has been measured.
 
 ## Release requirements
 
