@@ -37,3 +37,25 @@ Released to https://jumpinthemix.com on 2026-09-24. The agent ran the release un
 ## Rollback
 
 Deploy `fad339dc566ec3b0e75b85e181a62486ba797c30` to the worker, then the web service. The migrations only add tables, so the previous code runs unchanged against the migrated database. No data rollback is needed.
+
+## Follow-up release: test alignment and phone text sizes
+
+Released later on 2026-09-24 as `e26fdd42a05ac9c7094f697afb2b0f53b9b7f35f` (branch `fix/test-failures-20260924`), replacing `3d06312`. Web deploy `dep-daqoneou01pc73ffj1gg`, worker deploy `dep-daqom4bktnus73bl288g`. Code only, with no schema change. The scripts are `.artifacts/market-live-20260924/fixes-*.mjs`.
+
+**Product changes.** Phone text sizes now follow the supplied design export:
+- Today time pills and card meta are 13px, and the Review label is 12px.
+- Contact avatar initials are 14px.
+- The Contacts and Mix library pagers are 13px.
+
+**Test changes.** The failing browser and unit tests were stale expectations left behind by earlier redesigns: the workflow Journey map, the flat Settings rows, the Contacts sheets, the channel versions and the phone icons. None was a product defect. Four tests that covered the retired stage-column Journey were removed.
+- On a production build, these all pass on desktop and phone: visual-fitment, design-correction, journey-analytics, journey-rule-editing, journey-connections, mega-mixes, mega-mix-pipelines, marketplace and accessibility.
+- Direct API posts in tests now send the same-origin header that production requires.
+
+**Evidence.**
+- The preflight showed production's migration history identical to the release tree.
+- The worker queue probe passed.
+- The postflight matched all 12 changed files and 20 served assets.
+- The live phone check confirmed the new sizes, plus reflow and axe on Today, Contacts, Mixes and the Marketplace in both themes. Every synthetic row was removed.
+- The final check found no synthetic rows and no failed jobs, and health returned 200 three times.
+
+**Rollback:** deploy `3d06312` to the worker, then the web service.
