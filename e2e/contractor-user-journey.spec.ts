@@ -162,7 +162,7 @@ test("changed screens retain themes, keyboard access and narrow-screen reflow", 
   }
   await page.goto(`/journey?contactId=${person.id}&work=${id}`); await page.waitForLoadState("networkidle"); const toggle = page.locator("summary").filter({ hasText: "Record an update or choose a callback date" }); await toggle.focus(); await expect(toggle).toBeFocused(); await page.keyboard.press("Enter"); await expect(page.getByRole("combobox", { name: "What happened?", exact: true })).toBeVisible();
   await page.getByRole("combobox", { name: "What happened?", exact: true }).selectOption("OWNER"); await page.getByLabel("Check-back date and time", { exact: true }).fill(new Date(Date.now() + 86400000).toISOString().slice(0,16)); await page.getByRole("button", { name: "Review this update", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Close review", exact: true })).toBeFocused();
+  await expect(page.getByRole("dialog", { name: "Save this update?" }).getByRole("button", { name: "Keep editing", exact: true })).toBeFocused();
   for (const width of [390, 1440]) for (const theme of ["light", "dark"] as const) {
     await page.setViewportSize({ width, height: 1000 }); await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
     const box = await page.getByRole("dialog", { name: "Save this update?" }).boundingBox(); expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.width).toBeLessThanOrEqual(width);

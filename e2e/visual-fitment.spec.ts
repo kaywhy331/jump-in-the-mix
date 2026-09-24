@@ -218,8 +218,8 @@ test("global Quick Add previews natural-language capture before continuing", asy
   await expect(dialog.getByText("Check the details")).toBeVisible();
   await expect(dialog.getByText("Jordan", { exact: true })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Add person & follow-up" })).toBeVisible();
-  page.once("dialog", (confirmation) => confirmation.accept());
   await dialog.getByRole("button", { name: "Close Quick Add" }).click();
+  await page.getByRole("dialog", { name: "Discard this Quick Add draft?" }).getByRole("button", { name: "Discard draft", exact: true }).click();
   await expect(dialog).toBeHidden();
 });
 

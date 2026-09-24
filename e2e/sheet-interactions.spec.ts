@@ -133,7 +133,7 @@ test("nested Snooze keeps its own popup layout and restores the review in both t
       expect(bounds.y).toBeGreaterThanOrEqual(0);
       expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height + 1);
       if (viewport.width >= 768) expect(Math.abs(bounds.x + bounds.width / 2 - viewport.width / 2)).toBeLessThan(2);
-      await expect(popup.getByRole("heading")).toHaveCSS("font-size", "20px");
+      await expect(popup.getByRole("heading")).toHaveCSS("font-size", "18px");
       await expect(popup.locator("button[type=submit]").first()).not.toHaveCSS("border-top-color", "rgba(0, 0, 0, 0)");
       await audit(page); await closeSheet(page);
       await expect(trigger).toBeFocused();

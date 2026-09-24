@@ -76,8 +76,11 @@ test("three mixed-channel invitations become Today reminders with single-use lin
   await page.getByLabel("Email address or text number").nth(2).fill(`third-${suffix}@example.test`);
   await expect(page.getByRole("button", { name: "Add another person" })).toHaveCount(0);
   await page.screenshot({ path: `.artifacts/invitations-${test.info().project.name}.png`, fullPage: true });
-  page.once("dialog", async dialog => { expect(dialog.message()).toContain("leaving 0"); await dialog.accept(); });
   await page.getByRole("button", { name: "Add invitations to Today" }).click();
+  const prepare = page.getByRole("dialog", { name: /^Prepare 3 invitations/ });
+  await expect(prepare).toContainText("leaving 0");
+  await expect(prepare.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+  await prepare.getByRole("button", { name: "Prepare invitations", exact: true }).click();
   await expect(page).toHaveURL(/\/jumps\?invitations=3/);
   const invites = await prisma.referralAccessInvite.findMany({ where: { inviterUserId: user.id }, include: { reminder: true } });
   expect(invites).toHaveLength(3);
