@@ -63,7 +63,9 @@ async function expectReadableMeaningfulText(page: Page) {
     const text = directText || controlText;
     if (!text) return [];
     const fontSize = Number.parseFloat(getComputedStyle(element).fontSize);
-    if (!Number.isFinite(fontSize) || fontSize === 0 || fontSize >= 13) return [];
+    // Floors follow the supplied phone design: 11px tab labels, 12px compact action labels, 13px for other text.
+    const floor = element.closest(".mobile-nav") ? 11 : element.closest("button, a.button, .button") ? 12 : 13;
+    if (!Number.isFinite(fontSize) || fontSize === 0 || fontSize >= floor) return [];
     return [{
       tag: element.tagName.toLowerCase(),
       className: element.className,
@@ -147,7 +149,7 @@ test("mobile navigation fills the footer with five evenly spaced controls", asyn
       await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { left: side, right: side, bottom } });
       const footer = (await page.locator(".mobile-nav").boundingBox())!;
       expect(footer.height).toBe(67 + bottom);
-      const controls = page.locator(".mobile-nav a.nav-link, .mobile-nav button.nav-quick-add");
+      const controls = page.locator(".mobile-nav a.nav-link:visible, .mobile-nav button.nav-quick-add:visible");
       for (let index = 0; index < 5; index += 1) {
         const box = (await controls.nth(index).boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(side);
@@ -199,13 +201,18 @@ test("mobile text actions stay readable instead of collapsing into blank control
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile header geometry is checked once.");
   await signIn(page);
   await page.goto("/templates");
-  for (const label of ["My mixes", "Create a mix"]) {
-    const action = page.getByRole("link", { name: label, exact: true });
+  // Collection tabs keep their words; creating is a labelled icon since the phone icon pass (3f85c77).
+  for (const label of ["My mixes", "Mega-Mixes", "Marketplace"]) {
+    const action = page.locator(".mix-library-tabs").getByRole("link", { name: label, exact: true });
     await expect(action).toBeVisible();
     const box = await action.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.width).toBeGreaterThan(60);
   }
+  const create = page.getByRole("link", { name: "Create your own", exact: true });
+  await expect(create).toBeVisible();
+  const createBox = (await create.boundingBox())!;
+  expect(Math.min(createBox.width, createBox.height)).toBeGreaterThanOrEqual(44);
   await expectNoHorizontalOverflow(page);
 });
 
@@ -326,7 +333,8 @@ test("responsive controls remain complete and align to card width", async ({ pag
 
     if (width <= 900) {
       await page.goto("/jumps");
-      const card = page.locator(".jump-task-card:visible").first();
+      // The first card with a Review action; captures added by earlier tests may offer other actions.
+      const card = page.locator(".jump-task-card:visible").filter({ has: page.getByRole("button", { name: /^Review (message|call) for / }) }).first();
       // The card's own Review button; the review sheet inside the card also uses this class.
       const primary = card.getByRole("button", { name: /^Review (message|call) for / });
       const actions = card.locator(".jump-primary-action");

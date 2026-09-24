@@ -285,7 +285,7 @@ test("advanced paths retain outcomes, waits and join settings behind the compact
 async function seedRemovablePaths(page: Page, branches = false, join = false) {
   const rule = { id: randomUUID(), name: "Connection to review", enabled: false, mode: "PARALLEL" as const, source: { mixId: mixes[0], stepId: null }, join: join ? { mode: "ALL" as const, target: { mixId: mixes[1], stepId: beats[1] }, cancelRemaining: false } : null, routes: [{ id: randomUUID(), label: "First path", when: "FINISHED" as const, outcome: "", delayMinutes: 0, target: { mixId: mixes[1], stepId: null as string | null }, maxVisits: null, replace: false }] };
   if (branches) rule.routes.push({ ...rule.routes[0], id: randomUUID(), label: "Second path", target: { mixId: mixes[1], stepId: beats[1] } });
-  const saved = await page.request.post("/api/mix-workflow", { data: { action: "save-rule", rule, expectedRule: null } }); expect(saved.ok()).toBe(true);
+  const saved = await page.request.post("/api/mix-workflow", { headers: { Origin: process.env.APP_URL! }, data: { action: "save-rule", rule, expectedRule: null } }); expect(saved.ok()).toBe(true);
   await page.reload({ waitUntil: "networkidle" }); await page.getByRole("button", { name: "Reset zoom to 100%", exact: true }).click();
   return rule;
 }
@@ -333,11 +333,11 @@ test("path deletion survives an unconfirmed response and failed refresh without 
 test("a changed path needs review before deletion and retains unrelated configuration", async ({ page }) => {
   const rule = await seedRemovablePaths(page); await selectSavedPath(page, rule.routes[0].id);
   const changed = { ...rule, routes: [{ ...rule.routes[0], label: "Updated destination path" }] };
-  expect((await page.request.post("/api/mix-workflow", { data: { action: "save-rule", rule: changed, expectedRule: rule } })).ok()).toBe(true);
+  expect((await page.request.post("/api/mix-workflow", { headers: { Origin: process.env.APP_URL! }, data: { action: "save-rule", rule: changed, expectedRule: rule } })).ok()).toBe(true);
   await confirmPathDeletion(page); await expect(page.getByRole("dialog").getByRole("alert")).toContainText("changed in another window");
   await page.getByRole("dialog").getByRole("button", { name: "Review updated path", exact: true }).click(); await expect(pathActions(page)).toContainText("Updated destination path");
   const current = await (await page.request.get("/api/mix-workflow")).json();
-  expect((await page.request.post("/api/mix-workflow", { data: { action: "configure", expectedRevision: current.revision, configuration: { ...current.configuration, intentionalEnds: [`mix:${mixes[1]}`] } } })).ok()).toBe(true);
+  expect((await page.request.post("/api/mix-workflow", { headers: { Origin: process.env.APP_URL! }, data: { action: "configure", expectedRevision: current.revision, configuration: { ...current.configuration, intentionalEnds: [`mix:${mixes[1]}`] } } })).ok()).toBe(true);
   await confirmPathDeletion(page); await expect(page.locator("[data-workflow-path]")).toHaveCount(0);
   expect((await (await page.request.get("/api/mix-workflow")).json()).configuration.intentionalEnds).toEqual([`mix:${mixes[1]}`]);
 });
