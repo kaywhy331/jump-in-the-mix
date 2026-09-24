@@ -43,7 +43,7 @@ export function OnboardingForm({ userName, industry, initialUses, timezone, toda
         {business && <label className="field"><span>Type of business</span><select name="businessType" value={businessType} onChange={event => setBusinessType(event.target.value)}>{[...new Set([...BUSINESS_TYPES, ...(industry ? [industry] : [])])].map(type => <option key={type}>{type}</option>)}</select><small>We’ll suggest mixes that fit your work.</small></label>}
       </div>
     </fieldset>
-    <details className="onboarding-step-card">
+    <details className="onboarding-step-card" onInvalidCapture={event => { event.currentTarget.open = true; }}>
       <summary>Optional business details and signature</summary>
       <div className="form-grid">
         {organization && <label className="field"><span>{business ? "Business name (optional)" : "Organization (optional)"}</span><input name="businessName" autoComplete="organization" placeholder={business ? "Lee Plumbing" : "Company, community, or group"} maxLength={200}  /></label>}

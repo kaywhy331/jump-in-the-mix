@@ -22,6 +22,17 @@ export function AdminNav({ permissions, tabs = false }: { permissions: AdminPerm
   const open = openPath === pathname;
   const active = activeAdminArea(pathname, permissions);
   const groups = adminNavigation(permissions);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  // Like the public Explore menu, Escape and a tap outside close the phone menu.
+  useEffect(() => {
+    if (!open) return;
+    const dismiss = (event: PointerEvent) => { if (event.target instanceof Node && !sidebarRef.current?.contains(event.target)) setOpenPath(null); };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") { setOpenPath(null); toggleRef.current?.focus(); } };
+    document.addEventListener("pointerdown", dismiss);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", dismiss); document.removeEventListener("keydown", escape); };
+  }, [open]);
   const selected = groups.find(group => group.items.some(item => item.href === active?.href));
   useEffect(() => { if (!tabs) return; for (const nav of document.querySelectorAll<HTMLElement>(".admin-content-tabs")) { const item = nav.querySelector<HTMLElement>('[aria-current="page"]'); if (item) { const a = item.getBoundingClientRect(), b = nav.getBoundingClientRect(); nav.scrollLeft += a.left - b.left - (b.width - a.width) / 2; } } }, [pathname, tabs]);
   if (tabs) {
@@ -30,9 +41,9 @@ export function AdminNav({ permissions, tabs = false }: { permissions: AdminPerm
       {selected.items.map(item => <Link prefetch={false} key={item.href} href={item.href} aria-current={active?.href === item.href ? "page" : undefined}>{item.label}</Link>)}
     </nav></div>;
   }
-  return <nav className="admin-sidebar" aria-label="Administration" data-open={open}>
+  return <nav ref={sidebarRef} className="admin-sidebar" aria-label="Administration" data-open={open}>
     <div className="admin-sidebar-heading"><span>Administration · {active?.label ?? "Overview"}</span>
-      <button className="button admin-menu-toggle" type="button" aria-expanded={open} aria-controls="admin-navigation-links" onClick={() => setOpenPath(open ? null : pathname)}>
+      <button ref={toggleRef} className="button admin-menu-toggle" type="button" aria-expanded={open} aria-controls="admin-navigation-links" onClick={() => setOpenPath(open ? null : pathname)}>
         {open ? "Close menu" : "Menu"}<AppIcon name={open ? "close" : "chevronDown"} />
       </button>
     </div>

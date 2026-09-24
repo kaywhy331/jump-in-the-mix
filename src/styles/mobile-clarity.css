@@ -2,7 +2,7 @@
 [hidden] { display: none !important; }
 .workflow-step-label { color: var(--muted); font-size: .8rem; font-weight: 650; margin: 0 0 10px; }
 .workflow-options { margin: 8px 0; min-width: 0; }
-.workflow-options > summary { cursor: pointer; min-height: 44px; padding: 10px 0; color: var(--ink); font-size: .88rem; }
+.workflow-options > summary { cursor: pointer; min-height: 44px; padding: 10px 0; }
 .workflow-option-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 0; }
 .workflow-options .button { min-height: 44px; }
 .today-overview { margin: 8px 0 16px; border-bottom: 1px solid var(--line); }

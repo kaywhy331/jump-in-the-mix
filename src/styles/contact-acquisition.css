@@ -25,11 +25,10 @@ button.settings-hub-card.device-contact-picker:disabled { cursor: progress; opac
 .quick-add-result span { color: var(--muted); }
 .quick-add-result a { color: var(--brand-dark); font-weight: 800; }
 .quick-add-result.error { border-color: var(--danger-border); background: var(--status-danger-bg); }
-.quick-add-review { margin-top: 3px; }
-.quick-add-review summary { cursor: pointer; color: var(--brand-dark); font-weight: 800; }
-.quick-add-review > div { display: grid; gap: 5px; margin: 7px 0; }
-.quick-add-review > div > span { display: grid; gap: 1px; padding: 7px 8px; border-radius: 9px; background: var(--raised); }
-.quick-add-review small { color: var(--muted); }
+.duplicate-review { margin-top: 3px; }
+.duplicate-review > div { display: grid; gap: 5px; margin: 7px 0; }
+.duplicate-review > div > span { display: grid; gap: 1px; padding: 7px 8px; border-radius: 9px; background: var(--raised); }
+.duplicate-review small { color: var(--muted); }
 
 .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .voice-note-control { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 340px; }

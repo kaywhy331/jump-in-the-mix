@@ -15,10 +15,7 @@
 .noteComposer textarea { min-height: 120px; }
 .noteComposer > div { display: grid; gap: 12px; justify-items: start; }
 .noteActions { margin-top: 6px; font-size: .75rem; }
-.noteActions > summary { display: inline-flex; min-width: 36px; min-height: 24px; align-items: center; justify-content: center; cursor: pointer; color: var(--text-3); list-style: none; }
-.noteActions > summary::-webkit-details-marker { display: none; }
 .noteActions > div { display: flex; gap: 16px; }
 .error { color: var(--late); }
 .loading { font-size: .875rem; color: var(--text-2); padding-block: 12px; }
 @media (max-width: 600px) { .timelineItem { grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding-block: 14px; } }
-@media (max-width: 900px) { .noteActions > summary { min-width: 44px; min-height: 44px; } }

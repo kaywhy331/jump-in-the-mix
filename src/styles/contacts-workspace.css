@@ -127,7 +127,7 @@
 .contact-note-composer:not([open]) { display: none; }
 .contact-note-composer > summary { padding-top: 12px; font-size: .875rem; }
 .contact-notes-card { margin: 24px 0 0; padding: 12px 0; border-top: 1px solid var(--line); }
-.contact-notes-card > summary { color: var(--text-2); cursor: pointer; font-size: .875rem; }
+.contact-notes-card > summary { cursor: pointer; }
 .contact-notes-card .note-copy, .contact-notes-card .private-note p { font-family: var(--font-voice); font-size: 1.125rem; }
 .contact-detail-page .contact-detail-more { margin: 0; padding: 12px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
 .contact-detail-more > summary { cursor: pointer; }

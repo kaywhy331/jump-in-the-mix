@@ -89,7 +89,6 @@
 
 .plan-approach-guide summary {
   cursor: pointer;
-  font-weight: 700;
 }
 
 .plan-approach-guide dl {
@@ -246,8 +245,6 @@
 
 .shared-mix-content-details > summary,
 .template-profile-details > summary {
-  color: var(--brand-dark);
-  font-weight: 760;
   cursor: pointer;
 }
 
@@ -473,10 +470,8 @@
 .library-search input { min-height: 46px; }
 .library-refinements { flex: 0 1 auto; }
 .library-refinements > summary { min-height: 46px; display: flex; align-items: center; gap: 12px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 10px; font-weight: 650; cursor: pointer; list-style: none; }
-.library-refinements > summary::after { content: "+"; font-size: 1.2rem; }
 .library-refinements[open] { flex: 1 0 100%; }
 .library-refinements[open] > summary { width: fit-content; margin-bottom: 16px; }
-.library-refinements[open] > summary::after { content: "−"; }
 .library-filter-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .library-results-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .library-results-line p { margin: 0; color: var(--muted); font-size: .875rem; }
@@ -491,8 +486,6 @@
 .template-use-reference h2 { font-size: 1.25rem; line-height: 1.35; letter-spacing: -.025em; }
 .template-use-reference > p:not(.library-goal):not(.library-plan-facts) { color: var(--muted); }
 .plan-message-reference > summary, .plan-approach-guide > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
-.plan-message-reference > summary::after { content: "+"; margin-left: auto; }
-.plan-message-reference[open] > summary::after { content: "−"; }
 .template-setup-form .sticky-form-actions { position: static; padding: 16px 0 0; background: transparent; box-shadow: none; border: 0; display: flex; flex-wrap: wrap; }
 .template-setup-form .sticky-form-actions .button { flex: 1 1 auto; }
 

@@ -11,7 +11,7 @@ export function SupportEmailRecovery({ ticketId, delivery, canManageEmail, retur
     {delivery.status === "QUEUED" && <small>The existing worker will process this notification when email capacity is available.</small>}
     {delivery.status === "SENDING" && <small>The worker is checking provider acceptance. A stopped worker’s lease can recover automatically.</small>}
     {delivery.status === "CANCELED" && <small>No further email is queued. This does not retract an email already accepted by the provider.</small>}
-    {delivery.status === "REVIEW" && <details>
+    {delivery.status === "REVIEW" && <details className="admin-release-confirmation">
       <summary>Review this email notification</summary>
       <p>The response remains in the customer’s ticket. Checking a receipt makes no send request. Retrying uses the same saved email and key within its original retry window.</p>
       {!delivery.hasFrozenContent && <p>This notification has no saved original content and key. Check the provider history, close this review, and add a new response if the customer still needs an email.</p>}
@@ -25,7 +25,7 @@ export function SupportEmailRecovery({ ticketId, delivery, canManageEmail, retur
         </div>
       </AdminDraftForm>
     </details>}
-    {canManageEmail && delivery.hasFrozenContent && ["REVIEW", "SENT"].includes(delivery.status) && <details>
+    {canManageEmail && delivery.hasFrozenContent && ["REVIEW", "SENT"].includes(delivery.status) && <details className="admin-release-confirmation">
       <summary>Approve a replacement notification</summary>
       <p>This queues another email with the same recipient and content. The customer may receive a duplicate. Use it only after checking the provider history and confirming the customer wants another notification.</p>
       {!repeatReady ? <p>Available 24 hours after this notification began. Check its receipt or use its original retry first.</p> : <AdminDraftForm draftKey={`support-email-repeat:${delivery.id}`} fields={["reason", "providerReference", "requestReference", "providerReviewed", "recipientRequested", "duplicateRiskAccepted"]} revision={delivery.updatedAt.toISOString()} revisionField="expectedUpdatedAt" saved={saved} action={adminRepeatSupportEmailAction}>

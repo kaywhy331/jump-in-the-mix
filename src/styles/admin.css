@@ -128,7 +128,7 @@
 .admin-audit-heading > div { min-width: 0; display: grid; gap: 3px; }
 .admin-audit-heading span, .admin-audit-meta { color: var(--muted); }
 .admin-audit-meta { display: flex; flex-wrap: wrap; gap: 7px 14px; font-size: .78rem; }
-.admin-audit-details > summary { min-height: 48px; display: flex; align-items: center; cursor: pointer; color: var(--brand-dark); font-weight: 800; }
+.admin-audit-details > summary { min-height: 48px; display: flex; align-items: center; cursor: pointer; }
 .admin-audit-json-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .admin-audit-json-grid h3 { margin: 0 0 6px; font-size: .8rem; }
 .admin-audit-json-grid pre { max-height: 360px; margin: 0; padding: 10px; overflow: auto; border-radius: 10px; background: var(--toast); color: var(--toast-text); font-size: .72rem; white-space: pre-wrap; overflow-wrap: anywhere; }

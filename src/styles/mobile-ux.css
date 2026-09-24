@@ -45,7 +45,7 @@
   /* Disclosures and small reorder controls meet the 44px target. */
   .contact-more-details > summary,
   .plan-advanced-settings > summary,
-  .step-advanced-settings > summary { display: flex; align-items: center; min-height: 44px; padding: 8px 4px; font-weight: 650; cursor: pointer; }
+  .step-advanced-settings > summary { min-height: 44px; padding: 10px 4px; cursor: pointer; }
   .repeatable-profile-actions .icon-button,
   .mix-editor-jump .icon-button.small { width: 44px; min-width: 44px; height: 44px; }
 

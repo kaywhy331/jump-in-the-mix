@@ -102,7 +102,7 @@
 .mix-beat-options > summary svg { width: 20px; height: 20px; }
 .mix-beat-options[open] > summary, .mix-beat-options > summary:hover { background: var(--surface); }
 .mix-beat-options-body { margin: 16px 0 0 44px; padding: 16px 0; border-top: 1px solid var(--line); }
-.mix-beat-options-body summary { min-height: 44px; padding-block: 12px; cursor: pointer; font-size: .8125rem; }
+.mix-beat-options-body summary { min-height: 44px; padding-block: 12px; cursor: pointer; }
 .mix-beat-options-body .step-advanced-settings { margin-top: 4px; }
 .mix-beat-reorder { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .mix-add-beat { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; padding: 12px 0; font-weight: 600; }
@@ -177,7 +177,7 @@
 .review-person-context .conversation-note, .calendar-contact-context .conversation-note { padding: 0; border: 0; border-radius: 0; background: transparent; }
 .calendar-timezone .timezone-current { border: 0; padding: 0; border-radius: 0; background: transparent; }
 .calendar-page .calendar-event:not(.calendar-follow-up) { display: block; padding: 12px; }
-.calendar-page .calendar-event-options > summary { min-height: 32px; padding-block: 8px; }
+.calendar-page .calendar-event-options > summary { min-height: 44px; padding-block: 10px; }
 .calendar-date-strip a { background: transparent; }
 .calendar-date-strip strong { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; }
 .calendar-date-strip a[aria-current] { background: transparent; color: var(--text); }

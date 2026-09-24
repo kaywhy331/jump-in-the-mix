@@ -317,9 +317,7 @@
 .today-page .jump-primary-action { gap: 8px; }
 .today-page .jump-primary-action > .button, .today-page .jump-completion-actions > .button { min-height: 36px; padding: 6px 8px; font-size: .75rem; }
 .today-queue-group { padding: 16px 0; border-top: 1px solid var(--line); font-size: .8125rem; }
-.today-queue-group > summary { display: flex; justify-content: space-between; align-items: center; min-height: 28px; cursor: pointer; }
-.today-queue-group > summary::after { content: "›"; margin-left: 8px; }
-.today-queue-group[open] > summary::after { transform: rotate(90deg); }
+.today-queue-group > summary { display: flex; justify-content: space-between; align-items: center; min-height: 44px; cursor: pointer; }
 .today-queue-group > summary > span { margin-left: auto; color: var(--text-3); }
 .review-beat-rhythm { display: flex; list-style: none; padding: 4px; margin: 16px 0 24px; overflow-x: auto; }
 .review-beat-rhythm li { position: relative; flex: 1; min-width: 70px; }
@@ -397,14 +395,14 @@
 }
 
 .contact-detail-primary > .card { width: 100%; }
-.calendar-filter-options > summary { color: var(--text-2); cursor: pointer; min-height: 44px; padding-block: 12px; font-size: .8125rem; }
+.calendar-filter-options > summary { cursor: pointer; min-height: 44px; padding-block: 12px; }
 .calendar-page .calendar-agenda-panel, .calendar-page .calendar-editor-panel { padding: 0; background: var(--page); border: 0; border-radius: 0; }
 .calendar-page .calendar-event { border: 0; border-left: 2px solid var(--violet-mark); border-radius: 0; background: transparent; padding: 12px; }
 .calendar-page .calendar-event.selected { background: var(--violet-wash); border-radius: 10px; }
 .calendar-page .calendar-event h4 { font-size: .875rem; margin: 0; }
 .calendar-page .calendar-event > div > .eyebrow { display: none; }
 .calendar-event-options { font-size: .75rem; }
-.calendar-event-options > summary { min-height: 36px; padding-top: 8px; cursor: pointer; color: var(--text-3); }
+.calendar-event-options > summary { min-height: 44px; padding-block: 10px; cursor: pointer; }
 .calendar-page .calendar-event > .form-actions { display: flex; flex-wrap: wrap; gap: 4px; }
 .calendar-page .calendar-event > .form-actions .button { font-size: .6875rem; min-height: 32px; padding: 4px 8px; }
 .calendar-page .calendar-follow-up { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 12px; }

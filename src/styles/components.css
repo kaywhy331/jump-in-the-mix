@@ -221,7 +221,7 @@
 .section-label.urgent { color: var(--danger); }
 .section-guidance { margin: -5px 0 12px; color: var(--muted); font-size: .88rem; }
 .jump-channel-action { gap: 7px; white-space: nowrap; }
-.onboarding-step-card { border: 1px solid var(--line); border-radius: 15px; padding: 18px; }
+.onboarding-step-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
 .onboarding-step-card legend { padding: 0 8px; font-weight: 800; }
 .onboarding-step-card legend span { display: inline-grid; place-items: center; width: 25px; height: 25px; margin-right: 6px; border-radius: 50%; background: var(--brand); color: var(--on-violet); }
 .onboarding-preview { display: grid; gap: 4px; padding: 14px; border-radius: 13px; background: var(--brand-soft); color: var(--brand-dark); }

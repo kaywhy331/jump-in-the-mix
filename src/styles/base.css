@@ -115,7 +115,7 @@ img, svg { max-width: 100%; }
 .trust-grid h3 { margin-top: 0; }.trust-grid p { margin-bottom: 0; color: var(--muted); }
 .public-faq { display: grid; gap: var(--space-2); max-width: 850px; }
 .public-faq details { padding: var(--space-4); border-bottom: 1px solid var(--line); }
-.public-faq summary { cursor: pointer; font-weight: 700; }.public-faq p { color: var(--muted); }
+.public-faq summary { cursor: pointer; }.public-faq p { color: var(--muted); }
 .demo-window { background: var(--raised); color: var(--ink); border-radius: 18px; overflow: hidden; }
 .demo-toolbar { display: flex; gap: 6px; padding: 13px 15px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .demo-toolbar span { width: 9px; height: 9px; border-radius: 50%; background: var(--border); }

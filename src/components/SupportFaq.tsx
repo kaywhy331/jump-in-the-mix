@@ -58,7 +58,7 @@ export function SupportFaq() {
           <details className="support-faq-item" key={item.question}>
             <summary>
               <span>{item.question}</span>
-              <AppIcon name="add" />
+              <AppIcon name="chevronDown" />
             </summary>
             <div>
               <span className="support-faq-topic">{item.category}</span>

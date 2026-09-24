@@ -201,9 +201,7 @@
 .staff-shell .admin-library-editor-grid .admin-beat-timing { grid-template-columns: repeat(3,minmax(0,1fr)); }
 .staff-shell .admin-save-bar { display: flex; align-items: end; gap: 12px; position: sticky; bottom: 0; z-index: 5; margin-top: 12px; border-color: var(--brand); }
 .staff-shell .admin-save-bar > .field { flex: 1; }
-.staff-shell .admin-library-extra { flex-basis: 100%; }
-.staff-shell .admin-library-extra > div { display: flex; gap: 8px; flex-wrap: wrap; }
-.staff-shell .admin-library-extra select { flex: 1 1 180px; }
+.staff-shell .admin-filter-options > div > select { flex: 1 1 180px; }
 .staff-shell .admin-library-search > select { width: auto; max-width: 210px; }
 @media(max-width:760px) {
  .staff-shell .admin-library-editor-grid { grid-template-columns: minmax(0,1fr); }
@@ -228,7 +226,7 @@
 .staff-shell .support-admin-side-column .support-definition-list > div { grid-template-columns: 1fr 1fr; }
 .staff-shell .admin-setting-grid > .card { margin-top: 0; }
 .staff-shell .admin-report-domain > .card { gap: 8px; padding: 12px; }
-.staff-shell .admin-report-domain details > summary { min-height: 28px; padding-block: 4px; }
+.staff-shell .admin-report-domain details > summary { min-height: 32px; padding-block: 6px; }
 .staff-shell .admin-library-editor-grid .form-grid { align-items: start; }
 .staff-shell .admin-waitlist-selection { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
 .staff-shell .admin-waitlist-selection > .field { flex: 1 1 220px; }

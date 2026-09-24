@@ -218,7 +218,7 @@ export function DeviceContactQuickAdd({ onboarding = false }: { onboarding?: boo
               : "Exact email and phone matches were merged without overwriting existing primary values."}
           </span>
           {reviewItems.length > 0 && (
-            <details className="quick-add-review">
+            <details className="duplicate-review">
               <summary>Review possible duplicates</summary>
               <div>
                 {reviewItems.map((item) => (
