@@ -1,5 +1,5 @@
 /* Mega-Mixes: named pipelines, their numbered outline, import and forms. Shared tokens only. */
-.beat-number { display: inline-grid; place-items: center; flex-shrink: 0; min-width: 32px; height: 24px; padding: 0 6px; box-sizing: border-box; border-radius: 6px; background: var(--violet-wash); color: var(--violet-text); font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.beat-number { display: inline-grid; place-items: center; flex-shrink: 0; min-width: 32px; height: 24px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: var(--violet-wash); color: var(--violet-text); font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mega-mix-facts { margin: -12px 0 24px; color: var(--text-3); font-size: .8125rem; }
 .portable-outline { list-style: none; margin: 0; padding: 0; display: grid; gap: 24px; }
 .portable-outline-mix h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); font-size: .9375rem; font-weight: 600; }

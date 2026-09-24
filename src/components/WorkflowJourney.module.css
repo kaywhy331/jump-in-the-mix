@@ -220,7 +220,7 @@
 /* Show/Collapse Beats keeps a 44px target without changing the measured node height. */
 .nodeSummary button{min-height:44px;margin-block:-12px}
 /* Beat positions: 3, 4a, 6aa. Letters name the branch after a split. */
-.beatNumber{display:inline-grid;place-items:center;flex-shrink:0;min-width:28px;height:22px;padding:0 6px;box-sizing:border-box;border-radius:6px;background:var(--violet-wash);color:var(--violet-text);font-size:11px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap}
+.beatNumber{display:inline-grid;place-items:center;flex-shrink:0;min-width:28px;height:22px;padding:0 6px;box-sizing:border-box;border-radius:999px;background:var(--violet-wash);color:var(--violet-text);font-size:11px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap}
 .nodeBeats li[data-active=true] .beatNumber{background:var(--violet-mark);color:var(--on-violet)}
 .nodeRange{display:inline-block;margin-top:6px;font-size:12px;line-height:1.5;padding:0 .35em;border-radius:.35em;background:var(--violet-wash);color:var(--violet-text);font-variant-numeric:tabular-nums;font-weight:700}
 .numberedBeats{list-style:none;padding-left:0!important}
