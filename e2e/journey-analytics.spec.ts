@@ -108,7 +108,7 @@ test("person drill-down retains real progress controls and updates counts after 
 
 test("start work finds a contact directly in Setup without leaving the map", async ({ page }) => {
   await page.getByRole("button", { name: "Setup", exact: true }).click();
-  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active|$)/ }).click();
+  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active| Beats|$)/ }).click();
   await page.getByRole("button", { name: "Start for someone", exact: true }).click();
   await page.getByRole("searchbox", { name: "Find someone to start", exact: true }).fill("Person 25");
   await page.getByRole("button", { name: "Find", exact: true }).click();
@@ -135,7 +135,7 @@ test("selecting people keeps the directory available and updates map and context
   await expect(page.locator('[data-workflow-node][data-active=true]')).toHaveCount(0);
   await expect(people.locator("article")).toHaveCount(10);
   await page.getByRole("region", { name: "Mix and Beat journey", exact: true }).getByRole("button", { name: "All people", exact: true }).click();
-  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active|$)/ }).click();
+  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active| Beats|$)/ }).click();
   await expect(details.getByRole("heading", { name: "Welcome", exact: true })).toBeVisible();
   await details.getByText("Beats in this Mix", { exact: true }).click();
   await expect(details.getByText("Welcome call", { exact: true })).toBeVisible();
@@ -189,7 +189,10 @@ test("connection drafts survive pane changes and narrow deep links reveal check-
   await page.setViewportSize({ width: 390, height: 844 });
   const panels = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
   await page.getByRole("button", { name: "Setup", exact: true }).click();
-  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active|$)/ }).click();
+  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active| Beats|$)/ }).click();
+  // Selecting keeps the map in view (040fc25); the Mix's details open on request.
+  await expect(panels.getByRole("button", { name: "Map", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "View Mix details", exact: true }).click();
   await expect(panels.getByRole("button", { name: "Details", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Connect next", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Connect what happens next", exact: true })).toBeFocused();

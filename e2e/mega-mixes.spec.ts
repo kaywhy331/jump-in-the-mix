@@ -56,7 +56,7 @@ test("browse a whole journey, install it once, open its actual map and editable 
   await page.getByRole("link", { name: "Start for someone", exact: true }).click();
   await page.getByRole("combobox", { name: "Person", exact: true }).selectOption(person.id);
   await page.getByRole("button", { name: "Start this Mix", exact: true }).click();
-  await expect(page.getByText("Mix started.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Start saved. Follow-ups are being prepared" })).toBeVisible();
   expect(await prisma.mixWorkflowInstance.count({ where: { workspaceId, contactId: person.id } })).toBe(1);
   const exported = await (await page.request.get("/api/account/export")).json();
   expect(exported.megaMixInstallations).toHaveLength(1);
