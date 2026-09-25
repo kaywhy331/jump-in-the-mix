@@ -1,4 +1,7 @@
+import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { prisma } from "../src/lib/prisma";
 import { applyRenderedTheme } from "./theme-fixture";
 import { createPendingJumpFixture, removePendingJumpFixture } from "./pending-jump-fixture";
 
@@ -43,11 +46,13 @@ test("Today rows use the export's name and avatar sizes and sentence-case queue 
       const box = await avatar.boundingBox();
       expect(Math.round(box!.width)).toBe(40); expect(Math.round(box!.height)).toBe(40);
       for (const heading of await page.locator(".today-page .section-label h2:visible").all()) await expect(heading).toHaveCSS("text-transform", "none");
-      // The time pill still fits beside a long name at the narrowest phone width.
+      // The time pill still fits beside a long name at the narrowest phone width. When the card is "Next up" it bleeds
+      // 8 px into the page gutter by design, so measure the card's own contents and the page, not the row around it.
       if (viewport.width === 390) {
         await page.setViewportSize({ width: 320, height: 700 });
-        const overflow = await card.evaluate(node => node.scrollWidth - node.clientWidth);
+        const overflow = await card.locator("article.jump-card").evaluate(node => node.scrollWidth - node.clientWidth);
         expect(overflow).toBeLessThanOrEqual(0);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
       }
     }
   } finally { await removePendingJumpFixture(jumpId); }
@@ -97,5 +102,29 @@ test("the homepage waitlist band keeps readable input and status colours in both
     expect(contrast(colours.color, colours.background), `${scheme} input text`).toBeGreaterThanOrEqual(4.5);
     const bandStyle = await band.evaluate(node => { const style = getComputedStyle(node); return { color: style.color, background: style.backgroundColor }; });
     expect(contrast(bandStyle.color, bandStyle.background), `${scheme} band text`).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
+test("with nothing due or done, Today's link to completed follow-ups is a full-height target", async ({ page, context }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The viewports are set explicitly.");
+  test.skip(!/^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? ""), "Requires isolated local fixtures.");
+  const token = randomUUID(), suffix = randomUUID();
+  const user = await prisma.user.create({ data: { email: `empty-today-${suffix}@example.com`, name: "Empty Today", passwordHash: "fixture-only", emailVerifiedAt: new Date() } });
+  const workspace = await prisma.workspace.create({ data: { ownerId: user.id, slug: `empty-today-${suffix}`, name: "Empty Today", members: { create: { userId: user.id, role: "OWNER" } }, profile: { create: { onboardingDone: true } } } });
+  try {
+    await prisma.userPreference.create({ data: { userId: user.id, timezone: "UTC" } });
+    await prisma.session.create({ data: { userId: user.id, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 3_600_000) } });
+    await context.addCookies([{ name: process.env.AUTH_COOKIE_NAME ?? "jitm_session", value: token, url: process.env.APP_URL!, httpOnly: true, secure: true, sameSite: "Strict" }]);
+    for (const viewport of [phone, { width: 1440, height: 900 }]) {
+      await page.setViewportSize(viewport);
+      await page.goto("/jumps");
+      const link = page.getByRole("link", { name: "View completed follow-ups", exact: true });
+      await expect(link).toBeVisible();
+      expect(Math.round((await link.boundingBox())!.height)).toBeGreaterThanOrEqual(44);
+      expect((await new AxeBuilder({ page }).include(".today-queue-group").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+    }
+  } finally {
+    await prisma.workspace.deleteMany({ where: { id: workspace.id } });
+    await prisma.user.deleteMany({ where: { id: user.id } });
   }
 });

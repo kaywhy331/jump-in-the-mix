@@ -319,6 +319,8 @@
 .today-queue-group { padding: 16px 0; border-top: 1px solid var(--line); font-size: .8125rem; }
 .today-queue-group > summary { display: flex; justify-content: space-between; align-items: center; min-height: 44px; cursor: pointer; }
 .today-queue-group > summary > span { margin-left: auto; color: var(--text-3); }
+/* With nothing done yet, the open group holds only this link: give it the summary's 44 px target height. */
+.today-queue-link { display: inline-flex; align-items: center; min-height: 44px; }
 /* Queue headers read "Overdue" / "Today" in sentence case, as in the export, not shouting caps. */
 .today-page .section-label h2 { text-transform: none; letter-spacing: 0; }
 .review-beat-rhythm { display: flex; list-style: none; padding: 4px; margin: 16px 0 24px; overflow-x: auto; }
