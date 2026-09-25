@@ -291,10 +291,10 @@
   .sidebar .logo { justify-content: center; padding: 0; }
   .sidebar .logo > span:last-child:not(.logo-mark), .sidebar .global-quick-add > span, .sidebar .user-label, .sidebar .appearance-control { display: none; }
   .sidebar .global-quick-add { justify-content: center; }
-  .sidebar .nav-link { padding: 10px 2px; flex-direction: column; gap: 4px; font-size: .625rem; }
+  .sidebar .nav-link { padding: 10px 2px; flex-direction: column; gap: 4px; font-size: .75rem; overflow-wrap: anywhere; }
   .sidebar-footer { padding: 0; }
   .sidebar-utilities a { justify-content: center; font-size: 0; gap: 0; }
-  .sidebar .account-sidebar-actions .button { width: 100%; font-size: .625rem; padding-inline: 2px; }
+  .sidebar .account-sidebar-actions .button { width: 100%; font-size: .75rem; padding-inline: 2px; overflow-wrap: anywhere; }
 }
 @media (min-width: 768px) and (max-width: 900px) {
   .app-main:has(.today-page) { padding: 24px 20px calc(100px + env(safe-area-inset-bottom)); }
@@ -304,21 +304,23 @@
   .today-page .follow-up-review-sheet textarea { font-size: 1.125rem; }
 }
 /* Today: avatars, compact queue rows and a single continuous draft surface. */
-.jump-task-card .jump-card-main { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 3px 10px; }
+.jump-task-card .jump-card-main { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 3px 10px; }
 .jump-task-card .jump-card-main > :not(.jump-person-avatar) { grid-column: 2; min-width: 0; }
-.jump-task-card .jump-person-avatar { grid-column: 1; grid-row: 1 / span 4; width: 32px; height: 32px; font-size: .6875rem; }
+.jump-task-card .jump-person-avatar { grid-column: 1; grid-row: 1 / span 4; width: 40px; height: 40px; min-width: 40px; min-height: 40px; overflow: hidden; font-size: .875rem; }
 .today-page .jump-card-heading { display: flex; gap: 4px 8px; align-items: baseline; }
-.today-page .jump-card-heading h3 { font-size: .875rem; margin: 0; }
+.today-page .jump-card-heading h3 { font-size: 1rem; margin: 0; }
 .today-page .jump-card-heading .due-pill { font-size: .8125rem; padding: 0; margin: 0; min-height: 0; }
-.today-page .jump-meta { font-size: .8125rem; gap: 4px; }
+.today-page .jump-meta { font-size: .875rem; gap: 4px; }
 .today-page .jump-meta .status-pill, .today-page .channel-pill { display: none; }
-.today-page .jump-snippet { font-size: .875rem; margin: 0; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.today-page .jump-snippet { font-size: .9375rem; margin: 0; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
 .today-page .jump-list .jump-task-card { padding: 10px 8px; }
 .today-page .jump-primary-action { gap: 8px; }
 .today-page .jump-primary-action > .button, .today-page .jump-completion-actions > .button { min-height: 36px; padding: 6px 8px; font-size: .75rem; }
 .today-queue-group { padding: 16px 0; border-top: 1px solid var(--line); font-size: .8125rem; }
 .today-queue-group > summary { display: flex; justify-content: space-between; align-items: center; min-height: 44px; cursor: pointer; }
 .today-queue-group > summary > span { margin-left: auto; color: var(--text-3); }
+/* Queue headers read "Overdue" / "Today" in sentence case, as in the export, not shouting caps. */
+.today-page .section-label h2 { text-transform: none; letter-spacing: 0; }
 .review-beat-rhythm { display: flex; list-style: none; padding: 4px; margin: 16px 0 24px; overflow-x: auto; }
 .review-beat-rhythm li { position: relative; flex: 1; min-width: 70px; }
 .review-beat-rhythm li:not(:last-child)::after { content: ""; position: absolute; top: 8px; left: 8px; right: -8px; height: 1px; background: var(--track); }
@@ -328,7 +330,7 @@
 .review-beat-rhythm li[aria-current="step"] a { color: var(--violet-text); font-weight: 600; }
 .review-outcome-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; padding-top: 16px; }
 .review-outcome-actions > .button, .review-outcome-actions > span > .button { background: transparent; border-color: transparent; color: var(--text-2); }
-.review-send-hint { color: var(--text-3); font-size: .75rem; margin: 16px 0 8px; }
+.review-send-hint { color: var(--text-3); font-size: .8125rem; margin: 16px 0 8px; }
 .follow-up-review-sheet .speech-bubble--compose textarea { background: transparent; border: 0; box-shadow: none; }
 .follow-up-channel-choice .when-chips { display: flex; padding: 4px; border-radius: 12px; background: var(--surface); }
 .follow-up-channel-choice .when-chip { flex: 1; border: 0; border-radius: 8px; background: transparent; }
@@ -354,7 +356,7 @@
 .mix-beat-timeline { display: flex; gap: 0; overflow-x: auto; list-style: none; padding: 20px 4px; margin: 0; }
 .mix-beat-timeline li { flex: 1; min-width: 90px; position: relative; }
 .mix-beat-timeline li:not(:last-child)::after { content: ""; height: 1px; background: var(--track); position: absolute; left: 8px; right: 0; top: 32px; }
-.mix-beat-timeline a { display: grid; gap: 12px; font-size: .6875rem; position: relative; z-index: 1; }
+.mix-beat-timeline a { display: grid; gap: 12px; font-size: .8125rem; position: relative; z-index: 1; }
 .mix-beat-timeline i { width: 12px; height: 12px; background: var(--violet-mark); border: 3px solid var(--page); box-shadow: 0 0 0 1px var(--violet-mark); border-radius: 50%; }
 .mix-editor-form .mix-editor-section { border: 0; border-top: 1px solid var(--line); background: var(--page); border-radius: 0; padding: 24px 0; }
 .mix-editor-form .mix-editor-jump { border: 0; border-radius: 0; border-bottom: 1px solid var(--line); padding: 20px 0; background: var(--page); box-shadow: none; }
@@ -399,12 +401,12 @@
 .calendar-page .calendar-agenda-panel, .calendar-page .calendar-editor-panel { padding: 0; background: var(--page); border: 0; border-radius: 0; }
 .calendar-page .calendar-event { border: 0; border-left: 2px solid var(--violet-mark); border-radius: 0; background: transparent; padding: 12px; }
 .calendar-page .calendar-event.selected { background: var(--violet-wash); border-radius: 10px; }
-.calendar-page .calendar-event h4 { font-size: .875rem; margin: 0; }
+.calendar-page .calendar-event h4 { font-size: 1rem; margin: 0; }
 .calendar-page .calendar-event > div > .eyebrow { display: none; }
 .calendar-event-options { font-size: .75rem; }
 .calendar-event-options > summary { min-height: 44px; padding-block: 10px; cursor: pointer; }
 .calendar-page .calendar-event > .form-actions { display: flex; flex-wrap: wrap; gap: 4px; }
-.calendar-page .calendar-event > .form-actions .button { font-size: .6875rem; min-height: 32px; padding: 4px 8px; }
+.calendar-page .calendar-event > .form-actions .button { font-size: .8125rem; min-height: 36px; padding: 6px 10px; }
 .calendar-page .calendar-follow-up { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 12px; }
 .calendar-follow-up > time { font-size: .75rem; color: var(--text-2); }
 .calendar-follow-up > span:last-child { grid-column: 2; font-size: .75rem; }
@@ -425,7 +427,7 @@
   .calendar-editor-panel:not([data-requested]) { display: none; }
   .calendar-page .page-header p { display: none; }
   .calendar-page .calendar-week-nav { gap: 8px; }
-  .calendar-page .calendar-week-nav .button { font-size: .75rem; min-height: 36px; padding: 6px 8px; }
+  .calendar-page .calendar-week-nav .button { font-size: .8125rem; min-height: 44px; padding: 8px; }
   .calendar-page .calendar-date-strip { gap: 4px; }
 }
 
@@ -490,14 +492,14 @@
 .calendar-page .calendar-follow-up > span:last-child { display: none; }
 .calendar-page .calendar-follow-up strong { font-size: .8125rem; }
 .calendar-page .calendar-follow-up small { font-size: .75rem; }
-.calendar-event-time { font-size: .75rem; color: var(--text-2); }
+.calendar-event-time { font-size: .8125rem; color: var(--text-2); }
 /* A row's review and options stay reachable without repeating large labels. */
 .today-page .jump-list .jump-task-card { display: grid; grid-template-columns: minmax(0, 1fr) 36px; gap: 8px; }
 .today-page .jump-primary-action { flex-direction: column; align-items: center; }
 .today-page .jump-primary-action > .sheet-trigger > .jump-channel-action { width: 36px; min-width: 36px; min-height: 36px; padding: 8px; background: transparent; border: 0; color: var(--violet-text); }
 .today-page .jump-primary-action > .sheet-trigger > .jump-channel-action > span { display: none; }
 .today-page .jump-completion-actions > .sheet-trigger > .button { font-size: .625rem; padding: 4px 0; width: 36px; min-height: 32px; background: transparent; border: 0; }
-.today-page .jump-card-heading h3 { flex: 1 0 auto; }
+.today-page .jump-card-heading h3 { flex: 1 1 auto; min-width: 0; }
 .today-page .today-page-header { flex-wrap: nowrap; align-items: flex-start; gap: 8px; }
 .today-page .today-page-header > div { flex: 1; }
 .today-page .today-page-header .filter-trigger { font-size: .75rem; padding: 8px; }

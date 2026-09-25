@@ -300,6 +300,31 @@ test("confirmation dialogs restore focus and accessibility preferences remain us
 test("Quick Add shortcuts continue into actionable contact journeys", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The stateful shortcut journeys run once.");
   await signIn(page);
+
+  // The single-key shortcut can be turned off in Personal preferences (WCAG 2.1.4); it is on by default.
+  await page.goto("/account/preferences");
+  const shortcutSwitch = page.getByRole("switch", { name: "Quick Add keyboard shortcut (N)", exact: true });
+  await expect(shortcutSwitch).toBeChecked();
+  await shortcutSwitch.uncheck();
+  await page.goto("/jumps");
+  const quickAdd = page.getByRole("button", { name: "Quick Add", exact: true }).first();
+  const quickAddDialog = page.getByRole("dialog", { name: "Quick Add", exact: true });
+  const today = page.getByRole("heading", { name: "Today", exact: true, level: 1 });
+  await expect(quickAdd).not.toHaveAttribute("aria-keyshortcuts", "N");
+  await today.click(); await page.keyboard.press("n");
+  await expect(quickAddDialog).toBeHidden();
+  await page.goto("/account/preferences");
+  await shortcutSwitch.check();
+  await page.goto("/jumps");
+  await expect(quickAdd).toHaveAttribute("aria-keyshortcuts", "N");
+  await today.click(); await page.keyboard.press("n");
+  await expect(quickAddDialog).toBeVisible();
+  await quickAddDialog.getByRole("button", { name: "Close Quick Add", exact: true }).click();
+  await expect(quickAddDialog).toBeHidden();
+  await page.goto("/contacts");
+  await page.getByRole("searchbox", { name: "Search contacts" }).fill("n");
+  await expect(quickAddDialog).toBeHidden();
+
   await page.goto("/jumps");
   await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
   await page.getByRole("dialog", { name: "Quick Add" }).getByText("Other ways to add", { exact: true }).click();

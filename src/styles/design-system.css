@@ -21,6 +21,32 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 .card { border-radius: 16px; }
 .page-header h1 { font-size: clamp(1.65rem, 2.3vw, 2rem); letter-spacing: -.04em; }
 .page-header p { color: var(--text-2); font-size: .9375rem; }
+/* Forms state their convention once; "(optional)" suffixes stay on the exceptions. */
+.form-required-note { margin: 0 0 20px; color: var(--text-2); font-size: .8125rem; }
+/* Inline form outcomes (waitlist): status colour plus wording; live regions keep them announced. */
+.inline-form-error { margin: 0; color: var(--late); font-size: .875rem; font-weight: 600; }
+.inline-form-success { margin: 0; color: var(--status-success-ink); font-size: .875rem; font-weight: 600; }
+/* The required-fields note spans a two-column form instead of taking one cell. */
+.form-grid > .form-required-note, .calendar-entry-fields > .form-required-note { grid-column: 1 / -1; }
+/* Strips that scroll sideways fade at the edge where more waits. The fade follows the scroll position
+   (a scroll-driven animation), so the first and last items show in full at either end; browsers without
+   scroll timelines show the strip unchanged. Longhands keep the timeline out of the animation shorthand. */
+@property --scroll-fade-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --scroll-fade-end { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@keyframes scroll-fade-x {
+  0% { --scroll-fade-start: 0px; --scroll-fade-end: 28px; }
+  12%, 88% { --scroll-fade-start: 28px; --scroll-fade-end: 28px; }
+  100% { --scroll-fade-start: 28px; --scroll-fade-end: 0px; }
+}
+@supports (animation-timeline: scroll()) {
+  .review-beat-rhythm, .contact-beat-track, .contact-journey-track, .mix-beat-timeline, .calendar-date-strip {
+    mask-image: linear-gradient(to right, transparent, #000 var(--scroll-fade-start), #000 calc(100% - var(--scroll-fade-end)), transparent);
+    animation-name: scroll-fade-x;
+    animation-timing-function: linear;
+    animation-fill-mode: both;
+    animation-timeline: scroll(self inline);
+  }
+}
 .section-label h2 { font-weight: 600; }
 .form-guard-status, .form-grid > .notice { grid-column: 1 / -1; }
 /* Keep the live region mounted without letting an empty status take a form cell. */

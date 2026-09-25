@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AppIcon } from "@/components/AppIcon";
+import { useQuickAddShortcut } from "@/components/Appearance";
 import { VoiceNoteButton } from "@/components/VoiceNoteButton";
 import { useConfirmDialog } from "@/components/useConfirmDialog";
 import { inferQuickCaptureReview } from "@/lib/quick-add-capture";
+import { shouldOpenQuickAdd } from "@/lib/quick-add-shortcut";
 import type { QuickCaptureContact, QuickCaptureInput, QuickCaptureReceipt } from "@/lib/quick-capture-input";
 
 const OPEN_QUICK_ADD = "jitm:quick-add";
@@ -19,8 +21,10 @@ function requestQuickAdd() {
 }
 
 export function QuickAddButton({ mobile = false }: { mobile?: boolean }) {
-  return <button type="button" className={mobile ? "nav-link nav-quick-add" : "button primary global-quick-add"} onClick={requestQuickAdd} aria-label="Quick Add" aria-keyshortcuts="N">
-    <AppIcon name="plus" /> <span>Quick Add</span>{!mobile && <kbd aria-hidden="true">N</kbd>}
+  // The hint disappears with the shortcut so the button never advertises a key that does nothing.
+  const shortcut = useQuickAddShortcut();
+  return <button type="button" className={mobile ? "nav-link nav-quick-add" : "button primary global-quick-add"} onClick={requestQuickAdd} aria-label="Quick Add" aria-keyshortcuts={shortcut ? "N" : undefined}>
+    <AppIcon name="plus" /> <span>Quick Add</span>{!mobile && shortcut && <kbd aria-hidden="true">N</kbd>}
   </button>;
 }
 
@@ -51,6 +55,7 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
   const [allowDuplicate, setAllowDuplicate] = useState(false);
   const [recoveryReceipt, setRecoveryReceipt] = useState<QuickCaptureReceipt | null>(null);
   const [receipt, setReceipt] = useState<QuickCaptureReceipt | null>(null);
+  const shortcutEnabled = useQuickAddShortcut();
 
   useEffect(() => { if (dialogRef.current?.open) { dialogRef.current.scrollTop = 0; (preview || receipt ? reviewRef.current : inputRef.current)?.focus({ preventScroll: true }); } }, [Boolean(preview), Boolean(receipt)]);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
@@ -89,11 +94,13 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
   const leaveTo = (href: string) => (event: { preventDefault: () => void }) => { event.preventDefault(); void closeDialog().then(closed => { if (closed) router.push(href); }); };
   useEffect(() => {
     const open = () => { (window as QuickAddWindow).__jitmQuickAddPending = false; dialogRef.current?.showModal(); window.setTimeout(() => inputRef.current?.focus(), 0); };
-    const shortcut = (event: KeyboardEvent) => { if (event.key.toLowerCase() !== "n" || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || document.querySelector("dialog:modal")) return; const target = event.target; if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select"))) return; event.preventDefault(); open(); };
-    window.addEventListener("keydown", shortcut); window.addEventListener(OPEN_QUICK_ADD, open);
+    const shortcut = (event: KeyboardEvent) => { if (!shouldOpenQuickAdd(event, Boolean(document.querySelector("dialog:modal")))) return; event.preventDefault(); open(); };
+    // The switch in Personal preferences installs or removes the single-key listener (WCAG 2.1.4).
+    if (shortcutEnabled) window.addEventListener("keydown", shortcut);
+    window.addEventListener(OPEN_QUICK_ADD, open);
     if ((window as QuickAddWindow).__jitmQuickAddPending) open();
     return () => { window.removeEventListener("keydown", shortcut); window.removeEventListener(OPEN_QUICK_ADD, open); };
-  }, []);
+  }, [shortcutEnabled]);
 
   const save = async () => {
     if (!preview || saving || recoveryReceipt) return;

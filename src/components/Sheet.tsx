@@ -28,6 +28,7 @@ export function Sheet({
 }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const triggerRef = useRef<HTMLSpanElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const titleId = useId();
   const descriptionId = useId();
   const [mounted, setMounted] = useState(initiallyOpen);
@@ -39,6 +40,11 @@ export function Sheet({
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
     openSheet(dialog, preserveFocus);
+    if (preserveFocus) return;
+    // The native dialog lands on its first control, the Close button. Announce the title instead, so
+    // what the sheet is for comes before how to leave it. The review's message field is not focused:
+    // on a phone that would raise the keyboard over the message and the send buttons.
+    titleRef.current?.focus({ preventScroll: true });
   };
 
   useEffect(() => {
@@ -113,7 +119,7 @@ export function Sheet({
           <header className="sheet-header">
             {leading}
             <div className="sheet-heading-copy">
-              <h2 id={titleId}>{title}</h2>
+              <h2 id={titleId} ref={titleRef} tabIndex={-1}>{title}</h2>
               {description && <p id={descriptionId}>{description}</p>}
             </div>
             <button className="icon-button" type="button" onClick={close} aria-label={`Close ${accessibleTitle ?? title}`}><AppIcon name="close" /></button>

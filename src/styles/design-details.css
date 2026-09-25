@@ -21,7 +21,7 @@
 .review-person-avatar { display: grid; place-items: center; flex: 0 0 48px; width: 48px; height: 48px; border-radius: 50%; background: var(--surface); color: var(--text-2); font-size: 1rem; font-weight: 600; }
 .review-mix-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
 .review-mix-heading .review-mix-name { margin: 0; }
-.review-mix-heading small { font-size: .75rem; }
+.review-mix-heading small { font-size: .8125rem; }
 .review-due-late { color: var(--late); }
 .review-beat-rhythm { margin-block: 10px 16px; }
 .review-beat-rhythm li:last-child { flex: 0 0 auto; min-width: 0; }
@@ -30,8 +30,8 @@
 .review-action-bar { display: flex; width: 100%; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 20px; }
 .review-action-bar .review-outcome-actions { margin: 0; padding: 0; gap: 0; }
 .review-action-bar .workflow-option-actions { display: flex; padding: 0; }
-.review-draft-status { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; font-size: .75rem; }
-.review-draft-status .text-button { min-height: 44px; padding: 8px 0; font-size: .75rem; }
+.review-draft-status { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; font-size: .8125rem; }
+.review-draft-status .text-button { min-height: 44px; padding: 8px 0; font-size: .8125rem; }
 .today-page .follow-up-review-sheet .editable-follow-up { gap: 14px; padding-top: 0; margin-top: 0; }
 .today-page .follow-up-review-sheet .speech-bubble--compose { margin: 0 0 10px; }
 .today-page .follow-up-review-sheet .review-send-hint { margin: 0; }
@@ -85,7 +85,7 @@
 .mix-beats-help { margin: 0 0 4px; font-size: .75rem; color: var(--text-2); }
 .mix-editor-form .mix-beats-section { padding-top: 14px; }
 .mix-beat-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-right: 48px; margin-bottom: 10px; }
-.mix-beat-number { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; background: var(--violet-wash); color: var(--violet-ink); border-radius: 50%; font-size: .75rem; font-weight: 600; }
+.mix-beat-number { display: grid; place-items: center; min-width: 28px; min-height: 28px; flex: 0 0 auto; padding: 0 4px; overflow: hidden; background: var(--violet-wash); color: var(--violet-ink); border-radius: 999px; font-size: .75rem; font-weight: 600; }
 .mix-beat-heading .field { margin: 0; min-width: 0; }
 .mix-beat-name { flex: 1 1 180px; }
 .mix-beat-name input { padding: 8px; min-height: 44px; border: 1px solid transparent; background: transparent; font-weight: 600; font-size: 1rem; }
@@ -138,7 +138,7 @@
 .calendar-form-row > input, .calendar-form-row > select { background: transparent; }
 .calendar-form-row > .when-ends-summary, .calendar-form-row > small, .calendar-form-row > .when-duration-custom { grid-column: 2; margin: 0; }
 .calendar-form-row .when-chips { gap: 6px; }
-.calendar-form-row .when-chip { min-height: 40px; padding: 8px 12px; font-size: .8125rem; }
+.calendar-form-row .when-chip { min-height: 44px; padding: 8px 12px; font-size: .8125rem; }
 .calendar-timezone > .timezone-picker { grid-column: 1 / -1; }
 .calendar-timezone .timezone-current { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; }
 .calendar-timezone .timezone-current > span { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 16px; }

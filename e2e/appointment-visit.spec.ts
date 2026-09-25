@@ -94,8 +94,8 @@ test("asks for one inline choice when the entered phone and email match differen
   await form.getByLabel("Details the customer should be reminded of (optional)").fill("Side entrance");
   await form.getByText("Add a new person for this visit").click();
   await form.getByLabel("Name", { exact: true }).fill("A. Stone");
-  await form.getByLabel("Phone", { exact: true }).fill("+1 555-010-0601");
-  await form.getByLabel("Email", { exact: true }).fill(blakeEmail);
+  await form.getByLabel("Phone (optional)", { exact: true }).fill("+1 555-010-0601");
+  await form.getByLabel("Email (optional)", { exact: true }).fill(blakeEmail);
   await form.getByLabel("Follow-up plan for this visit (optional)").selectOption(planId);
   await form.getByRole("button", { name: "Save event", exact: true }).click();
   const choice = form.getByRole("group", { name: "Which saved person is this visit with?" });
@@ -106,7 +106,7 @@ test("asks for one inline choice when the entered phone and email match differen
   await expect(form.getByLabel("Title")).toHaveValue("Bathroom estimate");
   await expect(form.getByLabel("Where")).toHaveValue("9 Pine Ct");
   await expect(form.getByLabel("Details the customer should be reminded of (optional)")).toHaveValue("Side entrance");
-  await expect(form.getByLabel("Phone", { exact: true })).toHaveValue("+1 555-010-0601");
+  await expect(form.getByLabel("Phone (optional)", { exact: true })).toHaveValue("+1 555-010-0601");
   await expect(form.getByLabel("Follow-up plan for this visit (optional)")).toHaveValue(planId);
   expect(await prisma.calendarEntry.count({ where: { workspaceId, title: "Bathroom estimate" } })).toBe(0);
   await audit(page);
@@ -115,7 +115,7 @@ test("asks for one inline choice when the entered phone and email match differen
   await form.getByRole("button", { name: "Save event", exact: true }).click();
   await expect(form.getByRole("alert")).toContainText("overlaps");
   await expect(form.getByLabel("Title")).toHaveValue("Bathroom estimate");
-  await expect(form.getByLabel("Email", { exact: true })).toHaveValue(blakeEmail);
+  await expect(form.getByLabel("Email (optional)", { exact: true })).toHaveValue(blakeEmail);
   await expect(form.getByLabel("Where")).toHaveValue("9 Pine Ct");
   await form.getByLabel(/Allow an intentional overlap/).check();
   await form.getByRole("button", { name: "Save event", exact: true }).click();

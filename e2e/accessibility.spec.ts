@@ -42,3 +42,14 @@ test("core signed-in pages pass automated WCAG checks", async ({ page }, testInf
     });
   }
 });
+
+test("the portrait tablet profile initial is named for where it goes", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The tablet viewport is set explicitly.");
+  await signIn(page);
+  await page.setViewportSize({ width: 834, height: 1194 });
+  await page.goto("/jumps");
+  const profile = page.locator(".mobile-app-header .mobile-profile-link");
+  await expect(profile).toBeVisible();
+  await expect(profile).toHaveAccessibleName("More");
+  await expect(profile).toHaveAttribute("href", "/more");
+});

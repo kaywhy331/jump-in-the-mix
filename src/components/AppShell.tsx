@@ -69,7 +69,7 @@ export function AppShell({
       <header className="mobile-app-header">
         <Logo />
         {impersonation ? endImpersonationForm : (
-          <Link className="button small mobile-profile-link" href="/more" aria-label={`Open profile menu for ${userName}`}>{userName.slice(0, 1).toUpperCase()}</Link>
+          <Link className="button small mobile-profile-link" href="/more" aria-label="More">{userName.slice(0, 1).toUpperCase()}</Link>
         )}
       </header>
       {impersonation && (

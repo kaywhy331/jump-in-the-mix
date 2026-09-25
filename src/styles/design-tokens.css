@@ -23,6 +23,12 @@
   --toast: #1A1830;
   --toast-text: #FFFFFF;
   --on-violet: #FFFFFF;
+  /* Contrasting band (homepage waitlist): the dark palette on the light page, per Landing.html; dark mode uses its own surface, per DarkLanding.html. */
+  --band: #1A1830;
+  --band-text: #EEEDF6;
+  --band-text-2: #B9B7CC;
+  --band-late: #FF8A7A;
+  --band-success: #8CE5C6;
   --font-ui: var(--font-instrument), 'Instrument Sans', 'Helvetica Neue', Helvetica, system-ui, sans-serif;
   --font-voice: var(--font-newsreader), 'Newsreader', Georgia, 'Times New Roman', serif; /* anything in the user's own words: drafts, notes, Quick add */
   --radius-control: 12px;
@@ -87,6 +93,11 @@
     --quiet: #56537A;
     --toast: #EEEDF6;
     --toast-text: #12101F;
+    --band: var(--surface);
+    --band-text: var(--text);
+    --band-text-2: var(--text-2);
+    --band-late: var(--late);
+    --band-success: var(--status-success-ink);
     color-scheme: dark;
     --status-success-bg: #19382e;
     --status-success-ink: #8ce5c6;
@@ -122,6 +133,11 @@
   --quiet: #56537A;
   --toast: #EEEDF6;
   --toast-text: #12101F;
+  --band: var(--surface);
+  --band-text: var(--text);
+  --band-text-2: var(--text-2);
+  --band-late: var(--late);
+  --band-success: var(--status-success-ink);
   color-scheme: dark;
   --status-success-bg: #19382e;
   --status-success-ink: #8ce5c6;

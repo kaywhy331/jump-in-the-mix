@@ -52,13 +52,16 @@
 .public-page .public-footer nav { display: flex; gap: 20px; align-items: center; }
 .public-page .public-trust-links { flex-basis: 100%; border-top: 1px solid var(--line); padding-top: 20px; }
 .homepage > .public-header, .homepage .hero { background: var(--surface); box-shadow: 0 0 0 100vmax var(--surface); clip-path: inset(0 -100vmax); }
-.homepage #waitlist { max-width: none; background: #1a1830; color: #eeedf6; padding-inline: max(24px, calc((100% - 1280px) / 2)); display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+.homepage #waitlist { max-width: none; background: var(--band); color: var(--band-text); padding-inline: max(24px, calc((100% - 1280px) / 2)); display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
 .homepage #waitlist .section-heading { margin: 0; }
-.homepage #waitlist p { color: #b9b7cc; }
+.homepage #waitlist p { color: var(--band-text-2); }
 .homepage #waitlist .waitlist-form { max-width: none; }
-.homepage #waitlist input { background: #ffffff; color: #1a1830; border-color: #cfcedb; }
-.homepage #waitlist input::placeholder { color: #6b6a82; }
+.homepage #waitlist input { background: var(--page); color: var(--text); border-color: var(--border); }
+.homepage #waitlist input::placeholder { color: var(--text-3); }
 .homepage #waitlist .notice { color: var(--text); }
+/* Inside the band the light theme's --late (3.32:1 on #1A1830) is too dim; the band tokens carry readable status colours in both themes. */
+.homepage #waitlist .inline-form-error { color: var(--band-late); }
+.homepage #waitlist .inline-form-success { color: var(--band-success); }
 @media (max-width: 1000px) {
   .public-page .hero { grid-template-columns: 1fr; grid-template-areas: "copy" "demo" "situations"; max-width: 740px; gap: 48px; }
   .public-page .hero-copy { max-width: none; }

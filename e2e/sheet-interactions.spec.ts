@@ -53,6 +53,8 @@ test("message drafts, snooze fields, nested confirmation and focus survive closi
   await review.focus(); await page.keyboard.press("Enter");
   const message = page.getByRole("dialog", { name: "Follow up with Sheet person 2", exact: true });
   await expect(message).toBeVisible();
+  // Opening announces the sheet's title or its message field, never the Close control.
+  await expect.poll(() => message.evaluate(dialog => { const active = document.activeElement; return dialog.contains(active) && (active?.matches("h2, textarea") ?? false); })).toBe(true);
   const draft = message.getByRole("textbox", { name: "Your message", exact: true });
   await draft.fill("Keep this unsent estimate draft.");
   for (const colorScheme of ["light", "dark"] as const) { await setTheme(page, colorScheme); await audit(page); }
@@ -79,7 +81,8 @@ test("message drafts, snooze fields, nested confirmation and focus survive closi
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   const profile = page.getByRole("button", { name: "Profile", exact: true }); await profile.focus(); await page.keyboard.press("Enter");
-  await expect(page.getByRole("dialog", { name: "Profile and settings", exact: true })).toBeVisible(); await audit(page);
+  const profileSheet = page.getByRole("dialog", { name: "Profile and settings", exact: true });
+  await expect(profileSheet).toBeVisible(); await expect(profileSheet.getByRole("heading", { name: "Profile and settings", exact: true, level: 2 })).toBeFocused(); await audit(page);
   await closeSheet(page); await expect(profile).toBeFocused();
   expect(await prisma.jump.count({ where: { workspaceId, status: "PENDING" } })).toBe(3);
 });
@@ -228,7 +231,7 @@ test("an open Snooze stays above the review through phone and desktop transition
     await page.setViewportSize(viewport);
     await expect(popup).toBeVisible();
     const close = popup.getByRole("button", { name: "Close Snooze follow-up", exact: true });
-    await expect(close).toBeFocused();
+    await expect(popup.getByRole("heading", { name: "Snooze follow-up", exact: true, level: 2 })).toBeFocused();
     await close.click({ trial: true });
     await expect(popup.locator("button[type=submit]").first()).toBeVisible();
     await popup.locator("button[type=submit]").first().click({ trial: true });
@@ -346,8 +349,8 @@ test("Calendar directs focus to an ambiguous person choice and saves the reviewe
   await form.getByRole("textbox", { name: "Title", exact: true }).fill("Visit with reviewed person");
   await form.getByText("Add a new person for this visit", { exact: true }).click();
   await form.getByLabel("Name", { exact: true }).fill("Keep this entered name");
-  await form.getByLabel("Phone", { exact: true }).fill("+15550101991");
-  await form.getByLabel("Email", { exact: true }).fill("choice@example.test");
+  await form.getByLabel("Phone (optional)", { exact: true }).fill("+15550101991");
+  await form.getByLabel("Email (optional)", { exact: true }).fill("choice@example.test");
   await form.getByRole("button", { name: "Save event", exact: true }).click();
   const choice = form.getByRole("group", { name: "Which saved person is this visit with?" });
   await expect(choice.locator("legend")).toBeFocused();

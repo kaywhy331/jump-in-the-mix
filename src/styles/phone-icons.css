@@ -43,7 +43,7 @@
 .brand-terms dd { margin: 2px 0 0; color: var(--text-2); }
 
 /* Merge fields in previews read as filled-in values, not template code. */
-.merge-field-chip { display: inline-block; padding: 0 6px; border-radius: 6px; background: var(--violet-wash); color: var(--violet-text); font-family: var(--font-sans, inherit); font-size: .85em; font-weight: 600; line-height: 1.5; white-space: nowrap; }
+.merge-field-chip { display: inline; padding: 0 6px; border-radius: 6px; background: var(--violet-wash); color: var(--violet-text); font-family: var(--font-sans, inherit); font-size: .85em; font-weight: 600; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
 
 /* Journey waits: amount + unit side by side. */
 .duration-inputs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
