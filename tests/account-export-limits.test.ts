@@ -65,6 +65,8 @@ describe.skipIf(!local).sequential("personal data export limits and shape", () =
     expect(response.headers.get("Content-Type")).toBe("application/json; charset=utf-8");
     const text = await response.text();
     expect(text).not.toMatch(/\n|": /);
+    // The stream collects the shared definitions while it writes the instances, so they follow them.
+    expect(text.indexOf('"definitions":[')).toBeGreaterThan(text.indexOf('"instances":['));
     const { definitions, instances } = JSON.parse(text).mixWorkflow as { definitions: ExportedDefinition[]; instances: ExportedInstance[] };
     expect(definitions).toHaveLength(2);
     expect(instances).toHaveLength(3);

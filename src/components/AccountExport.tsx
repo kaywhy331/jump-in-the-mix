@@ -8,7 +8,8 @@ export function AccountExport() {
       const response = await fetch(`/api/account/export${format === "csv" ? "?format=csv" : ""}`);
       if (!response.ok) { const body = await response.json().catch(() => null); throw new Error(body?.error || "The export could not be prepared. Try again."); }
       if (!response.headers.get("content-type")?.includes(format === "csv" ? "zip" : "json")) throw new Error("Your session may have ended. Sign in again, then retry the export.");
-      const blob = await response.blob(); const url = URL.createObjectURL(blob); const link = document.createElement("a");
+      // The JSON export streams: a failure after the first bytes breaks the body, never a partial file.
+      const blob = await response.blob().catch(() => { throw new Error("The download stopped before it finished. Try again."); }); const url = URL.createObjectURL(blob); const link = document.createElement("a");
       link.href = url; link.download = format === "csv" ? "jump-in-the-mix-export.zip" : "jump-in-the-mix-export.json"; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 60_000); setMessage("Export prepared and passed to your browser. Check Downloads for the file.");
     } catch (cause) { setError(true); setMessage(cause instanceof Error ? cause.message : "The download failed. Try again."); }
