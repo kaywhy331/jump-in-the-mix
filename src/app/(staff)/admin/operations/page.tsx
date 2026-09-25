@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { Notice } from "@/components/Notice";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { RETENTION_COUNT_LABELS, RETENTION_STALE_MS } from "@/lib/data-retention-policy";
+import { authReserveUse, readEmailBudget } from "@/lib/email-budget";
 
 export const metadata: Metadata = { title: "Admin · Operations" };
 
@@ -64,7 +65,7 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
   const pageHref = (page: number) => adminQuery("/admin/operations", { view, status, task, jobId: params.jobId, page });
   const staleSeconds = heartbeatStaleSeconds();
   const staleCutoff = new Date(Date.now() - staleSeconds * 1000);
-  const [jobs, taskRows, failedJobs, pendingJobs, runningJobs, healthyWorkerCount, staleWorkerCount, workers, retention] = await Promise.all([
+  const [jobs, taskRows, failedJobs, pendingJobs, runningJobs, healthyWorkerCount, staleWorkerCount, workers, retention, emailWindows] = await Promise.all([
     prisma.job.findMany({
       where,
       include: { workspace: { select: { id: true, name: true } } },
@@ -78,8 +79,11 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
     prisma.workerHeartbeat.count({ where: { status: "RUNNING", lastSeenAt: { gte: staleCutoff } } }),
     prisma.workerHeartbeat.count({ where: { status: "RUNNING", lastSeenAt: { lt: staleCutoff } } }),
     prisma.workerHeartbeat.findMany({ orderBy: { lastSeenAt: "desc" }, take: 20 }),
-    prisma.dataRetentionState.findUnique({ where: { id: "primary" }, select: { completedAt: true, failedAt: true, counts: true } })
+    prisma.dataRetentionState.findUnique({ where: { id: "primary" }, select: { completedAt: true, failedAt: true, counts: true } }),
+    readEmailBudget()
   ]);
+  // The same half-of-reserve rule the independent monitor applies to the email check (operations-signals).
+  const authReserve = authReserveUse(emailWindows).find(window => window.warning);
   const retentionStale = !retention?.completedAt || !!retention.failedAt || Date.now() - retention.completedAt.getTime() > RETENTION_STALE_MS;
   const retentionCounts = retention?.counts && typeof retention.counts === "object" && !Array.isArray(retention.counts) ? retention.counts : {};
 
@@ -89,6 +93,7 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
         <div><h1>Operations</h1></div><Link className="button" href="/admin/operations/alerts">Operational alerts</Link>
       </header>
       {params.error && <Notice type="error">{String(params.error).slice(0, 400)}</Notice>}{params.retried && <Notice>Job queued for another attempt.</Notice>}
+      {authReserve && <Notice type="error">Account email (sign-in links, verification and password resets) sent {authReserve.used} {authReserve.used === 1 ? "email" : "emails"} {authReserve.name === "day" ? "in the last 24 hours" : "in the last 31 days"}, at least half of the {authReserve.reserve} reserved for it. Heavy use can mean someone is requesting links for many addresses. <Link href="/admin/email">Review email use</Link>.</Notice>}
 
       <AdminRefresh observedAt={new Date().toISOString()} />
       <nav className="admin-content-tabs" aria-label="Operations views">{[["jobs", "Jobs"], ["health", "Worker health"], ["maintenance", "Maintenance"]].map(([key, label]) => <Link key={key} href={adminQuery("/admin/operations", { view: key })} aria-current={view === key ? "page" : undefined}>{label}</Link>)}</nav>

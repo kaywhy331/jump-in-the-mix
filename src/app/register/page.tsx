@@ -14,7 +14,9 @@ import { prisma } from "@/lib/prisma";
 import { validAccessToken } from "@/lib/referral-access";
 import { getAdmissionPolicy } from "@/lib/admission";
 import { PublicTrustLinks } from "@/components/PublicTrustLinks";
+import { SocialSignInOptions } from "@/components/SocialSignInOptions";
 import { storedMarketingScenario } from "@/lib/marketing-scenarios";
+import { appleSignInConfigured, googleSignInConfigured } from "@/lib/social-auth";
 
 export const metadata: Metadata = { title: "Your invitation", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
@@ -36,7 +38,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
     <Logo />
     {!pilotOpen && !invite ? <>
       <div><h1>{token ? "This invitation is unavailable" : "An invitation from someone you know"}</h1>
-      <p>{token ? "This link is invalid, revoked, or already used. If you already created your account, sign in below." : "Jump in the Mix grows through personal connections. Each member has three invitations to share with contacts by text or email. Ask someone in your network to invite you."}</p></div>
+      <p>{token ? "This link is invalid, revoked, or already used. If you already created your account, sign in below." : "Accounts are by invitation. Each member has three invitations to share with contacts by text or email, so someone in your network can invite you. You can also join the waitlist: we send invitations from it in small groups as space opens, so we can’t promise a date."}</p></div>
       <Link className="button primary" href="/waitlist">Join the waitlist</Link>
       <p>Have a unique invitation link? Open it to create your free account.</p><Link className="button" href="/login">Sign in</Link>
     </> : paused ? <>
@@ -44,6 +46,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
     </> : <>
       <div><h1>Create your free account</h1><p>{pilotOpen ? "Set up the owner account for this private installation." : textInvitation ? "Choose your email address to create an account. Verify it to start with one person and review every follow-up before sending." : "Your account uses the email address your invitation was sent to. After verification, start with one person and review every follow-up before sending."}</p>{scenario && <p>Your {scenario.label.toLowerCase()} starter will be ready to review. You can change it or skip setup.</p>}</div>
       {error && <Notice type="error">{error}</Notice>}
+      {invite && <SocialSignInOptions google={googleSignInConfigured()} apple={appleSignInConfigured()} invite={token} note={invitedEmail ? `Choose the Google or Apple account that uses ${invitedEmail}.` : undefined} />}
       <ActionForm action={registerFormAction} className="form-stack">
         {invite && <input type="hidden" name="invite" value={token} />}
         <label className="field"><span>Your name</span><input name="name" autoComplete="name" maxLength={120} required /></label>

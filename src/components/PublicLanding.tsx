@@ -22,7 +22,7 @@ export function PublicLanding({ persona }: { persona?: Pick<Persona, "id" | "hea
           <h1 id="hero-title">{persona ? persona.headline : <>You meant to follow up. <em>Then work happened.</em></>}</h1>
           <p>{persona?.supporting ?? "A client follow-up app for independent professionals. Put the next check-in on a simple plan, with a message ready to make your own. You choose the timing. You review, edit, and send."}</p>
           <div className="hero-actions"><a className="button primary" href="#sample" data-demo-trigger>{persona?.demoCta ?? "Try the demo"}</a><WaitlistLink className="button" scenarioId={persona?.id}>Join the waitlist</WaitlistLink></div>
-          <p className="hero-note">Practice with a fictional contact. Nothing is sent and no messaging app opens. Free accounts, no card; access is by invitation after joining the waitlist.</p>
+          <p className="hero-note">Practice with a fictional contact. Nothing is sent and no messaging app opens. Free accounts, no card. By invitation from a member, or from the waitlist as space opens.</p>
         </div>
         <ProductDemo scenarioId={persona?.id} />
         <MixesFor current={persona?.id} />
@@ -44,7 +44,7 @@ export function PublicLanding({ persona }: { persona?: Pick<Persona, "id" | "hea
           <p className="public-definition-links">{persona?.templates.map(template => <Link key={template.href} href={template.href}>{template.label}</Link>)}<Link href="/follow-up-templates">Client follow-up templates</Link><Link href="/faq">Questions before you jump in</Link></p>
       </section>
       <ProfessionMarks />
-      <section id="waitlist" className="section" aria-labelledby="waitlist-title"><div className="section-heading"><h2 id="waitlist-title">Ready to put one follow-up in the mix?</h2><p>Join the waitlist and we’ll email you when your spot is ready. Accounts are free, with no card to enter. Until then, try a three-Beat Mix with a fictional contact: text today, email tomorrow, and a call in one week.</p></div><WaitlistForm scenarioId={persona?.id} /></section>
+      <section id="waitlist" className="section" aria-labelledby="waitlist-title"><div className="section-heading"><h2 id="waitlist-title">Ready to put one follow-up in the mix?</h2><p>Join the waitlist and we’ll email you an invitation as space opens. We invite people in small groups, so we can’t promise a date. A member can also invite you directly. Accounts are free, with no card to enter. Until then, try a three-Beat Mix with a fictional contact: text today, email tomorrow, and a call in one week.</p></div><WaitlistForm scenarioId={persona?.id} /></section>
     </main>
     <PublicFooter />
     {!persona && <StructuredData data={publicStructuredData()} />}

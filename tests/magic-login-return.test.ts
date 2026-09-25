@@ -14,7 +14,7 @@ vi.mock("@/lib/account-provisioning", () => ({ createBusinessAccount: vi.fn(), n
 vi.mock("@/lib/auth-tokens", () => ({ AUTH_TOKEN_PURPOSES: { verifyEmail: "verify_email", resetPassword: "reset_password", magicLogin: "magic_login" }, findUsableAuthToken: mocks.token, hashAuthToken: () => "hashed", issueAuthToken: vi.fn() }));
 vi.mock("@/lib/auth-email", () => ({ sendMagicLoginEmail: vi.fn(), sendPasswordChangedEmail: vi.fn(), sendPasswordResetEmail: vi.fn(), sendVerificationEmail: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ prisma: { $transaction: mocks.transaction } }));
-vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: vi.fn(), clearRateLimit: vi.fn(), releaseRateLimitAttempt: vi.fn() }));
+vi.mock("@/lib/rate-limit", async importOriginal => ({ ...await importOriginal<typeof import("../src/lib/rate-limit")>(), consumeRateLimit: vi.fn(), clearRateLimit: vi.fn(), releaseRateLimitAttempt: vi.fn() }));
 vi.mock("@/lib/request-context", () => ({ getRequestMetadata: async () => ({ ipAddress: "203.0.113.5", userAgent: "vitest" }) }));
 vi.mock("@/lib/referral-access", () => ({ AccessInviteError: class AccessInviteError extends Error {}, validAccessToken: () => false }));
 vi.mock("@/lib/transactional-email", () => ({ transactionalEmailConfigured: () => true, withEmailAttempts: (_attempts: number, send: () => Promise<unknown>) => send() }));
@@ -24,6 +24,7 @@ vi.mock("@/components/Logo", () => ({ Logo: () => null }));
 import { GET } from "../src/app/api/auth/magic/route";
 import { consumeMagicLinkAction } from "../src/lib/auth-actions";
 import { verifiedErrorMessage } from "../src/lib/form-errors";
+import { isKnownDevice } from "../src/lib/rate-limit";
 import MagicLinkPage from "../src/app/auth/magic/page";
 
 const link = (query: string) => new Request(`https://jumpinthemix.com/api/auth/magic?${query}`);
@@ -39,7 +40,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.cookies.clear(); mocks.cookies.set("jitm_session_magic", "synthetic"); mocks.cookieWrites.length = 0;
   mocks.token.mockImplementation(async (token: string) => token === "synthetic" ? { id: "token", email: "member@example.test", expiresAt: new Date(Date.now() + 10 * 60_000) } : null);
-  mocks.user.mockResolvedValue({ id: "member", memberships: [{ workspace: { profile: { onboardingDone: true } } }] });
+  mocks.user.mockResolvedValue({ id: "member", email: "member@example.test", emailVerifiedAt: new Date(), memberships: [{ workspace: { profile: { onboardingDone: true } } }] });
   mocks.claim.mockResolvedValue({ count: 1 });
   mocks.verify.mockResolvedValue({});
   mocks.transaction.mockImplementation(callback => callback({ verificationToken: { updateMany: mocks.claim }, user: { findUnique: mocks.user, update: mocks.verify } }));
@@ -89,6 +90,10 @@ describe("continuing a sign-in from the confirmation page", () => {
   it.each(["/contacts/person-1", "/account/tickets/case-1"])("returns a signed-in customer to %s", async destination => {
     expect(await redirectOf(consumeMagicLinkAction(form(destination)))).toBe(destination);
     expect(mocks.session).toHaveBeenCalledWith("member");
+    // The browser that signed in is remembered, so sign-in abuse limits never lock it out.
+    const marker = mocks.cookieWrites.find(write => write.name === "jitm_session_device");
+    expect(marker?.options).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/" });
+    expect(isKnownDevice(marker?.value, "member")).toBe(true);
     expect(mocks.claim).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: "token", purpose: "magic_login", usedAt: null }) }));
     expect(mocks.verify).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "member" } }));
   });
@@ -98,7 +103,7 @@ describe("continuing a sign-in from the confirmation page", () => {
   });
 
   it("keeps unfinished setup ahead of the requested destination", async () => {
-    mocks.user.mockResolvedValue({ id: "member", memberships: [{ workspace: { profile: { onboardingDone: false } } }] });
+    mocks.user.mockResolvedValue({ id: "member", email: "member@example.test", emailVerifiedAt: new Date(), memberships: [{ workspace: { profile: { onboardingDone: false } } }] });
     expect(await redirectOf(consumeMagicLinkAction(form("/contacts/person-1")))).toBe("/onboarding");
   });
 
@@ -106,8 +111,11 @@ describe("continuing a sign-in from the confirmation page", () => {
     await redirectOf(consumeMagicLinkAction(form()));
     mocks.claim.mockResolvedValue({ count: 0 });
     await redirectOf(consumeMagicLinkAction(form()));
-    expect(mocks.cookieWrites).toHaveLength(2);
-    for (const write of mocks.cookieWrites) expect(write).toMatchObject({ name: "jitm_session_magic", value: "", options: { path: "/auth/magic", maxAge: 0, httpOnly: true } });
+    const handOffWrites = mocks.cookieWrites.filter(write => write.name === "jitm_session_magic");
+    expect(handOffWrites).toHaveLength(2);
+    for (const write of handOffWrites) expect(write).toMatchObject({ name: "jitm_session_magic", value: "", options: { path: "/auth/magic", maxAge: 0, httpOnly: true } });
+    // Only the successful sign-in marks the browser as known.
+    expect(mocks.cookieWrites.filter(write => write.name === "jitm_session_device")).toHaveLength(1);
   });
 
   it("reports a missing, expired or already used link with our signed message and no session", async () => {

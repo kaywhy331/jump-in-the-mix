@@ -40,8 +40,8 @@ async function processWaitlistSubmission(formData: FormData): Promise<{ email: s
       const leaveUrl = new URL("/waitlist/leave", env.appUrl).href;
       const result = await sendTransactionalEmail({
         category: "ACCESS_CONFIRMATION", to: email, subject: "Confirm your Jump in the Mix waitlist request",
-        text: `Confirm your email to join the free-account waitlist: ${url.href}\n\nThis confirmation link expires in 24 hours. Once you’ve confirmed, we’ll email you as soon as your spot is ready. If you didn’t request this, ignore this email.\n\nLeave the waitlist or stop invitations: ${leaveUrl}`,
-        html: `<p><a href="${escapeHtml(url.href)}">Confirm your email to join the waitlist</a></p><p>This link expires in 24 hours. Once you’ve confirmed, we’ll email you as soon as your spot is ready.</p><p>If you didn’t request this, ignore this email.</p><p><a href="${escapeHtml(leaveUrl)}">Leave the waitlist or stop invitations</a></p>`,
+        text: `Confirm your email to join the free-account waitlist: ${url.href}\n\nThis confirmation link expires in 24 hours. Once you’ve confirmed, we’ll email your invitation as space opens. We can’t promise a date. If you didn’t request this, ignore this email.\n\nLeave the waitlist or stop invitations: ${leaveUrl}`,
+        html: `<p><a href="${escapeHtml(url.href)}">Confirm your email to join the waitlist</a></p><p>This link expires in 24 hours. Once you’ve confirmed, we’ll email your invitation as space opens. We can’t promise a date.</p><p>If you didn’t request this, ignore this email.</p><p><a href="${escapeHtml(leaveUrl)}">Leave the waitlist or stop invitations</a></p>`,
         idempotencyKey: `waitlist-confirm-${hashAuthToken(token)}`
       });
       if (!result.delivered) throw new Error("Email unavailable.");

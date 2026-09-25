@@ -3,6 +3,7 @@ import { AUTH_TOKEN_PURPOSES, findUsableAuthToken, hashAuthToken } from "@/lib/a
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { AccessInviteError } from "@/lib/referral-access";
+import { emailVerificationRequired, releaseUnverifiedAccount } from "@/lib/unverified-account";
 
 /*
  * Magic sign-in in two steps. The emailed link (GET /api/auth/magic?token=…) only checks the token and
@@ -49,7 +50,7 @@ export async function claimMagicLink(token: string, returnTo: string | null): Pr
       data: { usedAt: new Date() }
     });
     if (claimed.count !== 1) throw new MagicLinkError("That sign-in link was already used.");
-    const user = await tx.user.findUnique({ where: { email: record.email }, select: { id: true, suspendedAt: true, memberships: { select: { workspace: { select: { profile: { select: { onboardingDone: true } } } } }, take: 1 } } });
+    const user = await tx.user.findUnique({ where: { email: record.email }, select: { id: true, email: true, emailVerifiedAt: true, suspendedAt: true, memberships: { select: { workspace: { select: { profile: { select: { onboardingDone: true } } } } }, take: 1 } } });
     // createSession refuses a suspended account too; saying so here keeps the message ours (and signed) and rolls the claim back.
     if (user?.suspendedAt) throw new MagicLinkError("Account access is unavailable. Contact support for help.");
     if (!user) {
@@ -57,7 +58,10 @@ export async function claimMagicLink(token: string, returnTo: string | null): Pr
       const created = await createBusinessAccount(tx, { email: record.email, name: nameFromEmail(record.email), passwordHash: null, emailVerifiedAt: new Date() });
       return { userId: created.id, destination: "/onboarding" };
     }
-    await tx.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
+    // The link proves the address: an unverified registration someone else may have made loses its password,
+    // sessions and other links (see releaseUnverifiedAccount).
+    if (!user.emailVerifiedAt && emailVerificationRequired()) await releaseUnverifiedAccount(tx, user, new Date());
+    else await tx.user.update({ where: { id: user.id }, data: { emailVerifiedAt: new Date() } });
     return { userId: user.id, destination: user.memberships[0]?.workspace.profile?.onboardingDone ? returnTo ?? "/jumps" : "/onboarding" };
   }, { isolationLevel: "Serializable" });
 }

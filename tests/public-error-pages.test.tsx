@@ -12,7 +12,7 @@ vi.mock("@/lib/worker-dispatch-after", () => ({ wakeWorkerAfterResponse: vi.fn()
 // The page reads the session through this mock; requireWorkspace keeps the real implementation.
 vi.mock("@/lib/auth", async original => ({ ...await original<typeof import("../src/lib/auth")>(), getCurrentSession: mocks.session }));
 vi.mock("@/lib/account-home", () => ({ accountHome: async (_userId: string, path: string) => path }));
-vi.mock("@/lib/auth-actions", () => ({ demoLoginAction: vi.fn(), loginFormAction: vi.fn(), requestMagicLinkFormAction: vi.fn(), registerFormAction: vi.fn(), requestPasswordResetFormAction: vi.fn(), resetPasswordFormAction: vi.fn(), resendVerificationFormAction: vi.fn() }));
+vi.mock("@/lib/auth-actions", () => ({ demoLoginAction: vi.fn(), loginFormAction: vi.fn(), requestMagicLinkFormAction: vi.fn(), registerFormAction: vi.fn(), requestPasswordResetFormAction: vi.fn(), resetPasswordFormAction: vi.fn(), resendVerificationFormAction: vi.fn(), changeUnverifiedEmailFormAction: vi.fn() }));
 vi.mock("@/lib/pilot-registration", () => ({ pilotRegistrationOpen: async () => true }));
 vi.mock("@/lib/social-auth", () => ({ googleSignInConfigured: () => false, appleSignInConfigured: () => false }));
 vi.mock("@/lib/transactional-email", () => ({ transactionalEmailConfigured: () => true }));

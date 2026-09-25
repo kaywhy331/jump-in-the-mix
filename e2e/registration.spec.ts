@@ -48,6 +48,7 @@ test.describe("invited registrations", () => {
     await prisma.workspace.deleteMany({ where: { ownerId: { in: users.map(user => user.id) } } });
     await prisma.user.deleteMany({ where: { id: { in: users.map(user => user.id) } } });
     await prisma.verificationToken.deleteMany({ where: { email: { in: created.userEmails } } });
+    await prisma.authOAuthState.deleteMany({ where: { inviteId: { in: created.inviteIds } } });
     await prisma.referralAccessInvite.deleteMany({ where: { id: { in: created.inviteIds } } });
     created.userEmails.length = 0; created.inviteIds.length = 0;
   });
@@ -108,6 +109,64 @@ test.describe("invited registrations", () => {
     if (new URL(page.url()).searchParams.get("delivery") !== "failed") await expect(page.getByRole("status").filter({ hasText: `We sent a verification link to ${email}.` })).toBeVisible();
     else await expect(page.locator(".notice.error")).toContainText("The email provider could not deliver the message.");
     expect((await prisma.referralAccessInvite.findUniqueOrThrow({ where: { id: invite.id } })).acceptedAt).not.toBeNull();
+  });
+
+  test("a person invited by text corrects a mistyped email on the verification screen", async ({ page }) => {
+    const typo = `typo-${randomUUID().slice(0, 8)}@exmaple.test`, email = `fixed-${randomUUID().slice(0, 8)}@example.test`;
+    created.userEmails.push(typo, email);
+    const { token, invite } = await invitation({ recipientPhone: `+1555${String(Date.now()).slice(-7)}` });
+    await page.goto(`/register?invite=${token}`);
+    await page.getByLabel("Your name").fill("Texted Member");
+    await page.locator("input[name=email]").fill(typo);
+    await page.getByLabel("Confirm email").fill(typo);
+    await page.getByLabel("Password", { exact: true }).fill("Registration test 123!");
+    await Promise.all([
+      page.waitForURL(/\/verify-email\/pending\?/),
+      page.getByRole("button", { name: "Create free account" }).click()
+    ]);
+    const user = await prisma.user.findUniqueOrThrow({ where: { email: typo } });
+    await page.getByText("Typed the wrong email?", { exact: true }).click();
+    const change = page.locator("details.verify-email-change");
+    await expect(change.getByLabel("Email you signed up with")).toHaveValue(typo);
+    await page.setViewportSize({ width: 320, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+    expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+    await change.getByLabel("Password", { exact: true }).fill("Registration test 123!");
+    await change.getByLabel("Correct email", { exact: true }).fill(email);
+    await change.getByLabel("Confirm correct email", { exact: true }).fill(email);
+    await Promise.all([
+      page.waitForURL(/[?&]sent=1/),
+      change.getByRole("button", { name: "Change email and send link" }).click()
+    ]);
+    expect(new URL(page.url()).searchParams.get("email")).toBe(email);
+    await expect(prisma.user.findUniqueOrThrow({ where: { id: user.id } })).resolves.toMatchObject({ email, emailVerifiedAt: null });
+    expect(await prisma.user.count({ where: { email: typo } })).toBe(0);
+    expect((await prisma.referralAccessInvite.findUniqueOrThrow({ where: { id: invite.id } })).acceptedUserId).toBe(user.id);
+  });
+
+  test("an invitation offers Google and Apple sign-up for the invited address; sign-in explains they are for existing accounts", async ({ page }) => {
+    test.skip(!process.env.SOCIAL_AUTH_E2E, "Needs a server started with (placeholder) Google and Apple credentials.");
+    const email = `social-${randomUUID().slice(0, 8)}@example.test`;
+    created.userEmails.push(email);
+    const { token, invite } = await invitation({ recipientEmail: email });
+    await page.goto(`/register?invite=${token}`);
+    for (const provider of ["Google", "Apple"]) await expect(page.getByRole("link", { name: `Continue with ${provider}`, exact: true })).toHaveAttribute("href", `/api/auth/oauth/${provider.toLowerCase()}/start?invite=${encodeURIComponent(token)}`);
+    await expect(page.getByText(`Choose the Google or Apple account that uses ${email}.`)).toBeVisible();
+    for (const width of [320, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+      expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+    }
+    // Starting keeps the invitation with the sign-in request, and nothing about it leaks in a referrer.
+    const start = await page.request.get(`/api/auth/oauth/google/start?invite=${encodeURIComponent(token)}`, { maxRedirects: 0 });
+    expect([302, 303, 307]).toContain(start.status());
+    expect(start.headers().location).toMatch(/^https:\/\/accounts\.google\.com\//);
+    expect(start.headers()["cache-control"]).toContain("no-store");
+    expect(start.headers()["referrer-policy"]).toBe("no-referrer");
+    expect(await prisma.authOAuthState.count({ where: { inviteId: invite.id, inviteTokenHash: invite.tokenHash } })).toBe(1);
+    await page.goto("/login");
+    await expect(page.getByRole("link", { name: "Continue with Google", exact: true })).toBeVisible();
+    await expect(page.getByText("Google and Apple sign-in are for existing accounts. To create an account, open the invitation link someone shared with you.")).toBeVisible();
   });
 });
 

@@ -11,6 +11,7 @@ import { runAutomaticDeliveries } from "../src/lib/automatic-delivery";
 import { generateJumps } from "../src/lib/jump-engine";
 import { createBusinessAccount } from "../src/lib/account-provisioning";
 import { decryptIntegrationCredentials } from "../src/lib/integration-crypto";
+import { hashAuthToken } from "../src/lib/auth-tokens";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 const createdUsers: string[] = [];
@@ -80,4 +81,19 @@ describe.skipIf(!local)("referral access with PostgreSQL transactions", () => {
     }
     await expect(prisma.$transaction(tx => createBusinessAccount(tx, { ...input, email: `${randomBytes(6).toString("hex")}@example.com` }))).rejects.toThrow();
   });
+  it("treats an outstanding text invitation kept under an older spelling as the same number", async () => {
+    const { user, workspace, contacts } = await owner();
+    const national = `555${String(Date.now()).slice(-7)}`;
+    await prisma.contactPhone.create({ data: { contactId: contacts[1].id, phone: `(${national.slice(0, 3)}) ${national.slice(3, 6)}-${national.slice(6)}`, normalized: national, isPrimary: true } });
+    // Prepared before Release B: the stored key is the legacy key of the number as it was typed.
+    const legacy = await prisma.referralAccessInvite.create({ data: { inviterUserId: user.id, workspaceId: workspace.id, contactId: contacts[1].id, recipientPhone: national, manualDelivery: true, tokenHash: hashAuthToken(randomUUID()), tokenCiphertext: "test-only" } });
+    const again = await prisma.$transaction(tx => allocateAccessInvite(tx, { userId: user.id, workspaceId: workspace.id, contactId: contacts[1].id, recipientPhone: `+1 ${national}`, expectedVersion: 1 }));
+    expect(again.id).toBe(legacy.id);
+    // Another member typing the same number another way is told it already has an invitation.
+    const other = await owner();
+    await prisma.contactPhone.create({ data: { contactId: other.contacts[0].id, phone: `1-${national}`, normalized: `1${national}`, isPrimary: true } });
+    await expect(prisma.$transaction(tx => allocateAccessInvite(tx, { userId: other.user.id, workspaceId: other.workspace.id, contactId: other.contacts[0].id, recipientPhone: `1-${national}`, expectedVersion: 1 }))).rejects.toThrow("This contact already has an invitation.");
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: other.user.id } })).referralInvitesIssued).toBe(0);
+  });
 });
+

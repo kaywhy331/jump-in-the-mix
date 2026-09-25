@@ -12,6 +12,7 @@ import { accountHome } from "@/lib/account-home";
 import { getCurrentSession } from "@/lib/auth";
 import { demoLoginAction, loginFormAction, requestMagicLinkFormAction } from "@/lib/auth-actions";
 import { customerReturnPath } from "@/lib/customer-return-path";
+import { AUTH_EMAILS_PER_RECIPIENT_PER_DAY } from "@/lib/email-budget";
 import { env } from "@/lib/env";
 import { verifiedErrorMessage } from "@/lib/form-errors";
 import { pilotRegistrationOpen } from "@/lib/pilot-registration";
@@ -69,7 +70,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         {params.reset && <Notice type="success">Your password was reset. Sign in with the new password.</Notice>}
         {params.verified && <Notice type="success">Your email is verified. You can sign in securely.</Notice>}
         {params.signedOutEverywhere && <Notice type="success">All sessions were signed out.</Notice>}
-        {params.magicSent && <Notice type="success">If you have an account, check your inbox for a sign-in link. It expires in 15 minutes.</Notice>}
+        {params.magicSent && <Notice type="success">If you have an account, check your inbox for a sign-in link. It expires in 15 minutes. An address gets up to {AUTH_EMAILS_PER_RECIPIENT_PER_DAY.magicLogin} sign-in links a day, unless this browser has signed in to the account before.</Notice>}
         {params.devToken && process.env.NODE_ENV !== "production" && <Notice type="info"><Link href={`/api/auth/magic?token=${encodeURIComponent(params.devToken)}`}>Open the development sign-in link</Link>.</Notice>}
         {error && <Notice type="error">{error}</Notice>}
         {env.demoMode && (
@@ -85,7 +86,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             </div>
           </>
         )}
-        <SocialSignInOptions returnTo={params.next} google={googleSignInConfigured()} apple={appleSignInConfigured()} />
+        <SocialSignInOptions returnTo={params.next} google={googleSignInConfigured()} apple={appleSignInConfigured()} note={env.pilotMode ? undefined : "Google and Apple sign-in are for existing accounts. To create an account, open the invitation link someone shared with you."} />
         <ActionForm action={loginFormAction} className="form-stack">
           <input type="hidden" name="next" value={params.next ?? ""} />
           <div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" autoComplete="email" inputMode="email" required defaultValue={env.demoMode ? env.demoEmail : ""} /></div>

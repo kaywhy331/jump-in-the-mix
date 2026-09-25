@@ -3,6 +3,7 @@ import type { EmailCategory, Prisma } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { EmailDeliveryError } from "@/lib/email-errors";
+import { AUTH_TOKEN_PURPOSES, ISSUED_TOKEN_MEMORY_MS } from "@/lib/auth-tokens";
 
 export const EMAIL_RETRY_WINDOW_MS = 23 * 60 * 60_000;
 const DAY = 24 * 60 * 60_000;
@@ -20,6 +21,54 @@ export async function readEmailBudget(tx: Prisma.TransactionClient = prisma, now
     const rows = await tx.emailSendAttempt.groupBy({ by: ["category"], where: { createdAt: { gt: window.since } }, _count: { _all: true } });
     return { ...window, used: rows.reduce((n, row) => n + row._count._all, 0), otherUsed: rows.filter(row => row.category !== "AUTH").reduce((n, row) => n + row._count._all, 0) };
   }));
+}
+
+/*
+ * Per-address daily limits for the account emails anyone can request for any address. They are silent:
+ * a request over the limit gets the same "check your email" answer as one that sent, so the limit never
+ * says whether an account exists, and the pages state the fixed numbers instead. A browser that has
+ * signed in to the account before (rate-limit.ts: known device) is exempt, so the limits cannot lock
+ * the owner out.
+ */
+export const AUTH_EMAILS_PER_RECIPIENT_PER_DAY = { magicLogin: 3, resetPassword: 3, verifyEmail: 4 } as const;
+export type RecipientLimitedAuthEmail = keyof typeof AUTH_EMAILS_PER_RECIPIENT_PER_DAY;
+
+// The idempotency key each account email is sent with (auth-email.ts): `<prefix>:<hashAuthToken(token)>`.
+export const AUTH_EMAIL_KEY_PREFIXES: Record<RecipientLimitedAuthEmail, string> = { magicLogin: "magic-login", resetPassword: "reset-password", verifyEmail: "verify-email" };
+
+/**
+ * How many emails of this kind were sent to the address in the last 24 hours, counted from the send
+ * ledger: a link issued in that time counts only when its email reached the ledger (an attempt was
+ * reserved), so a link whose send was refused before reaching the provider does not use up the day.
+ */
+export async function authEmailsSentToday(email: string, kind: RecipientLimitedAuthEmail, now = new Date(), db: Prisma.TransactionClient = prisma): Promise<number> {
+  const address = email.trim().toLowerCase();
+  const since = new Date(now.getTime() - Math.min(DAY, ISSUED_TOKEN_MEMORY_MS));
+  const links = await db.verificationToken.findMany({ where: { email: address, purpose: AUTH_TOKEN_PURPOSES[kind], createdAt: { gt: since } }, select: { tokenHash: true }, take: 200 });
+  if (!links.length) return 0;
+  return db.emailMessage.count({ where: {
+    id: { in: links.map(link => emailMessageId(`${AUTH_EMAIL_KEY_PREFIXES[kind]}:${link.tokenHash}`)) },
+    recipientHash: emailRecipientHash(address), category: "AUTH", firstAttemptAt: { gt: since }
+  } });
+}
+
+/** True when the address has had its daily allowance of this kind of account email. */
+export async function authEmailLimitReached(email: string, kind: RecipientLimitedAuthEmail, now = new Date()): Promise<boolean> {
+  return await authEmailsSentToday(email, kind, now) >= AUTH_EMAILS_PER_RECIPIENT_PER_DAY[kind];
+}
+
+/*
+ * Account email (sign-in, verification, reset) has a protected reserve in each window. Heavy use of it is
+ * the visible sign of sign-in email abuse, so Operations warns at half of the reserve, well before the
+ * reserve or the whole allowance runs out.
+ */
+export const AUTH_RESERVE_WARNING_SHARE = 0.5;
+type BudgetWindow = { name: string; used: number; total: number; otherUsed: number; other: number };
+export function authReserveUse(windows: BudgetWindow[]): Array<{ name: string; used: number; reserve: number; warning: boolean }> {
+  return windows.map(window => {
+    const used = Math.max(window.used - window.otherUsed, 0), reserve = Math.max(window.total - window.other, 0);
+    return { name: window.name, used, reserve, warning: reserve > 0 && used >= reserve * AUTH_RESERVE_WARNING_SHARE };
+  });
 }
 
 export async function reserveEmailAttempt(input: { key: string; email: string; payloadHash: string; category: EmailCategory; retryBefore?: Date }, now = new Date()) {

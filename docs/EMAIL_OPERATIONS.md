@@ -32,6 +32,27 @@ Queued invitations wait when capacity is exhausted. Waiting for the first availa
 
 The counters cover this application's database and sender calls only. Mail sent elsewhere using the same Resend account still affects its allowance. Keep production and test sender usage isolated or leave additional headroom. Increasing application limits does not purchase a provider plan, guarantee delivery, or increase hosting capacity. There is no new paid queue dependency.
 
+## Account email and sign-in limits
+
+Release B (September 25, 2026) limits how anyone can make the application send account email to an address, or lock an owner out of password sign-in, without saying whether an account exists.
+
+| Control | Rule | Answer |
+| --- | --- | --- |
+| Password attempts per client address | 30 in 15 minutes, then 30 minutes blocked (`auth.login.ip`) | "Too many attempts. Try again in about …" |
+| Password attempts per email and client address | 10 in 15 minutes, then 30 minutes blocked (`auth.login.email-ip`). A stranger elsewhere cannot block the owner's own address | Same |
+| Password attempts per email, from anywhere (step-up) | 10 in 15 minutes, then for 30 minutes no password is checked for that email (`auth.login.email`) | "For your security, password sign-in for this email is paused … Use “Email me a secure sign-in link” below instead." Without a configured sender the answer is the ordinary wait message |
+| Sign-in links per address | 3 a day, plus the hourly limits (5 per email, 12 per client address) | Always "If you have an account, check your inbox …" |
+| Password-reset links per address | 3 a day, plus the hourly limits (5 per email, 20 per client address) | Always "If an account matches that email, a reset link has been sent." |
+| Verification links per address | 4 a day (registration, resends and email corrections together), plus the hourly limits | Always the same verification page |
+
+All limits are counted before the account is looked up, and the daily limits are silent: an address over its limit gets the same page as one that was sent a link, and the pages state the fixed numbers. The daily counts come from the send ledger: each sign-in, reset or verification link issued in the last 24 hours counts when its email reached `EmailMessage` (matched by the `magic-login:`, `reset-password:` or `verify-email:` idempotency key and the keyed recipient hash). Spent and replaced links therefore stay in `VerificationToken` for 24 hours; they can never be used again.
+
+A browser that has signed in to an account (password, sign-in link, Google or Apple) or completed a password reset keeps a signed `HttpOnly`, `SameSite=Lax` marker (`<AUTH_COOKIE_NAME>_device`, lifetime `AUTH_SESSION_MAX_DAYS`, up to three accounts). It names no account: each entry is an HMAC of the account id and time with `AUTH_RATE_LIMIT_SECRET`. That browser is exempt from the step-up and from the daily per-address limits, so neither can lock the owner out of a browser they already use; the hourly and per-address limits still apply. A successful password sign-in clears the per-address count for that email and client address, and the email-wide count unless a step-up is already running.
+
+**Alert.** Operations warns when account email reaches half of its reserve in a window (10 of the default 20 a day, or 150 of 300 a month). The independent monitor's **email** check turns WARNING (the evidence already carries the reserve use as `dayUsed − dayOtherUsed` of `dayLimit − dayOtherLimit`), and **Admin → Operations** shows the same condition as a notice, so the alert is visible even where no monitor runs. Heavy account email usually means someone is requesting links for many addresses; review **Admin → Email** and the rate-limit scopes above.
+
+**Correcting a mistyped email.** An unverified account created from a text invitation (the person typed their own address) can change its email on the verification page with its password. The check shares the password limits above, answers every failure with the same sentence, allows three changes per account a day, ends every outstanding link for the old address (all purposes) and any account link for the new one, records an `account.email.change` audit entry with keyed hashes of both addresses, and sends the verification link to the new address.
+
 ## Delivery facts and suppression
 
 An API acceptance is stored separately from delivered, delayed, bounced, complained, suppressed, and failed event timestamps. Verified events that arrive before the API response are reconciled when acceptance is recorded. Replays are harmless, and older success events cannot erase adverse delivery facts. A delivered event means acceptance by the recipient's mail server; it does not establish inbox placement or a read. [Resend delivery events](https://resend.com/docs/webhooks/emails/delivered)

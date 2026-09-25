@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { readEmailBudget } from "@/lib/email-budget";
+import { authReserveUse, readEmailBudget } from "@/lib/email-budget";
 import { operationsPolicy, type OperationsObservation, type OperationsState } from "@/lib/operations-policy";
 
 export async function collectOperationsSignals(input: { webReady: boolean | null; backupAgeHours: number | null; restoreAgeDays: number | null; notificationsConfigured: boolean }, now = new Date(), db: PrismaClient = prisma): Promise<OperationsObservation[]> {
@@ -25,6 +25,9 @@ export async function collectOperationsSignals(input: { webReady: boolean | null
   const [day, month] = data.windows;
   const capacity = (used: number, limit: number): OperationsState => limit <= 0 ? "UNKNOWN" : used >= limit ? "CRITICAL" : used >= limit * .8 ? "WARNING" : "OK";
   const ratio = Math.max(...[[day.used, day.total], [day.otherUsed, day.other], [month.used, month.total], [month.otherUsed, month.other]].map(([used, limit]) => limit > 0 ? used / limit : 1));
+  // Half of the account-email reserve used (sign-in, verification, reset) is the early sign of sign-in email
+  // abuse. The evidence already carries it: reserve use = used − otherUsed, reserve = limit − otherLimit.
+  const authReserveWarning = authReserveUse(data.windows).some(window => window.warning);
   const workerAge = data.worker ? Math.max(0, Math.floor((now.getTime() - data.worker.lastSeenAt.getTime()) / 1000)) : null;
   const ageState = (age: number | null, limit: number): OperationsState => age === null ? "UNKNOWN" : age > limit ? "CRITICAL" : age >= limit * .8 ? "WARNING" : "OK";
   return [
@@ -32,7 +35,7 @@ export async function collectOperationsSignals(input: { webReady: boolean | null
     { code: "worker", state: workerAge === null ? "CRITICAL" : workerAge > policy.workerStaleSeconds ? "CRITICAL" : "OK", evidence: { ageSeconds: workerAge, limitSeconds: policy.workerStaleSeconds } },
     { code: "jobs", state: data.failed || data.overdue ? "WARNING" : "OK", evidence: { failed: data.failed, overdue: data.overdue, overdueSeconds: policy.jobOverdueSeconds } },
     { code: "invitations", state: data.review || data.overdueInvitations ? "WARNING" : "OK", evidence: { review: data.review, overdue: data.overdueInvitations, overdueSeconds: policy.jobOverdueSeconds } },
-    { code: "email", state: ratio >= 1 ? "CRITICAL" : ratio >= .8 || data.supportReview || data.supportOverdue ? "WARNING" : "OK", evidence: { dayUsed: day.used, dayLimit: day.total, dayOtherUsed: day.otherUsed, dayOtherLimit: day.other, monthUsed: month.used, monthLimit: month.total, monthOtherUsed: month.otherUsed, monthOtherLimit: month.other, supportReview: data.supportReview, supportOverdue: data.supportOverdue } },
+    { code: "email", state: ratio >= 1 ? "CRITICAL" : ratio >= .8 || authReserveWarning || data.supportReview || data.supportOverdue ? "WARNING" : "OK", evidence: { dayUsed: day.used, dayLimit: day.total, dayOtherUsed: day.otherUsed, dayOtherLimit: day.other, monthUsed: month.used, monthLimit: month.total, monthOtherUsed: month.otherUsed, monthOtherLimit: month.other, supportReview: data.supportReview, supportOverdue: data.supportOverdue } },
     { code: "database", state: capacity(data.databaseBytes, policy.databaseLimitBytes), evidence: { bytes: data.databaseBytes, limitBytes: policy.databaseLimitBytes || null } },
     { code: "backup", state: ageState(input.backupAgeHours, policy.backupMaxAgeHours), evidence: { ageHours: input.backupAgeHours, limitHours: policy.backupMaxAgeHours } },
     { code: "restore", state: ageState(input.restoreAgeDays, policy.restoreMaxAgeDays), evidence: { ageDays: input.restoreAgeDays, limitDays: policy.restoreMaxAgeDays } },
