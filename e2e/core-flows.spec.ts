@@ -324,6 +324,12 @@ test.describe("stateful administrator security journey", () => {
     expect(blockedMutation.status).toBe(403);
     expect(blockedMutation.body).toContain("view-only");
 
+    // Like the settings pages, the calendar can be read but offers no save during the view.
+    await page.goto("/calendar?new=1#schedule-event");
+    await expect(page.getByText("The calendar can be read but not changed.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save event" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Import availability", includeHidden: true })).toBeDisabled();
+
     await Promise.all([
       page.waitForURL(/\/admin\/support\?impersonationEnded=1/),
       page.getByRole("button", { name: "End view-only session" }).first().click()
