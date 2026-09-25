@@ -107,7 +107,7 @@ The migration stays: the previous release never reads the new columns. To go bac
 
 ## Owner steps
 
-1. **Worker shutdown delay.** In the Render dashboard, open the worker service (`jump-in-the-mix-worker`) → Settings and set the shutdown delay to 300 seconds, as `render.yaml` states. The API used by the release does not expose it. Until then Render stops the worker after its default delay; an import still stops cleanly between chunks and resumes, but a long chunk may be cut off and retried.
+1. **Worker shutdown delay (optional).** `render.yaml` asks Render to wait up to 300 seconds for the worker to stop, but the Render API does not expose that setting for this service, and the workspace is on Render's free Hobby plan, whose dashboard may not offer it either. Nothing depends on it: within Render's default stop window the worker finishes its current step, pauses an import between chunks and puts the job back in the queue, and the next worker resumes it. A chunk cut off by the stop is retried, never half-saved.
 2. **`security@jumpinthemix.com`.** Add it as an alias in ImprovMX (the domain's mail already goes through ImprovMX), forwarding to the inbox that receives `support@`. Until then, mail to `security@` may bounce; `security.txt` also lists `support@`.
 3. **Google sign-in** (optional; the invitation sign-up stays hidden until both values are set):
    1. Google Cloud console → Google Auth Platform: set the branding, add the authorized domain `jumpinthemix.com`, the privacy policy `https://jumpinthemix.com/privacy` and the terms `https://jumpinthemix.com/terms`. Audience: External, published to production. Scopes: `openid`, `email`, `profile`.
