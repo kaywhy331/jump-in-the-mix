@@ -7,6 +7,9 @@ import { createBusinessAccount, nameFromEmail } from "@/lib/account-provisioning
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 
+/** A sign-in failure the person can act on. Its message is fixed wording, so the sign-in page may show it. */
+export class SocialAuthError extends Error {}
+
 const googleJwks = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
 const appleJwks = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
 
@@ -41,8 +44,8 @@ export function identityNonceMatches(received: unknown, expected: string): boole
 }
 
 export async function createSocialAuthorization(provider: AuthProvider, returnTo?: string | null): Promise<URL> {
-  if (provider === "GOOGLE" && !googleSignInConfigured()) throw new Error("Google sign-in is not configured.");
-  if (provider === "APPLE" && !appleSignInConfigured()) throw new Error("Apple sign-in is not configured.");
+  if (provider === "GOOGLE" && !googleSignInConfigured()) throw new SocialAuthError("Google sign-in is not configured.");
+  if (provider === "APPLE" && !appleSignInConfigured()) throw new SocialAuthError("Apple sign-in is not configured.");
   const state = randomBytes(32).toString("base64url");
   const nonce = randomBytes(32).toString("base64url");
   const codeVerifier = randomBytes(48).toString("base64url");
@@ -82,13 +85,13 @@ export async function createSocialAuthorization(provider: AuthProvider, returnTo
 async function claimOAuthState(provider: AuthProvider, state: string) {
   const stored = await prisma.authOAuthState.findUnique({ where: { stateHash: hashOAuthValue(state) } });
   if (!stored || stored.provider !== provider || stored.usedAt || stored.expiresAt <= new Date()) {
-    throw new Error("The sign-in request expired. Please try again.");
+    throw new SocialAuthError("The sign-in request expired. Please try again.");
   }
   const claimed = await prisma.authOAuthState.updateMany({
     where: { id: stored.id, provider, usedAt: null, expiresAt: { gt: new Date() } },
     data: { usedAt: new Date() }
   });
-  if (claimed.count !== 1) throw new Error("The sign-in request was already used.");
+  if (claimed.count !== 1) throw new SocialAuthError("The sign-in request was already used.");
   return stored;
 }
 
@@ -121,14 +124,14 @@ async function exchangeCode(provider: AuthProvider, code: string, codeVerifier: 
     signal: AbortSignal.timeout(15_000)
   });
   const payload = await response.json().catch(() => null) as { id_token?: string; error?: string } | null;
-  if (!response.ok || !payload?.id_token) throw new Error(`The ${provider === "GOOGLE" ? "Google" : "Apple"} sign-in could not be completed.`);
+  if (!response.ok || !payload?.id_token) throw new SocialAuthError(`The ${provider === "GOOGLE" ? "Google" : "Apple"} sign-in could not be completed.`);
   return payload.id_token;
 }
 
 function verifiedEmail(payload: JWTPayload): string {
   const email = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
   const verified = payload.email_verified === true || payload.email_verified === "true";
-  if (!email || !verified || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("The identity provider did not return a verified email address.");
+  if (!email || !verified || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new SocialAuthError("The identity provider did not return a verified email address.");
   return email;
 }
 
@@ -136,7 +139,7 @@ async function verifiedProfile(provider: AuthProvider, idToken: string, nonce: s
   const result = provider === "GOOGLE"
     ? await jwtVerify(idToken, googleJwks, { issuer: ["https://accounts.google.com", "accounts.google.com"], audience: env.authGoogleClientId })
     : await jwtVerify(idToken, appleJwks, { issuer: "https://appleid.apple.com", audience: env.authAppleClientId });
-  if (!identityNonceMatches(result.payload.nonce, nonce) || !result.payload.sub) throw new Error("The identity response could not be verified.");
+  if (!identityNonceMatches(result.payload.nonce, nonce) || !result.payload.sub) throw new SocialAuthError("The identity response could not be verified.");
   const email = verifiedEmail(result.payload);
   let name = typeof result.payload.name === "string" ? result.payload.name.trim() : "";
   if (provider === "APPLE" && appleUser) {
@@ -159,7 +162,7 @@ async function findOrCreateSocialUser(provider: AuthProvider, profile: { provide
     }
     let user = await tx.user.findUnique({ where: { email: profile.email }, select: { id: true, memberships: { select: { workspace: { select: { profile: { select: { onboardingDone: true } } } } }, take: 1 } } });
     if (!user) {
-      if (env.pilotMode && await tx.user.count() > 0) throw new Error("Owner setup is already complete on this server.");
+      if (env.pilotMode && await tx.user.count() > 0) throw new SocialAuthError("Owner setup is already complete on this server.");
       const created = await createBusinessAccount(tx, { email: profile.email, name: profile.name, passwordHash: null, emailVerifiedAt: new Date() });
       user = { id: created.id, memberships: [] };
     } else {
@@ -176,7 +179,7 @@ export async function completeSocialAuthorization(input: {
   code: string;
   appleUser?: string | null;
 }): Promise<{ userId: string; returnTo: string }> {
-  if (!input.state || !input.code) throw new Error("The sign-in response was incomplete.");
+  if (!input.state || !input.code) throw new SocialAuthError("The sign-in response was incomplete.");
   const state = await claimOAuthState(input.provider, input.state);
   const idToken = await exchangeCode(input.provider, input.code, state.codeVerifier);
   const profile = await verifiedProfile(input.provider, idToken, state.nonce, input.appleUser);

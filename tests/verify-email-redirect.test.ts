@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ rate: vi.fn(), transaction: vi.fn(), session: vi.fn(), membership: vi.fn() }));
-vi.mock("@/lib/env", () => ({ env: { appUrl: "https://jumpinthemix.com" } }));
+vi.mock("@/lib/env", () => ({ env: { appUrl: "https://jumpinthemix.com", authRateLimitSecret: "test-rate-limit-secret" } }));
 vi.mock("@/lib/auth", () => ({ createSession: mocks.session }));
 vi.mock("@/lib/auth-tokens", () => ({ AUTH_TOKEN_PURPOSES: { verifyEmail: "verify_email" }, hashAuthToken: () => "hashed" }));
 vi.mock("@/lib/request-context", () => ({ getRequestMetadata: async () => ({ ipAddress: "127.0.0.1" }) }));

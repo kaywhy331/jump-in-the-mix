@@ -8,6 +8,7 @@ import { Notice } from "@/components/Notice";
 import { registerFormAction } from "@/lib/auth-actions";
 import { hashAuthToken } from "@/lib/auth-tokens";
 import { env } from "@/lib/env";
+import { verifiedErrorMessage } from "@/lib/form-errors";
 import { pilotRegistrationOpen } from "@/lib/pilot-registration";
 import { prisma } from "@/lib/prisma";
 import { validAccessToken } from "@/lib/referral-access";
@@ -18,8 +19,9 @@ import { storedMarketingScenario } from "@/lib/marketing-scenarios";
 export const metadata: Metadata = { title: "Your invitation", robots: { index: false, follow: false }, referrer: "no-referrer" };
 export const dynamic = "force-dynamic";
 
-export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ error?: string; invite?: string }> }) {
+export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ error?: string; sig?: string; invite?: string }> }) {
   const params = await searchParams;
+  const error = verifiedErrorMessage(params);
   const token = params.invite ?? "";
   const pilotOpen = env.pilotMode && await pilotRegistrationOpen();
   const invite = !env.pilotMode && validAccessToken(token)
@@ -41,7 +43,7 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
       <h1>Account creation is temporarily paused</h1><p>Your invitation has not been used. Please open this same link again later.</p><Link className="button" href="/login">Sign in to an existing account</Link>
     </> : <>
       <div><h1>Create your free account</h1><p>{pilotOpen ? "Set up the owner account for this private installation." : textInvitation ? "Choose your email address to create an account. Verify it to start with one person and review every follow-up before sending." : "Your account uses the email address your invitation was sent to. After verification, start with one person and review every follow-up before sending."}</p>{scenario && <p>Your {scenario.label.toLowerCase()} starter will be ready to review. You can change it or skip setup.</p>}</div>
-      {params.error && <Notice type="error">{params.error}</Notice>}
+      {error && <Notice type="error">{error}</Notice>}
       <ActionForm action={registerFormAction} className="form-stack">
         {invite && <input type="hidden" name="invite" value={token} />}
         <label className="field"><span>Your name</span><input name="name" autoComplete="name" maxLength={120} required /></label>

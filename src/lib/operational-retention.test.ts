@@ -11,6 +11,7 @@ const state = vi.hoisted(() => {
       job: removesOne(),
       workerHeartbeat: removesOne(),
       session: removesOne(),
+      authOAuthState: removesOne(),
       authRateLimit: { deleteMany: vi.fn(async () => ({ count: 3 })) }
     },
     runDataRetention: vi.fn(async () => ({ emailDetails: 2 })),
@@ -26,7 +27,7 @@ import { cleanupOperationalData } from "@/lib/operational-retention";
 const now = new Date("2026-09-24T12:00:00Z");
 const otherPasses = [
   state.prisma.reportExport, state.prisma.reportDailySnapshot, state.prisma.reportStorageObservation,
-  state.prisma.job, state.prisma.workerHeartbeat, state.prisma.session
+  state.prisma.job, state.prisma.workerHeartbeat, state.prisma.session, state.prisma.authOAuthState
 ].map((model) => model.deleteMany);
 
 beforeEach(() => { vi.clearAllMocks(); });
@@ -34,7 +35,7 @@ afterEach(() => { vi.restoreAllMocks(); });
 
 describe("cleanupOperationalData", () => {
   it("removes rate-limit rows whose window opened over 48 hours ago unless they are still blocked", async () => {
-    await expect(cleanupOperationalData(now)).resolves.toBe(6 + 4 + 2 + 3);
+    await expect(cleanupOperationalData(now)).resolves.toBe(7 + 4 + 2 + 3);
     expect(state.prisma.authRateLimit.deleteMany).toHaveBeenCalledTimes(1);
     expect(state.prisma.authRateLimit.deleteMany).toHaveBeenCalledWith({
       where: {
@@ -42,6 +43,11 @@ describe("cleanupOperationalData", () => {
         OR: [{ blockedUntil: null }, { blockedUntil: { lte: now } }]
       }
     });
+  });
+
+  it("removes expired OAuth sign-in states", async () => {
+    await cleanupOperationalData(now);
+    expect(state.prisma.authOAuthState.deleteMany).toHaveBeenCalledWith({ where: { expiresAt: { lt: now } } });
   });
 
   it("runs the rate-limit purge after every other pass", async () => {
@@ -55,7 +61,7 @@ describe("cleanupOperationalData", () => {
   it("finishes the other passes and reports when the rate-limit purge fails", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
     state.prisma.authRateLimit.deleteMany.mockRejectedValueOnce(new Error("relation is locked"));
-    await expect(cleanupOperationalData(now)).resolves.toBe(6 + 4 + 2);
+    await expect(cleanupOperationalData(now)).resolves.toBe(7 + 4 + 2);
     for (const pass of otherPasses) expect(pass).toHaveBeenCalledTimes(1);
     expect(state.runDataRetention).toHaveBeenCalledWith(now);
     expect(error).toHaveBeenCalledWith("Stale rate-limit cleanup failed; the other retention passes completed.");

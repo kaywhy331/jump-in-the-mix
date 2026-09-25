@@ -23,7 +23,9 @@ export async function cleanupOperationalData(now = new Date()) {
     ] } }),
     deleteExpiredImportSafeKeys(prisma, now),
     prisma.workerHeartbeat.deleteMany({ where: { lastSeenAt: { lt: heartbeatBefore } } }),
-    prisma.session.deleteMany({ where: { expiresAt: { lt: now } } })
+    prisma.session.deleteMany({ where: { expiresAt: { lt: now } } }),
+    // Anonymous OAuth starts each store a state row that is useless once expired (10 minutes by default).
+    prisma.authOAuthState.deleteMany({ where: { expiresAt: { lt: now } } })
   ]);
   const privateData = await runDataRetention(now);
   const removed = results.reduce<number>((sum, result) => sum + (typeof result === "number" ? result : result.count), 0) + Object.values(privateData).reduce((sum, count) => sum + count, 0);

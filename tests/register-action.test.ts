@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ rate: vi.fn(), release: vi.fn(), clear: vi.fn(), findUser: vi.fn(), findInvite: vi.fn(), transaction: vi.fn(), createAccount: vi.fn(), issueToken: vi.fn(), sendVerification: vi.fn(), createSession: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rate: vi.fn(), release: vi.fn(), clear: vi.fn(), findUser: vi.fn(), findInvite: vi.fn(), transaction: vi.fn(), createAccount: vi.fn(), issueToken: vi.fn(), sendVerification: vi.fn(), createSession: vi.fn(), attempts: vi.fn((_attempts: number, send: () => Promise<unknown>) => send()) }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw Object.assign(new Error(path), { digest: "NEXT_REDIRECT" }); } }));
 vi.mock("bcryptjs", () => ({ default: { hash: async () => "hashed-password", compare: async () => false } }));
 vi.mock("@/lib/env", () => ({ env: { pilotMode: false, requireEmailVerification: true, emailVerificationHours: 24 } }));
@@ -12,7 +12,7 @@ vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: mocks.rate, clearRateLimi
 vi.mock("@/lib/request-context", () => ({ getRequestMetadata: async () => ({ ipAddress: "203.0.113.5", userAgent: "vitest" }) }));
 vi.mock("@/lib/account-provisioning", () => ({ createBusinessAccount: mocks.createAccount }));
 vi.mock("@/lib/referral-access", () => ({ AccessInviteError: class AccessInviteError extends Error {}, validAccessToken: (token: string) => /^[A-Za-z0-9_-]{43}$/.test(token) }));
-vi.mock("@/lib/transactional-email", () => ({ transactionalEmailConfigured: () => true }));
+vi.mock("@/lib/transactional-email", () => ({ transactionalEmailConfigured: () => true, withEmailAttempts: mocks.attempts }));
 vi.mock("@/lib/access-lock", () => ({ lockAccess: vi.fn() }));
 import { AccessInviteError } from "../src/lib/referral-access";
 import { registerFormAction } from "../src/lib/auth-actions";
@@ -87,5 +87,7 @@ describe("invitation addresses", () => {
     await expect(outcome).rejects.not.toThrow("sent=1");
     expect(mocks.clear).toHaveBeenCalledWith("auth.register.email", ["jordan@example.test"]);
     expect(mocks.sendVerification).toHaveBeenCalledWith("jordan@example.test", "Jordan Lee", "verify-token");
+    // Interactive: a single provider attempt, so a slow provider cannot hold the sign-up for about 50 seconds.
+    expect(mocks.attempts).toHaveBeenCalledWith(1, expect.any(Function));
   });
 });

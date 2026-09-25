@@ -10,6 +10,7 @@ import {
 } from "@/lib/admin-mfa";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
+import { withSignedError } from "@/lib/form-errors";
 import { endAdminImpersonationGrant, resolveAdminImpersonationGrant } from "@/lib/impersonation";
 import { getRequestMetadata } from "@/lib/request-context";
 import { wakeWorkerAfterResponse } from "@/lib/worker-dispatch-after";
@@ -48,7 +49,7 @@ export async function createSession(userId: string): Promise<string> {
   const session = await prisma.$transaction(async tx => {
     await lockAccess(tx);
     const account = await tx.user.findUnique({ where: { id: userId }, select: { suspendedAt: true } });
-    if (!account || account.suspendedAt) redirect("/login?error=Account+access+is+unavailable.+Contact+support+for+help.");
+    if (!account || account.suspendedAt) redirect(withSignedError("/login", "Account access is unavailable. Contact support for help."));
     // Replace only this browser's previous session. The lock also orders a
     // concurrent device opt-in against account replacement.
     const previousHash = previousToken ? hashSessionToken(previousToken) : null;

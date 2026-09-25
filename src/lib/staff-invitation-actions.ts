@@ -7,6 +7,7 @@ import { createSession, requirePlatformAdmin } from "@/lib/auth";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 import { hashAuthToken } from "@/lib/auth-tokens";
+import { withSignedError } from "@/lib/form-errors";
 import { issueStaffInvitation, manageStaffInvitation, acceptStaffInvitation, StaffInvitationError } from "@/lib/staff-invitations";
 import { StaffAccessError } from "@/lib/staff-access";
 import type { AdminRole } from "@/lib/admin-permissions";
@@ -43,7 +44,8 @@ export async function changeStaffInvitationAction(formData: FormData): Promise<v
 export async function acceptStaffInvitationAction(formData: FormData): Promise<void> {
   const token = String(formData.get("token") ?? "");
   const path = /^[A-Za-z0-9_-]{43}$/.test(token) ? `/staff/accept?token=${encodeURIComponent(token)}` : "/staff/accept";
-  const fail = (message: string): never => redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
+  // Staff invitation and access errors are fixed server wording, signed so the public page shows them.
+  const fail = (message: string): never => redirect(withSignedError(path, message));
   const { ipAddress } = await getRequestMetadata();
   const ip = await consumeRateLimit({ scope: "staff.invitation.accept.ip", identifiers: [ipAddress], limit: 10, windowMs: 60 * 60_000 });
   const link = await consumeRateLimit({ scope: "staff.invitation.accept.token", identifiers: [hashAuthToken(token.slice(0, 200))], limit: 5, windowMs: 60 * 60_000 });

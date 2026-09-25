@@ -34,4 +34,23 @@ describe.skipIf(!local)("operational retention", () => {
       await prisma.platformAuditEvent.deleteMany({ where: { action: "privacy.retention.complete", id: { notIn: auditIds } } });
     }
   });
+
+  it("removes expired OAuth sign-in states and keeps live ones", async () => {
+    const now = new Date();
+    const state = (expiresAt: Date) => prisma.authOAuthState.create({ data: { provider: "GOOGLE", stateHash: `retention-${randomUUID()}`, codeVerifier: "fixture", nonce: "fixture", expiresAt } });
+    const expired = await state(new Date(now.getTime() - 60_000));
+    const live = await state(new Date(now.getTime() + 10 * 60_000));
+    const retention = await prisma.dataRetentionState.findUnique({ where: { id: "primary" } });
+    const auditIds = (await prisma.platformAuditEvent.findMany({ where: { action: "privacy.retention.complete" }, select: { id: true } })).map((event) => event.id);
+    try {
+      await cleanupOperationalData(now);
+      expect(await prisma.authOAuthState.findUnique({ where: { id: expired.id } })).toBeNull();
+      expect(await prisma.authOAuthState.findUnique({ where: { id: live.id } })).not.toBeNull();
+    } finally {
+      await prisma.authOAuthState.deleteMany({ where: { id: { in: [expired.id, live.id] } } });
+      await prisma.dataRetentionState.deleteMany({ where: { id: "primary" } });
+      if (retention) await prisma.dataRetentionState.create({ data: { ...retention, counts: retention.counts ?? Prisma.DbNull } });
+      await prisma.platformAuditEvent.deleteMany({ where: { action: "privacy.retention.complete", id: { notIn: auditIds } } });
+    }
+  });
 });

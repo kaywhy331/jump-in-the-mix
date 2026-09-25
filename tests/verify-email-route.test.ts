@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ transaction: vi.fn(), session: vi.fn(), rate: vi.fn(), usable: vi.fn(), spent: vi.fn(), account: vi.fn(), claim: vi.fn(), verify: vi.fn(), membership: vi.fn() }));
-vi.mock("@/lib/env", () => ({ env: { appUrl: "https://jumpinthemix.com", cookieName: "jitm_session" } }));
+vi.mock("@/lib/env", () => ({ env: { appUrl: "https://jumpinthemix.com", cookieName: "jitm_session", authRateLimitSecret: "test-rate-limit-secret" } }));
 vi.mock("@/lib/auth", () => ({ createSession: mocks.session }));
 vi.mock("@/lib/auth-tokens", () => ({ AUTH_TOKEN_PURPOSES: { verifyEmail: "verify_email" }, hashAuthToken: (token: string) => `hash:${token}` }));
 vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: mocks.rate }));

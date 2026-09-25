@@ -3,6 +3,9 @@ import { pushRequestContext, pushResponse } from "@/lib/push-request-context";
 import { prisma } from "@/lib/prisma";
 import { pushConfigured, validPushEndpoint } from "@/lib/follow-up-push";
 
+// Each browser endpoint is a row; a person keeps at most this many, and the least recently renewed go first.
+const PUSH_SUBSCRIPTIONS_PER_USER = 20;
+
 const subscriptionSchema = z.object({
   endpoint: z.string().url().max(2000).refine(validPushEndpoint),
   keys: z.object({ p256dh: z.string().min(20).max(500), auth: z.string().min(8).max(500) })
@@ -38,6 +41,8 @@ export async function POST(request: Request) {
       create: { workspaceId, userId, sessionId: session.id, endpoint: parsed.data.endpoint, p256dh: parsed.data.keys.p256dh, auth: parsed.data.keys.auth, userAgent: request.headers.get("user-agent")?.slice(0, 500) },
       update: { workspaceId, userId, sessionId: session.id, p256dh: parsed.data.keys.p256dh, auth: parsed.data.keys.auth, userAgent: request.headers.get("user-agent")?.slice(0, 500), lastUsedAt: new Date() }
     });
+    const oldest = await tx.pushSubscription.findMany({ where: { userId }, orderBy: [{ lastUsedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }], skip: PUSH_SUBSCRIPTIONS_PER_USER, select: { id: true } });
+    if (oldest.length) await tx.pushSubscription.deleteMany({ where: { userId, id: { in: oldest.map(item => item.id) } } });
     await tx.notificationPreference.upsert({ where: { workspaceId }, create: { workspaceId, userId, pushEnabled: true }, update: { userId, pushEnabled: true } });
     return true;
   });

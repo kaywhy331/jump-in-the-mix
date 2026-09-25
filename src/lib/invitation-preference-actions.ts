@@ -8,8 +8,10 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 import { escapeHtml, sendTransactionalEmail, transactionalEmailConfigured } from "@/lib/transactional-email";
 import { hashAuthToken } from "@/lib/auth-tokens";
+import { withSignedError } from "@/lib/form-errors";
 
-function fail(message: string): never { redirect(`/waitlist/leave?error=${encodeURIComponent(message)}`); }
+// Fixed server wording only, signed so the public page shows it (see form-errors.ts).
+function fail(message: string): never { redirect(withSignedError("/waitlist/leave", message)); }
 
 export async function requestStopInvitationsAction(formData: FormData): Promise<void> {
   const email = normalizeWaitlistEmail(String(formData.get("email") ?? ""));

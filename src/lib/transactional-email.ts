@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHash, randomUUID } from "node:crypto";
 import type { EmailCategory, Prisma } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
@@ -47,6 +48,24 @@ export async function recordedEmailAcceptance(message: TransactionalEmail, tx: P
   return { delivered: true, providerId: record.providerId, messageId: record.id, firstAttemptAt: record.firstAttemptAt, acceptedAt: record.acceptedAt };
 }
 
+const MAX_ATTEMPTS = 3;
+const attemptScope = new AsyncLocalStorage<number>();
+
+/**
+ * Runs `send` with every transactional email inside it limited to `attempts` provider attempts. Sign-in,
+ * verification and password-reset requests use one attempt, so a slow provider holds the page for one
+ * 15-second try instead of about 50 seconds and the person is told to try again; the idempotency ledger keeps
+ * a retry of the same key safe. Background and worker email keeps its retries.
+ */
+export function withEmailAttempts<T>(attempts: number, send: () => Promise<T>): Promise<T> {
+  return attemptScope.run(attempts, send);
+}
+
+function attemptLimit(requested: number | undefined): number {
+  const value = requested ?? attemptScope.getStore() ?? MAX_ATTEMPTS;
+  return Number.isInteger(value) && value >= 1 && value <= MAX_ATTEMPTS ? value : MAX_ATTEMPTS;
+}
+
 function retryable(status: number): boolean {
   return status === 408 || status === 409 || status === 429 || status >= 500;
 }
@@ -54,7 +73,7 @@ function delay(attempt: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, Math.min(5000, 500 * 2 ** attempt + Math.random() * 300)));
 }
 
-export async function sendTransactionalEmail(message: TransactionalEmail, options: { retryBefore?: Date } = {}): Promise<EmailDeliveryResult> {
+export async function sendTransactionalEmail(message: TransactionalEmail, options: { retryBefore?: Date; attempts?: number } = {}): Promise<EmailDeliveryResult> {
   if (!transactionalEmailConfigured()) {
     if (process.env.NODE_ENV === "production") throw new Error("Transactional email is not configured.");
     // Development auth pages expose their own test links; never print secret URLs or customer content.
@@ -67,7 +86,8 @@ export async function sendTransactionalEmail(message: TransactionalEmail, option
   let firstAttemptAt: Date | null = null;
   let lastStatus = 0;
   let attempted = false;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  const attempts = attemptLimit(options.attempts);
+  for (let attempt = 0; attempt < attempts; attempt++) {
     const reservation = await reserveEmailAttempt({ key, email, payloadHash, category, retryBefore: options.retryBefore }).catch(error => {
       if (error instanceof EmailDeliveryError) error.attempted = attempted;
       throw error;
@@ -94,7 +114,7 @@ export async function sendTransactionalEmail(message: TransactionalEmail, option
       if (error instanceof EmailDeliveryError) { error.attempted = attempted; throw error; }
       // A timeout or failed acceptance write is uncertain; retry the identical request/key.
     }
-    if (attempt < 2) await delay(attempt);
+    if (attempt < attempts - 1) await delay(attempt);
   }
   const failure = new EmailDeliveryError("PROVIDER", `Email acceptance could not be confirmed${lastStatus ? ` (status ${lastStatus})` : ""}.`, firstAttemptAt);
   failure.attempted = attempted;

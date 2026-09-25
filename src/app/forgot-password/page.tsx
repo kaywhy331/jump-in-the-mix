@@ -7,14 +7,16 @@ import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
 import { requestPasswordResetFormAction } from "@/lib/auth-actions";
 import { env } from "@/lib/env";
+import { verifiedErrorMessage } from "@/lib/form-errors";
 import { transactionalEmailConfigured } from "@/lib/transactional-email";
 
 export const metadata: Metadata = { title: "Reset password" };
 
-type SearchParams = { error?: string; sent?: string; devToken?: string; unavailable?: string; delivery?: string };
+type SearchParams = { error?: string; sig?: string; sent?: string; devToken?: string; unavailable?: string; delivery?: string };
 
 export default async function ForgotPasswordPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
+  const error = verifiedErrorMessage(params);
   const developmentResetUrl = params.devToken ? `/reset-password?token=${encodeURIComponent(params.devToken)}` : null;
   const emailAvailable = process.env.NODE_ENV !== "production" || transactionalEmailConfigured();
   return (
@@ -26,7 +28,7 @@ export default async function ForgotPasswordPage({ searchParams }: { searchParam
         {params.sent && <Notice type="success">If an account matches that email, a reset link has been sent.</Notice>}
         {(params.unavailable || !emailAvailable) && <Notice type="info">Password-reset email is temporarily unavailable. <Link href="/contact">Contact support for help recovering your account</Link>.</Notice>}
         {params.delivery === "failed" && <Notice type="error">The reset email could not be delivered. Please try again or contact support using the link below.</Notice>}
-        {params.error && <Notice type="error">{params.error}</Notice>}
+        {error && <Notice type="error">{error}</Notice>}
         {developmentResetUrl && process.env.NODE_ENV !== "production" && <Notice type="info">Development email preview: <Link href={developmentResetUrl}><strong>open the reset link</strong></Link>.</Notice>}
         {emailAvailable && <ActionForm action={requestPasswordResetFormAction} className="form-stack">
           <div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" inputMode="email" autoComplete="email" maxLength={254} required autoFocus /></div>

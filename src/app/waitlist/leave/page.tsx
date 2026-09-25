@@ -2,16 +2,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
+import { verifiedErrorMessage } from "@/lib/form-errors";
 import { requestStopInvitationsAction, stopInvitationsAction } from "@/lib/invitation-preference-actions";
 
 export const metadata: Metadata = { title: "Manage invitation emails", robots: { index: false, follow: false }, referrer: "no-referrer" };
 
-export default async function LeaveWaitlistPage({ searchParams }: { searchParams: Promise<{ token?: string; error?: string; submitted?: string; stopped?: string }> }) {
+export default async function LeaveWaitlistPage({ searchParams }: { searchParams: Promise<{ token?: string; error?: string; sig?: string; submitted?: string; stopped?: string }> }) {
   const params = await searchParams;
+  const error = verifiedErrorMessage(params);
   const token = params.token && /^[A-Za-z0-9_-]{43}$/.test(params.token) ? params.token : null;
   return <main className="auth-shell"><section className="auth-card"><Logo />
     <h1>{params.stopped ? "Invitation emails stopped" : "Leave the waitlist"}</h1>
-    {params.error && <Notice type="error">{params.error}</Notice>}
+    {error && <Notice type="error">{error}</Notice>}
     {params.submitted && <Notice>If this email has a waitlist request or an unused invitation, we’ve sent a link to confirm your choice. Already stopped? You don’t need to do anything else.</Notice>}
     {params.stopped ? <>
       <Notice type="success">You’re off the waitlist. Your unused invitations have been canceled, and members cannot send you new invitations.</Notice>

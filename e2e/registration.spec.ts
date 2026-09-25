@@ -110,3 +110,48 @@ test.describe("invited registrations", () => {
     expect((await prisma.referralAccessInvite.findUniqueOrThrow({ where: { id: invite.id } })).acceptedAt).not.toBeNull();
   });
 });
+
+test.describe("magic sign-in links", () => {
+  const created: { userIds: string[]; emails: string[] } = { userIds: [], emails: [] };
+
+  test.afterEach(async () => {
+    await prisma.workspace.deleteMany({ where: { ownerId: { in: created.userIds } } });
+    await prisma.user.deleteMany({ where: { id: { in: created.userIds } } });
+    await prisma.verificationToken.deleteMany({ where: { email: { in: created.emails } } });
+    created.userIds.length = 0; created.emails.length = 0;
+  });
+
+  test("opening the emailed link signs in only after Continue signing in, and only once", async ({ page }) => {
+    const email = `magic-${randomUUID().slice(0, 8)}@example.test`;
+    const user = await prisma.user.create({ data: { email, name: "Magic Member", emailVerifiedAt: new Date() } });
+    created.userIds.push(user.id); created.emails.push(email);
+    await prisma.workspace.create({ data: { ownerId: user.id, name: "Magic fixture", slug: `magic-${randomUUID()}`, members: { create: { userId: user.id } }, profile: { create: { onboardingDone: true, onboardingStep: 5 } } } });
+    const token = randomBytes(32).toString("base64url");
+    const link = await prisma.verificationToken.create({ data: { email, purpose: "magic_login", tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 15 * 60_000) } });
+
+    await page.goto(`/api/auth/magic?token=${token}&next=${encodeURIComponent("/contacts")}`);
+    await expect(page).toHaveURL(/\/auth\/magic\?next=%2Fcontacts$/);
+    expect(page.url()).not.toContain(token);
+    await expect(page.getByRole("heading", { level: 1, name: "Continue signing in" })).toBeVisible();
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+    // Opening the link, as a mail scanner would, spends nothing and signs nobody in.
+    expect((await prisma.verificationToken.findUniqueOrThrow({ where: { id: link.id } })).usedAt).toBeNull();
+    expect(await prisma.session.count({ where: { userId: user.id } })).toBe(0);
+
+    await Promise.all([page.waitForURL(/\/contacts(\?|$)/), page.getByRole("button", { name: "Continue signing in" }).click()]);
+    expect((await prisma.verificationToken.findUniqueOrThrow({ where: { id: link.id } })).usedAt).not.toBeNull();
+    expect(await prisma.session.count({ where: { userId: user.id } })).toBe(1);
+
+    // The same link again in a signed-out browser: our own, signed message.
+    await page.context().clearCookies();
+    await page.goto(`/api/auth/magic?token=${token}`);
+    await expect(page).toHaveURL(/\/login\?error=.+&sig=/);
+    await expect(page.locator(".notice.error")).toHaveText("That sign-in link is invalid or expired.");
+  });
+
+  test("a message written into the address never reaches the sign-in banner", async ({ page }) => {
+    await page.goto(`/login?error=${encodeURIComponent("Your account is suspended. Call +1 800 555 0100 to verify your card.")}`);
+    await expect(page.locator(".notice.error")).toHaveText("Something went wrong. Please try again.");
+    await expect(page.getByText("Call +1 800", { exact: false })).toHaveCount(0);
+  });
+});

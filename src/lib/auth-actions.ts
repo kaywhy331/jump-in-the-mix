@@ -1,9 +1,10 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { captureFormFailure, recoverableFormAction, type FormResult } from "@/lib/form-errors";
+import { captureFormFailure, recoverableFormAction, withSignedError, type FormResult } from "@/lib/form-errors";
 import { customerReturnPath } from "@/lib/customer-return-path";
 import { accountHome } from "@/lib/account-home";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSession, destroyAllSessionsForUser, destroyOtherSessions, destroySession, requireSession, requireWorkspace, rotateSession } from "@/lib/auth";
 import { AUTH_TOKEN_PURPOSES, findUsableAuthToken, hashAuthToken, issueAuthToken } from "@/lib/auth-tokens";
@@ -16,8 +17,9 @@ import { clearRateLimit, consumeRateLimit, releaseRateLimitAttempt } from "@/lib
 import { getRequestMetadata } from "@/lib/request-context";
 import { createBusinessAccount } from "@/lib/account-provisioning";
 import { AccessInviteError, validAccessToken } from "@/lib/referral-access";
-import { transactionalEmailConfigured } from "@/lib/transactional-email";
+import { transactionalEmailConfigured, withEmailAttempts } from "@/lib/transactional-email";
 import { lockAccess } from "@/lib/access-lock";
+import { claimMagicLink, MagicLinkError, magicLinkCookieName, magicLinkCookieOptions, magicLinkFailureMessage } from "@/lib/magic-link";
 
 const DUMMY_PASSWORD_HASH = "$2b$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
 
@@ -60,7 +62,8 @@ async function enforceRateLimit(path: string, input: Parameters<typeof consumeRa
 async function deliverVerification(email: string, name: string): Promise<{ devToken: string | null; deliveryFailed: boolean }> {
   const token = await issueAuthToken(email, AUTH_TOKEN_PURPOSES.verifyEmail, env.emailVerificationHours * 60 * 60 * 1000);
   try {
-    await sendVerificationEmail(email, name, token);
+    // Interactive: one provider attempt; the pending page offers "Send another verification link".
+    await withEmailAttempts(1, () => sendVerificationEmail(email, name, token));
     return { devToken: process.env.NODE_ENV === "production" ? null : token, deliveryFailed: false };
   } catch (error) {
     console.error("Verification email delivery failed", error);
@@ -196,7 +199,7 @@ export async function requestMagicLinkAction(formData: FormData): Promise<void> 
   }
   const token = await issueAuthToken(email, AUTH_TOKEN_PURPOSES.magicLogin, 15 * 60_000);
   try {
-    await sendMagicLoginEmail(email, token, returnTo);
+    await withEmailAttempts(1, () => sendMagicLoginEmail(email, token, returnTo));
   } catch (error) {
     console.error("Magic sign-in email failed", error);
     fail(path, "The sign-in email could not be delivered. Try again or use your password.");
@@ -205,6 +208,26 @@ export async function requestMagicLinkAction(formData: FormData): Promise<void> 
   if (returnTo) params.set("next", returnTo);
   if (process.env.NODE_ENV !== "production") params.set("devToken", token);
   redirect(`/login?${params.toString()}`);
+}
+
+/** The "Continue signing in" button on /auth/magic: spends the token the emailed link handed over and signs in. */
+export async function consumeMagicLinkAction(formData: FormData): Promise<void> {
+  const store = await cookies();
+  const token = store.get(magicLinkCookieName())?.value ?? "";
+  // One attempt per hand-off: clear it whatever happens; opening the emailed link again sets it while the token is usable.
+  store.set(magicLinkCookieName(), "", magicLinkCookieOptions(0));
+  const returnTo = customerReturnPath(value(formData, "next"));
+  let destination: string;
+  try {
+    const result = await claimMagicLink(token, returnTo);
+    await createSession(result.userId);
+    destination = await accountHome(result.userId, result.destination);
+  } catch (error) {
+    if (error && typeof error === "object" && "digest" in error) throw error;
+    if (!(error instanceof MagicLinkError)) console.error("Magic sign-in failed", error);
+    redirect(withSignedError("/login", magicLinkFailureMessage(error)));
+  }
+  redirect(destination);
 }
 
 export async function demoLoginAction(): Promise<void> {
@@ -261,7 +284,7 @@ export async function requestPasswordResetAction(formData: FormData): Promise<vo
   if (user) {
     const token = await issueAuthToken(user.email, AUTH_TOKEN_PURPOSES.resetPassword, env.passwordResetMinutes * 60 * 1000);
     try {
-      await sendPasswordResetEmail(user.email, user.name, token);
+      await withEmailAttempts(1, () => sendPasswordResetEmail(user.email, user.name, token));
       if (process.env.NODE_ENV !== "production") devToken = token;
     } catch (error) {
       console.error("Password reset email delivery failed", error);

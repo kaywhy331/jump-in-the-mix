@@ -3,7 +3,7 @@ const mocks = vi.hoisted(() => ({ admin: vi.fn(), selected: vi.fn(), ready: vi.f
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`REDIRECT ${url}`); } }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requirePlatformAdmin: mocks.admin }));
-vi.mock("@/lib/env", () => ({ env: { pilotMode: false, appUrl: "https://example.test" } }));
+vi.mock("@/lib/env", () => ({ env: { pilotMode: false, appUrl: "https://example.test", authRateLimitSecret: "test-rate-limit-secret" } }));
 vi.mock("@/lib/auth-tokens", () => ({ hashAuthToken: () => "token-hash" }));
 vi.mock("@/lib/prisma", () => ({ prisma: { $transaction: mocks.transaction } }));
 vi.mock("@/lib/request-context", () => ({ getRequestMetadata: async () => ({ ipAddress: "127.0.0.1" }) }));
@@ -74,7 +74,7 @@ describe("waitlist server action boundaries", () => {
   });
   it("blocks IP abuse and does not leak email quota state", async () => {
     mocks.rate.mockResolvedValueOnce({ allowed: false });
-    await expect(joinWaitlistAction(form({ email: "person@example.test" }))).rejects.toThrow("Too%20many");
+    await expect(joinWaitlistAction(form({ email: "person@example.test" }))).rejects.toThrow(/Too(?:%20|\+)many/);
     mocks.rate.mockResolvedValueOnce({ allowed: true }).mockResolvedValueOnce({ allowed: false });
     await expect(joinWaitlistAction(form({ email: "person@example.test" }))).rejects.toThrow("submitted=1");
     expect(mocks.request).not.toHaveBeenCalled();
@@ -86,6 +86,6 @@ describe("waitlist server action boundaries", () => {
   it("only confirms through the explicit action and rejects used links", async () => {
     mocks.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     await expect(confirmWaitlistAction(form({ token: "token" }))).rejects.toThrow("confirmed=1");
-    await expect(confirmWaitlistAction(form({ token: "token" }))).rejects.toThrow("expired%20or%20was%20already%20used");
+    await expect(confirmWaitlistAction(form({ token: "token" }))).rejects.toThrow(/expired(?:%20|\+)or(?:%20|\+)was(?:%20|\+)already(?:%20|\+)used/);
   });
 });

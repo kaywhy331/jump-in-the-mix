@@ -99,8 +99,21 @@ describe.skipIf(!local || process.env.RUN_RECOVERY_WEB_TESTS !== "true").sequent
     expect(login.status).toBe(200);
     expect(await login.text()).toContain("Sign in");
     // The login form is a client-side React action, so a scripted POST cannot reach it any more;
-    // a magic link exercises session creation on the packaged server instead.
-    const signedIn = await request(`/api/auth/magic?token=${signInMagic}`, { headers: { cookie: "" } });
+    // a magic link exercises session creation on the packaged server instead. Opening the link only
+    // hands the token to its confirmation page; that page's form (a server action that also works
+    // without JavaScript) signs in, so submit it the way a browser without scripts would.
+    const opened = await request(`/api/auth/magic?token=${signInMagic}`, { headers: { cookie: "" } });
+    expect(opened.status, `magic link answered ${opened.status}`).toBe(303);
+    const handOff = opened.headers.getSetCookie().find(value => value.startsWith("jitm_recovery_session_magic="))?.split(";")[0];
+    expect(handOff, JSON.stringify({ location: opened.headers.get("location"), cookieNames: opened.headers.getSetCookie().map(c => c.split("=")[0]) })).toBeTruthy();
+    expect((await sql.query('SELECT "usedAt" FROM "VerificationToken" WHERE id=\'restore-magic-signin\'')).rows[0].usedAt).toBeNull();
+    const confirmation = await request(opened.headers.get("location"), { headers: { cookie: handOff } });
+    expect(confirmation.status).toBe(200);
+    const actionField = /name="(\$ACTION_ID_[^"]+)"/.exec(await confirmation.text())?.[1];
+    expect(actionField, "confirmation form").toBeTruthy();
+    const submission = new FormData(); submission.set(actionField, "");
+    const encoded = new Response(submission);
+    const signedIn = await request(opened.headers.get("location"), { method: "POST", headers: { cookie: handOff, "content-type": encoded.headers.get("content-type") }, body: Buffer.from(await encoded.arrayBuffer()) });
     expect([302, 303, 307].includes(signedIn.status), `magic sign-in answered ${signedIn.status}`).toBe(true);
     const sessionCookie = signedIn.headers.getSetCookie().find(value => value.startsWith("jitm_recovery_session="))?.split(";")[0];
     expect(sessionCookie, JSON.stringify({ location: signedIn.headers.get("location"), cookieNames: signedIn.headers.getSetCookie().map(c => c.split("=")[0]) })).toBeTruthy();

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSession } from "@/lib/auth";
 import { AUTH_TOKEN_PURPOSES, hashAuthToken } from "@/lib/auth-tokens";
 import { env } from "@/lib/env";
+import { withSignedError } from "@/lib/form-errors";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
@@ -35,9 +36,9 @@ export async function GET(request: Request) {
     blockMs: 60 * 60 * 1000
   });
   if (!decision.allowed) {
-    return redirectTo(request, "/verify-email/pending?error=Too%20many%20verification%20attempts.%20Try%20again%20later.");
+    return redirectTo(request, withSignedError("/verify-email/pending", "Too many verification attempts. Try again later."));
   }
-  if (!token) return redirectTo(request, "/verify-email/pending?error=That%20verification%20link%20is%20invalid.");
+  if (!token) return redirectTo(request, withSignedError("/verify-email/pending", "That verification link is invalid."));
 
   const now = new Date();
   const tokenHash = hashAuthToken(token);
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
     });
 
     if (outcome.status === "already-verified") return redirectTo(request, hasSessionCookie(request) ? "/jumps?verified=1" : "/login?verified=1");
-    if (outcome.status === "invalid") return redirectTo(request, "/verify-email/pending?error=That%20verification%20link%20is%20invalid%20or%20expired.");
+    if (outcome.status === "invalid") return redirectTo(request, withSignedError("/verify-email/pending", "That verification link is invalid or expired."));
     await createSession(outcome.user.id);
     const membership = await prisma.workspaceMember.findFirst({
       where: { userId: outcome.user.id },
@@ -84,7 +85,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(destination);
   } catch (error) {
     console.error("Email verification failed", error);
-    return redirectTo(request, `/verify-email/pending?error=${encodeURIComponent("That verification link could not be completed. Request a new one.")}`);
+    return redirectTo(request, withSignedError("/verify-email/pending", "That verification link could not be completed. Request a new one."));
   }
 }
 

@@ -10,9 +10,11 @@ import { confirmWaitlistEntry, normalizeWaitlistEmail, requestWaitlistEntry } fr
 import { escapeHtml, sendTransactionalEmail, transactionalEmailConfigured } from "@/lib/transactional-email";
 import { marketingScenarioId } from "@/lib/marketing-scenarios";
 import { WAITLIST_EMAIL_REQUESTS_PER_DAY } from "@/lib/waitlist-limits";
+import { withSignedError } from "@/lib/form-errors";
 
 function fail(message: string): never {
-  redirect(`/waitlist?error=${encodeURIComponent(message)}`);
+  // Fixed server wording only, signed so the public page shows it (see form-errors.ts).
+  redirect(withSignedError("/waitlist", message));
 }
 
 class WaitlistSubmissionError extends Error {}

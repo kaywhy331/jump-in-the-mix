@@ -6,21 +6,23 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
 import { resetPasswordFormAction } from "@/lib/auth-actions";
+import { verifiedErrorMessage } from "@/lib/form-errors";
 
 export const metadata: Metadata = { title: "Choose a new password" };
 
-type SearchParams = { token?: string; error?: string };
+type SearchParams = { token?: string; error?: string; sig?: string };
 
 export default async function ResetPasswordPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const token = params.token?.trim() ?? "";
+  const error = verifiedErrorMessage(params);
   return (
     <main className="auth-shell">
       <section className="auth-card">
         <Logo />
         <h1>Choose a new password</h1>
         <p>The reset link can be used once. Completing it signs out every existing session for the account.</p>
-        {params.error && <Notice type="error">{params.error}</Notice>}
+        {error && <Notice type="error">{error}</Notice>}
         {!token ? (
           <Notice type="error">This reset link is incomplete. Request a new one.</Notice>
         ) : (

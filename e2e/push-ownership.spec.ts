@@ -30,7 +30,8 @@ async function ready(page: Page) {
   await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
 }
 async function signIn(page: Page, owner: typeof owners[number]) {
-  await page.goto("/login");
+  // A signed-in visit to /login opens the app; ?reauth shows the form so a second account can sign in here.
+  await page.goto("/login?reauth=1");
   await page.getByLabel("Email", { exact: true }).fill(owner.email);
   await page.getByLabel("Password", { exact: true }).fill(password);
   await Promise.all([page.waitForURL(/\/jumps/), page.getByRole("button", { name: "Sign in", exact: true }).click()]);

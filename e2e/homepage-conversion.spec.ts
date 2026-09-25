@@ -1,5 +1,7 @@
+import { createHash, randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { axeInPage } from "./axe-in-page";
+import { prisma } from "../src/lib/prisma";
 
 test.use({ screenshot: "off", video: "off", trace: "off" });
 
@@ -118,4 +120,34 @@ test("conversion hooks respect browser privacy signals", async ({ browser }, tes
       expect(await page.evaluate(() => (window as unknown as Window & { conversionTestEvents: unknown[] }).conversionTestEvents)).toEqual([]);
     } finally { await context.close(); }
   }
+});
+
+test("the public header says Open Today to a signed-in visitor and Sign in to everyone else", async ({ page, context }) => {
+  const suffix = randomUUID();
+  const user = await prisma.user.create({ data: { email: `header-${suffix}@example.test`, name: "Header Owner", emailVerifiedAt: new Date() } });
+  try {
+    await prisma.workspace.create({ data: { ownerId: user.id, name: "Header fixture", slug: `header-${suffix}`, members: { create: { userId: user.id } }, profile: { create: { onboardingDone: true, onboardingStep: 5 } } } });
+    const token = randomUUID();
+    await prisma.session.create({ data: { userId: user.id, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 3_600_000) } });
+    const signIn = page.locator(".public-site-nav .public-sign-in");
+    await page.goto("/");
+    await expect(signIn).toHaveText("Sign in");
+    await expect(signIn).toHaveAttribute("href", "/login");
+    await context.addCookies([{ name: "jitm_session", value: token, url: process.env.APP_URL ?? process.env.PLAYWRIGHT_BASE_URL!, httpOnly: true, sameSite: "Lax" }]);
+    await page.goto("/");
+    await expect(signIn).toHaveText("Open Today");
+    await expect(signIn).toHaveAttribute("href", "/jumps");
+  } finally {
+    await prisma.workspace.deleteMany({ where: { ownerId: user.id } });
+    await prisma.user.deleteMany({ where: { id: user.id } });
+  }
+});
+
+test("each waitlist state has its own heading", async ({ page }) => {
+  await page.goto("/waitlist?submitted=1");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Check your inbox");
+  await page.goto("/waitlist?confirmed=1");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("You’re on the waitlist");
+  await page.goto("/waitlist");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Join the waitlist");
 });
