@@ -108,6 +108,14 @@ model User {
   auditLogs       AuditLog[]        @relation("AuditActor")
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  contactActivities       ContactActivity[]
+  contactImportBatches    ContactImportBatch[]
+  contactMergeRecords     ContactMergeRecord[]
+  contactSavedViews       ContactSavedView[]
+  notificationDeliveries  NotificationDelivery[]
+  notificationPreferences NotificationPreference[]
+  pushSubscriptions       PushSubscription[]
+  userPreference          UserPreference?
 }
 
 model Session {
@@ -186,6 +194,23 @@ model Workspace {
   customFieldDefinitions ContactCustomFieldDefinition[]
   createdAt              DateTime                       @default(now())
   updatedAt              DateTime                       @updatedAt
+  // Relations for foreign keys that migrations created by hand (Release B makes the schema match production).
+  automatedDeliveries       AutomatedDelivery[]
+  automationPreference      AutomationPreference?
+  contactActivities         ContactActivity[]
+  contactGroupStates        ContactGroupState[]
+  contactImportBatches      ContactImportBatch[]
+  contactMergeRecords       ContactMergeRecord[]
+  contactRelationshipStates ContactRelationshipState[]
+  contactSavedViews         ContactSavedView[]
+  jumpActionEvents          JumpActionEvent[]
+  mixBroadcastSchedules     MixBroadcastSchedule[]
+  mixStops                  MixStop[]
+  notificationDeliveries    NotificationDelivery[]
+  notificationPreference    NotificationPreference?
+  pushSubscriptions         PushSubscription[]
+  reviewRequests            ReviewRequest[]
+  workspacePreference       WorkspacePreference?
 }
 
 model WorkspaceMember {
@@ -277,6 +302,11 @@ model Contact {
   relationshipState   ContactRelationshipState?
   createdAt           DateTime                  @default(now())
   updatedAt           DateTime                  @updatedAt
+  activities       ContactActivity[]
+  mergesAsSurvivor ContactMergeRecord[] @relation("ContactMergeSurvivor")
+  mergesAsMerged   ContactMergeRecord[] @relation("ContactMergeMerged")
+  reviewRequests   ReviewRequest[]
+
 
   @@index([workspaceId, displayName])
   @@index([workspaceId, company])
@@ -581,6 +611,9 @@ model Jump {
   pushDeliveries   FollowUpPushDelivery[]
   drafts           JumpDraft[]
   attempts         JumpAttempt[]
+  activities        ContactActivity[]
+  automatedDelivery AutomatedDelivery?
+
 
   @@index([workspaceId, scheduledAt, status])
   @@index([workspaceId, status, completedAt])

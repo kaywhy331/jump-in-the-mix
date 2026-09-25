@@ -63,6 +63,13 @@ model MarketplaceListing {
   reports       MarketplaceReport[]
   createdAt     DateTime                 @default(now())
   updatedAt     DateTime                 @updatedAt
+  reviewRequestedAt    DateTime? // the author asked for another review after an upheld report
+  reviewRequestNote    String?
+  reviewedFingerprint  String? // content fingerprint at the last staff decision or automatic hide
+  reviewResponseNote   String?
+  reviewRespondedAt    DateTime?
+  reviewResponseSeenAt DateTime?
+
 
   @@index([status, kind, publishedAt])
   @@index([workspaceId])

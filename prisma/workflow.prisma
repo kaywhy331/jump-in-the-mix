@@ -21,6 +21,8 @@ model MixStop {
   stoppedAt       DateTime @default(now())
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
 
   @@unique([workspaceId, mixId, contactId])
   @@index([workspaceId, contactId, stoppedAt])
@@ -39,6 +41,8 @@ model JumpActionEvent {
   attemptId   String?
   occurredAt  DateTime       @default(now())
   createdAt   DateTime       @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
 
   @@index([workspaceId, occurredAt])
   @@index([jumpId, occurredAt])
@@ -53,6 +57,8 @@ model MixBroadcastSchedule {
   timezone    String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
 
   @@index([workspaceId, localDate])
   @@index([workspaceId, mixId])
