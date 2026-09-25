@@ -9,7 +9,7 @@ test("homepage offers an email waitlist without opening account signup", async (
   await expect(page).toHaveURL(/\/waitlist$/);
   await expect(page.getByRole("heading", { name: "Join the waitlist" })).toBeVisible();
   await expect(page.getByText("Request access with your email. Accounts are free, with no card to enter.", { exact: true })).toBeVisible();
-  await expect(page.getByText("We email your invitation when access is available.", { exact: true })).toBeVisible();
+  await expect(page.getByText("We email invitations in small groups as space opens. We can’t promise a date.", { exact: true })).toBeVisible();
   await expect(page.locator('input[name="password"]')).toHaveCount(0);
 });
 

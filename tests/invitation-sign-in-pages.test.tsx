@@ -98,7 +98,7 @@ describe("public access wording", () => {
   });
 
   it("names both ways in and says a date is not promised", () => {
-    expect(read("src/components/PublicLanding.tsx")).toContain("By invitation from a member, or from the waitlist as space opens.");
+    expect(read("src/components/PublicLanding.tsx")).toContain("access is by invitation from a member, or from the waitlist as space opens.");
     expect(read("src/components/PublicLanding.tsx")).toContain("We invite people in small groups, so we can’t promise a date. A member can also invite you directly.");
     expect(read("src/app/faq/page.tsx")).toContain("Accounts are by invitation. A member can invite you: each member has three personal invitations to share by text or email. Or join the waitlist: we email invitations from it in small groups as space opens, so we can’t promise a date.");
     expect(read("src/app/waitlist/page.tsx")).toContain("We email invitations in small groups as space opens. We can’t promise a date.");

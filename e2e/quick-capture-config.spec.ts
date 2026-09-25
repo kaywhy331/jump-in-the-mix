@@ -125,9 +125,10 @@ for (const reviewBeforeActivation of [true, false]) test(`ready-made setup honor
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("button", { name: reviewBeforeActivation ? "Review and start" : "Save and activate", exact: true }).click();
   if (reviewBeforeActivation) await page.getByRole("dialog").getByRole("button", { name: "Start the mix", exact: true }).click();
-  // The setup redirects to /mixes/<id>/edit?imported=1&activated=1, which forwards to the library editor and keeps
-  // only imported=1 (bd125c6); the activation itself is checked on the saved Mix.
-  await expect(page).toHaveURL(/\/mixes\?mix=[^&]+&view=edit&imported=1$/);
+  // The setup redirects to /mixes/<id>/edit?imported=1&activated=1, which forwards both to the library editor, so the
+  // editor says the Mix started; the activation itself is checked on the saved Mix.
+  await expect(page).toHaveURL(/\/mixes\?mix=[^&]+&view=edit&activated=1&imported=1$/);
+  await expect(page.getByText("Mix started.", { exact: true })).toBeVisible();
   const imported = await prisma.mix.findUniqueOrThrow({ where: { id: new URL(page.url()).searchParams.get("mix")! } });
   expect(imported).toMatchObject({ workspaceId, source: `SHARED_MIX:${templateId}`, status: "ACTIVE" });
 });
