@@ -36,7 +36,12 @@ async function capture(page: Page, review = true) {
 test("Calendar warns before filters replace a draft and preserves it during contact search", async ({ page }) => {
   await page.goto("/calendar?new=1&date=2027-10-15"); await ready(page);
   const title = page.getByRole("textbox", { name: "Title", exact: true });
+  // Text typed before the form guard takes its first snapshot counts as the saved state, so type until it reports the draft.
+  const guard = page.locator(".calendar-entry-form .form-guard-status");
+  let attempt = 0;
+  await expect(async () => { await title.fill(`Draft ${++attempt}`); await expect(guard).toHaveText(/Unsaved changes/, { timeout: 1_000 }); }).toPass();
   await title.fill("Keep this new event");
+  await expect(guard).toHaveText(/Unsaved changes/);
   await page.locator(".calendar-filter-options > summary").click();
   const prompts: string[] = []; let leave = false;
   page.on("dialog", async prompt => { prompts.push(prompt.type()); if (leave) await prompt.accept(); else await prompt.dismiss(); });
