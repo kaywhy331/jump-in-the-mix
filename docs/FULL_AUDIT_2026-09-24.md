@@ -113,7 +113,23 @@ Browser specs fixed on the way: eight stale assertions in six specs (G7), three 
 
 ## 7. Release
 
-_(pending)_
+Released to https://jumpinthemix.com on 2026-09-25 (02:25–02:30 UTC; the evening of 2026-09-24 in the owner's timezone) under the owner's standing release authority, with the resumable pipeline in `.artifacts/market-live-20260924/audit-*.mjs` (the same preflight → worker → web → postflight → smoke → final sequence as the previous releases; no migration).
+
+| Item | Value |
+| --- | --- |
+| Released commit | `7b2fa0077574ae5351b98e120341a2c1f0c11d58` (branch `fix/full-audit-20260924`), tag `prod-2026-09-25-7b2fa00` |
+| Previous production | `e26fdd42a05ac9c7094f697afb2b0f53b9b7f35f` (tag `prod-2026-09-24-e26fdd4`) |
+| Migrations | none; production's 70-migration history matched the release tree in the preflight |
+| Worker deploy | `dep-daqtmo3ncjis73bbo7vg`, live 02:25:55 UTC; scoped queue probe passed and its synthetic job was removed |
+| Web deploy | `dep-daqtnhm0tbcc73881700`, live 02:29:36 UTC, build `KgHvMdQvkIz7SmVpv3Jbq` |
+| Postflight | 16 public and redirect checks; 138 release files and 20 served assets hashed identically on the live instance; database ready. The first postflight attempt saw one CSS chunk answer 404 during the instance rollover; the rerun a minute later matched everything |
+| Live smoke (one synthetic owner, every row removed) | sign-in sets a `Lax`, `Secure`, `HttpOnly` cookie expiring in about 90 days; Today renders on a phone; the plain sign-in recorded the machine's real public address; a second sign-in sent with `X-Forwarded-For: 203.0.113.77` still recorded the real address; Today, Contacts, Mixes, Marketplace and Account reflow at 390 px and pass axe in light and dark |
+| Final check | record counts unchanged from the preflight, no synthetic rows, no probe jobs, no failed jobs since the release, no active rate-limit blocks, health 200 three times, both services at the release commit with auto-deploy off |
+| CI | the release head runs in the draft pull request #82 (the first CI runs on this code line since 2026-09-17; the live tree's baseline run failed at the CI-only recovery suite this release fixes) |
+
+**Rollback:** deploy `e26fdd42a05ac9c7094f697afb2b0f53b9b7f35f` to the web service first, then the worker. Nothing in this release writes anything the previous code cannot read: longer session expiries are honoured, copied Mix stops and anonymised reports are ordinary rows, and rate-limit keys start fresh.
+
+**Follow-ups for the owner after this release.** Sign in once from a phone on cellular and once from a laptop and confirm Account → Security → Active sessions shows each device's own address (the only production test of a carrier's IPv6 and NAT paths). Existing sessions keep their previous 14-day cookie until the next sign-in.
 
 ## 8. Owner decisions and open questions
 
