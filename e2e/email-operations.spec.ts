@@ -4,7 +4,7 @@ import { Webhook } from "svix";
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { prisma } from "../src/lib/prisma";
-import { emailRecipientHash } from "../src/lib/email-budget";
+import { emailRecipientHash, readEmailBudget } from "../src/lib/email-budget";
 
 const enabled = process.env.STAFF_E2E === "1" && Boolean(process.env.RESEND_WEBHOOK_SECRET) && /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 test.skip(!enabled, "Requires isolated staff fixtures, a local test database, and a synthetic webhook signing secret.");
@@ -34,7 +34,9 @@ test("signed delivery events appear in admin diagnostics without exposing email 
     await expect(page.getByRole("heading", { name: "Email", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Provider event history" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "email.bounced", exact: true })).toBeVisible();
-    await expect(page.getByText(/0 of 90 used/)).toBeVisible();
+    // Other suites' sends count toward the shared allowance; read the current 24-hour window instead of assuming none.
+    const [day] = await readEmailBudget(prisma);
+    await expect(page.getByText(new RegExp(`^${day.used} of ${day.total} used · ${day.total - day.other} reserved for account/recovery\\.$`))).toBeVisible();
     await expect(page.getByText("PRIVATE SUBJECT NEVER DISPLAY")).toHaveCount(0);
     await expect(page.getByText("PRIVATE PROVIDER BODY")).toHaveCount(0);
     for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 1440]) {

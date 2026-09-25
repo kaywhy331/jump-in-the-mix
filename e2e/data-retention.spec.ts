@@ -73,6 +73,10 @@ test("expired invitation payloads leave recovery and provider events retain only
   const path = `/admin/email/recovery?status=SENT&q=${encodeURIComponent(email)}`;
   await page.goto(path); await expect(page.getByRole("heading", { name: email, exact: true })).toBeVisible(); expect(await page.content()).not.toContain("PRIVATE_ACCESS_TOKEN");
   await runDataRetention(); await page.reload(); await expect(page.getByRole("heading", { name: email, exact: true })).toHaveCount(0);
-  await page.goto("/admin/email"); await page.getByText(/^Recent provider events/).click(); await expect(page.getByText("Private provider details expired", { exact: false })).toBeVisible();
+  // Provider event history is always shown, newest first and paged; find this older event by its identifier.
+  await page.goto("/admin/email"); await page.getByLabel("Event type or identifier", { exact: true }).fill(eventId); await page.getByRole("button", { name: "Search events", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`[?&]q=${eventId}`));
+  const event = page.locator("article").filter({ hasText: `Event ${eventId}` });
+  await expect(event).toHaveCount(1); await expect(event.getByText("Private provider details expired", { exact: false })).toBeVisible();
   expect(await page.content()).not.toContain("PRIVATE_PROVIDER_RECORD"); expect(await page.content()).not.toContain("PRIVATE_RECIPIENT_HASH");
 });

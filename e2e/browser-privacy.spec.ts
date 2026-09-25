@@ -116,9 +116,15 @@ test("legacy and other-account recovery never appears in the next account", asyn
   await page.getByRole("link", { name: "Back to contacts" }).click(); await expect(page).toHaveURL(/\/contacts$/);
 });
 
+// The note composer stays folded away until the profile's Note action ("Contact <name>" actions) opens it.
+async function openNote(page: Page) {
+  await page.getByRole("navigation", { name: /^Contact / }).getByRole("link", { name: "Note", exact: true }).click();
+  return page.getByRole("textbox", { name: "Add a note", exact: true });
+}
+
 test("same-account reauthentication keeps a note and recovery while another account clears old tabs", async ({ page, context }) => {
   await useOwner(context, page, owners[0]); await page.goto(`/contacts/${owners[0].contactId}`); await ready(page);
-  const note = page.getByRole("textbox", { name: "Add a note", exact: true });
+  const note = await openNote(page);
   await note.fill("Unsaved Alpha draft");
   const originalScope = await remember(page, "Alpha return");
   const other = await context.newPage();
@@ -169,7 +175,7 @@ test("confirmed sign-out clears recovery and an open private dialog in another t
 
 test("offline drafts stay in the tab and return after reconnection", async ({ page, context }) => {
   await useOwner(context, page, owners[0]); await page.goto(`/contacts/${owners[0].contactId}`); await ready(page);
-  const note = page.getByRole("textbox", { name: "Add a note", exact: true }); await note.fill("Keep during a connection loss");
+  const note = await openNote(page); await note.fill("Keep during a connection loss");
   await context.setOffline(true);
   await expect(page.getByRole("heading", { name: "Reconnect to continue" })).toBeVisible();
   await expect(note).not.toBeVisible();

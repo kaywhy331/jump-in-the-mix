@@ -102,7 +102,8 @@ test("staff drafts, previews, publishes and rolls back while customers retain re
     await customerPage.getByRole("checkbox", { name: /Everyone/ }).check();
     await customerPage.getByRole("button", { name: "Continue", exact: true }).click();
     await customerPage.getByRole("button", { name: "Save draft" }).click();
-    await expect(customerPage).toHaveURL(/\/mixes\/[a-z0-9-]+\/edit\?imported=1$/);
+    // /mixes/<id>/edit forwards to the Mix library's editor view (bd125c6).
+    await expect(customerPage).toHaveURL(/\/mixes\?mix=[a-z0-9-]+&view=edit&imported=1$/);
     const imported = await prisma.mix.findFirstOrThrow({ where: { workspaceId: workspace.id }, include: { steps: { include: { stepVersion: true } } } });
     const history = page.locator("#library-history");
     await history.locator(":scope > details > summary").click();

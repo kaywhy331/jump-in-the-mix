@@ -17,28 +17,38 @@ test("relationship mixes can be previewed, remixed, fine-tuned, and started with
   try {
     await signIn(page);
     await page.goto("/templates?framework=Relationships");
-    for (const mix of RELATIONSHIP_MIXES) await expect(page.getByRole("heading", { name: mix.title, exact: true })).toBeVisible();
-    await page.getByRole("button", { name: "Preview The First Note", exact: true }).click();
-    const preview = page.getByRole("dialog", { name: "The First Note", exact: true });
-    await expect(preview).toContainText("Beat 1");
-    await expect(preview).toContainText("Cue · starts");
-    await preview.getByRole("link", { name: "Remix it", exact: true }).click();
+    // The ready-made library lists every relationship Mix; choosing one previews it beside the list (the preview
+    // dialog and "Remix it" were replaced by the library panes and "Use this mix" in bd125c6).
+    const library = page.getByRole("navigation", { name: "Ready-made mixes", exact: true });
+    for (const mix of RELATIONSHIP_MIXES) await expect(library.getByText(mix.title, { exact: true })).toBeVisible();
+    await library.locator(".mix-library-item").filter({ hasText: "The First Note" }).click();
+    await expect(page).toHaveURL(new RegExp(`mix=${original.id}`));
+    const preview = page.getByRole("region", { name: "Selected ready-made Mix", exact: true });
+    await expect(preview.getByRole("heading", { name: "The First Note", exact: true })).toBeVisible();
+    const beatPreview = preview.getByRole("region", { name: "Beat preview", exact: true });
+    await expect(beatPreview.getByRole("listitem")).toHaveCount(2);
+    await expect(beatPreview.getByRole("listitem").first()).toContainText("A warm hello");
+    await expect(beatPreview.getByRole("listitem").first()).toContainText("Day 0");
+    await expect(page.locator('aside[aria-label="Ready-made Mix details"]')).toContainText("When you start it for someone.");
+    await preview.getByRole("link", { name: "Use this mix", exact: true }).click();
     await page.getByLabel("Mix name", { exact: true }).fill(name);
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByLabel("Everyone", { exact: false }).check();
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
-    await page.waitForURL(/\/mixes\/[^/]+\/edit\?imported=1/);
-    mixId = page.url().match(/\/mixes\/([^/]+)/)![1];
+    // /mixes/<id>/edit?imported=1 forwards to the Mix library's editor view.
+    await page.waitForURL(/\/mixes\?mix=[^&]+&view=edit&imported=1/);
+    mixId = new URL(page.url()).searchParams.get("mix")!;
     const editor = page.locator(".mix-editor-form");
-    const beats = editor.locator("fieldset.mix-editor-jump");
+    const beats = editor.getByRole("group", { name: /^Beat \d+$/ });
     await expect(beats).toHaveCount(2);
-    await beats.first().getByLabel("Message", { exact: false }).fill("Hi {{First Name}}, I’d love to catch up. {{SMS Signature}}");
-    await beats.nth(1).getByLabel("Tempo · days after start", { exact: true }).fill("5");
+    await editor.getByRole("group", { name: "Beat 1", exact: true }).getByRole("textbox", { name: "Message", exact: true }).fill("Hi {{First Name}}, I’d love to catch up. {{SMS Signature}}");
+    await editor.getByRole("group", { name: "Beat 2", exact: true }).getByRole("spinbutton", { name: "Days after start", exact: true }).fill("5");
     await editor.getByRole("button", { name: "Add a beat", exact: true }).click();
     await expect(beats).toHaveCount(3);
-    await beats.nth(2).getByLabel("Call notes", { exact: true }).fill("• Ask what’s new.\n• Agree on a next step.");
-    await beats.nth(2).getByLabel("Tempo · days after start", { exact: true }).fill("14");
+    const added = editor.getByRole("group", { name: "Beat 3", exact: true });
+    await added.getByRole("textbox", { name: "Call notes", exact: true }).fill("• Ask what’s new.\n• Agree on a next step.");
+    await added.getByRole("spinbutton", { name: "Days after start", exact: true }).fill("14");
     await editor.getByRole("button", { name: "Save mix", exact: true }).click();
     await page.waitForURL(/updated=manual/);
     const saved = await prisma.mix.findUniqueOrThrow({ where: { id: mixId }, include: { steps: { where: { isActive: true }, orderBy: { sortOrder: "asc" }, include: { stepVersion: true } } } });
@@ -47,6 +57,9 @@ test("relationship mixes can be previewed, remixed, fine-tuned, and started with
     expect(saved.steps.map(beat => beat.dayOffset)).toEqual([0, 5, 14]);
     expect(saved.steps[0].stepVersion.body).toContain("I’d love to catch up");
     expect((await prisma.sharedMix.findUniqueOrThrow({ where: { id: original.id } })).steps).toEqual(original.steps);
+    // A saved Mix keeps its name and start choices folded under "Name and start".
+    const startSettings = editor.locator("details.mix-start-settings");
+    if (!await startSettings.evaluate(element => (element as HTMLDetailsElement).open)) await startSettings.locator(":scope > summary").click();
     await editor.getByRole("combobox", { name: "After saving", exact: true }).selectOption("ACTIVE");
     await editor.getByRole("button", { name: "Review and start", exact: true }).click();
     const review = page.getByRole("dialog", { name: "Start this mix?", exact: true });
@@ -60,7 +73,8 @@ test("relationship mixes can be previewed, remixed, fine-tuned, and started with
     await expect(page.getByRole("combobox", { name: "Loop · repeat this date", exact: true })).toBeVisible();
     await page.getByRole("combobox", { name: "Choose a mix", exact: true }).selectOption(mixId);
     await page.getByRole("button", { name: "Add to a mix", exact: true }).click();
-    await expect(page.getByText("Mix started.", { exact: true })).toBeVisible();
+    // Starting a Mix for someone now confirms with the preparation notice (006d445).
+    await expect(page.getByText(/^Start saved\. Follow-ups are being prepared\./)).toBeVisible();
   } finally {
     if (mixId) {
       const templates = await prisma.stepTemplate.findMany({ where: { workspaceId: "demo_workspace", versions: { some: { mixSteps: { some: { mixId } } } } }, select: { id: true } });

@@ -98,7 +98,9 @@ test("name-only contacts keep saved-date access and return to the filtered list"
     await page.goto(`/contacts?q=${encodeURIComponent(displayName)}`);
     const row = page.locator(".contact-row").filter({ hasText: displayName });
     await expect(row).toHaveCount(1);
-    await row.locator("a.contact-main").click();
+    await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
+    // The row's name opens the profile; from 1200 px it docks beside the filtered list.
+    await row.getByRole("link", { name: displayName, exact: true }).click();
 
     const more = page.locator("details.contact-detail-more");
     const openMore = async () => {

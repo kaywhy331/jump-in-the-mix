@@ -48,8 +48,11 @@ test("ready-made selection, favorites and existing copies stay connected without
   await expect(details).not.toContainText("My adapted conversation");
   await page.getByRole("button", { name: "Add Ready sample 01 to favorites", exact: true }).click();
   await expect(page.getByRole("button", { name: "Remove Ready sample 01 from favorites", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await page.reload({ waitUntil: "networkidle" });
+  // Visible links keep prefetching after load, so the network never idles; wait for the app instead.
+  await page.reload();
+  await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
   await expect(selected).toContainText("Opening conversation 1.");
+  await expect(page.getByRole("button", { name: "Remove Ready sample 01 from favorites", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("link", { name: "Favorites", exact: true }).click();
   await expect(page.locator(".mix-library-row")).toHaveCount(1);
   await expect(selected).toContainText("Opening conversation 1.");
@@ -160,5 +163,7 @@ test("keyboard filters, tools and search remain available after an empty result"
   await expect(page.getByRole("dialog").getByRole("link", { name: "My invitations", exact: true })).toBeVisible();
   await page.keyboard.press("Escape"); await expect(page.getByRole("button", { name: "More ready-made Mix tools", exact: true })).toBeFocused();
   await page.getByRole("link", { name: "Clear filters", exact: true }).click();
-  await expect(page.getByRole("link", { name: "Ready-made", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page).toHaveURL(/\/templates$/);
+  // The ready-made library is the Marketplace collection since 91e5aad replaced the "Ready-made" tab.
+  await expect(page.getByRole("navigation", { name: "Mix collection", exact: true }).getByRole("link", { name: "Marketplace", exact: true })).toHaveAttribute("aria-current", "page");
 });

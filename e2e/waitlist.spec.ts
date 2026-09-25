@@ -8,7 +8,8 @@ test("homepage offers an email waitlist without opening account signup", async (
   await page.locator(".hero-actions").getByRole("link", { name: "Join the waitlist" }).click();
   await expect(page).toHaveURL(/\/waitlist$/);
   await expect(page.getByRole("heading", { name: "Join the waitlist" })).toBeVisible();
-  await expect(page.getByText(/Leave your email and we’ll let you know/)).toBeVisible();
+  await expect(page.getByText("Request access with your email. Accounts are free, with no card to enter.", { exact: true })).toBeVisible();
+  await expect(page.getByText("We email your invitation when access is available.", { exact: true })).toBeVisible();
   await expect(page.locator('input[name="password"]')).toHaveCount(0);
 });
 

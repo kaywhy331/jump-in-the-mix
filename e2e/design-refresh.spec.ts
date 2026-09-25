@@ -27,6 +27,18 @@ async function hitTarget(locator: Locator) {
   })).toBe(true);
 }
 
+// The ready-made page streams in after the app shell is ready, and each new selection or page resets the phone
+// pane on its first render; a tap before React attaches to the pane button is replayed and then undone by that
+// reset. Choose a pane only once its button is hydrated and a frame has passed for its effects.
+async function choosePane(page: Page, name: "Mixes" | "Details") {
+  if ((page.viewportSize()?.width ?? 1200) >= 1200) return; // From 1200 px every pane is shown side by side.
+  const button = page.getByRole("navigation", { name: "Mix workspace panels", exact: true }).getByRole("button", { name, exact: true });
+  await expect.poll(() => button.evaluate(element => Object.keys(element).some(key => key.startsWith("__reactProps")))).toBe(true);
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "true");
+}
+
 async function checkModal(page: Page, trigger: Locator, confirmation: string) {
   await trigger.click();
   const dialog = page.getByRole("dialog");
@@ -111,6 +123,10 @@ test("library selection preserves filters and keyboard tools stay accessible", a
   await page.locator(".mix-library-item").filter({ hasText: "Design sample 0" }).click();
   await expect(page.getByRole("region", { name: "Selected ready-made Mix" })).toContainText("Check in");
   await expect(page).toHaveURL(/category=New\+customers/);
+  await expect(page).toHaveURL(new RegExp(`mix=${templateId}-0`));
+  // On a phone, choosing a Mix shows its Beats pane; the library tools are under the Mixes pane.
+  await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
+  await choosePane(page, "Mixes");
   const filter = page.getByRole("button", { name: "Filter ready-made mixes", exact: true });
   await filter.focus(); await page.keyboard.press("Enter");
   const goals = await page.getByLabel("Filter by goal").locator("option").allTextContents();
@@ -126,6 +142,9 @@ test("library selection preserves filters and keyboard tools stay accessible", a
   await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill("Jeremy Miner");
   await page.getByRole("button", { name: "Search ready-made mixes", exact: true }).click();
   await expect(page).toHaveURL(/q=Jeremy\+Miner|q=Jeremy%20Miner/, { timeout: 60_000 });
+  // The search loads a new page, which opens on the library pane; a phone shows the chosen Mix's details under Details.
+  await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
+  await choosePane(page, "Details");
   await expect(page.getByRole("complementary", { name: "Ready-made Mix details" })).toContainText("NEPQ");
 });
 
@@ -207,7 +226,8 @@ test("responsive destinations stay reachable and hydration stays consistent", as
     await page.goto("/mixes");
     await page.setViewportSize({ width, height: 1000 });
     await settle();
-    const library = page.getByRole("link", { name: "Ready-made mixes", exact: true });
+    // The ready-made library is reached through the Marketplace collection tab (91e5aad replaced the Ready-made tab).
+    const library = page.getByRole("navigation", { name: "Mix collection", exact: true }).getByRole("link", { name: "Marketplace", exact: true });
     const bounds = await library.boundingBox();
     expect(bounds?.width).toBeGreaterThanOrEqual(44);
     expect(bounds?.height).toBeGreaterThanOrEqual(44);
@@ -221,10 +241,16 @@ test("responsive destinations stay reachable and hydration stays consistent", as
   }
   await page.goto("/account/preferences");
   await settle();
-  for (const route of ["/settings", "/help", "/account/tickets"]) {
-    await page.goto(route);
-    await settle();
-    await expect(page.locator('.nav-link[aria-current="page"]:visible')).toContainText("More");
+  // The phone tab bar marks More for these pages; the desktop sidebar hides More (2c029bc) and marks
+  // the page itself among its Account and help links (7e37d73).
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const [route, label] of [["/settings", "Settings"], ["/help", "Help"], ["/account/tickets", "My account"]] as const) {
+      await page.goto(route);
+      await settle();
+      if (width < 1024) await expect(page.locator('.nav-link[aria-current="page"]:visible')).toContainText("More");
+      else await expect(page.getByRole("navigation", { name: "Account and help", exact: true }).locator('a[aria-current="page"]:visible')).toHaveText(label);
+    }
   }
   expect(errors, JSON.stringify([...new Set(networkFailures)].slice(0, 12))).toEqual([]);
 });
