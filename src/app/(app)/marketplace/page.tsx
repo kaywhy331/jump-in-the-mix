@@ -9,12 +9,14 @@ import { BrandTermsHelp } from "@/components/BrandTermsHelp";
 import { MixFavoriteButton } from "@/components/MixFavoriteButton";
 import { PortableOutline } from "@/components/PortableOutline";
 import { AddFromMarketplaceForm, ListingFavoriteButton, ReportSheet } from "@/components/MarketplaceControls";
+import { ActionForm } from "@/components/ActionForm";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { requireWorkspace } from "@/lib/auth";
 import { getPlatformStringList } from "@/lib/platform-settings";
 import { formatDateTime } from "@/lib/format";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { MARKETPLACE_CHANNELS, MARKETPLACE_SIZES, reasonLabel } from "@/lib/marketplace";
-import { markReportsSeenAction } from "@/lib/marketplace-actions";
+import { markReportsSeenAction, unshareAction } from "@/lib/marketplace-actions";
 import { readMarketplace, readMarketplaceItem, type MarketplaceFilters } from "@/lib/marketplace-service";
 import { portableFingerprint, portableSummary } from "@/lib/mix-portable";
 import { prisma } from "@/lib/prisma";
@@ -54,6 +56,8 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
   const channels = item?.value ? [...new Set(item.value.mixes.flatMap(mix => mix.steps.map(step => step.channel === "EMAIL" ? "EMAIL" : step.channel === "PHONE_CALL" || step.channel === "VOICEMAIL" ? "CALL" : "TEXT")))].map(channelName).join(", ") : "";
   const kindLabel = (kind: "MIX" | "MEGA_MIX") => kind === "MIX" ? "Mix" : "Mega-Mix";
   const itemKind = item ? item.type === "official-mega" ? "MEGA_MIX" : item.type === "official-mix" ? "MIX" : item.listing.kind : "MIX";
+  // The author's own share keeps its pane (status, reports, the manage link) even while its content cannot be shown.
+  const ownPane = item?.type === "listing" && item.own;
 
   return <div className="page mix-workspace-page marketplace-page">
     {params.shared && <Notice type="success">Shared. People see your latest saved version, and your edits appear as soon as you save them.</Notice>}
@@ -94,30 +98,31 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
           return <div className="mix-library-row" key={row.id}>
             {/* Shares are live, so a prefetched copy could show old wording or counts. */}<Link className="mix-library-item" prefetch={false} href={`${href({ item: key })}#selected-mix`} aria-current={selectedKey === key ? "page" : undefined}>
               <span className="mix-row-icon" aria-hidden="true"><AppIcon name={row.kind === "MIX" ? "mixes" : "journey"} /></span>
-              <span className="mix-row-copy"><strong>{row.title}</strong><small>{kindLabel(row.kind)} · {row.kind === "MEGA_MIX" ? `${row.mixCount} Mixes · ` : ""}{row.beatCount} {row.beatCount === 1 ? "Beat" : "Beats"}{section === "community" ? ` · by ${row.author}` : ""}{section === "mine" ? ` · ${row.status === "LIVE" ? "shared" : row.status === "HIDDEN" ? "hidden for review" : "not shared"}${row.openReports ? ` · ${row.openReports} open ${row.openReports === 1 ? "report" : "reports"}` : ""}` : ""}</small></span>
+              <span className="mix-row-copy"><strong>{row.title}</strong><small>{kindLabel(row.kind)} · {row.kind === "MEGA_MIX" ? `${row.mixCount} Mixes · ` : ""}{row.beatCount} {row.beatCount === 1 ? "Beat" : "Beats"}{section === "community" ? ` · by ${row.author}` : ""}{section === "mine" ? ` · ${row.status === "LIVE" ? "shared" : row.status === "HIDDEN" ? "hidden for review" : "not shared"}${row.available ? "" : " · nothing to show right now"}${row.openReports ? ` · ${row.openReports} open ${row.openReports === 1 ? "report" : "reports"}` : ""}` : ""}</small></span>
             </Link>
-            {row.section === "community" && row.favorites !== null && section !== "mine" ? <ListingFavoriteButton listingId={row.id} name={row.title} initial={row.favorite} count={row.favorites} canEdit={!impersonation} />
+            {row.section === "community" && row.favorites !== null && section !== "mine" && !row.own ? <ListingFavoriteButton listingId={row.id} name={row.title} initial={row.favorite} count={row.favorites} canEdit={!impersonation} />
               : row.kind === "MIX" && row.section === "official" ? <MixFavoriteButton target={{ kind: "template", id: row.id.slice(4) }} name={row.title} initial={row.favorite} canEdit={!impersonation} /> : null}
           </div>;
         })}</nav> : <p className="muted-copy">{section === "mine" ? "Share a Mix or Mega-Mix from its page to see it here." : filters.favorites ? "Favorite something to find it here." : "Nothing matches. Try another search or clear your filters."}</p>}
         {pages > 1 && <nav className="mix-library-pagination" aria-label="Marketplace result pages">{page > 1 && <Link className="icon-button" href={href({ page: String(page - 1), item: undefined })} aria-label="Previous results"><AppIcon name="arrowLeft" /></Link>}<span>{page} / {pages}</span>{page < pages && <Link className="icon-button" href={href({ page: String(page + 1), item: undefined })} aria-label="Next results"><AppIcon name="arrowLeft" style={{ transform: "rotate(180deg)" }} /></Link>}</nav>}
       </aside>
 
-      {item && item.value ? <div className="mix-edit-columns">
+      {item && (item.value || ownPane) ? <div className="mix-edit-columns">
         <section id="selected-mix" className="mix-editor-workspace" aria-label={`Selected ${kindLabel(itemKind)}`}>
           <header className="mix-selected-header"><div><h2>{item.title}</h2><span className="status-pill">{kindLabel(itemKind)}</span></div>
             {item.type === "listing" && !item.own && <ListingFavoriteButton listingId={item.id} name={item.title} initial={item.favorite} count={item.favorites} canEdit={!impersonation} />}
           </header>
           <p className="marketplace-byline">{item.author === "Jump in the Mix" ? <><AppIcon name="check" />Made by Jump in the Mix</> : <>Shared by <strong>{item.author}</strong></>}{item.industry ? ` · ${item.industry}` : ""}</p>
           {item.type === "listing" && item.own && item.listing.status !== "LIVE" && <p className={`notice${item.listing.status === "HIDDEN" ? " error" : ""}`} role="status">{item.listing.status === "HIDDEN" ? `Hidden while our team reviews a report: ${reasonLabel(item.listing.hiddenReason ?? "OTHER")}. You can edit the wording; it stays in your account.` : "Not shared. Only you can see this page."}</p>}
+          {item.type === "listing" && item.own && !item.value && <p className="notice" role="status">{item.archived ? "This Mix is archived, so it is left out of the Community list." : itemKind === "MEGA_MIX" ? "Nothing to show right now. A Mega-Mix is left out of the Community list while none of its Mixes can be shared: each is archived, has no Beats or starts on a fixed date." : "Nothing to show right now. A Mix is left out of the Community list while it has no Beats or starts on a fixed date."} Your share, its favorites and its reports are kept.</p>}
           {item.summary && <p className="mix-selected-description">{item.summary}</p>}
           {facts && <p className="mega-mix-facts">{itemKind === "MEGA_MIX" ? `${facts.mixes} Mixes · ` : ""}{facts.beats} Beats{itemKind === "MEGA_MIX" ? ` · ${facts.connections} paths` : ""} · {channels}{"favorites" in item && item.favorites !== undefined ? ` · ${item.favorites} ${item.favorites === 1 ? "favorite" : "favorites"}` : ""}{"added" in item && item.added ? ` · added ${item.added} ${item.added === 1 ? "time" : "times"}` : ""}</p>}
-          <PortableOutline value={item.value} label={`${item.title} Beats in journey order`} />
+          {item.value && <PortableOutline value={item.value} label={`${item.title} Beats in journey order`} />}
         </section>
         <aside className="mix-context-pane" aria-label="Add or share">
           {item.type === "official-mega" && <section><h3><AppIcon name="journey" />Add to your account</h3>{item.installed ? <p>Already in your account as <Link href={`/mixes/mega?megaMix=${encodeURIComponent(item.installed.id)}`}>{item.installed.name}</Link>.</p> : <p>Choose your working days and preferred channel, then review before anything is added.</p>}<Link className="button small" href={item.setupHref}><AppIcon name="plus" />{item.installed ? "Open setup" : "Set up this Mega-Mix"}</Link></section>}
           {item.type === "official-mix" && <section><h3><AppIcon name="mixes" />Add to your account</h3><p>Choose who it’s for and when it starts, then review before anything is added.</p><Link className="button small" href={item.setupHref}><AppIcon name="plus" />Set up this Mix</Link></section>}
-          {item.type === "listing" && !item.own && <>
+          {item.type === "listing" && !item.own && item.value && <>
             <section><h3><AppIcon name="plus" />Add to your account</h3>
               {item.imports.length > 0 && <p className="muted-copy">You added this {formatDateTime(item.imports[0].createdAt.toISOString(), display)}.{item.imports[0].fingerprint !== item.listing.fingerprint ? " The author has updated it since. Your copy stays as it is; add this version to use the update." : ""}</p>}
               <AddFromMarketplaceForm listingId={item.id} fingerprint={portableFingerprint(item.value)} defaultName={item.title} kind={item.listing.kind} canEdit={!impersonation} />
@@ -125,8 +130,12 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
             <section><h3><AppIcon name="flag" />Something wrong?</h3>{!impersonation && <ReportSheet listingId={item.id} title={item.title} reported={item.reported} />}</section>
           </>}
           {item.type === "listing" && item.own && <>
-            <section><h3><AppIcon name="share" />Your share</h3><p>{item.listing.status === "LIVE" ? "Shared. Everyone sees your latest saved version." : item.listing.status === "HIDDEN" ? "Hidden for review." : "Not shared."} {item.favorites} {item.favorites === 1 ? "favorite" : "favorites"} · added {item.added} {item.added === 1 ? "time" : "times"}.</p>
-              <Link className="button small" href={item.listing.kind === "MIX" ? `/mixes?mix=${encodeURIComponent(item.listing.mixId ?? "")}#selected-mix` : `/mixes/mega?megaMix=${encodeURIComponent(item.listing.pipelineId ?? "")}`}><AppIcon name="edit" />Open to edit or manage sharing</Link></section>
+            <section><h3><AppIcon name="share" />Your share</h3><p>{item.listing.status === "LIVE" ? item.value ? "Shared. Everyone sees your latest saved version." : "Shared, but left out of Community for now." : item.listing.status === "HIDDEN" ? "Hidden for review." : "Not shared."} {item.favorites} {item.favorites === 1 ? "favorite" : "favorites"} · added {item.added} {item.added === 1 ? "time" : "times"}.</p>
+              {item.archived ? <p className="muted-copy">An archived Mix can’t be opened or edited.</p> : <Link className="button small" href={item.listing.kind === "MIX" ? `/mixes?mix=${encodeURIComponent(item.listing.mixId ?? "")}#selected-mix` : `/mixes/mega?megaMix=${encodeURIComponent(item.listing.pipelineId ?? "")}`}><AppIcon name="edit" />Open to edit or manage sharing</Link>}
+              {/* Its own page cannot stop a share that has nothing to show, so it can be stopped here. */}
+              {!impersonation && !item.value && item.listing.status === "LIVE" && <ConfirmDialog trigger={<>Stop sharing</>} title={`Stop sharing ${item.title}?`} description="It leaves the Marketplace now. Copies people already added stay theirs, and your favorites count returns if you share again.">
+                <ActionForm action={unshareAction} className="form-stack"><input type="hidden" name="listingId" value={item.id} /><button className="button danger" type="submit">Stop sharing</button></ActionForm>
+              </ConfirmDialog>}</section>
             <section><h3><AppIcon name="flag" />Reports</h3>{item.reports.length ? <><ul className="marketplace-reports">{item.reports.map(report => <li key={report.id}><strong>{reasonLabel(report.reason)}</strong><small>{formatDateTime(report.createdAt.toISOString(), display)} · {report.status === "OPEN" ? report.autoHidden ? "hidden while we review" : "being reviewed" : report.status === "DISMISSED" ? (item.listing.status === "LIVE" ? "reviewed: shared" : "reviewed: report dismissed") : item.listing.status === "HIDDEN" ? "reviewed: share stays hidden" : "reviewed: report upheld"}</small>{report.details && <p>{report.details}</p>}{report.reviewNote && <p><em>Our team: {report.reviewNote}</em></p>}</li>)}</ul>
               {!impersonation && <form action={markReportsSeenAction}><input type="hidden" name="listingId" value={item.id} /><button className="button small" type="submit"><AppIcon name="check" />Mark as read</button></form>}</> : <p>No reports.</p>}</section>
           </>}

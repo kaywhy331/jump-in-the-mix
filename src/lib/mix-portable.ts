@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { WorkflowConfiguration, WorkflowRule, WorkflowTarget } from "@/lib/mix-workflow-types";
+import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
+import { preparationFamilyForChannel } from "@/lib/preparation-family";
+import { MAX_STEP_OFFSET_MINUTES } from "@/lib/step-timing";
 
 // A portable Mix or Mega-Mix: the wording, timing and connections, without any account ids,
 // people, schedules or history. Files, copies and the Marketplace all use this one shape.
 export const PORTABLE_FORMAT = "jump-in-the-mix";
 export const PORTABLE_VERSION = 1;
-export const PORTABLE_LIMITS = { mixes: 60, steps: 40, rules: 400, bytes: 900_000 } as const;
+// Fifty Beats a Mix, as the editor allows; the byte cap bounds the file as a whole.
+export const PORTABLE_LIMITS = { mixes: 60, steps: 50, rules: 400, bytes: 900_000 } as const;
 
 const key = z.string().regex(/^[a-z0-9-]{1,40}$/);
 const text = (maximum: number) => z.string().max(maximum).nullable();
@@ -32,12 +36,72 @@ const rule = z.object({
   key, name: z.string().trim().min(1).max(160), enabled: z.boolean(), mode: z.enum(["CHOICE", "PARALLEL"]), source: target,
   routes: z.array(route).min(1).max(50), join: z.object({ mode: z.enum(["ALL", "ANY"]), target, cancelRemaining: z.boolean() }).strict().nullable()
 }).strict();
-export const portableSchema = z.object({
+const packageShape = z.object({
   format: z.literal(PORTABLE_FORMAT), version: z.literal(PORTABLE_VERSION), kind: z.enum(["mix", "mega-mix"]),
   name: z.string().trim().min(1).max(80), description: text(2000), exportedAt: z.string().max(40).optional(),
   mixes: z.array(mix).min(1).max(PORTABLE_LIMITS.mixes), rules: z.array(rule).max(PORTABLE_LIMITS.rules),
   waitingBeats: z.array(z.object({ mix: key, beat: key }).strict()).max(2000), finishes: z.array(key).max(PORTABLE_LIMITS.mixes)
-}).strict().superRefine((value, context) => {
+}).strict();
+type PortableShape = z.infer<typeof packageShape>;
+
+/** The Mix editor's day-offset cap; a file gets no more room than the form. */
+export const MAX_PORTABLE_OFFSET_DAYS = 365;
+const VERSION_LABEL = { TEXT: "text version", EMAIL: "email version", CALL: "call version" } as const;
+const FAMILY_WORDING = { TEXT: "text", EMAIL: "email", CALL: "call" } as const;
+
+/** Only the merge fields the editor accepts, and private notes only where a call shows them to the owner alone. */
+function wordingIssues(fields: Array<string | null>, where: string, privateNotesAllowed: boolean): string[] {
+  const wording = fields.filter(Boolean).join("\n");
+  const unknown = findUnknownPlaceholders(wording);
+  const issues = unknown.length ? [`${where} uses unsupported placeholders: ${unknown.join(", ")}.`] : [];
+  if (!privateNotesAllowed && containsPrivateNotesPlaceholder(wording)) issues.push(`${where} uses private notes, which only a phone-call Beat or a call version may show.`);
+  return issues;
+}
+
+/**
+ * The rules the Mix editor applies to every saved Beat, applied to a package: timing inside the
+ * editor's limits and suited to how the Mix will start, wording present for the channel, only known
+ * merge fields, private notes only where a call shows them, and at most one version per other family.
+ * Files, copies and Marketplace adds all pass through here, so no import can create a Beat the editor
+ * would refuse. Nothing here is stricter than the editor: every Mix it saves exports and imports again.
+ */
+export function portableContentIssues(value: PortableShape): string[] {
+  const issues: string[] = [];
+  for (const item of value.mixes) {
+    // A date-based Mix whose file names no date is added as one you start for someone (installPortable).
+    const manual = item.triggerMode === "MANUAL_START" || !item.dateType;
+    for (const [index, step] of item.steps.entries()) {
+      const where = `Beat ${index + 1} of ${item.name}`;
+      if (Math.abs(step.dayOffset) > MAX_PORTABLE_OFFSET_DAYS) issues.push(`${where} must be between -${MAX_PORTABLE_OFFSET_DAYS} and ${MAX_PORTABLE_OFFSET_DAYS} days.`);
+      if (step.anchor === "CALENDAR_DAY") {
+        if (manual && step.dayOffset < 0) issues.push(`${where} is scheduled before its start date, which only a Mix that starts from a date can do.`);
+      } else {
+        if (!manual) issues.push(`${where} is timed from an appointment, which only a Mix you start for someone can do.`);
+        if (step.offsetMinutes === null) issues.push(`${where} needs a whole number of minutes.`);
+        else if (Math.abs(step.offsetMinutes) > MAX_STEP_OFFSET_MINUTES) issues.push(`${where} must stay within ${MAX_STEP_OFFSET_MINUTES / 1440} days of the appointment.`);
+        else if (step.anchor === "VISIT_COMPLETED" && step.offsetMinutes < 0) issues.push(`${where} can only follow the moment the visit is marked completed.`);
+      }
+      const primary = preparationFamilyForChannel(step.channel);
+      if (step.channel === "EMAIL" && (!step.subject?.trim() || !step.body?.trim())) issues.push(`${where} is an email and needs a subject and a message.`);
+      if (primary === "TEXT" && !step.body?.trim()) issues.push(`${where} needs a message.`);
+      if (primary === "CALL" && !step.script?.trim()) issues.push(`${where} needs call or voicemail notes.`);
+      issues.push(...wordingIssues([step.subject, step.body, step.script], where, step.channel === "PHONE_CALL"));
+      const families = new Set<string>();
+      for (const version of step.variants) {
+        const label = `${where}’s ${VERSION_LABEL[version.family]}`;
+        if (version.family === primary) issues.push(`${where} already uses ${FAMILY_WORDING[primary]} wording, so it cannot also have a ${VERSION_LABEL[primary]}.`);
+        if (families.has(version.family)) issues.push(`${where} has more than one ${VERSION_LABEL[version.family]}.`);
+        families.add(version.family);
+        if (version.family === "CALL" ? !version.script?.trim() : !version.body?.trim()) issues.push(`${label} has no wording.`);
+        if (version.family === "EMAIL" && !version.subject?.trim()) issues.push(`${label} needs a subject.`);
+        issues.push(...wordingIssues([version.subject, version.body, version.script], label, version.family === "CALL"));
+      }
+    }
+  }
+  return issues;
+}
+
+export const portableSchema = packageShape.superRefine((value, context) => {
   const mixes = new Map(value.mixes.map(item => [item.key, new Set(item.steps.map(beat => beat.key))]));
   if (mixes.size !== value.mixes.length) context.addIssue({ code: "custom", message: "Each Mix in the file needs its own key." });
   for (const item of value.mixes) if (new Set(item.steps.map(beat => beat.key)).size !== item.steps.length) context.addIssue({ code: "custom", message: `${item.name}: each Beat needs its own key.` });
@@ -46,6 +110,7 @@ export const portableSchema = z.object({
   for (const item of value.rules) for (const point of [item.source, ...item.routes.flatMap(entry => entry.target ? [entry.target] : []), ...item.join ? [item.join.target] : []]) if (!exists(point)) context.addIssue({ code: "custom", message: `${item.name}: a connection points to a Mix or Beat that is not in the file.` });
   for (const point of value.waitingBeats) if (!exists(point)) context.addIssue({ code: "custom", message: "A waiting Beat is not in the file." });
   for (const point of value.finishes) if (!mixes.has(point)) context.addIssue({ code: "custom", message: "A finish points to a Mix that is not in the file." });
+  for (const message of portableContentIssues(value)) context.addIssue({ code: "custom", message });
 });
 export type PortablePackage = z.infer<typeof portableSchema>;
 export type PortableMix = PortablePackage["mixes"][number];
@@ -59,7 +124,7 @@ export function parsePortable(raw: string): PortablePackage {
   if (!value || typeof value !== "object" || (value as { format?: unknown }).format !== PORTABLE_FORMAT) throw new Error("This is not a Jump in the Mix file. Export a Mix or Mega-Mix and choose that file.");
   if ((value as { version?: unknown }).version !== PORTABLE_VERSION) throw new Error("This file was made by a newer version of Jump in the Mix and cannot be imported yet.");
   const parsed = portableSchema.safeParse(value);
-  if (!parsed.success) throw new Error(`This file cannot be imported: ${parsed.error.issues[0]?.message ?? "it is incomplete"}.`);
+  if (!parsed.success) throw new Error(`This file cannot be imported: ${(parsed.error.issues[0]?.message ?? "it is incomplete").replace(/\.$/, "")}.`);
   return parsed.data;
 }
 

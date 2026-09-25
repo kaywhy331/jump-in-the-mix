@@ -17,6 +17,9 @@ import { timezoneForUser } from "@/lib/display-preferences";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
 
 const MAX_STEP_OFFSET_DAYS = 365;
+const MIX_CHANGED_ELSEWHERE = "This Mix was changed on another device after you opened it. Reload to compare, then apply your changes again.";
+/** A newer save exists. Nothing was written; the open editor keeps the owner's entries and shows why. */
+class MixChangedElsewhere extends Error {}
 const CHANNELS: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
 
 type InlineVariant = { family: PreparationFamily; subject: string | null; body: string | null; script: string | null };
@@ -102,10 +105,16 @@ function validateInlineAction(formData: FormData, index: number, path: string): 
   };
 }
 
-export async function saveMixAction(formData: FormData): Promise<void> {
+/**
+ * Saves the editor. Every outcome redirects except a save refused because the Mix changed on another
+ * device: that one returns its message, so the open editor keeps what the owner typed.
+ */
+export async function saveMixAction(formData: FormData): Promise<{ error: string } | undefined> {
   const { workspace, user, impersonation } = await requireWorkspace();
   const workspaceTimezone = await timezoneForUser(user.id);
   const mixIdRaw = value(formData, "mixId", 100);
+  // The Mix's last save as the editor saw it when it opened; blank on an older form or a new Mix.
+  const openedAt = value(formData, "mixUpdatedAt", 40);
   const name = value(formData, "name", 160);
   const description = value(formData, "description", 1200);
   const framework = value(formData, "framework", 160);
@@ -238,6 +247,13 @@ export async function saveMixAction(formData: FormData): Promise<void> {
   try {
     await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR UPDATE`;
+      // Saves queue on the workspace lock, so this read sees every save that finished since the editor
+      // opened. A newer one from another device is refused rather than overwritten; the entries stay on
+      // screen and the owner reloads to compare.
+      if (existingMix && openedAt) {
+        const current = await tx.mix.findUnique({ where: { id: mixId }, select: { updatedAt: true } });
+        if (!current || current.updatedAt.getTime() !== Date.parse(openedAt)) throw new MixChangedElsewhere(MIX_CHANGED_ELSEWHERE);
+      }
       const freshStart = Boolean(existingMix && status === "ACTIVE" && triggerMode === "MANUAL_START"
         && await startDraftMix(tx, { workspaceId: workspace.id, mixId, now }));
       const mixData = {
@@ -354,6 +370,7 @@ export async function saveMixAction(formData: FormData): Promise<void> {
       await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });
     });
   } catch (error) {
+    if (error instanceof MixChangedElsewhere) return { error: error.message };
     fail(path, error instanceof Error ? error.message : "The mix could not be saved.");
   }
 

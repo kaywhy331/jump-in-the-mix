@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AppIcon } from "@/components/AppIcon";
+import { RequiredFieldsNote } from "@/components/RequiredFieldsNote";
 import { SchedulePreview } from "@/components/SchedulePreview";
 import { type FormEvent, useMemo, useRef, useState } from "react";
 import { useAudiencePreview } from "@/components/useAudiencePreview";
@@ -27,7 +28,7 @@ type Variants = { textBody: string; emailSubject: string; emailBody: string; cal
 // An elapsed beat is edited as a positive number of minutes plus before/after; the stored offset keeps its sign.
 type SequenceItem = { key: string; id?: string; name: string; channel: Channel; subject: string; body: string; script: string; dayOffset: number; sendTimeMinutes: number | null; plannedAt: string; anchor: StepAnchor; offsetMinutes: string; before: boolean; variants: Variants };
 type StoredVariant = { family: PreparationFamily; subject: string | null; body: string | null; script: string | null };
-type MixValue = { id?: string; name?: string; description?: string | null; framework?: string | null; category?: string | null; industry?: string | null; triggerMode?: TriggerMode; dateTypeId?: string | null; status?: MixStatus; groupIds?: string[]; assignAllContacts?: boolean; broadcastDate?: string | null; broadcastTime?: string | null; broadcastTimezone?: string | null; steps?: Array<{ id: string; stepTemplateId: string; templateActive: boolean; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null; dayOffset: number; sendTimeMinutes: number | null; plannedAt?: string | null; anchor?: StepAnchor; offsetMinutes?: number | null; variants?: StoredVariant[] }> };
+type MixValue = { id?: string; name?: string; description?: string | null; framework?: string | null; category?: string | null; industry?: string | null; triggerMode?: TriggerMode; dateTypeId?: string | null; updatedAt?: string | null; status?: MixStatus; groupIds?: string[]; assignAllContacts?: boolean; broadcastDate?: string | null; broadcastTime?: string | null; broadcastTimezone?: string | null; steps?: Array<{ id: string; stepTemplateId: string; templateActive: boolean; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null; dayOffset: number; sendTimeMinutes: number | null; plannedAt?: string | null; anchor?: StepAnchor; offsetMinutes?: number | null; variants?: StoredVariant[] }> };
 type LegacyMessageOption = { id: string; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null };
 
 const MAX_STEP_OFFSET_DAYS = 365;
@@ -111,6 +112,10 @@ export function MixEditor({
   const [assignAllContacts, setAssignAllContacts] = useState(mix?.assignAllContacts ?? false);
   const [selectedGroupIds, setSelectedGroupIds] = useState(() => new Set(mix?.groupIds ?? []));
   const [reviewOpen, setReviewOpen] = useState(false);
+  // The Mix's last save when these entries were loaded. It is held rather than re-read from props, so a
+  // refused save cannot quietly adopt the newer version: the owner reloads to compare, as the message
+  // says. A successful save redirects, and the redirect remounts this editor with the new value.
+  const [openedAt] = useState(mix?.updatedAt ?? "");
   const [sequence, setSequence] = useState<SequenceItem[]>(() => {
     const existing = mix?.steps?.map((step) => ({ key: step.id, id: step.id, name: step.name, channel: step.channel, subject: step.subject ?? "", body: step.body ?? "", script: step.script ?? "", dayOffset: step.dayOffset, sendTimeMinutes: step.sendTimeMinutes, plannedAt: step.plannedAt ?? "", anchor: step.anchor ?? "CALENDAR_DAY", offsetMinutes: step.offsetMinutes == null ? "" : String(Math.abs(step.offsetMinutes)), before: (step.offsetMinutes ?? 0) < 0, variants: variantsOf(step.variants) })) ?? [];
     return existing.length ? existing : [newStep(0)];
@@ -147,15 +152,19 @@ export function MixEditor({
   });
   const [saveError, setSaveError] = useState("");
   const saveErrorRef = useRef<HTMLParagraphElement>(null);
-  // A failed request keeps the editor and every unsaved Beat on screen instead of falling to the error page.
+  const refuse = (message: string) => {
+    if (activationInputRef.current) activationInputRef.current.value = "0";
+    setSaveError(message);
+    requestAnimationFrame(() => saveErrorRef.current?.focus());
+  };
+  // A failed request, or a save refused because the Mix changed on another device, keeps the editor and
+  // every unsaved Beat on screen instead of falling to the error page. A saved Mix redirects.
   const save = async (data: FormData) => {
     setSaveError("");
-    try { await saveMixAction(data); }
+    try { const result = await saveMixAction(data); if (result?.error) refuse(result.error); }
     catch (cause) {
       if (isNavigationSignal(cause)) throw cause;
-      if (activationInputRef.current) activationInputRef.current.value = "0";
-      setSaveError(UNCONFIRMED_SAVE);
-      requestAnimationFrame(() => saveErrorRef.current?.focus());
+      refuse(UNCONFIRMED_SAVE);
     }
   };
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -172,8 +181,10 @@ export function MixEditor({
   return <form ref={formRef} action={save} onReset={event => event.preventDefault()} className="mix-editor-form simple-plan-editor" onSubmit={submit} onInvalid={event => { let parent = event.target instanceof HTMLElement ? event.target.parentElement : null; while (parent) { if (parent instanceof HTMLDetailsElement) parent.open = true; parent = parent.parentElement; } }}>
     <FormGuard guardOtherForms />
     {mix?.id && <input type="hidden" name="mixId" value={mix.id} />}
+    {mix?.id && openedAt && <input type="hidden" name="mixUpdatedAt" value={openedAt} />}
     <input ref={activationInputRef} type="hidden" name="activationConfirmed" defaultValue="0" />
     <input type="hidden" name="workflowRevision" value={workflowRevision} />
+    <RequiredFieldsNote />
 
     <details className="card mix-editor-section mix-start-settings" open={!mix?.id}>
       <summary><strong>Name and start</strong><span>{name || "Set up this mix"}</span></summary>
@@ -199,10 +210,10 @@ export function MixEditor({
       </div>
 
       <details className="plan-advanced-settings"><summary>Advanced mix settings</summary><div className="form-grid">
-        <label className="field full"><span>Description</span><textarea name="description" maxLength={1200} defaultValue={mix?.description ?? ""} placeholder="What this mix helps you remember" /></label>
+        <label className="field full"><span>Description (optional)</span><textarea name="description" maxLength={1200} defaultValue={mix?.description ?? ""} placeholder="What this mix helps you remember" /></label>
         <label className="field"><span>Goal</span><select name="category" defaultValue={planGoalLabel(mix?.category ?? "")}><option value="">None</option>{[...new Set([...categories.map(planGoalLabel), ...(mix?.category ? [planGoalLabel(mix.category)] : [])])].map((category) => <option key={category}>{category}</option>)}</select></label>
         <label className="field"><span>Business type</span><select name="industry" defaultValue={mix?.industry ?? ""}><option value="">Any</option>{industries.map((industry) => <option key={industry}>{industry}</option>)}</select></label>
-        <label className="field full"><span>Internal approach</span><input name="framework" maxLength={160} defaultValue={mix?.framework ?? ""} placeholder="Optional" /></label>
+        <label className="field full"><span>Internal approach (optional)</span><input name="framework" maxLength={160} defaultValue={mix?.framework ?? ""} /></label>
       </div></details>
     </details>
     <ol className="mix-beat-timeline" aria-label="Mix beat timing">{sequence.map((item, index) => <li key={item.key}><a href={`#mix-beat-${item.key}`}><span>{item.anchor === "CALENDAR_DAY" ? `Day ${item.dayOffset}` : describeStepTiming({ anchor: item.anchor, offsetMinutes: Number(signedMinutes(item)) || 0 })}</span><i aria-hidden="true" /><strong>Beat {index + 1}</strong></a></li>)}</ol>
@@ -253,12 +264,12 @@ export function MixEditor({
               <input type="hidden" name={`variantEmailBody-${index}`} value={primary === "EMAIL" ? "" : item.variants.emailBody} />
               <input type="hidden" name={`variantCallScript-${index}`} value={primary === "CALL" ? "" : item.variants.callScript} />
               <p className="muted-copy field full">On Today every follow-up can switch between a text, an email and a call; the version that suits the person is marked Recommended. A blank version below uses wording generated from this beat (shown greyed). Write your own to replace it. Switching never sends anything or adds another follow-up.</p>
-              {primary !== "TEXT" && <label className="field full"><span>Text version</span><textarea value={item.variants.textBody} onChange={(event) => setVariant({ textBody: event.target.value })} rows={3} placeholder={generated.TEXT?.body ?? "Hi {{First Name}}, ... {{SMS Signature}}"} />{!item.variants.textBody.trim() && generated.TEXT && <button type="button" className="text-button" onClick={() => useGenerated("TEXT")}><AppIcon name="edit" />Edit the generated text</button>}</label>}
-              {primary !== "EMAIL" && <><label className="field full"><span>Email version subject</span><input value={item.variants.emailSubject} onChange={(event) => setVariant({ emailSubject: event.target.value })} maxLength={300} placeholder={generated.EMAIL?.subject ?? undefined} /></label><label className="field full"><span>Email version</span><textarea value={item.variants.emailBody} onChange={(event) => setVariant({ emailBody: event.target.value })} rows={4} placeholder={generated.EMAIL?.body ?? "Hi {{First Name}}, ... {{Email Signature}}"} />{!item.variants.emailBody.trim() && generated.EMAIL && <button type="button" className="text-button" onClick={() => useGenerated("EMAIL")}><AppIcon name="edit" />Edit the generated email</button>}</label></>}
-              {primary !== "CALL" && <label className="field full"><span>Call version · talking points for you</span><textarea value={item.variants.callScript} onChange={(event) => setVariant({ callScript: event.target.value })} rows={5} placeholder={generated.CALL?.script ?? "What should you remember to ask? Private notes may go here."} />{!item.variants.callScript.trim() && generated.CALL && <button type="button" className="text-button" onClick={() => useGenerated("CALL")}><AppIcon name="edit" />Edit the generated talking points</button>}</label>}
+              {primary !== "TEXT" && <label className="field full"><span>Text version (optional)</span><textarea value={item.variants.textBody} onChange={(event) => setVariant({ textBody: event.target.value })} rows={3} placeholder={generated.TEXT?.body ?? "Hi {{First Name}}, ... {{SMS Signature}}"} />{!item.variants.textBody.trim() && generated.TEXT && <button type="button" className="text-button" onClick={() => useGenerated("TEXT")}><AppIcon name="edit" />Edit the generated text</button>}</label>}
+              {primary !== "EMAIL" && <><label className="field full"><span>Email version subject (optional)</span><input value={item.variants.emailSubject} onChange={(event) => setVariant({ emailSubject: event.target.value })} maxLength={300} placeholder={generated.EMAIL?.subject ?? undefined} /></label><label className="field full"><span>Email version (optional)</span><textarea value={item.variants.emailBody} onChange={(event) => setVariant({ emailBody: event.target.value })} rows={4} placeholder={generated.EMAIL?.body ?? "Hi {{First Name}}, ... {{Email Signature}}"} />{!item.variants.emailBody.trim() && generated.EMAIL && <button type="button" className="text-button" onClick={() => useGenerated("EMAIL")}><AppIcon name="edit" />Edit the generated email</button>}</label></>}
+              {primary !== "CALL" && <label className="field full"><span>Call version · talking points for you (optional)</span><textarea value={item.variants.callScript} onChange={(event) => setVariant({ callScript: event.target.value })} rows={5} placeholder={generated.CALL?.script ?? "What should you remember to ask? Private notes may go here."} />{!item.variants.callScript.trim() && generated.CALL && <button type="button" className="text-button" onClick={() => useGenerated("CALL")}><AppIcon name="edit" />Edit the generated talking points</button>}</label>}
             </div></details>;
           })()}
-          {item.anchor === "CALENDAR_DAY" && <details className="step-advanced-settings"><summary>More timing options</summary><div className="form-grid"><label className="field"><span>Position</span><select value={signedOffset < 0 ? "before" : "after"} onChange={(event) => updateStep(index, { dayOffset: event.target.value === "before" ? -Math.abs(item.dayOffset) : Math.abs(item.dayOffset) })} disabled={triggerMode === "MANUAL_START"}><option value="after">On or after the start</option><option value="before">Before the date</option></select></label><label className="field"><span>Specific time</span><input type="time" value={timeValue(item.sendTimeMinutes)} onChange={(event) => updateStep(index, { sendTimeMinutes: minutesValue(event.target.value) })} /></label><label className="field full"><span>Planned date (optional)</span><input type="datetime-local" value={item.plannedAt} onChange={(event) => updateStep(index, { plannedAt: event.target.value })} /><small>Becomes due at this date and time, in your timezone, for every contact who has reached this beat.</small></label></div></details>}
+          {item.anchor === "CALENDAR_DAY" && <details className="step-advanced-settings"><summary>More timing options</summary><div className="form-grid"><label className="field"><span>Position</span><select value={signedOffset < 0 ? "before" : "after"} onChange={(event) => updateStep(index, { dayOffset: event.target.value === "before" ? -Math.abs(item.dayOffset) : Math.abs(item.dayOffset) })} disabled={triggerMode === "MANUAL_START"}><option value="after">On or after the start</option><option value="before">Before the date</option></select></label><label className="field"><span>Specific time (optional)</span><input type="time" value={timeValue(item.sendTimeMinutes)} onChange={(event) => updateStep(index, { sendTimeMinutes: minutesValue(event.target.value) })} /></label><label className="field full"><span>Planned date (optional)</span><input type="datetime-local" value={item.plannedAt} onChange={(event) => updateStep(index, { plannedAt: event.target.value })} /><small>Becomes due at this date and time, in your timezone, for every contact who has reached this beat.</small></label></div></details>}
           <div className="mix-beat-reorder"><button className="button small" type="button" onClick={() => moveStep(index, -1)} disabled={index === 0} aria-label={`Move beat ${index + 1} up`}><AppIcon name="arrowUp" />Move up</button><button className="button small" type="button" onClick={() => moveStep(index, 1)} disabled={index === sequence.length - 1} aria-label={`Move beat ${index + 1} down`}><AppIcon name="arrowDown" />Move down</button><button className="button small danger" type="button" onClick={() => removeStep(index)} disabled={sequence.length === 1}><AppIcon name="trash" />Remove</button></div>
           </div></details>
         </fieldset>;

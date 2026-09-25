@@ -10,6 +10,10 @@ import { env } from "@/lib/env";
 
 type DB = Prisma.TransactionClient | typeof prisma;
 const visible = { status: "LIVE" as const };
+// A listing can show exactly what `sourceMixes` exports. Asking the database the same question keeps
+// the result count and the rows in step once a shared Mix is archived, emptied or given a fixed date.
+const exportableMix: Prisma.MixWhereInput = { source: { not: "ONE_TIME" }, status: { not: "ARCHIVED" }, triggerMode: { in: ["MANUAL_START", "DATE_TRIGGERED"] }, steps: { some: { isActive: true, plannedAt: null } } };
+const available: Prisma.MarketplaceListingWhereInput = { OR: [{ kind: "MIX", mix: exportableMix }, { kind: "MEGA_MIX", pipeline: { members: { some: { mix: exportableMix } } } }] };
 
 async function assertOwner(db: DB, workspaceId: string, actorUserId: string) {
   const owner = await db.workspace.findFirst({ where: { id: workspaceId, ownerId: actorUserId }, select: { id: true, name: true } });
@@ -75,7 +79,7 @@ export async function unshareFromMarketplace(input: { workspaceId: string; actor
 }
 
 export type MarketplaceFilters = { section: "official" | "community" | "mine"; kind: "" | "MIX" | "MEGA_MIX"; q: string; industry: string; channel: string; size: string; sort: "popular" | "newest" | "added"; favorites: boolean };
-export type MarketplaceRow = { id: string; section: "official" | "community"; kind: "MIX" | "MEGA_MIX"; title: string; author: string; summary: string | null; mixCount: number; beatCount: number; channels: string[]; industry: string | null; favorites: number | null; favorite: boolean; added: number; status?: string; openReports?: number; href: string };
+export type MarketplaceRow = { id: string; section: "official" | "community"; kind: "MIX" | "MEGA_MIX"; title: string; author: string; summary: string | null; mixCount: number; beatCount: number; channels: string[]; industry: string | null; favorites: number | null; favorite: boolean; added: number; available: boolean; own?: boolean; status?: string; openReports?: number; href: string };
 
 const officialMegaMixPackage = (id: string) => {
   const blueprint = megaMixById(id);
@@ -94,7 +98,7 @@ async function officialRows(filters: MarketplaceFilters, viewer: { userId: strin
     && (!filters.channel || row.channels.includes(filters.channel)) && (!size || row.beatCount >= size.min && row.beatCount <= size.max) && (!filters.favorites || row.favorite);
   if (filters.kind !== "MIX") for (const blueprint of MEGA_MIXES) {
     const value = officialMegaMixPackage(blueprint.id)!, facts = listingFacts(value);
-    rows.push({ id: `mega:${blueprint.id}`, section: "official", kind: "MEGA_MIX", title: value.name, author: "Jump in the Mix", summary: blueprint.description, mixCount: facts.mixCount, beatCount: facts.beatCount, channels: facts.channels, industry: blueprint.industry, favorites: null, favorite: false, added: 0, href: `/marketplace?item=${encodeURIComponent(`mega:${blueprint.id}`)}` });
+    rows.push({ id: `mega:${blueprint.id}`, section: "official", kind: "MEGA_MIX", title: value.name, author: "Jump in the Mix", summary: blueprint.description, mixCount: facts.mixCount, beatCount: facts.beatCount, channels: facts.channels, industry: blueprint.industry, favorites: null, favorite: false, added: 0, available: true, href: `/marketplace?item=${encodeURIComponent(`mega:${blueprint.id}`)}` });
   }
   if (filters.kind !== "MEGA_MIX") {
     const shared = await prisma.sharedMix.findMany({ where: { status: "APPROVED" }, orderBy: [{ updatedAt: "desc" }, { id: "asc" }], take: 500,
@@ -103,7 +107,7 @@ async function officialRows(filters: MarketplaceFilters, viewer: { userId: strin
       let steps: ReturnType<typeof normalizeSharedMixSteps>;
       try { steps = normalizeSharedMixSteps(item.steps); } catch { continue; }
       const channels = [...new Set(steps.map(step => step.channel === "EMAIL" ? "EMAIL" : step.channel === "PHONE_CALL" || step.channel === "VOICEMAIL" ? "CALL" : "TEXT"))].sort();
-      rows.push({ id: `mix:${item.id}`, section: "official", kind: "MIX", title: item.title, author: "Jump in the Mix", summary: item.description, mixCount: 1, beatCount: steps.length, channels, industry: item.industry, favorites: item._count.favorites, favorite: item.favorites.length > 0, added: item.importCount, href: `/marketplace?item=${encodeURIComponent(`mix:${item.id}`)}` });
+      rows.push({ id: `mix:${item.id}`, section: "official", kind: "MIX", title: item.title, author: "Jump in the Mix", summary: item.description, mixCount: 1, beatCount: steps.length, channels, industry: item.industry, favorites: item._count.favorites, favorite: item.favorites.length > 0, added: item.importCount, available: true, href: `/marketplace?item=${encodeURIComponent(`mix:${item.id}`)}` });
     }
   }
   const filtered = rows.filter(keep);
@@ -118,7 +122,7 @@ export async function readMarketplace(filters: MarketplaceFilters, viewer: { use
   const size = MARKETPLACE_SIZES.find(item => item.value === filters.size);
   const where: Prisma.MarketplaceListingWhereInput = {
     // A share you reported leaves your Community view; everyone else still sees it until staff decide.
-    ...(filters.section === "mine" ? { workspaceId: viewer.workspaceId } : { ...visible, reports: { none: { reporterUserId: viewer.userId } } }),
+    ...(filters.section === "mine" ? { workspaceId: viewer.workspaceId } : { ...visible, reports: { none: { reporterUserId: viewer.userId } }, AND: [available] }),
     ...(filters.kind ? { kind: filters.kind } : {}),
     ...(filters.industry ? { industry: filters.industry } : {}),
     ...(filters.channel ? { channels: { has: filters.channel } } : {}),
@@ -134,12 +138,13 @@ export async function readMarketplace(filters: MarketplaceFilters, viewer: { use
       _count: { select: { favorites: true, imports: true, reports: { where: { status: "OPEN" } } } },
       favorites: { where: { userId: viewer.userId }, select: { userId: true } } } })
   ]);
-  // Visible rows always reflect the author's latest save.
+  // Visible rows always reflect the author's latest save. Community rows were counted as available;
+  // the author's own list keeps an unavailable share so its status and reports stay reachable.
   const fresh = await Promise.all(listings.map(item => refreshListing(prisma, item).then(result => ({ ...item, ...result.listing, available: Boolean(result.value) }))));
   return { total, rows: fresh.filter(item => item.available || filters.section === "mine").map((item): MarketplaceRow => ({
     id: item.id, section: "community", kind: item.kind, title: item.title, author: item.workspace.marketplaceAuthor?.publicName ?? "Community member", summary: item.summary,
     mixCount: item.mixCount, beatCount: item.beatCount, channels: item.channels, industry: item.industry, favorites: item._count.favorites, favorite: item.favorites.length > 0, added: item._count.imports,
-    status: item.status, openReports: item._count.reports, href: `/marketplace?${filters.section === "mine" ? "section=mine&" : "section=community&"}item=${encodeURIComponent(`listing:${item.id}`)}` })) };
+    available: item.available, own: item.workspaceId === viewer.workspaceId, status: item.status, openReports: item._count.reports, href: `/marketplace?${filters.section === "mine" ? "section=mine&" : "section=community&"}item=${encodeURIComponent(`listing:${item.id}`)}` })) };
 }
 
 /** One item for the detail pane, with its live content. `item` is mega:<id>, mix:<id> or listing:<id>. */
@@ -165,7 +170,8 @@ export async function readMarketplaceItem(item: string, viewer: { userId: string
   const found = await prisma.marketplaceListing.findFirst({ where: { id, OR: [visible, { workspaceId: viewer.workspaceId }] } });
   if (!found) return null;
   const { listing, value } = await refreshListing(prisma, found);
-  const [author, favorites, favorite, added, imports, reports, reported] = await Promise.all([
+  const own = listing.workspaceId === viewer.workspaceId;
+  const [author, favorites, favorite, added, imports, reports, reported, archived] = await Promise.all([
     prisma.marketplaceAuthor.findUnique({ where: { workspaceId: listing.workspaceId }, select: { publicName: true } }),
     prisma.marketplaceFavorite.count({ where: { listingId: listing.id } }),
     prisma.marketplaceFavorite.findUnique({ where: { listingId_userId: { listingId: listing.id, userId: viewer.userId } }, select: { userId: true } }),
@@ -174,15 +180,22 @@ export async function readMarketplaceItem(item: string, viewer: { userId: string
     // The author always sees the reason; the reporter's own words reach them only after staff have read them.
     listing.workspaceId === viewer.workspaceId ? prisma.marketplaceReport.findMany({ where: { listingId: listing.id }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, reason: true, details: true, status: true, autoHidden: true, createdAt: true, reviewNote: true } })
       .then(rows => rows.map(report => ({ ...report, details: report.status === "OPEN" ? null : report.details }))) : Promise.resolve([]),
-    prisma.marketplaceReport.findUnique({ where: { listingId_reporterUserId: { listingId: listing.id, reporterUserId: viewer.userId } }, select: { id: true } })
+    prisma.marketplaceReport.findUnique({ where: { listingId_reporterUserId: { listingId: listing.id, reporterUserId: viewer.userId } }, select: { id: true } }),
+    // An archived Mix has no page to open, so the author manages that share from here.
+    own && !value && listing.kind === "MIX" && listing.mixId ? prisma.mix.count({ where: { id: listing.mixId, workspaceId: listing.workspaceId, status: "ARCHIVED" } }).then(Boolean) : Promise.resolve(false)
   ]);
   return { type: "listing" as const, id: listing.id, listing, value, title: listing.title, author: author?.publicName ?? "Community member", summary: listing.summary, industry: listing.industry,
-    favorites, favorite: Boolean(favorite), added, imports, own: listing.workspaceId === viewer.workspaceId, reports, reported: Boolean(reported) };
+    favorites, favorite: Boolean(favorite), added, imports, own, reports, reported: Boolean(reported), archived };
 }
 
+/**
+ * A favorite from anyone but the author, on a share with something to show; an author's own heart would
+ * only pad the popularity counts. Removing a favorite is always allowed.
+ */
 export async function setListingFavorite(input: { listingId: string; userId: string; workspaceId: string; favorite: boolean }) {
-  const listing = await prisma.marketplaceListing.findFirst({ where: { id: input.listingId, ...visible }, select: { id: true } });
+  const listing = await prisma.marketplaceListing.findFirst({ where: { id: input.listingId, ...visible, ...(input.favorite ? { AND: [available] } : {}) }, select: { id: true, workspaceId: true } });
   if (!listing) throw new Error("This share is no longer available.");
+  if (input.favorite && listing.workspaceId === input.workspaceId) throw new Error("This is your own share, so it can’t be one of your favorites.");
   if (input.favorite) await prisma.marketplaceFavorite.upsert({ where: { listingId_userId: { listingId: listing.id, userId: input.userId } }, create: { listingId: listing.id, userId: input.userId, workspaceId: input.workspaceId }, update: {} });
   else await prisma.marketplaceFavorite.deleteMany({ where: { listingId: listing.id, userId: input.userId } });
   return { favorite: input.favorite, count: await prisma.marketplaceFavorite.count({ where: { listingId: listing.id } }) };
@@ -191,11 +204,13 @@ export async function setListingFavorite(input: { listingId: string; userId: str
 /**
  * Add a listing to this account as new Mixes. The expected fingerprint is the version the owner
  * reviewed; if the author saved a change since, nothing is added and the new version is shown.
+ * The author cannot add their own share: it is already theirs, and each add would count as popularity.
  */
 export async function addFromMarketplace(input: { listingId: string; workspaceId: string; actorUserId: string; name: string; expectedFingerprint: string }) {
   return prisma.$transaction(async db => {
     const listing = await db.marketplaceListing.findFirst({ where: { id: input.listingId, ...visible } });
     if (!listing) throw new Error("This share is no longer available.");
+    if (listing.workspaceId === input.workspaceId) throw new Error("This is your own share. It’s already in your account, so it can’t be added again.");
     const value = await livePackage(db, listing);
     if (!value) throw new Error("This share is no longer available.");
     const fingerprint = portableFingerprint(value);

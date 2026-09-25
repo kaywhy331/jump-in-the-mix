@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
-import { test, expect, type BrowserContext } from "@playwright/test";
+import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
 import { installMegaMix } from "../src/lib/mega-mix-service";
 import { axeInPage } from "./axe-in-page";
@@ -116,6 +116,65 @@ test("a file that is not a Jump in the Mix export is refused and nothing is adde
   await expect(page.getByRole("alert").filter({ hasText: "This is not a Jump in the Mix file" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Import", exact: true })).toHaveCount(0);
   expect(await prisma.mix.count({ where: { workspaceId: account.workspaceId } })).toBe(0);
+});
+
+test("a file whose email Beat would show private notes is refused before anything is added", async ({ page, context }) => {
+  const account = await owner(context, "Pipeline private notes");
+  const beat = { key: "b1", name: "Notes", channel: "EMAIL", dayOffset: 0, sendTimeMinutes: null, anchor: "CALENDAR_DAY", offsetMinutes: null, subject: "Your notes", body: "Hi {{First Name}}, {{Private Notes}}", script: null, longSms: false, includeOptOut: false, variants: [] };
+  const file = { format: "jump-in-the-mix", version: 1, kind: "mix", name: "Leaky", description: null, rules: [], waitingBeats: [], finishes: [],
+    mixes: [{ key: "m1", name: "Leaky", description: null, category: null, industry: null, framework: null, triggerMode: "MANUAL_START", dateType: null, steps: [beat] }] };
+  await page.goto("/mixes/mega");
+  await page.getByRole("button", { name: "Import a Mix or Mega-Mix file" }).click();
+  await page.getByLabel("Mix or Mega-Mix file", { exact: true }).setInputFiles({ name: "leaky.mix.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+  await expect(page.getByRole("alert").filter({ hasText: "This file cannot be imported: Beat 1 of Leaky uses private notes, which only a phone-call Beat or a call version may show." })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Import", exact: true })).toHaveCount(0);
+  expect(await prisma.mix.count({ where: { workspaceId: account.workspaceId } })).toBe(0);
+});
+
+async function ready(page: Page) { await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 }); }
+
+test("a Mix saved on another device refuses the older editor's save and keeps its entries; an editor saves again after its own save", async ({ page, context, browser }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const account = await owner(context, "Two devices");
+  const mix = await prisma.mix.create({ data: { workspaceId: account.workspaceId, name: "Two-device Mix", triggerMode: "MANUAL_START", status: "DRAFT",
+    steps: { create: { dayOffset: 0, sortOrder: 1, stepVersion: { create: { version: 1, script: "Ask about the estimate.", stepTemplate: { create: { workspaceId: account.workspaceId, name: "First call", channel: "PHONE_CALL", isActive: false } } } } } } } });
+  const script = async () => (await prisma.mixStep.findFirstOrThrow({ where: { mixId: mix.id, isActive: true }, include: { stepVersion: true } })).stepVersion.script;
+  // The desktop opens the editor first.
+  await page.goto(`/mixes/${mix.id}/edit`); await ready(page);
+  const desktop = page.locator(".mix-editor-form");
+  await expect(desktop.getByRole("group", { name: "Beat 1" }).getByLabel("Call notes", { exact: true })).toHaveValue("Ask about the estimate.");
+
+  // A phone signed in to the same account saves a change.
+  const token = randomUUID();
+  await prisma.session.create({ data: { userId: account.userId, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 3600_000) } });
+  const phoneContext = await browser.newContext({ baseURL: process.env.PLAYWRIGHT_BASE_URL ?? process.env.APP_URL, viewport: { width: 390, height: 844 }, serviceWorkers: "block" });
+  try {
+    await phoneContext.addCookies([{ name: "jitm_session", value: token, url: process.env.APP_URL!, httpOnly: true, sameSite: "Strict" }]);
+    const phone = await phoneContext.newPage();
+    phone.on("pageerror", error => errors.push(error.message));
+    await phone.goto(`/mixes/${mix.id}/edit`); await ready(phone);
+    const phoneEditor = phone.locator(".mix-editor-form");
+    await phoneEditor.getByRole("group", { name: "Beat 1" }).getByLabel("Call notes", { exact: true }).fill("Phone wording.");
+    await phoneEditor.getByRole("button", { name: "Save mix", exact: true }).click();
+    await expect.poll(script, { timeout: 20_000 }).toBe("Phone wording.");
+    await expect(phone.getByRole("status").filter({ hasText: "Mix saved." })).toBeVisible();
+
+    // The desktop's save, made from the older version, is refused; its wording stays in the editor and nothing changes.
+    await desktop.getByRole("group", { name: "Beat 1" }).getByLabel("Call notes", { exact: true }).fill("Desktop wording.");
+    await desktop.getByRole("button", { name: "Save mix", exact: true }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "This Mix was changed on another device after you opened it. Reload to compare, then apply your changes again." })).toBeVisible();
+    await expect(desktop.getByRole("group", { name: "Beat 1" }).getByLabel("Call notes", { exact: true })).toHaveValue("Desktop wording.");
+    expect(page.url()).not.toContain("updated=manual");
+    expect(await script()).toBe("Phone wording.");
+
+    // The phone keeps editing in the same editor: its own save carried the new version, so the next one goes through.
+    await phoneEditor.getByRole("group", { name: "Beat 1" }).getByLabel("Call notes", { exact: true }).fill("Phone wording, saved again.");
+    await phoneEditor.getByRole("button", { name: "Save mix", exact: true }).click();
+    await expect.poll(script, { timeout: 20_000 }).toBe("Phone wording, saved again.");
+    await expect(phone.getByRole("alert").filter({ hasText: "changed on another device" })).toHaveCount(0);
+  } finally {
+    await phoneContext.close();
+  }
 });
 
 test("Mega-Mixes reflow in both themes, work by keyboard and pass accessibility checks", async ({ page, context }) => {

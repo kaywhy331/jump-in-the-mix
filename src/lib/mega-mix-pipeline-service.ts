@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
-import { buildPortable, portableConfiguration, portableFingerprint, type PortablePackage, type PortableSourceMix } from "@/lib/mix-portable";
+import { buildPortable, portableConfiguration, portableContentIssues, portableFingerprint, type PortablePackage, type PortableSourceMix } from "@/lib/mix-portable";
 import { slugify } from "@/lib/slug";
 import { matchDateType } from "@/lib/shared-mix-service";
 
@@ -147,6 +147,9 @@ async function resolveDateType(db: DB, workspaceId: string, dateType: { name: st
 export async function installPortable(db: DB, input: { workspaceId: string; actorUserId: string; value: PortablePackage; name: string; origin: string; source: string }) {
   await lockOwnedWorkspace(db, input.workspaceId, input.actorUserId);
   const value = input.value;
+  // Marketplace adds and copies never pass the file reader, so the editor's rules run here for every path.
+  const [issue] = portableContentIssues(value);
+  if (issue) throw new Error(`This ${value.kind === "mix" ? "Mix" : "Mega-Mix"} cannot be ${input.origin.startsWith("COPY:") ? "copied" : "added"}: ${issue.replace(/\.$/, "")}.`);
   const name = cleanMegaMixName(input.name);
   if (value.kind === "mega-mix") await assertNameFree(db, input.workspaceId, name);
   const mixIds = new Map<string, string>(), stepIds = new Map<string, string>();

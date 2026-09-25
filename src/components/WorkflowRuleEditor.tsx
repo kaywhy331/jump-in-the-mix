@@ -12,11 +12,61 @@ import styles from "@/components/WorkflowJourney.module.css";
 const newId = () => crypto.randomUUID();
 const DURATION_UNITS = [[1440, "days"], [60, "hours"], [1, "minutes"]] as const;
 
-/** Waits are stored in minutes but entered the way people think about them: days, hours or minutes. */
-function DurationField({ label, minutes, min, onChange }: { label: string; minutes: number; min: number; onChange: (minutes: number) => void }) {
-  const [unit, setUnit] = useState<number>(() => minutes > 0 && minutes % 1440 === 0 ? 1440 : minutes > 0 && minutes % 60 === 0 ? 60 : minutes > 0 ? 1 : 1440);
+/** The largest unit that states a wait exactly: 2,880 minutes reads as 2 days, 90 as 90 minutes. */
+export function durationUnitFor(minutes: number): number {
+  return minutes > 0 && minutes % 1440 === 0 ? 1440 : minutes > 0 && minutes % 60 === 0 ? 60 : minutes > 0 ? 1 : 1440;
+}
+
+/** The amount shown for a wait in a unit, or null when two decimals cannot state it exactly (1 minute in days). */
+export function durationAmount(minutes: number, unit: number): string | null {
   const amount = Math.round((minutes / unit) * 100) / 100;
-  return <div className="field duration-field"><span>{label}</span><div className="duration-inputs"><input type="number" aria-label={label} min={min} max={Math.floor(525600 / unit)} step="any" required value={amount} onChange={event => onChange(Math.round(Number(event.target.value) * unit))} /><select aria-label={`${label} unit`} value={unit} onChange={event => { const next = Number(event.target.value); setUnit(next); onChange(Math.round(amount * next)); }}>{DURATION_UNITS.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</select></div></div>;
+  return Math.round(amount * unit) === minutes ? String(amount) : null;
+}
+
+/** The minutes a typed amount means, or null while the entry is blank or not a number. */
+export function durationMinutes(text: string, unit: number): number | null {
+  const amount = Number(text);
+  return text.trim() && Number.isFinite(amount) && amount >= 0 ? Math.round(amount * unit) : null;
+}
+
+/** What the wait field holds: the unit, the text as typed, and the minutes that text stands for. */
+export type DurationEntry = { unit: number; text: string; minutes: number };
+export type DurationChange = { entry: DurationEntry; commit: number | null };
+
+/** A saved wait as the field shows it: in the preferred unit when that states it exactly, otherwise in one that does. */
+export function durationEntry(minutes: number, preferred = durationUnitFor(minutes)): DurationEntry {
+  const unit = durationAmount(minutes, preferred) === null ? durationUnitFor(minutes) : preferred;
+  return { unit, text: durationAmount(minutes, unit) ?? String(minutes), minutes };
+}
+
+/** Typing keeps the text exactly as typed; only a valid amount is committed, so a cleared field never becomes "0". */
+export function typeDuration(entry: DurationEntry, text: string): DurationChange {
+  const minutes = durationMinutes(text, entry.unit);
+  return { entry: { ...entry, text, minutes: minutes ?? entry.minutes }, commit: minutes };
+}
+
+/** A new unit keeps the typed number, so "2" hours becomes "2" days; with nothing valid typed, only the unit changes. */
+export function changeDurationUnit(entry: DurationEntry, unit: number): DurationChange {
+  const minutes = durationMinutes(entry.text, unit);
+  return { entry: { ...entry, unit, minutes: minutes ?? entry.minutes }, commit: minutes };
+}
+
+/**
+ * Waits are stored in minutes but entered the way people think about them: days, hours or minutes.
+ * The field keeps what was typed and commits every valid entry. Leaving it shows the saved wait tidily,
+ * in a unit that states it exactly: 1 minute never reads as "0 days".
+ */
+function DurationField({ label, minutes, min, onChange }: { label: string; minutes: number; min: number; onChange: (minutes: number) => void }) {
+  const [entry, setEntry] = useState(() => durationEntry(minutes));
+  // Another change replaced this wait (for example "Use saved version"). Updating here, not in an effect,
+  // settles in one pass: the new entry holds these minutes, so the check is false on the next render.
+  if (minutes !== entry.minutes) setEntry(durationEntry(minutes, entry.unit));
+  const apply = (change: DurationChange) => { setEntry(change.entry); if (change.commit !== null) onChange(change.commit); };
+  return <div className="field duration-field"><span>{label}</span><div className="duration-inputs">
+    <input type="number" aria-label={label} min={min} max={Math.floor(525600 / entry.unit)} step="any" required value={entry.text}
+      onChange={event => apply(typeDuration(entry, event.target.value))} onBlur={() => setEntry(durationEntry(minutes, entry.unit))} />
+    <select aria-label={`${label} unit`} value={entry.unit} onChange={event => apply(changeDurationUnit(entry, Number(event.target.value)))}>{DURATION_UNITS.map(([value, name]) => <option key={value} value={value}>{name}</option>)}</select>
+  </div></div>;
 }
 export function WorkflowTargetOptions({ mixes, end = false, beatNumbers = {} }: { mixes: WorkflowGraphMix[]; end?: boolean; beatNumbers?: Record<string, string> }) {
   return <>{end && <option value="end">Finish this path</option>}<option value="">Choose a Mix or Beat</option>{mixes.filter(mix => mix.status !== "ARCHIVED" && mix.source !== "ONE_TIME").map(mix => <optgroup key={mix.id} label={mix.name}><option value={`mix:${mix.id}`}>{mix.name} · whole Mix</option>{mix.steps.map(step => <option key={step.id} value={`beat:${step.id}`}>{beatNumbers[step.id] ? `${beatNumbers[step.id]} · ` : ""}{step.name} · Beat</option>)}</optgroup>)}</>;

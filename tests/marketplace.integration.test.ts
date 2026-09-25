@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { installMegaMix } from "@/lib/mega-mix-service";
-import { deleteMegaMixPipeline, megaMixShareState } from "@/lib/mega-mix-pipeline-service";
+import { createMegaMixPipeline, deleteMegaMixPipeline, megaMixShareState, updateMegaMixPipeline } from "@/lib/mega-mix-pipeline-service";
 import { addFromMarketplace, marketplaceUpdates, readMarketplace, readMarketplaceItem, reportListing, reviewListing, setListingFavorite, shareOnMarketplace, unseenReports, unshareFromMarketplace, type MarketplaceFilters } from "@/lib/marketplace-service";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
@@ -215,6 +215,81 @@ describe.skipIf(!local)("community Marketplace", () => {
     await expect(share({ confirmed: false })).rejects.toThrow(/Confirm/);
     await expect(share({ publicName: "rivera@example.com" })).rejects.toThrow(/not an email/);
     await expect(shareOnMarketplace({ workspaceId: author.workspaceId, actorUserId: reader.userId, kind: "MEGA_MIX", targetId: pipelineId, publicName: "Thief", summary: "", industry: "", confirmed: true })).rejects.toThrow(/account owner/);
+  });
+
+  /** A Mix with one text Beat, as a person would share it. */
+  const simpleMix = (workspaceId: string, name: string, body = "Hi {{First Name}}, just checking in. {{SMS Signature}}", channel: "SMS" | "EMAIL" = "SMS") => prisma.mix.create({ data: { workspaceId, name, triggerMode: "MANUAL_START", status: "ACTIVE",
+    steps: { create: { dayOffset: 0, sortOrder: 1, stepVersion: { create: { version: 1, subject: channel === "EMAIL" ? "A quick note" : null, body, stepTemplate: { create: { workspaceId, name: `${name} beat`, channel, isActive: false } } } } } } } });
+  const shareMix = (mixId: string) => shareOnMarketplace({ workspaceId: author.workspaceId, actorUserId: author.userId, kind: "MIX", targetId: mixId, publicName: "Rivera Renovations", summary: "", industry: "", confirmed: true });
+
+  it("never lets an author favorite or add their own share, and marks their own Community rows", async () => {
+    const listing = await share();
+    const item = await ownItem(listing.id);
+    await expect(setListingFavorite({ listingId: listing.id, userId: author.userId, workspaceId: author.workspaceId, favorite: true })).rejects.toThrow("This is your own share, so it can’t be one of your favorites.");
+    // A heart the author gave before this rule can still be taken back.
+    await prisma.marketplaceFavorite.create({ data: { listingId: listing.id, userId: author.userId, workspaceId: author.workspaceId } });
+    expect(await setListingFavorite({ listingId: listing.id, userId: author.userId, workspaceId: author.workspaceId, favorite: false })).toEqual({ favorite: false, count: 0 });
+    await expect(addFromMarketplace({ listingId: listing.id, workspaceId: author.workspaceId, actorUserId: author.userId, name: "Mine again", expectedFingerprint: item.listing.fingerprint }))
+      .rejects.toThrow("This is your own share. It’s already in your account, so it can’t be added again.");
+    expect(await prisma.marketplaceFavorite.count({ where: { listingId: listing.id } })).toBe(0);
+    expect(await prisma.marketplaceImport.count({ where: { listingId: listing.id } })).toBe(0);
+    expect(await prisma.megaMixPipeline.count({ where: { workspaceId: author.workspaceId } })).toBe(1);
+    // The author's own row says so, so the page offers no heart on it; everyone else can favorite and add it.
+    expect((await readMarketplace(community, author)).rows.find(row => row.id === listing.id)).toMatchObject({ own: true });
+    expect((await readMarketplace(community, reader)).rows.find(row => row.id === listing.id)).toMatchObject({ own: false });
+    await setListingFavorite({ listingId: listing.id, userId: reader.userId, workspaceId: reader.workspaceId, favorite: true });
+    await addFromMarketplace({ listingId: listing.id, workspaceId: reader.workspaceId, actorUserId: reader.userId, name: "Reader copy", expectedFingerprint: item.listing.fingerprint });
+    expect(await ownItem(listing.id)).toMatchObject({ favorites: 1, added: 1 });
+  });
+
+  it("counts only shares with something to show, in step with the rows, and keeps the others manageable in My shares", async () => {
+    const make = async (name: string) => { const mix = await simpleMix(author.workspaceId, name); return { mix, listing: await shareMix(mix.id) }; };
+    const live = await make("Still live"), draft = await make("Now a draft"), archived = await make("Archived since"), emptied = await make("Beat removed"), planned = await make("Only planned"), fixed = await make("Fixed date now");
+    const megaMember = await simpleMix(author.workspaceId, "Mega member"), otherMember = await simpleMix(author.workspaceId, "Other member");
+    const mega = await createMegaMixPipeline({ workspaceId: author.workspaceId, actorUserId: author.userId, name: "Two Mixes", mixIds: [megaMember.id, otherMember.id] });
+    const megaListing = await share({ targetId: mega.id }), emptyMega = await share({ targetId: pipelineId });
+    await report(archived.listing.id, reader, "MISLEADING");
+    await prisma.mix.update({ where: { id: draft.mix.id }, data: { status: "DRAFT" } });
+    await prisma.mix.update({ where: { id: archived.mix.id }, data: { status: "ARCHIVED" } });
+    await prisma.mixStep.updateMany({ where: { mixId: emptied.mix.id }, data: { isActive: false } });
+    await prisma.mixStep.updateMany({ where: { mixId: planned.mix.id }, data: { plannedAt: new Date("2026-12-01T10:00:00Z") } });
+    await prisma.mix.update({ where: { id: fixed.mix.id }, data: { triggerMode: "BROADCAST" } });
+    await prisma.mix.update({ where: { id: megaMember.id }, data: { status: "ARCHIVED" } });
+    await updateMegaMixPipeline({ workspaceId: author.workspaceId, actorUserId: author.userId, pipelineId, name: "Contractor", mixIds: [] });
+
+    const showable = [live.listing.id, draft.listing.id, megaListing.id];
+    const hidden = [archived.listing.id, emptied.listing.id, planned.listing.id, fixed.listing.id, emptyMega.id];
+    const bystander = await person("bystander");
+    const everything = await readMarketplace(community, bystander, 1, 500);
+    expect(everything.total).toBe(everything.rows.length);
+    expect(everything.rows.map(row => row.id)).toEqual(expect.arrayContaining(showable));
+    expect(everything.rows.map(row => row.id).filter(id => hidden.includes(id))).toEqual([]);
+    // What the count promises is what a page of rows shows, and each counted share opens with its content.
+    for (const id of [...showable, ...hidden]) expect(Boolean((await readMarketplaceItem(`listing:${id}`, bystander))?.value), id).toBe(showable.includes(id));
+    // Nor can it be favorited by its link while there is nothing to show.
+    await expect(setListingFavorite({ listingId: archived.listing.id, userId: bystander.userId, workspaceId: bystander.workspaceId, favorite: true })).rejects.toThrow("This share is no longer available.");
+    await setListingFavorite({ listingId: live.listing.id, userId: bystander.userId, workspaceId: bystander.workspaceId, favorite: true });
+    const mine = await readMarketplace({ ...community, section: "mine" }, author, 1, 500);
+    expect(mine.total).toBe(mine.rows.length);
+    expect(mine.rows.filter(row => hidden.includes(row.id)).map(row => [row.id, row.available, row.status])).toEqual(expect.arrayContaining(hidden.map(id => [id, false, "LIVE"])));
+    expect(mine.rows.find(row => row.id === archived.listing.id)).toMatchObject({ openReports: 1 });
+    // The author's pane still has the status, the report and a way to manage it; an archived Mix is said to be archived.
+    expect(await ownItem(archived.listing.id)).toMatchObject({ value: null, own: true, archived: true, listing: { status: "LIVE", mixId: archived.mix.id }, reports: [expect.objectContaining({ reason: "MISLEADING", status: "OPEN" })] });
+    expect(await ownItem(emptied.listing.id)).toMatchObject({ value: null, archived: false });
+    expect(await ownItem(emptyMega.id)).toMatchObject({ value: null, archived: false, listing: { kind: "MEGA_MIX", pipelineId } });
+    await unshareFromMarketplace({ workspaceId: author.workspaceId, actorUserId: author.userId, listingId: archived.listing.id });
+    expect(await status(archived.listing.id)).toBe("UNSHARED");
+  });
+
+  it("refuses to add a share whose wording the editor would refuse, and adds nothing", async () => {
+    const leaky = await simpleMix(author.workspaceId, "Leaky notes", "Hi {{First Name}}, as noted: {{Private Notes}}", "EMAIL");
+    const listing = await shareMix(leaky.id);
+    const item = await readMarketplaceItem(`listing:${listing.id}`, reader);
+    if (item?.type !== "listing") throw new Error("Expected a listing.");
+    await expect(addFromMarketplace({ listingId: listing.id, workspaceId: reader.workspaceId, actorUserId: reader.userId, name: "Leaky copy", expectedFingerprint: item.listing.fingerprint }))
+      .rejects.toThrow("This Mix cannot be added: Beat 1 of Leaky notes uses private notes, which only a phone-call Beat or a call version may show.");
+    expect(await prisma.mix.count({ where: { workspaceId: reader.workspaceId } })).toBe(0);
+    expect(await prisma.marketplaceImport.count({ where: { listingId: listing.id } })).toBe(0);
   });
 
   it("lists official Mega-Mixes and ready-made Mixes in the Jump in the Mix section", async () => {

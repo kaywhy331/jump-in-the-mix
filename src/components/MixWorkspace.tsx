@@ -98,6 +98,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
           industry: mix.industry,
           triggerMode: mix.triggerMode,
           dateTypeId: mix.dateTypeId,
+          updatedAt: mix.updatedAt.toISOString(),
           status: query.activate === "1" ? "ACTIVE" : mix.status === "ARCHIVED" ? "DRAFT" : mix.status,
           groupIds,
           assignAllContacts,

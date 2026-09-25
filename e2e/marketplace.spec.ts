@@ -188,3 +188,60 @@ test("Marketplace sections, filters and both themes work on phone, tablet and de
     }
   }
 });
+
+test("an author's own share offers no heart or add, and stays manageable once its Mix is archived", async ({ page, context }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const author = await owner(context, "Porch");
+  const mix = await prisma.mix.create({ data: { workspaceId: author.workspaceId, name: "Porch follow-up", triggerMode: "MANUAL_START", status: "ACTIVE",
+    steps: { create: { dayOffset: 0, sortOrder: 1, stepVersion: { create: { version: 1, body: "Hi {{First Name}}, how is the new porch? {{SMS Signature}}", stepTemplate: { create: { workspaceId: author.workspaceId, name: "Porch check-in", channel: "SMS", isActive: false } } } } } } } });
+  await prisma.marketplaceAuthor.create({ data: { workspaceId: author.workspaceId, publicName: "Porch People" } });
+  const listing = await prisma.marketplaceListing.create({ data: { kind: "MIX", workspaceId: author.workspaceId, mixId: mix.id, title: "Porch follow-up", beatCount: 1, mixCount: 1, channels: ["TEXT"], fingerprint: "seed" } });
+  const item = (section: string) => `/marketplace?section=${section}&item=${encodeURIComponent(`listing:${listing.id}`)}`;
+
+  // Community shows the author's own share without a heart, and its pane offers the author's controls, not an add.
+  await page.goto("/marketplace?section=community");
+  const list = page.getByRole("navigation", { name: "Community Mixes and Mega-Mixes" });
+  await expect(list).toContainText("by Porch People");
+  await expect(list.getByRole("button", { name: /Porch follow-up to favorites/ })).toHaveCount(0);
+  await page.goto(item("community"));
+  const pane = page.getByRole("complementary", { name: "Add or share" });
+  await expect(pane.getByRole("heading", { name: "Your share" })).toBeVisible();
+  await expect(pane.getByRole("heading", { name: "Add to your account" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Selected Mix" }).getByRole("button", { name: /to favorites/ })).toHaveCount(0);
+  await expect(pane.getByRole("link", { name: "Open to edit or manage sharing" })).toBeVisible();
+  // The favorites API refuses the author too, in plain words.
+  const refused = await page.evaluate(async listingId => {
+    const response = await fetch("/api/marketplace/favorites", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listingId, favorite: true }) });
+    return { status: response.status, body: await response.json() };
+  }, listing.id);
+  expect(refused).toEqual({ status: 400, body: { error: "This is your own share, so it can’t be one of your favorites." } });
+
+  // Once the Mix is archived, My shares keeps the share with its status and a way to stop it; there is no page to open.
+  await prisma.mix.update({ where: { id: mix.id }, data: { status: "ARCHIVED" } });
+  await page.goto("/marketplace?section=mine");
+  await expect(page.getByRole("navigation", { name: "Your shares" })).toContainText("shared · nothing to show right now");
+  await page.goto(item("mine"));
+  await expect(page.getByText("This Mix is archived, so it is left out of the Community list. Your share, its favorites and its reports are kept.")).toBeVisible();
+  const own = page.getByRole("complementary", { name: "Add or share" });
+  await expect(own).toContainText("Shared, but left out of Community for now.");
+  await expect(own).toContainText("An archived Mix can’t be opened or edited.");
+  await expect(own.getByRole("link", { name: "Open to edit or manage sharing" })).toHaveCount(0);
+  await page.screenshot({ path: `${dir}/own-share-archived-1440.png` });
+  expect((await axeInPage(page).include(".mix-workspace-page").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+
+  // Nobody else sees it, in the list or by its link.
+  await owner(context, "Porch reader");
+  await page.goto("/marketplace?section=community");
+  await expect(page.getByRole("link", { name: /Porch follow-up/ })).toHaveCount(0);
+  await page.goto(item("community"));
+  await expect(page.getByRole("heading", { name: "Nothing to show" })).toBeVisible();
+
+  // The author stops sharing it from its pane.
+  await signIn(context, author.userId);
+  await page.goto(item("mine"));
+  await page.getByRole("complementary", { name: "Add or share" }).getByRole("button", { name: "Stop sharing", exact: true }).click();
+  const confirm = page.getByRole("dialog", { name: "Stop sharing Porch follow-up?" });
+  await confirm.getByRole("button", { name: "Stop sharing", exact: true }).click();
+  await expect(page.getByText("Sharing stopped. Copies people already added stay theirs.")).toBeVisible();
+  expect(await prisma.marketplaceListing.findUniqueOrThrow({ where: { id: listing.id } })).toMatchObject({ status: "UNSHARED" });
+});
