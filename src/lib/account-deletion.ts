@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { lockStaff } from "@/lib/staff-access";
+import { lockAccess, lockWorkspaceImports } from "@/lib/access-lock";
 
 export type AccountDeletionResult = {
   deleted: boolean;
@@ -54,7 +55,10 @@ export async function deleteAccountData(
 
   await prisma.$transaction(async (tx) => {
     await lockStaff(tx);
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(814733, 1)`;
+    await lockAccess(tx);
+    // Imports commit under their workspace's key, not the access lock. Wait for a row in progress to
+    // commit rather than meet this cascade halfway; later rows find their job gone.
+    await lockWorkspaceImports(tx, workspaceIds);
     const pendingStaff = await tx.staffInvitation.findMany({ where: { issuerUserId: userId, acceptedAt: null, revokedAt: null }, select: { id: true } });
     await tx.staffInvitation.updateMany({ where: { id: { in: pendingStaff.map(row => row.id) } }, data: { revokedAt: new Date() } });
     await tx.waitlistDelivery.updateMany({ where: { staffInvitationId: { in: pendingStaff.map(row => row.id) }, status: { in: ["QUEUED", "SENDING", "REVIEW"] } }, data: { status: "CANCELED", lockedAt: null, leaseId: null } });

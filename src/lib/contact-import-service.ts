@@ -14,7 +14,7 @@ import type {
 } from "@/lib/contact-import-types";
 import { canonicalPhoneKey, phoneLookupKeys, phoneRowKeys, workspacePhoneRegion } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
-import { lockAccess } from "@/lib/access-lock";
+import { lockWorkspaceImport } from "@/lib/access-lock";
 import { lockImportJob, lockRunningImport, type ImportRowLease } from "@/lib/contact-import-lease";
 
 class ImportRowError extends ContactImportInputError {}
@@ -681,7 +681,8 @@ export async function commitContactImportBatch(input: {
   for (const { record, resolution } of input.items) {
     try {
       const result = await prisma.$transaction(async tx => {
-        await lockAccess(tx);
+        // This workspace's import key, not the access lock: rows of other workspaces and sign-ins go on.
+        await lockWorkspaceImport(tx, input.workspaceId);
         if (input.background) {
           await lockImportJob(tx, input.background.batchId, input.background, input.workspaceId);
           const batch = await lockRunningImport(tx, input.background.batchId, input.workspaceId);

@@ -3,7 +3,7 @@ import type { ContactImportBatchStatus, Prisma } from "@/generated/prisma/client
 import { commitContactImportBatch, type ImportCommitItem } from "@/lib/contact-import-service";
 import type { ImportCommitResult } from "@/lib/contact-import-types";
 import { prisma } from "@/lib/prisma";
-import { lockAccess } from "@/lib/access-lock";
+import { lockAccess, lockWorkspaceImport } from "@/lib/access-lock";
 import { importResults as resultArray, importCounts as counts } from "@/lib/contact-import-state";
 import { ImportInterruptedError, lockImportJob, lockRunningImport, type ImportJobLease } from "@/lib/contact-import-lease";
 import { timezoneForUser } from "@/lib/display-preferences";
@@ -114,6 +114,7 @@ export async function queueContactImportBatch(input: {
   const initialCounts = counts(initialResults);
   const created = await prisma.$transaction(async (tx) => {
     await lockAccess(tx);
+    await lockWorkspaceImport(tx, input.workspaceId);
     if (!await tx.workspace.findFirst({ where: { id: input.workspaceId, ownerId: input.actorUserId, owner: { suspendedAt: null } }, select: { id: true } })) throw new ContactImportInputError("This account cannot import contacts right now.");
     const existing = await tx.contactImportBatch.findUnique({ where: { workspaceId_importId: { workspaceId: input.workspaceId, importId: input.importId } } });
     if (existing) return existing;
@@ -174,6 +175,8 @@ export async function cancelContactImportBatch(workspaceId: string, batchId: str
   const now = new Date();
   const result = await prisma.$transaction(async (tx) => {
     await lockAccess(tx);
+    // Waits for the row in progress, so its receipt is counted below and the next row stops.
+    await lockWorkspaceImport(tx, workspaceId);
     await tx.$queryRaw`SELECT id FROM "Job" WHERE "workspaceId"=${workspaceId} AND task='contact-import' AND payload->>'batchId'=${batchId} AND "completedAt" IS NULL ORDER BY id FOR UPDATE`;
     const batch = await tx.contactImportBatch.findFirst({ where: { id: batchId, workspaceId, status: { in: ["QUEUED", "RUNNING"] } } });
     if (!batch) return false;
@@ -203,7 +206,7 @@ export async function runContactImportBatch(batchId: string, lease: ContactImpor
   if (!initial) throw new Error("The Contact import batch no longer exists.");
   const workspaceId = initial.workspaceId;
   const batch = await prisma.$transaction(async tx => {
-    await lockAccess(tx);
+    await lockWorkspaceImport(tx, workspaceId);
     await lockImportJob(tx, batchId, lease, workspaceId);
     await tx.$queryRaw`SELECT id FROM "ContactImportBatch" WHERE id=${batchId} AND "workspaceId"=${workspaceId} FOR UPDATE`;
     const current = await tx.contactImportBatch.findUniqueOrThrow({ where: { id: batchId } });
@@ -224,7 +227,7 @@ export async function runContactImportBatch(batchId: string, lease: ContactImpor
       if (lease.shouldStop?.()) throw new ImportPausedError();
       const chunkResults = await commitContactImportBatch({ workspaceId, actorUserId, timezone, importId: batch.importId, items: pendingItems.slice(index, index + PROCESSING_BATCH_SIZE), background: { jobId: lease.jobId, leaseId: lease.leaseId, batchId } });
       await prisma.$transaction(async tx => {
-        await lockAccess(tx);
+        await lockWorkspaceImport(tx, workspaceId);
         await lockImportJob(tx, batchId, lease, workspaceId);
         await lockRunningImport(tx, batchId, workspaceId);
         const current = await tx.contactImportBatch.findUniqueOrThrow({ where: { id: batchId }, select: { results: true } });
@@ -235,7 +238,7 @@ export async function runContactImportBatch(batchId: string, lease: ContactImpor
       });
     }
     await prisma.$transaction(async tx => {
-      await lockAccess(tx);
+      await lockWorkspaceImport(tx, workspaceId);
       await lockImportJob(tx, batchId, lease, workspaceId);
       await lockRunningImport(tx, batchId, workspaceId);
       const current = await tx.contactImportBatch.findUniqueOrThrow({ where: { id: batchId }, select: { results: true, totalRows: true } });
@@ -249,7 +252,7 @@ export async function runContactImportBatch(batchId: string, lease: ContactImpor
     // A pause is not a failure: the batch stays RUNNING with its saved rows and resumes shortly.
     if (!(error instanceof ImportPausedError)) {
       await prisma.$transaction(async tx => {
-        await lockAccess(tx);
+        await lockWorkspaceImport(tx, workspaceId);
         await lockImportJob(tx, batchId, lease, workspaceId);
         await lockRunningImport(tx, batchId, workspaceId);
         await tx.contactImportBatch.update({ where: { id: batchId }, data: { errorSummary: "Import processing was interrupted. Saved rows will be reused on retry." } });

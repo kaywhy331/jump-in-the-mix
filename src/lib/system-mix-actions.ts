@@ -9,7 +9,7 @@ import { integrationEncryptionConfigured } from "@/lib/integration-crypto";
 import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { AccessInviteError, allocateAccessInvite } from "@/lib/referral-access";
-import { lockAccess } from "@/lib/access-lock";
+import { lockAccess, lockWorkspaceImport } from "@/lib/access-lock";
 import { REFERRAL_INVITE_LIMIT, SystemMixError } from "@/lib/system-mix";
 import { isValidEmail, normalizePhone } from "@/lib/contact-input";
 import { phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
@@ -44,6 +44,8 @@ export async function sendSystemInviteAction(formData: FormData): Promise<void> 
   try {
     await prisma.$transaction(async tx => {
       await lockAccess(tx);
+      // Contacts may be created below: serialize with this workspace's import rows, which no longer take lockAccess.
+      await lockWorkspaceImport(tx, workspace.id);
       const selectedContacts = new Set<string>();
       for (const person of recipients) {
         const matches = person.contactId ? [] : await tx.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null, ...(person.email ? { emails: { some: { normalized: person.email } } } : { phones: { some: { normalized: { in: person.phoneKeys } } } }) }, select: { id: true }, take: 2 });
