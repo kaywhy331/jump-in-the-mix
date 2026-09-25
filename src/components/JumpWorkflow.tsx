@@ -30,7 +30,20 @@ type OutcomeResponse = {
   nextCommitmentAt: string | null;
   jumpDateId: string | null;
   attempt?: { id: string; evidence: "attempt" | "unavailable" | "mismatch" };
+  duplicate?: boolean;
   error?: string;
+};
+
+// What the route answers: the stored outcome, or a refusal that names the follow-up's current
+// status so a retry after a lost response can tell "already recorded" apart from a real conflict.
+type OutcomePayload = Partial<Omit<OutcomeResponse, "status">> & { status?: OutcomeResponse["status"] | "CANCELED"; error?: string };
+
+type OutcomeDetails = {
+  note?: string;
+  visibility?: "WORKSPACE" | "PRIVATE";
+  nextDate?: string;
+  nextTime?: string;
+  workflowDecisions?: Array<{ ruleId: string; outcome: string }>;
 };
 
 // The handoff the outcome belongs to. An unacknowledged attempt travels again in full so the
@@ -40,10 +53,80 @@ type OutcomeAttempt = { attemptId: string; payload?: OpenedAttemptPayload };
 type JumpStateDetail = {
   jumpId: string;
   status: OutcomeResponse["status"];
+  /** Shown in the card's confirmation when a retry found the outcome already recorded. */
+  notice?: string;
 };
 
-function requestId(): string {
+type SaveResult =
+  | { recorded: true; response: OutcomeResponse }
+  | { recorded: false; status: "DONE" | "SKIPPED" };
+
+/** Outcomes that finish the follow-up. A retry that finds it already finished counts as recorded, not as an error. */
+const FINISHING_OUTCOMES: ReadonlySet<Outcome> = new Set<Outcome>(["COMPLETED", "CONNECTED", "LEFT_VOICEMAIL", "NO_ANSWER", "WRONG_NUMBER", "RESCHEDULED", "SKIPPED"]);
+
+function newRequestId(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** JSON-like data written with object keys sorted and undefined members dropped, so equal payloads read the same. */
+export function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item === undefined ? null : item)).join(",")}]`;
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`).join(",")}}`;
+  }
+  return JSON.stringify(value === undefined ? null : value);
+}
+
+/** A short deterministic hash (32-bit FNV-1a over the stable JSON): equal payloads share it, changed ones do not. */
+export function stableHash(value: unknown): string {
+  const text = stableStringify(value);
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index++) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+
+/**
+ * One key per logical attempt: the same follow-up, outcome and payload retry under one request id,
+ * while a changed payload or another handoff gets its own. Every key starts with the follow-up id
+ * so all of its remembered attempts can be dropped together.
+ */
+export function outcomeRequestKey(jumpId: string, outcome: Outcome, details: OutcomeDetails = {}, attemptId?: string): string {
+  return `${jumpId}:${outcome}:${stableHash(details)}${attemptId ? `:${attemptId}` : ""}`;
+}
+
+function alreadyRecordedCopy(status: "DONE" | "SKIPPED"): string {
+  return status === "SKIPPED" ? "Already skipped." : "Already marked done.";
+}
+
+type OutcomeRequestIds = {
+  /** The request id for this attempt, minted on first use and reused until the attempt succeeds. */
+  claim: (key: string) => string;
+  release: (key: string) => void;
+  /** Drops every remembered attempt for a follow-up, e.g. once it changed state elsewhere, so an old answer cannot replay against its new state. */
+  forget: (jumpId: string) => void;
+};
+
+function useOutcomeRequestIds(): OutcomeRequestIds {
+  const ids = useRef<Map<string, string>>(new Map());
+  return useMemo<OutcomeRequestIds>(() => ({
+    claim: (key) => {
+      const known = ids.current.get(key);
+      if (known) return known;
+      const id = newRequestId();
+      ids.current.set(key, id);
+      return id;
+    },
+    release: (key) => { ids.current.delete(key); },
+    forget: (jumpId) => {
+      for (const key of [...ids.current.keys()]) if (key.startsWith(`${jumpId}:`)) ids.current.delete(key);
+    }
+  }), []);
 }
 
 function dispatchJumpState(detail: JumpStateDetail): void {
@@ -55,21 +138,28 @@ function dispatchJumpState(detail: JumpStateDetail): void {
   });
 }
 
+// The request id belongs to the logical attempt, not the call: a retry after a lost answer sends
+// the same id and gets the stored outcome back instead of a "no longer pending" refusal. When a
+// finishing outcome meets a follow-up that is already finished under another id, the caller learns
+// that instead of an error and moves the card on; nothing is then called "saved".
 async function saveOutcome(
   jumpId: string,
   outcome: Outcome,
-  details: { note?: string; visibility?: "WORKSPACE" | "PRIVATE"; nextDate?: string; nextTime?: string; workflowDecisions?: Array<{ ruleId: string; outcome: string }> } = {},
+  requestId: string,
+  details: OutcomeDetails = {},
   attempt?: OutcomeAttempt
-): Promise<OutcomeResponse> {
+): Promise<SaveResult> {
   const response = await fetch(`/api/jumps/${encodeURIComponent(jumpId)}/outcome`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ outcome, requestId: requestId(), ...details, ...(attempt ? { attemptId: attempt.attemptId, ...(attempt.payload ? { attempt: attempt.payload } : {}) } : {}) })
+    body: JSON.stringify({ outcome, requestId, ...details, ...(attempt ? { attemptId: attempt.attemptId, ...(attempt.payload ? { attempt: attempt.payload } : {}) } : {}) })
   });
-  const payload = await response.json().catch(() => ({})) as OutcomeResponse;
+  const payload = await response.json().catch(() => ({})) as OutcomePayload;
+  if (response.status === 409 && FINISHING_OUTCOMES.has(outcome) && (payload.status === "DONE" || payload.status === "SKIPPED")) return { recorded: false, status: payload.status };
   if (!response.ok) throw new Error(payload.error || "The follow-up outcome could not be saved.");
-  dispatchJumpState({ jumpId, status: payload.status });
-  return payload;
+  const stored = payload as OutcomeResponse;
+  dispatchJumpState({ jumpId, status: stored.status });
+  return { recorded: true, response: stored };
 }
 
 export function JumpWorkflowCard({
@@ -86,8 +176,10 @@ export function JumpWorkflowCard({
   children: ReactNode;
 }) {
   const [state, setState] = useState<"ACTIVE" | "DONE" | "SKIPPED" | "HIDDEN">("ACTIVE");
+  const [notice, setNotice] = useState("");
   const [undoing, setUndoing] = useState(false);
   const [error, setError] = useState("");
+  const ids = useOutcomeRequestIds();
   const hideTimer = useRef<number | null>(null);
   const latestRevision = useRef(revision), outcomeRevision = useRef(revision);
   useLayoutEffect(() => { latestRevision.current = revision; }, [revision]);
@@ -103,10 +195,12 @@ export function JumpWorkflowCard({
       if (!detail || detail.jumpId !== jumpId) return;
       if (hideTimer.current) window.clearTimeout(hideTimer.current);
       if (detail.status === "PENDING") {
+        setNotice("");
         setState("ACTIVE");
         return;
       }
       outcomeRevision.current = latestRevision.current;
+      setNotice(detail.notice ?? "");
       setState(detail.status);
       hideTimer.current = window.setTimeout(() => setState("HIDDEN"), 10_000);
     };
@@ -121,8 +215,10 @@ export function JumpWorkflowCard({
     if (hideTimer.current) window.clearTimeout(hideTimer.current);
     setUndoing(true);
     setError("");
+    const key = outcomeRequestKey(jumpId, "REOPENED");
     try {
-      await saveOutcome(jumpId, "REOPENED");
+      await saveOutcome(jumpId, "REOPENED", ids.claim(key));
+      ids.release(key);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The follow-up could not be reopened.");
       hideTimer.current = window.setTimeout(() => setState("HIDDEN"), 10_000);
@@ -138,6 +234,7 @@ export function JumpWorkflowCard({
         <div className={styles.completedPlaceholder} role="status">
           <span>
             <strong>{state === "SKIPPED" ? "Follow-up skipped" : "Follow-up completed"}</strong>
+            {notice && <small>{notice}</small>}
             <small>{contactName} · you can undo this for a moment</small>
             {nextScheduledLabel && <small>Next scheduled: {nextScheduledLabel}</small>}
           </span>
@@ -171,6 +268,8 @@ export function JumpOutcomeButton({
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const ids = useOutcomeRequestIds();
   const workflow = useWorkflowChoices(outcome === "REOPENED" ? undefined : jumpId);
   const { choices } = workflow;
   const [decisions, setDecisions] = useState<Record<string, string>>({});
@@ -182,9 +281,20 @@ export function JumpOutcomeButton({
     if (confirmation && !(await confirm({ title: confirmation, description: "This updates the follow-up now.", confirmLabel: "Continue" }))) return;
     setSaving(true);
     setError("");
+    setNotice("");
+    const details: OutcomeDetails = { workflowDecisions: Object.entries(completionOnly ? {} : decisions).filter(([, outcome]) => outcome).map(([ruleId, outcome]) => ({ ruleId, outcome })) };
+    const key = outcomeRequestKey(jumpId, outcome, details);
     try {
-      await saveOutcome(jumpId, outcome, { workflowDecisions: Object.entries(completionOnly ? {} : decisions).filter(([, outcome]) => outcome).map(([ruleId, outcome]) => ({ ruleId, outcome })) });
+      const result = await saveOutcome(jumpId, outcome, ids.claim(key), details);
+      ids.release(key);
       setShowDecisions(false);
+      if (!result.recorded) {
+        // Finished already, by an earlier request whose answer was lost or from another control.
+        // The card moves on and says so; the notice rides along because this button leaves with the card.
+        const copy = alreadyRecordedCopy(result.status);
+        setNotice(copy);
+        dispatchJumpState({ jumpId, status: result.status, notice: copy });
+      }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The follow-up could not be updated.");
     } finally {
@@ -196,6 +306,7 @@ export function JumpOutcomeButton({
     <span>
       <button className={className} type="button" aria-label={ariaLabel} onClick={() => void submit()} disabled={saving || disabled}>{saving ? "Saving…" : children}</button>
       {showDecisions && <span role="group" aria-label="Record journey outcome"><WorkflowChoicesStatus {...workflow} /><WorkflowOutcomeFields choices={choices} values={decisions} onChange={setDecisions} /><button className="button primary" type="button" disabled={saving || workflow.status !== "ready"} onClick={() => void submit()}>Save outcome</button>{workflow.status !== "ready" && <button className="button" type="button" disabled={saving} onClick={() => void submit(true)}>Record follow-up only</button>}<button className="button" type="button" onClick={() => setShowDecisions(false)}>Cancel</button></span>}
+      {notice && <small className="muted-copy" role="status">{notice}</small>}
       {error && <small className={styles.error} role="alert">{error}</small>}
       {confirmDialog}
     </span>
@@ -214,6 +325,7 @@ export function JumpReturnTray() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const ids = useOutcomeRequestIds();
   const noticeTimer = useRef<number | undefined>(undefined);
   const [outcome, setOutcome] = useState<Outcome>("COMPLETED");
   const [note, setNote] = useState("");
@@ -246,8 +358,12 @@ export function JumpReturnTray() {
     const onState = (event: Event) => {
       const detail = (event as CustomEvent<JumpStateDetail>).detail;
       const current = opened.current;
-      // A state event without a follow-up id, or for a follow-up this tray never opened, is not ours.
-      if (detail?.jumpId && current && current.jumpId === detail.jumpId && detail.status !== "PENDING") {
+      if (!detail?.jumpId) return;
+      // The follow-up changed state (recorded, or reopened after a lost answer); a request id remembered
+      // for it must not replay an older outcome against that new state.
+      ids.forget(detail.jumpId);
+      // A follow-up this tray never opened is not ours; a reopening keeps the handoff waiting.
+      if (current && current.jumpId === detail.jumpId && detail.status !== "PENDING") {
         // Finished from the card instead of the tray; move on to the next unresolved handoff.
         const next = resolveOpenedJump(scope, { attemptId: current.attemptId, jumpId: detail.jumpId });
         opened.current = next;
@@ -268,7 +384,7 @@ export function JumpReturnTray() {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("jitm:jump-state", onState);
     };
-  }, [scope]);
+  }, [ids, scope]);
 
   const isCall = session?.channel === "PHONE_CALL" || session?.channel === "VOICEMAIL";
   const quickOutcomes = useMemo<Array<{ value: Outcome; label: string }>>(() => isCall
@@ -310,13 +426,22 @@ export function JumpReturnTray() {
       const stored = scope && session.attemptId ? readUnresolvedAttempts(scope).find((item) => item.attemptId === session.attemptId) : undefined;
       const acknowledged = stored?.acknowledged ?? session.acknowledged ?? false;
       const attempt: OutcomeAttempt | undefined = session.attemptId ? { attemptId: session.attemptId, payload: acknowledged ? undefined : stored?.attempt ?? session.attempt } : undefined;
-      const result = await saveOutcome(session.jumpId, selected, { ...(details ? {
+      const payload: OutcomeDetails = { ...(details ? {
         note,
         visibility,
         nextDate: wantsNext ? nextDate : undefined,
         nextTime: wantsNext ? nextTime : undefined
-      } : {}), workflowDecisions: Object.entries(workflowDecisions).filter(([, outcome]) => outcome).map(([ruleId, outcome]) => ({ ruleId, outcome })) }, attempt);
-      if (result.attempt?.evidence === "mismatch") showNotice("Your outcome is saved. The message recorded when you opened it differs from what this device holds, so that record was not attached.");
+      } : {}), workflowDecisions: Object.entries(workflowDecisions).filter(([, outcome]) => outcome).map(([ruleId, outcome]) => ({ ruleId, outcome })) };
+      const key = outcomeRequestKey(session.jumpId, selected, payload, session.attemptId);
+      const result = await saveOutcome(session.jumpId, selected, ids.claim(key), payload, attempt);
+      ids.release(key);
+      if (!result.recorded) {
+        // Finished already under another request, so this handoff is over. Whatever was typed here did
+        // not go in, and the owner is told exactly that rather than "saved".
+        const missing = [details && note.trim() ? "Your note wasn't added." : "", details && wantsNext ? "The next follow-up wasn't scheduled." : ""].filter(Boolean);
+        showNotice([alreadyRecordedCopy(result.status), ...missing].join(" "));
+        dispatchJumpState({ jumpId: session.jumpId, status: result.status });
+      } else if (result.response.attempt?.evidence === "mismatch") showNotice("Your outcome is saved. The message recorded when you opened it differs from what this device holds, so that record was not attached.");
       advance();
       setNote("");
       setScheduleNext(false);
@@ -333,7 +458,7 @@ export function JumpReturnTray() {
   if (!visible || !session) {
     if (session) return <aside className={styles.returnTray} aria-label="Pending follow-up outcome"><span>Outcome not recorded for {session.contactName}.</span><button className="button small" type="button" onClick={() => setVisible(true)}>Record outcome</button></aside>;
     if (!notice) return null;
-    return <aside className={styles.returnTray} aria-label="Follow-up outcome saved"><p role="status">{notice}</p><button className="button small" type="button" onClick={() => setNotice("")}>Dismiss</button></aside>;
+    return <aside className={styles.returnTray} aria-label="Follow-up outcome notice"><p role="status">{notice}</p><button className="button small" type="button" onClick={() => setNotice("")}>Dismiss</button></aside>;
   }
   return (
     <aside className={styles.returnTray} aria-label={`Finish follow-up with ${session.contactName}`}>

@@ -147,7 +147,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
     }
   });
   if (!jump) return NextResponse.json({ error: "Follow-up not found." }, { status: 404 });
-  if (jump.status === "CANCELED") return NextResponse.json({ error: "This follow-up is no longer active." }, { status: 409 });
+  // A refusal carries the follow-up's current status so a retry after a lost response can tell
+  // "already recorded" apart from a real conflict.
+  if (jump.status === "CANCELED") return NextResponse.json({ error: "This follow-up is no longer active.", status: jump.status }, { status: 409 });
   const decisionInput = z.array(z.object({ ruleId: z.string().min(1).max(160), outcome: z.string().min(1).max(160) }).strict()).max(50).safeParse(payload?.workflowDecisions ?? []);
   if (!decisionInput.success) return NextResponse.json({ error: "Choose valid journey outcomes." }, { status: 400 });
   const decisions = decisionInput.data;
@@ -333,8 +335,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
     });
     const replayAfterRace = jsonResponse(duplicate?.response ?? null);
     if (replayAfterRace) return NextResponse.json({ ...replayAfterRace, duplicate: true });
+    // The status read before the transaction can be stale when another request finished first; the
+    // refusal reports what the follow-up is now, falling back to that read if the lookup fails.
+    const current = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: membership.workspaceId }, select: { status: true } }).catch(() => null);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "The follow-up outcome could not be saved." },
+      { error: error instanceof Error ? error.message : "The follow-up outcome could not be saved.", status: current?.status ?? jump.status },
       { status: 409 }
     );
   }
