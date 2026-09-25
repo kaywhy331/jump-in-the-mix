@@ -56,8 +56,13 @@ test("Today resolves completed suggestions and real follow-ups", async ({ page }
   await expect(maria).toHaveCount(0);
   await page.screenshot({ path: ".artifacts/quiet-days-20260920/today-completed-phone.png", fullPage: true });
   await suggestions.getByRole("link", { name: "Review follow-up", exact: true }).click();
-  const review = page.getByRole("dialog", { name: "Follow up with Devon Stone", exact: true });
-  await review.getByRole("button", { name: "Mark done for Devon Stone", exact: true }).click();
+  // Today opens the follow-up for review; marking it done lives in the card's More options.
+  const closeReview = page.getByRole("button", { name: "Close Follow up with Devon Stone", exact: true });
+  await expect(closeReview).toBeVisible();
+  await closeReview.click();
+  const card = page.locator(`#jump-${jumpId}`);
+  await card.getByRole("button", { name: "More options for Devon Stone", exact: true }).click();
+  await card.getByRole("button", { name: "Mark done for Devon Stone", exact: true }).click();
   await expect(suggestions.getByRole("listitem").filter({ hasText: "Devon Stone" })).toHaveCount(0);
   expect((await prisma.jump.findUniqueOrThrow({ where: { id: jumpId } })).status).toBe("DONE");
 });
@@ -122,12 +127,15 @@ test("search and pagination stay consistent when the last result on a page is re
     await panel.getByRole("button", { name: "Completed", exact: true }).click();
     await expect(panel.getByText("No check-ins match this search.", { exact: true })).toBeVisible();
     await expect(panel.getByRole("searchbox", { name: "Search quiet-day check-ins" })).toHaveValue("Pagination 05");
+    // On a phone the panel's own search field is the way in: a search handed over in the URL lands in it, and typing narrows the list.
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.getByRole("button", { name: "Find someone in the journey", exact: true }).click();
-    const search = page.getByRole("dialog", { name: "Find someone", exact: true });
-    await search.getByRole("searchbox", { name: "Search this journey", exact: true }).fill("Maria");
-    await search.getByRole("button", { name: "Search", exact: true }).click();
-    await expect(panel.getByRole("searchbox", { name: "Search quiet-day check-ins" })).toHaveValue("Maria");
+    await page.goto("/journey?touchpoint=quiet-days&q=Maria");
+    const phoneSearch = panel.getByRole("searchbox", { name: "Search quiet-day check-ins" });
+    await expect(phoneSearch).toBeVisible();
+    await expect(phoneSearch).toHaveValue("Maria");
     await expect(panel.getByText("Check in with Maria Lane", { exact: true })).toBeVisible();
+    await phoneSearch.fill("Rae");
+    await expect(panel.getByText("Check in with Rae Taylor", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Check in with Maria Lane", { exact: true })).toHaveCount(0);
   } finally { await prisma.contactActivity.deleteMany({ where: { workspaceId, contactId: { in: ids } } }); await prisma.contact.deleteMany({ where: { workspaceId, id: { in: ids } } }); }
 });

@@ -67,13 +67,14 @@ test("the Beat editor authors text, email and call versions, refuses private not
   await page.getByLabel("When should it start?").selectOption("MANUAL_START");
   const beat = page.getByRole("group", { name: "Beat 1" });
   await beat.getByLabel("Message").fill(textBody);
-  await beat.getByText("Also offer as…").click();
-  // The beat is a text, so only the email and call versions are offered.
+  // The versions live in the beat's options. The beat is a text, so only the email and call versions are offered.
+  await beat.getByLabel("Options for beat 1", { exact: true }).click();
+  await beat.getByText("Text, email and call versions · generated for you", { exact: true }).click();
   await expect(beat.getByLabel("Text version")).toHaveCount(0);
   await beat.getByLabel("Email version subject").fill("Your estimate");
   await beat.getByLabel(/^Email version(?! subject)/).fill(emailBody);
-  await beat.getByLabel("Call version · notes for you").fill(callScript);
-  await expect(beat.getByText("Also offer as… (2)")).toBeVisible();
+  await beat.getByLabel("Call version · talking points for you").fill(callScript);
+  await expect(beat.getByText("Text, email and call versions · 2 written by you", { exact: true })).toBeVisible();
   await audit(page);
   await page.getByRole("button", { name: "Create a mix" }).click();
   await page.waitForURL(/created=manual/);
@@ -84,9 +85,10 @@ test("the Beat editor authors text, email and call versions, refuses private not
   // The editor reads the versions back; private notes in an outward version are refused, and nothing changes.
   await page.goto(`/mixes/${mix.id}/edit`); await ready(page);
   const saved = page.getByRole("group", { name: "Beat 1" });
-  await saved.getByText("Also offer as… (2)").click();
+  await saved.getByLabel("Options for beat 1", { exact: true }).click();
+  await saved.getByText("Text, email and call versions · 2 written by you", { exact: true }).click();
   await expect(saved.getByLabel("Email version subject")).toHaveValue("Your estimate");
-  await expect(saved.getByLabel("Call version · notes for you")).toHaveValue(callScript);
+  await expect(saved.getByLabel("Call version · talking points for you")).toHaveValue(callScript);
   await saved.getByLabel(/^Email version(?! subject)/).fill(`${emailBody} {{Private Notes}}`);
   await page.getByRole("button", { name: "Save mix" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Private notes" })).toContainText("Private notes may only be inserted into Beat 1's call version.");
@@ -96,7 +98,7 @@ test("the Beat editor authors text, email and call versions, refuses private not
 test("one follow-up switches between its usable versions on Today, keeps each version's edits, hides private notes outside the call, freezes the chosen handoff and completes once", async ({ page }) => {
   await page.goto("/jumps"); await ready(page);
   // The plan's own text is the default; the single-channel card offers no choice at all.
-  await expect(choice(page).getByRole("button")).toHaveText(["Text", "Email", "Call"]);
+  await expect(choice(page).getByRole("button")).toHaveText([/^Text(?:\s*Recommended)?$/, /^Email(?:\s*Recommended)?$/, /^Call(?:\s*Recommended)?$/]);
   await expect(choice(page).getByRole("button", { name: "Text" })).toHaveAttribute("aria-pressed", "true");
   await expect(field(page)).toHaveValue(`Hi Alex, your estimate is ready. ${owner}`);
   await expect(page.locator(`#jump-${singleJumpId} [data-follow-up-channel-choice]`)).toHaveCount(0);
@@ -119,7 +121,7 @@ test("one follow-up switches between its usable versions on Today, keeps each ve
   // Without an email address the email tab is disabled and the card falls back to the plan's text.
   await prisma.contactEmail.deleteMany({ where: { contactId } });
   await page.goto("/jumps"); await ready(page);
-  await expect(choice(page).getByRole("button")).toHaveText(["Text", "Email", "Call"]);
+  await expect(choice(page).getByRole("button")).toHaveText([/^Text(?:\s*Recommended)?$/, /^Email(?:\s*Recommended)?$/, /^Call(?:\s*Recommended)?$/]);
   await expect(choice(page).getByRole("button", { name: "Email" })).toBeDisabled();
   await expect(choice(page).getByRole("button", { name: "Text" })).toHaveAttribute("aria-pressed", "true");
   await expect(field(page)).toHaveValue(`Hi Alex, your estimate is ready. ${owner}`);

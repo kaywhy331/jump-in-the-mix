@@ -21,17 +21,19 @@ test("mix pages preserve filters, reach every result and keep small-screen navig
     await context.addCookies([{ name: process.env.AUTH_COOKIE_NAME ?? "jitm_session", value: token, url: baseURL!, httpOnly: true, sameSite: "Strict" }]);
     await page.goto("/mixes?q=Page&status=ACTIVE");
     const pager = page.getByRole("navigation", { name: "Mix result pages" });
-    const rows = page.locator(".mix-row");
-    await expect(rows).toHaveCount(20); await expect(pager).toContainText("1–20 of 23 mixes");
-    const first = await rows.locator("h3").allTextContents();
-    await pager.getByRole("link", { name: "Next", exact: true }).click();
+    const total = page.locator(".mix-library-total").getByRole("status");
+    const rows = page.locator(".mix-library-row");
+    const names = () => rows.locator(".mix-row-copy strong").allTextContents();
+    await expect(rows).toHaveCount(20); await expect(total).toHaveText("23 mixes"); await expect(pager).toContainText("1 / 2");
+    const first = await names();
+    await pager.getByRole("link", { name: "Next mixes", exact: true }).click();
     await expect(page).toHaveURL(/q=Page&status=ACTIVE&page=2$/);
-    await expect(rows).toHaveCount(3); await expect(pager).toContainText("Page 2 of 2");
-    const last = await rows.locator("h3").allTextContents();
+    await expect(rows).toHaveCount(3); await expect(pager).toContainText("2 / 2");
+    const last = await names();
     expect(new Set([...first, ...last]).size).toBe(23);
     await expect(page.getByText("Page sample foreign")).toHaveCount(0);
     await expect(page.getByText("Page sample 24", { exact: true })).toHaveCount(0);
-    await expect(pager.getByRole("link", { name: "Next", exact: true })).toHaveCount(0);
+    await expect(pager.getByRole("link", { name: "Next mixes", exact: true })).toHaveCount(0);
     for (const theme of ["light", "dark"]) {
       await page.setViewportSize({ width: testInfo.project.name === "mobile-chromium" ? 320 : 1440, height: 900 });
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
@@ -39,17 +41,23 @@ test("mix pages preserve filters, reach every result and keep small-screen navig
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
     }
-    await pager.getByRole("link", { name: "Previous", exact: true }).click();
-    await expect(rows).toHaveCount(20); expect(await rows.locator("h3").allTextContents()).toEqual(first);
+    await pager.getByRole("link", { name: "Previous mixes", exact: true }).click();
+    await expect(rows).toHaveCount(20); expect(await names()).toEqual(first);
     await page.goto("/mixes?q=Page&status=ACTIVE&page=999");
-    await expect(rows).toHaveCount(3); await expect(pager).toContainText("Page 2 of 2");
-    await page.getByLabel("Search mixes", { exact: true }).fill("Missing result");
+    await expect(rows).toHaveCount(3); await expect(pager).toContainText("2 / 2");
+    const search = page.getByRole("searchbox", { name: "Search mixes" });
+    await search.fill("Missing result"); await search.press("Enter");
     await expect(page).toHaveURL(/q=Missing\+result&status=ACTIVE$/);
-    await expect(page.getByRole("heading", { name: "No mixes match these filters." })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Create a basic starter mix" })).toHaveCount(0);
+    // An empty result keeps the count honest and offers one way out: clearing the filters.
+    await expect(total).toHaveText("0 mixes");
+    await expect(page.getByText("No mixes found.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No matching mixes" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Clear filters", exact: true }).first()).toHaveAttribute("href", "/mixes");
     await page.goto("/mixes?page=2");
-    await page.getByRole("button", { name: /^Filter/ }).click();
-    await page.getByLabel("Filter mixes by status").selectOption("DRAFT");
+    await page.getByRole("button", { name: "Filter mixes", exact: true }).click();
+    const filters = page.getByRole("dialog", { name: "Filter mixes" });
+    await filters.getByLabel("Status", { exact: true }).selectOption("DRAFT");
+    await filters.getByRole("button", { name: "Apply filters", exact: true }).click();
     await expect(page).toHaveURL(/\/mixes\?(?:q=&)?status=DRAFT$/);
     await expect(rows).toHaveCount(1); await expect(rows).toContainText("Page sample 23");
   } finally {

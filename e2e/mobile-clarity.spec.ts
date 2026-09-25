@@ -28,10 +28,13 @@ test("review then handoff then outcome stays attached to the correct person", as
   try {
     await page.goto("/jumps?range=all&q=Clarity%20Person");
     const card = page.locator(`[id="jump-${id}"]`);
-    await expect(card.getByRole("textbox")).toHaveCount(0);
-    await expect(card.getByRole("button")).toHaveCount(2);
     const review = card.getByRole("button", { name: "Review message for Clarity Person" });
     const more = card.getByRole("button", { name: "More options for Clarity Person" });
+    // Wide screens dock the next follow-up's review open once the page is ready; the compact card is checked with it closed.
+    await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 });
+    if (await card.locator(".follow-up-review-sheet[open]").count()) await card.getByRole("button", { name: "Close Follow up with Clarity Person" }).click();
+    await expect(card.getByRole("textbox")).toHaveCount(0);
+    await expect(card.getByRole("button")).toHaveCount(2);
     const [a, b] = await Promise.all([review.boundingBox(), more.boundingBox()]);
     expect(Math.abs(a!.y - b!.y)).toBeLessThan(3);
     await review.click();
@@ -63,11 +66,12 @@ test("quick add separates capture and review and retains text when going back", 
   const dialog = page.getByRole("dialog", { name: "Quick Add", exact: true });
   const capture = dialog.getByRole("textbox", { name: "What do you want to remember?" });
   await capture.fill("Text Maria Friday about the estimate");
-  await expect(dialog.getByText("Check the details", { exact: true })).not.toBeVisible();
+  // Capture first: the only way forward is Continue, and the review heading appears after it.
+  await expect(dialog.getByRole("button", { name: "Continue", exact: true })).toBeEnabled();
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(capture).not.toBeVisible();
-  await expect(dialog.getByText("Check the details", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("Check the details", { exact: true })).toBeFocused();
+  await expect(dialog.getByText("Saving as", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Saving as", { exact: true })).toBeFocused();
   await dialog.getByRole("button", { name: "Edit capture" }).click();
   await expect(capture).toHaveValue("Text Maria Friday about the estimate");
   await expect(capture).toBeFocused();

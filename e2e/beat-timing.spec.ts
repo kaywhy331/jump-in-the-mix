@@ -35,13 +35,17 @@ test("a beat is timed as a positive duration before or after the visit, or after
   const name = `Estimate visit ${randomUUID().slice(0, 8)}`;
   await page.goto("/mixes/new?custom=1"); await ready(page);
   await page.getByLabel("Mix name").fill(name);
-  await page.getByLabel("Cue · when should it start?").selectOption("MANUAL_START");
+  await page.getByLabel("When should it start?").selectOption("MANUAL_START");
   const beat = page.getByRole("group", { name: "Beat 1" });
-  await expect(beat.getByLabel("Tempo · days after start")).toBeVisible();
-  await beat.getByLabel("Timing").selectOption("APPOINTMENT_START");
+  const dayField = beat.getByRole("spinbutton", { name: "Days after start", exact: true });
+  await expect(dayField).toBeVisible();
+  // Appointment timing lives in the beat's options.
+  await beat.getByLabel("Options for beat 1", { exact: true }).click();
+  await beat.getByText("Appointment timing (optional)", { exact: true }).click();
+  await beat.getByLabel("Count from").selectOption("APPOINTMENT_START");
   // The day field gives way to a positive minutes field plus before/after; the day-based settings no longer apply to this beat.
-  await expect(beat.getByLabel("Tempo · days after start")).toHaveCount(0);
-  await expect(beat.getByText("More tempo settings")).toHaveCount(0);
+  await expect(dayField).toHaveCount(0);
+  await expect(beat.getByText("More timing options")).toHaveCount(0);
   const minutes = beat.getByLabel("Minutes", { exact: true });
   await expect(minutes).toHaveAttribute("min", "0");
   await minutes.fill("90");
@@ -57,13 +61,15 @@ test("a beat is timed as a positive duration before or after the visit, or after
   // The editor reads the saved timing back as ninety minutes before, and can move the beat to the recorded completion.
   await page.goto(`/mixes/${mix.id}/edit`); await ready(page);
   const saved = page.getByRole("group", { name: "Beat 1" });
-  await expect(saved.getByLabel("Timing")).toHaveValue("APPOINTMENT_START");
+  await saved.getByLabel("Options for beat 1", { exact: true }).click();
+  await saved.getByText("Appointment timing (optional)", { exact: true }).click();
+  await expect(saved.getByLabel("Count from")).toHaveValue("APPOINTMENT_START");
   await expect(saved.getByLabel("Minutes", { exact: true })).toHaveValue("90");
   await expect(saved.getByLabel("Before or after")).toHaveValue("before");
-  await saved.getByLabel("Timing").selectOption("VISIT_COMPLETED");
+  await saved.getByLabel("Count from").selectOption("VISIT_COMPLETED");
   // Completion timing is after-only: no before/after choice, zero allowed.
   await expect(saved.getByLabel("Before or after")).toHaveCount(0);
-  const after = saved.getByLabel("Minutes after it is marked completed");
+  const after = saved.getByLabel("Minutes after completion", { exact: true });
   await expect(after).toHaveAttribute("min", "0");
   await after.fill("0");
   await expect(saved.getByText(/Becomes due as soon as the visit is marked completed\. It has nothing to count from until you mark the visit completed\./)).toBeVisible();
@@ -76,8 +82,10 @@ test("a beat is timed as a positive duration before or after the visit, or after
   // Back to the calendar-day rule: the day field returns and the minutes are cleared.
   await page.goto(`/mixes/${mix.id}/edit`); await ready(page);
   const again = page.getByRole("group", { name: "Beat 1" });
-  await again.getByLabel("Timing").selectOption("CALENDAR_DAY");
-  await expect(again.getByLabel("Tempo · days after start")).toBeVisible();
+  await again.getByLabel("Options for beat 1", { exact: true }).click();
+  await again.getByText("Appointment timing (optional)", { exact: true }).click();
+  await again.getByLabel("Count from").selectOption("CALENDAR_DAY");
+  await expect(again.getByRole("spinbutton", { name: "Days after start", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /Save mix|Review and start/ }).click();
   await expect.poll(async () => (await prisma.mixStep.findFirstOrThrow({ where: { mixId: mix.id, isActive: true } })).anchor, { timeout: 20_000 }).toBe("CALENDAR_DAY");
   expect((await prisma.mixStep.findFirstOrThrow({ where: { mixId: mix.id, isActive: true } })).offsetMinutes).toBeNull();
@@ -87,17 +95,21 @@ test("an appointment-based mix starts with no one enrolled, attaches to the visi
   const name = `Estimate visit flow ${randomUUID().slice(0, 8)}`;
   await page.goto("/mixes/new?custom=1"); await ready(page);
   await page.getByLabel("Mix name").fill(name);
-  await page.getByLabel("Cue · when should it start?").selectOption("MANUAL_START");
+  await page.getByLabel("When should it start?").selectOption("MANUAL_START");
   await page.getByLabel("After saving").selectOption("ACTIVE");
   const first = page.getByRole("group", { name: "Beat 1" });
-  await first.getByLabel("Timing").selectOption("APPOINTMENT_START");
+  await first.getByLabel("Options for beat 1", { exact: true }).click();
+  await first.getByText("Appointment timing (optional)", { exact: true }).click();
+  await first.getByLabel("Count from").selectOption("APPOINTMENT_START");
   await first.getByLabel("Minutes", { exact: true }).fill("90");
   await first.getByLabel("Before or after").selectOption("before");
   await first.getByLabel("Message").fill("Hi {{First Name}}, leaving now for {{Appointment Title}}.");
   await page.getByRole("button", { name: "Add a beat" }).click();
   const second = page.getByRole("group", { name: "Beat 2" });
   await second.getByLabel("Channel").selectOption("SMS");
-  await second.getByLabel("Timing").selectOption("APPOINTMENT_END");
+  await second.getByLabel("Options for beat 2", { exact: true }).click();
+  await second.getByText("Appointment timing (optional)", { exact: true }).click();
+  await second.getByLabel("Count from").selectOption("APPOINTMENT_END");
   await second.getByLabel("Minutes", { exact: true }).fill("30");
   await second.getByLabel("Before or after").selectOption("after");
   await expect(second.getByText(/Becomes due 30 minutes after the appointment ends\. It waits until you record that the visit happened\./)).toBeVisible();
@@ -105,14 +117,16 @@ test("an appointment-based mix starts with no one enrolled, attaches to the visi
   await page.getByRole("button", { name: "Add a beat" }).click();
   const third = page.getByRole("group", { name: "Beat 3" });
   await third.getByLabel("Channel").selectOption("SMS");
-  await third.getByLabel("Timing").selectOption("VISIT_COMPLETED");
-  await third.getByLabel("Minutes after it is marked completed").fill("0");
+  await third.getByLabel("Options for beat 3", { exact: true }).click();
+  await third.getByText("Appointment timing (optional)", { exact: true }).click();
+  await third.getByLabel("Count from").selectOption("VISIT_COMPLETED");
+  await third.getByLabel("Minutes after completion", { exact: true }).fill("0");
   await third.getByLabel("Message").fill("Here is your estimate, {{First Name}}.");
 
   // Starting the mix needs no one enrolled. The review counts nothing as scheduled: every beat waits for a visit.
   await page.getByRole("button", { name: "Review and start" }).click();
   const review = page.getByRole("dialog", { name: "Start this mix?" });
-  await expect(review.locator("div:has(> span:text-is('scheduled follow-ups')) > strong")).toHaveText("0");
+  await expect(review.locator("div:has(> span:text-is('potential follow-ups')) > strong")).toHaveText("0");
   await expect(review.locator("div:has(> span:text-is('beats wait for a visit')) > strong")).toHaveText("3");
   await expect(review).toContainText("No one is enrolled yet. Line this mix up with a visit from the calendar, or start it from one person’s page.");
   await audit(page);
@@ -124,11 +138,14 @@ test("an appointment-based mix starts with no one enrolled, attaches to the visi
   expect(mix.steps.map((step) => [step.anchor, step.offsetMinutes])).toEqual([["APPOINTMENT_START", -90], ["APPOINTMENT_END", 30], ["VISIT_COMPLETED", 0]]);
   await reconcileJumps({ workspaceId, mixId: mix.id });
   expect(await prisma.jump.count({ where: { mixId: mix.id } })).toBe(0);
-  // The list does not present visit-timed beats as days.
-  await page.goto("/mixes"); await ready(page);
-  const card = page.locator("article.mix-card", { hasText: name });
-  await expect(card.locator(".mix-timing")).toHaveText("3 beats · 3 timed from a visit");
-  await expect(card.locator(".mix-sequence-item").first()).toContainText("1 hour 30 minutes before the appointment starts");
+  // The Mix library does not present visit-timed beats as days: the row counts beats and the preview describes each timing.
+  await page.goto(`/mixes?mix=${mix.id}`); await ready(page);
+  await expect(page.locator(".mix-library-row", { hasText: name })).toContainText("active · 3 Beats");
+  const preview = page.getByRole("region", { name: "Beat preview" });
+  await expect(preview.locator("li").first()).toContainText("1 hour 30 minutes before the appointment starts");
+  await expect(preview.locator("li").nth(1)).toContainText("30 minutes after the appointment ends");
+  await expect(preview.locator("li").nth(2)).toContainText("as soon as the visit is marked completed");
+  await expect(preview).not.toContainText(/Day \d/);
 
   // Attached to the one visit the owner chooses on the calendar. The confirmation reports what that gives them now.
   await page.goto(`/calendar?contact=${contactId}&date=${visitDate}`); await ready(page);
