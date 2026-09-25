@@ -1,15 +1,38 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { strToU8, zipSync } from "fflate";
 import { requireWorkspace } from "@/lib/auth";
 import { createContactsCsv, createFollowUpsCsv, createTimelineCsv } from "@/lib/contact-export";
 import { decryptAttemptRecipient } from "@/lib/jump-attempts";
 import { prisma } from "@/lib/prisma";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+const EXPORTS_PER_HOUR = 6;
+
+/** Every workflow instance carries a copy of the workspace definition; the export writes each distinct copy once. */
+function withSharedDefinitions<T extends { definition: unknown }>(instances: T[]): { definitions: Array<{ id: string; definition: unknown }>; instances: Array<Omit<T, "definition"> & { definitionId: string }> } {
+  const definitions = new Map<string, unknown>();
+  const compact = instances.map(({ definition, ...instance }) => {
+    const definitionId = createHash("sha256").update(JSON.stringify(definition) ?? "null", "utf8").digest("hex").slice(0, 16);
+    if (!definitions.has(definitionId)) definitions.set(definitionId, definition);
+    return { ...instance, definitionId };
+  });
+  return { definitions: [...definitions].map(([id, definition]) => ({ id, definition })), instances: compact };
+}
 
 export async function GET(request: Request) {
   const { user, workspace, impersonation } = await requireWorkspace();
   if (impersonation) return NextResponse.json({ error: "Personal data export is unavailable during a support session." }, { status: 403 });
+  const exportLimit = await consumeRateLimit({ scope: "account.export", identifiers: [user.id], limit: EXPORTS_PER_HOUR, windowMs: 60 * 60 * 1000 });
+  if (!exportLimit.allowed) {
+    const minutes = Math.max(1, Math.ceil(exportLimit.retryAfterSeconds / 60));
+    return NextResponse.json(
+      { error: `Exports are limited to six per hour. Try again in about ${minutes} minute${minutes === 1 ? "" : "s"}.` },
+      { status: 429, headers: { "Retry-After": String(exportLimit.retryAfterSeconds), "Cache-Control": "no-store" } }
+    );
+  }
   const workspaceId = workspace.id;
   const [
     profile,
@@ -141,7 +164,7 @@ export async function GET(request: Request) {
     reviewRequests,
     automatedDeliveries,
     journey: { preference: journeyPreference, stages: journeyStages, contacts: journeys, events: journeyEvents },
-    mixWorkflow: { configuration: mixWorkflow, instances: mixWorkflowInstances },
+    mixWorkflow: { configuration: mixWorkflow, ...withSharedDefinitions(mixWorkflowInstances) },
     mixFavorites,
     megaMixInstallations,
     megaMixPipelines,
@@ -155,7 +178,7 @@ export async function GET(request: Request) {
     excludedSecurityMaterial: ["password hashes", "session tokens", "provider credentials", "provider webhook payloads", "connection keys and private calendar URLs", "push endpoints and authentication keys", "invitation tokens"],
     excludedOperationalData: ["platform staff administration and analytics", "shared system-catalog source records", "internal job, transport and audit queues"]
   };
-  return new NextResponse(JSON.stringify(document, null, 2), {
+  return new NextResponse(JSON.stringify(document), {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Content-Disposition": `attachment; filename="jump-in-the-mix-personal-data-${exportedAt.toISOString().slice(0, 10)}.json"`,

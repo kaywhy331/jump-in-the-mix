@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth";
 import { env } from "@/lib/env";
 import { endAdminImpersonationGrant } from "@/lib/impersonation";
-import { requestPublicUrl } from "@/lib/request-url";
 import { userHasAdminPermission } from "@/lib/staff-access";
 
 export async function POST(request: Request) {
@@ -19,10 +18,8 @@ export async function POST(request: Request) {
     await endAdminImpersonationGrant(decodedToken, session.authUser.id).catch(() => false);
   }
   const canViewSupport = session && await userHasAdminPermission(session.authUser.id, "support.manage");
-  const response = NextResponse.redirect(
-    requestPublicUrl(request, canViewSupport ? "/admin/support?impersonationEnded=1" : "/login"),
-    303
-  );
+  // The destination comes from the configured application URL, never from forwarded host headers.
+  const response = NextResponse.redirect(new URL(canViewSupport ? "/admin/support?impersonationEnded=1" : "/login", env.appUrl), 303);
   response.cookies.set(env.impersonationCookieName, "", {
     httpOnly: true,
     sameSite: "lax",

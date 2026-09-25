@@ -3,7 +3,7 @@
 import { captureFormFailure, recoverableFormAction, type FormResult } from "@/lib/form-errors";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/auth";
+import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { generateJumps } from "@/lib/jump-engine";
 import { isValidTimezone } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
@@ -36,7 +36,7 @@ function welcomePath(firstContact: string | null): string {
 }
 
 export async function completeOnboardingAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace((message) => fail("/onboarding", message));
   const uses = onboardingUses(formData.getAll("useCase").map(String));
   const business = uses.includes("business");
   if (!uses.length) fail("/onboarding", "Choose how you want to use Jump in the Mix.");
@@ -128,7 +128,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
 }
 
 export async function skipOnboardingAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace((message) => fail("/onboarding", message));
   const uses = onboardingUses(formData.getAll("useCase").map(String));
   const business = uses.includes("business");
   const submittedTimezone = value(formData, "timezone");

@@ -13,14 +13,14 @@ export function SupportEmailRecovery({ ticketId, delivery, canManageEmail, retur
     {delivery.status === "CANCELED" && <small>No further email is queued. This does not retract an email already accepted by the provider.</small>}
     {delivery.status === "REVIEW" && <details className="admin-release-confirmation">
       <summary>Review this email notification</summary>
-      <p>The response remains in the customer’s ticket. Checking a receipt makes no send request. Retrying uses the same saved email and key within its original retry window.</p>
+      <p>The response remains in the customer’s ticket. {canManageEmail && delivery.hasFrozenContent && "Checking a receipt makes no send request. "}Retrying uses the same saved email and key within its original retry window.</p>{!canManageEmail && delivery.hasFrozenContent && <p>Checking the acceptance receipt is limited to staff with the email management permission.</p>}
       {!delivery.hasFrozenContent && <p>This notification has no saved original content and key. Check the provider history, close this review, and add a new response if the customer still needs an email.</p>}
       <AdminDraftForm draftKey={`support-email-review:${delivery.id}`} fields={["reason", "providerId"]} revision={delivery.updatedAt.toISOString()} revisionField="expectedUpdatedAt" saved={saved} action={adminRetrySupportEmailAction}>
         {fields}
         <label className="field"><span className="field-label">Review reason</span><textarea name="reason" minLength={10} maxLength={500} required rows={2} /></label>
         {canManageEmail && delivery.hasFrozenContent && <label className="field"><span className="field-label">Provider email record ID (optional)</span><input name="providerId" maxLength={200} /><small>Used only by Check acceptance receipt. Leave blank to check the local ledger.</small></label>}
         <div className="form-actions">
-          {delivery.hasFrozenContent && <><FormSubmitButton formAction={adminRecoverSupportEmailAction} label="Check acceptance receipt" pendingLabel="Checking…" /><FormSubmitButton label="Queue same email again" pendingLabel="Queueing…" /></>}
+          {delivery.hasFrozenContent && <>{canManageEmail && <FormSubmitButton formAction={adminRecoverSupportEmailAction} label="Check acceptance receipt" pendingLabel="Checking…" />}<FormSubmitButton label="Queue same email again" pendingLabel="Queueing…" /></>}
           <FormSubmitButton formAction={adminCancelSupportEmailAction} label="Close without another email" pendingLabel="Saving…" />
         </div>
       </AdminDraftForm>

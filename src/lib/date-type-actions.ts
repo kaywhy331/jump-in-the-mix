@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/auth";
+import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { prisma } from "@/lib/prisma";
 import { slugify } from "@/lib/slug";
 
@@ -18,7 +18,7 @@ function fail(message: string): never {
 }
 
 export async function createCustomDateTypeAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireWorkspace();
+  const { workspace } = await requireWritableWorkspace(fail);
   const name = value(formData, "name");
   if (!name) fail("Give the saved date type a name.");
   const slug = slugify(name);
@@ -46,7 +46,7 @@ export async function createCustomDateTypeAction(formData: FormData): Promise<vo
 }
 
 export async function renameCustomDateTypeAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireWorkspace();
+  const { workspace } = await requireWritableWorkspace(fail);
   const dateTypeId = value(formData, "dateTypeId");
   const name = value(formData, "name");
   if (!name) fail("Give the saved date type a name.");
@@ -70,7 +70,7 @@ export async function renameCustomDateTypeAction(formData: FormData): Promise<vo
 }
 
 export async function saveActiveDateTypesAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireWorkspace();
+  const { workspace } = await requireWritableWorkspace(fail);
   const selectedIds = [...new Set(values(formData, "activeDateTypeIds"))];
   const available = selectedIds.length
     ? await prisma.dateType.findMany({ where: { workspaceId: workspace.id, isSystem: false, id: { in: selectedIds } }, select: { id: true } })
@@ -87,7 +87,7 @@ export async function saveActiveDateTypesAction(formData: FormData): Promise<voi
 }
 
 export async function deleteCustomDateTypeAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireWorkspace();
+  const { workspace } = await requireWritableWorkspace(fail);
   const dateTypeId = value(formData, "dateTypeId");
   const dateType = await prisma.dateType.findFirst({
     where: { id: dateTypeId, workspaceId: workspace.id, isSystem: false },

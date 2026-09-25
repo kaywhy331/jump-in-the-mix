@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/auth";
+import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { normalizeCustomFieldKey } from "@/lib/contact-custom-fields";
 import { prisma } from "@/lib/prisma";
 
@@ -14,7 +14,7 @@ function fail(message: string): never {
 }
 
 export async function createContactCustomFieldAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace(fail);
   const name = value(formData, "name");
   const key = normalizeCustomFieldKey(name);
   if (!name || !key) fail("Give the custom field a clear name.");
@@ -40,7 +40,7 @@ export async function createContactCustomFieldAction(formData: FormData): Promis
 }
 
 export async function renameContactCustomFieldAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace(fail);
   const definitionId = value(formData, "definitionId");
   const name = value(formData, "name");
   if (!name) fail("Give the custom field a clear name.");
@@ -74,7 +74,7 @@ export async function renameContactCustomFieldAction(formData: FormData): Promis
 }
 
 export async function deleteContactCustomFieldAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace(fail);
   const definitionId = value(formData, "definitionId");
   const existing = await prisma.contactCustomFieldDefinition.findFirst({
     where: { id: definitionId, workspaceId: workspace.id },

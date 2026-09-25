@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/auth";
+import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { prisma } from "@/lib/prisma";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
@@ -21,7 +21,7 @@ function withParam(path: string, key: string, parameterValue: string): string {
 }
 
 export async function snoozeJumpAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace((message) => redirect(withParam(safeReturnTo(value(formData, "returnTo")), "error", message)));
   const jumpId = value(formData, "jumpId");
   const returnTo = safeReturnTo(value(formData, "returnTo"));
   const presetRaw = value(formData, "preset") || "custom";

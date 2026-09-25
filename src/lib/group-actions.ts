@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/auth";
+import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import {
   isGroupActive,
   setActiveWorkspaceGroups
@@ -25,7 +25,7 @@ function selectedContactIds(formData: FormData): string[] {
 }
 
 export async function createContactGroupAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace(fail);
   const name = value(formData, "name");
   const description = value(formData, "description");
   const color = value(formData, "color");
@@ -69,7 +69,7 @@ export async function createContactGroupAction(formData: FormData): Promise<void
 }
 
 export async function deleteContactGroupAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace(fail);
   const groupId = value(formData, "groupId");
   const group = await prisma.group.findFirst({
     where: { id: groupId, workspaceId: workspace.id },
@@ -99,7 +99,7 @@ export async function deleteContactGroupAction(formData: FormData): Promise<void
 }
 
 export async function saveActiveGroupsAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace(fail);
   try {
     await setActiveWorkspaceGroups({
       workspaceId: workspace.id,
@@ -113,7 +113,7 @@ export async function saveActiveGroupsAction(formData: FormData): Promise<void> 
 }
 
 export async function assignSelectedContactsToActiveGroupAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace(fail);
   const contactIds = selectedContactIds(formData);
   const groupId = value(formData, "groupId");
   if (!contactIds.length) fail("Select at least one Contact.");

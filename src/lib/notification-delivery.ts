@@ -12,6 +12,7 @@ import {
 } from "@/lib/jump-schedule";
 import { isValidTimezone } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
+import { isQuietTime } from "@/lib/snooze-schedule";
 import { escapeHtml, sendTransactionalEmail, transactionalEmailConfigured } from "@/lib/transactional-email";
 
 const deliveryLeaseMs = 15 * 60_000;
@@ -44,10 +45,8 @@ export function notificationClock(value: Date, timeZone: string): NotificationCl
   };
 }
 
-export function isQuietTime(minutes: number, start: number, end: number): boolean {
-  if (start === end) return false;
-  return start < end ? minutes >= start && minutes < end : minutes >= start || minutes < end;
-}
+// One quiet-hours rule for reminders, automatic sending and snoozes; it lives in snooze-schedule.
+export { isQuietTime };
 
 export function digestIsDue(clock: NotificationClock, digestHour: number): boolean {
   return clock.hour * 60 + clock.minute >= digestHour * 60;
