@@ -7,37 +7,37 @@ import { createSession, requirePlatformAdmin } from "@/lib/auth";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 import { hashAuthToken } from "@/lib/auth-tokens";
-import { withSignedError } from "@/lib/form-errors";
+import { type ErrorViewer, withSignedError, withViewerError } from "@/lib/form-errors";
 import { issueStaffInvitation, manageStaffInvitation, acceptStaffInvitation, StaffInvitationError } from "@/lib/staff-invitations";
 import { StaffAccessError } from "@/lib/staff-access";
 import type { AdminRole } from "@/lib/admin-permissions";
 
-function teamError(error: unknown, data: FormData): never {
+function teamError(error: unknown, data: FormData, viewer: ErrorViewer): never {
   if (error instanceof StaffInvitationError && error.needsMfa) redirect(`/account/admin-mfa?verify=1&returnTo=${encodeURIComponent(adminActionDestination(data, "/admin/team"))}`);
-  if (error instanceof StaffInvitationError || error instanceof StaffAccessError) redirect(adminActionDestination(data, "/admin/team", { error: error.message }));
+  if (error instanceof StaffInvitationError || error instanceof StaffAccessError) redirect(withViewerError(adminActionDestination(data, "/admin/team"), error.message, viewer));
   throw error;
 }
 
 export async function sendStaffInvitationAction(formData: FormData): Promise<void> {
   const { user, session } = await requirePlatformAdmin("staff.manage");
   const limit = await consumeRateLimit({ scope: "staff.invitation.issue", identifiers: [user.id], limit: 10, windowMs: 15 * 60_000 });
-  if (!limit.allowed) redirect(adminActionDestination(formData, "/admin/team", { error: "Too many attempts. Try again in 15 minutes." }));
+  if (!limit.allowed) redirect(withViewerError(adminActionDestination(formData, "/admin/team"), "Too many attempts. Try again in 15 minutes.", session));
   try {
     await issueStaffInvitation({ actorUserId: user.id, actorSessionId: session.id, password: String(formData.get("currentPassword") ?? ""), reason: String(formData.get("reason") ?? ""),
       email: String(formData.get("email") ?? ""), role: String(formData.get("role") ?? "SUPPORT") as AdminRole,
       grants: formData.getAll("grant").map(String), denies: formData.getAll("deny").map(String) });
-  } catch (error) { teamError(error, formData); }
+  } catch (error) { teamError(error, formData, session); }
   revalidatePath("/admin/team"); redirect(adminActionDestination(formData, "/admin/team?view=invitations", { invitation: "queued", changed: String(formData.get("email") ?? "") }));
 }
 
 export async function changeStaffInvitationAction(formData: FormData): Promise<void> {
   const { user, session } = await requirePlatformAdmin("staff.manage");
   const limit = await consumeRateLimit({ scope: "staff.invitation.manage", identifiers: [user.id], limit: 15, windowMs: 15 * 60_000 });
-  if (!limit.allowed) redirect(adminActionDestination(formData, "/admin/team", { error: "Too many attempts. Try again in 15 minutes." }));
+  if (!limit.allowed) redirect(withViewerError(adminActionDestination(formData, "/admin/team"), "Too many attempts. Try again in 15 minutes.", session));
   try {
     await manageStaffInvitation({ actorUserId: user.id, actorSessionId: session.id, password: String(formData.get("currentPassword") ?? ""), reason: String(formData.get("reason") ?? ""),
       invitationId: String(formData.get("invitationId") ?? ""), operation: String(formData.get("operation")) as "revoke" | "retry" });
-  } catch (error) { teamError(error, formData); }
+  } catch (error) { teamError(error, formData, session); }
   revalidatePath("/admin/team"); redirect(adminActionDestination(formData, "/admin/team?view=invitations", { invitation: "updated", changed: String(formData.get("invitationId") ?? "") }));
 }
 

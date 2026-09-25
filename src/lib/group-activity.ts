@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export type ContactGroupStateValue = {
   groupId: string;
@@ -72,7 +73,7 @@ export async function setActiveWorkspaceGroups(input: {
     });
     const availableIds = new Set(groups.map((group) => group.id));
     if (selectedIds.some((id) => !availableIds.has(id))) {
-      throw new Error("One or more selected tags are unavailable.");
+      throw new UserFacingError("One or more selected tags are unavailable.");
     }
 
     const selected = new Set(selectedIds);

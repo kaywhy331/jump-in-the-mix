@@ -1,7 +1,7 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { captureFormFailure, recoverableFormAction, withSignedError, type FormResult } from "@/lib/form-errors";
+import { captureFormFailure, recoverableFormAction, withSignedError, withViewerError, type ErrorViewer, type FormResult } from "@/lib/form-errors";
 import { customerReturnPath } from "@/lib/customer-return-path";
 import { accountHome } from "@/lib/account-home";
 import { cookies } from "next/headers";
@@ -34,6 +34,12 @@ function fail(path: string, message: string): never {
   redirect(`${path}${separator}error=${encodeURIComponent(message)}`);
 }
 
+/** A failure on a signed-in page (/account), signed for the person who will see it. */
+function failFor(viewer: ErrorViewer, path: string, message: string): never {
+  captureFormFailure(message);
+  redirect(withViewerError(path, message, viewer));
+}
+
 function normalizedEmail(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -58,9 +64,12 @@ function rateLimitMessage(seconds: number): string {
   return `Too many attempts. Try again in about ${waitText(seconds)}.`;
 }
 
-async function enforceRateLimit(path: string, input: Parameters<typeof consumeRateLimit>[0]): Promise<void> {
+async function enforceRateLimit(path: string, input: Parameters<typeof consumeRateLimit>[0], viewer?: ErrorViewer): Promise<void> {
   const decision = await consumeRateLimit(input);
-  if (!decision.allowed) fail(path, rateLimitMessage(decision.retryAfterSeconds));
+  if (decision.allowed) return;
+  const message = rateLimitMessage(decision.retryAfterSeconds);
+  if (viewer) failFor(viewer, path, message);
+  fail(path, message);
 }
 
 /*
@@ -285,9 +294,10 @@ export async function consumeMagicLinkAction(formData: FormData): Promise<void> 
 export async function demoLoginAction(): Promise<void> {
   const metadata = await getRequestMetadata();
   await enforceRateLimit("/login", { scope: "auth.demo.ip", identifiers: [metadata.ipAddress], limit: 20, windowMs: 15 * 60 * 1000 });
-  if (!env.demoMode) fail("/login", "The demo workspace is disabled in this environment.");
+  // Fixed wording, so it is signed for /login (A2's public rule).
+  if (!env.demoMode) redirect(withSignedError("/login", "The demo workspace is disabled in this environment."));
   const user = await prisma.user.findUnique({ where: { email: env.demoEmail } });
-  if (!user) fail("/login", "The demo workspace is not ready yet. Run the seed command and try again.");
+  if (!user) redirect(withSignedError("/login", "The demo workspace is not ready yet. Run the seed command and try again."));
   await createSession(user.id);
   redirect("/jumps?demo=1");
 }
@@ -475,13 +485,13 @@ export async function changePasswordAction(formData: FormData): Promise<void> {
   const confirmPassword = value(formData, "confirmPassword");
   const path = "/account";
 
-  await enforceRateLimit(path, { scope: "auth.password.change", identifiers: [user.id], limit: 8, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 });
+  await enforceRateLimit(path, { scope: "auth.password.change", identifiers: [user.id], limit: 8, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 }, session);
   const hasPassword = Boolean(user.passwordHash);
-  if (hasPassword && !(await bcrypt.compare(currentPassword, user.passwordHash!))) fail(path, "The current password is incorrect.");
+  if (hasPassword && !(await bcrypt.compare(currentPassword, user.passwordHash!))) failFor(session, path, "The current password is incorrect.");
   const passwordError = passwordValidationError(password);
-  if (passwordError) fail(path, passwordError);
-  if (password !== confirmPassword) fail(path, "The new passwords do not match.");
-  if (hasPassword && await bcrypt.compare(password, user.passwordHash!)) fail(path, "Choose a new password that is different from the current one.");
+  if (passwordError) failFor(session, path, passwordError);
+  if (password !== confirmPassword) failFor(session, path, "The new passwords do not match.");
+  if (hasPassword && await bcrypt.compare(password, user.passwordHash!)) failFor(session, path, "Choose a new password that is different from the current one.");
 
   const passwordHash = await bcrypt.hash(password, 12);
   await prisma.$transaction([
@@ -497,7 +507,7 @@ export async function changePasswordAction(formData: FormData): Promise<void> {
 export async function revokeSessionAction(formData: FormData): Promise<void> {
   const { session, user } = await requireWorkspace();
   const sessionId = value(formData, "sessionId");
-  if (!sessionId || sessionId === session.id) fail("/account", "Use Sign out to end the current session.");
+  if (!sessionId || sessionId === session.id) failFor(session, "/account", "Use Sign out to end the current session.");
   await prisma.$transaction([
     prisma.adminMfaSession.deleteMany({ where: { sessionId, userId: user.id } }),
     prisma.session.deleteMany({ where: { id: sessionId, userId: user.id } })

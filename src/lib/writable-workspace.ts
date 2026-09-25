@@ -1,5 +1,5 @@
 import { requireWorkspace } from "@/lib/auth";
-import { captureFormFailure } from "@/lib/form-errors";
+import { captureFormFailure, type ErrorViewer } from "@/lib/form-errors";
 
 export const VIEW_ONLY_SUPPORT_MESSAGE = "This support session is view-only. End the support view before making changes.";
 
@@ -16,14 +16,14 @@ export class ViewOnlySupportSessionError extends Error {
  * while the impersonation cookie is present; this refuses in the action itself as well, so a
  * request that reaches the action without that cookie check still cannot write as the customer.
  * Inside a recoverable form action the refusal comes back as the form's error message. A plain
- * form action passes `refuse` (its own error redirect) so the message appears on the page; an
- * error thrown from a plain action would only reach the generic error page.
+ * form action passes `refuse` (its own error redirect, signed for `viewer` with withViewerError) so the
+ * message appears on the page; an error thrown from a plain action would only reach the generic error page.
  */
-export async function requireWritableWorkspace(refuse?: (message: string) => never) {
+export async function requireWritableWorkspace(refuse?: (message: string, viewer: ErrorViewer) => never) {
   const context = await requireWorkspace();
   if (context.impersonation) {
     captureFormFailure(VIEW_ONLY_SUPPORT_MESSAGE);
-    refuse?.(VIEW_ONLY_SUPPORT_MESSAGE);
+    refuse?.(VIEW_ONLY_SUPPORT_MESSAGE, context.session);
     throw new ViewOnlySupportSessionError();
   }
   return context;

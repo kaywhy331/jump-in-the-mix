@@ -6,6 +6,7 @@ import {
   zonedDateTimeToUtc,
   type LogicalDate
 } from "@/lib/jump-schedule";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export type SnoozePreset = "later-today" | "tomorrow" | "next-monday" | "next-week" | "custom";
 
@@ -101,7 +102,7 @@ type DateLocalTime = { date: LogicalDate; minutes: number };
 
 function parseCustomDate(value: string, defaultMinutes: number): DateLocalTime {
   const match = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/.exec(value.trim());
-  if (!match) throw new Error("Choose a valid date.");
+  if (!match) throw new UserFacingError("Choose a valid date.");
   const date = { year: Number(match[1]), month: Number(match[2]), day: Number(match[3]) };
   const hour = match[4] === undefined ? Math.floor(defaultMinutes / 60) : Number(match[4]);
   const minute = match[5] === undefined ? defaultMinutes % 60 : Number(match[5]);
@@ -114,7 +115,7 @@ function parseCustomDate(value: string, defaultMinutes: number): DateLocalTime {
     || hour > 23
     || minute < 0
     || minute > 59
-  ) throw new Error("Choose a valid date.");
+  ) throw new UserFacingError("Choose a valid date.");
   return { date, minutes: hour * 60 + minute };
 }
 
@@ -154,7 +155,7 @@ export function calculateSnoozeAt(input: SnoozeScheduleInput): Date {
   }
 
   const scheduledAt = zonedDateTimeToUtc(target.date, target.minutes, input.timezone);
-  if (scheduledAt <= input.now) throw new Error("Choose a future date and time.");
+  if (scheduledAt <= input.now) throw new UserFacingError("Choose a future date and time.");
   return scheduledAt;
 }
 

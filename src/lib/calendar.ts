@@ -7,6 +7,7 @@ import { parseCalendarFile } from "@/lib/calendar-ical";
 import { fetchCalendarFeed } from "@/lib/calendar-feed-fetch";
 import { decryptIntegrationCredentials } from "@/lib/integration-crypto";
 import { APPOINTMENT_DETAIL_LIMITS, normalizeAppointmentLink } from "@/lib/appointment-context";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 function detailText(value: string | null | undefined, maximum: number, name: string): string | null {
   const trimmed = value?.trim() ?? "";
@@ -61,7 +62,7 @@ export async function importCalendar(workspaceId: string, connectionId: string, 
   return prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR NO KEY UPDATE`;
     const connection = await tx.calendarConnection.findFirst({ where: { id: connectionId, workspaceId, enabled: true } });
-    if (!connection) throw new Error("This calendar connection is unavailable.");
+    if (!connection) throw new UserFacingError("This calendar connection is unavailable.");
     await tx.calendarEntry.deleteMany({ where: { workspaceId, connectionId } });
     // Incoming calendars only mark availability. They never create customers or
     // trigger a sale/meeting milestone from an unverified attendee address.
@@ -73,17 +74,17 @@ export async function importCalendar(workspaceId: string, connectionId: string, 
 
 export async function syncCalendarConnection(workspaceId: string, id: string, now = new Date()) {
   const connection = await prisma.calendarConnection.findFirst({ where: { workspaceId, id, enabled: true, urlEncrypted: { not: null } } });
-  if (!connection?.urlEncrypted) throw new Error("This calendar has no subscription URL.");
+  if (!connection?.urlEncrypted) throw new UserFacingError("This calendar has no subscription URL.");
   // Claim before fetching, so concurrent workers do not repeatedly fetch a feed.
   const claimed = await prisma.calendarConnection.updateMany({ where: { id, enabled: true, OR: [{ lastAttemptAt: null }, { lastAttemptAt: { lt: new Date(now.getTime() - 60_000) } }] }, data: { lastAttemptAt: now } });
-  if (!claimed.count) throw new Error("This calendar was just refreshed. Try again in a minute.");
+  if (!claimed.count) throw new UserFacingError("This calendar was just refreshed. Try again in a minute.");
   try {
     const { url, timezone } = decryptIntegrationCredentials<{ url: string; timezone: string }>(connection.urlEncrypted);
     return await importCalendar(workspaceId, id, await fetchCalendarFeed(url), timezone, now);
   } catch {
     const message = "Could not refresh this calendar. Previous availability is kept. Check the provider’s sharing URL or reconnect.";
     await prisma.calendarConnection.updateMany({ where: { id, workspaceId }, data: { lastError: message } });
-    throw new Error(message);
+    throw new UserFacingError(message);
   }
 }
 

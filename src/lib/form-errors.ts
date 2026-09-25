@@ -48,3 +48,46 @@ export function verifiedErrorMessage(params: { error?: string | string[]; sig?: 
   const received = Buffer.from(sig, "utf8");
   return received.length === expected.length && timingSafeEqual(received, expected) ? error : fallback;
 }
+
+/*
+ * Signed-in pages carry the same ?error=&sig= pair, signed for the account that caused it: the HMAC covers
+ * that account's id (the signed-in person, `session.authUser`, who is staff during a support view) and the
+ * time it was issued (`at`). A page shows the text only to that account, within VIEWER_ERROR_MAX_AGE_SECONDS;
+ * anyone else, and any link signed for someone else, sees the page's fixed sentence. Because a signature
+ * works only for the person who caused it, these messages may name what that person typed or chose (a
+ * contact's name, a Beat), unlike the public ones above. Separate namespace from the public signatures.
+ */
+const VIEWER_ERROR_MAX_AGE_SECONDS = 60 * 60;
+
+/** Who a signed-in page's error is for: the signed-in person, from the session every guard returns. */
+export type ErrorViewer = { authUser: { id: string } };
+
+function viewerErrorSignature(viewerId: string, issuedAt: number, message: string): string {
+  return createHmac("sha256", env.authRateLimitSecret).update(`jitm-viewer-error:v1:${viewerId}:${issuedAt}:${message}`, "utf8").digest("base64url");
+}
+
+/** `path` plus `error=<message>&at=<seconds>&sig=<HMAC>`, for a redirect to a signed-in page this viewer will open. */
+export function withViewerError(path: string, message: string, viewer: ErrorViewer, now = new Date()): string {
+  const text = message.slice(0, SIGNED_ERROR_MAX_LENGTH);
+  const at = Math.floor(now.getTime() / 1000);
+  return `${path}${path.includes("?") ? "&" : "?"}${new URLSearchParams({ error: text, at: String(at), sig: viewerErrorSignature(viewer.authUser.id, at, text) })}`;
+}
+
+/**
+ * The banner text for a signed-in page: the ?error= message when it was signed for this viewer less than an
+ * hour ago (compared in constant time), the page's fixed `fallback` sentence for any other error text, and
+ * null when there is none.
+ */
+export function viewerErrorMessage(params: { error?: string | string[]; sig?: string | string[]; at?: string | string[] }, viewer: ErrorViewer, fallback = UNVERIFIED_ERROR_MESSAGE, now = new Date()): string | null {
+  const { error, sig, at } = params;
+  if (error === undefined || error === "") return null;
+  if (typeof error !== "string" || typeof sig !== "string" || typeof at !== "string" || !/^\d{9,11}$/.test(at) || error.length > SIGNED_ERROR_MAX_LENGTH) return fallback;
+  const issuedAt = Number(at), age = Math.floor(now.getTime() / 1000) - issuedAt;
+  if (age < -300 || age > VIEWER_ERROR_MAX_AGE_SECONDS) return fallback;
+  const expected = Buffer.from(viewerErrorSignature(viewer.authUser.id, issuedAt, error), "utf8");
+  const received = Buffer.from(sig, "utf8");
+  return received.length === expected.length && timingSafeEqual(received, expected) ? error : fallback;
+}
+
+/** The query keys a signed error travels in, for pages that forward one (the old /mixes/<id>/edit address). */
+export const SIGNED_ERROR_PARAMS = ["error", "at", "sig"] as const;

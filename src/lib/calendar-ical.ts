@@ -2,31 +2,32 @@ import ical from "node-ical";
 import { createHash } from "node:crypto";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { isValidTimezone } from "@/lib/mix-broadcast";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export type ImportedCalendarEntry = { externalUid: string; title: string; kind: string; startsAt: Date; endsAt: Date; timezone: string };
 const day = 86_400_000;
 export function parseCalendarFile(body: string, timezone: string, now = new Date()): ImportedCalendarEntry[] {
-  if (Buffer.byteLength(body) > 1_048_576) throw new Error("Calendar files must be 1 MB or smaller.");
-  if (!isValidTimezone(timezone) || !timezone) throw new Error("Choose a valid calendar timezone.");
+  if (Buffer.byteLength(body) > 1_048_576) throw new UserFacingError("Calendar files must be 1 MB or smaller.");
+  if (!isValidTimezone(timezone) || !timezone) throw new UserFacingError("Choose a valid calendar timezone.");
   const unfolded = body.replace(/\r?\n[ \t]/g, "");
-  if (!/^BEGIN:VCALENDAR\s*$/m.test(unfolded) || !/^END:VCALENDAR\s*$/m.test(unfolded)) throw new Error("Choose an iCalendar (.ics) file.");
+  if (!/^BEGIN:VCALENDAR\s*$/m.test(unfolded) || !/^END:VCALENDAR\s*$/m.test(unfolded)) throw new UserFacingError("Choose an iCalendar (.ics) file.");
   const rules = unfolded.match(/^RRULE:.*$/gm) ?? [];
   for (const rule of rules) {
-    if (/FREQ=(SECONDLY|MINUTELY|HOURLY)/i.test(rule) || /BY(?:SECOND|MINUTE|HOUR)=[^;\r\n]*,/i.test(rule)) throw new Error("This calendar repeats more often than daily. Export a calendar with daily or less frequent meetings.");
+    if (/FREQ=(SECONDLY|MINUTELY|HOURLY)/i.test(rule) || /BY(?:SECOND|MINUTE|HOUR)=[^;\r\n]*,/i.test(rule)) throw new UserFacingError("This calendar repeats more often than daily. Export a calendar with daily or less frequent meetings.");
   }
-  if ((unfolded.match(/^BEGIN:VEVENT\s*$/gm) ?? []).length > 1000) throw new Error("Import up to 1,000 event series at a time.");
+  if ((unfolded.match(/^BEGIN:VEVENT\s*$/gm) ?? []).length > 1000) throw new UserFacingError("Import up to 1,000 event series at a time.");
   // Floating times belong to the timezone selected by the business, never the
   // timezone of the server parsing the file.
   const localized = unfolded.replace(/^(DTSTART|DTEND|RECURRENCE-ID|EXDATE|RDATE):(\d{8}T\d{6}(?:,\d{8}T\d{6})*)\s*$/gm, `$1;TZID=${timezone}:$2`);
   let parsed: ReturnType<typeof ical.sync.parseICS>;
-  try { parsed = ical.sync.parseICS(localized); } catch { throw new Error("This calendar could not be read. Export a new .ics file from your provider."); }
+  try { parsed = ical.sync.parseICS(localized); } catch { throw new UserFacingError("This calendar could not be read. Export a new .ics file from your provider."); }
   const from = new Date(now.getTime() - 31 * day), to = new Date(now.getTime() + 366 * day);
   const result = new Map<string, ImportedCalendarEntry>();
   for (const event of Object.values(parsed)) {
     if (!event || event.type !== "VEVENT") continue;
-    if (!event.uid || !event.start || !Number.isFinite(event.start.getTime())) throw new Error("Every calendar event needs an identifier and a valid start time.");
+    if (!event.uid || !event.start || !Number.isFinite(event.start.getTime())) throw new UserFacingError("Every calendar event needs an identifier and a valid start time.");
     if (event.status === "CANCELLED" || event.transparency === "TRANSPARENT") continue;
-    if (event.rrule && event.start.getTime() < now.getTime() - 20 * 366 * day) throw new Error("A recurring event starts more than 20 years ago. Export a newer calendar range.");
+    if (event.rrule && event.start.getTime() < now.getTime() - 20 * 366 * day) throw new UserFacingError("A recurring event starts more than 20 years ago. Export a newer calendar range.");
     const instances = ical.expandRecurringEvent(event, { from, to, expandOngoing: true, includeOverrides: true, excludeExdates: true });
     for (const instance of instances) {
       if (instance.event.status === "CANCELLED" || instance.event.transparency === "TRANSPARENT") continue;
@@ -36,11 +37,11 @@ export function parseCalendarFile(body: string, timezone: string, now = new Date
         const atMidnight = (value: Date) => zonedDateTimeToUtc({ year: value.getUTCFullYear(), month: value.getUTCMonth() + 1, day: value.getUTCDate() }, 0, timezone);
         startsAt = atMidnight(startsAt); endsAt = atMidnight(endsAt);
       }
-      if (!Number.isFinite(endsAt.getTime()) || endsAt <= startsAt) throw new Error("An event has no valid end time. Add its duration in your calendar and try again.");
+      if (!Number.isFinite(endsAt.getTime()) || endsAt <= startsAt) throw new UserFacingError("An event has no valid end time. Add its duration in your calendar and try again.");
       const externalUid = createHash("sha256").update(`${event.uid}:${instance.isRecurring ? instance.start.toISOString() : "single"}`).digest("hex");
       const title = (typeof instance.summary === "string" ? instance.summary : instance.summary?.val) || "Busy";
       result.set(externalUid, { externalUid, title: title.slice(0, 160), kind: "BUSY", startsAt, endsAt, timezone: instance.isFullDay ? timezone : zone });
-      if (result.size > 2000) throw new Error("This calendar has over 2,000 occurrences in the next year. Use a smaller calendar.");
+      if (result.size > 2000) throw new UserFacingError("This calendar has over 2,000 occurrences in the next year. Use a smaller calendar.");
     }
   }
   return [...result.values()];
