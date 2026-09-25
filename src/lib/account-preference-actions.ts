@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import type { WeekendScheduling } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
 import { APPOINTMENT_BUFFER_CHOICES, normalizeBufferMinutes } from "@/lib/calendar-availability";
+import { DEFAULT_LOCALE, isDisplayLocale } from "@/lib/display-preferences";
 import { parseTimeInput } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
 
@@ -36,9 +37,10 @@ export async function updatePersonalPreferencesAction(formData: FormData): Promi
   const { user, workspace, impersonation } = await requireWorkspace();
   if (impersonation) fail("Personal settings are unavailable during a view-only support session.");
   const name = value(formData, "name", 120);
-  const locale = value(formData, "locale", 40) || "en-US";
+  const locale = value(formData, "locale", 40) || DEFAULT_LOCALE;
   const timezone = value(formData, "timezone", 160);
   if (!name) fail("Enter your display name.");
+  if (!isDisplayLocale(locale)) fail("Choose one of the listed locales.");
   if (!validTimezone(timezone)) fail("Choose a valid IANA timezone.");
   await prisma.$transaction([
     prisma.user.update({ where: { id: user.id }, data: { name } }),

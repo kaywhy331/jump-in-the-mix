@@ -2,7 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
-import { deleteAccountData } from "@/lib/account-deletion";
+import { AccountDeletionBlockedError, deleteAccountData } from "@/lib/account-deletion";
 import { ACCOUNT_DELETION_PHRASE } from "@/lib/account-deletion-policy";
 import { destroySession, requireWorkspace } from "@/lib/auth";
 import { consumeRateLimit } from "@/lib/rate-limit";
@@ -39,7 +39,14 @@ export async function deleteAccountAction(
     return { error: "Sign in again using your usual provider or email link, then return here within five minutes to confirm deletion." };
   }
 
-  await deleteAccountData(user.id);
+  try {
+    await deleteAccountData(user.id);
+  } catch (error) {
+    // A rule the person can act on (for example the last active staff owner) belongs in the form,
+    // not on the framework's error page. Anything else is still an unexpected failure.
+    if (error instanceof AccountDeletionBlockedError) return { error: error.message };
+    throw error;
+  }
   redirect("/account/deleted");
 }
 

@@ -8,7 +8,7 @@ export default function AccountDeletedPage() {
     <main className="auth-shell">
       <section className="auth-card">
         <h1>Your Jump in the Mix account has been deleted.</h1>
-        <p>You are signed out on every device. Any provider revocation that could not finish immediately will be retried without restoring your account data.</p>
+        <p>You are signed out on every device.</p>
         <Link className="button primary" href="/">Return home</Link>
       </section>
     </main>
