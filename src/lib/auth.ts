@@ -1,5 +1,6 @@
 import { customerReturnPath } from "@/lib/customer-return-path";
 import { createHash, randomBytes } from "node:crypto";
+import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { supportReadContext } from "@/lib/support-read-audit";
 import { redirect } from "next/navigation";
@@ -157,7 +158,14 @@ export async function destroyAllSessionsForUser(userId: string): Promise<number>
   return result.count;
 }
 
-export async function getCurrentSession() {
+/**
+ * The signed-in session, read once per server render: React's cache() gives the layout, the page and
+ * their components one shared result, so the Session row is read (and touched, or a stale one removed)
+ * once per render. Outside a render (Server Actions, route handlers) cache() keeps nothing between
+ * calls, so an action always reads its own writes. Callers share the returned object: read it, never
+ * mutate it (guarded by tests/request-cache.test.ts).
+ */
+export const getCurrentSession = cache(async function getCurrentSession() {
   const store = await cookies();
   const token = store.get(env.cookieName)?.value;
   if (!token) return null;
@@ -221,7 +229,7 @@ export async function getCurrentSession() {
   }
 
   return { ...session, authUser, impersonation: null };
-}
+});
 
 export async function requireSession() {
   const session = await getCurrentSession();
