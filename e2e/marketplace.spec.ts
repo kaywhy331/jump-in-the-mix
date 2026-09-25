@@ -51,7 +51,7 @@ test("share a Mega-Mix, favorite and add it, see live edits and updates, report 
   await expect(sheet).toContainText("Possible name: Maria");
   await expect(sheet).toContainText("Phone number: 555 123 4567");
   await expect(sheet.getByRole("textbox", { name: "Shared as" })).toHaveValue("Rivera Co");
-  await page.screenshot({ path: `${dir}/share-check-1920.png` });
+  await page.screenshot({ path: `${dir}/share-check-1920.png`, scale: "css" });
   expect((await axeInPage(page).include("dialog[open]").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   await sheet.getByRole("textbox", { name: "Shared as" }).fill("Rivera Renovations");
   await sheet.getByRole("textbox", { name: "What is it for? (optional)" }).fill("From first call to the next project");
@@ -72,7 +72,7 @@ test("share a Mega-Mix, favorite and add it, see live edits and updates, report 
   await expect(page.getByText("Shared by Rivera Renovations")).toBeVisible();
   await expect(page.getByRole("region", { name: "Selected Mega-Mix" }).getByRole("button", { name: /Remove Contractor from favorites \(1 favorite\)/ })).toBeVisible();
   await expect(page.getByRole("list", { name: "Contractor Beats in journey order" })).toContainText("Understand the project");
-  await page.screenshot({ path: `${dir}/listing-1920.png` });
+  await page.screenshot({ path: `${dir}/listing-1920.png`, scale: "css" });
   const add = page.getByRole("complementary", { name: "Add or share" });
   await add.getByRole("textbox", { name: "Mega-Mix name" }).fill("Rivera pipeline");
   await add.getByRole("checkbox", { name: /I’ve reviewed the wording/ }).check();
@@ -144,7 +144,7 @@ test("share a Mega-Mix, favorite and add it, see live edits and updates, report 
   await expect(row).toContainText("Spam, scam or harmful links");
   await expect(row).toContainText("Beat 3 links to a coupon site");
   await expect(row).toContainText("Hidden now. Restoring puts it back on the Marketplace");
-  await page.screenshot({ path: `${dir}/admin-review-1920.png` });
+  await page.screenshot({ path: `${dir}/admin-review-1920.png`, scale: "css" });
   await row.getByRole("textbox", { name: "Note for the author" }).fill("The author removed the name. Restored.");
   await row.getByRole("button", { name: "Restore share", exact: true }).click();
   await expect(page.getByText("Decision saved.")).toBeVisible();
@@ -179,13 +179,13 @@ test("Marketplace sections, filters and both themes work on phone, tablet and de
     for (const width of [320, 390, 834, 1440, 1920]) {
       await page.setViewportSize({ width, height: width > 1000 ? 1000 : 844 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
-      await page.screenshot({ path: `${dir}/marketplace-${width}-${theme}.png` });
+      await page.screenshot({ path: `${dir}/marketplace-${width}-${theme}.png`, scale: "css" });
       expect((await axeInPage(page).include(".mix-workspace-page").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
       if (width < 1200) {
         await page.getByRole("navigation", { name: "Mix workspace panels" }).getByRole("button", { name: "Beats" }).click();
         await expect(page.getByRole("list", { name: "Photographer Beats in journey order" })).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
-        await page.screenshot({ path: `${dir}/marketplace-detail-${width}-${theme}.png` });
+        await page.screenshot({ path: `${dir}/marketplace-detail-${width}-${theme}.png`, scale: "css" });
         await page.getByRole("navigation", { name: "Mix workspace panels" }).getByRole("button", { name: "Mixes" }).click();
       }
     }
@@ -229,7 +229,7 @@ test("an author's own share offers no heart or add, and stays manageable once it
   await expect(own).toContainText("Shared, but left out of Community for now.");
   await expect(own).toContainText("An archived Mix can’t be opened or edited.");
   await expect(own.getByRole("link", { name: "Open to edit or manage sharing" })).toHaveCount(0);
-  await page.screenshot({ path: `${dir}/own-share-archived-1440.png` });
+  await page.screenshot({ path: `${dir}/own-share-archived-1440.png`, scale: "css" });
   expect((await axeInPage(page).include(".mix-workspace-page").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
 
   // Nobody else sees it, in the list or by its link.
@@ -314,7 +314,7 @@ test("after staff keep a reported share hidden, its author changes it and asks f
   await page.reload();
   await expect(pane).toContainText("Changed the wording? Ask our team to look again. It stays hidden until they decide.");
   await pane.getByRole("textbox", { name: "Note for our team (optional)" }).fill("I replaced the name with {{First Name}}.");
-  await page.screenshot({ path: `${dir}/review-request-1440.png` });
+  await page.screenshot({ path: `${dir}/review-request-1440.png`, scale: "css" });
   expect((await axeInPage(page).include(".mix-workspace-page").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   await pane.getByRole("button", { name: "Ask for another review", exact: true }).click();
   await expect(page.getByText("Sent. Our team will look at your changes and let you know. The share stays hidden until then.")).toBeVisible();
