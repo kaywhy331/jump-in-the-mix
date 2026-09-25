@@ -7,6 +7,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { activateMixAction, pauseMixAction, archiveMixAction } from "@/lib/mix-lifecycle-actions";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { requireWorkspace } from "@/lib/auth";
 import { mergeGroupActivity } from "@/lib/group-activity";
 import { formatDateInput, formatTimeInput } from "@/lib/mix-broadcast";
@@ -19,10 +20,10 @@ import { MarketplaceNotices, MarketplaceShare } from "@/components/MarketplaceSh
 import { archiveShareEffect } from "@/lib/marketplace-service";
 
 
-export type MixWorkspaceSearchParams = { view?: string; activate?: string; error?: string; created?: string; updated?: string; imported?: string };
+export type MixWorkspaceSearchParams = { view?: string; activate?: string; error?: string; at?: string; sig?: string; created?: string; updated?: string; imported?: string };
 
 export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: string; query?: MixWorkspaceSearchParams; embedded?: boolean; libraryHref?: string }) {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { session, workspace, user, impersonation } = await requireWorkspace();
   const workflow = await workflowEditorData(workspace.id);
   const [timezone, activationPreference] = await Promise.all([timezoneForUser(user.id), prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true, locale: true } })]);
   const [mix, broadcastSchedule] = await Promise.all([
@@ -78,7 +79,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
       {query.created === "manual" && <Notice type="success">Mix created.</Notice>}
       {query.updated && <Notice type="success">Mix saved.</Notice>}
       {query.imported && <Notice type="success">Your remix is ready to edit.</Notice>}
-      {query.error && <Notice type="error">{query.error}</Notice>}
+      <UrlErrorNotice params={query} viewer={session} />
       {!editing && mix.description && <p className="mix-selected-description">{mix.description}</p>}
       {editing && !impersonation ? <MixEditor reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
         workflowSources={workflow.mixes.filter(item => item.status !== "ARCHIVED" && item.source !== "ONE_TIME").map(({ id, name }) => ({ id, name }))}

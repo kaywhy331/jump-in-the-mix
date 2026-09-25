@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { SystemMixInviteForm } from "@/components/SystemMixInviteForm";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -11,8 +12,8 @@ import { getAdmissionPolicy } from "@/lib/admission";
 import { getPublishedSystemMix } from "@/lib/system-mix-store";
 
 export const metadata: Metadata = { title: "Your three invitations" };
-export default async function SystemMixPage({ searchParams }: { searchParams: Promise<{ q?: string; error?: string; revoked?: string; welcome?: string }> }) {
-  const { workspace, user, impersonation } = await requireWorkspace();
+export default async function SystemMixPage({ searchParams }: { searchParams: Promise<{ q?: string; error?: string; at?: string; sig?: string; revoked?: string; welcome?: string }> }) {
+  const { session, workspace, user, impersonation } = await requireWorkspace();
   const params = await searchParams;
   if (impersonation) return <div className="page"><Notice type="info">Personal invitations are unavailable in view-only support sessions.</Notice></div>;
   const q = params.q?.trim().slice(0, 120) ?? "";
@@ -34,7 +35,7 @@ export default async function SystemMixPage({ searchParams }: { searchParams: Pr
     <header className="page-header"><div><h1>{SYSTEM_MIX_NAME}</h1><p>Make a personal introduction. Share free access with someone already in your circle.</p></div><Link className="button" href="/jumps">Go to Today</Link></header>
     {params.welcome && <Notice type="success">Your setup is ready. Try your first networking mix, or go to Today for your follow-ups.</Notice>}
     {params.revoked && <Notice type="success">The invitation can no longer be used.</Notice>}
-    {params.error && <Notice type="error">{params.error}</Notice>}
+    <UrlErrorNotice params={params} viewer={session} />
     {contentProblem && <Notice type="info">{contentProblem}</Notice>}
     <section className="card"><h2>{remaining} of {REFERRAL_INVITE_LIMIT} invitations remaining</h2><p>Every member gets three personal invitations in total. Add one to three email addresses or text numbers. We prepare a single-use signup link for each person and add a reminder to Today.</p>
       {remaining > 0 && admissionProblem ? <Notice type="info">{admissionProblem}</Notice> : remaining > 0 ? <>

@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
+import { type ErrorViewer, withViewerError } from "@/lib/form-errors";
 import { prisma } from "@/lib/prisma";
 import { unshareForArchivedMix } from "@/lib/marketplace-service";
 import { startDraftMix } from "@/lib/mix-start";
@@ -11,8 +12,8 @@ function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
 }
 
-function fail(message: string): never {
-  redirect(`/mixes?error=${encodeURIComponent(message)}`);
+function fail(message: string, viewer: ErrorViewer): never {
+  redirect(withViewerError("/mixes", message, viewer));
 }
 
 async function queueMixReconciliation(workspaceId: string, mixId: string): Promise<void> {
@@ -20,14 +21,14 @@ async function queueMixReconciliation(workspaceId: string, mixId: string): Promi
 }
 
 export async function activateMixAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Administrator support sessions are view-only.");
+  const { session, workspace, user, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Administrator support sessions are view-only.", session);
   const mixId = value(formData, "mixId");
   const mix = await prisma.mix.findFirst({
     where: { id: mixId, workspaceId: workspace.id, status: { in: ["DRAFT", "PAUSED"] }, source: { not: "ONE_TIME" } },
     select: { id: true, name: true }
   });
-  if (!mix) fail("Mix not found or already active.");
+  if (!mix) fail("Mix not found or already active.", session);
   const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
   if (preference?.reviewMixActivation !== false) redirect(`/mixes/${mix.id}/edit?activate=1`);
   await prisma.$transaction(async tx => {
@@ -54,13 +55,13 @@ export async function activateMixAction(formData: FormData): Promise<void> {
 }
 
 export async function pauseMixAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { session, workspace, user } = await requireWorkspace();
   const mixId = value(formData, "mixId");
   const mix = await prisma.mix.findFirst({
     where: { id: mixId, workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } },
     select: { id: true }
   });
-  if (!mix) fail("Active mix not found.");
+  if (!mix) fail("Active mix not found.", session);
   await prisma.$transaction([
     prisma.mix.update({ where: { id: mix.id }, data: { status: "PAUSED" } }),
     prisma.jump.updateMany({
@@ -84,13 +85,13 @@ export async function pauseMixAction(formData: FormData): Promise<void> {
 }
 
 export async function archiveMixAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { session, workspace, user } = await requireWorkspace();
   const mixId = value(formData, "mixId");
   const mix = await prisma.mix.findFirst({
     where: { id: mixId, workspaceId: workspace.id, status: { not: "ARCHIVED" }, source: { not: "ONE_TIME" } },
     select: { id: true }
   });
-  if (!mix) fail("Mix not found.");
+  if (!mix) fail("Mix not found.", session);
   // Interactive, so the Marketplace can see which other Mixes of its Mega-Mix are still shareable.
   const unshared = await prisma.$transaction(async tx => {
     await tx.mix.update({ where: { id: mix.id }, data: { status: "ARCHIVED" } });

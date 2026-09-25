@@ -5,6 +5,7 @@ import { validateStepTiming } from "@/lib/step-timing";
 import type { Channel, MixStatus, MixTriggerMode } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
+import { type ErrorViewer, withViewerError } from "@/lib/form-errors";
 import { listGroupStates, mergeGroupActivity } from "@/lib/group-activity";
 import { parseBroadcastScheduleInput } from "@/lib/mix-broadcast";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
@@ -20,6 +21,17 @@ const MAX_STEP_OFFSET_DAYS = 365;
 const MIX_CHANGED_ELSEWHERE = "This Mix was changed on another device after you opened it. Reload to compare, then apply your changes again.";
 /** A newer save exists. Nothing was written; the open editor keeps the owner's entries and shows why. */
 class MixChangedElsewhere extends Error {}
+/** A refusal this module writes in its own words during the save; the page shows it as it is. */
+class MixSaveRefusal extends Error {}
+/**
+ * Journey refusals that saveWorkflowConfiguration (mix-workflow.ts, mix-workflow-validation.ts) throws as plain errors
+ * and that saving this Mix's start connection can meet. Matched exactly, so a database error's text never reaches the page.
+ */
+const JOURNEY_REFUSALS = new Set([
+  "Journey changed in another window. Reload its latest configuration before saving; your draft has been kept.",
+  "This return path needs a repeat limit. Set a maximum number of visits on a connection in each loop.",
+  "Choose an available Mix in this account."
+]);
 const CHANNELS: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
 
 type InlineVariant = { family: PreparationFamily; subject: string | null; body: string | null; script: string | null };
@@ -39,7 +51,7 @@ type InlineAction = {
  * is never an alternative. Outward wording (text, email) refuses private-note tokens exactly as a
  * non-call beat does; an email version needs a subject; every version uses only known tokens.
  */
-function validateInlineVariants(formData: FormData, index: number, channel: Channel, path: string): InlineVariant[] {
+function validateInlineVariants(formData: FormData, index: number, channel: Channel, path: string, viewer: ErrorViewer): InlineVariant[] {
   const primary = preparationFamilyForChannel(channel);
   const beat = `Beat ${index + 1}`;
   const candidates: Array<{ family: PreparationFamily; label: string; content: { subject: string | null; body: string | null; script: string | null } }> = [
@@ -53,14 +65,14 @@ function validateInlineVariants(formData: FormData, index: number, channel: Chan
     const content = variantFieldsForFamily(candidate.family, candidate.content);
     const wording = candidate.family === "CALL" ? content.script : content.body;
     if (!wording) {
-      if (candidate.family === "EMAIL" && content.subject) fail(path, `${beat}'s email version has a subject but no message.`);
+      if (candidate.family === "EMAIL" && content.subject) fail(path, `${beat}'s email version has a subject but no message.`, viewer);
       continue;
     }
-    if (candidate.family === "EMAIL" && !content.subject) fail(path, `${beat}'s email version needs a subject.`);
+    if (candidate.family === "EMAIL" && !content.subject) fail(path, `${beat}'s email version needs a subject.`, viewer);
     const text = [content.subject, content.body, content.script].filter(Boolean).join("\n");
     const unknown = findUnknownPlaceholders(text);
-    if (unknown.length) fail(path, `${beat}'s ${candidate.label} uses unsupported placeholders: ${unknown.join(", ")}`);
-    if (candidate.family !== "CALL" && containsPrivateNotesPlaceholder(text)) fail(path, `Private notes may only be inserted into ${beat}'s call version.`);
+    if (unknown.length) fail(path, `${beat}'s ${candidate.label} uses unsupported placeholders: ${unknown.join(", ")}`, viewer);
+    if (candidate.family !== "CALL" && containsPrivateNotesPlaceholder(text)) fail(path, `Private notes may only be inserted into ${beat}'s call version.`, viewer);
     variants.push({ family: candidate.family, ...content });
   }
   return variants;
@@ -74,26 +86,26 @@ function values(formData: FormData, key: string): string[] {
   return formData.getAll(key).map((item) => String(item));
 }
 
-function fail(path: string, message: string): never {
-  redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
+function fail(path: string, message: string, viewer: ErrorViewer): never {
+  redirect(withViewerError(path, message, viewer));
 }
 
-function validateInlineAction(formData: FormData, index: number, path: string): InlineAction {
+function validateInlineAction(formData: FormData, index: number, path: string, viewer: ErrorViewer): InlineAction {
   const name = value(formData, `inlineName-${index}`, 160);
   const channel = value(formData, `inlineChannel-${index}`, 40) as Channel;
   const subject = value(formData, `inlineSubject-${index}`, 300) || null;
   const body = value(formData, `inlineBody-${index}`, 20_000) || null;
   const script = value(formData, `inlineScript-${index}`, 20_000) || null;
-  if (!name) fail(path, `Give action #${index + 1} an internal name.`);
-  if (!CHANNELS.includes(channel)) fail(path, `Choose a valid channel for action #${index + 1}.`);
-  if (channel === "EMAIL" && (!subject || !body)) fail(path, `Email action #${index + 1} requires a subject and message.`);
-  if (["SMS", "WHATSAPP"].includes(channel) && !body) fail(path, `Beat ${index + 1} requires a prepared message.`);
-  if (["PHONE_CALL", "VOICEMAIL"].includes(channel) && !script) fail(path, `Beat ${index + 1} requires call or voicemail notes.`);
+  if (!name) fail(path, `Give action #${index + 1} an internal name.`, viewer);
+  if (!CHANNELS.includes(channel)) fail(path, `Choose a valid channel for action #${index + 1}.`, viewer);
+  if (channel === "EMAIL" && (!subject || !body)) fail(path, `Email action #${index + 1} requires a subject and message.`, viewer);
+  if (["SMS", "WHATSAPP"].includes(channel) && !body) fail(path, `Beat ${index + 1} requires a prepared message.`, viewer);
+  if (["PHONE_CALL", "VOICEMAIL"].includes(channel) && !script) fail(path, `Beat ${index + 1} requires call or voicemail notes.`, viewer);
   const content = [subject, body, script].filter(Boolean).join("\n");
   const unknown = findUnknownPlaceholders(content);
-  if (unknown.length) fail(path, `Beat ${index + 1} uses unsupported placeholders: ${unknown.join(", ")}`);
+  if (unknown.length) fail(path, `Beat ${index + 1} uses unsupported placeholders: ${unknown.join(", ")}`, viewer);
   if (channel !== "PHONE_CALL" && containsPrivateNotesPlaceholder(content)) {
-    fail(path, `Private notes may only be inserted into phone-call follow-up #${index + 1}.`);
+    fail(path, `Private notes may only be inserted into phone-call follow-up #${index + 1}.`, viewer);
   }
   return {
     name,
@@ -101,7 +113,7 @@ function validateInlineAction(formData: FormData, index: number, path: string): 
     subject,
     body,
     script,
-    variants: validateInlineVariants(formData, index, channel, path)
+    variants: validateInlineVariants(formData, index, channel, path, viewer)
   };
 }
 
@@ -110,7 +122,7 @@ function validateInlineAction(formData: FormData, index: number, path: string): 
  * device: that one returns its message, so the open editor keeps what the owner typed.
  */
 export async function saveMixAction(formData: FormData): Promise<{ error: string } | undefined> {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { session, workspace, user, impersonation } = await requireWorkspace();
   const workspaceTimezone = await timezoneForUser(user.id);
   const mixIdRaw = value(formData, "mixId", 100);
   // The Mix's last save as the editor saw it when it opened; blank on an older form or a new Mix.
@@ -129,13 +141,13 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   const allowedTriggers: MixTriggerMode[] = ["DATE_TRIGGERED", "MANUAL_START", "BROADCAST"];
   const allowedStatuses: MixStatus[] = ["DRAFT", "ACTIVE", "PAUSED"];
 
-  if (impersonation) fail(path, "Administrator support sessions are view-only.");
-  if (!name) fail(path, "Give the mix a name.");
-  if (!allowedTriggers.includes(triggerMode)) fail(path, "Choose a valid cue.");
-  if (!allowedStatuses.includes(status)) fail(path, "Choose Draft, Active, or Paused.");
+  if (impersonation) fail(path, "Administrator support sessions are view-only.", session);
+  if (!name) fail(path, "Give the mix a name.", session);
+  if (!allowedTriggers.includes(triggerMode)) fail(path, "Choose a valid cue.", session);
+  if (!allowedStatuses.includes(status)) fail(path, "Choose Draft, Active, or Paused.", session);
   if (status === "ACTIVE" && value(formData, "activationConfirmed", 4) !== "1") {
     const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
-    if (preference?.reviewMixActivation !== false) fail(path, "Review who gets the mix before turning it on.");
+    if (preference?.reviewMixActivation !== false) fail(path, "Review who gets the mix before turning it on.", session);
   }
 
   if (triggerMode === "DATE_TRIGGERED") {
@@ -143,20 +155,21 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
       where: { id: dateTypeId, isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null, isSystem: true }] },
       select: { id: true }
     });
-    if (!dateType) fail(path, "Choose a valid saved date type.");
+    if (!dateType) fail(path, "Choose a valid saved date type.", session);
   }
 
   let broadcastSchedule: ReturnType<typeof parseBroadcastScheduleInput> | null = null;
   if (triggerMode === "BROADCAST") {
+    const savedBroadcast = afterMix && mixIdRaw ? await prisma.mixBroadcastSchedule.findFirst({ where: { mixId: mixIdRaw, workspaceId: workspace.id } }) : null;
     try {
-      const savedBroadcast = afterMix && mixIdRaw ? await prisma.mixBroadcastSchedule.findFirst({ where: { mixId: mixIdRaw, workspaceId: workspace.id } }) : null;
       broadcastSchedule = savedBroadcast ? { ...savedBroadcast, dateInput: savedBroadcast.localDate.toISOString().slice(0, 10), timeInput: `${String(Math.floor(savedBroadcast.timeMinutes / 60)).padStart(2, "0")}:${String(savedBroadcast.timeMinutes % 60).padStart(2, "0")}` } : parseBroadcastScheduleInput(
         value(formData, "broadcastDate", 10),
         value(formData, "broadcastTime", 5),
         value(formData, "broadcastTimezone", 120) || workspaceTimezone
       );
     } catch (error) {
-      fail(path, error instanceof Error ? error.message : "Choose a valid fixed date and time.");
+      // Only the pure parser runs in this try (the saved schedule is read above it), so the text is its own wording.
+      fail(path, error instanceof Error ? error.message : "Choose a valid fixed date and time.", session);
     }
   }
 
@@ -167,44 +180,45 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   const anchors = values(formData, "anchor");
   const offsetMinutes = values(formData, "offsetMinutes");
   const stepCount = offsets.length;
-  if (!stepCount || stepCount > 50) fail(path, "Add between one and fifty beats to the mix.");
-  if ([mixStepIds, sendTimes, plannedAts, anchors, offsetMinutes].some((items) => items.length !== stepCount)) fail(path, "The beat sequence is incomplete. Reload and try again.");
-  // Elapsed-minute timing for a plan bound to a visit; a calendar-day beat keeps its day rule.
+  if (!stepCount || stepCount > 50) fail(path, "Add between one and fifty beats to the mix.", session);
+  if ([mixStepIds, sendTimes, plannedAts, anchors, offsetMinutes].some((items) => items.length !== stepCount)) fail(path, "The beat sequence is incomplete. Reload and try again.", session);
+  // Elapsed-minute timing for a plan bound to a visit; a calendar-day beat keeps its day rule. validateStepTiming is
+  // pure, so what it throws is its own per-Beat wording.
   const parsedTimings = anchors.map((anchor, index) => {
     try { return validateStepTiming(anchor, offsetMinutes[index] ?? "", index + 1); }
-    catch (error) { return fail(path, error instanceof Error ? error.message : `Beat ${index + 1} has an invalid timing.`); }
+    catch (error) { return fail(path, error instanceof Error ? error.message : `Beat ${index + 1} has an invalid timing.`, session); }
   });
 
   const parsedOffsets = offsets.map((raw, index) => {
     const parsed = Number(raw);
     if (!Number.isInteger(parsed) || parsed < -MAX_STEP_OFFSET_DAYS || parsed > MAX_STEP_OFFSET_DAYS) {
-      fail(path, `Beat ${index + 1} must be between -${MAX_STEP_OFFSET_DAYS} and ${MAX_STEP_OFFSET_DAYS} days.`);
+      fail(path, `Beat ${index + 1} must be between -${MAX_STEP_OFFSET_DAYS} and ${MAX_STEP_OFFSET_DAYS} days.`, session);
     }
     return parsed;
   });
   if (parsedTimings.some((timing) => timing.anchor !== "CALENDAR_DAY") && triggerMode !== "MANUAL_START") {
-    fail(path, "Minutes from an appointment apply to a mix that starts when you bind it to a visit. Choose \"When I start it for someone\" as the cue, or time the beat by calendar day.");
+    fail(path, "Minutes from an appointment apply to a mix that starts when you bind it to a visit. Choose \"When I start it for someone\" as the cue, or time the beat by calendar day.", session);
   }
   if (triggerMode === "MANUAL_START" && parsedOffsets.some((offset, index) => offset < 0 && parsedTimings[index].anchor === "CALENDAR_DAY")) {
-    fail(path, "A manually started mix cannot schedule a follow-up before its start date.");
+    fail(path, "A manually started mix cannot schedule a follow-up before its start date.", session);
   }
   const parsedSendTimes = sendTimes.map((raw, index) => {
     if (!raw) return null;
     const parsed = Number(raw);
-    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 1439) fail(path, `Beat ${index + 1} has an invalid local time.`);
+    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 1439) fail(path, `Beat ${index + 1} has an invalid local time.`, session);
     return parsed;
   });
   // A planned beat carries a wall-clock instant in the workspace timezone ("YYYY-MM-DDTHH:mm").
   const parsedPlannedAts = plannedAts.map((raw, index) => {
     if (!raw) return null;
     const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(raw);
-    if (!match) return fail(path, `Beat ${index + 1} has an invalid planned date.`);
+    if (!match) return fail(path, `Beat ${index + 1} has an invalid planned date.`, session);
     const [year, month, day, hours, minutes] = match.slice(1).map(Number);
     const at = zonedDateTimeToUtc({ year, month, day }, hours * 60 + minutes, workspaceTimezone);
-    if (Number.isNaN(at.getTime())) return fail(path, `Beat ${index + 1} has an invalid planned date.`);
+    if (Number.isNaN(at.getTime())) return fail(path, `Beat ${index + 1} has an invalid planned date.`, session);
     return at;
   });
-  const inlineActions = offsets.map((_, index) => validateInlineAction(formData, index, path));
+  const inlineActions = offsets.map((_, index) => validateInlineAction(formData, index, path, session));
 
   const existingMix = await (mixIdRaw
       ? prisma.mix.findFirst({
@@ -215,7 +229,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
           }
         })
       : Promise.resolve(null));
-  if (mixIdRaw && !existingMix) fail("/mixes", "Mix not found.");
+  if (mixIdRaw && !existingMix) fail("/mixes", "Mix not found.", session);
 
   const groupIds = [...new Set(values(formData, "groupIds").filter(Boolean))];
   if (groupIds.length) {
@@ -223,18 +237,18 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
       prisma.group.findMany({ where: { workspaceId: workspace.id, id: { in: groupIds } }, select: { id: true } }),
       listGroupStates(workspace.id)
     ]);
-    if (availableGroups.length !== groupIds.length) fail(path, "One or more selected tags are unavailable.");
+    if (availableGroups.length !== groupIds.length) fail(path, "One or more selected tags are unavailable.", session);
     const existingGroupIds = new Set((existingMix?.assignments ?? []).flatMap((assignment) => assignment.groupId ? [assignment.groupId] : []));
     const unavailableNewGroup = mergeGroupActivity(availableGroups, groupStates).some((group) => !group.isActive && !existingGroupIds.has(group.id));
-    if (unavailableNewGroup) fail(path, "Hidden tags cannot be added to a mix.");
+    if (unavailableNewGroup) fail(path, "Hidden tags cannot be added to a mix.", session);
   }
   const assignAllContacts = formData.get("assignAllContacts") === "on";
   // A mix that starts when the owner chooses needs no audience to be on: it is started from one
   // person's page or lined up with a visit from the calendar. Elapsed beats never count as scheduled
   // for an enrollment without an appointment, so the projection below counts calendar-day beats only.
-  if (status === "ACTIVE" && !afterMix && triggerMode !== "MANUAL_START" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the mix.");
+  if (status === "ACTIVE" && !afterMix && triggerMode !== "MANUAL_START" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the mix.", session);
   const calendarStepCount = parsedTimings.filter((timing) => timing.anchor === "CALENDAR_DAY").length;
-  if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) fail(path, "Choose who gets the mix.");
+  if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) fail(path, "Choose who gets the mix.", session);
 
   const allContactIds = assignAllContacts
     ? (await prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true } })).map((contact) => contact.id)
@@ -303,7 +317,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
           include: { versions: true }
         });
         const version = template.versions[0];
-        if (!version) throw new Error(`Follow-up #${index + 1} could not be created.`);
+        if (!version) throw new MixSaveRefusal(`Follow-up #${index + 1} could not be created.`);
         const stepVersionId = version.id;
         if (existingStep && !existingStep.stepVersion.stepTemplate.isActive) replacedInternalTemplateIds.add(existingStep.stepVersion.stepTemplateId);
         if (existingStep) {
@@ -317,8 +331,8 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
 
       for (const [index, oldStep] of (existingMix?.steps ?? []).filter((step) => !retainedIds.has(step.id)).entries()) {
         const workflow = await readWorkflowDefinition(tx, workspace.id);
-        if (workflow.rules.some(rule => rule.source.stepId === oldStep.id || rule.routes.some(route => route.target?.stepId === oldStep.id) || rule.join?.target.stepId === oldStep.id)) throw new Error(`Remove the Journey connections for this Beat before removing it from the Mix.`);
-        if (workflow.gatedStepIds.includes(oldStep.id)) throw new Error("Restore this Beat’s scheduled start in Journey before removing it from the Mix.");
+        if (workflow.rules.some(rule => rule.source.stepId === oldStep.id || rule.routes.some(route => route.target?.stepId === oldStep.id) || rule.join?.target.stepId === oldStep.id)) throw new MixSaveRefusal(`Remove the Journey connections for this Beat before removing it from the Mix.`);
+        if (workflow.gatedStepIds.includes(oldStep.id)) throw new MixSaveRefusal("Restore this Beat’s scheduled start in Journey before removing it from the Mix.");
         // Saved workflow snapshots can refer to a future Beat before its Jump exists.
         // Retire its definition so those exact runs can still fulfill their obligations.
         await tx.mixStep.update({ where: { id: oldStep.id }, data: { isActive: false, sortOrder: 20_000 + index } });
@@ -345,7 +359,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
 
       if (afterMix) {
         const sourceId = value(formData, "completionSourceId", 160);
-        if (!sourceId || sourceId === mixId) throw new Error("Choose another Mix as the start. Configure deliberate loops in Journey with a repeat limit.");
+        if (!sourceId || sourceId === mixId) throw new MixSaveRefusal("Choose another Mix as the start. Configure deliberate loops in Journey with a repeat limit.");
         const definition = await readWorkflowDefinition(tx, workspace.id);
         const id = `mix-start:${mixId}`;
         await saveWorkflowConfiguration(tx, workspace.id, { rules: [...definition.rules.filter(rule => rule.id !== id), { id, name: `Start ${name}`, source: { mixId: sourceId, stepId: null }, enabled: status === "ACTIVE", mode: "PARALLEL", routes: [{ id: `${id}:next`, label: "After this Mix finishes", when: "FINISHED", outcome: "", delayMinutes: 0, target: { mixId, stepId: null }, maxVisits: null, replace: false }], join: null }], gatedStepIds: definition.gatedStepIds, intentionalEnds: definition.intentionalEnds }, Number(value(formData, "workflowRevision", 20)), user.id);
@@ -371,7 +385,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
     });
   } catch (error) {
     if (error instanceof MixChangedElsewhere) return { error: error.message };
-    fail(path, error instanceof Error ? error.message : "The mix could not be saved.");
+    fail(path, error instanceof MixSaveRefusal || (error instanceof Error && JOURNEY_REFUSALS.has(error.message)) ? error.message : "The mix could not be saved.", session);
   }
 
   redirect(`/mixes/${mixId}/edit?${existingMix ? "updated" : "created"}=manual`);

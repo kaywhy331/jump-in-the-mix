@@ -7,6 +7,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { MixFavoriteButton } from "@/components/MixFavoriteButton";
 import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { Sheet } from "@/components/Sheet";
 import { planGoalLabel, planGoalValues } from "@/lib/business-taxonomy";
 import { ProfessionExamples } from "@/components/ProfessionExamples";
@@ -19,10 +20,10 @@ import { salesPlanSearchIds } from "@/lib/sales-plan-library";
 export const metadata: Metadata = { title: "Ready-made mixes" };
 const PAGE_SIZE = 20;
 
-type SearchParams = { setup?: string; mix?: string; favorites?: string; q?: string; category?: string; industry?: string; framework?: string; page?: string; error?: string };
+type SearchParams = { setup?: string; mix?: string; favorites?: string; q?: string; category?: string; industry?: string; framework?: string; page?: string; error?: string; at?: string; sig?: string };
 
 export default async function TemplatesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [params, { workspace, user, impersonation }, configuredCategories, configuredIndustries, options] = await Promise.all([
+  const [params, { session, workspace, user, impersonation }, configuredCategories, configuredIndustries, options] = await Promise.all([
     searchParams,
     requireWorkspace(),
     getPlatformStringList("mix.categories"),
@@ -76,7 +77,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
 
   return <div className="page mix-workspace-page ready-made-workspace">
     {params.setup === "individual" && <Notice type="success">Your preferences are saved. Choose a Mix below, preview its follow-ups, then add it to your account. Return here to add more, or open Journey to connect them.</Notice>}
-    {params.error && <Notice type="error">{params.error}</Notice>}
+    <UrlErrorNotice params={params} viewer={session} />
     <MixLibraryShell selectedMixId={selected?.id} explicitSelection={Boolean(params.mix)}>
       <aside className="mix-library-directory" aria-label="Ready-made Mix library">
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions">

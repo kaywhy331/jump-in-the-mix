@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { SharedMixPreview } from "@/components/SharedMixPreview";
 import { PlanApproachGuide } from "@/components/PlanApproachGuide";
 import { TemplateUseForm } from "@/components/TemplateUseForm";
@@ -16,10 +16,10 @@ import { salesPlanById } from "@/lib/sales-plan-library";
 
 export const metadata: Metadata = { title: "Set up your mix" };
 
-type SearchParams = { error?: string };
+type SearchParams = { error?: string; at?: string; sig?: string };
 
 export default async function UseMixTemplatePage({ params, searchParams }: { params: Promise<{ sharedMixId: string }>; searchParams: Promise<SearchParams> }) {
-  const [{ sharedMixId }, query, { workspace, user }] = await Promise.all([params, searchParams, requireWorkspace()]);
+  const [{ sharedMixId }, query, { session, workspace, user }] = await Promise.all([params, searchParams, requireWorkspace()]);
   const [workspaceTimezone, preference] = await Promise.all([timezoneForUser(user.id), prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } })]);
   const [published, rawGroups, groupStates, activeContactCount] = await Promise.all([
     prisma.$transaction(async tx => {
@@ -41,7 +41,7 @@ export default async function UseMixTemplatePage({ params, searchParams }: { par
 
   return (
     <div className="page template-use-page">
-      {query.error && <Notice type="error">{query.error}</Notice>}
+      <UrlErrorNotice params={query} viewer={session} />
       <header className="page-header"><div><h1>Set up your mix</h1><p>{shared.title}</p></div><Link className="button" href={`/templates?mix=${shared.id}`}>Mix library</Link></header>
       <div className="template-use-grid">
         <TemplateUseForm reviewBeforeActivation={preference?.reviewMixActivation ?? true} expectedVersion={metadata?.version ?? 1} sharedMixId={shared.id} requestId={`use-${randomUUID()}`} title={shared.title} description={shared.description} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} stepCount={steps.length} durationDays={durationDays} groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, contactCount: group._count.memberships }))} activeContactCount={activeContactCount} workspaceTimezone={workspaceTimezone} />

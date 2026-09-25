@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireWorkspace } from "@/lib/auth";
+import { type ErrorViewer, withViewerError } from "@/lib/form-errors";
 import { env } from "@/lib/env";
 import { integrationEncryptionConfigured } from "@/lib/integration-crypto";
 import { prisma } from "@/lib/prisma";
@@ -14,32 +15,32 @@ import { isValidEmail, normalizePhone } from "@/lib/contact-input";
 import { phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
 
 const path = "/mixes/system";
-function fail(message: string): never { redirect(`${path}?error=${encodeURIComponent(message)}`); }
+function fail(message: string, viewer: ErrorViewer): never { redirect(withViewerError(path, message, viewer)); }
 
 export async function sendSystemInviteAction(formData: FormData): Promise<void> {
-  const { user, workspace, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Support sessions are view-only.");
-  if (env.pilotMode) fail("Network invitations are unavailable in private owner-only mode.");
-  if (!user.emailVerifiedAt) fail("Verify your email before inviting your contacts.");
-  if (!integrationEncryptionConfigured()) fail("Invitations are temporarily unavailable. Please try again later.");
+  const { session, user, workspace, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Support sessions are view-only.", session);
+  if (env.pilotMode) fail("Network invitations are unavailable in private owner-only mode.", session);
+  if (!user.emailVerifiedAt) fail("Verify your email before inviting your contacts.", session);
+  if (!integrationEncryptionConfigured()) fail("Invitations are temporarily unavailable. Please try again later.", session);
   const decision = await consumeRateLimit({ scope: "system.invite.prepare", identifiers: [user.id], limit: 10, windowMs: 60 * 60_000 });
-  if (!decision.allowed) fail("Too many invitation attempts. Please try again later.");
+  if (!decision.allowed) fail("Too many invitation attempts. Please try again later.", session);
   const expectedVersion = Number(formData.get("systemMixVersion"));
   const expectedSender = String(formData.get("previewSender") ?? "");
-  if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1 || !expectedSender) fail("Review the updated invitation before preparing it.");
+  if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1 || !expectedSender) fail("Review the updated invitation before preparing it.", session);
   const addresses = formData.getAll("address").map(value => String(value).trim());
   const names = formData.getAll("name").map(value => String(value).trim().slice(0, 160));
   const contactIds = formData.getAll("contactId").map(String);
-  if (addresses.length < 1 || addresses.length > REFERRAL_INVITE_LIMIT || addresses.some(address => !address)) fail("Add one to three email addresses or text numbers.");
+  if (addresses.length < 1 || addresses.length > REFERRAL_INVITE_LIMIT || addresses.some(address => !address)) fail("Add one to three email addresses or text numbers.", session);
   const region = await workspacePhoneRegion(prisma, workspace.id);
   const recipients = addresses.map((address, index) => {
     const email = address.includes("@") ? address.toLowerCase() : null;
     const phone = email ? null : normalizePhone(address);
-    if (email ? !isValidEmail(email) : !phone || !/^[+\d\s().-]+$/.test(address)) fail("Enter a valid email address or text number for each person.");
+    if (email ? !isValidEmail(email) : !phone || !/^[+\d\s().-]+$/.test(address)) fail("Enter a valid email address or text number for each person.", session);
     // [canonical, old key]: a new contact is saved under the first; a saved one may still hold the second.
     return { email, phone, phoneKeys: phone ? phoneLookupKeys(address, region) : [], name: names[index] || address, contactId: contactIds[index] || "" };
   });
-  if (new Set(recipients.map(person => person.email ?? person.phoneKeys[0])).size !== recipients.length) fail("Each invitation needs a different email address or text number.");
+  if (new Set(recipients.map(person => person.email ?? person.phoneKeys[0])).size !== recipients.length) fail("Each invitation needs a different email address or text number.", session);
   try {
     await prisma.$transaction(async tx => {
       await lockAccess(tx);
@@ -57,8 +58,8 @@ export async function sendSystemInviteAction(formData: FormData): Promise<void> 
       }
     });
   } catch (error) {
-    if (error instanceof AccessInviteError || error instanceof SystemMixError) fail(error.message);
-    if (error && typeof error === "object" && "code" in error && error.code === "P2002") fail("An invitation is already being prepared for this person. Check Today before trying again.");
+    if (error instanceof AccessInviteError || error instanceof SystemMixError) fail(error.message, session);
+    if (error && typeof error === "object" && "code" in error && error.code === "P2002") fail("An invitation is already being prepared for this person. Check Today before trying again.", session);
     throw error;
   }
   revalidatePath(path); revalidatePath("/jumps"); revalidatePath("/contacts");
@@ -66,8 +67,8 @@ export async function sendSystemInviteAction(formData: FormData): Promise<void> 
 }
 
 export async function revokeSystemInviteAction(formData: FormData): Promise<void> {
-  const { user, workspace, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Support sessions are view-only.");
+  const { session, user, workspace, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Support sessions are view-only.", session);
   const id = String(formData.get("id") ?? "");
   const result = await prisma.$transaction(async tx => {
     await lockAccess(tx);
@@ -78,7 +79,7 @@ export async function revokeSystemInviteAction(formData: FormData): Promise<void
     }
     return changed;
   });
-  if (result.count !== 1) fail("This invitation is unavailable or already used.");
+  if (result.count !== 1) fail("This invitation is unavailable or already used.", session);
   revalidatePath(path); revalidatePath("/jumps");
   redirect(`${path}?revoked=1`);
 }

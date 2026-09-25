@@ -8,6 +8,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
 import { Sheet } from "@/components/Sheet";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@/generated/prisma/client";
@@ -20,10 +21,10 @@ const archivedNotice = (code?: string) => code === "both" ? "Mix archived. It an
   : code === "shared" ? "Mix archived. It’s no longer shared on the Marketplace; copies people already added stay theirs."
   : code === "mega" ? "Mix archived. Its Mega-Mix is no longer shared on the Marketplace, because none of its other Mixes can be shared."
   : "Mix archived.";
-type SearchParams = { mix?: string; view?: string; activate?: string; imported?: string; created?: string; updated?: string; activated?: string; paused?: string; archived?: string; error?: string; q?: string; status?: string; page?: string; favorites?: string };
+type SearchParams = { mix?: string; view?: string; activate?: string; imported?: string; created?: string; updated?: string; activated?: string; paused?: string; archived?: string; error?: string; at?: string; sig?: string; q?: string; status?: string; page?: string; favorites?: string };
 
 export default async function MixesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const params = await searchParams, { workspace, user, impersonation } = await requireWorkspace();
+  const params = await searchParams, { session, workspace, user, impersonation } = await requireWorkspace();
   const q = params.q?.trim().slice(0, 160) ?? "", favorites = params.favorites === "1";
   const status = ["ACTIVE", "PAUSED", "DRAFT"].includes(params.status ?? "") ? params.status as "ACTIVE" | "PAUSED" | "DRAFT" : "";
   const where: Prisma.MixWhereInput = { workspaceId: workspace.id, source: { not: "ONE_TIME" }, status: status || { not: "ARCHIVED" }, ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { description: { contains: q, mode: "insensitive" } }] } : {}), ...(favorites ? { favorites: { some: { workspaceId: workspace.id, userId: user.id } } } : {}) };
@@ -38,7 +39,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
   if (params.mix && !requested) notFound();
   const selected = requested?.id ?? mixes[0]?.id;
   return <div className="page mixes-page mix-workspace-page">
-    {params.error && <Notice type="error">{params.error}</Notice>}
+    <UrlErrorNotice params={params} viewer={session} />
     <MarketplaceNotices workspaceId={workspace.id} />
     {(params.activated || params.paused || params.archived) && <Notice type="success">{params.activated ? "Mix started." : params.paused ? "Mix paused." : archivedNotice(params.archived)}</Notice>}
     <MixLibraryShell selectedMixId={selected} explicitSelection={Boolean(params.mix)}>

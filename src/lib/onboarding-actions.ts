@@ -1,6 +1,6 @@
 "use server";
 
-import { captureFormFailure, recoverableFormAction, type FormResult } from "@/lib/form-errors";
+import { captureFormFailure, recoverableFormAction, withViewerError, type ErrorViewer, type FormResult } from "@/lib/form-errors";
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
@@ -18,9 +18,9 @@ function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
 }
 
-function fail(path: string, message: string): never {
+function fail(path: string, message: string, viewer: ErrorViewer): never {
   captureFormFailure(message);
-  redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
+  redirect(withViewerError(path, message, viewer));
 }
 
 async function queueJumpReconciliation(workspaceId: string): Promise<void> {
@@ -37,17 +37,17 @@ function welcomePath(firstContact: string | null): string {
 }
 
 export async function completeOnboardingAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWritableWorkspace((message) => fail("/onboarding", message));
+  const { session, workspace, user } = await requireWritableWorkspace((message, viewer) => fail("/onboarding", message, viewer));
   const uses = onboardingUses(formData.getAll("useCase").map(String));
   const business = uses.includes("business");
-  if (!uses.length) fail("/onboarding", "Choose how you want to use Jump in the Mix.");
+  if (!uses.length) fail("/onboarding", "Choose how you want to use Jump in the Mix.", session);
   const path = `/onboarding?${new URLSearchParams(uses.map(use => ["useCase", use])).toString()}`;
   const businessType = business ? value(formData, "businessType") || "Other" : null;
   const businessName = !business && !uses.includes("networking") ? "" : value(formData, "businessName").slice(0, 200);
   const smsSignature = value(formData, "smsSignature") || user.name;
   const savedContactId = value(formData, "contactId");
   const savedContact = savedContactId ? await prisma.contact.findFirst({ where: { id: savedContactId, workspaceId: workspace.id, archivedAt: null } }) : null;
-  if (savedContactId && !savedContact) fail(path, "Choose an active person from your contacts.");
+  if (savedContactId && !savedContact) fail(path, "Choose an active person from your contacts.", session);
   const contactName = value(formData, "contactName");
   const { firstName, lastName } = splitContactName(contactName);
   const contactEmail = value(formData, "contactEmail").toLowerCase();
@@ -56,14 +56,14 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
   const scenario = storedMarketingScenario(marketingPreference?.scenario, marketingPreference?.version);
   const starterChoice = value(formData, "starterChoice");
   const reason = starterChoice === "suggested" && business && scenario ? scenario.reason : value(formData, "reason") || onboardingReasons(uses)[0];
-  if (!onboardingReasons(uses).includes(reason)) fail(path, "Choose a follow-up that fits your selected use.");
+  if (!onboardingReasons(uses).includes(reason)) fail(path, "Choose a follow-up that fits your selected use.", session);
   const followUpDate = value(formData, "followUpDate");
   const privateContext = value(formData, "privateContext").slice(0, 1000);
   const timezone = value(formData, "timezone");
   const displayName = savedContact?.displayName ?? [firstName, lastName].filter(Boolean).join(" ");
 
-  if (!displayName || !followUpDate) fail(path, "Add a person and choose when you want to follow up.");
-  if (!isValidTimezone(timezone)) fail(path, "Choose a valid timezone before creating the first follow-up.");
+  if (!displayName || !followUpDate) fail(path, "Add a person and choose when you want to follow up.", session);
+  if (!isValidTimezone(timezone)) fail(path, "Choose a valid timezone before creating the first follow-up.", session);
   const phoneRegion = contactPhone ? await workspacePhoneRegion(prisma, workspace.id) : null;
   let emails;
   let phones;
@@ -71,13 +71,14 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
     emails = buildEmailInputs(contactEmail ? [contactEmail] : [], ["Email"]);
     phones = buildPhoneInputs(contactPhone ? [contactPhone] : [], ["Mobile"], undefined, (typed) => canonicalPhoneKey(typed, phoneRegion ?? DEFAULT_PHONE_REGION));
   } catch (error) {
-    fail(path, error instanceof Error ? error.message : "Check the contact details and try again.");
+    // Pure validators (no database or network inside this try): what they throw is their own wording about what was typed.
+    fail(path, error instanceof Error ? error.message : "Check the contact details and try again.", session);
   }
   const dateValue = new Date(`${followUpDate}T12:00:00Z`);
-  if (Number.isNaN(dateValue.getTime())) fail(path, "Choose a valid follow-up date.");
+  if (Number.isNaN(dateValue.getTime())) fail(path, "Choose a valid follow-up date.", session);
 
   const followUpType = await prisma.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true } });
-  if (!followUpType) fail(path, "The follow-up date type is unavailable. Run setup again.");
+  if (!followUpType) fail(path, "The follow-up date type is unavailable. Run setup again.", session);
   const starterMix = await ensureStarterMix(workspace.id, businessType, reason, starterChoice === "suggested" ? scenario?.id : null);
   const contactId = savedContact?.id ?? randomUUID();
   await prisma.$transaction(async (tx) => {
@@ -130,7 +131,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
 }
 
 export async function skipOnboardingAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWritableWorkspace((message) => fail("/onboarding", message));
+  const { workspace, user } = await requireWritableWorkspace((message, viewer) => fail("/onboarding", message, viewer));
   const uses = onboardingUses(formData.getAll("useCase").map(String));
   const business = uses.includes("business");
   const submittedTimezone = value(formData, "timezone");
@@ -153,7 +154,9 @@ export async function skipOnboardingAction(formData: FormData): Promise<void> {
 
 export async function completeOnboardingFormAction(_previous: FormResult, data: FormData): Promise<FormResult> {
   return recoverableFormAction(async () => {
-    if (data.get("starterReviewed") !== "on" || data.get("starterPreviewAvailable") !== "1") fail("/onboarding", "Review your starter and its timing before continuing.");
+    // The guard runs first so the refusal below has its viewer; inside this form action it comes back as the form's error.
+    const { session } = await requireWritableWorkspace((message, viewer) => fail("/onboarding", message, viewer));
+    if (data.get("starterReviewed") !== "on" || data.get("starterPreviewAvailable") !== "1") fail("/onboarding", "Review your starter and its timing before continuing.", session);
     await completeOnboardingAction(data);
   });
 }
