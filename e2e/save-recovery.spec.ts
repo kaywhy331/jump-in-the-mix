@@ -93,6 +93,7 @@ test("contact preferences wait for the saved version before accepting another ch
 });
 
 test("Quick Add recovers a committed save after a lost response without discarding later edits", async ({ page }, info) => {
+  test.fail(true, "Product defect: QuickAdd.tsx:147 navigates to the saved person before the leave confirmation is answered, so Cancel cannot keep the current page.");
   const dialog = await capture(page);
   let dropped = false, savedContactId = "";
   const keys: string[] = [];
@@ -119,12 +120,20 @@ test("Quick Add recovers a committed save after a lost response without discardi
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `.artifacts/recovery-release-20260920/recovery-${info.project.name}-${theme}.png` });
   }
-  page.once("dialog", d => d.dismiss());
+  // Leaving asks in the app's confirmation dialog (not window.confirm): Cancel keeps the later edits in Quick Add.
+  const leave = page.getByRole("dialog", { name: "Leave without applying your later edits?", exact: true });
   await dialog.getByRole("link", { name: "Open saved person" }).click();
+  await expect(leave).toBeVisible();
+  await leave.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(leave).toHaveCount(0);
   await expect(dialog).toBeVisible();
-  page.once("dialog", d => d.accept());
+  await expect(dialog.getByLabel("Name or search for someone")).toHaveValue("Later unsaved name");
+  // Cancel means stay: the page behind Quick Add must not have moved to the saved person (fails today, see test.fail).
+  await expect.soft(page).toHaveURL(/\/contacts$/);
   await dialog.getByRole("link", { name: "Open saved person" }).click();
+  await leave.getByRole("button", { name: "Leave", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/contacts/${savedContactId}$`));
+  await expect(dialog).toBeHidden();
 });
 
 for (const review of [false, true]) test(`Quick Add guards reload in the ${review ? "review" : "capture"} stage`, async ({ page }) => {

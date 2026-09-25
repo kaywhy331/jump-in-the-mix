@@ -56,18 +56,23 @@ test("narrow journey controls and wide preference fields stay aligned", async ({
   await page.getByLabel("Password", { exact: true }).fill("JumpInTheMix123!");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL(/\/jumps/);
+  // The stage map with its roster and "Find someone" dialog was retired (6c8927d, e40d4b8); Journey is now a
+  // three-pane workspace whose People pane holds the person search and roster on a narrow screen.
   await page.goto("/journey");
-  await page.locator(".journey-person").first().waitFor();
-  const workspace = await page.locator(".journey-page").boundingBox();
-  for (const selector of [".journey-workspace", ".journey-roster", ".journey-person-actions"]) {
-    const bounds = await page.locator(selector).first().boundingBox();
+  await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
+  const panes = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
+  await panes.getByRole("button", { name: "People", exact: true }).click();
+  const people = page.getByRole("region", { name: "Journey people", exact: true });
+  const person = people.getByRole("button", { name: /^View .+'s journey$/ }).first();
+  await person.waitFor();
+  const workspace = await page.locator("#workspace-main").boundingBox();
+  for (const control of [panes, page.getByRole("complementary", { name: "Journey directory", exact: true }), people, person, people.getByRole("link", { name: /^Open .+'s contact$/ }).first()]) {
+    const bounds = await control.boundingBox();
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(workspace!.x + workspace!.width + 1);
   }
-  await page.getByRole("button", { name: "Find someone in the journey", exact: true }).click();
-  const search = page.getByRole("dialog", { name: "Find someone", exact: true });
+  const search = people.locator("form").filter({ has: page.getByRole("searchbox", { name: "Find a person", exact: true }) });
   await expect(search.getByRole("button", { name: "Search", exact: true })).toBeInViewport();
-  expect((await search.locator(".journey-search").boundingBox())!.width).toBeLessThanOrEqual(320);
-  await page.keyboard.press("Escape");
+  expect((await search.boundingBox())!.width).toBeLessThanOrEqual(320);
   await page.setViewportSize({ width: 3840, height: 1100 });
   await page.goto("/account/preferences");
   const name = page.getByLabel("Display name", { exact: true });

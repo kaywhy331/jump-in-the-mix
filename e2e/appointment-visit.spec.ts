@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { APPOINTMENT_HOLD_METHODS, reconcileJumps } from "../src/lib/jump-engine";
 import { prisma } from "../src/lib/prisma";
 import { axeInPage } from "./axe-in-page";
@@ -35,12 +35,21 @@ test.afterAll(async () => {
 
 async function ready(page: Page) { await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 }); }
 async function audit(page: Page) { expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]); }
+// The optional link, reminder details and overlap choice sit under the form's "More event details" disclosure.
+async function moreDetails(form: Locator) { const more = form.locator("details.calendar-extra-details"); if (!await more.evaluate(element => (element as HTMLDetailsElement).open)) await more.locator(":scope > summary").click(); }
+// An agenda event keeps its plan, hold and outcome controls under "Event details and actions".
+async function eventActions(page: Page, title: string) {
+  const options = page.locator("article.calendar-event").filter({ hasText: title }).locator("details.calendar-event-options");
+  if (!await options.evaluate(element => (element as HTMLDetailsElement).open)) await options.locator(":scope > summary").click();
+  return options;
+}
 
 test("saves a visit with its details and plan in one step, anchors the follow-up, and holds it per visit", async ({ page }) => {
   await page.goto(`/calendar?contact=${contactId}&date=${visitDate}`); await ready(page);
   const form = page.locator("form.form-grid");
   await form.getByLabel("Title").fill("Kitchen estimate");
   await form.getByLabel("Where").fill("12 Elm St");
+  await moreDetails(form);
   await form.getByLabel("Details the customer should be reminded of (optional)").fill("Bring the tile samples");
   await form.getByLabel("Follow-up plan for this visit (optional)").selectOption(planId);
   await audit(page);
@@ -49,7 +58,7 @@ test("saves a visit with its details and plan in one step, anchors the follow-up
   const binding = await prisma.appointmentBinding.findFirstOrThrow({ where: { workspaceId, mixId: planId }, include: { calendarEntry: true } });
   expect(binding.calendarEntry).toMatchObject({ title: "Kitchen estimate", location: "12 Elm St", details: "Bring the tile samples", contactId });
   expect(binding.automaticDelivery).toBe(false);
-  await expect(page.locator(".calendar-binding").getByText("Estimate visit plan", { exact: false })).toBeVisible();
+  await expect((await eventActions(page, "Kitchen estimate")).locator(".calendar-binding").getByText("Estimate visit plan", { exact: false })).toBeVisible();
 
   // The worker's pass generates the anchored reminder, the day before at nine.
   await reconcileJumps({ workspaceId, mixId: planId });
@@ -62,21 +71,21 @@ test("saves a visit with its details and plan in one step, anchors the follow-up
 
   // Holding the visit's follow-ups takes only this visit's rows off Today until resumed.
   await page.goto(`/calendar?date=${visitDate}`); await ready(page);
-  await page.locator(".calendar-binding").getByRole("button", { name: "Hold follow-ups", exact: true }).click();
+  await (await eventActions(page, "Kitchen estimate")).locator(".calendar-binding").getByRole("button", { name: "Hold follow-ups", exact: true }).click();
   await expect(page.locator(".calendar-binding")).toContainText("on hold");
   await reconcileJumps({ workspaceId, mixId: planId });
   expect(await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).toMatchObject({ status: "CANCELED", completionMethod: APPOINTMENT_HOLD_METHODS.held });
-  await page.locator(".calendar-binding").getByRole("button", { name: "Resume follow-ups", exact: true }).click();
+  await (await eventActions(page, "Kitchen estimate")).locator(".calendar-binding").getByRole("button", { name: "Resume follow-ups", exact: true }).click();
   await expect(page.locator(".calendar-binding")).not.toContainText("on hold");
   await reconcileJumps({ workspaceId, mixId: planId });
   expect((await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).status).toBe("PENDING");
 
   // Recording a missed visit holds this visit's follow-ups; clearing it brings them back.
-  await page.locator(".calendar-outcome").getByRole("button", { name: "No-show", exact: true }).click();
+  await (await eventActions(page, "Kitchen estimate")).locator(".calendar-outcome").getByRole("button", { name: "No-show", exact: true }).click();
   await expect(page.locator(".calendar-outcome")).toContainText("Visit missed");
   await reconcileJumps({ workspaceId, mixId: planId });
   expect(await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).toMatchObject({ status: "CANCELED", completionMethod: APPOINTMENT_HOLD_METHODS.noShow });
-  await page.locator(".calendar-outcome").getByRole("button", { name: "Clear outcome", exact: true }).click();
+  await (await eventActions(page, "Kitchen estimate")).locator(".calendar-outcome").getByRole("button", { name: "Clear outcome", exact: true }).click();
   await expect(page.locator(".calendar-outcome")).toContainText("Outcome not recorded");
   await reconcileJumps({ workspaceId, mixId: planId });
   expect((await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).status).toBe("PENDING");
@@ -87,10 +96,12 @@ test("asks for one inline choice when the entered phone and email match differen
   const blakeEmail = `blake-${suffix}@example.com`;
   await prisma.contact.create({ data: { workspaceId, firstName: "Avery", displayName: `Avery ${suffix}`, phones: { create: { phone: "+15550100601", normalized: "+15550100601", isPrimary: true } } } });
   const blake = await prisma.contact.create({ data: { workspaceId, firstName: "Blake", displayName: `Blake ${suffix}`, emails: { create: { email: blakeEmail, normalized: blakeEmail, isPrimary: true } } } });
-  await page.goto(`/calendar?date=${visitDate}`); await ready(page);
+  // Without new=1 the editor opens the day's first event (the first test's visit) for editing.
+  await page.goto(`/calendar?date=${visitDate}&new=1`); await ready(page);
   const form = page.locator("form.form-grid");
   await form.getByLabel("Title").fill("Bathroom estimate");
   await form.getByLabel("Where").fill("9 Pine Ct");
+  await moreDetails(form);
   await form.getByLabel("Details the customer should be reminded of (optional)").fill("Side entrance");
   await form.getByText("Add a new person for this visit").click();
   await form.getByLabel("Name", { exact: true }).fill("A. Stone");
@@ -117,6 +128,7 @@ test("asks for one inline choice when the entered phone and email match differen
   await expect(form.getByLabel("Title")).toHaveValue("Bathroom estimate");
   await expect(form.getByLabel("Email (optional)", { exact: true })).toHaveValue(blakeEmail);
   await expect(form.getByLabel("Where")).toHaveValue("9 Pine Ct");
+  await moreDetails(form);
   await form.getByLabel(/Allow an intentional overlap/).check();
   await form.getByRole("button", { name: "Save event", exact: true }).click();
   await expect(page.getByText(/line up with this visit\. 1 beat is scheduled and will appear on Today\./)).toBeVisible();

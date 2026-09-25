@@ -32,7 +32,9 @@ test("template and feature pages are public, titled, canonical and copyable", as
 test("the homepage explains the mechanism, links the routes and carries accurate structured data", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Put client follow-up into a rhythm." })).toBeVisible();
-  await expect(page.locator("#how-it-works")).toContainText("does not read or interpret replies");
+  await expect(page.locator("#how-it-works")).toContainText("A Mix is a reusable follow-up plan. Each Beat is one scheduled message or call reminder");
+  // The reply boundary moved from "How it works" into the own-voice section's product definition.
+  await expect(page.getByRole("region", { name: "Keep the rhythm. Keep your own voice.", exact: true })).toContainText("does not read or interpret replies");
   await expect(page.locator(".profession-grid li a[href='/for/contractors']")).toHaveText("Contractors");
   const data = JSON.parse(await page.locator('script[type="application/ld+json"]').first().evaluate(element => element.textContent ?? "{}"));
   expect(data["@graph"].map((node: { "@type": string }) => node["@type"])).toEqual(["Organization", "WebSite", "SoftwareApplication"]);

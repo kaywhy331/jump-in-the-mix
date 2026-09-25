@@ -101,7 +101,8 @@ test("activation preference persists, defaults to review and allows an optional 
   const review = page.getByRole("dialog", { name: "Start this mix?", exact: true });
   await expect(review).toBeVisible();
   await review.getByRole("button", { name: "Start the mix", exact: true }).click();
-  await expect(page).toHaveURL(/\/mixes\/[^/]+\/edit\?created=manual/);
+  // /mixes/<id>/edit forwards to the Mix library's editor view (bd125c6).
+  await expect(page).toHaveURL(/\/mixes\?mix=[^&]+&view=edit&created=manual/);
   await page.goto("/account/preferences");
   await page.getByRole("combobox", { name: /^Mix activation/ }).selectOption("DIRECT");
   await page.getByRole("button", { name: "Save activation preference", exact: true }).click();
@@ -112,7 +113,7 @@ test("activation preference persists, defaults to review and allows an optional 
   await page.getByRole("button", { name: "Review first", exact: true }).click(); await expect(review).toBeVisible();
   await review.getByRole("button", { name: "Keep editing", exact: true }).click();
   await page.getByRole("button", { name: "Save and activate", exact: true }).click();
-  await expect(page).toHaveURL(/\/mixes\/[^/]+\/edit\?created=manual/);
+  await expect(page).toHaveURL(/\/mixes\?mix=[^&]+&view=edit&created=manual/);
   expect((await prisma.mix.findFirstOrThrow({ where: { workspaceId, name } })).status).toBe("ACTIVE");
 });
 for (const reviewBeforeActivation of [true, false]) test(`ready-made setup honors review=${reviewBeforeActivation}`, async ({ page }) => {
@@ -124,5 +125,9 @@ for (const reviewBeforeActivation of [true, false]) test(`ready-made setup honor
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("button", { name: reviewBeforeActivation ? "Review and start" : "Save and activate", exact: true }).click();
   if (reviewBeforeActivation) await page.getByRole("dialog").getByRole("button", { name: "Start the mix", exact: true }).click();
-  await expect(page).toHaveURL(/\/mixes\/[^/]+\/edit\?imported=1&activated=1/);
+  // The setup redirects to /mixes/<id>/edit?imported=1&activated=1, which forwards to the library editor and keeps
+  // only imported=1 (bd125c6); the activation itself is checked on the saved Mix.
+  await expect(page).toHaveURL(/\/mixes\?mix=[^&]+&view=edit&imported=1$/);
+  const imported = await prisma.mix.findUniqueOrThrow({ where: { id: new URL(page.url()).searchParams.get("mix")! } });
+  expect(imported).toMatchObject({ workspaceId, source: `SHARED_MIX:${templateId}`, status: "ACTIVE" });
 });

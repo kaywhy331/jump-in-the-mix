@@ -39,10 +39,17 @@ test("timeline traverses more than 150 same-time events and corrects notes safel
   } while (cursor);
   expect(seen.size).toBe(163);
   await page.goto(`/contacts/${contact.id}`);
-  await page.getByRole("button", { name: "Communications", exact: true }).click();
+  await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
+  // History filters live in the "History options" sheet; each note's Edit sits in its options menu.
+  await page.getByRole("button", { name: "History options", exact: true }).click();
+  const options = page.getByRole("dialog", { name: "History options", exact: true });
+  await options.getByRole("button", { name: "Communications", exact: true }).click();
   await expect(page.getByText("No events match this filter. Choose All to see other history.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Communications", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "Notes", exact: true }).click();
+  await expect(options.getByRole("button", { name: "Communications", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await options.getByRole("button", { name: "Notes", exact: true }).click();
+  await expect(options.getByRole("button", { name: "Notes", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await options.getByRole("button", { name: "Close History options", exact: true }).click();
+  await page.getByLabel(/^Options for note from /).first().click();
   await page.getByRole("button", { name: "Edit note", exact: true }).first().click();
   await page.getByRole("textbox", { name: "Correct note", exact: true }).fill("Corrected private note");
   const savedNote = page.waitForResponse(response => response.url().endsWith(`/api/contacts/${contact.id}/activity`) && response.request().method() === "PATCH");
@@ -66,6 +73,8 @@ test("worked schedule uses weekend and quiet-hour rules while appointment offset
 test("onboarding permits minimal details only after reviewing its actual starter", async ({ page }) => {
   const { workspace } = await member(page, false);
   await page.goto("/onboarding");
+  // Onboarding opens on the complete mega-mix; one person and one follow-up is its own starting point.
+  await page.getByRole("radio", { name: /^Other uses or one follow-up/ }).check();
   await page.getByLabel("Name", { exact: true }).fill("Notes Only Person");
   await page.getByRole("checkbox", { name: /I reviewed this plan/ }).check();
   await page.getByRole("button", { name: "Prepare my first follow-up" }).click();

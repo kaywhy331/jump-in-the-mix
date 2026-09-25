@@ -41,15 +41,17 @@ test("Quick Add carries recognized fields into Contact and follow-up creation", 
   const dialog = page.getByRole("dialog", { name: "Quick Add" });
   await dialog.getByLabel("What do you want to remember?").fill("Follow up with Jordan Lee next Monday about the proposal");
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
-  await dialog.getByRole("button", { name: "Add person & follow-up" }).click();
 
-  await expect(page).toHaveURL(/\/contacts\/new\?/);
-  await expect(page.getByLabel("First name")).toHaveValue("Jordan");
-  await expect(page.getByLabel("Last name")).toHaveValue("Lee");
-  await expect(page.locator('input[name="followUpDate"]')).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
-  await expect(page.getByLabel("Reason")).toHaveValue("the proposal");
-  await expect(page.getByRole("checkbox", { name: /Schedule a follow-up now/ })).toBeChecked();
-  await expect(page.getByRole("button", { name: "Save & schedule follow-up" })).toBeVisible();
+  // Continue opens the review inside the dialog: the recognized person and follow-up are
+  // prefilled together and saved in one step (nothing is saved here).
+  await expect(dialog.getByText("Saving as", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("region", { name: "Person", exact: true }).getByRole("heading", { name: "New person", exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("Name or search for someone", { exact: true })).toHaveValue("Jordan Lee");
+  await expect(dialog.getByRole("checkbox", { name: "Follow-up", exact: true })).toBeChecked();
+  await expect(dialog.getByLabel("Follow-up date", { exact: true })).toHaveValue(/^\d{4}-\d{2}-\d{2}$/);
+  await expect(dialog.getByLabel("Reason", { exact: true })).toHaveValue("the proposal");
+  await expect(dialog.getByRole("button", { name: "Save all 3", exact: true })).toBeVisible();
+  expect(page.url()).toMatch(/\/jumps$/);
 });
 
 test("Quick Add carries a recognized phone without folding it into the Contact name", async ({ page }, testInfo) => {
@@ -60,21 +62,25 @@ test("Quick Add carries a recognized phone without folding it into the Contact n
   const dialog = page.getByRole("dialog", { name: "Quick Add" });
   await dialog.getByLabel("What do you want to remember?").fill("Add Sam with 626-555-0100");
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(dialog.getByText("Sam", { exact: true })).toBeVisible();
-  await expect(dialog.getByText("626-555-0100", { exact: true })).toBeVisible();
-  await dialog.getByRole("button", { name: "Add person & follow-up" }).click();
-
-  await expect(page).toHaveURL(/\/contacts\/new\?/);
-  await expect(page.getByLabel("First name")).toHaveValue("Sam");
-  await expect(page.getByLabel("Last name")).toHaveValue("");
-  await expect(page.getByLabel("Phone", { exact: true })).toHaveValue("626-555-0100");
+  // The review names the new person without the number and lists the number as their phone.
+  await expect(dialog.getByText("Saving as", { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("Name or search for someone", { exact: true })).toHaveValue("Sam");
+  const phoneDetails = dialog.getByText("626-555-0100", { exact: true });
+  await expect(phoneDetails).toBeVisible();
+  await phoneDetails.click();
+  await expect(dialog.getByLabel("Phone", { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel("Phone", { exact: true })).toHaveValue("626-555-0100");
+  await expect(dialog.getByRole("button", { name: "Save all 2", exact: true })).toBeVisible();
 });
 
 test("Contact selection is a direct list control", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The selection entry point is checked once.");
   await signIn(page);
   await page.goto("/contacts");
-  await page.getByRole("button", { name: "Select", exact: true }).click();
+  await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
+  // Selection starts from the Contact tools sheet; the list then shows a checkbox per row and a Done control.
+  await page.getByRole("button", { name: "More contact tools", exact: true }).click();
+  await page.getByRole("dialog", { name: "Contact tools", exact: true }).getByRole("button", { name: "Select contacts", exact: true }).click();
   await expect(page.getByRole("button", { name: "Done", exact: true })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: /^Select / }).first()).toBeVisible();
 });

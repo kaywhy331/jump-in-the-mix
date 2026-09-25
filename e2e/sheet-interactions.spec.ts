@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type ElementHandle, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
 import { axeInPage } from "./axe-in-page";
 
@@ -296,17 +296,23 @@ test("enlarged text keeps editor actions and public navigation reachable", async
     // The editor's own address: /mixes/<id>/edit forwards here after loading, which would race the measurements.
     for (const route of [`/mixes?mix=${mix.id}&view=edit`, "/account/preferences", "/calendar?new=1", "/", "/for/contractors"]) {
       await page.goto(route); if (route !== "/" && !route.startsWith("/for/")) await ready(page);
+      // The app shell is ready before a streamed page replaces its "Loading …" fallback (React reveals
+      // Suspense content in batches); measure the page itself, not the navigation beside the fallback.
+      await expect(page.getByText("Your saved work is being loaded.", { exact: false })).toBeHidden();
       await page.addStyleTag({ content: "html { font-size: 200% !important; scroll-behavior: auto !important; } * { scroll-behavior: auto !important; }" });
       await page.evaluate(() => document.fonts.ready);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), route).toBe(true);
       const controls = page.locator(".sticky-form-actions .button, .form-actions .button, .public-header a, .public-header summary, .profession-grid a, .mobile-nav .nav-link").filter({ visible: true });
-      for (const control of await controls.all()) {
+      // Hold each control itself: nth() locators re-resolve, so a control appearing earlier in the page
+      // would shift every later check onto a different element.
+      for (const control of await controls.elementHandles() as ElementHandle<HTMLElement>[]) {
+        const focused = () => control.evaluate(element => element === document.activeElement && document.hasFocus());
         await control.scrollIntoViewIfNeeded();
         if (route !== "/" && !route.startsWith("/for/")) await ready(page);
         await control.evaluate(element => (element as HTMLElement).focus());
-        await expect(control).toBeFocused();
+        await expect.poll(focused, { message: `${route}: ${await control.innerText()} takes focus` }).toBe(true);
         await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");
-        await expect(control).toBeFocused();
+        await expect.poll(focused, { message: `${route}: ${await control.innerText()} is reached again with Shift+Tab, Tab` }).toBe(true);
         await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
         const position = await control.evaluate(element => {
           const r = element.getBoundingClientRect();
