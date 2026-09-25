@@ -1,6 +1,6 @@
 # Audit release A2 — September 25, 2026
 
-Release A2 is the second release of the [2026-09-24 full audit](FULL_AUDIT_2026-09-24.md) plan (§5). It follows Release A (`7b2fa00`) and carries the work the deliberation moved out of A:
+Release A2 is live at **https://jumpinthemix.com/** as of 2026-09-25 12:49 UTC. It is the second release of the [2026-09-24 full audit](FULL_AUDIT_2026-09-24.md) plan (§5). It follows Release A (`7b2fa00`) and carries the work the deliberation moved out of A:
 
 - the CSS and accessibility batch under one owner
 - the computed "not before" send time
@@ -17,7 +17,10 @@ It is code only: nothing in `prisma/`, `package.json`, the lockfile, `render.yam
 | --- | --- |
 | Branch | `fix/full-audit-a2-20260925` (based on `7b2fa00` and its record) |
 | Previous production commit | `7b2fa0077574ae5351b98e120341a2c1f0c11d58` (tag `prod-2026-09-25-7b2fa00`) |
-| Application commit, deploys, checks | see [Release](#release) |
+| Application commit | `c17cc8065577fa04644f517a55e303a54943bac5` (tag `prod-2026-09-25-c17cc80`) |
+| Worker deploy | `dep-dar6ovou01pc738e5rp0`, live 2026-09-25 12:45:01 UTC |
+| Web deploy | `dep-dar6q6jtqb8s73fokls0`, live 2026-09-25 12:49:52 UTC, build `j4iowKL65CNfiyBcvAEzh` |
+| Final check | 2026-09-25 12:51:52 UTC |
 
 ## What changed
 
@@ -101,7 +104,21 @@ They are listed for a test-only follow-up. None blocks this release.
 
 ## Release
 
-Recorded after the release.
+Released on 2026-09-25 between 12:43 and 12:52 UTC, under the owner's standing release authority. It ran the resumable pipeline in `.artifacts/market-live-20260924/a2-*.mjs`: preflight, worker, web, postflight, live smoke, final check. No migration was run.
+
+- **Preflight (read-only).** Both services were live on `7b2fa00` with auto-deploy off. The pushed branch matched the release commit. The database was ready and the runtime boundary was intact, with no recovery hold. All 70 migrations matched the release tree. The release changes 173 files: 163 were hashed for the postflight, and 10 are deletions (the dead modules and their tests).
+  - The first run stopped before any write or deploy. Release A's manifest step assumed every changed file exists, and this release deletes files. The preflight now hashes only files present at the release commit, and the postflight also confirms the deleted files are absent on the live instance.
+- **Worker.** `dep-dar6ovou01pc738e5rp0` went live at 12:45:01 UTC. Its scoped queue probe passed, and the synthetic job was removed.
+- **Web.** `dep-dar6q6jtqb8s73fokls0` went live at 12:49:52 UTC with build `j4iowKL65CNfiyBcvAEzh`.
+- **Postflight.** 16 public and sign-in redirect checks passed. On the live instance, 163 release files and 20 served assets hashed identically to the candidate, and the 10 deleted files were absent. The database was ready.
+- **Live smoke.** One synthetic owner was used, and every row was removed. The checks:
+  - Sign-in sets a Lax, Secure, HttpOnly cookie expiring in about 90 days.
+  - Today renders the pending follow-up on a phone.
+  - A plain sign-in and a sign-in with a forged `X-Forwarded-For` both recorded the real client address.
+  - An emailed magic-link address only opens the confirmation page; an unknown token returns to sign-in with our signed message, which also proves the signing secret is configured.
+  - A crafted `?error=` shows the fixed sentence.
+  - Today, Contacts, Mixes, Marketplace and Account reflow at 390 px and pass axe in light and dark.
+- **Final check.** Record counts were unchanged from the preflight. There were no probe jobs, synthetic users or workspaces, failed jobs since the release, or active rate-limit blocks. Health returned 200 three times, and both services are on `c17cc80` with auto-deploy off.
 
 ## Rollback
 
