@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useMemo, useState } from "react";
 import { VoiceNoteButton } from "@/components/VoiceNoteButton";
-import { saveContactFormAction } from "@/lib/contact-actions";
+import { saveContactFormAction, type ContactFormState } from "@/lib/contact-actions";
 import { UNCONFIRMED_SAVE, isNavigationSignal } from "@/lib/unconfirmed-save";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { FormGuard } from "@/components/FormGuard";
@@ -79,7 +79,7 @@ export function ContactForm({
   followUp?: FollowUpOption | null;
   returnTo?: string | null;
 }) {
-  const [result, formAction] = useActionState(async (previous: { error?: string }, data: FormData): Promise<{ error?: string }> => {
+  const [result, formAction] = useActionState(async (previous: ContactFormState, data: FormData): Promise<ContactFormState> => {
     try { return await saveContactFormAction(previous, data); }
     catch (cause) { if (isNavigationSignal(cause)) throw cause; return { error: UNCONFIRMED_SAVE }; }
   }, {});
@@ -156,7 +156,7 @@ export function ContactForm({
     }}>
       <FormGuard />
       {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
-      {result.error && <p id="contact-save-error" ref={errorRef} tabIndex={-1} className="notice error" role="alert">{result.error} Your entries are still here; correct the details and save again.</p>}
+      {result.error && <p id="contact-save-error" ref={errorRef} tabIndex={-1} className="notice error" role="alert">{result.error} Your entries are still here; correct the details and save again.{result.errorLink && <> <Link href={result.errorLink.href}>{result.errorLink.label}</Link></>}</p>}
       {undoRemoval && <p role="status">Contact method removed. Undo adds it back without changing your current primary method. <button type="button" className="text-button" onClick={() => { undoRemoval(); setUndoRemoval(null); }}>Undo removal</button></p>}
       {contact?.id && <input type="hidden" name="contactId" value={contact.id} />}
 

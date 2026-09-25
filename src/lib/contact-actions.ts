@@ -27,6 +27,42 @@ function fail(path: string, message: string): never {
   redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
 }
 
+function withParam(path: string, key: string, parameterValue: string): string {
+  const hashIndex = path.indexOf("#");
+  const base = hashIndex >= 0 ? path.slice(0, hashIndex) : path;
+  const hash = hashIndex >= 0 ? path.slice(hashIndex) : "";
+  return `${base}${base.includes("?") ? "&" : "?"}${encodeURIComponent(key)}=${encodeURIComponent(parameterValue)}${hash}`;
+}
+
+type ErrorLink = { href: string; label: string };
+export type ContactFormState = { error?: string; errorLink?: ErrorLink };
+
+/** A phone or email that already belongs to someone else: the message names them and the link leads to the fix. */
+class ContactMethodConflict extends Error {
+  constructor(message: string, readonly link: ErrorLink) {
+    super(message);
+  }
+}
+
+function methodConflict(kind: "phone" | "email", typed: string, owner: { displayName: string; archivedAt: Date | null }): ContactMethodConflict {
+  const other = kind === "phone" ? "number" : "address";
+  if (owner.archivedAt) {
+    return new ContactMethodConflict(
+      `That ${kind} already belongs to ${owner.displayName} (archived). Restore them from Archived contacts or use another ${other}.`,
+      { href: `/contacts/archived?q=${encodeURIComponent(typed)}`, label: "Open Archived contacts" }
+    );
+  }
+  return new ContactMethodConflict(
+    `That ${kind} already belongs to ${owner.displayName}. Use Find duplicates if these are the same person.`,
+    { href: "/contacts/duplicates", label: "Find duplicates" }
+  );
+}
+
+function formFailure(error: unknown, fallback: string): ContactFormState {
+  if (error instanceof ContactMethodConflict) return { error: error.message, errorLink: error.link };
+  return { error: error instanceof Error ? error.message : fallback };
+}
+
 function contactPayload(formData: FormData) {
   const firstName = value(formData, "firstName");
   const lastName = value(formData, "lastName");
@@ -123,6 +159,8 @@ async function validateContactPayload(workspaceId: string, payload: ReturnType<t
 
   await validateContactCustomFieldInputs(prisma, workspaceId, payload.customFields);
 
+  // Archived people keep their numbers (the unique key spans the workspace), so the owner is
+  // named either way and an archived owner points at Restore instead of a dead end.
   for (const email of payload.emails) {
     const duplicate = await prisma.contactEmail.findFirst({
       where: {
@@ -130,9 +168,9 @@ async function validateContactPayload(workspaceId: string, payload: ReturnType<t
         ...(excludeContactId ? { contactId: { not: excludeContactId } } : {}),
         contact: { workspaceId }
       },
-      select: { id: true }
+      select: { contact: { select: { displayName: true, archivedAt: true } } }
     });
-    if (duplicate) throw new Error(`Another contact already uses ${email.value}.`);
+    if (duplicate) throw methodConflict("email", email.value, duplicate.contact);
   }
   for (const phone of payload.phones) {
     const duplicate = await prisma.contactPhone.findFirst({
@@ -141,17 +179,15 @@ async function validateContactPayload(workspaceId: string, payload: ReturnType<t
         ...(excludeContactId ? { contactId: { not: excludeContactId } } : {}),
         contact: { workspaceId }
       },
-      select: { id: true }
+      select: { contact: { select: { displayName: true, archivedAt: true } } }
     });
-    if (duplicate) throw new Error(`Another contact already uses ${phone.value}.`);
+    if (duplicate) throw methodConflict("phone", phone.value, duplicate.contact);
   }
 }
 
 async function queueContactReconciliation(workspaceId: string, contactId: string): Promise<void> {
   await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId } } });
 }
-
-type ContactFormState = { error?: string };
 
 async function createContact(formData: FormData): Promise<ContactFormState> {
   const { workspace, user } = await requireWorkspace();
@@ -163,7 +199,7 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
     await validateContactPayload(workspace.id, payload);
     followUp = await initialFollowUpPayload(workspace.id, formData);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "The contact could not be saved." };
+    return formFailure(error, "The contact could not be saved.");
   }
 
   const contact = await prisma.$transaction(async (tx) => {
@@ -249,7 +285,7 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
     payload = contactPayload(formData);
     await validateContactPayload(workspace.id, payload, contactId);
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "The contact could not be updated." };
+    return formFailure(error, "The contact could not be updated.");
   }
 
   try {
@@ -335,9 +371,10 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
     return { error: "The contact could not be saved. Your entries are kept. Reload to see the latest version, then try again." };
   }
   await queueContactReconciliation(workspace.id, contactId);
-  // Editing from a Today review (e.g. "Add phone") returns to that follow-up.
+  // Editing from a Today review (e.g. "Add phone") returns to that follow-up; the flag lets
+  // Today confirm the save, since the page otherwise looks unchanged.
   const todayReturn = customerReturnPath(value(formData, "returnTo"));
-  if (todayReturn?.startsWith("/jumps")) redirect(todayReturn);
+  if (todayReturn?.startsWith("/jumps")) redirect(withParam(todayReturn, "contactSaved", "1"));
   redirect(`/contacts/${contactId}?updated=1`);
 }
 

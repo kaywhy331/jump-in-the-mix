@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { Notice } from "@/components/Notice";
+import { useConfirmDialog } from "@/components/useConfirmDialog";
 import {
   buildImportRows,
   contactNameForImport,
+  countRowsWithoutContactMethod,
   createImportErrorCsv,
   createSampleImportCsv,
   decodeMappingTarget,
@@ -178,6 +180,9 @@ export function ContactImportWizardV2({
   const [pollVersion, setPollVersion] = useState(0);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mappingOpen, setMappingOpen] = useState(false);
+  const mappingRef = useRef<HTMLDetailsElement>(null);
+  const [confirm, confirmDialog] = useConfirmDialog();
 
   const validRows = useMemo(() => preparedRows.filter((row) => row.errors.length === 0), [preparedRows]);
   const invalidRows = useMemo(() => preparedRows.filter((row) => row.errors.length > 0), [preparedRows]);
@@ -193,6 +198,18 @@ export function ContactImportWizardV2({
       skip: values.filter((item) => item.action === "SKIP").length + invalidRows.length
     };
   }, [resolutions, invalidRows.length]);
+  // Rows with no phone or email import as names only; Today cannot prepare anything for them.
+  // Usually the file's phone or email columns were not recognised, so the fix is the mapping.
+  const rowsWithoutContactMethod = useMemo(() => countRowsWithoutContactMethod(preparedRows), [preparedRows]);
+  const mostRowsLackContactMethod = rowsWithoutContactMethod * 2 > preparedRows.length;
+  const contactMethodSummary = `${rowsWithoutContactMethod.toLocaleString()} of ${preparedRows.length.toLocaleString()} ${preparedRows.length === 1 ? "row" : "rows"} ${rowsWithoutContactMethod === 1 ? "has" : "have"} no phone or email`;
+  const openMappingEditor = () => {
+    setMappingOpen(true);
+    requestAnimationFrame(() => {
+      mappingRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+      mappingRef.current?.querySelector("select")?.focus({ preventScroll: true });
+    });
+  };
 
   const loadRecent = async () => {
     try {
@@ -284,6 +301,15 @@ export function ContactImportWizardV2({
 
   const queueImport = async (onlyFailed = false) => {
     if (!table) return;
+    if (!onlyFailed && mostRowsLackContactMethod) {
+      const proceed = await confirm({
+        title: "Most rows have no phone or email",
+        description: `${contactMethodSummary}. Those people will be saved with names only, and Today cannot prepare a call or message for them. If the file has phone or email columns, go back and check the field mapping first.`,
+        confirmLabel: "Queue anyway",
+        cancelLabel: "Go back"
+      });
+      if (!proceed) return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -337,6 +363,7 @@ export function ContactImportWizardV2({
     setStage("CHOOSE");
     setTable(null);
     setMapping({});
+    setMappingOpen(false);
     setPreparedRows([]);
     setMatches([]);
     setResolutions({});
@@ -386,7 +413,13 @@ export function ContactImportWizardV2({
             <button className="button" type="button" onClick={reset}>Choose another file</button>
           </div>
 
-          <details>
+          {rowsWithoutContactMethod > 0 && (
+            <Notice type="info">
+              <strong>{contactMethodSummary}.</strong> Those people will be saved with names only, so Today cannot prepare a call or message for them. If the file has phone or email columns, check that they are mapped. <button className="button small" type="button" onClick={openMappingEditor}>Check field mapping</button>
+            </Notice>
+          )}
+
+          <details ref={mappingRef} open={mappingOpen} onToggle={(event) => setMappingOpen(event.currentTarget.open)}>
             <summary>Review or adjust field mapping</summary>
             <div className="import-mapping-list">
               {table.headers.map((header) => {
@@ -440,6 +473,7 @@ export function ContactImportWizardV2({
           <div className="import-result-list">{recentBatches.map((item) => <button type="button" className="contact-method-row" key={item.id} onClick={() => { setBatch(item); setStage("RESULTS"); }}><span><strong>{item.sourceFileName || "Contact import"}</strong><small>{batchDate(item.createdAt)} · {item.processedRows}/{item.totalRows} rows</small></span><span className="status-pill">{item.status.toLowerCase()}</span></button>)}</div>
         </section>
       )}
+      {confirmDialog}
     </div>
   );
 }
