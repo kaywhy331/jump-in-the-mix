@@ -162,7 +162,9 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set("Content-Security-Policy", contentSecurityPolicy(nonce));
   const response = applySecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), nonce);
 
-  if (request.nextUrl.pathname === "/register" || request.nextUrl.pathname.startsWith("/waitlist") || request.nextUrl.pathname.startsWith("/staff/accept")) {
+  // Invitation pages, and the Google and Apple sign-in hops whose addresses can carry an invitation token or a
+  // sign-in code, are never passed on as a referrer or stored by a cache.
+  if (request.nextUrl.pathname === "/register" || request.nextUrl.pathname.startsWith("/waitlist") || request.nextUrl.pathname.startsWith("/staff/accept") || request.nextUrl.pathname.startsWith("/api/auth/oauth/")) {
     response.headers.set("Referrer-Policy", "no-referrer");
     response.headers.set("Cache-Control", "private, no-store");
     response.headers.set("X-Robots-Tag", "noindex, nofollow");
