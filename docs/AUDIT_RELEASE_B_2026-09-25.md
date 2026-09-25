@@ -1,6 +1,6 @@
 # Audit release B — September 25, 2026
 
-Release B is the third release of the [2026-09-24 full audit](FULL_AUDIT_2026-09-24.md) plan (§5), after Release A (`7b2fa00`) and Release A2 (`c17cc80`). It carries the items that need a schema change, a new dependency or a platform setting, with the owner's decisions of 2026-09-25:
+Release B is live at **https://jumpinthemix.com/** as of 2026-09-25 16:34 UTC. It is the third release of the [2026-09-24 full audit](FULL_AUDIT_2026-09-24.md) plan (§5), after Release A (`7b2fa00`) and Release A2 (`c17cc80`). It carries the items that need a schema change, a new dependency or a platform setting, with the owner's decisions of 2026-09-25:
 
 - phone numbers read for a country the owner chooses, North America (+1) by default
 - sign-up with Google or Apple from an invitation, and a way to correct a mistyped email after a text invitation
@@ -17,10 +17,13 @@ It is the first audit release with a migration. The migration is additive (one c
 | --- | --- |
 | Branch | `feat/audit-release-b-20260925` (based on `c17cc80` and its record) |
 | Previous production commit | `c17cc8065577fa04644f517a55e303a54943bac5` (tag `prod-2026-09-25-c17cc80`) |
-| Application commit | the commit that adds this record |
-| Migration | `20260925150000_release_b_phone_region_invites_review` (additive) |
+| Application commit | `f3a0a20994d08e9d531a28682a818339c394d34f` (tag `prod-2026-09-25-f3a0a20`) |
+| Migration | `20260925150000_release_b_phone_region_invites_review` (additive), job `job-dara1m97lnhs73aj98f0` |
 | Dependency | `libphonenumber-js` 1.13.13 (new) |
-| Worker settings | start command `node --import tsx src/worker/index.ts`, shutdown delay 300 s |
+| Worker settings | start command `node --import tsx src/worker/index.ts` (was `npm run worker`); the 300-second shutdown delay needs the dashboard (see Owner steps) |
+| Worker deploy | `dep-dara2cp42hec73di14qg`, live 2026-09-25 16:29:55 UTC |
+| Web deploy | `dep-dara3l7f3r2c73bmjs60`, live 2026-09-25 16:34:55 UTC, build `v7gr2swWJb38Dd9XM2rpv` |
+| Final check | 2026-09-25 16:37:31 UTC |
 
 ## What changed
 
@@ -75,7 +78,24 @@ All checks ran on TrixBot (3.8 GB), one heavy job at a time, against the `jitm_d
 
 ## Release
 
-Pending. The resumable pipeline (`.artifacts/market-live-20260924/b-*.mjs`) runs after this record is committed and pushed: preflight, backup, migration, worker settings, worker deploy with a queue probe, web deploy, postflight, live smoke, phone-key sweep, final check.
+Released on 2026-09-25 between 16:25 and 16:38 UTC, under the owner's standing release authority, with the resumable pipeline in `.artifacts/market-live-20260924/b-*.mjs`. Every step passed on the first run.
+
+- **Preflight (read-only).** Both services were live on `c17cc80` with auto-deploy off, the pushed branch matched the release commit, the database was ready with the runtime boundary intact, and every applied migration matched the release tree. The package, lockfile and `render.yaml` differences were exactly the reviewed ones. No Google or Apple sign-in is configured.
+- **Backup.** An encrypted backup was stored at 16:26:27 UTC through the backup cron (three objects: the dump, its recovery state and its manifest).
+- **Migration.** A one-off job on the live web instance, still at `c17cc80`, verified the reviewed release archive, applied the one migration with the owner role (71 migrations now), and checked the nine new columns, the `phoneRegion` default and CHECK constraint, the backup role's read-only grants on the three altered tables, and unchanged record counts (2 people, 1 workspace, 3 contacts, 2 saved numbers, 6 follow-ups).
+- **Worker settings.** The start command became `node --import tsx src/worker/index.ts`. The Render API does not expose the shutdown delay, so it was left unchanged (see Owner steps).
+- **Worker.** `dep-dara2cp42hec73di14qg` went live at 16:29:55 UTC. Its scoped queue probe passed, and the synthetic job was removed.
+- **Web.** `dep-dara3l7f3r2c73bmjs60` went live at 16:34:55 UTC with build `v7gr2swWJb38Dd9XM2rpv`.
+- **Postflight.** 18 public, security and sign-in redirect checks passed, including `/security` and `security.txt` (the disclosure contact first, not close to expiry). On the live instance, 171 release files and 20 served assets hashed identically to the candidate. The database was ready.
+- **Live smoke.** One synthetic owner was used, and every row was removed. The checks:
+  - Sign-in sets a Lax, Secure, HttpOnly session cookie expiring in about 90 days, and the Lax, Secure, HttpOnly known-device marker.
+  - Today renders the pending follow-up on a phone.
+  - Personal preferences show the phone-number country (United States, +1) and preview a change to the United Kingdom without saving it.
+  - A plain sign-in and a sign-in with a forged `X-Forwarded-For` both recorded the real client address.
+  - Magic links confirm on a page, and public error banners show only our signed wording.
+  - Today, Contacts, Mixes, Marketplace and Account reflow at 390 px and pass axe in light and dark.
+- **Phone-key sweep.** The private manifest recorded both saved numbers; the worker ran the sweep job at 16:37:14 UTC; both keys are now canonical for North America, none were merged, and no contact has two primary numbers or lost its primary.
+- **Final check.** Record counts were unchanged from the preflight. There were no probe jobs, synthetic users or workspaces, failed jobs since the release, or active rate-limit blocks. Health returned 200 three times, and both services are on `f3a0a20` with auto-deploy off.
 
 ## Rollback
 
@@ -87,18 +107,19 @@ The migration stays: the previous release never reads the new columns. To go bac
 
 ## Owner steps
 
-1. **`security@jumpinthemix.com`.** Add it as an alias in ImprovMX (the domain's mail already goes through ImprovMX), forwarding to the inbox that receives `support@`. Until then, mail to `security@` may bounce; `security.txt` also lists `support@`.
-2. **Google sign-in** (optional; the invitation sign-up stays hidden until both values are set):
+1. **Worker shutdown delay.** In the Render dashboard, open the worker service (`jump-in-the-mix-worker`) → Settings and set the shutdown delay to 300 seconds, as `render.yaml` states. The API used by the release does not expose it. Until then Render stops the worker after its default delay; an import still stops cleanly between chunks and resumes, but a long chunk may be cut off and retried.
+2. **`security@jumpinthemix.com`.** Add it as an alias in ImprovMX (the domain's mail already goes through ImprovMX), forwarding to the inbox that receives `support@`. Until then, mail to `security@` may bounce; `security.txt` also lists `support@`.
+3. **Google sign-in** (optional; the invitation sign-up stays hidden until both values are set):
    1. Google Cloud console → Google Auth Platform: set the branding, add the authorized domain `jumpinthemix.com`, the privacy policy `https://jumpinthemix.com/privacy` and the terms `https://jumpinthemix.com/terms`. Audience: External, published to production. Scopes: `openid`, `email`, `profile`.
    2. Clients → Create client → Web application. Authorized JavaScript origin `https://jumpinthemix.com`; redirect URI `https://jumpinthemix.com/api/auth/oauth/google/callback`.
    3. On Render, set `AUTH_GOOGLE_CLIENT_ID` and `AUTH_GOOGLE_CLIENT_SECRET` on the web service (both or neither), then deploy the web service.
-3. **Apple sign-in** (optional; needs a paid Apple Developer Program membership):
+4. **Apple sign-in** (optional; needs a paid Apple Developer Program membership):
    1. Identifiers: an App ID with Sign in with Apple, then a Services ID (for example `com.jumpinthemix.web`) with Sign in with Apple configured: the App ID as primary, the domain `jumpinthemix.com`, the return URL `https://jumpinthemix.com/api/auth/oauth/apple/callback`. If Apple asks for a domain-association file, stop: serving it needs a code change.
    2. Keys: create a key with Sign in with Apple and download the `.p8` file (it can be downloaded only once). Note the Key ID and the Team ID.
    3. On Render, set all four on the web service: `AUTH_APPLE_CLIENT_ID` (the Services ID), `AUTH_APPLE_TEAM_ID`, `AUTH_APPLE_KEY_ID`, `AUTH_APPLE_PRIVATE_KEY` (the whole `.p8` text; line breaks may be written as `\n`). Then deploy the web service.
    4. Services → Sign in with Apple for Email Communication: register `jumpinthemix.com` and the exact `EMAIL_FROM` address, which must pass SPF. Otherwise mail to Hide My Email addresses bounces.
    5. Check: `/login` shows the buttons. Sign up from a real invitation and confirm it lands on onboarding and that the invitation shows the new account as the one that accepted it.
-4. **Other providers.** Microsoft or Facebook sign-in needs an app registration with each, a migration of the `AuthProvider` list and new code: Microsoft personal accounts send no verified-email claim, and Facebook's standard login has no ID token. It is a separate piece of work.
+5. **Other providers.** Microsoft or Facebook sign-in needs an app registration with each, a migration of the `AuthProvider` list and new code: Microsoft personal accounts send no verified-email claim, and Facebook's standard login has no ID token. It is a separate piece of work.
 
 ## Follow-ups
 
