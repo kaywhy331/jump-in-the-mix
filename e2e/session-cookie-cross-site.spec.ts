@@ -34,7 +34,7 @@ test("a verification link opened from another site signs the person in", async (
     await page.waitForURL(/\/(onboarding|jumps)(\?|$)/);
     expect(new URL(page.url()).pathname).not.toBe("/login");
     await expect(page.getByText("Your email is verified.")).toBeVisible();
-    expect((await context.cookies(baseURL)).find(cookie => cookie.name === cookieName)?.sameSite).toBe("Lax");
+    expect((await context.cookies()).find(cookie => cookie.name === cookieName)?.sameSite).toBe("Lax"); // no URL filter: the production cookie is Secure, which an http lookup would hide
     expect((await prisma.user.findUniqueOrThrow({ where: { id: userId } })).emailVerifiedAt).not.toBeNull();
   } finally {
     await prisma.workspace.deleteMany({ where: { ownerId: userId } });

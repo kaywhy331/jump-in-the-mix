@@ -31,7 +31,8 @@ test("single user can complete the primary discovery and support journey", async
   await expect(page.getByRole("heading", { name: "Today", exact: true }).first()).toBeVisible();
   await expect(page.locator(`[data-jump-workflow="${pendingJumpId}"]:visible`)).toBeVisible();
   await expect(page.getByRole("button", { name: /^Filter/ })).toBeVisible();
-  await expect(page.getByRole("link", { name: /This week:/ })).toBeVisible();
+  // The range links became the "Later this week" queue group and the Dates filter.
+  await expect(page.locator(".today-queue-group summary").filter({ hasText: /Later this week|Upcoming/ })).toBeVisible();
 
   await page.goto("/contacts");
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
@@ -46,7 +47,7 @@ test("single user can complete the primary discovery and support journey", async
   const contactFilters = page.getByRole("dialog", { name: "Filter contacts" });
   await expect(contactFilters.getByLabel("Tag")).toBeVisible();
   await page.getByLabel("Close Filter contacts").click();
-  await page.getByRole("link", { name: "Add", exact: true }).click();
+  await page.getByRole("link", { name: "Add contact", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add a contact" })).toBeVisible();
 
   await page.goto("/templates");
@@ -148,7 +149,9 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
   await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await expect(page.getByRole("heading", { name: "Jump in the mix." })).toBeVisible();
-  await page.getByLabel("Business name").fill("Browser Test Plumbing");
+  // The business name sits in a closed disclosure on the one-person form (the Mega-Mix setup has its own field).
+  await page.getByText("Optional business details and signature").click();
+  await page.getByPlaceholder("Lee Plumbing").fill("Browser Test Plumbing");
   await page.getByLabel("Name", { exact: true }).fill("Jordan First Win");
   await page.getByLabel("Email recommended").fill("jordan-first-win@example.com");
   await page.getByLabel("Phone recommended").fill("+1 (555) 010-0123");
@@ -163,6 +166,8 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   await expect(followUpInput).toHaveValue(dateInputInTimezone(new Date(), "America/Denver"));
   const followUpDate = dateInputInTimezone(new Date(Date.now() + 3 * 86_400_000), "America/Denver");
   await followUpInput.fill(followUpDate);
+  // The starter must be reviewed before it can be prepared.
+  await page.locator('input[name="starterReviewed"]').check();
   await Promise.all([
     page.waitForURL(/\/jumps\?.*welcome=1/),
     page.getByRole("button", { name: "Prepare my first follow-up" }).click()

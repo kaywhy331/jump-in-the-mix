@@ -70,7 +70,11 @@ test.describe("invited registrations", () => {
       page.getByRole("button", { name: "Create free account" }).click()
     ]);
     expect(new URL(page.url()).searchParams.get("registered")).toBe("1");
-    await expect(page.getByRole("status").filter({ hasText: `We sent a verification link to ${email}.` })).toBeVisible();
+    // Without a real mail provider (CI and local production builds) the send fails; the first screen
+    // must still never claim a "new" link, and must say so when nothing was sent.
+    const delivered = new URL(page.url()).searchParams.get("delivery") !== "failed";
+    if (delivered) await expect(page.getByRole("status").filter({ hasText: `We sent a verification link to ${email}.` })).toBeVisible();
+    else await expect(page.locator(".notice.error")).toContainText("The email provider could not deliver the message.");
     await expect(page.getByText("A new verification link was prepared")).toHaveCount(0);
     expect((await prisma.referralAccessInvite.findUniqueOrThrow({ where: { id: invite.id } })).acceptedAt).not.toBeNull();
     await expect(prisma.user.findUniqueOrThrow({ where: { email } })).resolves.toMatchObject({ emailVerifiedAt: null });
@@ -78,7 +82,8 @@ test.describe("invited registrations", () => {
       page.waitForURL(/[?&]sent=1/),
       page.getByRole("button", { name: "Send another verification link" }).click()
     ]);
-    await expect(page.getByRole("status").filter({ hasText: "A new link replaces older ones." })).toBeVisible();
+    if (new URL(page.url()).searchParams.get("delivery") !== "failed") await expect(page.getByRole("status").filter({ hasText: "A new link replaces older ones." })).toBeVisible();
+    else await expect(page.locator(".notice.error")).toContainText("The email provider could not deliver the message.");
   });
 
   test("a text invitation asks for the email twice and keeps the invitation on a mismatch", async ({ page }) => {
@@ -92,7 +97,7 @@ test.describe("invited registrations", () => {
     await page.getByLabel("Confirm email").fill(`typo-${email}`);
     await page.getByLabel("Password", { exact: true }).fill("Registration test 123!");
     await page.getByRole("button", { name: "Create free account" }).click();
-    await expect(page.getByRole("alert")).toContainText("The email addresses don't match.");
+    await expect(page.locator(".notice.error")).toContainText("The email addresses don't match.");
     expect((await prisma.referralAccessInvite.findUniqueOrThrow({ where: { id: invite.id } })).acceptedAt).toBeNull();
     await page.getByLabel("Confirm email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill("Registration test 123!");
@@ -100,7 +105,8 @@ test.describe("invited registrations", () => {
       page.waitForURL(/\/verify-email\/pending\?/),
       page.getByRole("button", { name: "Create free account" }).click()
     ]);
-    await expect(page.getByRole("status").filter({ hasText: `We sent a verification link to ${email}.` })).toBeVisible();
+    if (new URL(page.url()).searchParams.get("delivery") !== "failed") await expect(page.getByRole("status").filter({ hasText: `We sent a verification link to ${email}.` })).toBeVisible();
+    else await expect(page.locator(".notice.error")).toContainText("The email provider could not deliver the message.");
     expect((await prisma.referralAccessInvite.findUniqueOrThrow({ where: { id: invite.id } })).acceptedAt).not.toBeNull();
   });
 });
