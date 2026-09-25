@@ -1,6 +1,6 @@
 # Audit release B11 — September 25, 2026
 
-Release B11 finishes the audit's signed-error work (security-privacy F3; [2026-09-24 full audit](FULL_AUDIT_2026-09-24.md) §5). Release A2 made public pages show a `?error=` message only when our own redirect signed it. Signed-in pages still printed whatever text the address carried, so a crafted link could put any sentence into the trusted red banner of a page the person was signed in to. B11 closes that on every signed-in page (45 in all: 23 customer pages, onboarding, 19 admin pages, the contact profile and the Mix workspace).
+Release B11 is live at **https://jumpinthemix.com/** as of 2026-09-25 17:30 UTC. It finishes the audit's signed-error work (security-privacy F3; [2026-09-24 full audit](FULL_AUDIT_2026-09-24.md) §5). Release A2 made public pages show a `?error=` message only when our own redirect signed it. Signed-in pages still printed whatever text the address carried, so a crafted link could put any sentence into the trusted red banner of a page the person was signed in to. B11 closes that on every signed-in page (45 in all: 23 customer pages, onboarding, 19 admin pages, the contact profile and the Mix workspace).
 
 It is code only: nothing in `prisma/`, `package.json`, the lockfile, `render.yaml` or `next.config.ts` changes, so rolling back is a redeploy of Release B (`f3a0a20`).
 
@@ -8,7 +8,10 @@ It is code only: nothing in `prisma/`, `package.json`, the lockfile, `render.yam
 | --- | --- |
 | Branch | `feat/audit-release-b11-20260925` (based on Release B, `f3a0a20`, and its record) |
 | Previous production commit | `f3a0a20994d08e9d531a28682a818339c394d34f` (tag `prod-2026-09-25-f3a0a20`) |
-| Application commit | the commit that adds this record |
+| Application commit | `f511984a4867a98c5d97b6a2a4a16e6266105dc0` (tag `prod-2026-09-25-f511984`) |
+| Worker deploy | `dep-darasfuk1f9s73b6ja30`, live 2026-09-25 17:25:55 UTC |
+| Web deploy | `dep-daratemgekts738stnb0`, live 2026-09-25 17:30:14 UTC, build `5eEL0CqFAcCqmJCMUYd5h` |
+| Final check | 2026-09-25 17:32:23 UTC |
 
 ## How it works
 
@@ -59,7 +62,14 @@ All checks ran on TrixBot (3.8 GB), one heavy job at a time, against the `jitm_d
 
 ## Release
 
-Pending. The code-only pipeline (`.artifacts/market-live-20260924/b11-*.mjs`) runs after this record is committed and pushed: preflight, worker deploy with a queue probe, web deploy, postflight, live smoke (now also: a crafted `?error=` on a signed-in page shows only the fixed sentence), final check.
+Released on 2026-09-25 between 17:24 and 17:33 UTC, under the owner's standing release authority, with the code-only pipeline in `.artifacts/market-live-20260924/b11-*.mjs`. Every step passed on the first run.
+
+- **Preflight (read-only).** Both services were live on `f3a0a20` with auto-deploy off; the pushed branch matched the release commit; the database was ready with the runtime boundary intact; every applied migration matched the release tree; the release touched no schema, dependency or runtime configuration.
+- **Worker.** `dep-darasfuk1f9s73b6ja30` went live at 17:25:55 UTC. Its scoped queue probe passed, and the synthetic job was removed.
+- **Web.** `dep-daratemgekts738stnb0` went live at 17:30:14 UTC with build `5eEL0CqFAcCqmJCMUYd5h`.
+- **Postflight.** 18 public, security and sign-in redirect checks passed. On the live instance, 124 release files and 20 served assets hashed identically to the candidate. The database was ready.
+- **Live smoke.** One synthetic owner was used, and every row was removed. Ten checks passed, among them the new one: a signed-in page shows a crafted `?error=` only as its fixed sentence. The Release B checks (session cookie and known-device marker, Today on a phone, the phone-number country preview, the real client address, magic links and public signed errors, reflow and axe in both themes) passed again.
+- **Final check.** Record counts were unchanged from the preflight. There were no probe jobs, synthetic users or workspaces, failed jobs since the release, or active rate-limit blocks. Health returned 200 three times, and both services are on `f511984` with auto-deploy off.
 
 ## Rollback
 
