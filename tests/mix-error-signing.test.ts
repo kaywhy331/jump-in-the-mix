@@ -18,6 +18,7 @@ import EditMixPage from "../src/app/(app)/mixes/[mixId]/edit/page";
 import { LibraryError } from "../src/lib/library-content";
 import { SharedMixContentError } from "../src/lib/shared-mix";
 import { UNVERIFIED_ERROR_MESSAGE, viewerErrorMessage } from "../src/lib/form-errors";
+import { UserFacingError } from "../src/lib/user-facing-error";
 
 const owner = { authUser: { id: "user-owner" } }, staff = { authUser: { id: "user-staff" } };
 /** A Prisma error as the client throws it: its message names the query and the constraint. */
@@ -68,7 +69,7 @@ describe("Mix editor errors are signed for the person who saved", () => {
   it("keeps refusals written during the save and the Journey's own, and never a database error's text", async () => {
     mocks.transaction.mockImplementation(async (run: (tx: unknown) => Promise<void>) => run({ $queryRaw: vi.fn(), mix: { create: vi.fn() }, mixBroadcastSchedule: { deleteMany: vi.fn() }, stepTemplate: { create: async () => ({ versions: [] }) } }));
     expect(viewerErrorMessage(params(await redirectOf(saveMixAction(mixForm()))), owner)).toBe("Follow-up #1 could not be created.");
-    mocks.transaction.mockRejectedValue(new Error("Journey changed in another window. Reload its latest configuration before saving; your draft has been kept."));
+    mocks.transaction.mockRejectedValue(new UserFacingError("Journey changed in another window. Reload its latest configuration before saving; your draft has been kept."));
     expect(viewerErrorMessage(params(await redirectOf(saveMixAction(mixForm()))), owner)).toBe("Journey changed in another window. Reload its latest configuration before saving; your draft has been kept.");
     mocks.transaction.mockRejectedValue(databaseError());
     const location = await redirectOf(saveMixAction(mixForm()));
@@ -120,8 +121,6 @@ describe("the refusal lists match the wording their services throw", () => {
   const read = (path: string) => readFileSync(path, "utf8");
   const listed = (path: string, name: string) => [...read(path).match(new RegExp(`const ${name} = new Set\\(\\[([\\s\\S]*?)\\]\\);`))![1].matchAll(/"([^"]+)"/g)].map(match => match[1]);
   it.each([
-    ["src/lib/journey-actions.ts", "JOURNEY_EVENT_REFUSALS", ["src/lib/journey.ts"]],
-    ["src/lib/mix-editor-actions.ts", "JOURNEY_REFUSALS", ["src/lib/mix-workflow.ts", "src/lib/mix-workflow-validation.ts"]],
     ["src/lib/shared-mix-use-actions.ts", "SETUP_REFUSALS", ["src/lib/shared-mix-use-service.ts", "src/lib/mix-broadcast.ts"]]
   ])("%s %s", (path, name, services) => {
     const wording = services.map(read).join("\n"), sentences = listed(path, name);
