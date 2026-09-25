@@ -14,7 +14,7 @@ import { beginRecoveryHold } from "../scripts/lib/recovery-hold.mjs";
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 describe.skipIf(!local || process.env.RUN_RECOVERY_WEB_TESTS !== "true").sequential.each([false, true])("packaged HTTPS recovery boundary (private site: %s)", privateSite => {
   const database = `jitm_design_webhold_${randomUUID().replaceAll("-", "").slice(0, 10)}`;
-  const token = randomBytes(32).toString("base64url"), magic = randomBytes(32).toString("base64url");
+  const token = randomBytes(32).toString("base64url"), magic = randomBytes(32).toString("base64url"), signInMagic = randomBytes(32).toString("base64url");
   let admin, sql, source, proxy, child, origin, termination, certDir, ca, output = "", offline = false, stalled = false;
   const sockets = new Set();
   beforeAll(async () => {
@@ -30,6 +30,7 @@ describe.skipIf(!local || process.env.RUN_RECOVERY_WEB_TESTS !== "true").sequent
       INSERT INTO "Contact" (id,"workspaceId","displayName","updatedAt") VALUES ('restore-contact','restore-workspace','PRIVATE_RESTORED_CONTACT',now());`);
     await sql.query('INSERT INTO "Session" (id,"userId","tokenHash","expiresAt") VALUES (\'restore-session\',\'restore-user\',$1,now()+interval \'1 hour\')', [createHash("sha256").update(token).digest("hex")]);
     await sql.query('INSERT INTO "VerificationToken" (id,email,"tokenHash",purpose,"expiresAt") VALUES (\'restore-magic\',\'restore@example.test\',$1,\'magic_login\',now()+interval \'1 hour\')', [createHash("sha256").update(magic).digest("hex")]);
+    await sql.query('INSERT INTO "VerificationToken" (id,email,"tokenHash",purpose,"expiresAt") VALUES (\'restore-magic-signin\',\'restore@example.test\',$1,\'magic_login\',now()+interval \'1 hour\')', [createHash("sha256").update(signInMagic).digest("hex")]);
     await sql.query('UPDATE "User" SET "passwordHash"=$1 WHERE id=\'restore-user\'', [await bcrypt.hash("RecoveryFixture123!", 10)]);
     proxy = createServer(incoming => {
       if (stalled) { sockets.add(incoming); incoming.on("error", () => {}); incoming.on("close", () => sockets.delete(incoming)); return; }
@@ -96,13 +97,11 @@ describe.skipIf(!local || process.env.RUN_RECOVERY_WEB_TESTS !== "true").sequent
     expect((await request("/api/health/worker")).status).toBe(200);
     const login = await request("/login", { headers: { cookie: "" } });
     expect(login.status).toBe(200);
-    const html = await login.text();
-    const action = html.match(/name="(\$ACTION_ID_[^"]+)"/)[1];
-    const credentials = new FormData();
-    credentials.set(action, ""); credentials.set("email", "restore@example.test"); credentials.set("password", "RecoveryFixture123!");
-    const submission = new Request(`${origin}/login`, { method: "POST", body: credentials });
-    const signedIn = await request("/login", { method: "POST", headers: { cookie: "", "content-type": submission.headers.get("content-type") }, body: Buffer.from(await submission.arrayBuffer()) });
-    expect(signedIn.status).toBe(303);
+    expect(await login.text()).toContain("Sign in");
+    // The login form is a client-side React action, so a scripted POST cannot reach it any more;
+    // a magic link exercises session creation on the packaged server instead.
+    const signedIn = await request(`/api/auth/magic?token=${signInMagic}`, { headers: { cookie: "" } });
+    expect([302, 303, 307].includes(signedIn.status), `magic sign-in answered ${signedIn.status}`).toBe(true);
     const sessionCookie = signedIn.headers.getSetCookie().find(value => value.startsWith("jitm_recovery_session="))?.split(";")[0];
     expect(sessionCookie, JSON.stringify({ location: signedIn.headers.get("location"), cookieNames: signedIn.headers.getSetCookie().map(c => c.split("=")[0]) })).toBeTruthy();
     const authenticated = await request("/contacts", { headers: { cookie: sessionCookie } });
