@@ -168,6 +168,20 @@ test("pagination stays reachable across themes, phone and sidebar breakpoints", 
   }
 });
 
+test("history says when a follow-up was sent automatically instead of offering to reopen it", async ({ page }) => {
+  await prisma.jump.update({ where: { id: completedIds[0] }, data: { completionMethod: "automatic:sms" } });
+  try {
+    await visit(page, `/jumps?jump=${completedIds[0]}`);
+    const card = page.locator(`#jump-${completedIds[0]}`);
+    await expect(card.locator("[data-sent-automatically]")).toHaveText("Sent automatically");
+    await expect(card.locator(".jump-done-action")).toHaveCount(0);
+    await visit(page, `/jumps?jump=${completedIds[1]}`);
+    await expect(page.locator(`#jump-${completedIds[1]} .jump-done-action`)).toHaveAttribute("aria-label", "Reopen follow-up with Queue person 001");
+  } finally {
+    await prisma.jump.update({ where: { id: completedIds[0] }, data: { completionMethod: null } });
+  }
+});
+
 test.describe("live outcome updates", () => {
   // Intercept only these local race/recovery scenarios; regular paging keeps SWs enabled.
   test.use({ serviceWorkers: "block" });
@@ -355,6 +369,8 @@ test.describe("live outcome updates", () => {
     await markDone(page, smsIds[0]);
     await expect(undoFor(page, smsIds[0])).toBeVisible(); await page.clock.runFor(10_500);
     await expect(page.locator(`#jump-${smsIds[0]}.jump-task-complete`)).toBeVisible();
+    // History offers a named Reopen control rather than a bare Undo.
+    await expect(page.locator(`#jump-${smsIds[0]} .jump-done-action`)).toHaveAttribute("aria-label", "Reopen follow-up with Queue person 001");
     await expect(pager(page)).toContainText("Showing 1 of 1 follow-up");
     await expect(page.locator(".today-page-header")).toContainText("No open follow-ups in this view");
   });

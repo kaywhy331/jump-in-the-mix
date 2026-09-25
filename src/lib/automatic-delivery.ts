@@ -8,6 +8,7 @@ import { isValidTimezone } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
 import { processWorkflowInstance, queueWorkflowForJump } from "@/lib/mix-workflow";
 import { preparationFamilyForChannel } from "@/lib/preparation-family";
+import { dialablePhone } from "@/lib/phone-dial";
 import { escapeHtml, sendTransactionalEmail, transactionalEmailConfigured } from "@/lib/transactional-email";
 
 const uncertainLeaseMs = 20 * 60_000;
@@ -69,7 +70,8 @@ async function sendTwilioSms(to: string, body: string): Promise<string> {
 }
 
 async function deliver(channel: Channel, recipient: string, prepared: PreparedDelivery, jumpId: string, company: string): Promise<string | null> {
-  if (channel === "SMS") return sendTwilioSms(recipient, prepared.body);
+  // Twilio needs E.164; the stored display value stays the recorded recipient.
+  if (channel === "SMS") return sendTwilioSms(dialablePhone(recipient) ?? recipient, prepared.body);
   if (channel !== "EMAIL") throw new Error("Only email and text follow-ups can be sent automatically.");
   if (!automaticEmailConfigured()) throw new Error("Automatic email delivery is not configured.");
   const result = await sendTransactionalEmail({

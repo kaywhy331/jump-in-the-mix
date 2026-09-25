@@ -5,6 +5,7 @@ import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { JumpActionLink, JumpCopyButton, type AttemptDraft } from "@/components/JumpActionControls";
 import { applyDraftEdit, draftSource, parseDraftSource, projectDraft, type DraftSegment, type DraftValues } from "@/lib/draft-segments";
 import { DRAFT_LIMITS, type DetachedChange, type DraftContent, type PreparationFamily } from "@/lib/preparation-family";
+import { dialablePhone, phoneLinkTarget } from "@/lib/phone-dial";
 
 type ActionType = "COMPOSED" | "CALLED" | "VOICEMAIL_STARTED";
 type SavedDraft = DraftContent & { revision: number };
@@ -40,12 +41,23 @@ function actionLabel(channel: string): string {
   return "Open text";
 }
 
-function composeUrl(channel: string, email: string | null, phone: string | null, subject: string, content: string): string | null {
+/**
+ * The handoff link for the text on screen. Phone apps get a number, never the typed display value:
+ * E.164 when it can be derived, otherwise the digits as stored. WhatsApp needs a full international
+ * number, so it is offered only then. The `?&body=` spelling is the one both iOS Messages and Android
+ * accept. The "To" hint and the recorded attempt keep the stored display value.
+ */
+export function followUpHandoffUrl(channel: string, email: string | null, phone: string | null, subject: string, content: string): string | null {
   const body = encodeURIComponent(content);
-  if (channel === "EMAIL" && email) return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${body}`;
-  if (channel === "SMS" && phone) return `sms:${phone}?body=${body}`;
-  if (channel === "WHATSAPP" && phone) return `https://wa.me/${phone.replace(/\D/g, "")}?text=${body}`;
-  if ((channel === "PHONE_CALL" || channel === "VOICEMAIL") && phone) return `tel:${phone}`;
+  if (channel === "EMAIL") return email ? `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${body}` : null;
+  const number = phoneLinkTarget(phone);
+  if (!number) return null;
+  if (channel === "SMS") return `sms:${number}?&body=${body}`;
+  if (channel === "WHATSAPP") {
+    const dialable = dialablePhone(phone);
+    return dialable ? `https://wa.me/${dialable.slice(1)}?text=${body}` : null;
+  }
+  if (channel === "PHONE_CALL" || channel === "VOICEMAIL") return `tel:${number}`;
   return null;
 }
 
@@ -87,6 +99,7 @@ export function EditableFollowUpAction({
   stepVersionId,
   contextVersions,
   automaticDelivery = false,
+  deliveryStatus,
   channelChoice,
   outcomeActions,
   changedDetails = []
@@ -107,8 +120,10 @@ export function EditableFollowUpAction({
   stepVersionId: string;
   /** Versions of the contact and business details the text was rendered from. */
   contextVersions: Record<string, string>;
-  /** True when automatic delivery would otherwise send this follow-up; a draft holds it for the owner. */
+  /** True when automatic delivery would send this follow-up unless a saved draft holds it for the owner. */
   automaticDelivery?: boolean;
+  /** Rendered by the page above the actions: a failed automatic send and the status that follows from it. */
+  deliveryStatus?: React.ReactNode;
   /** Details the owner wrote over by hand that have changed since; shown, never rewritten. */
   channelChoice?: React.ReactNode;
   outcomeActions?: React.ReactNode;
@@ -152,6 +167,10 @@ export function EditableFollowUpAction({
   // "Return to draft" moves focus away for a moment. Leaving the page is guarded only while
   // keystrokes have not reached the server.
   const editing = unsaved || (persists && saved.revision !== null && (focused || recentlyActive));
+  // The worker holds a follow-up only on a saved draft row: keystrokes, a save in flight or a refused
+  // save hold nothing yet, and the editor must not say otherwise.
+  const heldBySavedDraft = persists && saved.revision !== null;
+  const holdPending = status === "retrying" || status === "signed-out" || status === "unavailable";
   const paused = stopped || conflict !== null;
 
   const latest = useRef({ source, saved, unsaved, paused });
@@ -324,7 +343,7 @@ export function EditableFollowUpAction({
     }
   });
 
-  const url = useMemo(() => composeUrl(channel, email, phone, subject, content), [channel, content, email, phone, subject]);
+  const url = useMemo(() => followUpHandoffUrl(channel, email, phone, subject, content), [channel, content, email, phone, subject]);
   const needsEmail = channel === "EMAIL";
   const methodLabel = needsEmail ? "email" : "phone";
   const longSms = channel === "SMS" && content.length > 900;
@@ -345,6 +364,8 @@ export function EditableFollowUpAction({
     stepVersionId,
     contextVersions
   } : null;
+
+  const automaticLine = <p className="muted-copy" data-follow-up-automatic>Automatic sending is on: this sends by itself after your review window unless you send, snooze or skip it first.</p>;
 
   return (
     <div
@@ -383,6 +404,18 @@ export function EditableFollowUpAction({
       </div>}
       {longSms && <p className="notice warning compact" role="status">This text is over 900 characters and may be cut off by some phones. Copy it instead, or shorten it.</p>}
       {channelChoice}
+      {(deliveryStatus || automaticDelivery) && <div className="review-delivery-state">
+        {deliveryStatus}
+        {automaticDelivery && (!persists
+          ? automaticLine
+          : holdPending && !heldBySavedDraft
+            ? <p className="notice warning compact" role="alert" data-follow-up-held="pending">Not held yet: this follow-up can still send automatically.</p>
+            : heldBySavedDraft
+              ? <p className="muted-copy" data-follow-up-held="saved">Because you edited it, this one waits for you and won’t send automatically.</p>
+              : unsaved
+                ? <p className="muted-copy" data-follow-up-held="saving">Saving your edit… it holds automatic sending once saved.</p>
+                : automaticLine)}
+      </div>}
       <p className="review-send-hint">{url ? `To ${channel === "EMAIL" ? email : phone}. ` : ""}Open your app to send, then record what happened.</p>
       <div className="review-action-bar">
       <div className="editable-follow-up-actions">
@@ -411,7 +444,6 @@ export function EditableFollowUpAction({
         {label && <small className={status === "signed-out" ? "draft-status-warning" : "muted-copy"} role="status" data-draft-status={status}>{label}{status === "signed-out" && <> <a className="inline-action" href={`/login?next=${encodeURIComponent(`/jumps?jump=${jumpId}&range=all`)}`} target="_blank" rel="noopener">Sign in in a new tab</a> <button type="button" className="text-button" onClick={() => { setStopped(false); setStatus("idle"); }}>Try saving again</button></>}</small>}
         {hasDraft && !conflict && <button type="button" className="text-button" disabled={busy} onClick={() => { void discard(); }}>{status === "discard-failed" ? "Try discarding again" : "Discard edits"}</button>}
       </div>}
-      {automaticDelivery && hasDraft && <p className="muted-copy" data-follow-up-held>Because you edited it, this one waits for you and won’t send automatically.</p>}
     </div>
   );
 }

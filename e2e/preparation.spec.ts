@@ -168,7 +168,7 @@ test("Today refreshes untouched messages and waits for drafts before reordering"
     await expect(notice).toContainText(edited ? "Follow-ups are prepared" : "Follow-up list updated");
     const expected = edited ? "My personal unsent draft" : "Updated prepared text";
     await expect(message).toHaveValue(expected);
-    await expect(page.getByRole("link", { name: "Open text for Preparation sample", exact: true })).toHaveAttribute("href", `sms:+15550101111?body=${encodeURIComponent(expected)}`);
+    await expect(page.getByRole("link", { name: "Open text for Preparation sample", exact: true })).toHaveAttribute("href", `sms:+15550101111?&body=${encodeURIComponent(expected)}`);
     if (edited) {
       await expect(message).toBeFocused();
       await expect(page.locator(".next-follow-up")).toContainText("Preparation sample");

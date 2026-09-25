@@ -37,11 +37,14 @@ import { readPreparationStatus } from "@/lib/preparation";
 import { snoozeJumpAction } from "@/lib/snooze-actions";
 import { snoozeChoices } from "@/lib/snooze-schedule";
 import { parseTodayCursor, readTodayPage } from "@/lib/today-list";
+import { calendarDaysOverdue, failedDeliveryNotice } from "@/lib/today-view";
+import { dialablePhone } from "@/lib/phone-dial";
 
 export const metadata: Metadata = { title: "Today" };
 
 type Snapshot = { subject?: string | null; body?: string | null; script?: string | null };
 type TemplateText = { subject: string | null; body: string | null; script: string | null };
+type FailedDelivery = { jumpId: string; error: string | null; updatedAt: Date };
 
 /** The token-form text a follow-up was prepared from; null when the row predates stored templates. */
 function templateTextOf(value: Prisma.JsonValue): TemplateText | null {
@@ -78,6 +81,8 @@ type SearchParams = {
   after?: string;
   before?: string;
   listReset?: string;
+  contactSaved?: string;
+  verified?: string;
 };
 
 
@@ -165,13 +170,20 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   ]);
   const followUps = list.items;
   const pendingIds = followUps.filter((followUp) => followUp.status === "PENDING").map((followUp) => followUp.id);
-  const [drafts, owner, automation, quietDays, workflowAttention] = await Promise.all([
+  // A failed automatic send must be visible on Today; a problem reading it hides the notice, never the page.
+  const readFailedDeliveries = async (): Promise<FailedDelivery[]> => {
+    if (!pendingIds.length) return [];
+    return prisma.automatedDelivery.findMany({ where: { workspaceId: workspace.id, jumpId: { in: pendingIds }, status: "FAILED" }, select: { jumpId: true, error: true, updatedAt: true } }).catch(() => []);
+  };
+  const [drafts, failedDeliveryRows, owner, automation, quietDays, workflowAttention] = await Promise.all([
     readJumpDrafts(workspace.id, pendingIds),
+    readFailedDeliveries(),
     prisma.user.findUnique({ where: { id: workspace.ownerId }, select: { name: true, email: true } }),
     prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id }, select: { enabled: true, emailEnabled: true, smsEnabled: true } }),
     readQuietDays({ workspaceId: workspace.id, timezone }),
     readWorkflowAttention(workspace.id, 30, Math.max(0, Math.min(100000, Math.floor(Number(params.attentionPage) || 0))) * 30, new Date(), Math.max(0, Math.min(100000, Math.floor(Number(params.callbackPage) || 0))) * 30).catch(() => null)
   ]);
+  const failedDeliveries = new Map(failedDeliveryRows.map((row) => [row.jumpId, row] as const));
   // A drafted follow-up is held from automatic delivery; the card says so only where delivery would otherwise apply.
   const automaticFor = (followUpChannel: Channel) => Boolean(automation?.enabled && ((followUpChannel === "EMAIL" && automation.emailEnabled) || (followUpChannel === "SMS" && automation.smsEnabled)));
   const profile = workspace.profile;
@@ -234,7 +246,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const planTemplate = isPending ? templateTextOf(followUp.templateSnapshot) : null;
     // One follow-up, channel alternatives: the plan's wording plus any authored variant the person can
     // receive. The owner's choice for this follow-up wins while usable; otherwise the plan's channel.
-    const methods = { email: email ?? null, phone: phone ?? null, preferredChannel: followUp.contact.relationshipState?.preferredChannel ?? null };
+    // WhatsApp needs a full international number; without one, a preferred WhatsApp text goes by SMS.
+    const preferredChannel = followUp.contact.relationshipState?.preferredChannel ?? null;
+    const methods = { email: email ?? null, phone: phone ?? null, preferredChannel: preferredChannel === "WHATSAPP" && !dialablePhone(phone) ? null : preferredChannel };
     const automaticForPlan = !followUp.manualOnly && !followUp.accessInvite && automaticFor(planChannel);
     const prepared = planTemplate ? preparedVariants({ channel: planChannel, template: planTemplate }, variantsOfSnapshot(followUp.templateSnapshot, planChannel), methods) : [];
     const usable = usableVariants(prepared, methods);
@@ -255,6 +269,16 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const preparedContent = draft ? projectDraftSource(draft.body ?? draft.script, draftValues) : alternative ? projectDraftSource(template!.body ?? template!.script, draftValues) : null;
     const content = preparedContent ?? snapshot.body ?? snapshot.script ?? snapshot.subject ?? "No message has been prepared yet.";
     const contextVersions = { contactVersion: followUp.contact.updatedAt.toISOString(), businessProfileVersion: profile?.updatedAt.toISOString() ?? "none" };
+    const needsEmail = followUpChannel === "EMAIL";
+    const missingMethod = needsEmail ? !email : !phone;
+    const directCall = followUpChannel === "PHONE_CALL" || followUpChannel === "VOICEMAIL";
+    // A failed automatic send is never retried by the worker; the owner sends this one.
+    const failed = isPending ? failedDeliveries.get(followUp.id) ?? null : null;
+    const failure = failed ? failedDeliveryNotice(failed.error) : null;
+    // Automatic sending applies only while the worker would really send it: the plan's own channel is
+    // active, the method exists, no binding or invitation holds it and no attempt has failed. A saved
+    // draft is the remaining hold, and the editor reports that one as it happens.
+    const automaticDelivery = automaticForPlan && !alternative && !missingMethod && !failure && (!followUp.appointmentBinding || followUp.appointmentBinding.automaticDelivery);
     // Switching away from the plan's channel takes this follow-up out of automatic delivery; the card says so.
     const heldByChoice = Boolean(alternative && automaticForPlan);
     // The note gives the real reason: the owner's choice, or the plan's own method missing so the
@@ -274,17 +298,18 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const snippet = content.length > 150 ? `${content.slice(0, 147)}…` : content;
     const isNext = !compact && followUp.id === nextUp?.id;
     const recentEvents = eventsByFollowUp.get(followUp.id) ?? [];
-    const daysOverdue = Math.max(1, Math.floor((startToday.getTime() - followUp.scheduledAt.getTime()) / 86_400_000) + 1);
+    const daysOverdue = calendarDaysOverdue(followUp.scheduledAt, today, timezone);
     const dueLabel = !isPending ? `Originally due ${formatDateTime(followUp.scheduledAt, displayPreferences)}` : followUp.scheduledAt < startToday
       ? `${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue`
       : followUp.scheduledAt < endToday
         ? `Today · ${formatDateTime(followUp.scheduledAt, displayPreferences)}`
         : formatDateTime(followUp.scheduledAt, displayPreferences);
-    const needsEmail = followUpChannel === "EMAIL";
-    const missingMethod = needsEmail ? !email : !phone;
-    const directCall = followUpChannel === "PHONE_CALL" || followUpChannel === "VOICEMAIL";
     const snoozeToDay = <form action={snoozeJumpAction} className="form-stack"><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value="custom" /><input type="hidden" name="returnTo" value={returnTo} /><div className="field"><span className="field-label">Choose a day</span><WhenField label="Choose a day" variant="inline" dateName="customDate" defaultDate={choicesFor(followUp).defaultDate} minDate={choicesFor(followUp).minDate} quickSelect={false} /></div><small className="muted-copy">Uses your default follow-up time in {timezone}.</small><button className="button" type="submit">Snooze to this day</button></form>;
     const outcomeActions = <div className="review-outcome-actions"><JumpOutcomeButton jumpId={followUp.id} outcome="COMPLETED" className="button small" ariaLabel={`${directCall ? "Mark done" : "Mark sent"} for ${followUp.contact.displayName}`}><AppIcon name="check" />{directCall ? "Mark done" : "Mark sent"}</JumpOutcomeButton><Sheet trigger={<button className="button small" type="button" aria-label="Snooze"><AppIcon name="snooze" />Snooze</button>} title="Snooze follow-up"><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input name="jumpId" type="hidden" value={followUp.id} /><input name="preset" type="hidden" value={preset} /><input name="returnTo" type="hidden" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div>{snoozeToDay}</Sheet><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button small" ariaLabel="Skip beat"><AppIcon name="skip" />Skip beat</JumpOutcomeButton></div>;
+    const deliveryStatus = failed && failure ? <>
+      <div className="notice warning compact" data-delivery-failed={failure.kind}><p>{failure.text}</p><p>Tried {formatDateTime(failed.updatedAt, displayPreferences)}.</p></div>
+      <p className="review-delivery-status" data-delivery-status="manual">Manual · you send</p>
+    </> : null;
     const editableAction = <EditableFollowUpAction
       key={family}
       jumpId={followUp.id}
@@ -301,7 +326,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       draft={draft ? { subject: draft.subject, body: draft.body, script: draft.script, revision: draft.revision } : null}
       stepVersionId={followUp.stepVersionId}
       contextVersions={contextVersions}
-      automaticDelivery={automaticForPlan && !alternative}
+      automaticDelivery={automaticDelivery}
+      deliveryStatus={deliveryStatus}
       channelChoice={choice}
       outcomeActions={outcomeActions}
       changedDetails={changedDetails}
@@ -315,14 +341,16 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           <div className="jump-card-main"><span className="person-initials jump-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>
             {isNext && <span className="eyebrow">Next up</span>}
             <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span title={dueLabel} className={isPending && followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{isPending && followUp.scheduledAt >= startToday && followUp.scheduledAt < endToday ? new Intl.DateTimeFormat(displayPreferences.locale, { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(followUp.scheduledAt) : dueLabel}</span><span className="channel-pill">{channelLabel(followUpChannel)}</span></div>
-            <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}<span>{followUp.mix.name}</span>{followUp.reason && followUp.reason.trim().toLowerCase() !== followUp.mix.name.trim().toLowerCase() && <span>{followUp.reason}</span>}{isPending && <span className="status-pill">{automaticForPlan && !heldByChoice && !drafts.get(followUp.id) && !followUp.accessInvite && (!followUp.appointmentBinding || followUp.appointmentBinding.automaticDelivery) && !missingMethod ? "Automatic sending enabled" : automaticForPlan ? "Held for your review" : "Manual · you send"}</span>}</div>
+            <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}{failure && <span className="jump-delivery-failed" data-delivery-failed={failure.kind}><AppIcon name="alert" />{failure.kind === "uncertain" ? "Send not confirmed" : "Automatic send failed"}</span>}<span>{followUp.mix.name}</span>{followUp.reason && followUp.reason.trim().toLowerCase() !== followUp.mix.name.trim().toLowerCase() && <span>{followUp.reason}</span>}</div>
             <p className="jump-snippet">{snippet}</p>
           </div>
 
           <div className="jump-primary-action">
             {isPending && <Sheet className="follow-up-review-sheet" initiallyOpen={params.jump === followUp.id} desktopInitiallyOpen={isNext} trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review ${directCall ? "call" : "message"} for ${followUp.contact.displayName}`}><AppIcon name={directCall ? "phone" : followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={followUp.contact.displayName} accessibleTitle={`Follow up with ${followUp.contact.displayName}`} description={followUp.contact.journey?.stage.name ?? "Follow-up"} leading={<span className="review-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>}><div className="review-workspace"><div className="review-composer"><div className="review-mix-heading"><p className="review-mix-name">{followUp.mix.name}</p><small className={followUp.scheduledAt < startToday ? "review-due-late" : "muted-copy"}>{dueLabel}</small></div><ol className="review-beat-rhythm" aria-label="Pending beats in this Mix occurrence">{reviewBeats.map(beat => <li key={beat.id} aria-current={beat.id === followUp.id ? "step" : undefined}><TodayLink href={`/jumps?jump=${encodeURIComponent(beat.id)}&range=all`} title={beat.reason}><i aria-hidden="true" /><time dateTime={beat.scheduledAt.toISOString()}>{formatDate(beat.scheduledAt, displayPreferences, { year: undefined })}</time></TodayLink></li>)}</ol>{editableAction}</div><aside className="review-person-context" aria-label={`About ${followUp.contact.displayName}`}><h3>Reach {followUp.contact.displayName}</h3>{phone && <p>{phone}</p>}{email && <p>{email}</p>}{followUp.contact.publicNotes && <><h3>Contact notes</h3><p className="conversation-note">{followUp.contact.publicNotes}</p></>}<Link className="inline-action" href={`/contacts/${followUp.contactId}`}>Open contact<AppIcon name="chevronRight" className="inline-action-icon" /></Link></aside></div></Sheet>}
             <div className="jump-completion-actions">
-              {!isPending && <JumpOutcomeButton jumpId={followUp.id} outcome="REOPENED" className="button small jump-done-action" ariaLabel="Undo"><AppIcon name="undo" /><span>Undo</span></JumpOutcomeButton>}
+              {!isPending && (followUp.completionMethod?.startsWith("automatic:")
+                ? <span className="jump-done-note" data-sent-automatically><AppIcon name="check" />Sent automatically</span>
+                : <JumpOutcomeButton jumpId={followUp.id} outcome="REOPENED" className="button small jump-done-action" ariaLabel={`Reopen follow-up with ${followUp.contact.displayName}`}><AppIcon name="undo" /><span>Reopen</span></JumpOutcomeButton>)}
               {isPending && <Sheet
                 trigger={<button className="button small" type="button" aria-label={`More options for ${followUp.contact.displayName}`}><AppIcon name="more" /></button>}
                 title={`Follow up with ${followUp.contact.displayName}`}
@@ -365,6 +393,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       {params.mixStopped && <Notice type="success">Mix stopped.</Notice>}
       {params.mixStopError && <Notice type="error">Mix could not be stopped.</Notice>}
       {params.snoozed && <Notice type="success">Follow-up snoozed.</Notice>}
+      {params.contactSaved === "1" && <Notice type="success">Contact saved. This follow-up now uses the new details.</Notice>}
+      {params.verified === "1" && <Notice type="success">Your email is verified.</Notice>}
       {params.listReset && <Notice type="info">This part of the list changed. You’re back at the first follow-ups.</Notice>}
       {params.error && <Notice type="error">{params.error}</Notice>}
 

@@ -63,7 +63,7 @@ test("keeps fine-tuned text across a reload and renders it with the contact's cu
 
   await visit(page);
   await expect(field(page)).toHaveValue(rendered("Alex", "your estimate is ready to review."));
-  await expect(editor(page).getByRole("link", { name: "Open text for Alex Rivera", exact: true })).toHaveAttribute("href", `sms:+15550100200?body=${encodeURIComponent(rendered("Alex", "your estimate is ready to review."))}`);
+  await expect(editor(page).getByRole("link", { name: "Open text for Alex Rivera", exact: true })).toHaveAttribute("href", `sms:+15550100200?&body=${encodeURIComponent(rendered("Alex", "your estimate is ready to review."))}`);
 
   await prisma.contact.update({ where: { id: contactId }, data: { firstName: "Alexandra", displayName: "Alexandra Rivera" } });
   await visit(page);
@@ -172,7 +172,7 @@ test("says when a detail written over by hand has changed, and when a draft hold
   // Cutting into the name itself detaches the token; editing only the words around it would keep it.
   await field(page).fill("Hi Alex, the estimate is attached. Draft fixture owner");
   await expect(editor(page).getByRole("status")).toHaveText("Saved");
-  await expect(editor(page).locator("[data-follow-up-held]")).toContainText("won’t send automatically");
+  await expect(editor(page).locator('[data-follow-up-held="saved"]')).toContainText("won’t send automatically");
   expect((await draftRow())?.detached).toEqual({ "{{First Name}}": "Alexandra" });
   await setName("Alexa");
   await visit(page);
@@ -184,6 +184,80 @@ test("says when a detail written over by hand has changed, and when a draft hold
   await audit(page);
   await prisma.automationPreference.deleteMany({ where: { workspaceId } });
   await prisma.jumpDraft.deleteMany({ where: { jumpId } });
+});
+
+test("promises the automatic-sending hold only once the draft is saved, and warns when a save is refused", async ({ page }) => {
+  await setName("Alexandra");
+  await prisma.jumpDraft.deleteMany({ where: { jumpId } });
+  await prisma.automationPreference.upsert({ where: { workspaceId }, create: { workspaceId, enabled: true, smsEnabled: true, reviewWindowMinutes: 15 }, update: { enabled: true, smsEnabled: true } });
+  let release = () => undefined as void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let mode: "hold" | "refuse" = "hold";
+  await page.route(`**/api/jumps/${jumpId}/draft`, async (route) => {
+    if (route.request().method() !== "PUT") return route.continue();
+    if (mode === "refuse") return route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "Sign in again." }) });
+    await held;
+    return route.continue();
+  });
+  try {
+    await visit(page);
+    // Before any edit the review says plainly that sending is on; nothing claims a hold.
+    await expect(editor(page).locator("[data-follow-up-automatic]")).toContainText("Automatic sending is on");
+    await expect(editor(page).locator("[data-follow-up-held]")).toHaveCount(0);
+    await field(page).fill(rendered("Alexandra", "your estimate is ready, hold this one."));
+    // The save is held on the wire: no draft row exists yet, so no hold exists yet either.
+    await expect(editor(page).locator('[data-follow-up-held="saving"]')).toContainText("holds automatic sending once saved");
+    await expect(editor(page).locator('[data-follow-up-held="saved"]')).toHaveCount(0);
+    expect(await draftRow()).toBeNull();
+    release();
+    await expect(editor(page).getByRole("status")).toHaveText("Saved");
+    await expect(editor(page).locator('[data-follow-up-held="saved"]')).toContainText("won’t send automatically");
+    await expect(editor(page).locator("[data-follow-up-automatic]")).toHaveCount(0);
+    await audit(page);
+
+    // A refused save leaves no row on the server, so the follow-up can still send; the editor says so.
+    await prisma.jumpDraft.deleteMany({ where: { jumpId } });
+    mode = "refuse";
+    await visit(page);
+    await field(page).fill(rendered("Alexandra", "your estimate is ready, not held."));
+    await expect(editor(page).locator('[data-follow-up-held="pending"]')).toContainText("Not held yet: this follow-up can still send automatically.");
+    await expect(editor(page).getByRole("status")).toContainText("signed out");
+    await expect(editor(page).locator('[data-follow-up-held="saved"]')).toHaveCount(0);
+    expect(await draftRow()).toBeNull();
+    await audit(page);
+  } finally {
+    release();
+    await prisma.automationPreference.deleteMany({ where: { workspaceId } });
+    await prisma.jumpDraft.deleteMany({ where: { jumpId } });
+  }
+});
+
+test("shows a failed automatic send on the card and in the review, and hands the send back to the owner", async ({ page }) => {
+  await setName("Alexandra");
+  await prisma.jumpDraft.deleteMany({ where: { jumpId } });
+  await prisma.automationPreference.upsert({ where: { workspaceId }, create: { workspaceId, enabled: true, smsEnabled: true, reviewWindowMinutes: 15 }, update: { enabled: true, smsEnabled: true } });
+  await prisma.automatedDelivery.deleteMany({ where: { jumpId } });
+  await prisma.automatedDelivery.create({ data: { workspaceId, jumpId, channel: "SMS", status: "FAILED", reviewEligibleAt: new Date(), error: "Text delivery failed with status 400: The 'To' number is not a valid phone number." } });
+  try {
+    await visit(page);
+    const card = page.locator(`#jump-${jumpId}`);
+    await expect(card.locator(".jump-delivery-failed")).toContainText("Automatic send failed");
+    await expect(editor(page).locator('[data-delivery-failed="failed"]')).toContainText("Couldn’t send automatically: the provider rejected it. Send it yourself.");
+    await expect(editor(page).locator('[data-delivery-status="manual"]')).toHaveText("Manual · you send");
+    // The worker never retries, so the review no longer claims automatic sending; the owner's link is ready.
+    await expect(editor(page).locator("[data-follow-up-automatic]")).toHaveCount(0);
+    await expect(editor(page).getByRole("link", { name: "Open text for Alexandra Rivera", exact: true })).toBeVisible();
+    await audit(page);
+
+    await prisma.automatedDelivery.update({ where: { jumpId }, data: { error: "Delivery result became uncertain after the worker stopped. It was not retried to prevent a duplicate message." } });
+    await visit(page);
+    await expect(card.locator(".jump-delivery-failed")).toContainText("Send not confirmed");
+    await expect(editor(page).locator('[data-delivery-failed="uncertain"]')).toContainText("We couldn’t confirm whether this was sent. Check your sent messages before sending again.");
+    await expect(editor(page).locator('[data-delivery-status="manual"]')).toHaveText("Manual · you send");
+  } finally {
+    await prisma.automatedDelivery.deleteMany({ where: { jumpId } });
+    await prisma.automationPreference.deleteMany({ where: { workspaceId } });
+  }
 });
 
 test("records the exact opened text as an attempt and ties the outcome to it", async ({ page }) => {

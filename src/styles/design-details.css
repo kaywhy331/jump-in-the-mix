@@ -310,3 +310,14 @@
 
 .calendar-entry-fields { display: grid; grid-template-columns: inherit; grid-column: 1 / -1; gap: inherit; border: 0; margin: 0; padding: 0; min-width: 0; }
 .relationship-save-fields { display: grid; gap: inherit; border: 0; margin: 0; padding: 0; min-width: 0; }
+
+/* Today: automatic-sending state. The card marks a failed or unconfirmed send; the review explains it. */
+.jump-meta .jump-delivery-failed { display: inline-flex; align-items: center; gap: 4px; color: var(--late); font-size: .8125rem; font-weight: 600; }
+.jump-meta .jump-delivery-failed svg { width: 14px; height: 14px; flex-shrink: 0; }
+.review-delivery-state { display: grid; gap: 8px; }
+.review-delivery-state p { margin: 0; font-size: .8125rem; line-height: 1.5; }
+.review-delivery-state .notice { margin: 0; }
+.review-delivery-state .notice p + p { margin-top: 4px; }
+.review-delivery-status { color: var(--text-2); }
+.jump-done-note { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 8px; font-size: .8125rem; color: var(--text-2); }
+.jump-done-note svg { width: 18px; height: 18px; flex-shrink: 0; }

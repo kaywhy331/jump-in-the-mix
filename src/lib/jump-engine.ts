@@ -731,6 +731,10 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       ...baseJumpWhere(filters),
       status: { in: STALE_CANCELLATION_STATUSES },
       scheduledAt: { gte: horizonStart, lte: horizonEnd },
+      // A row created or touched since this pass started came from a concurrent pass or an owner
+      // action this pass never read; the next pass judges it instead of this one cancelling it.
+      createdAt: { lt: now },
+      updatedAt: { lt: now },
       // A whole-binding hold keeps every row of that binding out of the stale pass; a completed
       // visit's remaining beats are still desired and reconcile normally.
       ...(heldBindingIds.length ? { OR: [{ appointmentBindingId: null }, { appointmentBindingId: { notIn: heldBindingIds } }] } : {})
