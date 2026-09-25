@@ -2,6 +2,24 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
+import { isValidTimezone } from "@/lib/mix-broadcast";
+
+/**
+ * A browser that cannot tell where the device is reports "UTC" or "Etc/Unknown"; only a real,
+ * supported zone may replace the stored one.
+ */
+export function usableDetectedTimezone(detected: string | null | undefined): string | null {
+  if (!detected || detected === "UTC" || detected === "Etc/Unknown" || !isValidTimezone(detected)) return null;
+  return detected;
+}
+
+function deviceTimezone(): string | null {
+  try {
+    return usableDetectedTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  } catch {
+    return null;
+  }
+}
 
 function cityLabel(zone: string): string {
   return zone === "UTC" ? "Coordinated Universal Time (UTC)" : zone.split("/").slice(1).join(" / ").replaceAll("_", " ") || zone;
@@ -46,23 +64,26 @@ export function TimezonePicker({
     dialogRef.current?.showModal();
     searchRef.current?.focus({ preventScroll: true });
   };
+  const [detected, setDetected] = useState(false);
   const detect = () => {
-    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-    setValue(detected);
+    const zone = deviceTimezone();
+    if (zone) setValue(zone);
     dialogRef.current?.close();
   };
 
   useEffect(() => {
     if (typeof Intl.supportedValuesOf === "function") setZones(["UTC", ...Intl.supportedValuesOf("timeZone")]);
     if (!confirmDetection) return;
-    const detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (detected) setValue(detected);
+    const zone = deviceTimezone();
+    if (!zone) return;
+    setValue(zone);
+    setDetected(true);
   }, [confirmDetection]);
 
   return <div className="timezone-picker">
     <input id={id} name={name} value={value} type="hidden" />
     <div className="timezone-current"><span><small>{label}</small><strong>{cityLabel(value)}</strong></span><button ref={triggerRef} className="button" type="button" onClick={open} aria-label={`Change ${label.toLowerCase()}`}>Change</button></div>
-    {confirmDetection && <small>Detected automatically for follow-up times.</small>}
+    {detected && <small>Detected from this device for follow-up times. Change it if you work somewhere else.</small>}
     <dialog ref={dialogRef} className="sheet timezone-sheet" aria-labelledby={titleId} aria-describedby={descriptionId} onClose={() => triggerRef.current?.focus({ preventScroll: true })} onClick={(event) => { if (event.target === event.currentTarget) dialogRef.current?.close(); }}>
       <div className="sheet-panel">
         <header className="sheet-header"><div className="sheet-heading-copy"><h2 id={titleId}>Choose a timezone</h2><p id={descriptionId}>Search a city or region. Daylight saving changes are handled automatically.</p></div><button className="icon-button" type="button" onClick={() => dialogRef.current?.close()} aria-label="Close timezone picker"><AppIcon name="close" /></button></header>

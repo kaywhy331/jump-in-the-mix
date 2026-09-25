@@ -23,10 +23,13 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
   const token = params.invite ?? "";
   const pilotOpen = env.pilotMode && await pilotRegistrationOpen();
   const invite = !env.pilotMode && validAccessToken(token)
-    ? await prisma.referralAccessInvite.findFirst({ where: { tokenHash: hashAuthToken(token), acceptedAt: null, revokedAt: null }, select: { id: true, recipientPhone: true, marketingScenario: true, marketingScenarioVersion: true } })
+    ? await prisma.referralAccessInvite.findFirst({ where: { tokenHash: hashAuthToken(token), acceptedAt: null, revokedAt: null }, select: { id: true, recipientEmail: true, recipientPhone: true, marketingScenario: true, marketingScenarioVersion: true } })
     : null;
   const paused = Boolean(invite) && (await getAdmissionPolicy()).redemptionPaused;
   const scenario = storedMarketingScenario(invite?.marketingScenario, invite?.marketingScenarioVersion);
+  // An email invitation is tied to one address; a text invitation lets the person choose and confirm one.
+  const invitedEmail = invite?.recipientEmail ?? null;
+  const textInvitation = Boolean(invite && !invitedEmail && invite.recipientPhone);
   return <main className="auth-shell"><section className="auth-card">
     <Logo />
     {!pilotOpen && !invite ? <>
@@ -37,12 +40,15 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
     </> : paused ? <>
       <h1>Account creation is temporarily paused</h1><p>Your invitation has not been used. Please open this same link again later.</p><Link className="button" href="/login">Sign in to an existing account</Link>
     </> : <>
-      <div><h1>Create your free account</h1><p>{pilotOpen ? "Set up the owner account for this private installation." : invite?.recipientPhone ? "Choose your email address to create an account. Verify it to start with one person and review every follow-up before sending." : "Use the email address your invitation was sent to. After verification, start with one person and review every follow-up before sending."}</p>{scenario && <p>Your {scenario.label.toLowerCase()} starter will be ready to review. You can change it or skip setup.</p>}</div>
+      <div><h1>Create your free account</h1><p>{pilotOpen ? "Set up the owner account for this private installation." : textInvitation ? "Choose your email address to create an account. Verify it to start with one person and review every follow-up before sending." : "Your account uses the email address your invitation was sent to. After verification, start with one person and review every follow-up before sending."}</p>{scenario && <p>Your {scenario.label.toLowerCase()} starter will be ready to review. You can change it or skip setup.</p>}</div>
       {params.error && <Notice type="error">{params.error}</Notice>}
       <ActionForm action={registerFormAction} className="form-stack">
         {invite && <input type="hidden" name="invite" value={token} />}
         <label className="field"><span>Your name</span><input name="name" autoComplete="name" maxLength={120} required /></label>
-        <label className="field"><span>Email</span><input name="email" type="email" autoComplete="email" maxLength={254} required /></label>
+        {invitedEmail
+          ? <label className="field"><span>Email</span><input name="email" type="email" autoComplete="email" maxLength={254} defaultValue={invitedEmail} readOnly required /><small>Invitation sent to {invitedEmail}</small></label>
+          : <label className="field"><span>Email</span><input name="email" type="email" autoComplete="email" maxLength={254} required /></label>}
+        {textInvitation && <label className="field"><span>Confirm email</span><input name="confirmEmail" type="email" autoComplete="off" maxLength={254} required /></label>}
         <label className="field"><span>Password</span><PasswordInput aria-label="Password" name="password"  autoComplete="new-password" minLength={12} maxLength={72} required /><small>Use at least 12 characters.</small></label>
         <FormSubmitButton label="Create free account" pendingLabel="Please wait…" />
       </ActionForm><p>Already have an account? <Link href="/login">Sign in</Link>.</p>

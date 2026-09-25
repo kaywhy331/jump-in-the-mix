@@ -21,13 +21,26 @@ export function hashSessionToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Sliding expiry for the Session row: activity keeps a session alive for another idle period, but no
+ * session outlives the absolute cap counted from its creation. The result is never earlier than the
+ * current expiry, so a touch can only extend a session or leave it unchanged.
+ */
+export function nextSessionExpiry({ current, now, createdAt, idleDays, maxDays }: { current: Date; now: Date; createdAt: Date; idleDays: number; maxDays: number }): Date {
+  const candidate = Math.min(now.getTime() + idleDays * DAY_MS, createdAt.getTime() + maxDays * DAY_MS);
+  return candidate > current.getTime() ? new Date(candidate) : current;
+}
+
 function verificationPath(email: string): string {
   return `/verify-email/pending?email=${encodeURIComponent(email)}`;
 }
 
 export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + env.sessionDays * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + env.sessionDays * DAY_MS);
   const metadata = await getRequestMetadata();
   const store = await cookies();
   const previousToken = store.get(env.cookieName)?.value;
@@ -79,10 +92,15 @@ export async function createSession(userId: string): Promise<string> {
   store.delete(env.impersonationCookieName);
   store.set(env.cookieName, token, {
     httpOnly: true,
-    sameSite: "strict",
+    // Lax: sign-in finishes on GET links opened from email and on OAuth callbacks, and a Strict cookie
+    // is withheld on the redirect hops of such a cross-site navigation. Every state change is a POST
+    // behind the origin check in src/proxy.ts, which Lax still protects.
+    sameSite: "lax",
     secure: env.secureSessionCookie,
     path: "/",
-    expires: expiresAt
+    // The browser keeps the cookie for the absolute cap; the Session row (which slides on activity in
+    // getCurrentSession) decides whether it is still valid.
+    expires: new Date(now.getTime() + env.sessionMaxDays * DAY_MS)
   });
 
   return session.id;
@@ -171,8 +189,11 @@ export async function getCurrentSession() {
   }
 
   const touchAfterMs = env.sessionTouchMinutes * 60 * 1000;
-  if (Date.now() - session.lastSeenAt.getTime() >= touchAfterMs) {
-    await prisma.session.updateMany({ where: { id: session.id }, data: { lastSeenAt: new Date() } });
+  const now = new Date();
+  if (now.getTime() - session.lastSeenAt.getTime() >= touchAfterMs) {
+    const expiresAt = nextSessionExpiry({ current: session.expiresAt, now, createdAt: session.createdAt, idleDays: env.sessionDays, maxDays: env.sessionMaxDays });
+    await prisma.session.updateMany({ where: { id: session.id }, data: { lastSeenAt: now, expiresAt } });
+    session.expiresAt = expiresAt;
   }
 
   const authUser = session.user;

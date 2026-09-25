@@ -12,7 +12,7 @@ import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Choose your starting point" };
 
-export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ error?: string; useCase?: string | string[] }> }) {
+export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ error?: string; useCase?: string | string[]; verified?: string }> }) {
   const [params, { workspace, user }] = await Promise.all([searchParams, requireWorkspace()]);
   const [timezone, marketingPreference, contacts, scheduling] = await Promise.all([timezoneForUser(user.id), prisma.workspaceMarketingPreference.findUnique({ where: { workspaceId: workspace.id } }), prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true, displayName: true }, orderBy: { createdAt: "desc" }, take: 100 }), prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })]);
   const selectedUses = onboardingUses(params.useCase ? [params.useCase].flat() : workspace.profile?.useCases.length ? workspace.profile.useCases : ["business"]);
@@ -25,6 +25,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
         <h1>Jump in the mix.</h1>
         <p className="onboarding-intro">Choose a connected journey or build your own. We’ll help it fit your working day.</p>
         {scenario && <p className="onboarding-intro">You tried the {scenario.label.toLowerCase()} example. We’ll use it to suggest a starting point.</p>}
+        {params.verified === "1" && <Notice type="success">Your email is verified.</Notice>}
         {params.error && <Notice type="error">{params.error}</Notice>}
         <OnboardingForm initialSetup={initialJourneySetup(scheduling, timezone)} company={workspace.profile?.company ?? undefined} smsSignature={workspace.profile?.smsSignature ?? undefined} userName={user.name} industry={workspace.profile?.industry ?? scenario?.businessType ?? null} initialUses={selectedUses} contacts={contacts} timezone={timezone} today={today} scenarioId={scenario?.id} />
       </section>

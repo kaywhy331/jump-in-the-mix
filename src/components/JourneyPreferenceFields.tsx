@@ -5,7 +5,9 @@ import { formatTimeInput, parseTimeInput } from "@/lib/mix-broadcast";
 import { APPOINTMENT_BUFFER_CHOICES } from "@/lib/calendar-availability";
 import styles from "./JourneySetup.module.css";
 
-export function JourneyPreferenceFields({ value, onChange, id }: { value: JourneySetupValues; onChange: (value: JourneySetupValues) => void; id: string }) {
+// detectTimezone: only onboarding may adopt the device zone, and only while the account still holds the UTC default;
+// the account preferences editor never switches a saved zone on its own.
+export function JourneyPreferenceFields({ value, onChange, id, detectTimezone = false }: { value: JourneySetupValues; onChange: (value: JourneySetupValues) => void; id: string; detectTimezone?: boolean }) {
   const p = value.preferences;
   const preference = (change: Partial<typeof p>) => onChange({ ...value, preferences: { ...p, ...change } });
   const time = (label: string, name: string, minutes: number, change: (n: number) => void) => <label className="field"><span>{label}</span><input type="time" name={name} value={Number.isFinite(minutes) ? formatTimeInput(minutes) : ""} required onChange={event => change(parseTimeInput(event.target.value) ?? NaN)} /></label>;
@@ -15,7 +17,7 @@ export function JourneyPreferenceFields({ value, onChange, id }: { value: Journe
       <label className="field"><span>Space between follow-ups</span><select aria-label="Space between follow-ups" aria-describedby={`${id}-pace-help`} name="pace" value={p.pace} onChange={event => preference({ pace: event.target.value as typeof p.pace })}><option value="RECOMMENDED">Use the recommended delays</option><option value="RELAXED">More space · double the wait</option></select><small id={`${id}-pace-help`}>For example, a 3-day wait becomes 6 days. Steps waiting for your decision still wait for you.</small></label>
     </div></fieldset>
     <fieldset className="onboarding-step-card"><legend>When does follow-up fit your day?</legend><div className="form-stack">
-      <TimezonePicker key={id} id={`${id}-timezone`} defaultValue={value.timezone} onChange={timezone => { if (timezone !== value.timezone) onChange({ ...value, timezone }); }} />
+      <TimezonePicker key={id} id={`${id}-timezone`} defaultValue={value.timezone} confirmDetection={detectTimezone} onChange={timezone => { if (timezone !== value.timezone) onChange({ ...value, timezone }); }} />
       <fieldset className={styles.days}><legend>Working days</legend><div>{[1, 2, 3, 4, 5, 6, 0].map(day => <label key={day}><input type="checkbox" name="workDay" value={day} checked={p.workDays.includes(day)} onChange={event => preference({ workDays: event.target.checked ? [...p.workDays, day] : p.workDays.filter(item => item !== day) })} /><span>{WORK_DAYS[day]}</span></label>)}</div></fieldset>
       <div className="form-grid">
         {time("Open from", "workStart", p.workStart, workStart => preference({ workStart }))}

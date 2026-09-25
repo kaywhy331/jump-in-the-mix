@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
 import { formatDateTime } from "../src/lib/format";
 import { logicalDateInTimezone, logicalDateKey } from "../src/lib/jump-schedule";
+import { dateInputInTimezone } from "../src/lib/date-input";
 import { createPendingJumpFixture, removePendingJumpFixture } from "./pending-jump-fixture";
 
 const userEmail = process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local";
@@ -113,6 +114,10 @@ test("supported mobile browsers can Quick Add a selected device Contact", async 
   await expect(tools.getByText(/\d+ added · \d+ merged/)).toBeVisible();
 });
 
+test.describe("onboarding in the device timezone", () => {
+  // New accounts start in UTC; the browser reports Denver and onboarding must adopt it on its own.
+  test.use({ timezoneId: "America/Denver" });
+
 test("new customer reaches a prepared first Jump through onboarding", async ({ page }) => {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const userId = `e2e-onboarding-user-${suffix}`;
@@ -149,13 +154,15 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   await page.getByLabel("Phone recommended").fill("+1 (555) 010-0123");
   // Onboarding asks for free text about the conversation rather than a fixed reason.
   await page.getByLabel("What should you remember?").fill("Follow up about an estimate");
-  await page.getByRole("button", { name: "Change timezone", exact: true }).click();
-  const timezonePicker = page.getByRole("dialog", { name: "Choose a timezone" });
-  await timezonePicker.getByLabel("Search timezones").fill("Chicago");
-  await timezonePicker.getByRole("button", { name: /Chicago.*America\/Chicago/ }).click();
-  const followUpDate = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
+  // Detected from the device, with no manual pick: the visible picker and its hidden field both say Denver.
+  await expect(page.locator(".timezone-current:visible strong")).toHaveText("Denver");
+  await expect(page.locator("#timezone")).toHaveValue("America/Denver");
   // Exact, because the reason select's label text also contains "Follow up on a quote".
-  await page.getByLabel("Follow up on", { exact: true }).fill(followUpDate);
+  const followUpInput = page.getByLabel("Follow up on", { exact: true });
+  // The default date is today in Denver, not the UTC day.
+  await expect(followUpInput).toHaveValue(dateInputInTimezone(new Date(), "America/Denver"));
+  const followUpDate = dateInputInTimezone(new Date(Date.now() + 3 * 86_400_000), "America/Denver");
+  await followUpInput.fill(followUpDate);
   await Promise.all([
     page.waitForURL(/\/jumps\?.*welcome=1/),
     page.getByRole("button", { name: "Prepare my first follow-up" }).click()
@@ -174,11 +181,14 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   expect(renderedBody).not.toContain("working the way you expected");
   await expect(firstFollowUp.getByRole("link", { name: "Open text for Jordan First Win" })).toHaveAttribute("href", /^sms:\+1.*body=/);
   const firstJump = await prisma.jump.findFirstOrThrow({ where: { workspaceId }, orderBy: { scheduledAt: "asc" } });
-  expect(logicalDateKey(logicalDateInTimezone(firstJump.scheduledAt, "America/Chicago"))).toBe(followUpDate);
-  await expect(firstFollowUp).toContainText(formatDateTime(firstJump.scheduledAt, { timeZone: "America/Chicago", locale: "en-US" }));
+  // The welcome follow-up lands on the chosen Denver day and the account keeps the detected zone.
+  expect(logicalDateKey(logicalDateInTimezone(firstJump.scheduledAt, "America/Denver"))).toBe(followUpDate);
+  await expect(firstFollowUp).toContainText(formatDateTime(firstJump.scheduledAt, { timeZone: "America/Denver", locale: "en-US" }));
+  await expect(prisma.userPreference.findUnique({ where: { userId } })).resolves.toMatchObject({ timezone: "America/Denver" });
   await expect(prisma.contactPhone.findFirst({ where: { contact: { workspaceId } } })).resolves.toMatchObject({ normalized: "+15550100123" });
   await expect(prisma.contact.count({ where: { workspaceId, displayName: "Jordan First Win" } })).resolves.toBe(1);
   await expect(prisma.jump.count({ where: { workspaceId, contact: { displayName: "Jordan First Win" } } })).resolves.toBeGreaterThan(0);
+});
 });
 
 test("personal account holder must reauthenticate and explicitly confirm permanent deletion", async ({ page }, testInfo) => {

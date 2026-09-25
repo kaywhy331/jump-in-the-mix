@@ -31,7 +31,7 @@ export function MegaMixSetup({ initialId, initialSetup, onboarding, active = tru
     <h2 ref={heading} tabIndex={-1}>{review ? "Ready when you are" : "Make this fit your day"}</h2>
     {error && <p role="alert" className="notice error">{error}</p>}
     <div hidden={review} className="form-stack" onKeyDown={event => { if (event.key === "Enter" && event.target instanceof HTMLInputElement && !["checkbox", "radio", "button", "submit"].includes(event.target.type)) { event.preventDefault(); showReview(); } }}>
-      <JourneyPreferenceFields id={id} value={setup} onChange={value => { setSetup(value); onSetupChange?.(value); }} />
+      <JourneyPreferenceFields id={id} value={setup} detectTimezone={Boolean(onboarding) && initialSetup.timezone === "UTC"} onChange={value => { setSetup(value); onSetupChange?.(value); }} />
       {onboarding && <details className="onboarding-step-card"><summary>Business name and message signature</summary><div className="form-grid"><label className="field"><span>Business name (optional)</span><input name="company" defaultValue={onboarding.company} autoComplete="organization" maxLength={200} /></label><label className="field"><span>How do you sign texts?</span><input name="smsSignature" defaultValue={onboarding.smsSignature || onboarding.userName} maxLength={160} /></label></div></details>}
       <button className="button primary" type="button" onClick={showReview}>Review my setup</button>
     </div>

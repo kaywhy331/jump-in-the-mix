@@ -39,9 +39,17 @@ function validEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) && value.length <= 254;
 }
 
+function plural(count: number, unit: string): string {
+  return `${count} ${unit}${count === 1 ? "" : "s"}`;
+}
+
+// Minutes up to 90 minutes, hours up to 48 hours, then days: a day-long block reads "about 24 hours".
 function rateLimitMessage(seconds: number): string {
   const minutes = Math.max(Math.ceil(seconds / 60), 1);
-  return `Too many attempts. Try again in about ${minutes} minute${minutes === 1 ? "" : "s"}.`;
+  const wait = minutes < 90
+    ? plural(minutes, "minute")
+    : minutes < 48 * 60 ? plural(Math.round(minutes / 60), "hour") : plural(Math.round(minutes / (24 * 60)), "day");
+  return `Too many attempts. Try again in about ${wait}.`;
 }
 
 async function enforceRateLimit(path: string, input: Parameters<typeof consumeRateLimit>[0]): Promise<void> {
@@ -64,6 +72,7 @@ export async function registerAction(formData: FormData): Promise<void> {
   const metadata = await getRequestMetadata();
   const name = value(formData, "name");
   const email = normalizedEmail(value(formData, "email"));
+  const confirmEmail = normalizedEmail(value(formData, "confirmEmail"));
   const password = value(formData, "password");
   const accessToken = value(formData, "invite");
   const path = accessToken ? `/register?invite=${encodeURIComponent(accessToken)}` : "/register";
@@ -71,7 +80,6 @@ export async function registerAction(formData: FormData): Promise<void> {
   if (!env.pilotMode && !validAccessToken(accessToken)) fail("/register", "Open the unique invitation link shared with you to create an account.");
 
   await enforceRateLimit(path, { scope: "auth.register.ip", identifiers: [metadata.ipAddress], limit: 8, windowMs: 60 * 60 * 1000, blockMs: 60 * 60 * 1000 });
-  await enforceRateLimit(path, { scope: "auth.register.email", identifiers: [email], limit: 3, windowMs: 24 * 60 * 60 * 1000, blockMs: 24 * 60 * 60 * 1000 });
 
   if (!name || name.length > 120 || !validEmail(email)) fail(path, "Enter your name and a valid email.");
   const passwordError = passwordValidationError(password);
@@ -80,8 +88,21 @@ export async function registerAction(formData: FormData): Promise<void> {
     fail(path, "Account verification is temporarily unavailable. Please contact support.");
   }
 
+  // A read-only look at the invitation gives a precise answer before anything is claimed or counted;
+  // the claim itself stays inside the account transaction.
+  const invitation = !env.pilotMode && validAccessToken(accessToken)
+    ? await prisma.referralAccessInvite.findFirst({ where: { tokenHash: hashAuthToken(accessToken), acceptedAt: null, revokedAt: null }, select: { recipientEmail: true, recipientPhone: true } })
+    : null;
+  if (invitation?.recipientEmail && normalizedEmail(invitation.recipientEmail) !== email) {
+    fail(path, `This invitation was sent to ${normalizedEmail(invitation.recipientEmail)}. Use that address.`);
+  }
+  if (invitation && !invitation.recipientEmail && invitation.recipientPhone && confirmEmail !== email) fail(path, "The email addresses don't match.");
+
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) fail("/login", "An account with that email already exists.");
+
+  // Counted only for a valid, new registration, so typos and invitation mismatches cannot lock an address out for a day.
+  await enforceRateLimit(path, { scope: "auth.register.email", identifiers: [email], limit: 3, windowMs: 24 * 60 * 60 * 1000, blockMs: 24 * 60 * 60 * 1000 });
 
   const passwordHash = await bcrypt.hash(password, 12);
   let user: { id: string; email: string; name: string };
@@ -93,7 +114,11 @@ export async function registerAction(formData: FormData): Promise<void> {
       return createBusinessAccount(tx, { email, name, passwordHash, emailVerifiedAt: mustVerify ? null : new Date(), accessToken });
     }, { isolationLevel: "Serializable" });
   } catch (error) {
-    if (error instanceof AccessInviteError) fail(path, error.message);
+    if (error instanceof AccessInviteError) {
+      // A paused, used or revoked invitation is the invitation's state, not a guess at the address.
+      await releaseRateLimitAttempt("auth.register.email", [email]);
+      fail(path, error.message);
+    }
     if (error instanceof PilotRegistrationClosedError) {
       fail("/login", "Owner setup is complete. Sign in with the owner account.");
     }
@@ -110,7 +135,8 @@ export async function registerAction(formData: FormData): Promise<void> {
 
   if (mustVerify) {
     const delivery = await deliverVerification(user.email, user.name);
-    const params = new URLSearchParams({ email: user.email, sent: "1" });
+    // registered=1 is the first screen after sign-up; sent=1 is a resend.
+    const params = new URLSearchParams({ email: user.email, registered: "1" });
     if (delivery.devToken) params.set("devToken", delivery.devToken);
     if (delivery.deliveryFailed) params.set("delivery", "failed");
     redirect(`/verify-email/pending?${params.toString()}`);

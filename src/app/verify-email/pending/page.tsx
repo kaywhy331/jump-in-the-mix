@@ -11,6 +11,7 @@ export const metadata: Metadata = { title: "Verify email" };
 
 type SearchParams = {
   email?: string;
+  registered?: string;
   sent?: string;
   error?: string;
   devToken?: string;
@@ -28,7 +29,8 @@ export default async function VerifyEmailPendingPage({ searchParams }: { searchP
         <Logo />
         <h1>Verify your email</h1>
         <p>Open the one-time verification link sent to {email || "your email address"}. Verification protects account recovery and personal data controls.</p>
-        {params.sent && <Notice type="success">A new verification link was prepared. Check your inbox and spam folder.</Notice>}
+        {params.registered && params.delivery !== "failed" && <Notice type="success">We sent a verification link to {email || "your email address"}. Check your inbox and spam folder.</Notice>}
+        {params.sent && params.delivery !== "failed" && <Notice type="success">A new verification link was prepared. Check your inbox and spam folder. A new link replaces older ones.</Notice>}
         {params.delivery === "failed" && <Notice type="error">The email provider could not deliver the message. You can try again below.</Notice>}
         {params.error && <Notice type="error">{params.error}</Notice>}
         {developmentVerificationUrl && process.env.NODE_ENV !== "production" && <Notice type="info">Development email preview: <Link href={developmentVerificationUrl}><strong>verify this account</strong></Link>.</Notice>}
