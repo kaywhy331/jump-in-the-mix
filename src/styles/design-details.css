@@ -169,11 +169,6 @@
   .calendar-timezone .timezone-current > span { grid-template-columns: 1fr; gap: 4px; }
   .calendar-save-actions > p { flex-basis: 100%; }
 }
-.person-preview-bubble > strong { font-size: 1rem; }
-.person-preview-bubble > small { margin-top: 4px; font-size: .75rem; }
-.person-preview-bubble p { font-size: 1.125rem; line-height: 1.4; margin-block: 16px; }
-.person-preview-actions { border-top: 1px solid var(--line); padding-top: 12px; }
-.person-preview-actions > .inline-action { min-height: 44px; display: inline-flex; align-items: center; margin-left: auto; }
 .review-person-context .conversation-note, .calendar-contact-context .conversation-note { padding: 0; border: 0; border-radius: 0; background: transparent; }
 .calendar-timezone .timezone-current { border: 0; padding: 0; border-radius: 0; background: transparent; }
 .calendar-page .calendar-event:not(.calendar-follow-up) { display: block; padding: 12px; }
@@ -189,16 +184,10 @@
   .mixes-directory .mix-filter-bar { flex: 1 1 0; width: auto; min-width: 0; }
 }
 @media (max-width: 600px) {
-  .journey-mobile-options { display: flex; gap: 6px; }
-  .journey-search-desktop { display: none; }
-  .journey-selection-tools { margin-block: 0; }
-  .journey-selection-tools .button { border: 0; padding-inline: 0; background: transparent; color: var(--violet-text); }
-  .journey-roster-caption { margin-bottom: 0; }
   .journey-touchpoints .section-label h2 { font-size: .875rem; text-transform: none; letter-spacing: 0; }
   .journey-touchpoints .section-label > .button { width: 44px; padding: 10px; border: 0; background: transparent; color: var(--violet-text); }
   .journey-touchpoints .section-label > .button > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .journey-touchpoints { display: flex; flex-direction: column; }
-  .journey-touchpoints > .journey-touchpoints-description { order: 1; font-size: .75rem; margin-top: 12px; }
 }
 .public-join-short { display: none; }
 .public-mobile-menu > summary { list-style: none; }
