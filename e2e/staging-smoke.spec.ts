@@ -7,7 +7,7 @@ const userPassword = process.env.STAGING_SMOKE_USER_PASSWORD?.trim();
 async function signIn(page: Page) {
   if (!userEmail || !userPassword) throw new Error("STAGING_SMOKE_USER_EMAIL and STAGING_SMOKE_USER_PASSWORD are required.");
   await page.goto("/login");
-  await page.getByLabel("Email").fill(userEmail);
+  await page.getByLabel("Email", { exact: true }).fill(userEmail);
   await page.getByLabel("Password", { exact: true }).fill(userPassword);
   await Promise.all([
     page.waitForURL(/\/(jumps|onboarding)(\?|$)/),

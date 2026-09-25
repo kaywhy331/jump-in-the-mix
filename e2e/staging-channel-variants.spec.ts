@@ -61,7 +61,7 @@ test.afterAll(async () => {
 
 async function signIn(page: Page) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(userEmail);
+  await page.getByLabel("Email", { exact: true }).fill(userEmail);
   await page.getByLabel("Password", { exact: true }).fill(userPassword);
   await Promise.all([page.waitForURL(/\/(jumps|onboarding)(\?|$)/), page.getByRole("button", { name: "Sign in" }).click()]);
 }

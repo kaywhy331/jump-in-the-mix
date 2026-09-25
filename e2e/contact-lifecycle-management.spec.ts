@@ -7,7 +7,7 @@ const userPassword = process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!";
 
 async function signIn(page: Page) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(userEmail);
+  await page.getByLabel("Email", { exact: true }).fill(userEmail);
   await page.getByLabel("Password", { exact: true }).fill(userPassword);
   await Promise.all([
     page.waitForURL(/\/(jumps|onboarding)(\?|$)/),

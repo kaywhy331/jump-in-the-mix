@@ -5,7 +5,7 @@ import { RELATIONSHIP_MIXES } from "../src/lib/relationship-mix-library";
 
 async function signIn(page: Page) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local");
+  await page.getByLabel("Email", { exact: true }).fill(process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local");
   await page.getByLabel("Password", { exact: true }).fill(process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!");
   await Promise.all([page.waitForURL(/\/(jumps|onboarding)(\?|$)/), page.getByRole("button", { name: "Sign in", exact: true }).click()]);
 }
