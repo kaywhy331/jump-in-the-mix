@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { createPendingJumpFixture, removePendingJumpFixture } from "./pending-jump-fixture";
 
 const userEmail = process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local";
 const userPassword = process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!";
@@ -345,47 +346,55 @@ test("Quick Add shortcuts continue into actionable contact journeys", async ({ p
 
 test("responsive controls remain complete and align to card width", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The explicit viewport matrix runs once.");
-  await signIn(page);
+  // Its own due follow-up, so the Today checks do not depend on what the shared demo workspace has due today.
+  const jumpId = await createPendingJumpFixture("Visual fitment row");
+  try {
+    await signIn(page);
 
-  for (const width of [320, 375, 412, 768, 1280]) {
-    await page.setViewportSize({ width, height: 900 });
-    for (const route of ["/jumps", "/contacts", "/mixes", "/settings", "/account"]) {
-      await page.goto(route);
-      await expect(page.locator("main")).toBeVisible();
-      await expectNoHorizontalOverflow(page);
-      await expectNoClippedControls(page);
-    }
+    for (const width of [320, 375, 412, 768, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const route of ["/jumps", "/contacts", "/mixes", "/settings", "/account"]) {
+        await page.goto(route);
+        await expect(page.locator("main")).toBeVisible();
+        await expectNoHorizontalOverflow(page);
+        await expectNoClippedControls(page);
+      }
 
-    if (width <= 900) {
-      await page.goto("/jumps");
-      // The first card with a Review action; captures added by earlier tests may offer other actions.
-      const card = page.locator(".jump-task-card:visible").filter({ has: page.getByRole("button", { name: /^Review (message|call) for / }) }).first();
-      // The card's own Review button; the review sheet inside the card also uses this class.
-      const primary = card.getByRole("button", { name: /^Review (message|call) for / });
-      const actions = card.locator(".jump-primary-action");
-      await expect(card).toBeVisible();
-      const [cardBox, primaryBox, actionsBox] = await Promise.all([card.boundingBox(), primary.boundingBox(), actions.boundingBox()]);
-      expect(cardBox).not.toBeNull();
-      expect(primaryBox).not.toBeNull();
-      expect(actionsBox).not.toBeNull();
-      expect(actionsBox!.x).toBeGreaterThanOrEqual(cardBox!.x - 1);
-      expect(actionsBox!.x + actionsBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
-      expect(primaryBox!.width).toBeGreaterThanOrEqual(40);
-      expect(primaryBox!.height).toBeGreaterThanOrEqual(40);
+      if (width <= 900) {
+        await page.goto("/jumps");
+        // The first card with a Review action; captures added by earlier tests may offer other actions.
+        const card = page.locator(".jump-task-card:visible").filter({ has: page.getByRole("button", { name: /^Review (message|call) for / }) }).first();
+        // The card's own Review button; the review sheet inside the card also uses this class.
+        const primary = card.getByRole("button", { name: /^Review (message|call) for / });
+        const actions = card.locator(".jump-primary-action");
+        await expect(card).toBeVisible();
+        const [cardBox, primaryBox, actionsBox] = await Promise.all([card.boundingBox(), primary.boundingBox(), actions.boundingBox()]);
+        expect(cardBox).not.toBeNull();
+        expect(primaryBox).not.toBeNull();
+        expect(actionsBox).not.toBeNull();
+        expect(actionsBox!.x).toBeGreaterThanOrEqual(cardBox!.x - 1);
+        expect(actionsBox!.x + actionsBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
+        expect(primaryBox!.width).toBeGreaterThanOrEqual(40);
+        expect(primaryBox!.height).toBeGreaterThanOrEqual(40);
+      }
     }
-  }
+  } finally { await removePendingJumpFixture(jumpId); }
 });
 
 test("Jump overflow provides first-class snooze presets", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The stateful snooze journey runs once.");
-  await signIn(page);
-  await page.goto("/jumps");
-  // Pending follow-ups carry a "More options" sheet; completed ones offer Undo instead.
-  const more = page.getByRole("button", { name: /^More options for / }).first();
-  await expect(more).toBeVisible();
-  await more.click();
-  const sheet = page.getByRole("dialog", { name: /^Follow up with / });
-  // The sheet also carries the inline date picker, whose quick chip is named "Tomorrow" too.
-  await sheet.locator(".sheet-actions").getByRole("button", { name: "Tomorrow", exact: true }).click();
-  await expect(page.getByText("Follow-up snoozed.")).toBeVisible();
+  // Snooze a follow-up of its own rather than whatever the shared demo workspace has due.
+  const jumpId = await createPendingJumpFixture("Snooze presets row");
+  try {
+    await signIn(page);
+    await page.goto("/jumps?range=all");
+    // Pending follow-ups carry a "More options" sheet; completed ones offer Undo instead.
+    const more = page.locator(`[data-jump-workflow="${jumpId}"]:visible`).getByRole("button", { name: /^More options for / });
+    await expect(more).toBeVisible();
+    await more.click();
+    const sheet = page.getByRole("dialog", { name: /^Follow up with / });
+    // The sheet also carries the inline date picker, whose quick chip is named "Tomorrow" too.
+    await sheet.locator(".sheet-actions").getByRole("button", { name: "Tomorrow", exact: true }).click();
+    await expect(page.getByText("Follow-up snoozed.")).toBeVisible();
+  } finally { await removePendingJumpFixture(jumpId); }
 });
