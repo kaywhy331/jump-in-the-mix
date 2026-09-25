@@ -72,6 +72,11 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
   const sourceState = await prisma.contactRelationshipState.findUnique({ where: { contactId: source.id } });
   const survivorState = await prisma.contactRelationshipState.findUnique({ where: { contactId: survivor.id } });
   const archivedAt = new Date();
+  let copiedStops = 0;
+  let movedAppointmentBindings = 0;
+  let movedReviewRequests = 0;
+  let movedAccessInvites = 0;
+  let skippedAccessInvites = 0;
 
   await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR NO KEY UPDATE`;
@@ -155,16 +160,45 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
       if (families.length) await tx.jumpDraft.updateMany({ where: { jumpId: cancelled.id, family: { in: families } }, data: { jumpId: target.id } });
     }
 
+    // An assignment bound to a visit is that visit's own work: it always moves with its binding
+    // instead of collapsing into the survivor's plain assignment for the same Mix.
+    const boundAssignmentIds = new Set((await tx.appointmentBinding.findMany({ where: { workspaceId: workspace.id, contactId: source.id }, select: { assignmentId: true } })).map((binding) => binding.assignmentId));
     for (const assignment of source.mixAssignments) {
       const key = `${assignment.mixId}:${assignment.mode}`;
       const existing = survivorAssignments.get(key);
-      if (existing) {
+      if (existing && !boundAssignmentIds.has(assignment.id)) {
         await tx.mixAssignment.update({ where: { id: assignment.id }, data: { isActive: false } });
       } else {
         await tx.mixAssignment.update({ where: { id: assignment.id }, data: { contactId: survivor.id, assignmentKey: `${workspace.id}:${assignment.mixId}:merged:${survivor.id}:${assignment.id}` } });
-        survivorAssignments.set(key, assignment);
+        if (!existing) survivorAssignments.set(key, assignment);
       }
     }
+
+    // A stop on either side stops the merged person, the same way do-not-contact is combined
+    // below: a Mix the customer asked to end never resumes under the survivor's name. The queued
+    // reconciliation cancels any of the survivor's pending follow-ups on a newly stopped Mix.
+    const survivorStoppedMixIds = new Set((await tx.mixStop.findMany({ where: { workspaceId: workspace.id, contactId: survivor.id }, select: { mixId: true } })).map((stop) => stop.mixId));
+    const sourceStops = await tx.mixStop.findMany({ where: { workspaceId: workspace.id, contactId: source.id } });
+    for (const stop of sourceStops) {
+      await tx.mixStop.upsert({
+        where: { workspaceId_mixId_contactId: { workspaceId: workspace.id, mixId: stop.mixId, contactId: survivor.id } },
+        create: { workspaceId: workspace.id, mixId: stop.mixId, contactId: survivor.id, stoppedByUserId: stop.stoppedByUserId, reason: stop.reason, stoppedAt: stop.stoppedAt },
+        update: {}
+      });
+      if (!survivorStoppedMixIds.has(stop.mixId)) copiedStops += 1;
+    }
+
+    // Work anchored to the person follows them: a visit's binding, a review link that was already
+    // sent, and a network invitation. Each inviter may hold one invitation per person, so an
+    // invitation that would double up on the survivor stays on the archived record.
+    movedAppointmentBindings = (await tx.appointmentBinding.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id } })).count;
+    movedReviewRequests = (await tx.reviewRequest.updateMany({ where: { workspaceId: workspace.id, contactId: source.id }, data: { contactId: survivor.id } })).count;
+    const survivorInviters = new Set((await tx.referralAccessInvite.findMany({ where: { workspaceId: workspace.id, contactId: survivor.id, inviterUserId: { not: null } }, select: { inviterUserId: true } })).map((invite) => invite.inviterUserId));
+    const sourceInvites = await tx.referralAccessInvite.findMany({ where: { workspaceId: workspace.id, contactId: source.id }, select: { id: true, inviterUserId: true } });
+    const movableInviteIds = sourceInvites.filter((invite) => !invite.inviterUserId || !survivorInviters.has(invite.inviterUserId)).map((invite) => invite.id);
+    if (movableInviteIds.length) await tx.referralAccessInvite.updateMany({ where: { id: { in: movableInviteIds } }, data: { contactId: survivor.id } });
+    movedAccessInvites = movableInviteIds.length;
+    skippedAccessInvites = sourceInvites.length - movableInviteIds.length;
 
     if (!survivor.referredByContactId && source.referredByContactId && source.referredByContactId !== survivor.id) {
       await tx.contact.update({ where: { id: survivor.id }, data: { referredByContactId: source.referredByContactId } });
@@ -209,6 +243,11 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
           copiedPhones: source.phones.filter((item) => !survivor.phones.some((existing) => existing.normalized === item.normalized)).length,
           movedDates: source.jumpDates.length,
           movedAssignments: source.mixAssignments.length,
+          copiedStops,
+          movedAppointmentBindings,
+          movedReviewRequests,
+          movedAccessInvites,
+          skippedAccessInvites,
           archivedAt: archivedAt.toISOString()
         }
       }

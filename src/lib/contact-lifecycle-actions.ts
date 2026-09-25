@@ -52,8 +52,10 @@ export async function restoreContactAction(formData: FormData): Promise<void> {
   const path = value(formData, "returnTo") === "/contacts" ? "/contacts" : "/contacts/archived";
   if (impersonation) fail("View-only support sessions cannot restore Contacts.", path);
   const contactId = value(formData, "contactId");
-  const contact = await prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: { not: null } }, select: { id: true, displayName: true, archivedAt: true } });
+  const contact = await prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id }, select: { id: true, displayName: true, archivedAt: true } });
   if (!contact) fail("Archived Contact not found.", path);
+  // A second tap of Undo or Restore finds the person already back: that is the same success, not an error.
+  if (!contact.archivedAt) redirect(`${path}?restored=1`);
   await prisma.$transaction(async (tx) => {
     await tx.contact.update({ where: { id: contact.id }, data: { archivedAt: null } });
     await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId: contact.id } } });

@@ -78,15 +78,30 @@ export async function bulkRemoveGroupAction(formData: FormData): Promise<void> {
 }
 
 export async function bulkArchiveContactsAction(formData: FormData): Promise<void> {
-  const { workspace, impersonation } = await requireWorkspace();
+  const { workspace, user, impersonation } = await requireWorkspace();
   if (impersonation) fail("Administrator support sessions are view-only.");
   const contacts = await scopedContacts(workspace.id, selectedContactIds(formData));
   const contactIds = contacts.map((contact) => contact.id);
   const archivedAt = new Date();
+  // Archiving several people works exactly like archiving one: their Mix assignments stay in
+  // place (the engine skips archived people), pending follow-ups are held under the same reason
+  // so Restore brings them back, each person gets an audit row, and one reconciliation is queued.
   await prisma.$transaction([
     prisma.contact.updateMany({ where: { workspaceId: workspace.id, id: { in: contactIds } }, data: { archivedAt } }),
-    prisma.mixAssignment.updateMany({ where: { workspaceId: workspace.id, contactId: { in: contactIds } }, data: { isActive: false } }),
-    prisma.jump.updateMany({ where: { workspaceId: workspace.id, contactId: { in: contactIds }, status: "PENDING" }, data: { status: "CANCELED", completedAt: null, completionMethod: "contacts_archived" } })
+    prisma.jump.updateMany({ where: { workspaceId: workspace.id, contactId: { in: contactIds }, status: "PENDING" }, data: { status: "CANCELED", completedAt: null, completionMethod: "contact_archived" } }),
+    prisma.auditLog.createMany({
+      data: contacts.map((contact) => ({
+        workspaceId: workspace.id,
+        actorType: "USER" as const,
+        actorUserId: user.id,
+        action: "contact.archive",
+        entityType: "Contact",
+        entityId: contact.id,
+        source: "contacts.bulk",
+        metadata: { displayName: contact.displayName, archivedAt: archivedAt.toISOString(), selectedCount: contacts.length }
+      }))
+    }),
+    prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: {} } })
   ]);
   redirect(`/contacts?bulkArchived=${contacts.length}`);
 }

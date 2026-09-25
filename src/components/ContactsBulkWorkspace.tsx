@@ -29,7 +29,13 @@ export type ContactBulkDto = ExportContact & {
   doNotContact: boolean;
 };
 
-export type ContactBulkGroup = { id: string; name: string; description: string | null; color: string | null; contactCount: number; isActive: boolean };
+export type ContactBulkGroup = { id: string; name: string; description: string | null; color: string | null; contactCount: number; mixCount: number; isActive: boolean };
+
+/** Deleting a tag ends the Mixes that run for its people; say so before the owner confirms. */
+function tagDeleteDescription(mixCount: number): string {
+  const warning = mixCount > 0 ? `${mixCount === 1 ? "1 Mix runs" : `${mixCount} Mixes run`} for this tag's people and will stop for them. ` : "";
+  return `${warning}People and completed history will stay in your account.`;
+}
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
@@ -165,7 +171,7 @@ export function ContactsBulkWorkspace({
                   <label className="date-type-active-choice"><input form="tag-activation-form" type="checkbox" name="activeGroupIds" value={group.id} defaultChecked={group.isActive} /><span>Show<span className="sr-only"> the {group.name} tag</span></span></label>
                   <span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />
                   <span><strong>{group.name}</strong><small>{group.contactCount} contact{group.contactCount === 1 ? "" : "s"}</small></span>
-                  <ConfirmDialog trigger="Delete…" title={`Delete ${group.name}?`} description="People and completed history will stay in your account." danger><form action={deleteContactGroupAction}><input type="hidden" name="groupId" value={group.id} /><button className="button small danger" type="submit">Delete tag</button></form></ConfirmDialog>
+                  <ConfirmDialog trigger="Delete…" triggerAriaLabel={`Delete the ${group.name} tag`} title={`Delete ${group.name}?`} description={tagDeleteDescription(group.mixCount)} danger><form action={deleteContactGroupAction}><input type="hidden" name="groupId" value={group.id} /><button className="button small danger" type="submit">Delete tag</button></form></ConfirmDialog>
                 </div>)}</div>
                 <button className="button" form="tag-activation-form" type="submit">Save tags</button>
               </>}

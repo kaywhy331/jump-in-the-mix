@@ -7,7 +7,9 @@ import { ContactSavedViewsBar } from "@/components/ContactSavedViewsBar";
 import { ContactsBulkWorkspace, type ContactBulkDto } from "@/components/ContactsBulkWorkspace";
 import { Notice } from "@/components/Notice";
 import { AppIcon } from "@/components/AppIcon";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { restoreContactAction } from "@/lib/contact-lifecycle-actions";
+import { phoneSearchDigits } from "@/lib/phone-dial";
 import { requireWorkspace } from "@/lib/auth";
 import { contactFollowUpSummary } from "@/lib/contact-follow-up-summary";
 import { formatDateTime } from "@/lib/format";
@@ -134,6 +136,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       : { OR: [{ relationshipState: { is: null } }, { relationshipState: { is: { doNotContact: false } } }] });
   }
   const selectedPeople = [...new Set((params.people ?? "").split(",").filter(id => id && id.length <= 120))].slice(0, 50);
+  // A number typed with different punctuation than it was saved with still finds the person.
+  const phoneFilters: Prisma.ContactWhereInput[] = phoneSearchDigits(q).map((digits) => ({ phones: { some: { normalized: { contains: digits } } } }));
   const contactWhere: Prisma.ContactWhereInput = {
     workspaceId: workspace.id,
     archivedAt: null,
@@ -148,6 +152,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         { privateNotes: { contains: q, mode: "insensitive" } },
         { emails: { some: { email: { contains: q, mode: "insensitive" } } } },
         { phones: { some: { phone: { contains: q } } } },
+        ...phoneFilters,
         { customFieldValues: { some: { value: { contains: q, mode: "insensitive" } } } }
       ]
     } : {})
@@ -174,7 +179,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     }),
     prisma.group.findMany({
       where: { workspaceId: workspace.id },
-      include: { _count: { select: { memberships: true } } },
+      include: { _count: { select: { memberships: true, assignments: { where: { isActive: true } } } } },
       orderBy: { name: "asc" }
     }),
     prisma.contactGroupState.findMany({
@@ -247,7 +252,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     <div className="page contacts-page">
       {params.stateUpdated && <Notice type="success">Journey stage updated.</Notice>}
       {params.created && <Notice type="success">Contact added.</Notice>}
-      {params.archived && <Notice type="success"><span className="notice-with-action">Contact archived.{params.archivedContact && <form action={restoreContactAction}><input type="hidden" name="contactId" value={params.archivedContact} /><input type="hidden" name="returnTo" value="/contacts" /><button className="button small" type="submit"><AppIcon name="undo" />Undo</button></form>}</span></Notice>}
+      {params.archived && <Notice type="success"><span className="notice-with-action">Contact archived.{params.archivedContact && <form action={restoreContactAction}><input type="hidden" name="contactId" value={params.archivedContact} /><input type="hidden" name="returnTo" value="/contacts" /><FormSubmitButton label="Undo" pendingLabel="Restoring…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
       {params.restored && <Notice type="success">Contact restored.</Notice>}
       {params.groupCreated && <Notice type="success">Tag created.</Notice>}
       {params.groupDeleted && <Notice type="success">Tag removed.</Notice>}
@@ -272,7 +277,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         totalCount={totalCount}
         initialSelected={selectedPeople}
         selectedContactId={selectedContactId}
-        groups={groups.map((group) => ({ id: group.id, name: group.name, description: group.description, color: group.color, contactCount: group._count.memberships, isActive: group.isActive }))}
+        groups={groups.map((group) => ({ id: group.id, name: group.name, description: group.description, color: group.color, contactCount: group._count.memberships, mixCount: group._count.assignments, isActive: group.isActive }))}
         sort={sort}
         query={q}
         groupFilter={groupId}

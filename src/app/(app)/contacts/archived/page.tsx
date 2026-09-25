@@ -4,11 +4,13 @@ import type { Prisma } from "@/generated/prisma/client";
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
 import { restoreContactAction } from "@/lib/contact-lifecycle-actions";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
+import { phoneSearchDigits } from "@/lib/phone-dial";
 import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
 
@@ -22,6 +24,8 @@ export default async function ArchivedContactsPage({ searchParams }: { searchPar
   const displayPreferences = await displayPreferencesForUser(user.id);
   const q = query.q?.trim() ?? "";
   const requestedPage = Math.max(Number.parseInt(query.page ?? "1", 10) || 1, 1);
+  // A number typed with different punctuation than it was saved with still finds the person.
+  const phoneFilters: Prisma.ContactWhereInput[] = phoneSearchDigits(q).map((digits) => ({ phones: { some: { normalized: { contains: digits } } } }));
   const where: Prisma.ContactWhereInput = {
     workspaceId: workspace.id,
     archivedAt: { not: null },
@@ -29,7 +33,8 @@ export default async function ArchivedContactsPage({ searchParams }: { searchPar
       { displayName: { contains: q, mode: "insensitive" } },
       { company: { contains: q, mode: "insensitive" } },
       { emails: { some: { email: { contains: q, mode: "insensitive" } } } },
-      { phones: { some: { phone: { contains: q } } } }
+      { phones: { some: { phone: { contains: q } } } },
+      ...phoneFilters
     ] } : {})
   };
   const total = await prisma.contact.count({ where });
@@ -57,7 +62,7 @@ export default async function ArchivedContactsPage({ searchParams }: { searchPar
       <BackLink href="/contacts" label="Contacts" /><header className="page-header"><div><h1>Archived Contacts</h1><p>Restore a relationship without losing its notes, dates, communication history, or assignments.</p></div></header>
       <form className="filter-bar live-search-form" action="/contacts/archived" method="get"><input name="q" type="search" defaultValue={q} placeholder="Search archived name, email, phone, or company" aria-label="Search archived Contacts" autoComplete="off" />{q && <Link className="button" href="/contacts/archived">Clear</Link>}</form>
       <p className="sr-only" role="status" aria-live="polite">{total} archived Contact{total === 1 ? "" : "s"} found.</p>
-      {contacts.length ? <div className="contact-list">{contacts.map((contact) => { const email = contact.emails[0]?.email; const phone = contact.phones[0]?.phone; const plans = [...new Map([...contact.mixAssignments, ...contact.groupMemberships.flatMap(item => item.group.assignments)].map(item => [item.mix.id, item.mix.name])).values()]; return <article className="contact-row" key={contact.id}><div className="contact-main"><div className="avatar">{contact.displayName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div><div><h3>{contact.displayName}</h3><p>{contact.company || [email, phone].filter(Boolean).join(" · ") || "No company or primary method"}</p><small>Archived {contact.archivedAt ? formatDateTime(contact.archivedAt, displayPreferences) : "recently"} · {contact._count.jumpDates} saved date{contact._count.jumpDates === 1 ? "" : "s"} · {contact._count.jumps} historical follow-up{contact._count.jumps === 1 ? "" : "s"}</small></div></div><div className="table-actions"><ConfirmDialog trigger="Restore…" title={`Restore ${contact.displayName}?`} description={`${plans.length} active ${plans.length === 1 ? "mix" : "mixes"} may prepare future follow-ups after restoration${plans.length ? `: ${plans.join(", ")}` : ""}. Existing do-not-contact and pause settings still apply. Completed history stays intact. Review Today before sending.`}><form action={restoreContactAction}><input type="hidden" name="contactId" value={contact.id} /><button className="button small primary" type="submit">Restore contact</button></form></ConfirmDialog></div></article>; })}</div> : <EmptyState title={q ? "No archived contacts matched" : "No archived contacts"} description={q ? "Try a broader search." : "Archived customers will stay here until you restore them."} actionHref="/contacts" actionLabel="Return to contacts" />}
+      {contacts.length ? <div className="contact-list">{contacts.map((contact) => { const email = contact.emails[0]?.email; const phone = contact.phones[0]?.phone; const plans = [...new Map([...contact.mixAssignments, ...contact.groupMemberships.flatMap(item => item.group.assignments)].map(item => [item.mix.id, item.mix.name])).values()]; return <article className="contact-row" key={contact.id}><div className="contact-main"><div className="avatar">{contact.displayName.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div><div><h3>{contact.displayName}</h3><p>{contact.company || [email, phone].filter(Boolean).join(" · ") || "No company or primary method"}</p><small>Archived {contact.archivedAt ? formatDateTime(contact.archivedAt, displayPreferences) : "recently"} · {contact._count.jumpDates} saved date{contact._count.jumpDates === 1 ? "" : "s"} · {contact._count.jumps} historical follow-up{contact._count.jumps === 1 ? "" : "s"}</small></div></div><div className="table-actions"><ConfirmDialog trigger="Restore…" title={`Restore ${contact.displayName}?`} description={`${plans.length} active ${plans.length === 1 ? "mix" : "mixes"} may prepare future follow-ups after restoration${plans.length ? `: ${plans.join(", ")}` : ""}. Existing do-not-contact and pause settings still apply. Completed history stays intact. Review Today before sending.`}><form action={restoreContactAction}><input type="hidden" name="contactId" value={contact.id} /><FormSubmitButton label="Restore contact" pendingLabel="Restoring…" className="button small primary" /></form></ConfirmDialog></div></article>; })}</div> : <EmptyState title={q ? "No archived contacts matched" : "No archived contacts"} description={q ? "Try a broader search." : "Archived customers will stay here until you restore them."} actionHref="/contacts" actionLabel="Return to contacts" />}
       {pages > 1 && <nav className="pagination" aria-label="Archived Contacts pagination">{page > 1 ? <Link className="button" href={href(page - 1)}>Previous</Link> : <span /> }<span>Page {page} of {pages}</span>{page < pages ? <Link className="button" href={href(page + 1)}>Next</Link> : <span />}</nav>}
     </div>
   );
