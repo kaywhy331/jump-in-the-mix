@@ -29,9 +29,14 @@ async function loseAnswer(route: Route, postData?: string): Promise<number> {
 }
 
 async function markDone(workflow: Locator) {
+  const panel = workflow.getByRole("group", { name: "Record journey outcome" });
+  // After a lost answer the panel stays open with its error, and its Save outcome is the retry.
+  if (await panel.isVisible()) {
+    await panel.getByRole("button", { name: "Save outcome", exact: true }).click();
+    return;
+  }
   await workflow.getByRole("button", { name: /Mark (done|sent) for/ }).click();
   // Before the journey check has answered, the button opens its outcome panel first; saving from there is the same request.
-  const panel = workflow.getByRole("group", { name: "Record journey outcome" });
   if (await panel.isVisible()) {
     const save = panel.getByRole("button", { name: "Save outcome", exact: true });
     await expect(save).toBeEnabled();
@@ -180,7 +185,9 @@ test.describe("Today outcome retries", () => {
     await expect(page.getByText(`How did the follow-up with ${name} go?`)).toHaveCount(0);
     await expect(page.getByText(`Outcome not recorded for ${name}.`)).toHaveCount(0);
     await expect(page.getByText("Your outcome is saved")).toHaveCount(0);
-    await expect(workflow.getByText("Follow-up completed")).toBeVisible({ timeout: 30_000 });
+    // This follow-up was never opened in the detail pane, so once done it leaves the pending list.
+    await expect(workflow).toHaveCount(0, { timeout: 30_000 });
+    expect((await prisma.jump.findUniqueOrThrow({ where: { id: jumpId } })).status).toBe("DONE");
     await expect.poll(() => prisma.contactActivity.count({ where: { jumpId, kind: "JUMP_OUTCOME" } })).toBe(1);
     expect((await prisma.contactActivity.findFirstOrThrow({ where: { jumpId, kind: "JUMP_OUTCOME" } })).summary).toBeNull();
   });
