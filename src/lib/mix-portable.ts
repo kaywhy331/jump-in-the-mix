@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { WorkflowConfiguration, WorkflowRule, WorkflowTarget } from "@/lib/mix-workflow-types";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
 import { preparationFamilyForChannel } from "@/lib/preparation-family";
-import { MAX_STEP_OFFSET_MINUTES } from "@/lib/step-timing";
+import { MAX_STEP_OFFSET_DAYS, MAX_STEP_OFFSET_MINUTES } from "@/lib/step-timing";
 import { UserFacingError } from "@/lib/user-facing-error";
 
 // A portable Mix or Mega-Mix: the wording, timing and connections, without any account ids,
@@ -46,7 +46,7 @@ const packageShape = z.object({
 type PortableShape = z.infer<typeof packageShape>;
 
 /** The Mix editor's day-offset cap; a file gets no more room than the form. */
-export const MAX_PORTABLE_OFFSET_DAYS = 365;
+export const MAX_PORTABLE_OFFSET_DAYS = MAX_STEP_OFFSET_DAYS;
 const VERSION_LABEL = { TEXT: "text version", EMAIL: "email version", CALL: "call version" } as const;
 const FAMILY_WORDING = { TEXT: "text", EMAIL: "email", CALL: "call" } as const;
 

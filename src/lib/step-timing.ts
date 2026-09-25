@@ -14,6 +14,8 @@ export const STEP_ANCHORS: readonly StepAnchor[] = ["CALENDAR_DAY", "APPOINTMENT
 
 /** Thirty days either way is plenty for a visit's follow-up and keeps a typo from scheduling years out. */
 export const MAX_STEP_OFFSET_MINUTES = 30 * 24 * 60;
+/** How far a calendar-day Beat may sit from its Mix's start; the editor, imports and the staff library share it. */
+export const MAX_STEP_OFFSET_DAYS = 365;
 
 export const STEP_ANCHOR_LABELS: Record<StepAnchor, string> = {
   CALENDAR_DAY: "Calendar day",

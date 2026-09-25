@@ -1,7 +1,7 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
-import { validateStepTiming } from "@/lib/step-timing";
+import { MAX_STEP_OFFSET_DAYS, validateStepTiming } from "@/lib/step-timing";
 import type { Channel, MixStatus, MixTriggerMode } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
@@ -19,7 +19,6 @@ import { timezoneForUser } from "@/lib/display-preferences";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { UserFacingError } from "@/lib/user-facing-error";
 
-const MAX_STEP_OFFSET_DAYS = 365;
 const MIX_CHANGED_ELSEWHERE = "This Mix was changed on another device after you opened it. Reload to compare, then apply your changes again.";
 /** A newer save exists. Nothing was written; the open editor keeps the owner's entries and shows why. */
 class MixChangedElsewhere extends Error {}
