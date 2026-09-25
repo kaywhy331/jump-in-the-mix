@@ -1,8 +1,9 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { validateJourneySetup, type JourneySetupValues } from "@/lib/journey-preferences";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export async function saveJourneySetup(db: Prisma.TransactionClient, workspaceId: string, userId: string, setup: JourneySetupValues) {
-  const error = validateJourneySetup(setup); if (error) throw new Error(error);
+  const error = validateJourneySetup(setup); if (error) throw new UserFacingError(error);
   const values = { journeyPreferences: { ...setup.preferences, reviewedAt: new Date().toISOString() }, defaultFollowUpMinutes: setup.defaultFollowUpMinutes,
     quietHoursStart: setup.quietHoursStart, quietHoursEnd: setup.quietHoursEnd, appointmentBufferMinutes: setup.appointmentBufferMinutes,
     // The explicit working-day selection is authoritative after this review.

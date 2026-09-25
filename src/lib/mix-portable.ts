@@ -4,6 +4,7 @@ import type { WorkflowConfiguration, WorkflowRule, WorkflowTarget } from "@/lib/
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
 import { preparationFamilyForChannel } from "@/lib/preparation-family";
 import { MAX_STEP_OFFSET_MINUTES } from "@/lib/step-timing";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 // A portable Mix or Mega-Mix: the wording, timing and connections, without any account ids,
 // people, schedules or history. Files, copies and the Marketplace all use this one shape.
@@ -118,13 +119,13 @@ export type PortableStep = PortableMix["steps"][number];
 
 /** Read an uploaded file. Errors name the problem in plain words; nothing is saved. */
 export function parsePortable(raw: string): PortablePackage {
-  if (raw.length > PORTABLE_LIMITS.bytes) throw new Error("This file is too large to import.");
+  if (raw.length > PORTABLE_LIMITS.bytes) throw new UserFacingError("This file is too large to import.");
   let value: unknown;
-  try { value = JSON.parse(raw); } catch { throw new Error("This is not a Jump in the Mix file. Export a Mix or Mega-Mix and choose that file."); }
-  if (!value || typeof value !== "object" || (value as { format?: unknown }).format !== PORTABLE_FORMAT) throw new Error("This is not a Jump in the Mix file. Export a Mix or Mega-Mix and choose that file.");
-  if ((value as { version?: unknown }).version !== PORTABLE_VERSION) throw new Error("This file was made by a newer version of Jump in the Mix and cannot be imported yet.");
+  try { value = JSON.parse(raw); } catch { throw new UserFacingError("This is not a Jump in the Mix file. Export a Mix or Mega-Mix and choose that file."); }
+  if (!value || typeof value !== "object" || (value as { format?: unknown }).format !== PORTABLE_FORMAT) throw new UserFacingError("This is not a Jump in the Mix file. Export a Mix or Mega-Mix and choose that file.");
+  if ((value as { version?: unknown }).version !== PORTABLE_VERSION) throw new UserFacingError("This file was made by a newer version of Jump in the Mix and cannot be imported yet.");
   const parsed = portableSchema.safeParse(value);
-  if (!parsed.success) throw new Error(`This file cannot be imported: ${(parsed.error.issues[0]?.message ?? "it is incomplete").replace(/\.$/, "")}.`);
+  if (!parsed.success) throw new UserFacingError(`This file cannot be imported: ${(parsed.error.issues[0]?.message ?? "it is incomplete").replace(/\.$/, "")}.`);
   return parsed.data;
 }
 

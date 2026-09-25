@@ -5,6 +5,7 @@ import { applyJourneyEvent } from "@/lib/journey";
 import { phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
 import { boundPlanOutlook, type BoundPlanOutlook } from "@/lib/step-timing";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export type ScheduleVisitInput = Omit<CalendarEntryInput, "contactId"> & {
   contactId?: string | null;
@@ -82,18 +83,18 @@ async function matchingContacts(tx: Prisma.TransactionClient, workspaceId: strin
  */
 async function findOrCreateContact(tx: Prisma.TransactionClient, workspaceId: string, input: NonNullable<ScheduleVisitInput["newContact"]>): Promise<{ id: string; created: boolean }> {
   const name = input.name.trim();
-  if (!name || name.length > 200) throw new Error("Enter the person's name.");
+  if (!name || name.length > 200) throw new UserFacingError("Enter the person's name.");
   const typedPhone = input.phone?.trim() ?? "";
-  if (typedPhone && !normalizePhone(typedPhone)) throw new Error("Enter a phone number with 7 to 15 digits.");
+  if (typedPhone && !normalizePhone(typedPhone)) throw new UserFacingError("Enter a phone number with 7 to 15 digits.");
   // [canonical, old key]: a new person is saved under the first; a match may still hold the second.
   const phoneKeys = typedPhone ? phoneLookupKeys(typedPhone, await workspacePhoneRegion(tx, workspaceId)) : [];
   const phone = phoneKeys[0] ?? null;
   const email = input.email?.trim() ? normalizeEmail(input.email) : null;
-  if (email && !isValidEmail(email)) throw new Error("Enter a valid email address.");
+  if (email && !isValidEmail(email)) throw new UserFacingError("Enter a valid email address.");
   const candidates = await matchingContacts(tx, workspaceId, phoneKeys, email);
   if (input.resolvedContactId) {
     const chosen = candidates.find((candidate) => candidate.id === input.resolvedContactId);
-    if (!chosen) throw new Error("The person you chose no longer matches these details. Check the phone and email, then save again.");
+    if (!chosen) throw new UserFacingError("The person you chose no longer matches these details. Check the phone and email, then save again.");
     return { id: chosen.id, created: false };
   }
   if (candidates.length > 1) throw new ContactChoiceRequiredError(candidates);
@@ -131,10 +132,10 @@ export async function scheduleVisit(input: ScheduleVisitInput): Promise<Schedule
     }
     const entry = await saveCalendarEntryIn(tx, { ...input, contactId: contactId ?? undefined });
     if (!input.planId) return { entryId: entry.id, contactId, bindingId: null, unscopedEnrollmentKept: false, createdContact, outlook: null };
-    if (!contactId) throw new Error("Choose or add the person this visit is with before binding a plan.");
-    if (entry.kind !== "MEETING") throw new Error("Only a meeting can carry a follow-up plan.");
+    if (!contactId) throw new UserFacingError("Choose or add the person this visit is with before binding a plan.");
+    if (entry.kind !== "MEETING") throw new UserFacingError("Only a meeting can carry a follow-up plan.");
     const plan = await tx.mix.findFirst({ where: { id: input.planId, workspaceId: input.workspaceId, status: "ACTIVE", triggerMode: "MANUAL_START", source: { not: "ONE_TIME" } }, select: { id: true } });
-    if (!plan) throw new Error("Choose an active plan from this business.");
+    if (!plan) throw new UserFacingError("Choose an active plan from this business.");
     const unscoped = await tx.mixAssignment.findFirst({ where: { workspaceId: input.workspaceId, mixId: plan.id, contactId, isActive: true, appointmentBinding: null }, select: { id: true } });
     const bound = await tx.appointmentBinding.findUnique({ where: { calendarEntryId_mixId: { calendarEntryId: entry.id, mixId: plan.id } }, select: { id: true, assignmentId: true } });
     let bindingId: string;

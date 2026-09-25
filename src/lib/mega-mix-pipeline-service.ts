@@ -6,13 +6,14 @@ import { workflowConfiguration } from "@/lib/mix-workflow-config";
 import { buildPortable, portableConfiguration, portableContentIssues, portableFingerprint, type PortablePackage, type PortableSourceMix } from "@/lib/mix-portable";
 import { slugify } from "@/lib/slug";
 import { matchDateType } from "@/lib/shared-mix-service";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 type DB = Prisma.TransactionClient;
 export const MEGA_MIX_NAME_MAX = 80;
 
 export function cleanMegaMixName(value: unknown): string {
   const name = String(value ?? "").replace(/\s+/g, " ").trim().slice(0, MEGA_MIX_NAME_MAX);
-  if (!name) throw new Error("Name your Mega-Mix.");
+  if (!name) throw new UserFacingError("Name your Mega-Mix.");
   return name;
 }
 
@@ -20,7 +21,7 @@ export function cleanMegaMixName(value: unknown): string {
 async function lockOwnedWorkspace(db: DB, workspaceId: string, actorUserId: string) {
   await db.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR UPDATE`;
   const owner = await db.workspace.findFirst({ where: { id: workspaceId, ownerId: actorUserId }, select: { id: true } });
-  if (!owner) throw new Error("This workspace is unavailable.");
+  if (!owner) throw new UserFacingError("This workspace is unavailable.");
 }
 
 async function uniqueName(db: DB, workspaceId: string, requested: string, exceptId?: string) {
@@ -29,7 +30,7 @@ async function uniqueName(db: DB, workspaceId: string, requested: string, except
 }
 
 async function assertNameFree(db: DB, workspaceId: string, name: string, exceptId?: string) {
-  if (!(await uniqueName(db, workspaceId, name, exceptId))(name)) throw new Error(`You already have a Mega-Mix called “${name}”. Choose another name.`);
+  if (!(await uniqueName(db, workspaceId, name, exceptId))(name)) throw new UserFacingError(`You already have a Mega-Mix called “${name}”. Choose another name.`);
 }
 
 /** The first free name among "Contractor", "Contractor 2", "Contractor 3"… */
@@ -46,7 +47,7 @@ export async function availableMegaMixName(db: DB, workspaceId: string, base: st
 async function setMembers(db: DB, workspaceId: string, pipelineId: string, mixIds: string[]) {
   const unique = [...new Set(mixIds)];
   const owned = await db.mix.findMany({ where: { workspaceId, id: { in: unique }, source: { not: "ONE_TIME" } }, select: { id: true } });
-  if (owned.length !== unique.length) throw new Error("Choose Mixes from this account.");
+  if (owned.length !== unique.length) throw new UserFacingError("Choose Mixes from this account.");
   const movedFrom = await db.megaMixPipelineMix.findMany({ where: { mixId: { in: unique }, pipelineId: { not: pipelineId } }, select: { pipelineId: true } });
   await db.megaMixPipelineMix.deleteMany({ where: { pipelineId, mixId: { notIn: unique } } });
   // A Mix belongs to one Mega-Mix, so choosing it here moves it from any other.
@@ -89,7 +90,7 @@ export async function updateMegaMixPipeline(input: { workspaceId: string; actorU
   const changed = await prisma.$transaction(async db => {
     await lockOwnedWorkspace(db, input.workspaceId, input.actorUserId);
     const pipeline = await db.megaMixPipeline.findFirst({ where: { id: input.pipelineId, workspaceId: input.workspaceId } });
-    if (!pipeline) throw new Error("This Mega-Mix is no longer available.");
+    if (!pipeline) throw new UserFacingError("This Mega-Mix is no longer available.");
     await assertNameFree(db, input.workspaceId, name, pipeline.id);
     await db.megaMixPipeline.update({ where: { id: pipeline.id }, data: { name, description: input.description?.trim().slice(0, 2000) || null } });
     const movedFrom = await setMembers(db, input.workspaceId, pipeline.id, input.mixIds);
@@ -117,7 +118,7 @@ export async function deleteMegaMixPipeline(input: { workspaceId: string; actorU
     const pipeline = await db.megaMixPipeline.findFirst({ where: { id: input.pipelineId, workspaceId: input.workspaceId } });
     if (!pipeline) return;
     const share = await megaMixShareState(db, pipeline.id);
-    if (share?.underReview) throw new Error(MEGA_MIX_SHARE_UNDER_REVIEW);
+    if (share?.underReview) throw new UserFacingError(MEGA_MIX_SHARE_UNDER_REVIEW);
     await db.megaMixPipeline.delete({ where: { id: pipeline.id } });
     // A ready-made mega-mix can be added again once its named Mega-Mix is removed.
     if (pipeline.origin?.startsWith("BLUEPRINT:")) await db.megaMixInstallation.deleteMany({ where: { workspaceId: input.workspaceId, blueprintId: pipeline.origin.slice(10) } });
@@ -142,19 +143,19 @@ async function sourceMixes(db: DB | typeof prisma, workspaceId: string, mixIds: 
 /** Everything that cannot travel is reported instead of silently dropped. */
 export async function exportMegaMixPipeline(db: DB | typeof prisma, workspaceId: string, pipelineId: string) {
   const pipeline = await db.megaMixPipeline.findFirst({ where: { id: pipelineId, workspaceId }, include: { members: { orderBy: { position: "asc" } } } });
-  if (!pipeline) throw new Error("This Mega-Mix is no longer available.");
+  if (!pipeline) throw new UserFacingError("This Mega-Mix is no longer available.");
   const mixIds = pipeline.members.map(member => member.mixId);
   // Only the saved Journey connections travel (`buildPortable` reads its rules, waiting Beats and finishes), so
   // the rest of the account's Mixes and their wording are never loaded.
   const [mixes, saved] = await Promise.all([sourceMixes(db, workspaceId, mixIds), db.mixWorkflow.findUnique({ where: { workspaceId }, select: { configuration: true } })]);
-  if (!mixes.length) throw new Error("Add at least one Mix with Beats before exporting this Mega-Mix.");
+  if (!mixes.length) throw new UserFacingError("Add at least one Mix with Beats before exporting this Mega-Mix.");
   const built = buildPortable({ kind: "mega-mix", name: pipeline.name, description: pipeline.description, mixes, configuration: workflowConfiguration(saved?.configuration) });
   return { ...built, skippedMixes: mixIds.length - mixes.length, pipeline };
 }
 
 export async function exportSingleMix(db: DB | typeof prisma, workspaceId: string, mixId: string) {
   const [mix] = await sourceMixes(db, workspaceId, [mixId]);
-  if (!mix) throw new Error("Only an active or draft Mix with Beats and a manual or date start can be exported.");
+  if (!mix) throw new UserFacingError("Only an active or draft Mix with Beats and a manual or date start can be exported.");
   return buildPortable({ kind: "mix", name: mix.name.slice(0, 80), description: mix.description, mixes: [mix], configuration: { rules: [], gatedStepIds: [], intentionalEnds: [] } });
 }
 
@@ -175,7 +176,7 @@ export async function installPortable(db: DB, input: { workspaceId: string; acto
   const value = input.value;
   // Marketplace adds and copies never pass the file reader, so the editor's rules run here for every path.
   const [issue] = portableContentIssues(value);
-  if (issue) throw new Error(`This ${value.kind === "mix" ? "Mix" : "Mega-Mix"} cannot be ${input.origin.startsWith("COPY:") ? "copied" : "added"}: ${issue.replace(/\.$/, "")}.`);
+  if (issue) throw new UserFacingError(`This ${value.kind === "mix" ? "Mix" : "Mega-Mix"} cannot be ${input.origin.startsWith("COPY:") ? "copied" : "added"}: ${issue.replace(/\.$/, "")}.`);
   const name = cleanMegaMixName(input.name);
   if (value.kind === "mega-mix") await assertNameFree(db, input.workspaceId, name);
   const mixIds = new Map<string, string>(), stepIds = new Map<string, string>();

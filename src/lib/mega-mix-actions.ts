@@ -10,6 +10,7 @@ import { parseJourneySetup } from "@/lib/journey-preferences";
 import { saveJourneySetup } from "@/lib/journey-preference-service";
 import { prisma } from "@/lib/prisma";
 import { isValidTimezone } from "@/lib/mix-broadcast";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export async function installMegaMixAction(_previous: FormResult, data: FormData): Promise<FormResult> {
   const { workspace, user, impersonation } = await requireWorkspace();
@@ -26,7 +27,7 @@ export async function installMegaMixAction(_previous: FormResult, data: FormData
       ...(onboarding ? { onboarding: { timezone, company: String(data.get("company") ?? "").trim().slice(0, 200),
         smsSignature: String(data.get("smsSignature") ?? "").trim().slice(0, 160) || user.name, userName: user.name } } : {}) });
   } catch (error) {
-    return { error: error instanceof Error ? error.message : "The mega-mix could not be added. Your choices have been kept." };
+    return { error: error instanceof UserFacingError ? error.message : "The mega-mix could not be added. Your choices have been kept." };
   }
   revalidatePath("/mixes"); revalidatePath("/journey"); revalidatePath("/templates/journeys");
   redirect(`/templates/journeys?journey=${blueprint.id}&added=1`);
@@ -48,7 +49,7 @@ export async function saveIndividualMixSetupAction(_previous: FormResult, data: 
       await db.workspaceProfile.upsert({ where: { workspaceId: workspace.id }, create: { workspaceId: workspace.id, ...profile, useCases: ["business"], emailSignature: user.name }, update: profile });
       await db.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "onboarding.individual-mixes", entityType: "Workspace", entityId: workspace.id, source: "onboarding" } });
     });
-  } catch (error) { return { error: error instanceof Error ? error.message : "Your preferences could not be saved. Your entries are kept." }; }
+  } catch (error) { return { error: error instanceof UserFacingError ? error.message : "Your preferences could not be saved. Your entries are kept." }; }
   revalidatePath("/account/preferences");
   redirect("/templates?setup=individual");
 }
@@ -63,7 +64,7 @@ export async function saveJourneyPreferencesAction(_previous: FormResult, data: 
       await saveJourneySetup(db, workspace.id, user.id, setup);
       await db.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "journey.preferences.update", entityType: "WorkspacePreference", entityId: workspace.id, source: "account.preferences" } });
     });
-  } catch (error) { return { error: error instanceof Error ? error.message : "Your preferences could not be saved." }; }
+  } catch (error) { return { error: error instanceof UserFacingError ? error.message : "Your preferences could not be saved." }; }
   revalidatePath("/account/preferences"); revalidatePath("/templates/journeys");
   redirect("/account/preferences?journeySaved=1");
 }
@@ -81,6 +82,6 @@ export async function saveSetupForLaterAction(_previous: FormResult, data: FormD
       const profile = { onboardingDone: true, onboardingStep: 1, company: company || null, smsSignature };
       await db.workspaceProfile.upsert({ where: { workspaceId: workspace.id }, create: { workspaceId: workspace.id, ...profile, useCases: ["business"], emailSignature: user.name }, update: profile });
     });
-  } catch (error) { return { error: error instanceof Error ? error.message : "Your answers could not be saved. They are still here." }; }
+  } catch (error) { return { error: error instanceof UserFacingError ? error.message : "Your answers could not be saved. They are still here." }; }
   redirect("/jumps?setupLater=1");
 }

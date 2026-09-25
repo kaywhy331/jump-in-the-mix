@@ -1,4 +1,5 @@
 import type { PortablePackage } from "@/lib/mix-portable";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export type MarketplaceReason = "PRIVATE_INFO" | "OFFENSIVE" | "SPAM" | "MISLEADING" | "COPYRIGHT" | "OTHER";
 
@@ -36,8 +37,8 @@ export const MARKETPLACE_NAME_MAX = 60;
 
 export function cleanPublicName(value: unknown): string {
   const name = String(value ?? "").replace(/\s+/g, " ").trim().slice(0, MARKETPLACE_NAME_MAX);
-  if (!name) throw new Error("Choose the name people see on your shares.");
-  if (/@|https?:\/\/|www\./i.test(name) || /\d{5,}/.test(name.replace(/[\s().-]/g, ""))) throw new Error("Use a name, not an email address, phone number or link.");
+  if (!name) throw new UserFacingError("Choose the name people see on your shares.");
+  if (/@|https?:\/\/|www\./i.test(name) || /\d{5,}/.test(name.replace(/[\s().-]/g, ""))) throw new UserFacingError("Use a name, not an email address, phone number or link.");
   return name;
 }
 
@@ -99,7 +100,7 @@ export const MARKETPLACE_REVIEW_NOTE_MAX = 500;
 export function cleanReviewNote(value: unknown): string | null {
   const note = String(value ?? "").replace(/\s+/g, " ").trim().slice(0, MARKETPLACE_REVIEW_NOTE_MAX);
   if (!note) return null;
-  if (textWarnings(note, "Note").some(item => item.kind !== "name")) throw new Error("Leave email addresses, phone numbers and links out of the note. Our team can already read your share.");
+  if (textWarnings(note, "Note").some(item => item.kind !== "name")) throw new UserFacingError("Leave email addresses, phone numbers and links out of the note. Our team can already read your share.");
   return note;
 }
 

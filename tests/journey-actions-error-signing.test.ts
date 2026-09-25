@@ -10,6 +10,7 @@ vi.mock("@/lib/journey-configuration", async importOriginal => ({ ...await impor
 import { changeContactJourneyAction, saveJourneyRuleAction, saveJourneyStageAction, toggleContactJourneyAction } from "../src/lib/journey-actions";
 import { JourneyConfigurationError } from "../src/lib/journey-configuration";
 import { UNVERIFIED_ERROR_MESSAGE, viewerErrorMessage } from "../src/lib/form-errors";
+import { UserFacingError } from "../src/lib/user-facing-error";
 
 const owner = { authUser: { id: "user-owner" } }, someoneElse = { authUser: { id: "user-other" } };
 /** A Prisma error as the client throws it: its message names the query and the constraint. */
@@ -46,8 +47,8 @@ describe("Journey error messages are signed for the person who caused them", () 
     expect(viewerErrorMessage(params(stale), owner)).toBe("The stage changed. Refresh before trying again.");
   });
 
-  it("keeps the Journey service's refusals, which it throws as plain errors", async () => {
-    mocks.record.mockRejectedValue(new Error("This customer’s stage changed. Refresh before trying again."));
+  it("keeps the Journey service's refusals, which it throws as UserFacingError", async () => {
+    mocks.record.mockRejectedValue(new UserFacingError("This customer’s stage changed. Refresh before trying again."));
     const location = await redirectOf(changeContactJourneyAction(form({ contactId: "contact-1", stageId: "stage-2", version: "1", requestId: "request-1" })));
     expect(viewerErrorMessage(params(location), owner)).toBe("This customer’s stage changed. Refresh before trying again.");
     const milestone = await redirectOf(changeContactJourneyAction(form({ contactId: "contact-1", eventType: "TIME_IN_STAGE" })));

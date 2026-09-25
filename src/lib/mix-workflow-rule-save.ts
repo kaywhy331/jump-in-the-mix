@@ -2,6 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { workflowRuleSchema } from "@/lib/mix-workflow-config";
 import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
 import type { WorkflowConfiguration, WorkflowRule } from "@/lib/mix-workflow-types";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export class WorkflowRuleConflict extends Error {
   constructor(public readonly currentRule: WorkflowRule | null, removing = false) {
@@ -16,8 +17,8 @@ export type WorkflowPathRemoval = { kind: "route"; routeId: string } | { kind: "
 /** Delete only the reviewed path, preserving unrelated changes and safe response-loss retries. */
 export async function removeWorkflowPath(db: Prisma.TransactionClient, workspaceId: string, expected: WorkflowRule, removal: WorkflowPathRemoval, actorUserId: string) {
   const base = workflowRuleSchema.parse(expected);
-  if (removal.kind === "route" && !base.routes.some(route => route.id === removal.routeId)) throw new Error("Select a saved path to delete.");
-  if (removal.kind === "join" && !base.join) throw new Error("Select a saved join to delete.");
+  if (removal.kind === "route" && !base.routes.some(route => route.id === removal.routeId)) throw new UserFacingError("Select a saved path to delete.");
+  if (removal.kind === "join" && !base.join) throw new UserFacingError("Select a saved join to delete.");
   await db.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR UPDATE`;
   const definition = await readWorkflowDefinition(db, workspaceId);
   const configuration: WorkflowConfiguration = { rules: definition.rules, gatedStepIds: definition.gatedStepIds, intentionalEnds: definition.intentionalEnds };
@@ -35,7 +36,7 @@ export async function removeWorkflowPath(db: Prisma.TransactionClient, workspace
 /** Merge one connection under the workspace lock; retries never replay a successful save. */
 export async function saveWorkflowRule(db: Prisma.TransactionClient, workspaceId: string, input: WorkflowRule, expected: WorkflowRule | null, actorUserId: string) {
   const rule = workflowRuleSchema.parse(input), base = expected ? workflowRuleSchema.parse(expected) : null;
-  if (base && base.id !== rule.id) throw new Error("The edited connection does not match its saved version. Reopen it and try again.");
+  if (base && base.id !== rule.id) throw new UserFacingError("The edited connection does not match its saved version. Reopen it and try again.");
   await db.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR UPDATE`;
   const definition = await readWorkflowDefinition(db, workspaceId);
   const configuration: WorkflowConfiguration = { rules: definition.rules, gatedStepIds: definition.gatedStepIds, intentionalEnds: definition.intentionalEnds };

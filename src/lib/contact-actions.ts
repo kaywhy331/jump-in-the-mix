@@ -63,6 +63,8 @@ class ContactMethodConflict extends Error {
 
 /** The contact changed after the edit form was opened, so this save would undo that change. */
 class StaleContactSaveError extends Error {}
+/** An address id in the form is no longer this contact's (another window removed it). */
+class MissingContactAddressError extends Error {}
 
 /** A submitted value this form cannot save (an unavailable tag, date type or Mix); the message is shown as written. */
 class ContactInputError extends Error {}
@@ -451,7 +453,7 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
     const retainedAddressIds: string[] = [];
     for (const { id, ...item } of payload.addresses) {
       if (id) {
-        if (!existingAddressIds.has(id)) throw new Error("One or more addresses no longer belong to this contact.");
+        if (!existingAddressIds.has(id)) throw new MissingContactAddressError();
         await tx.contactAddress.update({ where: { id }, data: item });
         retainedAddressIds.push(id);
       } else {
@@ -494,7 +496,7 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
   } catch (error) {
     // Keep the owner's entries on screen: a concurrent edit or duplicate is recoverable, not a crash.
     if (error instanceof StaleContactSaveError) return { error: STALE_CONTACT_SAVE };
-    if (error instanceof Error && error.message.startsWith("One or more addresses")) return { error: `${error.message} Reload the contact, then save again.` };
+    if (error instanceof MissingContactAddressError) return { error: "One or more addresses no longer belong to this contact. Reload the contact, then save again." };
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") return { error: "Another contact already uses one of these email addresses or phone numbers. Your entries are kept." };
     return { error: "The contact could not be saved. Your entries are kept. Reload to see the latest version, then try again." };
   }

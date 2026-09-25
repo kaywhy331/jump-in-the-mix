@@ -11,6 +11,7 @@ import { workflowDecisionRulesForVisit } from "@/lib/mix-workflow-engine";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { workflowRuleSchema } from "@/lib/mix-workflow-config";
 import { removeWorkflowPath, saveWorkflowRule, WorkflowRuleConflict } from "@/lib/mix-workflow-rule-save";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 const businessUpdateSchema = z.object({ kind: z.enum(["OUTCOME", "WAIT"]), runId: z.string().min(1).max(160), scope: z.literal("SOURCE_MIX_REMAINDER"), ruleId: z.string().max(160).optional(), outcome: z.string().max(160).optional(), dueAt: z.string().datetime().optional(), localTime: z.string().max(30).optional(), timezone: z.string().max(100).optional(), source: z.enum(["CUSTOMER", "OWNER"]).optional() }).transform(({ localTime, ...input }) => ({ ...input, ...(localTime ? { dueAt: parseCalendarTime(localTime, input.timezone ?? "").toISOString() } : {}) }));
 
@@ -30,7 +31,7 @@ export async function GET(request: Request) {
   const query = new URL(request.url).searchParams;
   if (query.get("previewStart") === "1") {
     try { return response(await previewWorkflowStart(membership.workspaceId, query.get("contactId") ?? "", query.get("mixId") ?? "", new Date(), query.get("requestId")?.slice(0, 160))); }
-    catch (error) { return response({ error: error instanceof Error ? error.message : "This start could not be checked." }, 400); }
+    catch (error) { return response({ error: error instanceof UserFacingError ? error.message : "This start could not be checked." }, 400); }
   }
   const jumpId = query.get("jumpId");
   if (jumpId) {
@@ -81,6 +82,6 @@ export async function POST(request: Request) {
     return response({ saved: true });
   } catch (error) {
     if (error instanceof WorkflowRuleConflict) return response({ error: error.message, code: "CONNECTION_CHANGED", currentRule: error.currentRule }, 409);
-    return response({ error: error instanceof z.ZodError ? "Check the connection's fields and try again." : error instanceof Error ? error.message : "The change could not be saved." }, 400);
+    return response({ error: error instanceof z.ZodError ? "Check the connection's fields and try again." : error instanceof UserFacingError ? error.message : "The change could not be saved." }, 400);
   }
 }

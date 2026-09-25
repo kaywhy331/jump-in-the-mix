@@ -6,14 +6,15 @@ import { requireWorkspace } from "@/lib/auth";
 import type { FormResult } from "@/lib/form-errors";
 import { createMegaMixPipeline, deleteMegaMixPipeline, duplicateMegaMixPipeline, importPortable, updateMegaMixPipeline } from "@/lib/mega-mix-pipeline-service";
 import { parsePortable, portableSummary } from "@/lib/mix-portable";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 const refresh = () => { revalidatePath("/mixes"); revalidatePath("/mixes/mega"); revalidatePath("/journey"); };
-/** Messages our own code writes are shown as they are; database and unexpected errors get the plain fallback. */
-const failed = (error: unknown, fallback: string): FormResult => ({ error: error instanceof Error && error.name === "Error" ? error.message : fallback });
+/** Refusals our own code writes are shown as they are; database and unexpected errors get the plain fallback. */
+const failed = (error: unknown, fallback: string): FormResult => ({ error: error instanceof UserFacingError ? error.message : fallback });
 
 async function writer() {
   const session = await requireWorkspace();
-  if (session.impersonation) throw new Error("Administrator support sessions are view-only.");
+  if (session.impersonation) throw new UserFacingError("Administrator support sessions are view-only.");
   return session;
 }
 
@@ -56,7 +57,7 @@ export async function previewImportAction(_previous: ImportPreview, data: FormDa
     await writer();
     const value = parsePortable(String(data.get("file") ?? ""));
     return { kind: value.kind, name: value.name, summary: portableSummary(value), mixes: value.mixes.map(mix => ({ name: mix.name, beats: mix.steps.length })) };
-  } catch (error) { return { error: error instanceof Error ? error.message : "This file could not be read." }; }
+  } catch (error) { return failed(error, "This file could not be read."); }
 }
 
 export async function importFileAction(_previous: FormResult, data: FormData): Promise<FormResult> {

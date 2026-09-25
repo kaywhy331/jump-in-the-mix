@@ -15,6 +15,7 @@ import { variantTemplatesOf } from "@/lib/preparation-variants";
 import { addLogicalDays, logicalDateInTimezone, logicalDateKey, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { DEFAULT_PERSONAL_SCHEDULING, outsideQuietHours, shiftWeekend } from "@/lib/personal-scheduling";
 import { anchoredStepInstant, anchoredStepIsPreparation } from "@/lib/step-timing";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 type DB = Prisma.TransactionClient;
 export const workflowJson = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
@@ -38,10 +39,10 @@ export async function readWorkflowDefinition(db: DB, workspaceId: string): Promi
 export async function saveWorkflowConfiguration(db: DB, workspaceId: string, input: unknown, expectedRevision: number, actorUserId: string): Promise<number> {
   await db.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR UPDATE`;
   const definition = await readWorkflowDefinition(db, workspaceId);
-  if (definition.revision !== expectedRevision) throw new Error("Journey changed in another window. Reload its latest configuration before saving; your draft has been kept.");
+  if (definition.revision !== expectedRevision) throw new UserFacingError("Journey changed in another window. Reload its latest configuration before saving; your draft has been kept.");
   const configuration = workflowConfiguration(input);
   const errors = validateWorkflow(configuration, definition);
-  if (errors.length) throw new Error(errors.join(" "));
+  if (errors.length) throw new UserFacingError(errors.join(" "));
   const saved = await db.mixWorkflow.upsert({ where: { workspaceId }, create: { workspaceId, configuration: workflowJson(configuration) }, update: { configuration: workflowJson(configuration), revision: { increment: 1 } } });
   await db.auditLog.create({ data: { workspaceId, actorUserId, actorType: "USER", action: "mix-workflow.configure", entityType: "MixWorkflow", entityId: workspaceId, source: "journey", metadata: { revision: saved.revision, connections: configuration.rules.length } } });
   await db.job.create({ data: { workspaceId, task: "generate-jumps", payload: {} } });
@@ -87,14 +88,14 @@ export async function startWorkflowInstance(input: { workspaceId: string; contac
   return prisma.$transaction(async db => {
     await db.$queryRaw`SELECT id FROM "Contact" WHERE id = ${input.contactId} AND "workspaceId" = ${input.workspaceId} FOR UPDATE`;
     const contact = await db.contact.findFirst({ where: { id: input.contactId, workspaceId: input.workspaceId, archivedAt: null } });
-    if (!contact) throw new Error("Choose a person in this account.");
+    if (!contact) throw new UserFacingError("Choose a person in this account.");
     const receipt = await db.mixWorkflowInstance.findUnique({ where: { workspaceId_admissionKey: { workspaceId: input.workspaceId, admissionKey: `manual:${input.contactId}:${input.mixId}:${input.requestId}` } } });
     if (receipt) return receipt.id;
     await assertMixStartEligible(db, input.workspaceId, input.contactId, input.mixId);
     const definition = await readWorkflowDefinition(db, input.workspaceId);
-    if (input.expectedDefinitionRevision !== undefined && input.expectedDefinitionRevision !== definition.revision) throw new Error("This Mix changed. Review the current schedule before starting.");
+    if (input.expectedDefinitionRevision !== undefined && input.expectedDefinitionRevision !== definition.revision) throw new UserFacingError("This Mix changed. Review the current schedule before starting.");
     const mix = definition.mixes.find(item => item.id === input.mixId && item.status === "ACTIVE" && item.source !== "ONE_TIME");
-    if (!mix) throw new Error("Choose an active Mix.");
+    if (!mix) throw new UserFacingError("Choose an active Mix.");
     const instance = await db.mixWorkflowInstance.upsert({ where: { workspaceId_admissionKey: { workspaceId: input.workspaceId, admissionKey: `manual:${input.contactId}:${input.mixId}:${input.requestId}` } },
       create: { workspaceId: input.workspaceId, contactId: input.contactId, admissionKey: `manual:${input.contactId}:${input.mixId}:${input.requestId}`, label: input.label?.trim().slice(0, 160) || mix.name, definition: workflowJson(definition), state: workflowJson(startWorkflow(definition, { mixId: mix.id, stepId: null }, now.toISOString())), createdAt: now }, update: {} });
     await db.job.create({ data: { workspaceId: input.workspaceId, task: "mix-workflow", payload: { instanceId: instance.id } } });
@@ -107,16 +108,16 @@ export type WorkflowCommand = { retry?: boolean; businessUpdate?: WorkflowBusine
 export async function processWorkflowInstance(workspaceId: string, instanceId: string, now = new Date(), command?: WorkflowCommand): Promise<void> {
   await prisma.$transaction(async db => {
     const identity = await db.mixWorkflowInstance.findFirst({ where: { id: instanceId, workspaceId }, select: { contactId: true } });
-    if (!identity) throw new Error("This piece of work is unavailable.");
+    if (!identity) throw new UserFacingError("This piece of work is unavailable.");
     await db.$queryRaw`SELECT id FROM "Contact" WHERE id = ${identity.contactId} AND "workspaceId" = ${workspaceId} FOR UPDATE`;
     await db.$queryRaw`SELECT id FROM "MixWorkflowInstance" WHERE id = ${instanceId} AND "workspaceId" = ${workspaceId} FOR UPDATE`;
     const instance = await db.mixWorkflowInstance.findFirst({ where: { id: instanceId, workspaceId }, include: { contact: { include: { emails: true, phones: true, addresses: true, customFieldValues: { include: { definition: true } } } }, workspace: { include: { profile: true, owner: true } } } });
-    if (!instance) throw new Error("This journey instance is unavailable.");
+    if (!instance) throw new UserFacingError("This journey instance is unavailable.");
     const state = workflowState(instance.state), definition = workflowDefinition(instance.definition);
     const originalState = JSON.stringify(state);
     if (command && state.commands.includes(command.requestId)) return;
-    if (instance.status === "STOPPED" && command) throw new Error("This instance has stopped. Start a new instance to begin new work.");
-    if (command?.expectedRevision !== undefined && command.expectedRevision !== instance.revision) throw new Error("This person's progress changed. Refresh before changing the decision.");
+    if (instance.status === "STOPPED" && command) throw new UserFacingError("This instance has stopped. Start a new instance to begin new work.");
+    if (command?.expectedRevision !== undefined && command.expectedRevision !== instance.revision) throw new UserFacingError("This person's progress changed. Refresh before changing the decision.");
     const [jumps, currentMixes, stops, restriction, config, preference, display, queuedChoices] = await Promise.all([
       db.jump.findMany({ where: { workspaceId, workflowInstanceId: instanceId } }),
       db.mix.findMany({ where: { workspaceId }, select: { id: true, status: true } }),
@@ -130,7 +131,7 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
     const businessRecordedAt = state.pendingBusinessUpdate?.recordedAt ?? now.toISOString();
     if (command?.businessUpdate) applyBusinessUpdate(structuredClone(state), definition, command.businessUpdate, command.requestId, businessRecordedAt);
     const deliveries = await db.automatedDelivery.findMany({ where: { workspaceId, jumpId: { in: jumps.map(jump => jump.id) } } });
-    if (state.pendingBusinessUpdate && command) throw new Error("Your previous update is saved. Wait for the message already being processed before making another change.");
+    if (state.pendingBusinessUpdate && command) throw new UserFacingError("Your previous update is saved. Wait for the message already being processed before making another change.");
     if (command?.businessUpdate || state.pendingBusinessUpdate) {
       if (deliveries.some(delivery => delivery.status === "PROCESSING")) {
         if (command?.businessUpdate) {
@@ -148,7 +149,7 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
     }
     if (command?.calendarEntryId) {
       const entry = await db.calendarEntry.findFirst({ where: { id: command.calendarEntryId, workspaceId, contactId: instance.contactId, canceledAt: null } });
-      if (!entry) throw new Error("Choose an appointment for this person in this account.");
+      if (!entry) throw new UserFacingError("Choose an appointment for this person in this account.");
       state.context = { ...state.context, timezone: state.context?.timezone ?? display?.timezone ?? "UTC", appointmentBindingId: null, calendarEntryId: entry.id };
     }
     const liveRules = workflowConfiguration(config?.configuration).rules;
@@ -179,11 +180,11 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
     let businessRecord: WorkflowUpdateRecord | undefined;
     if (command?.undoUpdateId) {
       const record = state.updates?.find(item => item.id === command?.undoUpdateId);
-      if (deliveries.some(delivery => delivery.createdAt >= new Date(record?.at ?? 0) && delivery.status !== "CANCELED")) throw new Error("A message may already have been sent. Record a correction; Undo cannot recall messages.");
+      if (deliveries.some(delivery => delivery.createdAt >= new Date(record?.at ?? 0) && delivery.status !== "CANCELED")) throw new UserFacingError("A message may already have been sent. Record a correction; Undo cannot recall messages.");
       undoBusinessUpdate(state, command.undoUpdateId, command.requestId, now.toISOString());
     }
     if (command?.businessUpdate) {
-      if (command.businessUpdate.ruleId && disabledRules.has(command.businessUpdate.ruleId)) throw new Error("This connection is paused or removed. Choose a check-back date to end this Mix’s pending follow-ups, or restore the connection first.");
+      if (command.businessUpdate.ruleId && disabledRules.has(command.businessUpdate.ruleId)) throw new UserFacingError("This connection is paused or removed. Choose a check-back date to end this Mix’s pending follow-ups, or restore the connection first.");
       businessRecord = applyBusinessUpdate(state, definition, command.businessUpdate, command.requestId, businessRecordedAt);
       // Old scheduled roots must not be recreated by the legacy scheduler after an explicit update.
       for (const run of state.runs) if (run.id === command.businessUpdate.runId) run.legacy = false;
@@ -200,7 +201,7 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
       advanceWorkflow(state, definition, { now, admittedAt: state.context?.completionCutoff ? new Date(state.context.completionCutoff) : instance.createdAt, unavailableMixes, disabledRules, blockedRunIds });
       if (command?.evaluationId && command.outcome) {
         const evaluation = state.evaluations.find(item => item.id === command?.evaluationId);
-        if (evaluation && disabledRules.has(evaluation.ruleId)) throw new Error("This connection is paused. Enable it before recording a decision.");
+        if (evaluation && disabledRules.has(evaluation.ruleId)) throw new UserFacingError("This connection is paused. Enable it before recording a decision.");
         recordWorkflowDecision(state, definition, command.evaluationId, command.outcome, now.toISOString());
       }
       for (const pending of [...(state.pendingChoices ?? [])]) {
@@ -215,7 +216,7 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
         if (applied) { state.pendingChoices = state.pendingChoices?.filter(item => item !== pending); if (!state.commands.includes(pending.requestId)) state.commands.push(pending.requestId); }
       }
       advanceWorkflow(state, definition, { now, admittedAt: state.context?.completionCutoff ? new Date(state.context.completionCutoff) : instance.createdAt, unavailableMixes, disabledRules, blockedRunIds });
-    } else if (command?.outcome) throw new Error("Resume this journey and resolve its contact restrictions before changing a decision.");
+    } else if (command?.outcome) throw new UserFacingError("Resume this journey and resolve its contact restrictions before changing a decision.");
 
     const timezone = state.context?.timezone ?? display?.timezone ?? "UTC";
     const scheduling = preference ?? DEFAULT_PERSONAL_SCHEDULING;

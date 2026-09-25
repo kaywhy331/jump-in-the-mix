@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@/generated/prisma/client";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 const mocks = vi.hoisted(() => ({ importPortable: vi.fn(), addFromMarketplace: vi.fn(), redirect: vi.fn(), consumeRateLimit: vi.fn(), requestListingReview: vi.fn(), reviewListing: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireWorkspace: async () => ({ workspace: { id: "business", ownerId: "owner" }, user: { id: "owner" }, impersonation: null }), requirePlatformAdmin: async () => ({ user: { id: "staff" } }) }));
@@ -25,9 +26,9 @@ describe("file import and Marketplace add error messages", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("keep the messages our own code writes, so the owner knows what to change", async () => {
-    mocks.importPortable.mockRejectedValue(new Error("You already have a Mega-Mix called “Contractor”. Choose another name."));
+    mocks.importPortable.mockRejectedValue(new UserFacingError("You already have a Mega-Mix called “Contractor”. Choose another name."));
     expect(await importFile()).toEqual({ error: "You already have a Mega-Mix called “Contractor”. Choose another name." });
-    mocks.addFromMarketplace.mockRejectedValue(new Error("The author just updated this. Review the latest version, then add it."));
+    mocks.addFromMarketplace.mockRejectedValue(new UserFacingError("The author just updated this. Review the latest version, then add it."));
     expect(await addShare()).toEqual({ error: "The author just updated this. Review the latest version, then add it." });
     expect(await importFileAction({}, form({ file: "not json", reviewed: "on" }))).toEqual({ error: expect.stringMatching(/not a Jump in the Mix file/) });
   });
@@ -40,6 +41,9 @@ describe("file import and Marketplace add error messages", () => {
     mocks.importPortable.mockRejectedValue("nope");
     expect(await importFile()).toEqual({ error: "That file couldn’t be added. Check it and try again." });
     mocks.addFromMarketplace.mockRejectedValue(prismaError());
+    expect(await addShare()).toEqual({ error: "That share couldn’t be added. Try again." });
+    // A driver or library error is a plain Error too; only UserFacingError wording is ours.
+    mocks.addFromMarketplace.mockRejectedValue(new Error("terminating connection due to administrator command"));
     expect(await addShare()).toEqual({ error: "That share couldn’t be added. Try again." });
     expect(mocks.redirect).not.toHaveBeenCalled();
   });
@@ -73,7 +77,7 @@ describe("asking for another review and deciding on it", () => {
     expect(await ask("")).toEqual({ error: "You’ve asked for several reviews today. Try again tomorrow, or contact support." });
     expect(mocks.requestListingReview).not.toHaveBeenCalled();
     mocks.consumeRateLimit.mockResolvedValue({ allowed: true, remaining: 3, retryAfterSeconds: 0 });
-    mocks.requestListingReview.mockRejectedValue(new Error("Change the wording first. Another review looks at what you changed since our team’s decision."));
+    mocks.requestListingReview.mockRejectedValue(new UserFacingError("Change the wording first. Another review looks at what you changed since our team’s decision."));
     expect(await ask("")).toEqual({ error: "Change the wording first. Another review looks at what you changed since our team’s decision." });
     mocks.requestListingReview.mockRejectedValue(prismaError());
     expect(await ask("")).toEqual({ error: "Your request could not be sent. Try again." });
@@ -89,7 +93,7 @@ describe("asking for another review and deciding on it", () => {
     expect(mocks.reviewListing).toHaveBeenLastCalledWith(expect.objectContaining({ expectedFingerprint: "" }));
     await expect(decide({})).rejects.toThrow("REDIRECT");
     expect(mocks.reviewListing).toHaveBeenLastCalledWith(expect.objectContaining({ expectedFingerprint: undefined }));
-    mocks.reviewListing.mockRejectedValue(new Error("The author changed this share after you opened it. Read the latest wording, then decide."));
+    mocks.reviewListing.mockRejectedValue(new UserFacingError("The author changed this share after you opened it. Read the latest wording, then decide."));
     expect(await decide({ fingerprint: "stale" })).toEqual({ error: "The author changed this share after you opened it. Read the latest wording, then decide." });
   });
 });

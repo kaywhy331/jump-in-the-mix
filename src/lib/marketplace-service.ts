@@ -7,6 +7,7 @@ import { MEGA_MIXES, megaMixById, megaMixConfiguration } from "@/lib/mega-mixes"
 import { normalizeSharedMixSteps } from "@/lib/shared-mix";
 import { escapeHtml, sendTransactionalEmail, transactionalEmailConfigured } from "@/lib/transactional-email";
 import { env } from "@/lib/env";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 type DB = Prisma.TransactionClient | typeof prisma;
 const visible = { status: "LIVE" as const };
@@ -17,7 +18,7 @@ const available: Prisma.MarketplaceListingWhereInput = { OR: [{ kind: "MIX", mix
 
 async function assertOwner(db: DB, workspaceId: string, actorUserId: string) {
   const owner = await db.workspace.findFirst({ where: { id: workspaceId, ownerId: actorUserId }, select: { id: true, name: true } });
-  if (!owner) throw new Error("Only the account owner can share or add from the Marketplace.");
+  if (!owner) throw new UserFacingError("Only the account owner can share or add from the Marketplace.");
   return owner;
 }
 
@@ -104,7 +105,7 @@ export async function readMarketplaceAuthor(workspaceId: string) {
 }
 
 export async function shareOnMarketplace(input: { workspaceId: string; actorUserId: string; kind: "MIX" | "MEGA_MIX"; targetId: string; publicName: string; summary: string; industry: string; confirmed: boolean }) {
-  if (!input.confirmed) throw new Error("Confirm that the wording has no private details before sharing.");
+  if (!input.confirmed) throw new UserFacingError("Confirm that the wording has no private details before sharing.");
   const publicName = cleanPublicName(input.publicName);
   const summary = input.summary.replace(/\s+/g, " ").trim().slice(0, MARKETPLACE_SUMMARY_MAX) || null;
   const industry = input.industry.trim().slice(0, 120) || null;
@@ -113,10 +114,10 @@ export async function shareOnMarketplace(input: { workspaceId: string; actorUser
     await assertOwner(db, input.workspaceId, input.actorUserId);
     const key = input.kind === "MIX" ? { mixId: input.targetId } : { pipelineId: input.targetId };
     const value = await livePackage(db, { kind: input.kind, workspaceId: input.workspaceId, ...(input.kind === "MIX" ? { mixId: input.targetId, pipelineId: null } : { pipelineId: input.targetId, mixId: null }) });
-    if (!value) throw new Error(input.kind === "MIX" ? "Only an active or draft Mix with Beats and a manual or date start can be shared." : "Add at least one Mix with Beats before sharing this Mega-Mix.");
+    if (!value) throw new UserFacingError(input.kind === "MIX" ? "Only an active or draft Mix with Beats and a manual or date start can be shared." : "Add at least one Mix with Beats before sharing this Mega-Mix.");
     await db.marketplaceAuthor.upsert({ where: { workspaceId: input.workspaceId }, create: { workspaceId: input.workspaceId, publicName }, update: { publicName } });
     const existing = await db.marketplaceListing.findFirst({ where: { workspaceId: input.workspaceId, ...key } });
-    if (existing?.status === "HIDDEN") throw new Error("This share is hidden while our team reviews a report. You can still edit it; we’ll let you know when the review is done.");
+    if (existing?.status === "HIDDEN") throw new UserFacingError("This share is hidden while our team reviews a report. You can still edit it; we’ll let you know when the review is done.");
     const data = { ...listingFacts(value), fingerprint: portableFingerprint(value), summary, industry, status: "LIVE" as const, authorUserId: input.actorUserId, contentAt: new Date() };
     const listing = existing
       ? await db.marketplaceListing.update({ where: { id: existing.id }, data: { ...data, ...(existing.status === "UNSHARED" ? { publishedAt: new Date() } : {}) } })
@@ -131,7 +132,7 @@ export async function unshareFromMarketplace(input: { workspaceId: string; actor
   return prisma.$transaction(async db => {
     await assertOwner(db, input.workspaceId, input.actorUserId);
     const listing = await db.marketplaceListing.findFirst({ where: { id: input.listingId, workspaceId: input.workspaceId } });
-    if (!listing) throw new Error("This share is no longer available.");
+    if (!listing) throw new UserFacingError("This share is no longer available.");
     if (listing.status === "LIVE") await db.marketplaceListing.update({ where: { id: listing.id }, data: { status: "UNSHARED" } });
     await db.auditLog.create({ data: { workspaceId: input.workspaceId, actorType: "USER", actorUserId: input.actorUserId, action: "marketplace.unshare", entityType: "MarketplaceListing", entityId: listing.id, source: "marketplace" } });
   });
@@ -260,8 +261,8 @@ export async function readMarketplaceItem(item: string, viewer: { userId: string
  */
 export async function setListingFavorite(input: { listingId: string; userId: string; workspaceId: string; favorite: boolean }) {
   const listing = await prisma.marketplaceListing.findFirst({ where: { id: input.listingId, ...visible, ...(input.favorite ? { AND: [available] } : {}) }, select: { id: true, workspaceId: true } });
-  if (!listing) throw new Error("This share is no longer available.");
-  if (input.favorite && listing.workspaceId === input.workspaceId) throw new Error("This is your own share, so it can’t be one of your favorites.");
+  if (!listing) throw new UserFacingError("This share is no longer available.");
+  if (input.favorite && listing.workspaceId === input.workspaceId) throw new UserFacingError("This is your own share, so it can’t be one of your favorites.");
   if (input.favorite) await prisma.marketplaceFavorite.upsert({ where: { listingId_userId: { listingId: listing.id, userId: input.userId } }, create: { listingId: listing.id, userId: input.userId, workspaceId: input.workspaceId }, update: {} });
   else await prisma.marketplaceFavorite.deleteMany({ where: { listingId: listing.id, userId: input.userId } });
   return { favorite: input.favorite, count: await prisma.marketplaceFavorite.count({ where: { listingId: listing.id } }) };
@@ -275,12 +276,12 @@ export async function setListingFavorite(input: { listingId: string; userId: str
 export async function addFromMarketplace(input: { listingId: string; workspaceId: string; actorUserId: string; name: string; expectedFingerprint: string }) {
   return prisma.$transaction(async db => {
     const listing = await db.marketplaceListing.findFirst({ where: { id: input.listingId, ...visible } });
-    if (!listing) throw new Error("This share is no longer available.");
-    if (listing.workspaceId === input.workspaceId) throw new Error("This is your own share. It’s already in your account, so it can’t be added again.");
+    if (!listing) throw new UserFacingError("This share is no longer available.");
+    if (listing.workspaceId === input.workspaceId) throw new UserFacingError("This is your own share. It’s already in your account, so it can’t be added again.");
     const value = await livePackage(db, listing);
-    if (!value) throw new Error("This share is no longer available.");
+    if (!value) throw new UserFacingError("This share is no longer available.");
     const fingerprint = portableFingerprint(value);
-    if (fingerprint !== input.expectedFingerprint) throw new Error("The author just updated this. Review the latest version, then add it.");
+    if (fingerprint !== input.expectedFingerprint) throw new UserFacingError("The author just updated this. Review the latest version, then add it.");
     const result = await installPortable(db, { workspaceId: input.workspaceId, actorUserId: input.actorUserId, value, name: input.name || value.name, origin: `MARKETPLACE:${listing.id}`, source: "marketplace" });
     await db.marketplaceImport.create({ data: { listingId: listing.id, workspaceId: input.workspaceId, fingerprint, mixId: result.pipelineId ? null : result.mixIds[0], pipelineId: result.pipelineId } });
     return result;
@@ -307,16 +308,16 @@ const authorEmail = async (workspaceId: string) => (await prisma.workspace.findU
  * report from a verified account under its daily limit hides the share for everyone at once.
  */
 export async function reportListing(input: { listingId: string; reporterUserId: string; reporterWorkspaceId: string; reason: string; details: string }) {
-  if (!isMarketplaceReason(input.reason)) throw new Error("Choose what is wrong with this share.");
+  if (!isMarketplaceReason(input.reason)) throw new UserFacingError("Choose what is wrong with this share.");
   const reason: MarketplaceReason = input.reason;
   const details = input.details.replace(/\s+/g, " ").trim().slice(0, 1000) || null;
-  if (reason === "OTHER" && !details) throw new Error("Tell us what is wrong so our team can review it.");
+  if (reason === "OTHER" && !details) throw new UserFacingError("Tell us what is wrong so our team can review it.");
   const result = await prisma.$transaction(async db => {
     await db.$queryRaw`SELECT id FROM "MarketplaceListing" WHERE id = ${input.listingId} FOR UPDATE`;
     const listing = await db.marketplaceListing.findFirst({ where: { id: input.listingId, ...visible } });
-    if (!listing) throw new Error("This share is no longer available.");
-    if (listing.workspaceId === input.reporterWorkspaceId) throw new Error("You can’t report your own share. Stop sharing it or edit it instead.");
-    if (await db.marketplaceReport.findUnique({ where: { listingId_reporterUserId: { listingId: listing.id, reporterUserId: input.reporterUserId } } })) throw new Error("You already reported this share. Our team will review it.");
+    if (!listing) throw new UserFacingError("This share is no longer available.");
+    if (listing.workspaceId === input.reporterWorkspaceId) throw new UserFacingError("You can’t report your own share. Stop sharing it or edit it instead.");
+    if (await db.marketplaceReport.findUnique({ where: { listingId_reporterUserId: { listingId: listing.id, reporterUserId: input.reporterUserId } } })) throw new UserFacingError("You already reported this share. Our team will review it.");
     const reporter = await db.user.findUnique({ where: { id: input.reporterUserId }, select: { emailVerifiedAt: true, createdAt: true } });
     const recentAutoHides = await db.marketplaceReport.count({ where: { reporterWorkspaceId: input.reporterWorkspaceId, autoHidden: true, createdAt: { gte: new Date(Date.now() - AUTO_HIDE_LIMIT.windowMs) } } });
     const reporterEmailVerified = Boolean(reporter?.emailVerifiedAt);
@@ -396,14 +397,14 @@ export async function markReportsSeen(workspaceId: string, listingId: string) {
  */
 export async function reviewListing(input: { listingId: string; staffUserId: string; decision: "RESTORE" | "HIDE"; note: string; expectedFingerprint?: string }) {
   const note = input.note.trim().slice(0, 1000);
-  if (!note) throw new Error("Add a short note about the decision.");
+  if (!note) throw new UserFacingError("Add a short note about the decision.");
   const result = await prisma.$transaction(async db => {
     await db.$queryRaw`SELECT id FROM "MarketplaceListing" WHERE id = ${input.listingId} FOR UPDATE`;
     const found = await db.marketplaceListing.findUnique({ where: { id: input.listingId } });
-    if (!found) throw new Error("This share no longer exists.");
+    if (!found) throw new UserFacingError("This share no longer exists.");
     const { listing, value } = await refreshListing(db, found);
     const restore = input.decision === "RESTORE";
-    if (restore && listing.status === "HIDDEN" && value && input.expectedFingerprint !== undefined && input.expectedFingerprint !== listing.fingerprint) throw new Error("The author changed this share after you opened it. Read the latest wording, then decide.");
+    if (restore && listing.status === "HIDDEN" && value && input.expectedFingerprint !== undefined && input.expectedFingerprint !== listing.fingerprint) throw new UserFacingError("The author changed this share after you opened it. Read the latest wording, then decide.");
     const status = restore && listing.status === "HIDDEN" ? (value ? "LIVE" : "UNSHARED") : !restore && listing.status === "LIVE" ? "HIDDEN" : listing.status;
     const openReports = await db.marketplaceReport.count({ where: { listingId: listing.id, status: "OPEN" } });
     // A live share taken down carries the newest open report's reason.
@@ -439,11 +440,11 @@ export async function requestListingReview(input: { workspaceId: string; actorUs
     await db.$queryRaw`SELECT id FROM "MarketplaceListing" WHERE id = ${input.listingId} AND "workspaceId" = ${input.workspaceId} FOR UPDATE`;
     await assertOwner(db, input.workspaceId, input.actorUserId);
     const found = await db.marketplaceListing.findFirst({ where: { id: input.listingId, workspaceId: input.workspaceId } });
-    if (!found) throw new Error("This share is no longer available.");
+    if (!found) throw new UserFacingError("This share is no longer available.");
     const { listing: current, value } = await refreshListing(db, found);
     const openReports = await db.marketplaceReport.count({ where: { listingId: current.id, status: "OPEN" } });
     const blocked = reviewRequestBlock({ status: current.status, requestedAt: current.reviewRequestedAt, openReports, available: Boolean(value), fingerprint: current.fingerprint, reviewedFingerprint: current.reviewedFingerprint });
-    if (blocked) throw new Error(REVIEW_REQUEST_REFUSALS[blocked]);
+    if (blocked) throw new UserFacingError(REVIEW_REQUEST_REFUSALS[blocked]);
     const now = new Date();
     // Asking again answers any unread reply to an earlier request.
     const updated = await db.marketplaceListing.update({ where: { id: current.id }, data: { reviewRequestedAt: now, reviewRequestNote: note, ...(current.reviewRespondedAt && !current.reviewResponseSeenAt ? { reviewResponseSeenAt: now } : {}) } });

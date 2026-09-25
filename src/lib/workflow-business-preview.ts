@@ -3,12 +3,13 @@ import { workflowDefinition, workflowState } from "@/lib/mix-workflow";
 import { applyBusinessUpdate } from "@/lib/workflow-business-update";
 import { advanceWorkflow, observeWorkflow } from "@/lib/mix-workflow-engine";
 import type { WorkflowBusinessUpdate } from "@/lib/mix-workflow-types";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export type BusinessUpdatePreview = { input: WorkflowBusinessUpdate; contactName: string; label: string; mixName: string; ends: string[]; keepsCompleted: number; independentPending: number; continues: string[]; sending: string; inFlight: number; previousMessages: number; revision: number };
 export async function previewBusinessUpdate(workspaceId: string, instanceId: string, input: WorkflowBusinessUpdate, expectedRevision: number): Promise<BusinessUpdatePreview> {
   const instance = await prisma.mixWorkflowInstance.findFirst({ where: { id: instanceId, workspaceId }, include: { contact: { select: { displayName: true } }, jumps: true } });
-  if (!instance || instance.revision !== expectedRevision) throw new Error("This work changed. Refresh its progress before reviewing the update.");
-  if (instance.status === "STOPPED") throw new Error("This work is stopped. Start new work deliberately from Journey.");
+  if (!instance || instance.revision !== expectedRevision) throw new UserFacingError("This work changed. Refresh its progress before reviewing the update.");
+  if (instance.status === "STOPPED") throw new UserFacingError("This work is stopped. Start new work deliberately from Journey.");
   const definition = workflowDefinition(instance.definition), state = workflowState(instance.state);
   const run = state.runs.find(run => run.id === input.runId);
   observeWorkflow(state, instance.jumps.filter(jump => jump.workflowVisitId && jump.status !== "CANCELED").map(jump => ({ visitId: jump.workflowVisitId!, status: jump.status, completedAt: jump.completedAt?.toISOString() ?? null, outcome: jump.completionMethod })));

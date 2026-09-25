@@ -1,6 +1,7 @@
 import { Prisma, type JourneyEventType } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_JOURNEY_STAGES, journeyEventLabel } from "@/lib/journey-types";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 type Tx = Prisma.TransactionClient;
 export type JourneyEventInput = { workspaceId: string; contactId: string; eventKey: string; eventType: JourneyEventType; source: string; actorUserId?: string; now?: Date; targetStageId?: string; expectedVersion?: number; maintenance?: boolean };
@@ -54,22 +55,27 @@ async function changeManagedPlan(tx: Tx, input: JourneyEventInput, previousAssig
   return created.id;
 }
 
+/** Another change moved this customer's stage first; the maintenance pass skips it and a person sees the sentence. */
+export class JourneyStageChanged extends UserFacingError {
+  constructor() { super("This customer’s stage changed. Refresh before trying again."); }
+}
+
 // The caller may include this in its own transaction, so an event and its business
 // action either both commit or neither does. One contact lock serializes transitions.
 export async function applyJourneyEvent(tx: Tx, input: JourneyEventInput) {
   const now = input.now ?? new Date();
   await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${input.workspaceId} FOR NO KEY UPDATE`;
   const contacts = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Contact" WHERE id = ${input.contactId} AND "workspaceId" = ${input.workspaceId} AND "archivedAt" IS NULL FOR NO KEY UPDATE`;
-  if (!contacts.length) throw new Error("Contact not found.");
+  if (!contacts.length) throw new UserFacingError("Contact not found.");
   const duplicate = await tx.journeyEvent.findUnique({ where: { workspaceId_eventKey: { workspaceId: input.workspaceId, eventKey: input.eventKey } } });
   if (duplicate) {
-    if (duplicate.contactId !== input.contactId || duplicate.eventType !== input.eventType) throw new Error("That event identifier was already used for a different event.");
+    if (duplicate.contactId !== input.contactId || duplicate.eventType !== input.eventType) throw new UserFacingError("That event identifier was already used for a different event.");
     return { stageId: duplicate.resultingStageId, changed: false, duplicate: true };
   }
   const preference = await tx.journeyPreference.findUnique({ where: { workspaceId: input.workspaceId } });
   const current = await tx.contactJourney.findUnique({ where: { contactId: input.contactId }, include: { stage: true } });
-  if (input.expectedVersion !== undefined && input.expectedVersion !== (current?.version ?? 0)) throw new Error("This customer’s stage changed. Refresh before trying again.");
-  if (input.eventType === "MANUAL" && !input.targetStageId) throw new Error("Choose a destination stage.");
+  if (input.expectedVersion !== undefined && input.expectedVersion !== (current?.version ?? 0)) throw new JourneyStageChanged();
+  if (input.eventType === "MANUAL" && !input.targetStageId) throw new UserFacingError("Choose a destination stage.");
   let targetId = input.eventType === "MANUAL" ? input.targetStageId : undefined;
   if (!targetId && preference?.enabled && (!current || current.automatic)) {
     if (!current) {
@@ -89,7 +95,7 @@ export async function applyJourneyEvent(tx: Tx, input: JourneyEventInput) {
     }
   }
   const target = targetId ? await tx.journeyStage.findFirst({ where: { id: targetId, workspaceId: input.workspaceId, isActive: true } }) : null;
-  if (targetId && !target) throw new Error("Choose an available stage in this business.");
+  if (targetId && !target) throw new UserFacingError("Choose an available stage in this business.");
   const changed = Boolean(target && target.id !== current?.stageId);
   if (target && changed) {
     const managedAssignmentId = await changeManagedPlan(tx, input, current?.managedAssignmentId ?? null, target.planId, now);
@@ -134,7 +140,7 @@ export async function runJourneyMaintenance({ now = new Date(), limit = 25 }: { 
       const result = await recordJourneyEvent({ workspaceId: person.workspaceId, contactId: person.contactId, eventType, eventKey: `journey:${person.contactId}:${person.version}:${eventType}`, expectedVersion: person.version, maintenance: true, source: eventType === "TIME_IN_STAGE" ? "Time in stage" : "Follow-up mix", now });
       if (result.changed) advanced++;
     } catch (error) {
-      if (!(error instanceof Error && error.message.includes("stage changed"))) throw error;
+      if (!(error instanceof JourneyStageChanged)) throw error;
     }
   }
   return { initialized, advanced };

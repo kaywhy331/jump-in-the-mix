@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { MegaMix } from "@/lib/mega-mixes";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export const WORK_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 export const COMMUNICATION_CHOICES = { RECOMMENDED: "Recommended mix", SMS: "Prefer texts", EMAIL: "Prefer emails", PHONE_CALL: "Prefer phone calls" } as const;
@@ -36,9 +37,9 @@ export function validateJourneySetup(value: JourneySetupValues): string | null {
 export function parseJourneySetup(data: FormData): JourneySetupValues {
   const time = (name: string) => { const raw = String(data.get(name) ?? ""); return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(raw) ? Number(raw.slice(0, 2)) * 60 + Number(raw.slice(3)) : NaN; };
   const preferences = journeyPreferencesSchema.safeParse({ version: 1, communication: data.get("communication"), pace: data.get("pace"), workDays: [...new Set(data.getAll("workDay").map(Number))], workStart: time("workStart"), workEnd: time("workEnd"), avoidAppointments: data.get("avoidAppointments") === "on" });
-  if (!preferences.success) throw new Error("Choose your communication preference, at least one working day, and closing hours after opening hours.");
+  if (!preferences.success) throw new UserFacingError("Choose your communication preference, at least one working day, and closing hours after opening hours.");
   const result = { preferences: preferences.data, timezone: String(data.get("timezone") ?? ""), defaultFollowUpMinutes: time("defaultFollowUpTime"), quietHoursStart: time("quietHoursStart"), quietHoursEnd: time("quietHoursEnd"), appointmentBufferMinutes: Number(data.get("appointmentBufferMinutes")) };
-  const error = validateJourneySetup(result); if (error) throw new Error(error);
+  const error = validateJourneySetup(result); if (error) throw new UserFacingError(error);
   return result;
 }
 

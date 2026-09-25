@@ -5,6 +5,7 @@ import type { WorkflowAnalytics } from "@/lib/workflow-analytics";
 import { prisma } from "@/lib/prisma";
 import { readWorkflowDefinition, workflowDefinition, workflowState } from "@/lib/mix-workflow";
 import { workflowNodeKey, type WorkflowConfiguration, type WorkflowMix, type WorkflowState } from "@/lib/mix-workflow-types";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export type WorkflowGraphMix = Pick<WorkflowMix, "id" | "name" | "status" | "source" | "triggerMode"> & { steps: Array<Pick<WorkflowMix["steps"][number], "id" | "name" | "dayOffset" | "anchor" | "channel">>; pending: number; completed: number };
 export type WorkflowInstanceView = {
@@ -27,7 +28,7 @@ export type WorkflowGraphView = {
 
 export async function readWorkflowGraph(workspaceId: string, options: { contactId?: string; query?: string; offset?: number; canEdit: boolean; instanceId?: string; node?: string; status?: string; stage?: string; peopleOffset?: number; days?: number; focusedInstance?: string }): Promise<WorkflowGraphView> {
   const snapshot = options.instanceId ? await prisma.mixWorkflowInstance.findFirst({ where: { id: options.instanceId, workspaceId }, select: { definition: true } }) : null;
-  if (options.instanceId && !snapshot) throw new Error("That journey instance is unavailable.");
+  if (options.instanceId && !snapshot) throw new UserFacingError("That journey instance is unavailable.");
   const definition = snapshot ? workflowDefinition(snapshot.definition) : await readWorkflowDefinition(prisma, workspaceId);
   const where = { workspaceId, ...(options.contactId ? { contactId: options.contactId } : {}) };
   const [counts, instances, instanceTotal, people, analytics, megaMixes] = await Promise.all([

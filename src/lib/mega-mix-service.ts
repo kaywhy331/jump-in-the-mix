@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { megaMixById, megaMixConfiguration } from "@/lib/mega-mixes";
 import { readWorkflowDefinition, saveWorkflowConfiguration, workflowJson } from "@/lib/mix-workflow";
 import { availableMegaMixName, cleanMegaMixName } from "@/lib/mega-mix-pipeline-service";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export async function installMegaMix(input: {
   workspaceId: string; actorUserId: string; blueprintId: string; expectedVersion: number;
@@ -14,14 +15,14 @@ export async function installMegaMix(input: {
   onboarding?: { timezone: string; company: string; smsSignature: string; userName: string };
 }) {
   const original = megaMixById(input.blueprintId);
-  if (input.setup) { const error = validateJourneySetup(input.setup); if (error) throw new Error(error); }
+  if (input.setup) { const error = validateJourneySetup(input.setup); if (error) throw new UserFacingError(error); }
   const blueprint = original && input.setup ? tailorMegaMix(original, input.setup) : original;
-  if (!blueprint || blueprint.version !== input.expectedVersion) throw new Error("This mega-mix has changed. Reload its preview before adding it.");
+  if (!blueprint || blueprint.version !== input.expectedVersion) throw new UserFacingError("This mega-mix has changed. Reload its preview before adding it.");
   return prisma.$transaction(async db => {
     // Share the Journey writer lock: concurrent installs/edits must merge the latest graph.
     await db.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${input.workspaceId} FOR UPDATE`;
     const owner = await db.workspace.findFirst({ where: { id: input.workspaceId, ownerId: input.actorUserId }, select: { id: true } });
-    if (!owner) throw new Error("This workspace is unavailable.");
+    if (!owner) throw new UserFacingError("This workspace is unavailable.");
     const finishOnboarding = async () => {
       if (input.onboarding) {
         const setup = input.onboarding;

@@ -24,7 +24,7 @@ export async function saveCalendarAction(_state: CalendarSaveState, data: FormDa
     result = await scheduleVisit({ workspaceId: workspace.id, actorUserId: user.id, id: value(data, "id") || undefined, version: Number(value(data, "version")), title: value(data, "title"), kind: value(data, "kind"), location: value(data, "location"), link: value(data, "link"), details: value(data, "details"), contactId: value(data, "contactId"), startsAt: parseCalendarTime(value(data, "startsAt"), timezone), endsAt: parseCalendarTime(value(data, "endsAt"), timezone), timezone, planId: value(data, "planId") || null, newContact: value(data, "newContactName") ? { name: value(data, "newContactName"), phone: value(data, "newContactPhone"), email: value(data, "newContactEmail"), resolvedContactId: value(data, "resolvedContactId") || null } : null, allowOverlap: data.get("allowOverlap") === "on" });
   } catch (error) {
     if (error instanceof ContactChoiceRequiredError) return { error: "", choice: { candidates: error.candidates } };
-    return { error: error instanceof Error ? error.message : "This event could not be saved." };
+    return { error: error instanceof UserFacingError ? error.message : "This event could not be saved. Your entries are kept." };
   }
   const next = new URLSearchParams({ date: value(data, "startsAt").slice(0, 10), saved: "1", savedEvent: result.entryId });
   const returnTo = workflowContinuation(value(data, "returnTo"));

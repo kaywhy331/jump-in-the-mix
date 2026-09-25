@@ -7,12 +7,13 @@ import type { FormResult } from "@/lib/form-errors";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { cleanReviewNote } from "@/lib/marketplace";
 import { addFromMarketplace, markReportsSeen, reportListing, requestListingReview, reviewListing, shareOnMarketplace, unshareFromMarketplace } from "@/lib/marketplace-service";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 /** Messages our own code writes are shown as they are; database and unexpected errors get the plain fallback. */
-const failed = (error: unknown, fallback: string): FormResult => ({ error: error instanceof Error && error.name === "Error" ? error.message : fallback });
+const failed = (error: unknown, fallback: string): FormResult => ({ error: error instanceof UserFacingError ? error.message : fallback });
 async function writer() {
   const session = await requireWorkspace();
-  if (session.impersonation) throw new Error("Administrator support sessions are view-only.");
+  if (session.impersonation) throw new UserFacingError("Administrator support sessions are view-only.");
   return session;
 }
 const refresh = () => { revalidatePath("/marketplace"); revalidatePath("/mixes"); revalidatePath("/mixes/mega"); };

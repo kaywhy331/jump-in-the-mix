@@ -1,4 +1,4 @@
-import { boundedRequestText } from "@/lib/bounded-request";
+import { boundedRequestText, RequestTooLargeError } from "@/lib/bounded-request";
 import { ContactImportInputError, contactImportFailure } from "@/lib/contact-import-errors";
 import { NextResponse } from "next/server";
 import { timezoneForUser } from "@/lib/display-preferences";
@@ -121,7 +121,7 @@ async function importBody(request: Request): Promise<{ tooLarge: true } | { tooL
   try {
     text = await boundedRequestText(request, MAX_BODY_BYTES);
   } catch (error) {
-    return error instanceof Error && error.message === "Request is too large." ? { tooLarge: true } : { tooLarge: false, body: null };
+    return error instanceof RequestTooLargeError ? { tooLarge: true } : { tooLarge: false, body: null };
   }
   try {
     return { tooLarge: false, body: JSON.parse(text) };

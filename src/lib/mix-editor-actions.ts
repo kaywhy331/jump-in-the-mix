@@ -17,6 +17,7 @@ import { refreshSharesOf } from "@/lib/marketplace-service";
 import { startDraftMix } from "@/lib/mix-start";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 const MAX_STEP_OFFSET_DAYS = 365;
 const MIX_CHANGED_ELSEWHERE = "This Mix was changed on another device after you opened it. Reload to compare, then apply your changes again.";
@@ -24,15 +25,6 @@ const MIX_CHANGED_ELSEWHERE = "This Mix was changed on another device after you 
 class MixChangedElsewhere extends Error {}
 /** A refusal this module writes in its own words during the save; the page shows it as it is. */
 class MixSaveRefusal extends Error {}
-/**
- * Journey refusals that saveWorkflowConfiguration (mix-workflow.ts, mix-workflow-validation.ts) throws as plain errors
- * and that saving this Mix's start connection can meet. Matched exactly, so a database error's text never reaches the page.
- */
-const JOURNEY_REFUSALS = new Set([
-  "Journey changed in another window. Reload its latest configuration before saving; your draft has been kept.",
-  "This return path needs a repeat limit. Set a maximum number of visits on a connection in each loop.",
-  "Choose an available Mix in this account."
-]);
 const CHANNELS: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
 
 type InlineVariant = { family: PreparationFamily; subject: string | null; body: string | null; script: string | null };
@@ -386,7 +378,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
     });
   } catch (error) {
     if (error instanceof MixChangedElsewhere) return { error: error.message };
-    fail(path, error instanceof MixSaveRefusal || (error instanceof Error && JOURNEY_REFUSALS.has(error.message)) ? error.message : "The mix could not be saved.", session);
+    fail(path, error instanceof MixSaveRefusal || error instanceof UserFacingError ? error.message : "The mix could not be saved.", session);
   }
 
   // Committed. The Marketplace shares of this Mix and of its Mega-Mix now show what was saved. Refreshed out

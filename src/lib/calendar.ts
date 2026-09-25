@@ -11,7 +11,7 @@ import { UserFacingError } from "@/lib/user-facing-error";
 
 function detailText(value: string | null | undefined, maximum: number, name: string): string | null {
   const trimmed = value?.trim() ?? "";
-  if (trimmed.length > maximum) throw new Error(`Keep the appointment ${name} under ${maximum} characters.`);
+  if (trimmed.length > maximum) throw new UserFacingError(`Keep the appointment ${name} under ${maximum} characters.`);
   return trimmed || null;
 }
 
@@ -20,13 +20,13 @@ export type CalendarEntryInput = { workspaceId: string; actorUserId?: string; id
 /** Validates and writes one entry inside the caller's transaction. */
 export async function saveCalendarEntryIn(tx: Prisma.TransactionClient, input: CalendarEntryInput) {
   calendarRange(input.startsAt, input.endsAt);
-  if (!input.title.trim() || input.title.trim().length > 160) throw new Error("Give this event a title of up to 160 characters.");
-  if (!["MEETING", "BLOCK"].includes(input.kind)) throw new Error("Choose a meeting or time block.");
+  if (!input.title.trim() || input.title.trim().length > 160) throw new UserFacingError("Give this event a title of up to 160 characters.");
+  if (!["MEETING", "BLOCK"].includes(input.kind)) throw new UserFacingError("Choose a meeting or time block.");
   const details = { location: detailText(input.location, APPOINTMENT_DETAIL_LIMITS.location, "location"), link: normalizeAppointmentLink(input.link), details: detailText(input.details, APPOINTMENT_DETAIL_LIMITS.details, "details") };
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${input.workspaceId} FOR NO KEY UPDATE`;
     const existing = input.id ? await tx.calendarEntry.findFirst({ where: { id: input.id, workspaceId: input.workspaceId, connectionId: null, canceledAt: null } }) : null;
-    if (input.id && (!existing || existing.version !== input.version)) throw new Error("This event changed. Refresh the calendar before editing it.");
-    if (input.contactId && !await tx.contact.findFirst({ where: { id: input.contactId, workspaceId: input.workspaceId, archivedAt: null } })) throw new Error("Choose a contact in this business.");
+    if (input.id && (!existing || existing.version !== input.version)) throw new UserFacingError("This event changed. Refresh the calendar before editing it.");
+    if (input.contactId && !await tx.contact.findFirst({ where: { id: input.contactId, workspaceId: input.workspaceId, archivedAt: null } })) throw new UserFacingError("Choose a contact in this business.");
     // The buffer from Scheduling defaults keeps travel or prep room around appointments;
     // time blocks stay back to back. The same rule grays out slots in the picker.
     const preference = await tx.workspacePreference.findUnique({ where: { workspaceId: input.workspaceId }, select: { appointmentBufferMinutes: true } });
@@ -34,7 +34,7 @@ export async function saveCalendarEntryIn(tx: Prisma.TransactionClient, input: C
     const pad = bufferMinutes * 60_000;
     const nearby = await tx.calendarEntry.findMany({ where: { workspaceId: input.workspaceId, canceledAt: null, ...(existing ? { id: { not: existing.id } } : {}), startsAt: { lt: new Date(input.endsAt.getTime() + pad) }, endsAt: { gt: new Date(input.startsAt.getTime() - pad) } }, select: { id: true, title: true, kind: true, startsAt: true, endsAt: true }, orderBy: { startsAt: "asc" }, take: 200 });
     const conflict = findConflict({ kind: input.kind, start: input.startsAt.getTime(), end: input.endsAt.getTime() }, nearby.map(entry => ({ id: entry.id, title: entry.title, kind: entry.kind, start: entry.startsAt.getTime(), end: entry.endsAt.getTime() })), pad);
-    if (conflict && !input.allowOverlap) throw new Error(conflictMessage(conflict, bufferMinutes));
+    if (conflict && !input.allowOverlap) throw new UserFacingError(conflictMessage(conflict, bufferMinutes));
     const data = { title: input.title.trim(), kind: input.kind, contactId: input.contactId || null, startsAt: input.startsAt, endsAt: input.endsAt, timezone: input.timezone, ...details };
     const entry = existing ? await tx.calendarEntry.update({ where: { id: existing.id }, data: { ...data, version: { increment: 1 } } }) : await tx.calendarEntry.create({ data: { ...data, workspaceId: input.workspaceId } });
     if (entry.contactId) {

@@ -1,4 +1,5 @@
 import { emptyWorkflowState, type WorkflowDefinition, type WorkflowEvaluation, type WorkflowRun, type WorkflowState, type WorkflowTarget, type WorkflowTransition, type WorkflowVisit } from "@/lib/mix-workflow-types";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 const terminal = (visit: WorkflowVisit) => visit.status === "DONE" || visit.status === "SKIPPED";
 const id = (state: WorkflowState, prefix: string) => `${prefix}${++state.sequence}`;
@@ -7,7 +8,7 @@ export const WORKFLOW_VISIT_LIMIT = 1000;
 
 export function addWorkflowRun(state: WorkflowState, definition: WorkflowDefinition, target: WorkflowTarget, at: string, parentTransitionId: string | null = null, legacy = false): WorkflowRun {
   const mix = definition.mixes.find(item => item.id === target.mixId);
-  if (!mix) throw new Error("This Mix is not in this journey's saved configuration.");
+  if (!mix) throw new UserFacingError("This Mix is not in this journey's saved configuration.");
   const run: WorkflowRun = { id: id(state, "run"), mixId: mix.id, startedAt: at, completedAt: null, status: "ACTIVE", parentTransitionId, legacy };
   state.runs.push(run);
   const steps = target.stepId ? mix.steps.filter(step => step.id === target.stepId) : mix.steps.filter(step => !definition.gatedStepIds.includes(step.id));
@@ -68,7 +69,7 @@ export function invalidateWorkflowEvaluation(state: WorkflowState, evaluation: W
 export function recordWorkflowDecision(state: WorkflowState, definition: WorkflowDefinition, evaluationId: string, outcome: string, at: string): void {
   const evaluation = state.evaluations.find(item => item.id === evaluationId && item.status !== "CANCELED");
   const rule = definition.rules.find(item => item.id === evaluation?.ruleId);
-  if (!evaluation || !rule || !rule.routes.some(route => route.when === "OUTCOME" && route.outcome === outcome)) throw new Error("Choose an available outcome for this decision.");
+  if (!evaluation || !rule || !rule.routes.some(route => route.when === "OUTCOME" && route.outcome === outcome)) throw new UserFacingError("Choose an available outcome for this decision.");
   if (evaluation.outcome === outcome) return;
   invalidateWorkflowEvaluation(state, evaluation, "Decision changed; earlier performed work is retained.");
   evaluation.status = "WAITING";

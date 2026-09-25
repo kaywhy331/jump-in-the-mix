@@ -16,17 +16,9 @@ const value = (data: FormData, name: string) => String(data.get(name) ?? "").tri
 async function context() { const ctx = await requireWorkspace(); if (ctx.impersonation) throw new Error("Support sessions are view-only."); return ctx; }
 /** A refusal this module writes in its own words; the page shows it as it is. */
 class JourneyRefusal extends Error {}
-/** Sentences recordJourneyEvent (journey.ts) throws as plain errors. Matched exactly, so a database error's text never reaches the page. */
-const JOURNEY_EVENT_REFUSALS = new Set([
-  "Contact not found.",
-  "That event identifier was already used for a different event.",
-  "This customer’s stage changed. Refresh before trying again.",
-  "Choose a destination stage.",
-  "Choose an available stage in this business."
-]);
 /** Known refusals keep their wording; any other error (database, network) gets the fixed sentence. */
 function failure(path: string, error: unknown, viewer: ErrorViewer): never {
-  redirect(withViewerError(path, error instanceof JourneyRefusal || error instanceof UserFacingError || (error instanceof Error && JOURNEY_EVENT_REFUSALS.has(error.message)) ? error.message : "The change could not be saved.", viewer));
+  redirect(withViewerError(path, error instanceof JourneyRefusal || error instanceof UserFacingError ? error.message : "The change could not be saved.", viewer));
 }
 
 export async function setJourneyEnabledAction(data: FormData) {
