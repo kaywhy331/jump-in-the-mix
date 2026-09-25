@@ -91,7 +91,7 @@ test("the Beat editor authors text, email and call versions, refuses private not
   await expect(saved.getByLabel("Call version · talking points for you")).toHaveValue(callScript);
   await saved.getByLabel(/^Email version(?! subject)/).fill(`${emailBody} {{Private Notes}}`);
   await page.getByRole("button", { name: "Save mix" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "Private notes" })).toContainText("Private notes may only be inserted into Beat 1's call version.");
+  await expect(page.getByRole("alert").filter({ hasText: "Private notes" }).first()).toContainText("Private notes may only be inserted into Beat 1's call version.");
   expect((await prisma.stepVersionVariant.findMany({ where: { stepVersionId: mix.steps[0].stepVersionId, family: "EMAIL" } }))[0].body).toBe(emailBody);
 });
 

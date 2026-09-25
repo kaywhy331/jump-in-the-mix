@@ -8,5 +8,5 @@ export async function applyRenderedTheme(page: Page, colorScheme: "light" | "dar
   // frame. Viewport media queries also need layout before measurements. Measure
   // settled styles; do not let axe or overflow assertions sample both layouts.
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-  await expect(page.locator("body")).toHaveCSS("color", colorScheme === "dark" ? "rgb(241, 244, 251)" : "rgb(23, 32, 54)");
+  await expect(page.locator("body")).toHaveCSS("color", colorScheme === "dark" ? "rgb(238, 237, 246)" : "rgb(26, 24, 48)"); // --text from design-tokens.css
 }
