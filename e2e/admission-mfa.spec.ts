@@ -262,7 +262,7 @@ test("replayed submissions audit once and cross-origin submissions are rejected"
   await expect(page.getByText("Admission controls saved.", { exact: true })).toBeVisible();
   const headers = { "content-type": request.headers()["content-type"], "next-action": request.headers()["next-action"], origin: new URL(info.project.use.baseURL!).origin };
   const replay = await context.request.post(request.url(), { headers, data: request.postDataBuffer()!, maxRedirects: 0 });
-  expect(replay.headers()["x-action-redirect"] ?? await replay.text()).toContain("Admission%20controls%20changed");
+  expect(replay.headers()["x-action-redirect"] ?? await replay.text()).toMatch(/Admission(?:%20|\+)controls(?:%20|\+)changed/);
   const crossOrigin = await context.request.post(request.url(), { headers: { ...headers, origin: "https://foreign.example.test" }, data: request.postDataBuffer()!, maxRedirects: 0 });
   expect(crossOrigin.status()).toBe(403);
   expect((await policy()).revision).toBe(before.revision + 1); expect(await saves()).toBe(1);
