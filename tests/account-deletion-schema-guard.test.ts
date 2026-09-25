@@ -11,36 +11,27 @@ import { describe, expect, it } from "vitest";
  * inline `CREATE TABLE ... CONSTRAINT` clauses) and fails when such a table exists unless it is
  * listed below.
  *
- * Two cascade sources are tracked because they differ today: several tables cascade only through
- * hand-written migration foreign keys the schema does not declare, so a database built from the
- * schema alone (`prisma db push`, as `npm run db:setup` does) has no cascade for them. A listed
- * table is "stale" only once the schema itself cascades it.
+ * Both cascade sources are read, and they must agree: since Release B every foreign key a migration
+ * creates by hand has a matching schema relation, so a database built from the schema alone
+ * (`prisma db push`, as `npm run db:setup` does) cascades exactly like a migrated one. That is why
+ * deleteAccountData no longer deletes the import, review, device, delivery and preference tables
+ * itself. tests/prisma-relation-guard.test.ts checks the scope columns of every model.
  *
  * How to fix a failure, in order of preference:
  * 1. Give the model `@relation(fields: [workspaceId], references: [id], onDelete: Cascade)` (plus
- *    the migration) so every database removes it.
+ *    the migration) so every database removes it. deleteAccountData needs no change.
  * 2. Delete it explicitly in deleteAccountData and add it to EXPLICITLY_DELETED.
  * 3. Only for audit or staff records that must outlive the account, add it to RETAINED with the
  *    reason; those rows must hold nothing personal beyond an opaque id.
  */
 
-// Tables deleteAccountData removes itself. Each must be referenced as `tx.<model>.` in
-// src/lib/account-deletion.ts; the last test checks that.
+// Tables deleteAccountData removes itself because no foreign key reaches Workspace or User. Each
+// must be referenced as `tx.<model>.` in src/lib/account-deletion.ts; the last test checks that.
 const EXPLICITLY_DELETED: Record<string, string> = {
-  // No cascade anywhere.
   AdminImpersonation: "support views that involve the account or its workspaces (relations are SetNull only)",
   AdminMfaCredential: "the account's own passkeys and authenticator secrets",
   AdminMfaSession: "the account's own step-up sessions",
-  SupportTicket: "tickets the person opened or that belong to the owned workspaces (assignee relation is SetNull)",
-  // Cascade only through hand-written migration foreign keys (20260722013000, 20260904170000,
-  // 20260904190000); deleted here as well so schema-built databases behave the same.
-  AutomatedDelivery: "automatic-sending receipts of the owned workspaces",
-  AutomationPreference: "automatic-sending settings of the owned workspaces",
-  ContactImportBatch: "import payloads (names, emails, phones, notes) of the owned workspaces",
-  NotificationDelivery: "digest and push receipts of the owned workspaces and the person",
-  NotificationPreference: "digest and push settings of the owned workspaces and the person",
-  PushSubscription: "device endpoints and keys of the owned workspaces and the person",
-  ReviewRequest: "customer ratings and feedback of the owned workspaces"
+  SupportTicket: "tickets the person opened or that belong to the owned workspaces (assignee relation is SetNull)"
 };
 
 // Audit or staff tables whose rows deliberately outlive the account. None today: every audit and
@@ -49,7 +40,10 @@ const RETAINED: Record<string, string> = {};
 
 const OWNER_ROOTS = new Set(["Workspace", "User"]);
 const SCOPE_KEYS = new Set(["workspaceId", "userId", "contactId"]);
-const FOREIGN_KEY = /CONSTRAINT "(\w+)" FOREIGN KEY \("[^"]+"\) REFERENCES "(\w+)" ?\("?\w+"?\)((?: ON (?:DELETE|UPDATE) (?:CASCADE|SET NULL|SET DEFAULT|RESTRICT|NO ACTION))*)/g;
+// Named or not: PostgreSQL names an unnamed table constraint <table>_<column>_fkey.
+const FOREIGN_KEY = /(?:CONSTRAINT "(\w+)" )?FOREIGN KEY \("([^"]+)"\) REFERENCES "(\w+)" ?\("?\w+"?\)((?: ON (?:DELETE|UPDATE) (?:CASCADE|SET NULL|SET DEFAULT|RESTRICT|NO ACTION))*)/g;
+// A column that references another table inline in CREATE TABLE; PostgreSQL names it <table>_<column>_fkey.
+const INLINE_REFERENCE = /"(\w+)" [^,()"]*?REFERENCES "(\w+)" ?\("?\w+"?\)((?: ON (?:DELETE|UPDATE) (?:CASCADE|SET NULL|SET DEFAULT|RESTRICT|NO ACTION))*)/g;
 const STATEMENT_TABLE = /(?:CREATE|ALTER) TABLE (?:IF NOT EXISTS )?"(\w+)"/;
 const root = process.cwd();
 
@@ -85,20 +79,26 @@ function parseSchema(): { models: Model[]; cascades: Cascades } {
 }
 
 function parseMigrations(): Cascades {
-  const constraints = new Map<string, { table: string; target: string; cascade: boolean }>();
+  const constraints = new Map<string, { table: string; column: string; target: string; cascade: boolean }>();
   const directory = join(root, "prisma", "migrations");
   const names = readdirSync(directory, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
   for (const name of names) {
-    const sql = readFileSync(join(directory, name, "migration.sql"), "utf8").replace(/\s+/g, " ");
+    const sql = readFileSync(join(directory, name, "migration.sql"), "utf8").replace(/--[^\n]*/g, "").replace(/\s+/g, " ");
     for (const statement of sql.split(";")) {
       const dropped = statement.match(/DROP TABLE (?:IF EXISTS )?"(\w+)"/)?.[1];
       if (dropped) for (const key of [...constraints.keys()]) if (key.startsWith(`${dropped}.`)) constraints.delete(key);
       const table = statement.match(STATEMENT_TABLE)?.[1];
       if (!table) continue;
       for (const match of statement.matchAll(FOREIGN_KEY)) {
-        constraints.set(`${table}.${match[1]}`, { table, target: match[2], cascade: /ON DELETE CASCADE/.test(match[3]) });
+        constraints.set(`${table}.${match[1] ?? `${table}_${match[2]}_fkey`}`, { table, column: match[2], target: match[3], cascade: /ON DELETE CASCADE/.test(match[4]) });
+      }
+      if (/^\s*CREATE TABLE/.test(statement)) for (const match of statement.matchAll(INLINE_REFERENCE)) {
+        constraints.set(`${table}.${table}_${match[1]}_fkey`, { table, column: match[1], target: match[2], cascade: /ON DELETE CASCADE/.test(match[3]) });
       }
       for (const match of statement.matchAll(/DROP CONSTRAINT (?:IF EXISTS )?"(\w+)"/g)) constraints.delete(`${table}.${match[1]}`);
+      for (const match of statement.matchAll(/DROP COLUMN (?:IF EXISTS )?"(\w+)"/g)) {
+        for (const [key, constraint] of constraints) if (constraint.table === table && constraint.column === match[1]) constraints.delete(key);
+      }
     }
   }
   const cascades: Cascades = new Map();
@@ -131,9 +131,16 @@ describe("account deletion schema guard", () => {
     expect([...(migrationCascades.get("ContactGroupState") ?? [])]).toContain("Workspace");
     // Inline CREATE TABLE constraints.
     expect([...(migrationCascades.get("AutomatedDelivery") ?? [])].sort()).toEqual(["Jump", "Workspace"]);
-    expect(reachesOwner("AutomatedDelivery", schemaCascades)).toBe(false);
-    expect(reachesOwner("AutomatedDelivery", databaseCascades)).toBe(true);
+    expect([...(schemaCascades.get("AutomatedDelivery") ?? [])].sort()).toEqual(["Jump", "Workspace"]);
+    expect(reachesOwner("AutomatedDelivery", schemaCascades)).toBe(true);
     expect(reachesOwner("SupportTicket", databaseCascades)).toBe(false);
+  });
+
+  it("declares in the schema every cascade the migrations create, and no other", () => {
+    const edges = (cascades: Cascades) => [...cascades].flatMap(([table, targets]) => [...targets].map(target => `${table} -> ${target}`)).sort();
+    const schemaEdges = edges(schemaCascades), migrationEdges = edges(migrationCascades);
+    expect(migrationEdges.filter(edge => !schemaEdges.includes(edge)), "Cascading foreign keys that only a migration declares; add the schema relation").toEqual([]);
+    expect(schemaEdges.filter(edge => !migrationEdges.includes(edge)), "Cascading relations that no migration creates; add the migration").toEqual([]);
   });
 
   it("every workspace-, user- or contact-scoped table cascades from its owner or is listed", () => {

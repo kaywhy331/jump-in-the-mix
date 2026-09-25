@@ -5,12 +5,27 @@ import type { ImportCommitResult } from "@/lib/contact-import-types";
 import { prisma } from "@/lib/prisma";
 import { lockAccess } from "@/lib/access-lock";
 import { importResults as resultArray, importCounts as counts } from "@/lib/contact-import-state";
-import { lockImportJob, lockRunningImport, type ImportJobLease } from "@/lib/contact-import-lease";
+import { ImportInterruptedError, lockImportJob, lockRunningImport, type ImportJobLease } from "@/lib/contact-import-lease";
 import { timezoneForUser } from "@/lib/display-preferences";
 
 export const CONTACT_IMPORT_JOB_TASK = "contact-import";
 const MAX_IMPORT_ROWS = 5000;
 const PROCESSING_BATCH_SIZE = 25;
+
+/** The worker's lease on an import job. shouldStop() turns true when the worker shuts down or loses the lease. */
+export type ContactImportJobLease = ImportJobLease & { shouldStop?(): boolean };
+
+/**
+ * Thrown between chunks when the worker asks the import to stop. Every finished chunk is already in
+ * the batch results, so the worker hands the job back and the next run resumes after the last chunk.
+ */
+export class ImportPausedError extends ImportInterruptedError {
+  constructor() {
+    super();
+    this.name = "ImportPausedError";
+    this.message = "The worker is stopping. The import resumes from its saved rows.";
+  }
+}
 
 type ContactImportBatchPayload = {
   items: ImportCommitItem[];
@@ -183,7 +198,7 @@ export async function cancelContactImportBatch(workspaceId: string, batchId: str
   return result;
 }
 
-export async function runContactImportBatch(batchId: string, lease: ImportJobLease): Promise<void> {
+export async function runContactImportBatch(batchId: string, lease: ContactImportJobLease): Promise<void> {
   const initial = await prisma.contactImportBatch.findUnique({ where: { id: batchId }, select: { workspaceId: true } });
   if (!initial) throw new Error("The Contact import batch no longer exists.");
   const workspaceId = initial.workspaceId;
@@ -205,7 +220,9 @@ export async function runContactImportBatch(batchId: string, lease: ImportJobLea
   const pendingItems = payload.items.filter(item => !processed.has(item.record.rowId));
   try {
     for (let index = 0; index < pendingItems.length; index += PROCESSING_BATCH_SIZE) {
-      const chunkResults = await commitContactImportBatch({ workspaceId, actorUserId, timezone, importId: batch.importId, items: pendingItems.slice(index, index + PROCESSING_BATCH_SIZE), background: { ...lease, batchId } });
+      // Stop only between chunks: each finished chunk is saved below before the next one starts.
+      if (lease.shouldStop?.()) throw new ImportPausedError();
+      const chunkResults = await commitContactImportBatch({ workspaceId, actorUserId, timezone, importId: batch.importId, items: pendingItems.slice(index, index + PROCESSING_BATCH_SIZE), background: { jobId: lease.jobId, leaseId: lease.leaseId, batchId } });
       await prisma.$transaction(async tx => {
         await lockAccess(tx);
         await lockImportJob(tx, batchId, lease, workspaceId);
@@ -229,12 +246,15 @@ export async function runContactImportBatch(batchId: string, lease: ImportJobLea
       await tx.auditLog.create({ data: { workspaceId, actorType: "SYSTEM", actorUserId, action: "contact.import.completed", entityType: "ContactImportBatch", entityId: batchId, source: "worker.contact-import", metadata: { status, totalRows: current.totalRows, ...aggregate } } });
     });
   } catch (error) {
-    await prisma.$transaction(async tx => {
-      await lockAccess(tx);
-      await lockImportJob(tx, batchId, lease, workspaceId);
-      await lockRunningImport(tx, batchId, workspaceId);
-      await tx.contactImportBatch.update({ where: { id: batchId }, data: { errorSummary: "Import processing was interrupted. Saved rows will be reused on retry." } });
-    }).catch(() => undefined);
+    // A pause is not a failure: the batch stays RUNNING with its saved rows and resumes shortly.
+    if (!(error instanceof ImportPausedError)) {
+      await prisma.$transaction(async tx => {
+        await lockAccess(tx);
+        await lockImportJob(tx, batchId, lease, workspaceId);
+        await lockRunningImport(tx, batchId, workspaceId);
+        await tx.contactImportBatch.update({ where: { id: batchId }, data: { errorSummary: "Import processing was interrupted. Saved rows will be reused on retry." } });
+      }).catch(() => undefined);
+    }
     throw error;
   }
 }

@@ -26,7 +26,7 @@ for (const width of [320, 1440]) for (const theme of ["light", "dark"] as const)
   test(`public notices fit and remain accessible at ${width}px in ${theme}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ colorScheme: theme });
-    for (const path of ["/privacy", "/terms", "/contact"]) {
+    for (const path of ["/privacy", "/terms", "/security", "/contact"]) {
       await page.goto(path);
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

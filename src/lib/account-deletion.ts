@@ -17,22 +17,6 @@ function subjectHash(userId: string): string {
   return createHash("sha256").update(`account-deletion:${userId}`).digest("hex");
 }
 
-// These tables store a workspaceId (and sometimes a userId) without a Prisma relation. The
-// hand-written migrations give them cascading foreign keys, but a database built from the schema
-// alone (`prisma db push`, as `npm run db:setup` does) gets none, so remove them here as well.
-// tests/account-deletion-schema-guard.test.ts keeps this list and the schema in step.
-async function deleteUnlinkedRows(tx: Prisma.TransactionClient, userId: string, workspaceIds: string[]): Promise<void> {
-  const owned = { workspaceId: { in: workspaceIds } };
-  const ownedOrPersonal = { OR: [owned, { userId }] };
-  await tx.contactImportBatch.deleteMany({ where: owned });
-  await tx.reviewRequest.deleteMany({ where: owned });
-  await tx.pushSubscription.deleteMany({ where: ownedOrPersonal });
-  await tx.notificationDelivery.deleteMany({ where: ownedOrPersonal });
-  await tx.automatedDelivery.deleteMany({ where: owned });
-  await tx.notificationPreference.deleteMany({ where: ownedOrPersonal });
-  await tx.automationPreference.deleteMany({ where: owned });
-}
-
 // Reports the person filed against other people's shares. An open report keeps the listing in the
 // staff queue (it may be the reason the share is hidden), so only the reporter and their free text
 // go; decided reports hold nothing but the reporter's history and are removed.
@@ -103,9 +87,12 @@ export async function deleteAccountData(
         ]
       }
     });
-    await deleteUnlinkedRows(tx, userId, workspaceIds);
     await detachMarketplaceReports(tx, userId, workspaceIds);
 
+    // Everything else scoped to the owned workspaces or to the person goes with these two deletes:
+    // every such table cascades from Workspace or User through a schema relation (including imports,
+    // reviews, devices, deliveries and preferences since Release B), so databases built by
+    // `prisma db push` behave like migrated ones. tests/account-deletion-schema-guard.test.ts checks it.
     if (workspaceIds.length) {
       await tx.workspace.deleteMany({ where: { id: { in: workspaceIds } } });
     }
