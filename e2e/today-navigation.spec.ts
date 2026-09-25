@@ -238,6 +238,7 @@ test.describe("live outcome updates", () => {
       await updates(page).getByRole("button", { name: "Return to message edits", exact: true }).click();
       await expect(draft).toHaveValue("A draft created after the refresh started."); await expect(draft).toBeFocused();
       await dialog.getByRole("button", { name: "Discard edits", exact: true }).click();
+      await page.getByRole("dialog", { name: "Discard your edits?", exact: true }).getByRole("button", { name: "Discard edits", exact: true }).click();
       await expect(pager(page)).toContainText("Showing 30 of 322 follow-ups");
       expect(await ids(page)).toEqual(smsIds.slice(1, 31));
       await expect(page.locator('[data-follow-up-draft="true"]')).toHaveCount(0);
@@ -439,6 +440,7 @@ test("native browser zoom preserves Today drafts, filters and history at 200 and
             await guard.getByRole("button", { name: "Keep editing", exact: true }).click();
             await expect(draft).toBeFocused(); await expect(draft).toHaveValue(`Unsent draft at ${zoom * 100}% zoom`);
             await message.getByRole("button", { name: "Discard edits", exact: true }).click();
+            await page.getByRole("dialog", { name: "Discard your edits?", exact: true }).getByRole("button", { name: "Discard edits", exact: true }).click();
             await expect(draft).toHaveValue(original); await page.keyboard.press("Escape");
             await expect(page.locator('[data-follow-up-draft="true"]')).toHaveCount(0);
             const filter = page.getByRole("button", { name: /^Filter(?: \d+)?$/ });

@@ -47,3 +47,11 @@ export function failedDeliveryNotice(error: string | null | undefined): FailedDe
   }
   return { kind: "failed", text: `Couldn’t send automatically: ${plainReason(stored)}. Send it yourself.` };
 }
+
+/**
+ * The number beside "Done". In the due view it is today's completed total, whatever page or part of
+ * the list is open; other date ranges have no "today" to total, so they count what the page lists.
+ */
+export function doneSummaryCount(range: string, listedCompleted: number, completedToday: number): number {
+  return range === "due" ? completedToday : listedCompleted;
+}

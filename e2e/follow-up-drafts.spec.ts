@@ -70,6 +70,7 @@ test("keeps fine-tuned text across a reload and renders it with the contact's cu
   await expect(field(page)).toHaveValue(rendered("Alexandra", "your estimate is ready to review."));
 
   await editor(page).getByRole("button", { name: "Discard edits", exact: true }).click();
+  await page.getByRole("dialog", { name: "Discard your edits?", exact: true }).getByRole("button", { name: "Discard edits", exact: true }).click();
   await expect(field(page)).toHaveValue(rendered("Alexandra"));
   await expect.poll(() => prisma.jumpDraft.count({ where: { jumpId } })).toBe(0);
   await expect(page.locator('[data-follow-up-draft="true"]')).toHaveCount(0);
@@ -151,6 +152,7 @@ test("recovers a failed discard and keeps text typed during one", async ({ page 
     return route.continue();
   });
   await editor(page).getByRole("button", { name: "Discard edits", exact: true }).click();
+  await page.getByRole("dialog", { name: "Discard your edits?", exact: true }).getByRole("button", { name: "Discard edits", exact: true }).click();
   await expect(editor(page).getByRole("status")).toContainText("the discard didn't go through");
   expect(seen).toContain("DELETE");
   // The draft is still on the server and the text is still on screen.
@@ -201,8 +203,14 @@ test("promises the automatic-sending hold only once the draft is saved, and warn
   });
   try {
     await visit(page);
-    // Before any edit the review says plainly that sending is on; nothing claims a hold.
-    await expect(editor(page).locator("[data-follow-up-automatic]")).toContainText("Automatic sending is on");
+    // Before any edit the review says when the worker would send it (the review window after the
+    // later of due time and creation, in the owner's timezone); nothing claims a hold.
+    const row = await prisma.jump.findUniqueOrThrow({ where: { id: jumpId }, select: { scheduledAt: true, createdAt: true } });
+    const eligibleAt = new Date(Math.max(row.scheduledAt.getTime(), row.createdAt.getTime()) + 15 * 60_000);
+    const shown = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(eligibleAt);
+    await expect(editor(page).locator("[data-follow-up-automatic]")).toHaveText(eligibleAt.getTime() > Date.now() + 5_000
+      ? `Sends automatically at ${shown} unless you send, snooze or skip it first.`
+      : "Sends automatically any minute now unless you send, snooze or skip it first.");
     await expect(editor(page).locator("[data-follow-up-held]")).toHaveCount(0);
     await field(page).fill(rendered("Alexandra", "your estimate is ready, hold this one."));
     // The save is held on the wire: no draft row exists yet, so no hold exists yet either.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
-import { calendarDaysOverdue, failedDeliveryNotice } from "@/lib/today-view";
+import { calendarDaysOverdue, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
 
 const NEW_YORK = "America/New_York";
 
@@ -66,5 +66,19 @@ describe("failedDeliveryNotice", () => {
     for (const [error, reason] of cases) {
       expect(failedDeliveryNotice(error)).toEqual({ kind: "failed", text: `Couldn’t send automatically: ${reason}. Send it yourself.` });
     }
+  });
+});
+
+describe("doneSummaryCount", () => {
+  it("shows today's completed total in the due view, whatever the open page lists", () => {
+    expect(doneSummaryCount("due", 2, 7)).toBe(7);
+    expect(doneSummaryCount("due", 0, 7)).toBe(7);
+    expect(doneSummaryCount("due", 0, 0)).toBe(0);
+  });
+
+  it("counts what the page lists in other date ranges, where there is no today to total", () => {
+    expect(doneSummaryCount("week", 2, 7)).toBe(2);
+    expect(doneSummaryCount("month", 0, 7)).toBe(0);
+    expect(doneSummaryCount("all", 30, 7)).toBe(30);
   });
 });

@@ -31,8 +31,8 @@ test("single user can complete the primary discovery and support journey", async
   await expect(page.getByRole("heading", { name: "Today", exact: true }).first()).toBeVisible();
   await expect(page.locator(`[data-jump-workflow="${pendingJumpId}"]:visible`)).toBeVisible();
   await expect(page.getByRole("button", { name: /^Filter/ })).toBeVisible();
-  // The range links became the "Later this week" queue group and the Dates filter.
-  await expect(page.locator(".today-queue-group summary").filter({ hasText: /Later this week|Upcoming/ })).toBeVisible();
+  // The range links became the "Next 7 days" queue group and the Dates filter.
+  await expect(page.locator(".today-queue-group summary").filter({ hasText: /Next 7 days|Upcoming/ })).toBeVisible();
 
   await page.goto("/contacts");
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();

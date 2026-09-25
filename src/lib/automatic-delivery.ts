@@ -1,9 +1,10 @@
-import { nextJourneyAvailability } from "@/lib/journey-availability";
 import { readJourneyPreferences } from "@/lib/journey-preferences";
 import { createHash } from "node:crypto";
 import type { Channel } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
-import { isQuietTime, notificationClock } from "@/lib/notification-delivery";
+import { automaticSendingOpensAt, automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
+// The review-window rule moved with the rest of the sending rule; existing callers keep importing it from here.
+export { automaticDeliveryEligibleAt } from "@/lib/automatic-delivery-window";
 import { isValidTimezone } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
 import { processWorkflowInstance, queueWorkflowForJump } from "@/lib/mix-workflow";
@@ -22,10 +23,6 @@ export function automaticEmailConfigured(): boolean {
 
 export function automaticSmsConfigured(configuration: Pick<typeof env, "twilioAccountSid" | "twilioAuthToken" | "twilioFromNumber"> = env): boolean {
   return Boolean(configuration.twilioAccountSid.trim() && configuration.twilioAuthToken.trim() && configuration.twilioFromNumber.trim());
-}
-
-export function automaticDeliveryEligibleAt(scheduledAt: Date, createdAt: Date, reviewWindowMinutes: number): Date {
-  return new Date(Math.max(scheduledAt.getTime(), createdAt.getTime()) + reviewWindowMinutes * 60_000);
 }
 
 export function preparedDelivery(snapshot: unknown, channel: Channel): PreparedDelivery | null {
@@ -127,13 +124,13 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
       prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })
     ]);
     const timeZone = isValidTimezone(display?.timezone ?? "") ? display!.timezone : "UTC";
-    const clock = notificationClock(now, timeZone);
-    if (scheduling && isQuietTime(clock.hour * 60 + clock.minute, scheduling.quietHoursStart, scheduling.quietHoursEnd)) continue;
-
-    if (scheduling && readJourneyPreferences(scheduling.journeyPreferences)) {
-      const busy = readJourneyPreferences(scheduling.journeyPreferences)?.avoidAppointments ? await prisma.calendarEntry.findMany({ where: { workspaceId: workspace.id, canceledAt: null, startsAt: { lte: new Date(now.getTime() + 240 * 60_000) }, endsAt: { gte: new Date(now.getTime() - 240 * 60_000) } }, select: { startsAt: true, endsAt: true, kind: true } }) : [];
-      if (nextJourneyAvailability(now, timeZone, scheduling, busy).getTime() > now.getTime()) continue;
-    }
+    // One sending rule, shared with Today's review line and the settings preview. Quiet hours close
+    // the workspace for this pass before anything else is read; working hours and appointments next.
+    const quietHours = scheduling ? { start: scheduling.quietHoursStart, end: scheduling.quietHoursEnd } : null;
+    if (automaticSendingOpensAt(now, { timezone: timeZone, quietHours }).getTime() > now.getTime()) continue;
+    const appointmentGaps = scheduling && readJourneyPreferences(scheduling.journeyPreferences)?.avoidAppointments ? await prisma.calendarEntry.findMany({ where: { workspaceId: workspace.id, canceledAt: null, startsAt: { lte: new Date(now.getTime() + 240 * 60_000) }, endsAt: { gte: new Date(now.getTime() - 240 * 60_000) } }, select: { startsAt: true, endsAt: true, kind: true } }) : [];
+    const rule: AutomaticSendingRule = { timezone: timeZone, quietHours, workingHours: scheduling, appointmentGaps };
+    if (automaticSendingOpensAt(now, rule).getTime() > now.getTime()) continue;
 
     const channels: Channel[] = [
       ...(preference.emailEnabled ? ["EMAIL" as const] : []),
@@ -168,8 +165,9 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
 
     for (const jump of candidates) {
       if (jump.workflowInstanceId) await processWorkflowInstance(workspace.id, jump.workflowInstanceId, now);
-      const eligibleAt = automaticDeliveryEligibleAt(jump.scheduledAt, jump.createdAt, preference.reviewWindowMinutes);
-      if (eligibleAt > now || jump.contact.relationshipState?.doNotContact) continue;
+      const window = automaticSendWindow({ ...rule, scheduledAt: jump.scheduledAt, createdAt: jump.createdAt, reviewWindowMinutes: preference.reviewWindowMinutes, now });
+      if (!window.open || jump.contact.relationshipState?.doNotContact) continue;
+      const eligibleAt = window.eligibleAt;
       const channel = jump.stepVersion.stepTemplate.channel;
       if (jump.selectedFamily && jump.selectedFamily !== preparationFamilyForChannel(channel)) continue;
       const recipient = channel === "EMAIL"

@@ -37,7 +37,8 @@ import { readPreparationStatus } from "@/lib/preparation";
 import { snoozeJumpAction } from "@/lib/snooze-actions";
 import { snoozeChoices } from "@/lib/snooze-schedule";
 import { parseTodayCursor, readTodayPage } from "@/lib/today-list";
-import { calendarDaysOverdue, failedDeliveryNotice } from "@/lib/today-view";
+import { calendarDaysOverdue, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
+import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
 import { dialablePhone } from "@/lib/phone-dial";
 
 export const metadata: Metadata = { title: "Today" };
@@ -179,7 +180,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     readJumpDrafts(workspace.id, pendingIds),
     readFailedDeliveries(),
     prisma.user.findUnique({ where: { id: workspace.ownerId }, select: { name: true, email: true } }),
-    prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id }, select: { enabled: true, emailEnabled: true, smsEnabled: true } }),
+    prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id }, select: { enabled: true, emailEnabled: true, smsEnabled: true, reviewWindowMinutes: true } }),
     readQuietDays({ workspaceId: workspace.id, timezone }),
     readWorkflowAttention(workspace.id, 30, Math.max(0, Math.min(100000, Math.floor(Number(params.attentionPage) || 0))) * 30, new Date(), Math.max(0, Math.min(100000, Math.floor(Number(params.callbackPage) || 0))) * 30).catch(() => null)
   ]);
@@ -197,10 +198,22 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const returnTo = currentCursor ? pageHref(currentCursor.direction, currentCursor.value) : firstHref;
   const scheduling = await prisma.workspacePreference.findUnique({
     where: { workspaceId: workspace.id },
-    select: { defaultFollowUpMinutes: true, quietHoursStart: true, quietHoursEnd: true, journeyPreferences: true }
+    select: { defaultFollowUpMinutes: true, quietHoursStart: true, quietHoursEnd: true, journeyPreferences: true, appointmentBufferMinutes: true }
   });
   const ownerPreferred = readJourneyPreferences(scheduling?.journeyPreferences)?.communication ?? null;
   const now = new Date();
+  // The review's "not before" time comes from the worker's own rule (review window, quiet hours,
+  // working hours, appointments) in the owner's timezone; the page only formats it for the viewer.
+  const readSendingRule = async (): Promise<AutomaticSendingRule | null> => {
+    if (!automation?.enabled) return null;
+    const ownerTimezone = workspace.ownerId === user.id ? timezone : (await displayPreferencesForUser(workspace.ownerId)).timeZone;
+    const appointmentGaps = readJourneyPreferences(scheduling?.journeyPreferences)?.avoidAppointments
+      ? await prisma.calendarEntry.findMany({ where: { workspaceId: workspace.id, canceledAt: null, startsAt: { lte: new Date(now.getTime() + 8 * 86_400_000) }, endsAt: { gte: new Date(now.getTime() - 240 * 60_000) } }, select: { startsAt: true, endsAt: true, kind: true }, orderBy: { startsAt: "asc" }, take: 200 })
+      : [];
+    return { timezone: ownerTimezone, quietHours: scheduling ? { start: scheduling.quietHoursStart, end: scheduling.quietHoursEnd } : null, workingHours: scheduling, appointmentGaps };
+  };
+  // A problem reading the rule falls back to the fixed wording, never a wrong time or a missing page.
+  const sendingRule = await readSendingRule().catch(() => null);
   // Only offer snooze times after the follow-up is due, so nothing offered is refused.
   const choicesFor = (followUp: { baseScheduledAt: Date | null; scheduledAt: Date }) => snoozeChoices({
     now,
@@ -279,6 +292,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     // active, the method exists, no binding or invitation holds it and no attempt has failed. A saved
     // draft is the remaining hold, and the editor reports that one as it happens.
     const automaticDelivery = automaticForPlan && !alternative && !missingMethod && !failure && (!followUp.appointmentBinding || followUp.appointmentBinding.automaticDelivery);
+    // When the worker would first send it, by its own rule; the editor keeps the fixed wording when this cannot be computed.
+    const sendWindow = automaticDelivery && sendingRule && automation ? automaticSendWindow({ ...sendingRule, scheduledAt: followUp.scheduledAt, createdAt: followUp.createdAt, reviewWindowMinutes: automation.reviewWindowMinutes, now }) : null;
     // Switching away from the plan's channel takes this follow-up out of automatic delivery; the card says so.
     const heldByChoice = Boolean(alternative && automaticForPlan);
     // The note gives the real reason: the owner's choice, or the plan's own method missing so the
@@ -327,6 +342,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       stepVersionId={followUp.stepVersionId}
       contextVersions={contextVersions}
       automaticDelivery={automaticDelivery}
+      automaticSendAt={sendWindow?.opensAt && !sendWindow.open ? formatDateTime(sendWindow.opensAt, displayPreferences) : null}
+      automaticSendDue={Boolean(sendWindow?.open)}
       deliveryStatus={deliveryStatus}
       channelChoice={choice}
       outcomeActions={outcomeActions}
@@ -423,8 +440,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       {needsAttention.filter(item => item.scheduledAt >= startToday).length > 0 && <section aria-labelledby="today-follow-ups"><div className="section-label"><h2 id="today-follow-ups">Today</h2><span>{attentionCount - overdueCount}</span></div><div className="jump-list">{needsAttention.filter(item => item.scheduledAt >= startToday).map(renderCard)}</div></section>}
       <WorkflowAttention attention={workflowAttention} />
       <QuietDaySuggestions locale={displayPreferences.locale} initial={quietDays} canResolve={!impersonation} compact />
-      <details className="today-queue-group" open={upcoming.length > 0 || Boolean(workflowAttention?.future?.length) || undefined}><summary>{range === "due" || range === "week" ? "Later this week" : "Upcoming"} <span>{(upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0)}</span></summary><UpcomingWorkflowCommitments attention={workflowAttention} displayPreferences={displayPreferences} />{upcoming.length ? <div className="jump-list">{upcoming.map(renderCard)}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
-      <details className="today-queue-group" open={status === "done" || status === "skipped" || pendingCount === 0 || undefined}><summary>Done <span>{completed.length || completedTodayCount}</span></summary>{completed.length ? <div className="jump-list">{completed.map(renderCard)}</div> : <TodayLink href="/jumps?range=due&status=done">View completed follow-ups</TodayLink>}</details>
+      <details className="today-queue-group" open={upcoming.length > 0 || Boolean(workflowAttention?.future?.length) || undefined}><summary>{range === "due" || range === "week" ? "Next 7 days" : "Upcoming"} <span>{(upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0)}</span></summary><UpcomingWorkflowCommitments attention={workflowAttention} displayPreferences={displayPreferences} />{upcoming.length ? <div className="jump-list">{upcoming.map(renderCard)}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
+      <details className="today-queue-group" open={status === "done" || status === "skipped" || pendingCount === 0 || undefined}><summary>Done <span>{doneSummaryCount(range, completed.length, completedTodayCount)}</span></summary>{completed.length ? <div className="jump-list">{completed.map(renderCard)}</div> : <TodayLink href="/jumps?range=due&status=done">View completed follow-ups</TodayLink>}</details>
       {totalCount > 0 && <nav className="pagination-bar today-pagination" aria-label="Follow-up pages">
         <span role="status">Showing {ordered.length} of {totalCount.toLocaleString()} follow-up{totalCount === 1 ? "" : "s"} in this view.</span>
         <div className="page-actions">

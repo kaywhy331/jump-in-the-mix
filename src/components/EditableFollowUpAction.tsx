@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { JumpActionLink, JumpCopyButton, type AttemptDraft } from "@/components/JumpActionControls";
+import { useConfirmDialog } from "@/components/useConfirmDialog";
 import { applyDraftEdit, draftSource, parseDraftSource, projectDraft, type DraftSegment, type DraftValues } from "@/lib/draft-segments";
 import { DRAFT_LIMITS, type DetachedChange, type DraftContent, type PreparationFamily } from "@/lib/preparation-family";
 import { dialablePhone, phoneLinkTarget } from "@/lib/phone-dial";
@@ -70,6 +71,13 @@ function statusLabel(status: SaveStatus, unsaved: boolean, hasSavedDraft: boolea
   return !unsaved && hasSavedDraft ? "Saved" : "";
 }
 
+/** The review's automatic-sending line: the worker's computed "not before" time when known, the fixed wording when not. */
+export function automaticSendingLine(automaticSendAt: string | null | undefined, due: boolean): { state: "now" | "scheduled" | "window"; text: string } {
+  if (due) return { state: "now", text: "Sends automatically any minute now unless you send, snooze or skip it first." };
+  if (automaticSendAt) return { state: "scheduled", text: `Sends automatically at ${automaticSendAt} unless you send, snooze or skip it first.` };
+  return { state: "window", text: "Automatic sending is on: this sends by itself after your review window unless you send, snooze or skip it first." };
+}
+
 function preview(text: string): string {
   const flat = text.replace(/\s+/g, " ").trim();
   return flat.length > 140 ? `${flat.slice(0, 137)}…` : flat;
@@ -99,6 +107,8 @@ export function EditableFollowUpAction({
   stepVersionId,
   contextVersions,
   automaticDelivery = false,
+  automaticSendAt = null,
+  automaticSendDue = false,
   deliveryStatus,
   channelChoice,
   outcomeActions,
@@ -122,6 +132,10 @@ export function EditableFollowUpAction({
   contextVersions: Record<string, string>;
   /** True when automatic delivery would send this follow-up unless a saved draft holds it for the owner. */
   automaticDelivery?: boolean;
+  /** The earliest time the worker would send it, already formatted for the viewer; null when it cannot be computed. */
+  automaticSendAt?: string | null;
+  /** True when that time has passed, so the next worker pass sends it. */
+  automaticSendDue?: boolean;
   /** Rendered by the page above the actions: a failed automatic send and the status that follows from it. */
   deliveryStatus?: React.ReactNode;
   /** Details the owner wrote over by hand that have changed since; shown, never rewritten. */
@@ -150,6 +164,7 @@ export function EditableFollowUpAction({
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState(false);
   const [recentlyActive, setRecentlyActive] = useState(false);
+  const [confirm, confirmDialog] = useConfirmDialog();
   const idleTimer = useRef<number | undefined>(undefined);
   const touch = useCallback(() => {
     setRecentlyActive(true);
@@ -343,6 +358,13 @@ export function EditableFollowUpAction({
     }
   });
 
+  // "Discard edits" sits one tap away in the status row and removes wording that may have taken
+  // days; ask first. A retry after a failed discard was already confirmed.
+  const confirmDiscard = async () => {
+    if (status !== "discard-failed" && !await confirm({ title: "Discard your edits?", description: "The Mix’s wording comes back.", confirmLabel: "Discard edits", danger: true })) return;
+    await discard();
+  };
+
   const url = useMemo(() => followUpHandoffUrl(channel, email, phone, subject, content), [channel, content, email, phone, subject]);
   const needsEmail = channel === "EMAIL";
   const methodLabel = needsEmail ? "email" : "phone";
@@ -365,7 +387,8 @@ export function EditableFollowUpAction({
     contextVersions
   } : null;
 
-  const automaticLine = <p className="muted-copy" data-follow-up-automatic>Automatic sending is on: this sends by itself after your review window unless you send, snooze or skip it first.</p>;
+  const sendingLine = automaticSendingLine(automaticSendAt, automaticSendDue);
+  const automaticLine = <p className="muted-copy" data-follow-up-automatic={sendingLine.state}>{sendingLine.text}</p>;
 
   return (
     <div
@@ -442,8 +465,9 @@ export function EditableFollowUpAction({
       </div>
       {(label || (hasDraft && !conflict)) && <div className="review-draft-status">
         {label && <small className={status === "signed-out" ? "draft-status-warning" : "muted-copy"} role="status" data-draft-status={status}>{label}{status === "signed-out" && <> <a className="inline-action" href={`/login?next=${encodeURIComponent(`/jumps?jump=${jumpId}&range=all`)}`} target="_blank" rel="noopener">Sign in in a new tab</a> <button type="button" className="text-button" onClick={() => { setStopped(false); setStatus("idle"); }}>Try saving again</button></>}</small>}
-        {hasDraft && !conflict && <button type="button" className="text-button" disabled={busy} onClick={() => { void discard(); }}>{status === "discard-failed" ? "Try discarding again" : "Discard edits"}</button>}
+        {hasDraft && !conflict && <button type="button" className="text-button" disabled={busy} onClick={() => { void confirmDiscard(); }}>{status === "discard-failed" ? "Try discarding again" : "Discard edits"}</button>}
       </div>}
+      {confirmDialog}
     </div>
   );
 }

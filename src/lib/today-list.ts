@@ -46,7 +46,7 @@ const select = {
   accessInvite: { select: { recipientEmail: true, recipientPhone: true, acceptedAt: true, revokedAt: true } },
   manualOnly: true, id: true, contactId: true, mixId: true, mixStepId: true, jumpDateId: true, appointmentBindingId: true,
   mixStep: { select: { dayOffset: true, plannedAt: true } },
-  scheduledAt: true, baseScheduledAt: true, status: true, updatedAt: true, reason: true, renderedSnapshot: true, templateSnapshot: true, stepVersionId: true, completedAt: true, completionMethod: true, selectedFamily: true,
+  scheduledAt: true, baseScheduledAt: true, createdAt: true, status: true, updatedAt: true, reason: true, renderedSnapshot: true, templateSnapshot: true, stepVersionId: true, completedAt: true, completionMethod: true, selectedFamily: true,
   // The contact fields the message tokens resolve from, so an owner's draft renders on the card.
   contact: { select: {
     journey: { select: { stage: { select: { name: true } } } },

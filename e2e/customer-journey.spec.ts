@@ -70,7 +70,7 @@ test("meeting booking advances the journey, retains invalid form input and expor
   expect(calendar).toContain("BEGIN:VCALENDAR"); expect(calendar).toContain("Discovery with Jordan");
   await openDetails(page.getByText("Show Jump in the Mix in another calendar",{ exact: true })); await submit(page, page.getByRole("button",{ name: "Create private subscription link" }));
   await openDetails(page.getByText("Show Jump in the Mix in another calendar",{ exact: true })); const url = await page.getByLabel("Subscription URL",{ exact: true }).inputValue();
-  expect((await page.request.get(url)).status()).toBe(200); await submit(page, page.getByRole("button",{ name: "Disable subscription", exact: true })); expect((await page.request.get(url)).status()).toBe(404);
+  expect((await page.request.get(url)).status()).toBe(200); await page.getByRole("button",{ name: "Disable subscription…", exact: true }).click(); await submit(page, page.getByRole("dialog").getByRole("button",{ name: "Disable subscription", exact: true })); expect((await page.request.get(url)).status()).toBe(404);
 });
 
 test("connection setup supports authenticated retries, ambiguous review, rotation and pause", async ({ page }) => {

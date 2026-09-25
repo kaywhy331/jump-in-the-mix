@@ -73,7 +73,8 @@ test.describe("automatic-delivery states on Today", () => {
     await expect(page.locator(".notice[data-delivery-failed='uncertain']:visible")).toContainText("We couldn’t confirm whether this was sent. Check your sent messages before sending again.");
 
     await card(people.pending.jumpId).getByRole("button", { name: /^Review (message|call) for/ }).click();
-    await expect(page.locator("[data-follow-up-automatic]:visible")).toContainText("Automatic sending is on: this sends by itself after your review window unless you send, snooze or skip it first.");
+    // The line carries the worker's computed "not before" time, or says it is due, never a bare "on".
+    await expect(page.locator("[data-follow-up-automatic]:visible")).toHaveText(/^Sends automatically (?:at .+|any minute now) unless you send, snooze or skip it first\.$/);
     await expect(page.locator(".notice[data-delivery-failed]:visible")).toHaveCount(0);
   });
 });
