@@ -8,7 +8,8 @@ const mocks = vi.hoisted(() => ({
   memberships: vi.fn(),
   jobCreate: vi.fn(),
   tx: {
-    contact: { update: vi.fn() },
+    $queryRaw: vi.fn(),
+    contact: { update: vi.fn(), findFirst: vi.fn() },
     contactEmail: { upsert: vi.fn(), deleteMany: vi.fn() },
     contactPhone: { upsert: vi.fn(), deleteMany: vi.fn() },
     contactAddress: { findMany: vi.fn(), update: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
@@ -21,7 +22,7 @@ vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error
 vi.mock("@/lib/auth", () => ({ requireWorkspace: mocks.auth }));
 vi.mock("@/lib/journey", () => ({ applyJourneyEvent: vi.fn() }));
 vi.mock("@/lib/group-activity", () => ({ listGroupStates: async () => [], mergeGroupActivity: () => [] }));
-vi.mock("@/lib/contact-custom-fields", () => ({ buildContactCustomFieldInputs: () => [], validateContactCustomFieldInputs: async () => undefined }));
+vi.mock("@/lib/contact-custom-fields", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/contact-custom-fields")>()), validateContactCustomFieldInputs: async () => undefined }));
 vi.mock("@/lib/display-preferences", () => ({ timezoneForUser: async () => "UTC" }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
   group: { findMany: async () => [] },
@@ -33,12 +34,22 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   $transaction: (fn: (tx: typeof mocks.tx) => unknown) => fn(mocks.tx)
 } }));
 import { saveContactFormAction } from "@/lib/contact-actions";
+import { STALE_CONTACT_SAVE, contactRevision } from "@/lib/contact-revision";
+import { VIEW_ONLY_SUPPORT_MESSAGE } from "@/lib/writable-workspace";
 
-function form(fields: Record<string, string>): FormData {
+function form(fields: Record<string, string | string[]>): FormData {
   const data = new FormData();
-  for (const [key, value] of Object.entries(fields)) data.set(key, value);
+  for (const [key, value] of Object.entries(fields)) for (const item of Array.isArray(value) ? value : [value]) data.append(key, item);
   return data;
 }
+
+/** The contact as the edit form showed it, and the fingerprint the form carries. */
+const SHOWN = {
+  firstName: "Bob", lastName: null, displayName: "Bob", company: null, publicNotes: null, privateNotes: null,
+  emails: [], phones: [{ phone: "(555) 234-5678", normalized: "5552345678", label: null, isPrimary: true }],
+  addresses: [], groupMemberships: [], customFieldValues: []
+};
+const REVISION = contactRevision(SHOWN);
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -47,6 +58,7 @@ beforeEach(() => {
   mocks.emailConflict.mockResolvedValue(null);
   mocks.phoneConflict.mockResolvedValue(null);
   mocks.contactFindFirst.mockResolvedValue({ id: "contact_1" });
+  mocks.tx.contact.findFirst.mockResolvedValue(SHOWN);
   mocks.tx.contactAddress.findMany.mockResolvedValue([]);
 });
 
@@ -56,7 +68,8 @@ describe("contact form duplicate check", () => {
     const result = await saveContactFormAction({}, form({ firstName: "Bob", phoneValue: "+1 (555) 234-5678", phoneLabel: "Mobile" }));
     expect(result).toEqual({
       error: "That phone already belongs to Bob Smith (archived). Restore them from Archived contacts or use another number.",
-      errorLink: { href: "/contacts/archived?q=%2B1%20(555)%20234-5678", label: "Open Archived contacts" }
+      errorLink: { href: "/contacts/archived?q=%2B1%20(555)%20234-5678", label: "Open Archived contacts" },
+      field: "phoneValue:0"
     });
     expect(mocks.phoneConflict).toHaveBeenCalledWith({
       where: { normalized: "+15552345678", contact: { workspaceId: "workspace" } },
@@ -70,7 +83,8 @@ describe("contact form duplicate check", () => {
     const result = await saveContactFormAction({}, form({ firstName: "Dana", emailValue: "dana@example.com" }));
     expect(result).toEqual({
       error: "That email already belongs to Dana Reyes. Use Find duplicates if these are the same person.",
-      errorLink: { href: "/contacts/duplicates", label: "Find duplicates" }
+      errorLink: { href: "/contacts/duplicates", label: "Find duplicates" },
+      field: "emailValue:0"
     });
     expect(mocks.emailConflict).toHaveBeenCalledWith({
       where: { normalized: "dana@example.com", contact: { workspaceId: "workspace" } },
@@ -89,24 +103,83 @@ describe("contact form duplicate check", () => {
 
   it("keeps plain validation errors without a link", async () => {
     const result = await saveContactFormAction({}, form({ phoneValue: "12" }));
-    expect(result).toEqual({ error: "Invalid phone number: 12" });
+    expect(result).toEqual({ error: "Invalid phone number: 12", field: "phoneValue:0" });
+  });
+});
+
+describe("contact form field errors", () => {
+  it("names the submitted row of an invalid email or phone, counting blank rows", async () => {
+    expect(await saveContactFormAction({}, form({ firstName: "Dana", emailValue: ["dana@example.com", "bob@@example"] })))
+      .toEqual({ error: "Invalid email address: bob@@example", field: "emailValue:1" });
+    expect(await saveContactFormAction({}, form({ contactId: "contact_1", revision: REVISION, firstName: "Bob", phoneValue: ["", "12", "34"] })))
+      .toEqual({ error: "Invalid phone number: 12", field: "phoneValue:1" });
+    expect(mocks.tx.contact.update).not.toHaveBeenCalled();
+  });
+
+  it("points a missing name at First name and a too-long custom value at its own field", async () => {
+    expect(await saveContactFormAction({}, form({ firstName: "", lastName: "" })))
+      .toEqual({ error: "Add a name, company, email, or phone number.", field: "firstName" });
+    expect(await saveContactFormAction({}, form({ firstName: "Bob", customFieldDefinitionId: ["field_short", "field_long"], customFieldValue: ["fine", "x".repeat(2001)] })))
+      .toEqual({ error: "Contact custom field values must be 2,000 characters or fewer.", field: "custom:field_long" });
+  });
+
+  it("names the row whose phone belongs to someone else, whatever punctuation was typed", async () => {
+    mocks.phoneConflict.mockImplementation(async ({ where }: { where: { normalized: string } }) => where.normalized === "5552345678" ? { contact: { displayName: "Dana Reyes", archivedAt: null } } : null);
+    const result = await saveContactFormAction({}, form({ firstName: "Bob", phoneValue: ["(555) 111-2222", "555.234.5678"] }));
+    expect(result).toMatchObject({ error: "That phone already belongs to Dana Reyes. Use Find duplicates if these are the same person.", field: "phoneValue:1" });
+  });
+});
+
+describe("saving an edit form that is out of date", () => {
+  it("locks the person and refuses when what the form overwrites changed since it opened", async () => {
+    mocks.tx.contact.findFirst.mockResolvedValue({ ...SHOWN, phones: [...SHOWN.phones, { phone: "555-0199", normalized: "5550199", label: "Work", isPrimary: false }] });
+    const result = await saveContactFormAction({}, form({ contactId: "contact_1", revision: REVISION, firstName: "Robert", phoneValue: "(555) 234-5678" }));
+    expect(result).toEqual({ error: STALE_CONTACT_SAVE });
+    expect(mocks.tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(String(mocks.tx.$queryRaw.mock.calls[0][0].join("?"))).toContain('FROM "Contact" WHERE id = ? AND "workspaceId" = ? FOR UPDATE');
+    expect(mocks.tx.contact.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "contact_1", workspaceId: "workspace", archivedAt: null } }));
+    expect(mocks.tx.contact.update).not.toHaveBeenCalled();
+    expect(mocks.tx.contactPhone.deleteMany).not.toHaveBeenCalled();
+    expect(mocks.jobCreate).not.toHaveBeenCalled();
+  });
+
+  it("treats a person archived meanwhile as out of date", async () => {
+    mocks.tx.contact.findFirst.mockResolvedValue(null);
+    expect(await saveContactFormAction({}, form({ contactId: "contact_1", revision: REVISION, firstName: "Bob" }))).toEqual({ error: STALE_CONTACT_SAVE });
+    expect(await saveContactFormAction({}, form({ contactId: "contact_1", firstName: "Bob" }))).toEqual({ error: STALE_CONTACT_SAVE });
+    expect(mocks.tx.contact.update).not.toHaveBeenCalled();
+  });
+
+  it("saves a form opened before fingerprints existed, as it did before the check", async () => {
+    await expect(saveContactFormAction({}, form({ contactId: "contact_1", firstName: "Bob" }))).rejects.toThrow("REDIRECT /contacts/contact_1?updated=1");
+    expect(mocks.tx.contact.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "contact_1" } }));
+  });
+});
+
+describe("view-only support sessions", () => {
+  it("refuse contact saves with the view-only message on the form", async () => {
+    mocks.auth.mockResolvedValue({ user: { id: "owner" }, workspace: { id: "workspace" }, impersonation: { id: "support_view" } });
+    expect(await saveContactFormAction({}, form({ firstName: "Bob" }))).toEqual({ error: VIEW_ONLY_SUPPORT_MESSAGE });
+    expect(await saveContactFormAction({}, form({ contactId: "contact_1", revision: REVISION, firstName: "Bob" }))).toEqual({ error: VIEW_ONLY_SUPPORT_MESSAGE });
+    expect(mocks.emailConflict).not.toHaveBeenCalled();
+    expect(mocks.tx.contact.update).not.toHaveBeenCalled();
   });
 });
 
 describe("returning to Today after an edit", () => {
   it("appends contactSaved=1 to the validated Today return path", async () => {
-    await expect(saveContactFormAction({}, form({ contactId: "contact_1", firstName: "Bob", phoneValue: "(555) 234-5678", returnTo: "/jumps?focus=jump_1" })))
+    await expect(saveContactFormAction({}, form({ contactId: "contact_1", revision: REVISION, firstName: "Bob", phoneValue: "(555) 234-5678", returnTo: "/jumps?focus=jump_1" })))
       .rejects.toThrow("REDIRECT /jumps?focus=jump_1&contactSaved=1");
     expect(mocks.tx.contact.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "contact_1" } }));
     expect(mocks.jobCreate).toHaveBeenCalledWith({ data: { workspaceId: "workspace", task: "generate-jumps", payload: { contactId: "contact_1" } } });
   });
 
   it("keeps a fragment after the flag and ignores return paths that are not Today", async () => {
-    await expect(saveContactFormAction({}, form({ contactId: "contact_1", firstName: "Bob", returnTo: "/jumps#review" })))
+    await expect(saveContactFormAction({}, form({ contactId: "contact_1", revision: REVISION, firstName: "Bob", returnTo: "/jumps#review" })))
       .rejects.toThrow("REDIRECT /jumps?contactSaved=1#review");
-    await expect(saveContactFormAction({}, form({ contactId: "contact_1", firstName: "Bob", returnTo: "https://evil.example/jumps" })))
+    await expect(saveContactFormAction({}, form({ contactId: "contact_1", revision: REVISION, firstName: "Bob", returnTo: "https://evil.example/jumps" })))
       .rejects.toThrow("REDIRECT /contacts/contact_1?updated=1");
-    await expect(saveContactFormAction({}, form({ contactId: "contact_1", firstName: "Bob", returnTo: "/contacts/other" })))
+    await expect(saveContactFormAction({}, form({ contactId: "contact_1", revision: REVISION, firstName: "Bob", returnTo: "/contacts/other" })))
       .rejects.toThrow("REDIRECT /contacts/contact_1?updated=1");
   });
 });

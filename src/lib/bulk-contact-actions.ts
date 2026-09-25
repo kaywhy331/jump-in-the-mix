@@ -3,11 +3,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Channel } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/auth";
 import { addLogicalDays, daysInMonth, logicalDateInTimezone, zonedDateTimeToUtc, type LogicalDate } from "@/lib/jump-schedule";
 import { renderJumpSnapshot } from "@/lib/jump-render";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
 import { prisma } from "@/lib/prisma";
+import { requireWritableWorkspace } from "@/lib/writable-workspace";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -48,8 +48,7 @@ async function queueWorkspaceReconciliation(workspaceId: string): Promise<void> 
 }
 
 export async function bulkAssignGroupAction(formData: FormData): Promise<void> {
-  const { workspace, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Administrator support sessions are view-only.");
+  const { workspace } = await requireWritableWorkspace();
   const contactIds = selectedContactIds(formData);
   const groupId = value(formData, "groupId");
   const [contacts, group] = await Promise.all([
@@ -63,8 +62,7 @@ export async function bulkAssignGroupAction(formData: FormData): Promise<void> {
 }
 
 export async function bulkRemoveGroupAction(formData: FormData): Promise<void> {
-  const { workspace, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Administrator support sessions are view-only.");
+  const { workspace } = await requireWritableWorkspace();
   const contactIds = selectedContactIds(formData);
   const groupId = value(formData, "groupId");
   const [contacts, group] = await Promise.all([
@@ -78,8 +76,7 @@ export async function bulkRemoveGroupAction(formData: FormData): Promise<void> {
 }
 
 export async function bulkArchiveContactsAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Administrator support sessions are view-only.");
+  const { workspace, user } = await requireWritableWorkspace();
   const contacts = await scopedContacts(workspace.id, selectedContactIds(formData));
   const contactIds = contacts.map((contact) => contact.id);
   const archivedAt = new Date();
@@ -103,7 +100,10 @@ export async function bulkArchiveContactsAction(formData: FormData): Promise<voi
     }),
     prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: {} } })
   ]);
-  redirect(`/contacts?bulkArchived=${contacts.length}`);
+  // The notice's Undo restores exactly these people; a selection beyond one page gets no Undo.
+  const result = new URLSearchParams({ bulkArchived: String(contacts.length) });
+  if (contactIds.length <= 50) result.set("archivedContacts", contactIds.join(","));
+  redirect(`/contacts?${result.toString()}`);
 }
 
 type OneTimeContent = {
@@ -150,8 +150,7 @@ function selectedDate(raw: string): LogicalDate | null {
 }
 
 export async function applyJumpToContactsAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Administrator support sessions are view-only.");
+  const { workspace, user } = await requireWritableWorkspace();
   const contacts = await scopedContacts(workspace.id, selectedContactIds(formData));
   await assertContactable(workspace.id, contacts);
   const mode = value(formData, "applyMode") === "manual" ? "manual" : "existing";

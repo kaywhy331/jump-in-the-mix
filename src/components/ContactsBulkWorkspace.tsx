@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DeviceContactQuickAdd } from "@/components/DeviceContactQuickAdd";
@@ -97,6 +97,15 @@ export function ContactsBulkWorkspace({
   }, [intent, initialSelectionKey]);
 
   useEffect(() => { if (scope) restoreContactListScroll(scope); }, [scope, groupFilter, intent, permissionFilter, priorityFilter, query]);
+
+  // Only a row chosen in the docked layout moves focus into the profile, once it has rendered;
+  // first loads and Back/Forward leave focus where the browser puts it.
+  const pendingProfileFocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pendingProfileFocus.current || pendingProfileFocus.current !== selectedContactId) return;
+    pendingProfileFocus.current = null;
+    document.getElementById("contact-profile-heading")?.focus();
+  }, [selectedContactId]);
 
   const toggleContact = (contactId: string) => setSelected((current) => {
     const next = new Set(current);
@@ -202,7 +211,7 @@ export function ContactsBulkWorkspace({
           <label className="contact-select-control" title={isSelected ? "Deselect contact" : "Select contact"}><input type="checkbox" checked={isSelected} onChange={() => toggleContact(contact.id)} aria-label={`${isSelected ? "Deselect" : "Select"} ${contact.displayName}`} /><span>{isSelected ? <AppIcon name="check" /> : null}</span></label>
           <div className="contact-main">
             <div className="avatar">{initials(contact.displayName) || "?"}</div>
-            <div><h3><Link href={`/contacts/${contact.id}`} className="contact-open" aria-current={docked && selectedContactId === contact.id ? "true" : undefined} onClick={event => { saveContactListState(); if (!intent && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && window.matchMedia("(min-width: 1200px)").matches) { event.preventDefault(); const params = new URLSearchParams(searchParams); params.set("person", contact.id); router.push(`/contacts?${params}`, { scroll: false }); } }}>{contact.displayName}</Link></h3>
+            <div><h3><Link href={`/contacts/${contact.id}`} className="contact-open" aria-current={docked && selectedContactId === contact.id ? "true" : undefined} onClick={event => { saveContactListState(); if (!intent && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && window.matchMedia("(min-width: 1200px)").matches) { event.preventDefault(); const params = new URLSearchParams(searchParams); params.set("person", contact.id); if (contact.id === selectedContactId) document.getElementById("contact-profile-heading")?.focus(); else pendingProfileFocus.current = contact.id; router.push(`/contacts?${params}`, { scroll: false }); } }}>{contact.displayName}</Link></h3>
               <p className="contact-row-summary"><span>{contact.stageName ?? "No stage"}</span><span className="contact-summary-separator" aria-hidden="true"> · </span>{!primaryEmail && !primaryPhone && !contact.doNotContact ? <Link className="contact-missing-method" href={`/contacts/${contact.id}/edit`}>Add phone or email</Link> : <span className={contact.nextJumpOverdue ? "overdue-text" : ""}>{contact.doNotContact ? "Do not contact" : contact.nextJump ?? "Nothing scheduled"}</span>}</p>
             </div>
           </div>

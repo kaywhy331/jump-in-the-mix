@@ -5,15 +5,17 @@ import { applyJourneyEvent } from "@/lib/journey";
 import { workflowContinuation } from "@/lib/workflow-continuation";
 import { customerReturnPath } from "@/lib/customer-return-path";
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/auth";
+import type { Prisma } from "@/generated/prisma/client";
 import {
   buildContactCustomFieldInputs,
   validateContactCustomFieldInputs
 } from "@/lib/contact-custom-fields";
-import { buildAddressInputs, buildEmailInputs, buildPhoneInputs } from "@/lib/contact-input";
+import { buildAddressInputs, buildEmailInputs, buildPhoneInputs, normalizeEmail, normalizePhone } from "@/lib/contact-input";
+import { CONTACT_REVISION_INCLUDE, STALE_CONTACT_SAVE, contactRevision } from "@/lib/contact-revision";
 import { listGroupStates, mergeGroupActivity } from "@/lib/group-activity";
 import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
+import { ViewOnlySupportSessionError, requireWritableWorkspace } from "@/lib/writable-workspace";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -35,32 +37,69 @@ function withParam(path: string, key: string, parameterValue: string): string {
 }
 
 type ErrorLink = { href: string; label: string };
-export type ContactFormState = { error?: string; errorLink?: ErrorLink };
+/**
+ * `field` names the control an error belongs to, so the form can mark and focus it: `firstName`,
+ * `emailValue:<index>` or `phoneValue:<index>` (the row's position among the submitted rows), or
+ * `custom:<definitionId>`.
+ */
+export type ContactFormState = { error?: string; errorLink?: ErrorLink; field?: string };
 
-/** A phone or email that already belongs to someone else: the message names them and the link leads to the fix. */
-class ContactMethodConflict extends Error {
-  constructor(message: string, readonly link: ErrorLink) {
+/** A validation message that belongs to one form control. */
+class ContactFieldError extends Error {
+  constructor(message: string, readonly field: string) {
     super(message);
   }
 }
 
-function methodConflict(kind: "phone" | "email", typed: string, owner: { displayName: string; archivedAt: Date | null }): ContactMethodConflict {
+/** A phone or email that already belongs to someone else: the message names them and the link leads to the fix. */
+class ContactMethodConflict extends Error {
+  constructor(message: string, readonly link: ErrorLink, readonly field?: string) {
+    super(message);
+  }
+}
+
+/** The contact changed after the edit form was opened, so this save would undo that change. */
+class StaleContactSaveError extends Error {}
+
+function methodConflict(kind: "phone" | "email", typed: string, owner: { displayName: string; archivedAt: Date | null }, field?: string): ContactMethodConflict {
   const other = kind === "phone" ? "number" : "address";
   if (owner.archivedAt) {
     return new ContactMethodConflict(
       `That ${kind} already belongs to ${owner.displayName} (archived). Restore them from Archived contacts or use another ${other}.`,
-      { href: `/contacts/archived?q=${encodeURIComponent(typed)}`, label: "Open Archived contacts" }
+      { href: `/contacts/archived?q=${encodeURIComponent(typed)}`, label: "Open Archived contacts" },
+      field
     );
   }
   return new ContactMethodConflict(
     `That ${kind} already belongs to ${owner.displayName}. Use Find duplicates if these are the same person.`,
-    { href: "/contacts/duplicates", label: "Find duplicates" }
+    { href: "/contacts/duplicates", label: "Find duplicates" },
+    field
   );
 }
 
 function formFailure(error: unknown, fallback: string): ContactFormState {
-  if (error instanceof ContactMethodConflict) return { error: error.message, errorLink: error.link };
+  if (error instanceof ContactMethodConflict) return { error: error.message, errorLink: error.link, ...(error.field ? { field: error.field } : {}) };
+  if (error instanceof ContactFieldError) return { error: error.message, field: error.field };
   return { error: error instanceof Error ? error.message : fallback };
+}
+
+/** `<name>:<index>` for the first submitted, non-empty row that matches. */
+function rowField(name: string, submitted: string[], matches: (typed: string) => boolean): string | undefined {
+  const index = submitted.findIndex((item) => item.trim() !== "" && matches(item.trim()));
+  return index >= 0 ? `${name}:${index}` : undefined;
+}
+
+function rejects(build: () => unknown): boolean {
+  try { build(); return false; } catch { return true; }
+}
+
+/** Runs an input builder and ties its validation message to the control that caused it. */
+function buildForField<T>(build: () => T, field: () => string | undefined): T {
+  try { return build(); }
+  catch (error) {
+    const name = error instanceof Error ? field() : undefined;
+    throw name && error instanceof Error ? new ContactFieldError(error.message, name) : error;
+  }
 }
 
 function contactPayload(formData: FormData) {
@@ -69,8 +108,17 @@ function contactPayload(formData: FormData) {
   const company = value(formData, "company");
   const publicNotes = value(formData, "publicNotes");
   const privateNotes = value(formData, "privateNotes");
-  const emails = buildEmailInputs(values(formData, "emailValue"), values(formData, "emailLabel"), value(formData, "emailPrimaryIndex"));
-  const phones = buildPhoneInputs(values(formData, "phoneValue"), values(formData, "phoneLabel"), value(formData, "phonePrimaryIndex"));
+  const submittedEmails = values(formData, "emailValue");
+  const submittedPhones = values(formData, "phoneValue");
+  // Each builder checks every row the same way on its own, so the first row it rejects alone is the one to mark.
+  const emails = buildForField(
+    () => buildEmailInputs(submittedEmails, values(formData, "emailLabel"), value(formData, "emailPrimaryIndex")),
+    () => rowField("emailValue", submittedEmails, (typed) => rejects(() => buildEmailInputs([typed], [])))
+  );
+  const phones = buildForField(
+    () => buildPhoneInputs(submittedPhones, values(formData, "phoneLabel"), value(formData, "phonePrimaryIndex")),
+    () => rowField("phoneValue", submittedPhones, (typed) => rejects(() => buildPhoneInputs([typed], [])))
+  );
   const addresses = buildAddressInputs(
     values(formData, "addressStreet1"),
     values(formData, "addressStreet2"),
@@ -82,12 +130,17 @@ function contactPayload(formData: FormData) {
     value(formData, "addressPrimaryIndex"),
     values(formData, "addressId")
   );
-  const customFields = buildContactCustomFieldInputs(
-    values(formData, "customFieldDefinitionId"),
-    values(formData, "customFieldValue")
+  const definitionIds = values(formData, "customFieldDefinitionId");
+  const customValues = values(formData, "customFieldValue");
+  const customFields = buildForField(
+    () => buildContactCustomFieldInputs(definitionIds, customValues),
+    () => {
+      const index = definitionIds.findIndex((definitionId, position) => rejects(() => buildContactCustomFieldInputs([definitionId], [customValues[position] ?? ""])));
+      return index >= 0 ? `custom:${definitionIds[index].trim()}` : undefined;
+    }
   );
   const displayName = [firstName, lastName].filter(Boolean).join(" ") || company || emails[0]?.value || phones[0]?.value;
-  if (!displayName) throw new Error("Add a name, company, email, or phone number.");
+  if (!displayName) throw new ContactFieldError("Add a name, company, email, or phone number.", "firstName");
   return {
     firstName: firstName || null,
     lastName: lastName || null,
@@ -99,7 +152,9 @@ function contactPayload(formData: FormData) {
     phones,
     addresses,
     customFields,
-    groupIds: [...new Set(values(formData, "groupIds").filter(Boolean))]
+    groupIds: [...new Set(values(formData, "groupIds").filter(Boolean))],
+    submittedEmails,
+    submittedPhones
   };
 }
 
@@ -170,7 +225,7 @@ async function validateContactPayload(workspaceId: string, payload: ReturnType<t
       },
       select: { contact: { select: { displayName: true, archivedAt: true } } }
     });
-    if (duplicate) throw methodConflict("email", email.value, duplicate.contact);
+    if (duplicate) throw methodConflict("email", email.value, duplicate.contact, rowField("emailValue", payload.submittedEmails, (typed) => normalizeEmail(typed) === email.normalized));
   }
   for (const phone of payload.phones) {
     const duplicate = await prisma.contactPhone.findFirst({
@@ -181,7 +236,7 @@ async function validateContactPayload(workspaceId: string, payload: ReturnType<t
       },
       select: { contact: { select: { displayName: true, archivedAt: true } } }
     });
-    if (duplicate) throw methodConflict("phone", phone.value, duplicate.contact);
+    if (duplicate) throw methodConflict("phone", phone.value, duplicate.contact, rowField("phoneValue", payload.submittedPhones, (typed) => normalizePhone(typed) === phone.normalized));
   }
 }
 
@@ -189,8 +244,38 @@ async function queueContactReconciliation(workspaceId: string, contactId: string
   await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId } } });
 }
 
+type CreatedContact = { contactId: string; dateCreated: boolean; mixAssigned: boolean };
+
+function storedCreation(response: Prisma.JsonValue | null | undefined): CreatedContact | null {
+  if (!response || typeof response !== "object" || Array.isArray(response)) return null;
+  const saved = response as Record<string, unknown>;
+  if (typeof saved.contactId !== "string" || !saved.contactId) return null;
+  return { contactId: saved.contactId, dateCreated: saved.dateCreated === true, mixAssigned: saved.mixAssigned === true };
+}
+
+/** The contact an earlier submission of the same Add form already created, if any. */
+async function earlierCreation(workspaceId: string, key: string | null): Promise<CreatedContact | null> {
+  if (!key) return null;
+  const earlier = await prisma.idempotencyKey.findUnique({ where: { workspaceId_key: { workspaceId, key } }, select: { response: true } });
+  return storedCreation(earlier?.response);
+}
+
+function createdContactPath(returnTo: string, created: CreatedContact): string {
+  const result = new URLSearchParams({ created: "1" });
+  if (created.dateCreated) result.set("dateCreated", "1");
+  if (created.mixAssigned) result.set("mixAssigned", "1");
+  return workflowContinuation(returnTo, created.contactId) ?? `/contacts/${created.contactId}?${result.toString()}`;
+}
+
 async function createContact(formData: FormData): Promise<ContactFormState> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace();
+  const returnTo = value(formData, "returnTo");
+  // The Add form sends one id per opening. A retry after a lost response opens the contact the
+  // first submission created instead of saving the same person twice.
+  const requestId = value(formData, "requestId").slice(0, 120);
+  const idempotencyKey = requestId ? `contact-create:${user.id}:${requestId}` : null;
+  const replayed = await earlierCreation(workspace.id, idempotencyKey);
+  if (replayed) redirect(createdContactPath(returnTo, replayed));
   const timezone = await timezoneForUser(user.id);
   let payload: ReturnType<typeof contactPayload>;
   let followUp: InitialFollowUp | null;
@@ -199,11 +284,21 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
     await validateContactPayload(workspace.id, payload);
     followUp = await initialFollowUpPayload(workspace.id, formData);
   } catch (error) {
+    // A retry that raced its own first submission finds its phone or email taken by that save.
+    const raced = await earlierCreation(workspace.id, idempotencyKey);
+    if (raced) redirect(createdContactPath(returnTo, raced));
     return formFailure(error, "The contact could not be saved.");
   }
 
-  const contact = await prisma.$transaction(async (tx) => {
+  const saved = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR NO KEY UPDATE`;
+    // Under the workspace lock, a concurrent submission of the same form has either stored its
+    // receipt already (this one replays it) or has not started creating.
+    if (idempotencyKey) {
+      const earlier = await tx.idempotencyKey.findUnique({ where: { workspaceId_key: { workspaceId: workspace.id, key: idempotencyKey } }, select: { response: true } });
+      const receipt = storedCreation(earlier?.response);
+      if (receipt) return { ...receipt, replayed: true };
+    }
     const created = await tx.contact.create({
       data: {
         workspaceId: workspace.id,
@@ -264,17 +359,18 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
       }
     });
     await applyJourneyEvent(tx, { workspaceId: workspace.id, contactId: created.id, eventKey: `contact-created:${created.id}`, eventType: "CONTACT_RECEIVED", source: "Contact added", actorUserId: user.id });
-    return created;
+    const receipt: CreatedContact = { contactId: created.id, dateCreated: Boolean(followUp), mixAssigned: Boolean(followUp?.mixId) };
+    if (idempotencyKey) {
+      await tx.idempotencyKey.create({ data: { workspaceId: workspace.id, key: idempotencyKey, response: receipt, expiresAt: new Date(Date.now() + 7 * 86_400_000) } });
+    }
+    return { ...receipt, replayed: false };
   });
-  await queueContactReconciliation(workspace.id, contact.id);
-  const result = new URLSearchParams({ created: "1" });
-  if (followUp) result.set("dateCreated", "1");
-  if (followUp?.mixId) result.set("mixAssigned", "1");
-  redirect(workflowContinuation(value(formData, "returnTo"), contact.id) ?? `/contacts/${contact.id}?${result.toString()}`);
+  if (!saved.replayed) await queueContactReconciliation(workspace.id, saved.contactId);
+  redirect(createdContactPath(returnTo, saved));
 }
 
 async function updateContact(formData: FormData): Promise<ContactFormState> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace();
   const contactId = value(formData, "contactId");
   const path = `/contacts/${contactId}/edit`;
   const existing = await prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, select: { id: true } });
@@ -288,8 +384,16 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
     return formFailure(error, "The contact could not be updated.");
   }
 
+  // A fingerprint of what the form showed when it was opened (see contact-revision.ts). A form opened
+  // before the fingerprint existed (a tab left open across an update) carries none and saves as before.
+  const revision = value(formData, "revision");
   try {
   await prisma.$transaction(async (tx) => {
+    // Lock the person, then check that nothing this form overwrites changed since it was opened;
+    // otherwise, for example, a phone added on another device would be deleted by this older form.
+    await tx.$queryRaw`SELECT id FROM "Contact" WHERE id = ${contactId} AND "workspaceId" = ${workspace.id} FOR UPDATE`;
+    const current = await tx.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, include: CONTACT_REVISION_INCLUDE });
+    if (!current || (revision && contactRevision(current) !== revision)) throw new StaleContactSaveError();
     await tx.contact.update({
       where: { id: contactId },
       data: {
@@ -366,6 +470,7 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
   });
   } catch (error) {
     // Keep the owner's entries on screen: a concurrent edit or duplicate is recoverable, not a crash.
+    if (error instanceof StaleContactSaveError) return { error: STALE_CONTACT_SAVE };
     if (error instanceof Error && error.message.startsWith("One or more addresses")) return { error: `${error.message} Reload the contact, then save again.` };
     if (error && typeof error === "object" && "code" in error && error.code === "P2002") return { error: "Another contact already uses one of these email addresses or phone numbers. Your entries are kept." };
     return { error: "The contact could not be saved. Your entries are kept. Reload to see the latest version, then try again." };
@@ -379,7 +484,13 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
 }
 
 export async function saveContactFormAction(_previous: ContactFormState, formData: FormData): Promise<ContactFormState> {
-  return value(formData, "contactId") ? updateContact(formData) : createContact(formData);
+  try {
+    return await (value(formData, "contactId") ? updateContact(formData) : createContact(formData));
+  } catch (error) {
+    // A support view is read-only: say so on the form rather than reporting an unconfirmed save.
+    if (error instanceof ViewOnlySupportSessionError) return { error: error.message };
+    throw error;
+  }
 }
 
 export async function createContactAction(formData: FormData): Promise<void> {

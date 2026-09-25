@@ -11,12 +11,14 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ContactRelationshipStatePanel } from "@/components/ContactRelationshipStatePanel";
 import { ContactTimeline } from "@/components/ContactTimeline";
 import { ContactsBackLink } from "@/components/ContactsBackLink";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { Notice } from "@/components/Notice";
 import { PreparationNotice } from "@/components/PreparationNotice";
 import { ReviewRequestButton } from "@/components/ReviewRequestButton";
 import { Sheet } from "@/components/Sheet";
 import { requireWorkspace } from "@/lib/auth";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
+import { restoreContactAction } from "@/lib/contact-lifecycle-actions";
 import { assignMixToContactAction, removeMixAssignmentAction } from "@/lib/contact-mix-actions";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDate, formatDateTime } from "@/lib/format";
@@ -33,7 +35,7 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 export type ContactProfileSearchParams = {
   created?: string; dateCreated?: string; dateUpdated?: string; dateDeleted?: string; mixAssigned?: string; mixRemoved?: string;
   mixStopped?: string; mixResumed?: string; mixStopError?: string; mixResumeError?: string; updated?: string; inlineUpdated?: string;
-  stateUpdated?: string; merged?: string; error?: string;
+  stateUpdated?: string; merged?: string; restored?: string; error?: string;
 };
 
 function addressText(address: { street1: string | null; street2: string | null; city: string | null; state: string | null; postalCode: string | null; country: string | null }): string {
@@ -44,8 +46,9 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
   const { workspace, user, impersonation } = await requireWorkspace();
   const preparation = await readPreparationStatus(workspace.id, contactId);
   const [contact, dateTypes, plans, stops, groupStates, relationshipState, mergeHistory, nextFollowUp, comingUp, journeyStages, journeyEvents] = await Promise.all([
+    // Archived people are found too: an old link or merge note opens their archived state, not a 404.
     prisma.contact.findFirst({
-      where: { id: contactId, workspaceId: workspace.id, archivedAt: null },
+      where: { id: contactId, workspaceId: workspace.id },
       include: {
         journey: { include: { stage: true } },
         emails: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] },
@@ -71,6 +74,28 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
   if (!contact) notFound();
 
   const displayPreferences = await displayPreferencesForUser(user.id);
+  const initials = contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("");
+  // In the docked Contacts layout a chosen row moves focus here (ContactsBulkWorkspace).
+  const heading = embedded ? <h2 id="contact-profile-heading" tabIndex={-1}>{contact.displayName}</h2> : <h1>{contact.displayName}</h1>;
+  if (contact.archivedAt) {
+    return (
+      <div className={`page contact-detail-page${embedded ? " contact-profile-embedded" : ""}`}>
+        {query.error && <Notice type="error">{query.error}</Notice>}
+        <header className="contact-profile-header">
+          <div className="contact-detail-header-actions">
+            <ContactsBackLink className="contact-inline-action" ariaLabel="Back to contacts"><AppIcon name="chevronLeft" />Contacts</ContactsBackLink>
+          </div>
+          <span className="person-initials profile-avatar" aria-hidden="true">{initials}</span>
+          <div className="profile-identity">{heading}</div>
+        </header>
+        <Notice type="info">Archived on {formatDate(contact.archivedAt, displayPreferences)}. Notes, dates and history are kept. Restoring can prepare follow-ups from active mixes again; do-not-contact and pause settings still apply.</Notice>
+        <div className="page-actions">
+          <form action={restoreContactAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><FormSubmitButton label="Restore contact" pendingLabel="Restoring…" disabled={Boolean(impersonation)} /></form>
+          <Link className="button" href="/contacts/archived">Archived contacts</Link>
+        </div>
+      </div>
+    );
+  }
   const pendingCount = await prisma.jump.count({ where: { workspaceId: workspace.id, contactId, status: "PENDING" } });
   const followUpType = dateTypes.find((type) => type.slug === "follow-up");
   const stopByMixId = new Map(stops.map((stop) => [stop.mixId, stop]));
@@ -121,7 +146,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
   </Sheet>;
   const journeyTrack = <>
     <div className="contact-section-heading"><h2>Journey</h2>{touchpoint}</div>
-    {contact.journey ? <div className="contact-journey-track" aria-label="Recorded stage history and possible next stages">
+    {contact.journey ? <div className="contact-journey-track" role="region" tabIndex={0} aria-label="Recorded stage history and possible next stages">
       <ol className="contact-stage-history">{moves.map((move, index) => <li key={move.id} className={index === moves.length - 1 ? "is-current" : "is-complete"} aria-current={index === moves.length - 1 ? "step" : undefined}><strong>{stageNames.get(move.resultingStageId!) ?? "Previous stage"}</strong><time dateTime={move.occurredAt.toISOString()}>{shortDate(move.occurredAt)}</time><i aria-hidden="true" /></li>)}</ol>
       <div className="contact-journey-today"><i aria-hidden="true" /><span>Today</span></div>
       {futureStages.length > 0 && <ol className="contact-stage-future" aria-label="Possible next stages, not scheduled">{futureStages.map(stage => <li key={stage.id}><span>{stage.name}</span><i aria-hidden="true" /></li>)}</ol>}
@@ -141,6 +166,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
       {query.inlineUpdated && <Notice type="success">Contact saved.</Notice>}
       {query.stateUpdated && <Notice type="success">Saved.</Notice>}
       {query.merged && <Notice type="success">Contacts merged.</Notice>}
+      {query.restored && <Notice type="success">Contact restored.</Notice>}
       {!query.created && query.dateCreated && <Notice type="success">Date added.</Notice>}
       {query.dateUpdated && <Notice type="success">Date updated.</Notice>}
       {query.dateDeleted && <Notice type="success">Date removed.</Notice>}
@@ -158,8 +184,8 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
           <ContactsBackLink className="contact-inline-action" ariaLabel="Back to contacts"><AppIcon name="chevronLeft" />Contacts</ContactsBackLink>
           <Link href={`/contacts/${contact.id}/edit`} className="contact-inline-action"><AppIcon name="edit" />Edit</Link>
         </div>
-        <span className="person-initials profile-avatar" aria-hidden="true">{contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>
-        <div className="profile-identity">{embedded ? <h2>{contact.displayName}</h2> : <h1>{contact.displayName}</h1>}
+        <span className="person-initials profile-avatar" aria-hidden="true">{initials}</span>
+        <div className="profile-identity">{heading}
           <Sheet key={contact.journey?.version ?? 0} trigger={<button type="button" className="contact-stage-chip" aria-label={`Change journey stage: ${contact.journey?.stage.name ?? "No stage"}`}>{contact.journey?.stage.name ?? "No stage"}<AppIcon name="chevronDown" /></button>} title={`Journey stage for ${contact.displayName}`}><ContactJourneyPanel workspaceId={workspace.id} contactId={contact.id} expanded returnToDirectory={embedded} /></Sheet>
         </div>
         <nav className="contact-profile-quick-actions" aria-label={`Contact ${contact.displayName}`}>
@@ -231,7 +257,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
             {plans.length ? <form action={assignMixToContactAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>Choose a mix</span><select name="mixId">{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label><button className="button primary" type="submit" disabled={state.doNotContact}>Add to a mix</button></form> : <p className="muted-copy">Create a mix first.</p>}
             {contact.mixAssignments.length > 0 && <div className="assigned-mix-list">{contact.mixAssignments.map((assignment) => {
               const stop = stopByMixId.get(assignment.mix.id);
-              return <div className="assigned-mix-row" key={assignment.id}><div><Link href={`/mixes/${assignment.mix.id}/edit`}>{assignment.mix.name}</Link>{stop && <small className="stopped-mix-label">Stopped</small>}</div><div className="assigned-mix-actions">{stop ? <form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small primary" type="submit">Resume</button></form> : <ConfirmDialog trigger="Stop…" title={`Stop ${assignment.mix.name}?`} description="Future follow-ups from this mix will be removed."><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small danger" type="submit">Stop mix</button></form></ConfirmDialog>}<ConfirmDialog trigger="Remove…" title={`Remove ${assignment.mix.name}?`} description="Completed history stays available." danger><form action={removeMixAssignmentAction}><input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Remove</button></form></ConfirmDialog></div></div>;
+              return <div className="assigned-mix-row" key={assignment.id}><div><Link href={`/mixes/${assignment.mix.id}/edit`}>{assignment.mix.name}</Link>{stop && <small className="stopped-mix-label">Stopped</small>}</div><div className="assigned-mix-actions">{stop ? <form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small primary" type="submit">Resume</button></form> : <ConfirmDialog trigger="Stop…" triggerAriaLabel={`Stop the ${assignment.mix.name} mix`} title={`Stop ${assignment.mix.name}?`} description="Future follow-ups from this mix will be removed."><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small danger" type="submit">Stop mix</button></form></ConfirmDialog>}<ConfirmDialog trigger="Remove…" triggerAriaLabel={`Remove the ${assignment.mix.name} mix`} title={`Remove ${assignment.mix.name}?`} description="Completed history stays available." danger><form action={removeMixAssignmentAction}><input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Remove</button></form></ConfirmDialog></div></div>;
             })}</div>}
             {additionalStoppedPlans.length > 0 && <div className="stopped-mix-section"><h3>Other stopped mixes</h3>{additionalStoppedPlans.map((plan) => <div className="assigned-mix-row" key={plan.id}><span>{plan.name}</span><form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={plan.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small" type="submit">Resume</button></form></div>)}</div>}
           </section>

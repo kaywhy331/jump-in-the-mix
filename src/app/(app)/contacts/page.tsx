@@ -8,7 +8,7 @@ import { ContactsBulkWorkspace, type ContactBulkDto } from "@/components/Contact
 import { Notice } from "@/components/Notice";
 import { AppIcon } from "@/components/AppIcon";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
-import { restoreContactAction } from "@/lib/contact-lifecycle-actions";
+import { restoreContactAction, restoreContactsAction } from "@/lib/contact-lifecycle-actions";
 import { phoneSearchDigits } from "@/lib/phone-dial";
 import { requireWorkspace } from "@/lib/auth";
 import { contactFollowUpSummary } from "@/lib/contact-follow-up-summary";
@@ -44,6 +44,8 @@ type SearchParams = {
   bulkAssigned?: string;
   bulkRemoved?: string;
   bulkArchived?: string;
+  archivedContacts?: string;
+  bulkRestored?: string;
   viewSaved?: string;
   defaultViewSaved?: string;
   viewDeleted?: string;
@@ -136,6 +138,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       : { OR: [{ relationshipState: { is: null } }, { relationshipState: { is: { doNotContact: false } } }] });
   }
   const selectedPeople = [...new Set((params.people ?? "").split(",").filter(id => id && id.length <= 120))].slice(0, 50);
+  const bulkArchivedIds = [...new Set((params.archivedContacts ?? "").split(",").filter(id => id && id.length <= 120))].slice(0, 50);
   // A number typed with different punctuation than it was saved with still finds the person.
   const phoneFilters: Prisma.ContactWhereInput[] = phoneSearchDigits(q).map((digits) => ({ phones: { some: { normalized: { contains: digits } } } }));
   const contactWhere: Prisma.ContactWhereInput = {
@@ -259,7 +262,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.groupsActiveSaved && <Notice type="success">Tags saved.</Notice>}
       {params.bulkAssigned && <Notice type="success">Tag added.</Notice>}
       {params.bulkRemoved && <Notice type="success">Tag removed.</Notice>}
-      {params.bulkArchived && <Notice type="success">Contacts archived.</Notice>}
+      {params.bulkArchived && <Notice type="success"><span className="notice-with-action">Contacts archived.{bulkArchivedIds.length > 0 && <form action={restoreContactsAction}>{bulkArchivedIds.map(id => <input key={id} type="hidden" name="contactIds" value={id} />)}<FormSubmitButton label="Undo" pendingLabel="Restoring…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
+      {params.bulkRestored && <Notice type="success">Contacts restored.</Notice>}
       {params.viewSaved && <Notice type="success">View saved.</Notice>}
       {params.defaultViewSaved && <Notice type="success">Default view saved.</Notice>}
       {params.viewDeleted && <Notice type="success">View deleted.</Notice>}

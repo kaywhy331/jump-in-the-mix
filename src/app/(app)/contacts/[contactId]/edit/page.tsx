@@ -5,6 +5,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { ContactForm } from "@/components/ContactForm";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
+import { CONTACT_REVISION_INCLUDE, contactRevision } from "@/lib/contact-revision";
 import { mergeGroupActivity } from "@/lib/group-activity";
 import { prisma } from "@/lib/prisma";
 import { customerReturnPath } from "@/lib/customer-return-path";
@@ -22,7 +23,7 @@ export default async function EditContactPage({
   const [contact, rawGroups, groupStates, customFields] = await Promise.all([
     prisma.contact.findFirst({
       where: { id: contactId, workspaceId: workspace.id, archivedAt: null },
-      include: { emails: true, phones: true, addresses: true, groupMemberships: true, customFieldValues: true }
+      include: CONTACT_REVISION_INCLUDE
     }),
     prisma.group.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
     prisma.contactGroupState.findMany({ where: { workspaceId: workspace.id }, select: { groupId: true, isActive: true } }),
@@ -44,6 +45,7 @@ export default async function EditContactPage({
       {query.error && <Notice type="error">{query.error}</Notice>}
       <ContactForm
         mode="edit"
+        revision={contactRevision(contact)}
         returnTo={returnTo}
         groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, isActive: group.isActive }))}
         customFields={customFields.map((field) => ({ id: field.id, name: field.name, key: field.key }))}
