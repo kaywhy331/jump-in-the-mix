@@ -2,7 +2,7 @@ import type { MarketplaceListing, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { exportMegaMixPipeline, exportSingleMix, installPortable } from "@/lib/mega-mix-pipeline-service";
 import { buildPortable, portableFingerprint, type PortablePackage } from "@/lib/mix-portable";
-import { AUTO_HIDE_LIMIT, cleanPublicName, isMarketplaceReason, listingFacts, MARKETPLACE_SIZES, MARKETPLACE_SUMMARY_MAX, reasonLabel, reportHidesAtOnce, type MarketplaceReason } from "@/lib/marketplace";
+import { AUTO_HIDE_LIMIT, cleanPublicName, cleanReviewNote, isMarketplaceReason, listingFacts, MARKETPLACE_SIZES, MARKETPLACE_SUMMARY_MAX, reasonLabel, reportHidesAtOnce, REVIEW_REQUEST_REFUSALS, reviewReplyOutcome, reviewRequestBlock, type MarketplaceReason } from "@/lib/marketplace";
 import { MEGA_MIXES, megaMixById, megaMixConfiguration } from "@/lib/mega-mixes";
 import { normalizeSharedMixSteps } from "@/lib/shared-mix";
 import { escapeHtml, sendTransactionalEmail, transactionalEmailConfigured } from "@/lib/transactional-email";
@@ -79,7 +79,7 @@ export async function unshareFromMarketplace(input: { workspaceId: string; actor
 }
 
 export type MarketplaceFilters = { section: "official" | "community" | "mine"; kind: "" | "MIX" | "MEGA_MIX"; q: string; industry: string; channel: string; size: string; sort: "popular" | "newest" | "added"; favorites: boolean };
-export type MarketplaceRow = { id: string; section: "official" | "community"; kind: "MIX" | "MEGA_MIX"; title: string; author: string; summary: string | null; mixCount: number; beatCount: number; channels: string[]; industry: string | null; favorites: number | null; favorite: boolean; added: number; available: boolean; own?: boolean; status?: string; openReports?: number; href: string };
+export type MarketplaceRow = { id: string; section: "official" | "community"; kind: "MIX" | "MEGA_MIX"; title: string; author: string; summary: string | null; mixCount: number; beatCount: number; channels: string[]; industry: string | null; favorites: number | null; favorite: boolean; added: number; available: boolean; own?: boolean; status?: string; openReports?: number; reviewRequested?: boolean; href: string };
 
 const officialMegaMixPackage = (id: string) => {
   const blueprint = megaMixById(id);
@@ -144,7 +144,7 @@ export async function readMarketplace(filters: MarketplaceFilters, viewer: { use
   return { total, rows: fresh.filter(item => item.available || filters.section === "mine").map((item): MarketplaceRow => ({
     id: item.id, section: "community", kind: item.kind, title: item.title, author: item.workspace.marketplaceAuthor?.publicName ?? "Community member", summary: item.summary,
     mixCount: item.mixCount, beatCount: item.beatCount, channels: item.channels, industry: item.industry, favorites: item._count.favorites, favorite: item.favorites.length > 0, added: item._count.imports,
-    available: item.available, own: item.workspaceId === viewer.workspaceId, status: item.status, openReports: item._count.reports, href: `/marketplace?${filters.section === "mine" ? "section=mine&" : "section=community&"}item=${encodeURIComponent(`listing:${item.id}`)}` })) };
+    available: item.available, own: item.workspaceId === viewer.workspaceId, status: item.status, openReports: item._count.reports, reviewRequested: Boolean(item.reviewRequestedAt), href: `/marketplace?${filters.section === "mine" ? "section=mine&" : "section=community&"}item=${encodeURIComponent(`listing:${item.id}`)}` })) };
 }
 
 /** One item for the detail pane, with its live content. `item` is mega:<id>, mix:<id> or listing:<id>. */
@@ -171,7 +171,7 @@ export async function readMarketplaceItem(item: string, viewer: { userId: string
   if (!found) return null;
   const { listing, value } = await refreshListing(prisma, found);
   const own = listing.workspaceId === viewer.workspaceId;
-  const [author, favorites, favorite, added, imports, reports, reported, archived] = await Promise.all([
+  const [author, favorites, favorite, added, imports, reports, reported, archived, openReports] = await Promise.all([
     prisma.marketplaceAuthor.findUnique({ where: { workspaceId: listing.workspaceId }, select: { publicName: true } }),
     prisma.marketplaceFavorite.count({ where: { listingId: listing.id } }),
     prisma.marketplaceFavorite.findUnique({ where: { listingId_userId: { listingId: listing.id, userId: viewer.userId } }, select: { userId: true } }),
@@ -182,10 +182,13 @@ export async function readMarketplaceItem(item: string, viewer: { userId: string
       .then(rows => rows.map(report => ({ ...report, details: report.status === "OPEN" ? null : report.details }))) : Promise.resolve([]),
     prisma.marketplaceReport.findUnique({ where: { listingId_reporterUserId: { listingId: listing.id, reporterUserId: viewer.userId } }, select: { id: true } }),
     // An archived Mix has no page to open, so the author manages that share from here.
-    own && !value && listing.kind === "MIX" && listing.mixId ? prisma.mix.count({ where: { id: listing.mixId, workspaceId: listing.workspaceId, status: "ARCHIVED" } }).then(Boolean) : Promise.resolve(false)
+    own && !value && listing.kind === "MIX" && listing.mixId ? prisma.mix.count({ where: { id: listing.mixId, workspaceId: listing.workspaceId, status: "ARCHIVED" } }).then(Boolean) : Promise.resolve(false),
+    own ? prisma.marketplaceReport.count({ where: { listingId: listing.id, status: "OPEN" } }) : Promise.resolve(0)
   ]);
+  // Whether the author can ask for another review now, and if not, why (see `reviewRequestBlock`).
+  const reviewBlock = own ? reviewRequestBlock({ status: listing.status, requestedAt: listing.reviewRequestedAt, openReports, available: Boolean(value), fingerprint: listing.fingerprint, reviewedFingerprint: listing.reviewedFingerprint }) : null;
   return { type: "listing" as const, id: listing.id, listing, value, title: listing.title, author: author?.publicName ?? "Community member", summary: listing.summary, industry: listing.industry,
-    favorites, favorite: Boolean(favorite), added, imports, own, reports, reported: Boolean(reported), archived };
+    favorites, favorite: Boolean(favorite), added, imports, own, reports, reported: Boolean(reported), archived, openReports, reviewBlock };
 }
 
 /**
@@ -253,22 +256,28 @@ export async function reportListing(input: { listingId: string; reporterUserId: 
     const reporterEmailVerified = Boolean(reporter?.emailVerifiedAt);
     const hide = reportHidesAtOnce({ reason, reporterEmailVerified, recentAutoHides });
     const report = await db.marketplaceReport.create({ data: { listingId: listing.id, reporterUserId: input.reporterUserId, reporterWorkspaceId: input.reporterWorkspaceId, reason, details, autoHidden: hide } });
-    if (hide) await db.marketplaceListing.update({ where: { id: listing.id }, data: { status: "HIDDEN", hiddenReason: reason, hiddenAt: new Date() } });
+    // A hide records the wording it hid, so a later request for another review has to change it.
+    const current = hide ? (await refreshListing(db, listing)).listing : listing;
+    if (hide) await db.marketplaceListing.update({ where: { id: listing.id }, data: { status: "HIDDEN", hiddenReason: reason, hiddenAt: new Date(), reviewedFingerprint: current.fingerprint } });
     await db.auditLog.create({ data: { workspaceId: listing.workspaceId, actorType: "USER", actorUserId: input.reporterUserId, action: hide ? "marketplace.report.hidden" : "marketplace.report", entityType: "MarketplaceListing", entityId: listing.id, source: "marketplace", metadata: { reason } } });
     // Staff weigh a report partly by how new the reporting account is; the reporter's words stay out of the audit trail.
     const reporterAccountAgeDays = reporter ? Math.floor((Date.now() - reporter.createdAt.getTime()) / 86_400_000) : null;
     await db.platformAuditEvent.create({ data: { actorUserId: input.reporterUserId, action: hide ? "marketplace.report.hidden" : "marketplace.report", entityType: "MarketplaceListing", entityId: listing.id, reason,
       afterData: { reason, autoHidden: hide, reporterAccountAgeDays, reporterEmailVerified, recentAutoHides } } });
-    return { report, listing, hidden: hide };
+    return { report, listing: current, hidden: hide };
   });
   await Promise.all([notifyAuthor(result.listing, result.report.id, reason, result.hidden), notifyStaff(result.listing, result.report.id, reason, result.hidden)].map(task => task.catch(() => undefined)));
   return { hidden: result.hidden };
 }
 
+const staffOwners = () => prisma.staffMembership.findMany({ where: { role: "OWNER", status: "ACTIVE", user: { suspendedAt: null } }, select: { userId: true, user: { select: { email: true } } } });
+const appLink = (path: string) => `${env.appUrl.replace(/\/$/, "")}${path}`;
+const ownShareLink = (listingId: string) => appLink(`/marketplace?section=mine&item=${encodeURIComponent(`listing:${listingId}`)}`);
+
 /** Staff with the owner role hear about every report so nothing waits unseen; silent when email is not configured. */
 async function notifyStaff(listing: MarketplaceListing, reportId: string, reason: MarketplaceReason, hidden: boolean) {
   if (!transactionalEmailConfigured()) return;
-  const owners = await prisma.staffMembership.findMany({ where: { role: "OWNER", status: "ACTIVE", user: { suspendedAt: null } }, select: { userId: true, user: { select: { email: true } } } });
+  const owners = await staffOwners();
   const link = `${env.appUrl.replace(/\/$/, "")}/admin/marketplace`;
   const noun = listing.kind === "MIX" ? "Mix" : "Mega-Mix";
   const state = hidden ? "It is hidden until you decide." : "It stays visible until you decide.";
@@ -296,31 +305,175 @@ export async function unseenReports(workspaceId: string) {
   return prisma.marketplaceReport.findMany({ where: { authorSeenAt: null, listing: { workspaceId } }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, reason: true, autoHidden: true, listing: { select: { id: true, title: true, status: true } } } });
 }
 
+/** Staff replies on this account's shares that the author has not marked as read. */
+export async function unseenReviewReplies(workspaceId: string, take = 20) {
+  return prisma.marketplaceListing.findMany({ where: { workspaceId, reviewRespondedAt: { not: null }, reviewResponseSeenAt: null }, orderBy: [{ reviewRespondedAt: "desc" }, { id: "asc" }], take,
+    select: { id: true, kind: true, title: true, status: true, reviewResponseNote: true, reviewRespondedAt: true } });
+}
+
+/** "Mark as read" on a share covers its reports and the staff reply alike. */
 export async function markReportsSeen(workspaceId: string, listingId: string) {
-  await prisma.marketplaceReport.updateMany({ where: { listingId, authorSeenAt: null, listing: { workspaceId } }, data: { authorSeenAt: new Date() } });
+  const now = new Date();
+  await prisma.marketplaceReport.updateMany({ where: { listingId, authorSeenAt: null, listing: { workspaceId } }, data: { authorSeenAt: now } });
+  await prisma.marketplaceListing.updateMany({ where: { id: listingId, workspaceId, reviewRespondedAt: { not: null }, reviewResponseSeenAt: null }, data: { reviewResponseSeenAt: now } });
 }
 
 /**
- * Staff decision on a listing's open reports. Only a hidden share is restored and only a live one
- * hidden; a share the author already stopped stays stopped, and the decision just closes its reports.
+ * Staff decision on a listing: its open reports, the author's request for another review, or both. Only a
+ * hidden share is restored and only a live one hidden; a share the author already stopped stays stopped, and
+ * a hidden share with nothing to show (its Mix archived or emptied) is restored as not shared rather than
+ * live. `expectedFingerprint` is the wording staff read: restoring wording the author changed since is
+ * refused, and the decision records it as the wording judged, so a later request must change it. The note
+ * reaches the author through the reports the decision closes; when it answers a request, or closes no report
+ * but hides, keeps hiding or restores, it is kept on the listing as the staff reply, and an answered request
+ * is also emailed.
  */
-export async function reviewListing(input: { listingId: string; staffUserId: string; decision: "RESTORE" | "HIDE"; note: string }) {
+export async function reviewListing(input: { listingId: string; staffUserId: string; decision: "RESTORE" | "HIDE"; note: string; expectedFingerprint?: string }) {
   const note = input.note.trim().slice(0, 1000);
   if (!note) throw new Error("Add a short note about the decision.");
-  return prisma.$transaction(async db => {
-    const listing = await db.marketplaceListing.findUnique({ where: { id: input.listingId } });
-    if (!listing) throw new Error("This share no longer exists.");
+  const result = await prisma.$transaction(async db => {
+    await db.$queryRaw`SELECT id FROM "MarketplaceListing" WHERE id = ${input.listingId} FOR UPDATE`;
+    const found = await db.marketplaceListing.findUnique({ where: { id: input.listingId } });
+    if (!found) throw new Error("This share no longer exists.");
+    const { listing, value } = await refreshListing(db, found);
     const restore = input.decision === "RESTORE";
-    let status = listing.status;
-    if (restore && listing.status === "HIDDEN") {
-      status = (await db.marketplaceListing.update({ where: { id: listing.id }, data: { status: "LIVE", hiddenReason: null, hiddenAt: null } })).status;
-    } else if (!restore && listing.status === "LIVE") {
-      const latest = await db.marketplaceReport.findFirst({ where: { listingId: listing.id, status: "OPEN" }, orderBy: { createdAt: "desc" }, select: { reason: true } });
-      status = (await db.marketplaceListing.update({ where: { id: listing.id }, data: { status: "HIDDEN", hiddenAt: new Date(), hiddenReason: latest?.reason ?? "OTHER" } })).status;
-    }
-    await db.marketplaceReport.updateMany({ where: { listingId: listing.id, status: "OPEN" }, data: { status: restore ? "DISMISSED" : "UPHELD", reviewedAt: new Date(), reviewerUserId: input.staffUserId, reviewNote: note, authorSeenAt: null } });
+    if (restore && listing.status === "HIDDEN" && value && input.expectedFingerprint !== undefined && input.expectedFingerprint !== listing.fingerprint) throw new Error("The author changed this share after you opened it. Read the latest wording, then decide.");
+    const status = restore && listing.status === "HIDDEN" ? (value ? "LIVE" : "UNSHARED") : !restore && listing.status === "LIVE" ? "HIDDEN" : listing.status;
+    const openReports = await db.marketplaceReport.count({ where: { listingId: listing.id, status: "OPEN" } });
+    // A live share taken down carries the newest open report's reason.
+    const latest = status === "HIDDEN" && listing.status === "LIVE" ? await db.marketplaceReport.findFirst({ where: { listingId: listing.id, status: "OPEN" }, orderBy: { createdAt: "desc" }, select: { reason: true } }) : null;
+    const requested = listing.reviewRequestedAt !== null;
+    const reply = requested || (openReports === 0 && (status !== listing.status || status === "HIDDEN"));
+    const now = new Date();
+    const updated = await db.marketplaceListing.update({ where: { id: listing.id }, data: {
+      // The wording judged: what staff read when the page sent it, otherwise the current wording.
+      reviewedFingerprint: input.expectedFingerprint || listing.fingerprint, reviewRequestedAt: null, reviewRequestNote: null,
+      ...(status === listing.status ? {} : status === "HIDDEN" ? { status, hiddenAt: now, hiddenReason: latest?.reason ?? "OTHER" } : { status, hiddenReason: null, hiddenAt: null }),
+      ...(reply ? { reviewResponseNote: note, reviewRespondedAt: now, reviewResponseSeenAt: null } : {})
+    } });
+    await db.marketplaceReport.updateMany({ where: { listingId: listing.id, status: "OPEN" }, data: { status: restore ? "DISMISSED" : "UPHELD", reviewedAt: now, reviewerUserId: input.staffUserId, reviewNote: note, authorSeenAt: null } });
     const action = restore ? (listing.status === "HIDDEN" ? "marketplace.restore" : "marketplace.dismiss") : listing.status === "LIVE" ? "marketplace.hide" : "marketplace.uphold";
-    await db.platformAuditEvent.create({ data: { actorUserId: input.staffUserId, action, entityType: "MarketplaceListing", entityId: listing.id, reason: note, beforeData: { status: listing.status }, afterData: { status } } });
-    return { status };
+    await db.platformAuditEvent.create({ data: { actorUserId: input.staffUserId, action, entityType: "MarketplaceListing", entityId: listing.id, reason: note,
+      beforeData: { status: listing.status, ...(requested ? { reviewRequestedAt: listing.reviewRequestedAt?.toISOString() ?? null } : {}) },
+      afterData: { status, ...(requested ? { answeredReviewRequest: true } : {}), ...(reply ? { repliedToAuthor: true } : {}) } } });
+    return { status, listing: updated, requested };
   });
+  if (result.requested) await notifyAuthorOfReply(result.listing).catch(() => undefined);
+  return { status: result.status };
+}
+
+/**
+ * The author asks for another review of a hidden share after changing it, with an optional note for staff
+ * (see `cleanReviewNote`). Refused with the reason from `reviewRequestBlock`; staff see it in their queue
+ * and, when email is configured, by email. The share stays hidden until they decide.
+ */
+export async function requestListingReview(input: { workspaceId: string; actorUserId: string; listingId: string; note: unknown }) {
+  const note = cleanReviewNote(input.note);
+  const listing = await prisma.$transaction(async db => {
+    await db.$queryRaw`SELECT id FROM "MarketplaceListing" WHERE id = ${input.listingId} AND "workspaceId" = ${input.workspaceId} FOR UPDATE`;
+    await assertOwner(db, input.workspaceId, input.actorUserId);
+    const found = await db.marketplaceListing.findFirst({ where: { id: input.listingId, workspaceId: input.workspaceId } });
+    if (!found) throw new Error("This share is no longer available.");
+    const { listing: current, value } = await refreshListing(db, found);
+    const openReports = await db.marketplaceReport.count({ where: { listingId: current.id, status: "OPEN" } });
+    const blocked = reviewRequestBlock({ status: current.status, requestedAt: current.reviewRequestedAt, openReports, available: Boolean(value), fingerprint: current.fingerprint, reviewedFingerprint: current.reviewedFingerprint });
+    if (blocked) throw new Error(REVIEW_REQUEST_REFUSALS[blocked]);
+    const now = new Date();
+    // Asking again answers any unread reply to an earlier request.
+    const updated = await db.marketplaceListing.update({ where: { id: current.id }, data: { reviewRequestedAt: now, reviewRequestNote: note, ...(current.reviewRespondedAt && !current.reviewResponseSeenAt ? { reviewResponseSeenAt: now } : {}) } });
+    await db.auditLog.create({ data: { workspaceId: input.workspaceId, actorType: "USER", actorUserId: input.actorUserId, action: "marketplace.review-request", entityType: "MarketplaceListing", entityId: current.id, source: "marketplace", metadata: { note: Boolean(note) } } });
+    // The author's own words stay on the listing for staff and out of the audit trail.
+    await db.platformAuditEvent.create({ data: { actorUserId: input.actorUserId, action: "marketplace.review-request", entityType: "MarketplaceListing", entityId: current.id,
+      beforeData: { status: current.status, reviewedFingerprint: current.reviewedFingerprint }, afterData: { fingerprint: current.fingerprint, note: Boolean(note) } } });
+    return updated;
+  });
+  await notifyStaffOfRequest(listing).catch(() => undefined);
+  return { requestedAt: listing.reviewRequestedAt };
+}
+
+/** Staff with the owner role hear about every request, as they do about reports; silent when email is not configured. */
+async function notifyStaffOfRequest(listing: MarketplaceListing) {
+  if (!transactionalEmailConfigured() || !listing.reviewRequestedAt) return;
+  const owners = await staffOwners();
+  const link = appLink("/admin/marketplace");
+  const noun = listing.kind === "MIX" ? "Mix" : "Mega-Mix";
+  const note = listing.reviewRequestNote;
+  const text = `The author of the hidden community ${noun} share “${listing.title}” changed it and asked for another review.${note ? `\n\nTheir note: “${note}”` : ""}\n\nIt stays hidden until you decide. Review it under Admin → Content → Community reports:\n${link}`;
+  const html = `<p>The author of the hidden community ${noun} share “${escapeHtml(listing.title)}” changed it and asked for another review.</p>${note ? `<p>Their note: “${escapeHtml(note)}”</p>` : ""}<p>It stays hidden until you decide. Review it under Admin → Content → Community reports:</p><p><a href="${escapeHtml(link)}">Community reports</a></p>`;
+  for (const owner of owners) {
+    await sendTransactionalEmail({ category: "PRODUCT", to: owner.user.email, subject: `Another review requested: “${listing.title}”`, text, html, idempotencyKey: `marketplace-review-request:${listing.id}:${listing.reviewRequestedAt.getTime()}:${owner.userId}` }).catch(() => undefined);
+  }
+}
+
+/** The answer to the author's request, by email when email is configured; the reply also waits on their share. */
+async function notifyAuthorOfReply(listing: MarketplaceListing) {
+  if (!transactionalEmailConfigured() || !listing.reviewRespondedAt || !listing.reviewResponseNote) return;
+  const to = await authorEmail(listing.workspaceId);
+  if (!to) return;
+  const noun = listing.kind === "MIX" ? "Mix" : "Mega-Mix";
+  const link = ownShareLink(listing.id);
+  const next = listing.status === "HIDDEN" ? " You can change the wording and ask for another review." : listing.status === "UNSHARED" ? " Nothing in it can be shown on the Marketplace right now, so it wasn’t shared again." : "";
+  const outcome = `${reviewReplyOutcome(listing.status)}${next}`;
+  const subject = listing.status === "LIVE" ? `Your shared ${noun} is back on the Marketplace` : listing.status === "HIDDEN" ? `Your shared ${noun} stays hidden` : `Your shared ${noun} is no longer hidden`;
+  const text = `Our team looked at your shared ${noun} “${listing.title}” again.\n\n${outcome}\n\nTheir note: “${listing.reviewResponseNote}”\n\nSee your share:\n${link}\n\nYour own Mixes and the people in them are not affected.`;
+  const html = `<p>Our team looked at your shared ${noun} “${escapeHtml(listing.title)}” again.</p><p>${escapeHtml(outcome)}</p><p>Their note: “${escapeHtml(listing.reviewResponseNote)}”</p><p><a href="${escapeHtml(link)}">See your share</a></p><p>Your own Mixes and the people in them are not affected.</p>`;
+  await sendTransactionalEmail({ category: "PRODUCT", to, subject, text, html, idempotencyKey: `marketplace-review-reply:${listing.id}:${listing.reviewRespondedAt.getTime()}` });
+}
+
+export type ModerationView = "" | "hidden" | "reviewed";
+/** Staff still have to decide these: an open report, or an author asking for another review. */
+const needsDecision: Prisma.MarketplaceListingWhereInput = { OR: [{ reports: { some: { status: "OPEN" } } }, { reviewRequestedAt: { not: null } }] };
+
+/**
+ * The staff queue for one tab, with each share's live wording (null when it has nothing to show) and when
+ * staff last decided on it, so a request for another review can say what changed since.
+ */
+export async function readModerationQueue(view: ModerationView) {
+  const where: Prisma.MarketplaceListingWhereInput = view === "hidden" ? { status: "HIDDEN" } : view === "reviewed" ? { reviewRequestedAt: null, reports: { some: { status: { not: "OPEN" } }, none: { status: "OPEN" } } } : needsDecision;
+  const [listings, needsReview, hidden] = await Promise.all([
+    prisma.marketplaceListing.findMany({ where, orderBy: [{ updatedAt: "desc" }, { id: "asc" }], take: 50, include: {
+      workspace: { select: { name: true, marketplaceAuthor: { select: { publicName: true } } } },
+      reports: { orderBy: { createdAt: "desc" }, take: 20 }, _count: { select: { favorites: true, imports: true } } } }),
+    prisma.marketplaceListing.count({ where: needsDecision }),
+    prisma.marketplaceListing.count({ where: { status: "HIDDEN" } })
+  ]);
+  const rows = await Promise.all(listings.map(async item => {
+    const { listing, value } = await refreshListing(prisma, item);
+    const decidedAt = [item.reviewRespondedAt, ...item.reports.map(report => report.reviewedAt)].reduce<Date | null>((last, at) => at && (!last || at > last) ? at : last, null);
+    return { ...item, ...listing, value, decidedAt };
+  }));
+  return { rows, counts: { needsReview, hidden } };
+}
+
+/**
+ * Archiving a Mix stops sharing what it leaves with nothing to show: the Mix's own live listing, and its
+ * Mega-Mix's live listing when no other Mix in that Mega-Mix can be shared. A hidden listing stays hidden,
+ * because moderation continues. Call it inside the archive transaction.
+ */
+export async function unshareForArchivedMix(db: Prisma.TransactionClient, input: { workspaceId: string; actorUserId: string; mixId: string }) {
+  const membership = await db.megaMixPipelineMix.findFirst({ where: { mixId: input.mixId, pipeline: { workspaceId: input.workspaceId } }, select: { pipelineId: true } });
+  let megaMixEmpty = false;
+  if (membership) {
+    // Two of its Mixes archived at once must not each count the other as still shareable.
+    await db.$queryRaw`SELECT id FROM "MegaMixPipeline" WHERE id = ${membership.pipelineId} FOR UPDATE`;
+    megaMixEmpty = await db.megaMixPipelineMix.count({ where: { pipelineId: membership.pipelineId, mixId: { not: input.mixId }, mix: exportableMix } }) === 0;
+  }
+  const unshared = await db.marketplaceListing.updateManyAndReturn({ where: { workspaceId: input.workspaceId, status: "LIVE", OR: [{ mixId: input.mixId }, ...(membership && megaMixEmpty ? [{ pipelineId: membership.pipelineId }] : [])] },
+    data: { status: "UNSHARED" }, select: { id: true, kind: true } });
+  if (unshared.length) await db.auditLog.createMany({ data: unshared.map(listing => ({ workspaceId: input.workspaceId, actorType: "USER" as const, actorUserId: input.actorUserId, action: "marketplace.unshare", entityType: "MarketplaceListing", entityId: listing.id, source: "mixes.list", metadata: { reason: "mix-archived", mixId: input.mixId } })) });
+  return { mix: unshared.some(listing => listing.kind === "MIX"), megaMix: unshared.some(listing => listing.kind === "MEGA_MIX") };
+}
+
+/** What archiving this Mix would stop sharing, for its confirmation: its own share, and a Mega-Mix left with nothing to share. */
+export async function archiveShareEffect(workspaceId: string, mixId: string) {
+  const [own, membership] = await Promise.all([
+    prisma.marketplaceListing.count({ where: { workspaceId, mixId, status: "LIVE" } }),
+    prisma.megaMixPipelineMix.findFirst({ where: { mixId, pipeline: { workspaceId } }, select: { pipelineId: true, pipeline: { select: { name: true } } } })
+  ]);
+  if (!membership) return { mix: own > 0, megaMix: null };
+  const [shared, others] = await Promise.all([
+    prisma.marketplaceListing.count({ where: { workspaceId, pipelineId: membership.pipelineId, status: "LIVE" } }),
+    prisma.megaMixPipelineMix.count({ where: { pipelineId: membership.pipelineId, mixId: { not: mixId }, mix: exportableMix } })
+  ]);
+  return { mix: own > 0, megaMix: shared > 0 && others === 0 ? membership.pipeline.name : null };
 }

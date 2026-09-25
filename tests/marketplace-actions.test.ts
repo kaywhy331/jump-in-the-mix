@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@/generated/prisma/client";
 
-const mocks = vi.hoisted(() => ({ importPortable: vi.fn(), addFromMarketplace: vi.fn(), redirect: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ requireWorkspace: async () => ({ workspace: { id: "business", ownerId: "owner" }, user: { id: "owner" }, impersonation: null }), requirePlatformAdmin: vi.fn() }));
+const mocks = vi.hoisted(() => ({ importPortable: vi.fn(), addFromMarketplace: vi.fn(), redirect: vi.fn(), consumeRateLimit: vi.fn(), requestListingReview: vi.fn(), reviewListing: vi.fn() }));
+vi.mock("@/lib/auth", () => ({ requireWorkspace: async () => ({ workspace: { id: "business", ownerId: "owner" }, user: { id: "owner" }, impersonation: null }), requirePlatformAdmin: async () => ({ user: { id: "staff" } }) }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { mocks.redirect(url); throw new Error(`REDIRECT ${url}`); } }));
-vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: vi.fn() }));
+vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
 vi.mock("@/lib/mega-mix-pipeline-service", () => ({ importPortable: mocks.importPortable, createMegaMixPipeline: vi.fn(), deleteMegaMixPipeline: vi.fn(), duplicateMegaMixPipeline: vi.fn(), updateMegaMixPipeline: vi.fn() }));
-vi.mock("@/lib/marketplace-service", () => ({ addFromMarketplace: mocks.addFromMarketplace, markReportsSeen: vi.fn(), reportListing: vi.fn(), reviewListing: vi.fn(), shareOnMarketplace: vi.fn(), unshareFromMarketplace: vi.fn() }));
+vi.mock("@/lib/marketplace-service", () => ({ addFromMarketplace: mocks.addFromMarketplace, markReportsSeen: vi.fn(), reportListing: vi.fn(), requestListingReview: mocks.requestListingReview, reviewListing: mocks.reviewListing, shareOnMarketplace: vi.fn(), unshareFromMarketplace: vi.fn() }));
 
 import { importFileAction } from "../src/lib/mega-mix-pipeline-actions";
-import { addFromMarketplaceAction } from "../src/lib/marketplace-actions";
+import { addFromMarketplaceAction, requestReviewAction, reviewListingAction } from "../src/lib/marketplace-actions";
 
 const file = JSON.stringify({ format: "jump-in-the-mix", version: 1, kind: "mix", name: "Estimate follow-up", description: null, rules: [], waitingBeats: [], finishes: [],
   mixes: [{ key: "m1", name: "Estimate follow-up", description: null, category: null, industry: null, framework: null, triggerMode: "MANUAL_START", dateType: null,
@@ -49,5 +49,47 @@ describe("file import and Marketplace add error messages", () => {
     await expect(importFile()).rejects.toThrow("REDIRECT /mixes/mix-9/edit?imported=1");
     mocks.addFromMarketplace.mockResolvedValue({ pipelineId: "pipe-4", mixIds: ["a", "b"] });
     await expect(addShare()).rejects.toThrow("REDIRECT /mixes/mega?megaMix=pipe-4&imported=1");
+  });
+});
+
+describe("asking for another review and deciding on it", () => {
+  beforeEach(() => { vi.clearAllMocks(); mocks.consumeRateLimit.mockResolvedValue({ allowed: true, remaining: 4, retryAfterSeconds: 0 }); });
+  const ask = (note: string) => requestReviewAction({}, form({ listingId: "listing-1", note }));
+
+  it("sends the request with the cleaned note and returns to the share", async () => {
+    await expect(ask("  I removed   the name from Beat 2. ")).rejects.toThrow("REDIRECT /marketplace?section=mine&item=listing%3Alisting-1&review=requested");
+    expect(mocks.requestListingReview).toHaveBeenCalledWith({ workspaceId: "business", actorUserId: "owner", listingId: "listing-1", note: "I removed the name from Beat 2." });
+    expect(mocks.consumeRateLimit).toHaveBeenCalledWith(expect.objectContaining({ scope: "marketplace.review-request", identifiers: ["business", "owner"], limit: 5 }));
+  });
+
+  it("refuses a note with contact details before it costs an attempt", async () => {
+    expect(await ask("Call me on 555 201 4477")).toEqual({ error: "Leave email addresses, phone numbers and links out of the note. Our team can already read your share." });
+    expect(mocks.consumeRateLimit).not.toHaveBeenCalled();
+    expect(mocks.requestListingReview).not.toHaveBeenCalled();
+  });
+
+  it("is rate limited, and shows the reason a request is refused", async () => {
+    mocks.consumeRateLimit.mockResolvedValue({ allowed: false, remaining: 0, retryAfterSeconds: 60 });
+    expect(await ask("")).toEqual({ error: "You’ve asked for several reviews today. Try again tomorrow, or contact support." });
+    expect(mocks.requestListingReview).not.toHaveBeenCalled();
+    mocks.consumeRateLimit.mockResolvedValue({ allowed: true, remaining: 3, retryAfterSeconds: 0 });
+    mocks.requestListingReview.mockRejectedValue(new Error("Change the wording first. Another review looks at what you changed since our team’s decision."));
+    expect(await ask("")).toEqual({ error: "Change the wording first. Another review looks at what you changed since our team’s decision." });
+    mocks.requestListingReview.mockRejectedValue(prismaError());
+    expect(await ask("")).toEqual({ error: "Your request could not be sent. Try again." });
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
+  it("passes the wording staff read with their decision", async () => {
+    const decide = (fields: Record<string, string>) => reviewListingAction({}, form({ listingId: "listing-1", decision: "RESTORE", note: "Fixed.", ...fields }));
+    await expect(decide({ fingerprint: "abc" })).rejects.toThrow("REDIRECT /admin/marketplace?reviewed=1");
+    expect(mocks.reviewListing).toHaveBeenLastCalledWith({ listingId: "listing-1", staffUserId: "staff", decision: "RESTORE", note: "Fixed.", expectedFingerprint: "abc" });
+    // A share with nothing to show sends an empty fingerprint; a form without the field sends none.
+    await expect(decide({ fingerprint: "" })).rejects.toThrow("REDIRECT");
+    expect(mocks.reviewListing).toHaveBeenLastCalledWith(expect.objectContaining({ expectedFingerprint: "" }));
+    await expect(decide({})).rejects.toThrow("REDIRECT");
+    expect(mocks.reviewListing).toHaveBeenLastCalledWith(expect.objectContaining({ expectedFingerprint: undefined }));
+    mocks.reviewListing.mockRejectedValue(new Error("The author changed this share after you opened it. Read the latest wording, then decide."));
+    expect(await decide({ fingerprint: "stale" })).toEqual({ error: "The author changed this share after you opened it. Read the latest wording, then decide." });
   });
 });

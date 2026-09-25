@@ -8,8 +8,8 @@ import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { Sheet } from "@/components/Sheet";
-import { addFromMarketplaceAction, reportAction, shareAction, unshareAction } from "@/lib/marketplace-actions";
-import { MARKETPLACE_REASONS, MARKETPLACE_SUMMARY_MAX, warningLabel, type ShareWarning } from "@/lib/marketplace";
+import { addFromMarketplaceAction, reportAction, requestReviewAction, shareAction, unshareAction } from "@/lib/marketplace-actions";
+import { MARKETPLACE_REASONS, MARKETPLACE_REVIEW_NOTE_MAX, MARKETPLACE_SUMMARY_MAX, REVIEW_REQUEST_REFUSALS, warningLabel, type ReviewRequestBlock, type ShareWarning } from "@/lib/marketplace";
 
 /** A heart with the number of people who favorited this share. */
 export function ListingFavoriteButton({ listingId, name, initial, count, canEdit = true }: { listingId: string; name: string; initial: boolean; count: number; canEdit?: boolean }) {
@@ -30,14 +30,32 @@ export function ListingFavoriteButton({ listingId, name, initial, count, canEdit
 
 export type ShareState = { id: string; status: "LIVE" | "UNSHARED" | "HIDDEN"; summary: string | null; industry: string | null } | null;
 
+/** The author asks for another review of a hidden share they changed, with an optional note for our team. */
+export function ReviewRequestForm({ listingId }: { listingId: string }) {
+  return <ActionForm action={requestReviewAction} className="form-stack">
+    <input type="hidden" name="listingId" value={listingId} />
+    <label className="field"><span>Note for our team (optional)</span><textarea name="note" rows={3} maxLength={MARKETPLACE_REVIEW_NOTE_MAX} placeholder="For example, I replaced the customer’s name in Beat 2 with {{First Name}}." /><small>What you changed. Leave out email addresses, phone numbers and links.</small></label>
+    <FormSubmitButton label="Ask for another review" pendingLabel="Sending…" />
+  </ActionForm>;
+}
+
 /** Share or stop sharing a Mix or Mega-Mix. The wording is checked for private details first. */
-export function ShareSheet({ kind, targetId, targetName, publicName, listing, warnings, industries, canEdit, unavailable }: {
+export function ShareSheet({ kind, targetId, targetName, publicName, listing, warnings, industries, canEdit, unavailable, review }: {
   kind: "MIX" | "MEGA_MIX"; targetId: string; targetName: string; publicName: string; listing: ShareState; warnings: ShareWarning[]; industries: string[]; canEdit: boolean; unavailable?: string;
+  /** For a hidden share: "allowed" when the author can ask for another review, otherwise why not. */
+  review?: ReviewRequestBlock | "allowed";
 }) {
   const noun = kind === "MIX" ? "Mix" : "Mega-Mix";
   const live = listing?.status === "LIVE", hidden = listing?.status === "HIDDEN";
+  // Still being reviewed (an open report or a request waiting), or staff decided to keep it hidden.
+  const reviewing = review === undefined || review === "open-report" || review === "pending";
   return <Sheet trigger={<button className="button small" type="button" aria-label={live ? `Shared on the Marketplace. Manage sharing for ${targetName}` : `Share ${targetName} on the Marketplace`}><AppIcon name="share" />{live ? "Shared" : "Share"}</button>} title={live ? "Shared on the Marketplace" : `Share this ${noun}`} description={live ? "People see your latest saved version. Your changes appear there as soon as you save them." : "Share it with other Jump in the Mix users. You can stop sharing at any time."}>
-    {hidden ? <div className="form-stack"><p className="notice error" role="status">This share is hidden while our team reviews a report. Edit the wording if something needs fixing; we’ll let you know when the review is done.</p>{listing && <Link className="button" href={`/marketplace?section=mine&item=${encodeURIComponent(`listing:${listing.id}`)}`}>See the report</Link>}</div>
+    {hidden ? <div className="form-stack">
+      <p className="notice error" role="status">{reviewing ? "This share is hidden while our team reviews it. Edit the wording if something needs fixing; we’ll let you know when the review is done." : "Our team kept this share hidden. Change the wording, then ask for another review."}</p>
+      {listing && review === "allowed" ? canEdit ? <ReviewRequestForm listingId={listing.id} /> : <p className="muted-copy">Only the account owner can ask for another review.</p>
+        : review && review !== "allowed" && !reviewing ? <p className="muted-copy">{REVIEW_REQUEST_REFUSALS[review]}</p> : null}
+      {listing && <Link className="button" href={`/marketplace?section=mine&item=${encodeURIComponent(`listing:${listing.id}`)}`}>{reviewing ? "See the report" : "See our team’s decision"}</Link>}
+    </div>
     : unavailable ? <p className="notice" role="status">{unavailable}</p>
     : !canEdit ? <p className="muted-copy">Only the account owner can share.</p>
     : <>

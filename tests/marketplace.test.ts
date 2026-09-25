@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AUTO_HIDE_LIMIT, cleanPublicName, listingFacts, reasonHides, reportHidesAtOnce, shareWarnings } from "@/lib/marketplace";
+import { AUTO_HIDE_LIMIT, cleanPublicName, cleanReviewNote, listingFacts, MARKETPLACE_REVIEW_NOTE_MAX, reasonHides, reportHidesAtOnce, REVIEW_REQUEST_REFUSALS, reviewReplyOutcome, reviewRequestBlock, shareWarnings, textWarnings } from "@/lib/marketplace";
 import type { PortablePackage } from "@/lib/mix-portable";
 
 const pack = (body: string, extra: Partial<PortablePackage["mixes"][number]["steps"][number]> = {}): PortablePackage => ({
@@ -71,5 +71,47 @@ describe("Marketplace sharing checks", () => {
 
   it("summarizes channels and size for the directory", () => {
     expect(listingFacts(pack("Hi"))).toEqual({ title: "Estimate follow-up", mixCount: 1, beatCount: 1, channels: ["TEXT"] });
+  });
+});
+
+describe("asking for another review", () => {
+  it("scans one piece of text the way the share check does", () => {
+    expect(textWarnings("Hi Maria, call (555) 123-4567, write to maria@example.com or see www.example.com", "Note").map(item => item.kind)).toEqual(["email", "phone", "link", "name"]);
+    expect(textWarnings("Hi {{First Name}}, see you on 2026-09-24 at 10:30 for the $12,500 job.", "Note")).toEqual([]);
+  });
+
+  it("keeps the note optional, one paragraph and at most 500 characters", () => {
+    expect(cleanReviewNote(undefined)).toBeNull();
+    expect(cleanReviewNote("   \n ")).toBeNull();
+    expect(cleanReviewNote("  I replaced the name\n\nin Beat 2   with {{First Name}}. ")).toBe("I replaced the name in Beat 2 with {{First Name}}.");
+    expect(cleanReviewNote("x".repeat(900))).toHaveLength(MARKETPLACE_REVIEW_NOTE_MAX);
+    // A greeting is not contact information; the share's own wording is what staff judge.
+    expect(cleanReviewNote("Thanks Maria for the tip, I removed her number.")).toBe("Thanks Maria for the tip, I removed her number.");
+  });
+
+  it("refuses a note that carries an email address, a phone number or a link", () => {
+    for (const note of ["Write to me at rivera@example.com", "Call 555 201 4477 to discuss", "See https://example.com/proof", "Details at rivera-renovations.com"]) {
+      expect(() => cleanReviewNote(note), note).toThrow("Leave email addresses, phone numbers and links out of the note. Our team can already read your share.");
+    }
+  });
+
+  const hidden = { status: "HIDDEN", requestedAt: null, openReports: 0, available: true, fingerprint: "new", reviewedFingerprint: "old" };
+  it("allows a request only for a hidden, decided, changed share with something to show and none waiting", () => {
+    expect(reviewRequestBlock(hidden)).toBeNull();
+    expect(reviewRequestBlock({ ...hidden, status: "LIVE" })).toBe("not-hidden");
+    expect(reviewRequestBlock({ ...hidden, status: "UNSHARED" })).toBe("not-hidden");
+    expect(reviewRequestBlock({ ...hidden, requestedAt: new Date() })).toBe("pending");
+    expect(reviewRequestBlock({ ...hidden, openReports: 1 })).toBe("open-report");
+    expect(reviewRequestBlock({ ...hidden, available: false })).toBe("unavailable");
+    expect(reviewRequestBlock({ ...hidden, fingerprint: "old" })).toBe("unchanged");
+    // A share hidden before decisions recorded their wording gets one request without a change.
+    expect(reviewRequestBlock({ ...hidden, fingerprint: "old", reviewedFingerprint: null })).toBeNull();
+    for (const reason of ["not-hidden", "pending", "open-report", "unavailable", "unchanged"] as const) expect(REVIEW_REQUEST_REFUSALS[reason]).toMatch(/^[A-Z].*\.$/);
+  });
+
+  it("says where a share stands after a staff reply", () => {
+    expect(reviewReplyOutcome("LIVE")).toBe("It’s shared on the Marketplace.");
+    expect(reviewReplyOutcome("HIDDEN")).toBe("It stays hidden.");
+    expect(reviewReplyOutcome("UNSHARED")).toBe("It isn’t hidden any more, and it isn’t shared right now.");
   });
 });

@@ -15,6 +15,11 @@ import { BrandTermsHelp } from "@/components/BrandTermsHelp";
 import { MarketplaceNotices } from "@/components/MarketplaceShare";
 
 export const metadata: Metadata = { title: "Mixes" };
+/** The archive action sends a fixed code for what stopped being shared on the Marketplace, never wording. */
+const archivedNotice = (code?: string) => code === "both" ? "Mix archived. It and its Mega-Mix are no longer shared on the Marketplace; copies people already added stay theirs."
+  : code === "shared" ? "Mix archived. It’s no longer shared on the Marketplace; copies people already added stay theirs."
+  : code === "mega" ? "Mix archived. Its Mega-Mix is no longer shared on the Marketplace, because none of its other Mixes can be shared."
+  : "Mix archived.";
 type SearchParams = { mix?: string; view?: string; activate?: string; imported?: string; created?: string; updated?: string; activated?: string; paused?: string; archived?: string; error?: string; q?: string; status?: string; page?: string; favorites?: string };
 
 export default async function MixesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
@@ -35,7 +40,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
   return <div className="page mixes-page mix-workspace-page">
     {params.error && <Notice type="error">{params.error}</Notice>}
     <MarketplaceNotices workspaceId={workspace.id} />
-    {(params.activated || params.paused || params.archived) && <Notice type="success">{params.activated ? "Mix started." : params.paused ? "Mix paused." : "Mix archived."}</Notice>}
+    {(params.activated || params.paused || params.archived) && <Notice type="success">{params.activated ? "Mix started." : params.paused ? "Mix paused." : archivedNotice(params.archived)}</Notice>}
     <MixLibraryShell selectedMixId={selected} explicitSelection={Boolean(params.mix)}>
       <aside className="mix-library-directory" aria-label="Mix library">
         <header className="mix-directory-header">

@@ -245,3 +245,100 @@ test("an author's own share offers no heart or add, and stays manageable once it
   await expect(page.getByText("Sharing stopped. Copies people already added stay theirs.")).toBeVisible();
   expect(await prisma.marketplaceListing.findUniqueOrThrow({ where: { id: listing.id } })).toMatchObject({ status: "UNSHARED" });
 });
+
+test("archiving a shared Mix says it stops the share, then stops it", async ({ page, context }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const author = await owner(context, "Gutter");
+  const mix = await prisma.mix.create({ data: { workspaceId: author.workspaceId, name: "Gutter check", triggerMode: "MANUAL_START", status: "ACTIVE",
+    steps: { create: { dayOffset: 0, sortOrder: 1, stepVersion: { create: { version: 1, body: "Hi {{First Name}}, are the new gutters holding up? {{SMS Signature}}", stepTemplate: { create: { workspaceId: author.workspaceId, name: "Gutter check-in", channel: "SMS", isActive: false } } } } } } } });
+  await prisma.marketplaceAuthor.create({ data: { workspaceId: author.workspaceId, publicName: "Gutter Crew" } });
+  const listing = await prisma.marketplaceListing.create({ data: { kind: "MIX", workspaceId: author.workspaceId, mixId: mix.id, title: "Gutter check", beatCount: 1, mixCount: 1, channels: ["TEXT"], fingerprint: "seed" } });
+
+  await page.goto(`/mixes?mix=${mix.id}`);
+  await page.locator("details.mix-manage > summary").click();
+  await page.getByRole("button", { name: "Archive Mix", exact: true }).click();
+  const confirm = page.getByRole("dialog", { name: "Archive Gutter check?" });
+  await expect(confirm).toContainText("It also stops being shared on the Marketplace; copies people already added stay theirs.");
+  expect((await axeInPage(page).include("dialog[open]").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+  await confirm.getByRole("button", { name: "Archive Mix", exact: true }).click();
+  await expect(page.getByText("Mix archived. It’s no longer shared on the Marketplace; copies people already added stay theirs.")).toBeVisible();
+  expect(await prisma.mix.findUniqueOrThrow({ where: { id: mix.id } })).toMatchObject({ status: "ARCHIVED" });
+  expect(await prisma.marketplaceListing.findUniqueOrThrow({ where: { id: listing.id } })).toMatchObject({ status: "UNSHARED" });
+  expect(await prisma.auditLog.count({ where: { workspaceId: author.workspaceId, action: "marketplace.unshare", entityId: listing.id } })).toBe(1);
+
+  await owner(context, "Gutter reader");
+  await page.goto("/marketplace?section=community");
+  await expect(page.getByRole("link", { name: /Gutter check/ })).toHaveCount(0);
+});
+
+test("after staff keep a reported share hidden, its author changes it and asks for another review", async ({ page, context }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const author = await owner(context, "Deck");
+  const mix = await prisma.mix.create({ data: { workspaceId: author.workspaceId, name: "Deck care", triggerMode: "MANUAL_START", status: "ACTIVE",
+    steps: { create: { dayOffset: 0, sortOrder: 1, stepVersion: { create: { version: 1, body: "Hi Dana, time to reseal the deck? {{SMS Signature}}", stepTemplate: { create: { workspaceId: author.workspaceId, name: "Deck reminder", channel: "SMS", isActive: false } } } } } } }, include: { steps: true } });
+  await prisma.marketplaceAuthor.create({ data: { workspaceId: author.workspaceId, publicName: "Deck Pros" } });
+  const listing = await prisma.marketplaceListing.create({ data: { kind: "MIX", workspaceId: author.workspaceId, mixId: mix.id, title: "Deck care", beatCount: 1, mixCount: 1, channels: ["TEXT"], fingerprint: "seed", status: "HIDDEN", hiddenReason: "PRIVATE_INFO" } });
+  const reader = await owner(context, "Deck reader");
+  await prisma.marketplaceReport.create({ data: { listingId: listing.id, reporterUserId: reader.userId, reporterWorkspaceId: reader.workspaceId, reason: "PRIVATE_INFO", details: "A customer's name is in Beat 1", autoHidden: true } });
+  const staffUser = await prisma.user.create({ data: { name: "Moderator", email: `moderator-${randomUUID()}@example.invalid`, emailVerifiedAt: new Date(), staffMembership: { create: { role: "EDITOR", grants: ["mixes.publish"] } } } });
+  users.push(staffUser.id);
+  await prisma.adminMfaCredential.create({ data: { userId: staffUser.id, enabledAt: new Date(), secretCiphertext: "browser-fixture" } });
+  const asStaff = async () => { const session = await signIn(context, staffUser.id); await prisma.adminMfaSession.create({ data: { userId: staffUser.id, sessionId: session.id, expiresAt: session.expiresAt } }); };
+  const own = `/marketplace?section=mine&item=${encodeURIComponent(`listing:${listing.id}`)}`;
+
+  // Staff keep it hidden with a note.
+  await asStaff();
+  await page.goto("/admin/marketplace");
+  let row = page.getByRole("article").filter({ hasText: "Deck care" });
+  await expect(row).toContainText("keeping it hidden upholds the reports");
+  await row.getByRole("textbox", { name: "Note for the author" }).fill("The customer’s name is still in Beat 1.");
+  await row.getByRole("button", { name: "Keep hidden", exact: true }).click();
+  await expect(page.getByText("Decision saved. The author can see it on their share.")).toBeVisible();
+  const kept = await prisma.marketplaceListing.findUniqueOrThrow({ where: { id: listing.id } });
+  expect(kept).toMatchObject({ status: "HIDDEN", reviewRequestedAt: null });
+  expect(kept.reviewedFingerprint).toBe(kept.fingerprint);
+  expect(await prisma.marketplaceReport.count({ where: { listingId: listing.id, status: "UPHELD" } })).toBe(1);
+
+  // The author must change the wording before asking again.
+  await signIn(context, author.userId);
+  await page.goto(own);
+  await expect(page.getByText("Hidden after our team’s review: Shares someone’s private information. Change the wording, then ask for another review; it stays in your account.")).toBeVisible();
+  const pane = page.getByRole("complementary", { name: "Add or share" });
+  await expect(pane).toContainText("Our team: The customer’s name is still in Beat 1.");
+  await expect(pane).toContainText("Change the wording first. Another review looks at what you changed since our team’s decision.");
+  await expect(pane.getByRole("button", { name: "Ask for another review" })).toHaveCount(0);
+  await prisma.stepVersion.update({ where: { id: mix.steps[0].stepVersionId }, data: { body: "Hi {{First Name}}, time to reseal the deck? {{SMS Signature}}" } });
+  await page.reload();
+  await expect(pane).toContainText("Changed the wording? Ask our team to look again. It stays hidden until they decide.");
+  await pane.getByRole("textbox", { name: "Note for our team (optional)" }).fill("I replaced the name with {{First Name}}.");
+  await page.screenshot({ path: `${dir}/review-request-1440.png` });
+  expect((await axeInPage(page).include(".mix-workspace-page").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+  await pane.getByRole("button", { name: "Ask for another review", exact: true }).click();
+  await expect(page.getByText("Sent. Our team will look at your changes and let you know. The share stays hidden until then.")).toBeVisible();
+  await expect(pane).toContainText("Your note: I replaced the name with {{First Name}}.");
+  await expect(pane.getByRole("button", { name: "Ask for another review" })).toHaveCount(0);
+  expect((await prisma.marketplaceListing.findUniqueOrThrow({ where: { id: listing.id } })).reviewRequestedAt).not.toBeNull();
+
+  // Staff see the request and the note, and restore it with a reply.
+  await asStaff();
+  await page.goto("/admin/marketplace");
+  row = page.getByRole("article").filter({ hasText: "Deck care" });
+  await expect(row).toContainText("Another review requested");
+  await expect(row).toContainText("Author’s note: I replaced the name with {{First Name}}.");
+  await expect(row).toContainText("The author changed this share and asked for another review.");
+  await row.getByRole("textbox", { name: "Note for the author" }).fill("Thanks for fixing it. It’s back on the Marketplace.");
+  await row.getByRole("button", { name: "Restore share", exact: true }).click();
+  await expect(page.getByText("Decision saved. The author can see it on their share.")).toBeVisible();
+  expect(await prisma.marketplaceListing.findUniqueOrThrow({ where: { id: listing.id } })).toMatchObject({ status: "LIVE", hiddenReason: null, reviewRequestedAt: null, reviewResponseNote: "Thanks for fixing it. It’s back on the Marketplace." });
+
+  // The author is told, reads the reply and marks it read.
+  await signIn(context, author.userId);
+  await page.goto("/mixes");
+  await expect(page.getByText("Our team replied about your shared “Deck care”. It’s shared on the Marketplace.")).toBeVisible();
+  await page.getByRole("link", { name: "Read the reply" }).click();
+  await expect(pane).toContainText("Our team replied");
+  await expect(pane).toContainText("Thanks for fixing it. It’s back on the Marketplace.");
+  await pane.getByRole("button", { name: "Mark reply as read", exact: true }).click();
+  await expect(pane.getByRole("button", { name: "Mark reply as read" })).toHaveCount(0);
+  expect((await prisma.marketplaceListing.findUniqueOrThrow({ where: { id: listing.id } })).reviewResponseSeenAt).not.toBeNull();
+});

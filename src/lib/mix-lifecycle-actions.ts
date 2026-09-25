@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { unshareForArchivedMix } from "@/lib/marketplace-service";
 import { startDraftMix } from "@/lib/mix-start";
 import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
 
@@ -90,15 +91,18 @@ export async function archiveMixAction(formData: FormData): Promise<void> {
     select: { id: true }
   });
   if (!mix) fail("Mix not found.");
-  await prisma.$transaction([
-    prisma.mix.update({ where: { id: mix.id }, data: { status: "ARCHIVED" } }),
-    prisma.mixAssignment.updateMany({ where: { mixId: mix.id, workspaceId: workspace.id }, data: { isActive: false } }),
-    prisma.mixBroadcastSchedule.deleteMany({ where: { mixId: mix.id, workspaceId: workspace.id } }),
-    prisma.jump.updateMany({
+  // Interactive, so the Marketplace can see which other Mixes of its Mega-Mix are still shareable.
+  const unshared = await prisma.$transaction(async tx => {
+    await tx.mix.update({ where: { id: mix.id }, data: { status: "ARCHIVED" } });
+    await tx.mixAssignment.updateMany({ where: { mixId: mix.id, workspaceId: workspace.id }, data: { isActive: false } });
+    await tx.mixBroadcastSchedule.deleteMany({ where: { mixId: mix.id, workspaceId: workspace.id } });
+    await tx.jump.updateMany({
       where: { mixId: mix.id, workspaceId: workspace.id, status: "PENDING" },
       data: { status: "CANCELED", completedAt: null, completionMethod: "mix_archived" }
-    }),
-    prisma.auditLog.create({
+    });
+    // An archived Mix has nothing to show: its live share stops, and so does its Mega-Mix's when no other Mix can be shared.
+    const stopped = await unshareForArchivedMix(tx, { workspaceId: workspace.id, actorUserId: user.id, mixId: mix.id });
+    await tx.auditLog.create({
       data: {
         workspaceId: workspace.id,
         actorType: "USER",
@@ -106,9 +110,12 @@ export async function archiveMixAction(formData: FormData): Promise<void> {
         action: "mix.archive",
         entityType: "Mix",
         entityId: mix.id,
-        source: "mixes.list"
+        source: "mixes.list",
+        metadata: { unsharedMix: stopped.mix, unsharedMegaMix: stopped.megaMix }
       }
-    })
-  ]);
-  redirect("/mixes?archived=1");
+    });
+    return stopped;
+  });
+  // A fixed code, not wording, so the page shows its own sentence for what stopped being shared.
+  redirect(`/mixes?archived=${unshared.mix && unshared.megaMix ? "both" : unshared.mix ? "shared" : unshared.megaMix ? "mega" : "1"}`);
 }

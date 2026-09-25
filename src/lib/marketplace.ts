@@ -46,6 +46,21 @@ const GREETING_NAME = /\b(?:[Hh]i|[Hh]ello|[Hh]ey|[Dd]ear|[Tt]hanks|[Tt]hank you
 const NOT_NAMES = new Set(["There", "Again", "Everyone", "Team", "All", "Friend", "Friends", "Folks", "Neighbor", "Neighbour", "Sir", "Madam", "Both", "You", "Just", "So", "For", "From", "The"]);
 
 /**
+ * Email addresses, phone numbers, links and greetings that name a real person in one piece of text,
+ * in the order they are checked. Merge fields such as {{First Name}} are ignored.
+ */
+export function textWarnings(raw: string | null, where: string): ShareWarning[] {
+  const found: ShareWarning[] = [];
+  const text = (raw ?? "").replace(/\{\{[^}]*\}\}/g, " ");
+  for (const match of text.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)) found.push({ kind: "email", text: match[0], where });
+  for (const match of text.matchAll(/(?:\+?\d[\s().-]{0,2}){8,}\d/g)) found.push({ kind: "phone", text: match[0].trim(), where });
+  const withoutEmails = text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, " ");
+  for (const match of withoutEmails.matchAll(/\b(?:https?:\/\/|www\.)[^\s)]+|\b[a-z0-9-]+\.(?:com|net|org|io|co|ca|uk|us|biz|info|me|app)\b(?:\/[^\s)]*)?/gi)) found.push({ kind: "link", text: match[0].replace(/[.,;:!?]+$/, ""), where });
+  for (const match of text.matchAll(GREETING_NAME)) if (!NOT_NAMES.has(match[1])) found.push({ kind: "name", text: match[1], where });
+  return found;
+}
+
+/**
  * Look for details that should not be shared: email addresses, phone numbers, links and
  * greetings that name a real person instead of a {{First Name}} field, in every Beat, channel
  * version, connection name, path label and outcome that the public outline shows. Merge fields
@@ -54,14 +69,7 @@ const NOT_NAMES = new Set(["There", "Again", "Everyone", "Team", "All", "Friend"
 export function shareWarnings(value: PortablePackage): ShareWarning[] {
   const warnings: ShareWarning[] = [];
   const add = (warning: ShareWarning) => { if (warnings.length < 25 && !warnings.some(item => item.kind === warning.kind && item.text === warning.text)) warnings.push(warning); };
-  const scan = (raw: string | null, where: string) => {
-    const text = (raw ?? "").replace(/\{\{[^}]*\}\}/g, " ");
-    for (const match of text.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)) add({ kind: "email", text: match[0], where });
-    for (const match of text.matchAll(/(?:\+?\d[\s().-]{0,2}){8,}\d/g)) add({ kind: "phone", text: match[0].trim(), where });
-    const withoutEmails = text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, " ");
-    for (const match of withoutEmails.matchAll(/\b(?:https?:\/\/|www\.)[^\s)]+|\b[a-z0-9-]+\.(?:com|net|org|io|co|ca|uk|us|biz|info|me|app)\b(?:\/[^\s)]*)?/gi)) add({ kind: "link", text: match[0].replace(/[.,;:!?]+$/, ""), where });
-    for (const match of text.matchAll(GREETING_NAME)) if (!NOT_NAMES.has(match[1])) add({ kind: "name", text: match[1], where });
-  };
+  const scan = (raw: string | null, where: string) => { for (const warning of textWarnings(raw, where)) add(warning); };
   scan(value.name, "Name"); scan(value.description, "Description");
   for (const mix of value.mixes) {
     for (const field of [mix.name, mix.description, mix.category, mix.industry, mix.framework, mix.dateType?.name ?? null]) scan(field, mix.name);
@@ -80,6 +88,50 @@ export function shareWarnings(value: PortablePackage): ShareWarning[] {
 }
 
 export const warningLabel: Record<ShareWarning["kind"], string> = { email: "Email address", phone: "Phone number", link: "Link", name: "Possible name" };
+
+export const MARKETPLACE_REVIEW_NOTE_MAX = 500;
+
+/**
+ * The author's optional note to staff when asking for another review: one paragraph of at most 500
+ * characters that never carries a way to reach someone, so email addresses, phone numbers and links
+ * are refused rather than passed on.
+ */
+export function cleanReviewNote(value: unknown): string | null {
+  const note = String(value ?? "").replace(/\s+/g, " ").trim().slice(0, MARKETPLACE_REVIEW_NOTE_MAX);
+  if (!note) return null;
+  if (textWarnings(note, "Note").some(item => item.kind !== "name")) throw new Error("Leave email addresses, phone numbers and links out of the note. Our team can already read your share.");
+  return note;
+}
+
+export type ReviewRequestBlock = "not-hidden" | "pending" | "open-report" | "unavailable" | "unchanged";
+
+/**
+ * Why the author cannot ask for another review of a share yet, or null when they can. Only a hidden
+ * share qualifies, once staff have decided its reports, with no request already waiting, with something
+ * to show, and changed since the last staff decision. A share hidden before decisions recorded a
+ * fingerprint (`reviewedFingerprint` null) gets one request.
+ */
+export function reviewRequestBlock(input: { status: string; requestedAt: Date | null; openReports: number; available: boolean; fingerprint: string; reviewedFingerprint: string | null }): ReviewRequestBlock | null {
+  if (input.status !== "HIDDEN") return "not-hidden";
+  if (input.requestedAt) return "pending";
+  if (input.openReports > 0) return "open-report";
+  if (!input.available) return "unavailable";
+  if (input.reviewedFingerprint !== null && input.reviewedFingerprint === input.fingerprint) return "unchanged";
+  return null;
+}
+
+export const REVIEW_REQUEST_REFUSALS: Record<ReviewRequestBlock, string> = {
+  "not-hidden": "Only a hidden share can be sent for another review.",
+  pending: "You already asked for another review. We’ll let you know when our team has looked at it.",
+  "open-report": "Our team is still reviewing a report on this share. We’ll let you know when the review is done.",
+  unavailable: "This share has nothing to show right now, so there is nothing for our team to review.",
+  unchanged: "Change the wording first. Another review looks at what you changed since our team’s decision."
+};
+
+/** Where a share stands after a staff reply, in the author’s words. */
+export function reviewReplyOutcome(status: string): string {
+  return status === "LIVE" ? "It’s shared on the Marketplace." : status === "HIDDEN" ? "It stays hidden." : "It isn’t hidden any more, and it isn’t shared right now.";
+}
 
 const channelFamily: Record<string, string> = { SMS: "TEXT", WHATSAPP: "TEXT", EMAIL: "EMAIL", PHONE_CALL: "CALL", VOICEMAIL: "CALL" };
 export const MARKETPLACE_CHANNELS = [{ value: "TEXT", label: "Text" }, { value: "EMAIL", label: "Email" }, { value: "CALL", label: "Call" }] as const;

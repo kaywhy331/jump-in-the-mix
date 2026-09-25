@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { requireWorkspace, requirePlatformAdmin } from "@/lib/auth";
 import type { FormResult } from "@/lib/form-errors";
 import { consumeRateLimit } from "@/lib/rate-limit";
-import { addFromMarketplace, markReportsSeen, reportListing, reviewListing, shareOnMarketplace, unshareFromMarketplace } from "@/lib/marketplace-service";
+import { cleanReviewNote } from "@/lib/marketplace";
+import { addFromMarketplace, markReportsSeen, reportListing, requestListingReview, reviewListing, shareOnMarketplace, unshareFromMarketplace } from "@/lib/marketplace-service";
 
 /** Messages our own code writes are shown as they are; database and unexpected errors get the plain fallback. */
 const failed = (error: unknown, fallback: string): FormResult => ({ error: error instanceof Error && error.name === "Error" ? error.message : fallback });
@@ -62,6 +63,20 @@ export async function reportAction(_previous: FormResult, data: FormData): Promi
   redirect(`/marketplace?section=community&reported=${hidden ? "hidden" : "1"}`);
 }
 
+/** The author asks for another review of a hidden share they changed. A note that would be refused costs no attempt. */
+export async function requestReviewAction(_previous: FormResult, data: FormData): Promise<FormResult> {
+  const listingId = String(data.get("listingId") ?? "");
+  try {
+    const { workspace, user } = await writer();
+    const note = cleanReviewNote(data.get("note"));
+    const limit = await consumeRateLimit({ scope: "marketplace.review-request", identifiers: [workspace.id, user.id], limit: 5, windowMs: 86_400_000, blockMs: 86_400_000 });
+    if (!limit.allowed) return { error: "You’ve asked for several reviews today. Try again tomorrow, or contact support." };
+    await requestListingReview({ workspaceId: workspace.id, actorUserId: user.id, listingId, note });
+  } catch (error) { return failed(error, "Your request could not be sent. Try again."); }
+  refresh();
+  redirect(`${item(listingId)}&review=requested`);
+}
+
 export async function markReportsSeenAction(data: FormData) {
   const { workspace, impersonation } = await requireWorkspace();
   if (impersonation) return;
@@ -72,7 +87,10 @@ export async function markReportsSeenAction(data: FormData) {
 export async function reviewListingAction(_previous: FormResult, data: FormData): Promise<FormResult> {
   try {
     const { user } = await requirePlatformAdmin("mixes.publish");
-    await reviewListing({ listingId: String(data.get("listingId") ?? ""), staffUserId: user.id, decision: data.get("decision") === "RESTORE" ? "RESTORE" : "HIDE", note: String(data.get("note") ?? "") });
+    // The wording staff read; a restore is refused if the author changed it since the page was opened.
+    const fingerprint = data.get("fingerprint");
+    await reviewListing({ listingId: String(data.get("listingId") ?? ""), staffUserId: user.id, decision: data.get("decision") === "RESTORE" ? "RESTORE" : "HIDE", note: String(data.get("note") ?? ""),
+      expectedFingerprint: typeof fingerprint === "string" ? fingerprint : undefined });
   } catch (error) { return failed(error, "The decision could not be saved."); }
   revalidatePath("/admin/marketplace"); revalidatePath("/marketplace");
   redirect("/admin/marketplace?reviewed=1");
