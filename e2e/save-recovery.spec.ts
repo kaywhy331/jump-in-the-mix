@@ -113,7 +113,8 @@ test("Quick Add recovers a committed save after a lost response without discardi
   await expect(dialog.getByRole("button", { name: "Save all 2", exact: true })).toBeDisabled();
   for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: theme });
-    await page.evaluate(() => Promise.all(document.getAnimations().map(a => a.finished.catch(() => undefined))));
+    // Only time-based animations settle; the scroll-linked edge fades on sideways strips never finish on their own.
+    await page.evaluate(() => Promise.all(document.getAnimations().filter(a => a.timeline === document.timeline).map(a => a.finished.catch(() => undefined))));
     expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `.artifacts/recovery-release-20260920/recovery-${info.project.name}-${theme}.png` });

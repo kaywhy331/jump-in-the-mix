@@ -293,7 +293,8 @@ test("enlarged text keeps editor actions and public navigation reachable", async
   const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId } });
   for (const theme of ["light", "dark"] as const) {
     await page.setViewportSize({ width: 320, height: 568 }); await setTheme(page, theme);
-    for (const route of [`/mixes/${mix.id}/edit`, "/account/preferences", "/calendar?new=1", "/", "/for/contractors"]) {
+    // The editor's own address: /mixes/<id>/edit forwards here after loading, which would race the measurements.
+    for (const route of [`/mixes?mix=${mix.id}&view=edit`, "/account/preferences", "/calendar?new=1", "/", "/for/contractors"]) {
       await page.goto(route); if (route !== "/" && !route.startsWith("/for/")) await ready(page);
       await page.addStyleTag({ content: "html { font-size: 200% !important; scroll-behavior: auto !important; } * { scroll-behavior: auto !important; }" });
       await page.evaluate(() => document.fonts.ready);
