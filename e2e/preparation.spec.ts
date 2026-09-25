@@ -46,8 +46,7 @@ test.afterAll(async () => {
   if (userId) await prisma.user.deleteMany({ where: { id: userId } });
 });
 
-test("preparation refresh keeps an unsaved note, keyboard focus and reading position", async ({ page }, testInfo) => {
-  test.fail(testInfo.project.name === "mobile-chromium", "Product defect: on the phone the scroll anchor sits in the partly visible .contact-profile-header above the growing Next box, so the open note moves 26 px (needs .contact-profile-header { overflow-anchor: none }).");
+test("preparation refresh keeps an unsaved note, keyboard focus and reading position", async ({ page }) => {
   await page.goto(`/contacts/${contactId}`);
   await expect(page.getByRole("complementary", { name: "Follow-up preparation" })).toHaveCount(0);
   await queued(); await page.reload();

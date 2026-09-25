@@ -93,7 +93,6 @@ test("contact preferences wait for the saved version before accepting another ch
 });
 
 test("Quick Add recovers a committed save after a lost response without discarding later edits", async ({ page }, info) => {
-  test.fail(true, "Product defect: QuickAdd.tsx:147 navigates to the saved person before the leave confirmation is answered, so Cancel cannot keep the current page.");
   const dialog = await capture(page);
   let dropped = false, savedContactId = "";
   const keys: string[] = [];
@@ -128,8 +127,8 @@ test("Quick Add recovers a committed save after a lost response without discardi
   await expect(leave).toHaveCount(0);
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel("Name or search for someone")).toHaveValue("Later unsaved name");
-  // Cancel means stay: the page behind Quick Add must not have moved to the saved person (fails today, see test.fail).
-  await expect.soft(page).toHaveURL(/\/contacts$/);
+  // Cancel means stay: the page behind Quick Add must not have moved to the saved person.
+  await expect(page).toHaveURL(/\/contacts$/);
   await dialog.getByRole("link", { name: "Open saved person" }).click();
   await leave.getByRole("button", { name: "Leave", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/contacts/${savedContactId}$`));

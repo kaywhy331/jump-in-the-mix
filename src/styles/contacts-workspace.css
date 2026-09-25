@@ -70,6 +70,8 @@
 /* The box grows when preparation finishes. Keep scroll anchoring out of it so the browser anchors on what
    the owner is reading below (an open note) and that stays in place instead of sliding down the page. */
 .contact-next-line { overflow-anchor: none; }
+/* On phones the browser picks its anchor inside the partly scrolled-away profile header above the box; exclude it as well. */
+.contact-profile-header { overflow-anchor: none; }
 .contact-next-description { display: contents; }
 .contact-next-description > strong { grid-column: 1; grid-row: 2; display: block; font-size: 1rem; font-weight: 600; line-height: 1.35; }
 .contact-next-description > span { grid-column: 2; grid-row: 1 / 3; align-self: center; display: flex; flex-wrap: wrap; gap: 0 8px; margin-top: 2px; color: var(--text-2); font-size: .8125rem; }
