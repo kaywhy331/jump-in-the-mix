@@ -26,7 +26,8 @@ test("Contact search is bounded, announced, and paginated", async ({ page }, tes
   try {
     await signIn(page);
     await page.goto(`/contacts?q=${encodeURIComponent(prefix)}`);
-    await expect(page.getByRole("status")).toContainText("55 Contacts found");
+    // From 1200 px the list docks the first person's profile, which has status messages of its own.
+    await expect(page.getByRole("status").filter({ hasText: "Contacts found" })).toHaveText("55 Contacts found. Showing 1 through 50.");
     await expect(page.locator(".contact-row")).toHaveCount(50);
     await page.getByRole("link", { name: "Next", exact: true }).click();
     await expect(page).toHaveURL(/page=2/);

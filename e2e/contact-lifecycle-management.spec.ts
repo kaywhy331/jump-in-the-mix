@@ -37,21 +37,27 @@ test("Contact state, archive restoration, and duplicate review are operable", as
   try {
     await signIn(page);
     await page.goto(`/contacts/${activeId}`);
-    await expect(page.getByRole("heading", { name: "Relationship" })).toBeVisible();
+    // Priority and Do not contact live in Preferences, under the profile's More disclosure.
+    await page.locator(".contact-detail-more > summary").click();
+    await expect(page.getByRole("heading", { name: "Preferences", exact: true })).toBeVisible();
     await page.locator("label.relationship-chip").filter({ hasText: "Urgent" }).click();
     await expect(page).toHaveURL(/stateUpdated=1/);
     await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
     await expect.poll(async () => (await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: activeId } })).priority).toBe("URGENT");
 
-    await page.getByLabel("Do not contact").check();
+    // Turning on Do not contact asks before it stops the person's pending follow-ups.
+    await page.getByLabel("Do not contact").click();
+    await page.getByRole("dialog", { name: /^Stop \d+ pending follow-ups? for this person\?$/ }).getByRole("button", { name: "Stop follow-ups", exact: true }).click();
     await expect(page.getByLabel("Do not contact")).toBeChecked();
     await expect.poll(async () => await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: activeId } })).toMatchObject({ priority: "URGENT", doNotContact: true });
 
     await page.goto(`/contacts/archived?q=${encodeURIComponent(`Archived ${suffix}`)}`);
     await expect(page.getByText(`Archived ${suffix}`, { exact: true })).toBeVisible();
+    // Restore asks first, naming the person.
+    await page.locator(".contact-row").filter({ hasText: `Archived ${suffix}` }).getByRole("button", { name: "Restore…", exact: true }).click();
     await Promise.all([
       page.waitForURL(/restored=1/),
-      page.getByRole("button", { name: "Restore Contact" }).click()
+      page.getByRole("dialog", { name: `Restore Archived ${suffix}?` }).getByRole("button", { name: "Restore contact", exact: true }).click()
     ]);
     expect((await prisma.contact.findUniqueOrThrow({ where: { id: archivedId } })).archivedAt).toBeNull();
 

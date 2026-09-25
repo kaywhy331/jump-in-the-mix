@@ -171,10 +171,17 @@ test("an appointment-based mix starts with no one enrolled, attaches to the visi
 
   // Recording that the visit happened releases the beat after it and starts the completion beat's clock; the preparation lapses.
   await page.goto(`/calendar?date=${visitDate}`); await ready(page);
-  await expect(page.locator(".calendar-binding")).toContainText("Follow-ups after the visit wait until you record how it went.");
-  await page.locator(".calendar-outcome").getByRole("button", { name: "Visit happened", exact: true }).click();
-  await expect(page.locator(".calendar-outcome .status-pill")).toHaveText("Visit happened");
-  await expect(page.locator(".calendar-outcome").getByRole("button", { name: "Clear outcome", exact: true })).toBeVisible();
+  // The visit's outcome and plan controls sit under its "Event details and actions".
+  const visit = page.locator("article.calendar-event", { hasText: "Roof estimate" });
+  const eventOptions = visit.locator("details.calendar-event-options");
+  const openEventOptions = async () => { if (!await eventOptions.evaluate(element => (element as HTMLDetailsElement).open)) await eventOptions.locator("summary").click(); };
+  await openEventOptions();
+  await expect(visit.locator(".calendar-binding")).toContainText("Follow-ups after the visit wait until you record how it went.");
+  await visit.locator(".calendar-outcome").getByRole("button", { name: "Visit happened", exact: true }).click();
+  await page.waitForURL(/saved=1/);
+  await expect(visit.locator(".calendar-outcome .status-pill")).toHaveText("Visit happened");
+  await openEventOptions();
+  await expect(visit.locator(".calendar-outcome").getByRole("button", { name: "Clear outcome", exact: true })).toBeVisible();
   await reconcileJumps({ workspaceId, mixId: mix.id });
   const completedAt = (await prisma.calendarEntry.findUniqueOrThrow({ where: { id: binding.calendarEntryId } })).outcomeAt!;
   expect((await rows()).map((row) => [row.mixStep.sortOrder, row.status, row.completionMethod, row.scheduledAt.toISOString()])).toEqual([

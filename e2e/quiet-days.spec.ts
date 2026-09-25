@@ -35,7 +35,11 @@ for (const theme of ["light", "dark"]) for (const width of [320, 390, 834, 1440]
   await page.goto("/journey?touchpoint=quiet-days");
   const panel = page.getByRole("region", { name: "Quiet-day check-ins", exact: true });
   await expect(panel.getByText("Check in with Maria Lane", { exact: true })).toBeVisible();
-  await expect(page.locator(".journey-touch-node.selected")).toContainText("3");
+  // The quiet-day touchpoint opens beside the Mix and Beat map and counts the people due.
+  const touchpoint = page.locator("summary").filter({ hasText: "Just saying hello" });
+  const due = panel.locator(".section-label > span");
+  await expect(touchpoint).toHaveText("Just saying hello · 3 people due");
+  await expect(due).toHaveText("3");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect((await new AxeBuilder({ page }).include(".quiet-day-suggestions").withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
   await page.screenshot({ path: `.artifacts/quiet-days-20260920/journey-${theme}-${width}.png`, fullPage: true });
@@ -45,7 +49,8 @@ for (const theme of ["light", "dark"]) for (const width of [320, 390, 834, 1440]
   await expect(panel.getByRole("status")).toContainText("Skipped check-in for Maria Lane");
   await expect(panel.getByRole("status")).toBeFocused();
   await expect(row).toHaveCount(0);
-  await expect(page.locator(".journey-touch-node.selected")).toContainText("2");
+  await expect(due).toHaveText("2");
+  await expect(touchpoint).toHaveText("Just saying hello · 2 people due");
   expect((await prisma.contactJourney.findUniqueOrThrow({ where: { contactId: mariaId } })).stageId).toBe(stageId);
 });
 test("Today resolves completed suggestions and real follow-ups", async ({ page }) => {

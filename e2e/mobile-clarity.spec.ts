@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { prisma } from "../src/lib/prisma";
+import { DOCKED_REVIEW_MEDIA } from "../src/lib/sheet-layout";
 
 const database = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/unknown");
 test.skip(!["localhost", "127.0.0.1"].includes(database.hostname) || !database.pathname.startsWith("/jitm_design_"), "Disposable local fixtures only");
@@ -32,11 +33,17 @@ test("review then handoff then outcome stays attached to the correct person", as
     const more = card.getByRole("button", { name: "More options for Clarity Person" });
     // Wide screens dock the next follow-up's review open once the page is ready; the compact card is checked with it closed.
     await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 });
-    if (await card.locator(".follow-up-review-sheet[open]").count()) await card.getByRole("button", { name: "Close Follow up with Clarity Person" }).click();
+    if (await page.evaluate(media => matchMedia(media).matches, DOCKED_REVIEW_MEDIA)) {
+      await expect(card.locator(".follow-up-review-sheet[open]")).toHaveCount(1);
+      await card.getByRole("button", { name: "Close Follow up with Clarity Person" }).click();
+    }
     await expect(card.getByRole("textbox")).toHaveCount(0);
     await expect(card.getByRole("button")).toHaveCount(2);
+    // The card's narrow action column stacks More under Review, within Review's width.
     const [a, b] = await Promise.all([review.boundingBox(), more.boundingBox()]);
-    expect(Math.abs(a!.y - b!.y)).toBeLessThan(3);
+    expect(b!.y).toBeGreaterThanOrEqual(a!.y + a!.height - 1);
+    expect(b!.x).toBeGreaterThanOrEqual(a!.x - 1);
+    expect(b!.x + b!.width).toBeLessThanOrEqual(a!.x + a!.width + 1);
     await review.click();
     const dialog = page.getByRole("dialog", { name: "Follow up with Clarity Person" });
     await dialog.getByLabel("Your message").fill("Hi Clarity, can we catch up next week?");
@@ -79,14 +86,18 @@ test("quick add separates capture and review and retains text when going back", 
 
 test("profession examples are easy to find and show one concise message", async ({ page }) => {
   await page.goto("/templates");
-  await page.getByLabel("See a quick example for your work").selectOption("consulting");
+  // The examples live in the ready-made library's tools, under "Ideas for your business".
+  await page.getByRole("button", { name: "More ready-made Mix tools", exact: true }).click();
+  const tools = page.getByRole("dialog", { name: "Ready-made Mix tools", exact: true });
+  await tools.getByText("Ideas for your business", { exact: true }).click();
+  await tools.getByLabel("See a quick example for your work").selectOption("consulting");
   const example = page.getByRole("region", { name: "Consulting example" });
   await expect(example.locator("blockquote")).toHaveCount(1);
   expect((await example.locator("blockquote").innerText()).length).toBeLessThan(300);
   await expect(example).toContainText("Nothing is sent");
   await example.getByRole("link", { name: "Find a follow-up plan" }).click();
   await expect(page).toHaveURL(/industry=Professional/);
-  await expect(page.locator(".mix-template-card").first()).toBeVisible();
+  await expect(page.locator(".mix-library-row").first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 

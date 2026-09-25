@@ -56,7 +56,8 @@ test("mix pages preserve filters, reach every result and keep small-screen navig
     await page.goto("/mixes?page=2");
     await page.getByRole("button", { name: "Filter mixes", exact: true }).click();
     const filters = page.getByRole("dialog", { name: "Filter mixes" });
-    await filters.getByLabel("Status", { exact: true }).selectOption("DRAFT");
+    // The select sits inside its label, so the label's text also holds the option names; match the control's name.
+    await filters.getByRole("combobox", { name: "Status", exact: true }).selectOption("DRAFT");
     await filters.getByRole("button", { name: "Apply filters", exact: true }).click();
     await expect(page).toHaveURL(/\/mixes\?(?:q=&)?status=DRAFT$/);
     await expect(rows).toHaveCount(1); await expect(rows).toContainText("Page sample 23");
