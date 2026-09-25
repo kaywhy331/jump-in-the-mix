@@ -85,26 +85,47 @@ test("share a Mega-Mix, favorite and add it, see live edits and updates, report 
   await expect(page.getByText("The shared original of this has been updated. Your copy stays as it is.")).toBeVisible();
   expect(await prisma.stepVersion.count({ where: { stepTemplate: { workspaceId: reader.workspaceId }, body: { contains: "Maria" } } })).toBe(1);
 
-  // Reporting private information hides it at once.
+  // A spam report keeps the share live for others; it leaves only the reporter's Community list and waits for staff.
   await page.getByRole("link", { name: "Review the update" }).click();
+  await page.getByRole("button", { name: "Report", exact: true }).click();
+  const spam = page.getByRole("dialog", { name: "Report this share" });
+  await spam.getByRole("radio", { name: /Spam, scam or harmful links/ }).check();
+  await expect(spam.getByText("The share stays visible to others while our team reviews it, and leaves your Community list.")).toBeVisible();
+  await spam.getByRole("textbox", { name: "Details (optional)" }).fill("Beat 3 links to a coupon site");
+  await spam.getByRole("button", { name: "Send report", exact: true }).click();
+  await expect(page.getByText("Thanks. Our team will review this share.")).toBeVisible();
+  expect(await prisma.marketplaceListing.findUniqueOrThrow({ where: { id: listing.id } })).toMatchObject({ status: "LIVE", hiddenReason: null });
+  expect(await prisma.marketplaceReport.findFirstOrThrow({ where: { listingId: listing.id, reporterUserId: reader.userId } })).toMatchObject({ reason: "SPAM", status: "OPEN", autoHidden: false });
+  await expect(page.getByRole("navigation", { name: "Community Mixes and Mega-Mixes" })).toHaveCount(0);
+
+  // A verified account reporting private information hides it at once.
+  await owner(context, "Second");
+  await page.goto("/marketplace?section=community");
+  await expect(page.getByRole("navigation", { name: "Community Mixes and Mega-Mixes" })).toContainText("by Rivera Renovations");
+  await page.getByRole("link", { name: /Contractor\s*Mega-Mix · 13 Mixes/ }).click();
   await page.getByRole("button", { name: "Report", exact: true }).click();
   const report = page.getByRole("dialog", { name: "Report this share" });
   await report.getByRole("radio", { name: /Shares someone’s private information/ }).check();
-  await expect(report.getByText("This hides the share right away while our team reviews it.")).toBeVisible();
+  await expect(report.getByText("This usually hides the share right away while our team reviews it.")).toBeVisible();
   await report.getByRole("textbox", { name: "Details (optional)" }).fill("A customer's first name is in Beat 1");
   await report.getByRole("button", { name: "Send report", exact: true }).click();
   await expect(page.getByText("Thanks. The share is hidden while our team reviews it.")).toBeVisible();
   expect(await prisma.marketplaceListing.findUniqueOrThrow({ where: { id: listing.id } })).toMatchObject({ status: "HIDDEN", hiddenReason: "PRIVATE_INFO" });
   await expect(page.getByRole("navigation", { name: "Community Mixes and Mega-Mixes" })).toHaveCount(0);
 
-  // The author is told, sees the reason and the details, never who reported.
+  // The author is told the reasons, never who reported or, while the reports are open, what they wrote.
   await signIn(context, author.userId);
   await page.goto("/mixes");
   await expect(page.getByRole("alert").filter({ hasText: "Your shared “Contractor” was reported: Shares someone’s private information. It’s hidden while our team reviews it." })).toBeVisible();
-  await page.getByRole("alert").getByRole("link", { name: "Review" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Your shared “Contractor” was reported: Spam, scam or harmful links. It stays shared while our team reviews it." })).toBeVisible();
+  await page.getByRole("alert").filter({ hasText: "private information" }).getByRole("link", { name: "Review" }).click();
   const reports = page.getByRole("complementary", { name: "Add or share" });
-  await expect(reports).toContainText("A customer's first name is in Beat 1");
+  await expect(reports).toContainText("Shares someone’s private information");
+  await expect(reports).toContainText("Spam, scam or harmful links");
+  await expect(reports).not.toContainText("A customer's first name is in Beat 1");
+  await expect(reports).not.toContainText("coupon site");
   await expect(reports).not.toContainText("Reader");
+  await expect(reports).not.toContainText("Second");
   await reports.getByRole("button", { name: "Mark as read" }).click();
   await expect(page.getByRole("navigation", { name: "Marketplace section" }).getByLabel(/new report/)).toHaveCount(0);
 
@@ -117,11 +138,15 @@ test("share a Mega-Mix, favorite and add it, see live edits and updates, report 
   await page.goto("/admin/marketplace");
   const row = page.getByRole("article").filter({ hasText: "Contractor" });
   await expect(row).toContainText("Shares someone’s private information · hid the share");
+  await expect(row).toContainText("Spam, scam or harmful links");
+  await expect(row).toContainText("Beat 3 links to a coupon site");
+  await expect(row).toContainText("Hidden now. Restoring puts it back on the Marketplace");
   await page.screenshot({ path: `${dir}/admin-review-1920.png` });
   await row.getByRole("textbox", { name: "Note for the author" }).fill("The author removed the name. Restored.");
   await row.getByRole("button", { name: "Restore share", exact: true }).click();
   await expect(page.getByText("Decision saved.")).toBeVisible();
   expect(await prisma.marketplaceListing.findUniqueOrThrow({ where: { id: listing.id } })).toMatchObject({ status: "LIVE", hiddenReason: null });
+  expect(await prisma.marketplaceReport.count({ where: { listingId: listing.id, status: "DISMISSED" } })).toBe(2);
 });
 
 test("Marketplace sections, filters and both themes work on phone, tablet and desktop", async ({ page, context }) => {

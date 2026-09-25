@@ -8,7 +8,8 @@ import { createMegaMixPipeline, deleteMegaMixPipeline, duplicateMegaMixPipeline,
 import { parsePortable, portableSummary } from "@/lib/mix-portable";
 
 const refresh = () => { revalidatePath("/mixes"); revalidatePath("/mixes/mega"); revalidatePath("/journey"); };
-const failed = (error: unknown, fallback: string): FormResult => ({ error: error instanceof Error ? error.message : fallback });
+/** Messages our own code writes are shown as they are; database and unexpected errors get the plain fallback. */
+const failed = (error: unknown, fallback: string): FormResult => ({ error: error instanceof Error && error.name === "Error" ? error.message : fallback });
 
 async function writer() {
   const session = await requireWorkspace();
@@ -66,7 +67,7 @@ export async function importFileAction(_previous: FormResult, data: FormData): P
     const value = parsePortable(String(data.get("file") ?? ""));
     const result = await importPortable({ workspaceId: workspace.id, actorUserId: user.id, value, name: String(data.get("name") ?? value.name), origin: "FILE", source: "mixes.import" });
     target = result.pipelineId ? `/mixes/mega?megaMix=${encodeURIComponent(result.pipelineId)}&imported=1` : `/mixes/${encodeURIComponent(result.mixIds[0])}/edit?imported=1`;
-  } catch (error) { return failed(error, "The file could not be imported. Nothing was added."); }
+  } catch (error) { return failed(error, "That file couldn’t be added. Check it and try again."); }
   refresh();
   redirect(target);
 }

@@ -65,12 +65,12 @@ export function ReportSheet({ listingId, title, reported }: { listingId: string;
   const [reason, setReason] = useState("");
   const chosen = MARKETPLACE_REASONS.find(item => item.value === reason);
   if (reported) return <p className="muted-copy listing-reported"><AppIcon name="flag" />You reported this. Our team will review it.</p>;
-  return <Sheet trigger={<button className="text-button listing-report" type="button"><AppIcon name="flag" />Report</button>} title="Report this share" description={`Tell us what is wrong with “${title}”. The author is told a report was made, not who made it.`}>
+  return <Sheet trigger={<button className="text-button listing-report" type="button"><AppIcon name="flag" />Report</button>} title="Report this share" description={`Tell us what is wrong with “${title}”. Our team reads your details first. The author is told the reason, never who reported.`}>
     <ActionForm action={reportAction} className="form-stack">
       <input type="hidden" name="listingId" value={listingId} />
       <fieldset className="report-reasons"><legend>What is wrong?</legend>{MARKETPLACE_REASONS.map(item => <label key={item.value} className="checkbox-label"><input type="radio" name="reason" value={item.value} required checked={reason === item.value} onChange={() => setReason(item.value)} /><span><strong>{item.label}</strong><small>{item.hint}</small></span></label>)}</fieldset>
       <label className="field"><span>Details{reason === "OTHER" ? "" : " (optional)"}</span><textarea name="details" rows={3} maxLength={1000} required={reason === "OTHER"} placeholder="Which Beat, and what should change?" /></label>
-      {chosen && <p className="muted-copy" role="status">{chosen.autoHide ? "This hides the share right away while our team reviews it." : "The share stays visible while our team reviews it."}</p>}
+      {chosen && <p className="muted-copy" role="status">{chosen.autoHide ? "This usually hides the share right away while our team reviews it." : "The share stays visible to others while our team reviews it, and leaves your Community list."}</p>}
       <FormSubmitButton label="Send report" pendingLabel="Sending…" />
     </ActionForm>
   </Sheet>;

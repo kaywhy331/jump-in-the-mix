@@ -72,6 +72,20 @@ export async function snapshotWorkspaceMix(workspaceId: string, mixId: string): 
   };
 }
 
+/**
+ * The saved date type a file or ready-made Mix refers to: the exported slug as it is, then the
+ * name (case-insensitive), across this account's own types and the system ones. Slugs made here
+ * carry a random suffix, so slugifying before the lookup could never match an existing type.
+ */
+export async function matchDateType(db: Prisma.TransactionClient | typeof prisma, workspaceId: string, dateType: { name: string | null; slug: string | null }) {
+  const scope = { OR: [{ workspaceId, isSystem: false }, { workspaceId: null, isSystem: true }] };
+  const orderBy: Prisma.DateTypeOrderByWithRelationInput[] = [{ isActive: "desc" }, { isSystem: "desc" }, { createdAt: "asc" }];
+  const slug = dateType.slug?.trim() ?? "", name = dateType.name?.trim() ?? "";
+  const bySlug = slug ? await db.dateType.findFirst({ where: { slug, ...scope }, orderBy }) : null;
+  if (bySlug) return bySlug;
+  return name ? db.dateType.findFirst({ where: { name: { equals: name, mode: "insensitive" }, ...scope }, orderBy }) : null;
+}
+
 async function resolveImportedDateType(
   tx: Prisma.TransactionClient,
   workspaceId: string,
@@ -81,22 +95,16 @@ async function resolveImportedDateType(
 ): Promise<string | null> {
   if (triggerMode !== "DATE_TRIGGERED") return null;
   const name = clean(dateTypeName, 120);
-  const slug = slugify(dateTypeSlug || name);
-  if (!name || !slug) throw new Error("This date-based mix does not identify the date that starts it.");
-  const existing = await tx.dateType.findFirst({
-    where: {
-      slug,
-      OR: [{ workspaceId, isSystem: false }, { workspaceId: null, isSystem: true }]
-    },
-    orderBy: { isSystem: "desc" }
-  });
+  const slug = clean(dateTypeSlug, 120);
+  if (!name) throw new Error("This date-based mix does not identify the date that starts it.");
+  const existing = await matchDateType(tx, workspaceId, { name, slug });
   if (existing) {
     if (!existing.isActive) throw new Error(`Turn on the ${existing.name} date before adding this mix.`);
     return existing.id;
   }
 
   const created = await tx.dateType.create({
-    data: { workspaceId, scopeKey: workspaceId, name, slug, isSystem: false, isActive: true }
+    data: { workspaceId, scopeKey: workspaceId, name, slug: slugify(name), isSystem: false, isActive: true }
   });
   return created.id;
 }

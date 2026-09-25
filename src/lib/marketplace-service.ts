@@ -2,7 +2,7 @@ import type { MarketplaceListing, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { exportMegaMixPipeline, exportSingleMix, installPortable } from "@/lib/mega-mix-pipeline-service";
 import { buildPortable, portableFingerprint, type PortablePackage } from "@/lib/mix-portable";
-import { cleanPublicName, isMarketplaceReason, listingFacts, MARKETPLACE_SIZES, MARKETPLACE_SUMMARY_MAX, reasonHides, reasonLabel, type MarketplaceReason } from "@/lib/marketplace";
+import { AUTO_HIDE_LIMIT, cleanPublicName, isMarketplaceReason, listingFacts, MARKETPLACE_SIZES, MARKETPLACE_SUMMARY_MAX, reasonLabel, reportHidesAtOnce, type MarketplaceReason } from "@/lib/marketplace";
 import { MEGA_MIXES, megaMixById, megaMixConfiguration } from "@/lib/mega-mixes";
 import { normalizeSharedMixSteps } from "@/lib/shared-mix";
 import { escapeHtml, sendTransactionalEmail, transactionalEmailConfigured } from "@/lib/transactional-email";
@@ -117,7 +117,8 @@ export async function readMarketplace(filters: MarketplaceFilters, viewer: { use
   }
   const size = MARKETPLACE_SIZES.find(item => item.value === filters.size);
   const where: Prisma.MarketplaceListingWhereInput = {
-    ...(filters.section === "mine" ? { workspaceId: viewer.workspaceId } : visible),
+    // A share you reported leaves your Community view; everyone else still sees it until staff decide.
+    ...(filters.section === "mine" ? { workspaceId: viewer.workspaceId } : { ...visible, reports: { none: { reporterUserId: viewer.userId } } }),
     ...(filters.kind ? { kind: filters.kind } : {}),
     ...(filters.industry ? { industry: filters.industry } : {}),
     ...(filters.channel ? { channels: { has: filters.channel } } : {}),
@@ -170,7 +171,9 @@ export async function readMarketplaceItem(item: string, viewer: { userId: string
     prisma.marketplaceFavorite.findUnique({ where: { listingId_userId: { listingId: listing.id, userId: viewer.userId } }, select: { userId: true } }),
     prisma.marketplaceImport.count({ where: { listingId: listing.id } }),
     prisma.marketplaceImport.findMany({ where: { listingId: listing.id, workspaceId: viewer.workspaceId }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, mixId: true, pipelineId: true, fingerprint: true, createdAt: true } }),
-    listing.workspaceId === viewer.workspaceId ? prisma.marketplaceReport.findMany({ where: { listingId: listing.id }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, reason: true, details: true, status: true, autoHidden: true, createdAt: true, reviewNote: true } }) : Promise.resolve([]),
+    // The author always sees the reason; the reporter's own words reach them only after staff have read them.
+    listing.workspaceId === viewer.workspaceId ? prisma.marketplaceReport.findMany({ where: { listingId: listing.id }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, reason: true, details: true, status: true, autoHidden: true, createdAt: true, reviewNote: true } })
+      .then(rows => rows.map(report => ({ ...report, details: report.status === "OPEN" ? null : report.details }))) : Promise.resolve([]),
     prisma.marketplaceReport.findUnique({ where: { listingId_reporterUserId: { listingId: listing.id, reporterUserId: viewer.userId } }, select: { id: true } })
   ]);
   return { type: "listing" as const, id: listing.id, listing, value, title: listing.title, author: author?.publicName ?? "Community member", summary: listing.summary, industry: listing.industry,
@@ -214,7 +217,11 @@ export async function marketplaceUpdates(workspaceId: string, only?: { mixId?: s
 
 const authorEmail = async (workspaceId: string) => (await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { owner: { select: { email: true } } } }))?.owner.email ?? null;
 
-/** Report a listing. Serious reasons hide it at once; the author is always told. */
+/**
+ * Report a listing. Every report is recorded, queued for staff, hidden from the reporter's own
+ * Community view and announced to the author (reason only) and to staff. Only a private-information
+ * report from a verified account under its daily limit hides the share for everyone at once.
+ */
 export async function reportListing(input: { listingId: string; reporterUserId: string; reporterWorkspaceId: string; reason: string; details: string }) {
   if (!isMarketplaceReason(input.reason)) throw new Error("Choose what is wrong with this share.");
   const reason: MarketplaceReason = input.reason;
@@ -226,14 +233,35 @@ export async function reportListing(input: { listingId: string; reporterUserId: 
     if (!listing) throw new Error("This share is no longer available.");
     if (listing.workspaceId === input.reporterWorkspaceId) throw new Error("You can’t report your own share. Stop sharing it or edit it instead.");
     if (await db.marketplaceReport.findUnique({ where: { listingId_reporterUserId: { listingId: listing.id, reporterUserId: input.reporterUserId } } })) throw new Error("You already reported this share. Our team will review it.");
-    const hide = reasonHides(reason);
+    const reporter = await db.user.findUnique({ where: { id: input.reporterUserId }, select: { emailVerifiedAt: true, createdAt: true } });
+    const recentAutoHides = await db.marketplaceReport.count({ where: { reporterWorkspaceId: input.reporterWorkspaceId, autoHidden: true, createdAt: { gte: new Date(Date.now() - AUTO_HIDE_LIMIT.windowMs) } } });
+    const reporterEmailVerified = Boolean(reporter?.emailVerifiedAt);
+    const hide = reportHidesAtOnce({ reason, reporterEmailVerified, recentAutoHides });
     const report = await db.marketplaceReport.create({ data: { listingId: listing.id, reporterUserId: input.reporterUserId, reporterWorkspaceId: input.reporterWorkspaceId, reason, details, autoHidden: hide } });
     if (hide) await db.marketplaceListing.update({ where: { id: listing.id }, data: { status: "HIDDEN", hiddenReason: reason, hiddenAt: new Date() } });
     await db.auditLog.create({ data: { workspaceId: listing.workspaceId, actorType: "USER", actorUserId: input.reporterUserId, action: hide ? "marketplace.report.hidden" : "marketplace.report", entityType: "MarketplaceListing", entityId: listing.id, source: "marketplace", metadata: { reason } } });
+    // Staff weigh a report partly by how new the reporting account is; the reporter's words stay out of the audit trail.
+    const reporterAccountAgeDays = reporter ? Math.floor((Date.now() - reporter.createdAt.getTime()) / 86_400_000) : null;
+    await db.platformAuditEvent.create({ data: { actorUserId: input.reporterUserId, action: hide ? "marketplace.report.hidden" : "marketplace.report", entityType: "MarketplaceListing", entityId: listing.id, reason,
+      afterData: { reason, autoHidden: hide, reporterAccountAgeDays, reporterEmailVerified, recentAutoHides } } });
     return { report, listing, hidden: hide };
   });
-  await notifyAuthor(result.listing, result.report.id, reason, result.hidden).catch(() => undefined);
+  await Promise.all([notifyAuthor(result.listing, result.report.id, reason, result.hidden), notifyStaff(result.listing, result.report.id, reason, result.hidden)].map(task => task.catch(() => undefined)));
   return { hidden: result.hidden };
+}
+
+/** Staff with the owner role hear about every report so nothing waits unseen; silent when email is not configured. */
+async function notifyStaff(listing: MarketplaceListing, reportId: string, reason: MarketplaceReason, hidden: boolean) {
+  if (!transactionalEmailConfigured()) return;
+  const owners = await prisma.staffMembership.findMany({ where: { role: "OWNER", status: "ACTIVE", user: { suspendedAt: null } }, select: { userId: true, user: { select: { email: true } } } });
+  const link = `${env.appUrl.replace(/\/$/, "")}/admin/marketplace`;
+  const noun = listing.kind === "MIX" ? "Mix" : "Mega-Mix";
+  const state = hidden ? "It is hidden until you decide." : "It stays visible until you decide.";
+  const text = `A community ${noun} share, “${listing.title}”, was reported for: ${reasonLabel(reason)}.\n\n${state} Review it under Admin → Content → Community reports:\n${link}`;
+  const html = `<p>A community ${noun} share, “${escapeHtml(listing.title)}”, was reported for: <strong>${escapeHtml(reasonLabel(reason))}</strong>.</p><p>${state} Review it under Admin → Content → Community reports:</p><p><a href="${escapeHtml(link)}">Community reports</a></p>`;
+  for (const owner of owners) {
+    await sendTransactionalEmail({ category: "PRODUCT", to: owner.user.email, subject: `Community share reported: ${reasonLabel(reason)}`, text, html, idempotencyKey: `marketplace-report-staff:${reportId}:${owner.userId}` }).catch(() => undefined);
+  }
 }
 
 /** Email the owner when email is configured; the in-app notice on their share is always there. */
@@ -257,7 +285,10 @@ export async function markReportsSeen(workspaceId: string, listingId: string) {
   await prisma.marketplaceReport.updateMany({ where: { listingId, authorSeenAt: null, listing: { workspaceId } }, data: { authorSeenAt: new Date() } });
 }
 
-/** Staff decision on a listing's open reports. */
+/**
+ * Staff decision on a listing's open reports. Only a hidden share is restored and only a live one
+ * hidden; a share the author already stopped stays stopped, and the decision just closes its reports.
+ */
 export async function reviewListing(input: { listingId: string; staffUserId: string; decision: "RESTORE" | "HIDE"; note: string }) {
   const note = input.note.trim().slice(0, 1000);
   if (!note) throw new Error("Add a short note about the decision.");
@@ -265,8 +296,16 @@ export async function reviewListing(input: { listingId: string; staffUserId: str
     const listing = await db.marketplaceListing.findUnique({ where: { id: input.listingId } });
     if (!listing) throw new Error("This share no longer exists.");
     const restore = input.decision === "RESTORE";
-    await db.marketplaceListing.update({ where: { id: listing.id }, data: restore ? { status: "LIVE", hiddenReason: null, hiddenAt: null } : { status: "HIDDEN", hiddenAt: listing.hiddenAt ?? new Date(), hiddenReason: listing.hiddenReason ?? "OTHER" } });
+    let status = listing.status;
+    if (restore && listing.status === "HIDDEN") {
+      status = (await db.marketplaceListing.update({ where: { id: listing.id }, data: { status: "LIVE", hiddenReason: null, hiddenAt: null } })).status;
+    } else if (!restore && listing.status === "LIVE") {
+      const latest = await db.marketplaceReport.findFirst({ where: { listingId: listing.id, status: "OPEN" }, orderBy: { createdAt: "desc" }, select: { reason: true } });
+      status = (await db.marketplaceListing.update({ where: { id: listing.id }, data: { status: "HIDDEN", hiddenAt: new Date(), hiddenReason: latest?.reason ?? "OTHER" } })).status;
+    }
     await db.marketplaceReport.updateMany({ where: { listingId: listing.id, status: "OPEN" }, data: { status: restore ? "DISMISSED" : "UPHELD", reviewedAt: new Date(), reviewerUserId: input.staffUserId, reviewNote: note, authorSeenAt: null } });
-    await db.platformAuditEvent.create({ data: { actorUserId: input.staffUserId, action: restore ? "marketplace.restore" : "marketplace.hide", entityType: "MarketplaceListing", entityId: listing.id, reason: note } });
+    const action = restore ? (listing.status === "HIDDEN" ? "marketplace.restore" : "marketplace.dismiss") : listing.status === "LIVE" ? "marketplace.hide" : "marketplace.uphold";
+    await db.platformAuditEvent.create({ data: { actorUserId: input.staffUserId, action, entityType: "MarketplaceListing", entityId: listing.id, reason: note, beforeData: { status: listing.status }, afterData: { status } } });
+    return { status };
   });
 }

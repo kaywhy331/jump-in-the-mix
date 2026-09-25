@@ -8,7 +8,9 @@ export const runtime = "nodejs";
 
 /** Download one Mix as a file: its Beats and wording, never people or history. */
 export async function GET(_request: Request, { params }: { params: Promise<{ mixId: string }> }) {
-  const [{ workspace }, { mixId }] = await Promise.all([requireWorkspace(), params]);
+  const [{ workspace, impersonation }, { mixId }] = await Promise.all([requireWorkspace(), params]);
+  // A support view reads on screen only; the customer's wording never leaves as a file.
+  if (impersonation) return NextResponse.json({ error: "Support sessions are view-only." }, { status: 403 });
   try {
     const exported = await exportSingleMix(prisma, workspace.id, mixId.slice(0, 160));
     const value = { ...exported.package, exportedAt: new Date().toISOString() };

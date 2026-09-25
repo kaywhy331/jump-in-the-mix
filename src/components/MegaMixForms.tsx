@@ -43,8 +43,13 @@ export function DuplicateMegaMixForm({ pipeline }: { pipeline: { id: string; nam
   </ActionForm>;
 }
 
-export function RemoveMegaMixButton({ pipeline }: { pipeline: { id: string; name: string } }) {
-  return <ConfirmDialog trigger={<><AppIcon name="trash" />Remove Mega-Mix</>} title={`Remove ${pipeline.name}?`} description="Removes this grouping only. Its Mixes, their people, follow-ups and Journey connections all stay." danger>
+export type MegaMixShareState = { status: "LIVE" | "UNSHARED" | "HIDDEN"; underReview: boolean } | null;
+
+/** Removing a Mega-Mix removes its Marketplace share too, so a share under review keeps the Mega-Mix until staff decide. */
+export function RemoveMegaMixButton({ pipeline, share = null }: { pipeline: { id: string; name: string }; share?: MegaMixShareState }) {
+  if (share?.underReview) return <p className="muted-copy" role="status">This Mega-Mix’s share is under review; it can be removed once the review is done.</p>;
+  const description = `Removes this grouping only. Its Mixes, their people, follow-ups and Journey connections all stay.${share ? " This also removes its Marketplace share. Copies people already added stay theirs." : ""}`;
+  return <ConfirmDialog trigger={<><AppIcon name="trash" />Remove Mega-Mix</>} title={`Remove ${pipeline.name}?`} description={description} danger>
     <ActionForm action={deleteMegaMixAction} className="form-stack"><input type="hidden" name="pipelineId" value={pipeline.id} /><button className="button danger" type="submit">Remove Mega-Mix</button></ActionForm>
   </ConfirmDialog>;
 }

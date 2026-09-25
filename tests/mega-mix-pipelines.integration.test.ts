@@ -95,6 +95,47 @@ describe.skipIf(!local)("named Mega-Mixes, export and import", () => {
     await expect(createMegaMixPipeline({ workspaceId, actorUserId: otherUserId, name: "Not mine", mixIds: [] })).rejects.toThrow(/unavailable/);
   });
 
+  it("binds imported date-based Mixes to the account's existing date types instead of making duplicates", async () => {
+    // The system Birthday type is shipped data; make sure this database has it, as the app installer does.
+    await prisma.dateType.createMany({ data: [{ id: "system_birthday", scopeKey: "system", name: "Birthday", slug: "birthday", isSystem: true, isActive: true }], skipDuplicates: true });
+    const birthday = await prisma.dateType.findUniqueOrThrow({ where: { scopeKey_slug: { scopeKey: "system", slug: "birthday" } } });
+    const dateMix = (owner: string, name: string, dateTypeId: string) => prisma.mix.create({ data: { workspaceId: owner, name, triggerMode: "DATE_TRIGGERED", dateTypeId, status: "ACTIVE",
+      steps: { create: { dayOffset: 0, sortOrder: 1, stepVersion: { create: { version: 1, body: `${name} {{First Name}}`, stepTemplate: { create: { workspaceId: owner, name: `${name} text`, channel: "SMS", isActive: false } } } } } } } });
+    const travel = async (mixId: string, to: { workspaceId: string; userId: string }, name: string) => {
+      const exported = await exportSingleMix(prisma, workspaceId, mixId);
+      const result = await importPortable({ workspaceId: to.workspaceId, actorUserId: to.userId, value: parsePortable(JSON.stringify(exported.package)), name, origin: "FILE", source: "test" });
+      return { exported: exported.package, mix: await prisma.mix.findUniqueOrThrow({ where: { id: result.mixIds[0] } }) };
+    };
+    const other = { workspaceId: otherWorkspaceId, userId: otherUserId };
+    const before = await prisma.dateType.count();
+
+    // A Mix on the system Birthday type lands on the same system type in the other account.
+    const note = await dateMix(workspaceId, "Birthday note", birthday.id);
+    const imported = await travel(note.id, other, "Birthday note");
+    expect(imported.exported.mixes[0].dateType).toEqual({ name: "Birthday", slug: "birthday" });
+    expect(imported.mix).toMatchObject({ triggerMode: "DATE_TRIGGERED", dateTypeId: birthday.id });
+    expect(await prisma.dateType.count()).toBe(before);
+
+    // A custom type is matched by name, case-insensitively, when the exported slug is another account's.
+    const theirs = await prisma.dateType.create({ data: { workspaceId: otherWorkspaceId, scopeKey: otherWorkspaceId, name: "Policy renewal", slug: "policy-renewal-k3j9x2" } });
+    const mine = await prisma.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: "Policy Renewal", slug: "policy-renewal-zz71pq" } });
+    const renewal = await dateMix(workspaceId, "Renewal reminder", mine.id);
+    expect((await travel(renewal.id, other, "Renewal reminder")).mix.dateTypeId).toBe(theirs.id);
+    // A copy inside the same account keeps the exact type.
+    expect((await travel(renewal.id, { workspaceId, userId }, "Renewal copy")).mix.dateTypeId).toBe(mine.id);
+    expect(await prisma.dateType.count()).toBe(before + 2);
+
+    // Only a type the account has never seen is created, once, with a fresh slug.
+    const boiler = await prisma.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: "Boiler service", slug: "boiler-service-a1b2c3" } });
+    const service = await dateMix(workspaceId, "Boiler service reminder", boiler.id);
+    const first = await travel(service.id, other, "Boiler service reminder");
+    const created = await prisma.dateType.findUniqueOrThrow({ where: { id: first.mix.dateTypeId! } });
+    expect(created).toMatchObject({ workspaceId: otherWorkspaceId, name: "Boiler service", isSystem: false, isActive: true });
+    expect(created.slug).toMatch(/^boiler-service-[a-z0-9]{6}$/);
+    expect((await travel(service.id, other, "Boiler service again")).mix.dateTypeId).toBe(created.id);
+    expect(await prisma.dateType.count()).toBe(before + 4);
+  });
+
   it("rejects files that are not Jump in the Mix packages or point outside themselves", () => {
     expect(() => parsePortable("not json")).toThrow(/not a Jump in the Mix file/);
     expect(() => parsePortable(JSON.stringify({ format: "jump-in-the-mix", version: 9 }))).toThrow(/newer version/);

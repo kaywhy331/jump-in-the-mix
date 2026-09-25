@@ -7,7 +7,8 @@ import type { FormResult } from "@/lib/form-errors";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { addFromMarketplace, markReportsSeen, reportListing, reviewListing, shareOnMarketplace, unshareFromMarketplace } from "@/lib/marketplace-service";
 
-const failed = (error: unknown, fallback: string): FormResult => ({ error: error instanceof Error ? error.message : fallback });
+/** Messages our own code writes are shown as they are; database and unexpected errors get the plain fallback. */
+const failed = (error: unknown, fallback: string): FormResult => ({ error: error instanceof Error && error.name === "Error" ? error.message : fallback });
 async function writer() {
   const session = await requireWorkspace();
   if (session.impersonation) throw new Error("Administrator support sessions are view-only.");
@@ -43,7 +44,7 @@ export async function addFromMarketplaceAction(_previous: FormResult, data: Form
     if (data.get("reviewed") !== "on") return { error: "Review the wording before adding it." };
     const result = await addFromMarketplace({ listingId: String(data.get("listingId") ?? ""), workspaceId: workspace.id, actorUserId: user.id, name: String(data.get("name") ?? ""), expectedFingerprint: String(data.get("fingerprint") ?? "") });
     target = result.pipelineId ? `/mixes/mega?megaMix=${encodeURIComponent(result.pipelineId)}&imported=1` : `/mixes?mix=${encodeURIComponent(result.mixIds[0])}&imported=1#selected-mix`;
-  } catch (error) { return failed(error, "This could not be added. Nothing was changed."); }
+  } catch (error) { return failed(error, "That share couldn’t be added. Try again."); }
   refresh();
   redirect(target);
 }

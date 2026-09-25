@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
 import { buildPortable, portableConfiguration, portableFingerprint, type PortablePackage, type PortableSourceMix } from "@/lib/mix-portable";
 import { slugify } from "@/lib/slug";
+import { matchDateType } from "@/lib/shared-mix-service";
 
 type DB = Prisma.TransactionClient;
 export const MEGA_MIX_NAME_MAX = 80;
@@ -74,16 +75,29 @@ export async function updateMegaMixPipeline(input: { workspaceId: string; actorU
   });
 }
 
-/** Removes the grouping only. Its Mixes, their people and the Journey connections stay. */
+export const MEGA_MIX_SHARE_UNDER_REVIEW = "This Mega-Mix’s share is under review; it can be removed once the review is done.";
+
+/** A Mega-Mix's Marketplace share, and whether staff still have a report on it to decide. */
+export async function megaMixShareState(db: DB | typeof prisma, pipelineId: string) {
+  const listing = await db.marketplaceListing.findFirst({ where: { pipelineId }, select: { id: true, status: true, _count: { select: { reports: { where: { status: "OPEN" } } } } } });
+  return listing ? { id: listing.id, status: listing.status, underReview: listing.status === "HIDDEN" || listing._count.reports > 0 } : null;
+}
+
+/**
+ * Removes the grouping only. Its Mixes, their people and the Journey connections stay. Its Marketplace
+ * share goes with it, so a share that staff are still reviewing keeps the Mega-Mix until they decide.
+ */
 export async function deleteMegaMixPipeline(input: { workspaceId: string; actorUserId: string; pipelineId: string }) {
   return prisma.$transaction(async db => {
     await lockOwnedWorkspace(db, input.workspaceId, input.actorUserId);
     const pipeline = await db.megaMixPipeline.findFirst({ where: { id: input.pipelineId, workspaceId: input.workspaceId } });
     if (!pipeline) return;
+    const share = await megaMixShareState(db, pipeline.id);
+    if (share?.underReview) throw new Error(MEGA_MIX_SHARE_UNDER_REVIEW);
     await db.megaMixPipeline.delete({ where: { id: pipeline.id } });
     // A ready-made mega-mix can be added again once its named Mega-Mix is removed.
     if (pipeline.origin?.startsWith("BLUEPRINT:")) await db.megaMixInstallation.deleteMany({ where: { workspaceId: input.workspaceId, blueprintId: pipeline.origin.slice(10) } });
-    await db.auditLog.create({ data: { workspaceId: input.workspaceId, actorType: "USER", actorUserId: input.actorUserId, action: "mega-mix.delete", entityType: "MegaMixPipeline", entityId: pipeline.id, source: "mixes.mega", metadata: { keptMixes: true } } });
+    await db.auditLog.create({ data: { workspaceId: input.workspaceId, actorType: "USER", actorUserId: input.actorUserId, action: "mega-mix.delete", entityType: "MegaMixPipeline", entityId: pipeline.id, source: "mixes.mega", metadata: { keptMixes: true, removedShare: Boolean(share) } } });
   });
 }
 
@@ -118,12 +132,12 @@ export async function exportSingleMix(db: DB | typeof prisma, workspaceId: strin
   return buildPortable({ kind: "mix", name: mix.name.slice(0, 80), description: mix.description, mixes: [mix], configuration: { rules: [], gatedStepIds: [], intentionalEnds: [] } });
 }
 
+/** Bind a date-based Mix from a file to the account's matching date type; only an unknown one is created, slugged from its name so suffixes never pile up across hops. */
 async function resolveDateType(db: DB, workspaceId: string, dateType: { name: string; slug: string } | null) {
   if (!dateType) return null;
-  const slug = slugify(dateType.slug || dateType.name);
-  const existing = await db.dateType.findFirst({ where: { slug, OR: [{ workspaceId, isSystem: false }, { workspaceId: null, isSystem: true }] }, orderBy: { isSystem: "desc" } });
+  const existing = await matchDateType(db, workspaceId, dateType);
   if (existing) return existing.id;
-  return (await db.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: dateType.name, slug, isSystem: false, isActive: true } })).id;
+  return (await db.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: dateType.name, slug: slugify(dateType.name), isSystem: false, isActive: true } })).id;
 }
 
 /**

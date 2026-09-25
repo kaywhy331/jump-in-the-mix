@@ -3,6 +3,7 @@ import { parseBroadcastScheduleInput } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
 import { lockLibrary, readPublishedLibrary } from "@/lib/library-store";
 import { normalizeSharedMixSteps } from "@/lib/shared-mix";
+import { matchDateType } from "@/lib/shared-mix-service";
 import { slugify } from "@/lib/slug";
 
 function clean(value: string | null | undefined, maximum: number): string {
@@ -18,17 +19,14 @@ async function resolveDateType(
 ): Promise<string | null> {
   if (triggerMode !== "DATE_TRIGGERED") return null;
   const name = clean(nameValue, 120);
-  const slug = slugify(slugValue || name);
-  if (!name || !slug) throw new Error("This mix does not identify its saved date type.");
-  const existing = await tx.dateType.findFirst({
-    where: { slug, OR: [{ workspaceId, isSystem: false }, { workspaceId: null, isSystem: true }] },
-    orderBy: { isSystem: "desc" }
-  });
+  const slug = clean(slugValue, 120);
+  if (!name) throw new Error("This mix does not identify its saved date type.");
+  const existing = await matchDateType(tx, workspaceId, { name, slug });
   if (existing) {
     if (!existing.isActive) throw new Error(`Turn on the ${existing.name} date type before using this mix.`);
     return existing.id;
   }
-  return (await tx.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name, slug, isSystem: false, isActive: true } })).id;
+  return (await tx.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name, slug: slugify(name), isSystem: false, isActive: true } })).id;
 }
 
 export async function useSharedMixTemplate(input: {

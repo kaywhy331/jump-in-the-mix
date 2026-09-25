@@ -2,11 +2,15 @@ import type { PortablePackage } from "@/lib/mix-portable";
 
 export type MarketplaceReason = "PRIVATE_INFO" | "OFFENSIVE" | "SPAM" | "MISLEADING" | "COPYRIGHT" | "OTHER";
 
-/** Reasons in the order people see them. A reason that auto-hides takes the listing down at once. */
+/**
+ * Reasons in the order people see them. Only a private-information report can take a listing down
+ * before staff look at it, and only under the conditions in `reportHidesAtOnce`; every other reason
+ * keeps the share visible and queues it for staff.
+ */
 export const MARKETPLACE_REASONS: ReadonlyArray<{ value: MarketplaceReason; label: string; hint: string; autoHide: boolean }> = [
   { value: "PRIVATE_INFO", label: "Shares someone’s private information", hint: "A real name, phone number, email or address", autoHide: true },
-  { value: "OFFENSIVE", label: "Offensive, hateful or harassing", hint: "Wording no customer should receive", autoHide: true },
-  { value: "SPAM", label: "Spam, scam or harmful links", hint: "Advertising, phishing or misleading links", autoHide: true },
+  { value: "OFFENSIVE", label: "Offensive, hateful or harassing", hint: "Wording no customer should receive", autoHide: false },
+  { value: "SPAM", label: "Spam, scam or harmful links", hint: "Advertising, phishing or misleading links", autoHide: false },
   { value: "MISLEADING", label: "Doesn’t work as described", hint: "Broken paths, wrong timing or a misleading description", autoHide: false },
   { value: "COPYRIGHT", label: "Copied without permission", hint: "Someone else’s wording shared as their own", autoHide: false },
   { value: "OTHER", label: "Something else", hint: "Tell us what is wrong", autoHide: false }
@@ -14,6 +18,18 @@ export const MARKETPLACE_REASONS: ReadonlyArray<{ value: MarketplaceReason; labe
 export const reasonLabel = (value: string) => MARKETPLACE_REASONS.find(item => item.value === value)?.label ?? "Reported";
 export const reasonHides = (value: string) => MARKETPLACE_REASONS.some(item => item.value === value && item.autoHide);
 export const isMarketplaceReason = (value: string): value is MarketplaceReason => MARKETPLACE_REASONS.some(item => item.value === value);
+
+/** One account can trigger at most this many automatic hides in a rolling day. */
+export const AUTO_HIDE_LIMIT = { count: 2, windowMs: 24 * 60 * 60 * 1000 } as const;
+
+/**
+ * Whether a report takes the share down at once. Only private information does, only from a reporter
+ * with a verified email, and only while their account is under the daily limit. Everything else stays
+ * live until staff decide, so one account cannot clear the Marketplace with a handful of reports.
+ */
+export function reportHidesAtOnce(input: { reason: string; reporterEmailVerified: boolean; recentAutoHides: number }): boolean {
+  return reasonHides(input.reason) && input.reporterEmailVerified && input.recentAutoHides < AUTO_HIDE_LIMIT.count;
+}
 
 export const MARKETPLACE_SUMMARY_MAX = 280;
 export const MARKETPLACE_NAME_MAX = 60;
@@ -31,8 +47,9 @@ const NOT_NAMES = new Set(["There", "Again", "Everyone", "Team", "All", "Friend"
 
 /**
  * Look for details that should not be shared: email addresses, phone numbers, links and
- * greetings that name a real person instead of a {{First Name}} field. Merge fields are
- * ignored. These are warnings; the author confirms before sharing.
+ * greetings that name a real person instead of a {{First Name}} field, in every Beat, channel
+ * version, connection name, path label and outcome that the public outline shows. Merge fields
+ * are ignored. These are warnings; the author confirms before sharing.
  */
 export function shareWarnings(value: PortablePackage): ShareWarning[] {
   const warnings: ShareWarning[] = [];
@@ -47,12 +64,17 @@ export function shareWarnings(value: PortablePackage): ShareWarning[] {
   };
   scan(value.name, "Name"); scan(value.description, "Description");
   for (const mix of value.mixes) {
-    scan(mix.name, mix.name); scan(mix.description, mix.name);
+    for (const field of [mix.name, mix.description, mix.category, mix.industry, mix.framework, mix.dateType?.name ?? null]) scan(field, mix.name);
     for (const step of mix.steps) {
       const where = `${mix.name} · ${step.name}`;
       for (const field of [step.name, step.subject, step.body, step.script]) scan(field, where);
       for (const variant of step.variants) for (const field of [variant.subject, variant.body, variant.script]) scan(field, where);
     }
+  }
+  // Connection names, path labels and outcomes are printed in every public outline too.
+  for (const rule of value.rules) {
+    scan(rule.name, `Path: ${rule.name}`);
+    for (const route of rule.routes) for (const field of [route.label, route.outcome]) scan(field, `Path: ${rule.name} · ${route.label}`);
   }
   return warnings;
 }

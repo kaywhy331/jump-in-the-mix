@@ -8,7 +8,9 @@ export const runtime = "nodejs";
 
 /** Download a Mega-Mix as a file: wording, timing and connections, never people or history. */
 export async function GET(_request: Request, { params }: { params: Promise<{ pipelineId: string }> }) {
-  const [{ workspace }, { pipelineId }] = await Promise.all([requireWorkspace(), params]);
+  const [{ workspace, impersonation }, { pipelineId }] = await Promise.all([requireWorkspace(), params]);
+  // A support view reads on screen only; the customer's wording never leaves as a file.
+  if (impersonation) return NextResponse.json({ error: "Support sessions are view-only." }, { status: 403 });
   try {
     const exported = await exportMegaMixPipeline(prisma, workspace.id, pipelineId.slice(0, 160));
     const value = { ...exported.package, exportedAt: new Date().toISOString() };

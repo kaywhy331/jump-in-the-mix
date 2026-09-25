@@ -11,7 +11,7 @@ import { PortableOutline } from "@/components/PortableOutline";
 import { DuplicateMegaMixForm, ImportFileForm, MegaMixForm, RemoveMegaMixButton } from "@/components/MegaMixForms";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { exportMegaMixPipeline } from "@/lib/mega-mix-pipeline-service";
+import { exportMegaMixPipeline, megaMixShareState } from "@/lib/mega-mix-pipeline-service";
 import { portableSummary } from "@/lib/mix-portable";
 import { megaMixById } from "@/lib/mega-mixes";
 import { MarketplaceNotices, MarketplaceShare } from "@/components/MarketplaceShare";
@@ -43,6 +43,7 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
   const selected = creating ? null : requested ?? pipelines[0] ?? null;
   const editing = Boolean(selected && params.edit === "1" && !impersonation);
   const exported = selected && selected.members.length ? await exportMegaMixPipeline(prisma, workspace.id, selected.id).catch(() => null) : null;
+  const share = selected ? await megaMixShareState(prisma, selected.id) : null;
   const ungrouped = mixes.filter(mix => !mix.megaMixMembership).length;
   const choices = mixes.map(mix => ({ id: mix.id, name: mix.name, status: mix.status, beats: mix._count.steps, pipeline: mix.megaMixMembership?.pipeline ?? null }));
   const beats = (item: NonNullable<typeof selected>) => item.members.reduce((sum, member) => sum + member.mix._count.steps, 0);
@@ -102,7 +103,7 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
           <section><h3><AppIcon name="export" />Export</h3><p>Download a file with every Mix, Beat and path. It never includes people or history.</p>{exported ? <a className="button small" href={`/api/mega-mixes/${encodeURIComponent(selected.id)}/export`} download><AppIcon name="export" />Export file</a> : <p className="muted-copy">Add a Mix with Beats to export.</p>}</section>
           {!impersonation && <details className="mix-manage"><summary><AppIcon name="settings" />Manage Mega-Mix</summary><div>
             {exported && <DuplicateMegaMixForm pipeline={{ id: selected.id, name: selected.name }} />}
-            <RemoveMegaMixButton pipeline={{ id: selected.id, name: selected.name }} />
+            <RemoveMegaMixButton pipeline={{ id: selected.id, name: selected.name }} share={share} />
           </div></details>}
         </aside>
       </div> : <EmptyState title="Name your first Mega-Mix" description="A Mega-Mix groups connected Mixes into one named pipeline you can view, number, export and share." actionHref={impersonation ? "/templates/journeys" : "/mixes/mega?new=1"} actionLabel={impersonation ? "Browse ready-made mega-mixes" : "Create a Mega-Mix"} />}
