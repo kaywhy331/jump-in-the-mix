@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppIcon } from "@/components/AppIcon";
 import { ContactForm } from "@/components/ContactForm";
-import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { requireWorkspace } from "@/lib/auth";
 import { CONTACT_REVISION_INCLUDE, contactRevision } from "@/lib/contact-revision";
 import { mergeGroupActivity } from "@/lib/group-activity";
@@ -17,9 +17,9 @@ export default async function EditContactPage({
   searchParams
 }: {
   params: Promise<{ contactId: string }>;
-  searchParams: Promise<{ error?: string; returnTo?: string }>;
+  searchParams: Promise<{ error?: string; at?: string; sig?: string; returnTo?: string }>;
 }) {
-  const [{ contactId }, query, { workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
+  const [{ contactId }, query, { session, workspace }] = await Promise.all([params, searchParams, requireWorkspace()]);
   const [contact, rawGroups, groupStates, customFields] = await Promise.all([
     prisma.contact.findFirst({
       where: { id: contactId, workspaceId: workspace.id, archivedAt: null },
@@ -42,7 +42,7 @@ export default async function EditContactPage({
           <Link className="button mobile-header-action" href={returnTo ?? `/contacts/${contact.id}`} aria-label={returnTo ? "Back to follow-up" : "Back to Contact"}><AppIcon name="chevronLeft" /><span>{returnTo ? "Back to follow-up" : "Back to Contact"}</span></Link>
         </div>
       </header>
-      {query.error && <Notice type="error">{query.error}</Notice>}
+      <UrlErrorNotice params={query} viewer={session} />
       <ContactForm
         mode="edit"
         revision={contactRevision(contact)}

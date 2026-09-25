@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Sheet } from "@/components/Sheet";
 import {
@@ -21,10 +22,12 @@ type SearchParams = {
   deleted?: string;
   values?: string;
   error?: string;
+  at?: string;
+  sig?: string;
 };
 
 export default async function ContactCustomFieldsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [params, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
+  const [params, { session, workspace }] = await Promise.all([searchParams, requireWorkspace()]);
   const fields = await prisma.contactCustomFieldDefinition.findMany({
     where: { workspaceId: workspace.id },
     include: { _count: { select: { values: true } } },
@@ -39,7 +42,7 @@ export default async function ContactCustomFieldsPage({ searchParams }: { search
       {params.created && <Notice type="success">Contact custom field created.</Notice>}
       {params.updated && <Notice type="success">Contact custom field renamed. Its placeholder key stayed stable.</Notice>}
       {params.deleted && <Notice type="success">Custom field deleted{params.values && params.values !== "0" ? ` with ${params.values} saved value${params.values === "1" ? "" : "s"}` : ""}.</Notice>}
-      {params.error && <Notice type="error">{params.error}</Notice>}
+      <UrlErrorNotice params={params} viewer={session} />
       <BackLink href="/contacts" label="Contacts" /><header className="page-header">
         <div><h1>Custom contact fields</h1><p>Add customer details you can reuse in prepared messages.</p></div>
         <div className="page-actions"><Link className="button" href="/mixes">Mixes</Link></div>

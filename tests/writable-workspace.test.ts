@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({ impersonation: null as null | { id: string }, databaseCalls: [] as string[] }));
+// During a support view the signed-in person (session.authUser) is the staff member; `user` is the customer.
 vi.mock("@/lib/auth", () => ({
   requireWorkspace: async () => ({
+    session: { id: "session-1", authUser: { id: state.impersonation ? "support-staff" : "customer" } },
     workspace: { id: "workspace-1", name: "Customer business", profile: null },
     user: { id: "customer", name: "Casey Customer" },
     impersonation: state.impersonation
@@ -17,8 +19,12 @@ vi.mock("@/lib/prisma", () => {
   return { prisma: model("prisma") };
 });
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`REDIRECT ${url}`); } }));
+vi.mock("@/lib/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/lib/env")>();
+  return { ...actual, env: { ...actual.env, authRateLimitSecret: "writable-workspace-test-secret-00001" } };
+});
 
-import { recoverableFormAction } from "@/lib/form-errors";
+import { recoverableFormAction, UNVERIFIED_ERROR_MESSAGE, viewerErrorMessage, withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { createContactCustomFieldAction, deleteContactCustomFieldAction, renameContactCustomFieldAction } from "@/lib/custom-field-actions";
 import { createCustomDateTypeAction, deleteCustomDateTypeAction, renameCustomDateTypeAction, saveActiveDateTypesAction } from "@/lib/date-type-actions";
 import { assignSelectedContactsToActiveGroupAction, createContactGroupAction, deleteContactGroupAction, saveActiveGroupsAction } from "@/lib/group-actions";
@@ -41,7 +47,8 @@ async function destination(run: () => Promise<unknown>): Promise<string> {
   throw new Error("The action did not redirect.");
 }
 
-const refusal = `error=${encodeURIComponent(VIEW_ONLY_SUPPORT_MESSAGE)}`;
+const params = (location: string) => Object.fromEntries(new URL(location, "https://app.invalid").searchParams);
+const staff = { authUser: { id: "support-staff" } }, customer = { authUser: { id: "customer" } };
 const supportView = { id: "support-view" };
 
 beforeEach(() => { state.impersonation = null; state.databaseCalls.length = 0; });
@@ -61,11 +68,12 @@ describe("requireWritableWorkspace", () => {
     expect((refused as Error).message).toBe("This support session is view-only. End the support view before making changes.");
   });
 
-  it("hands the refusal to a plain action's own error redirect", async () => {
+  it("hands the refusal to a plain action's own error redirect, with the signed-in staff member as its viewer", async () => {
     state.impersonation = supportView;
-    const refuse = vi.fn((message: string): never => { throw new Error(`REDIRECT /settings?error=${encodeURIComponent(message)}`); });
-    expect(await destination(() => requireWritableWorkspace(refuse))).toBe(`/settings?${refusal}`);
-    expect(refuse).toHaveBeenCalledExactlyOnceWith(VIEW_ONLY_SUPPORT_MESSAGE);
+    const refuse = vi.fn((message: string, viewer: ErrorViewer): never => { throw new Error(`REDIRECT ${withViewerError("/settings", message, viewer)}`); });
+    const location = await destination(() => requireWritableWorkspace(refuse));
+    expect(viewerErrorMessage(params(location), staff)).toBe(VIEW_ONLY_SUPPORT_MESSAGE);
+    expect(refuse).toHaveBeenCalledExactlyOnceWith(VIEW_ONLY_SUPPORT_MESSAGE, { id: "session-1", authUser: { id: "support-staff" } });
   });
 
   it("returns the refusal as the form's error inside a recoverable form action", async () => {
@@ -99,7 +107,11 @@ describe("guarded actions during a support view", () => {
     ["skipping onboarding", () => skipOnboardingAction(form({ useCase: "business" })), "/onboarding?"],
     ["finishing onboarding outside its form", () => completeOnboardingAction(form({ useCase: "business" })), "/onboarding?"]
   ])("%s returns to the page with the view-only message and reads or writes nothing", async (_label, run, page) => {
-    expect(await destination(run)).toBe(`${page}${refusal}`);
+    const location = await destination(run);
+    expect(location.startsWith(`${page}error=`)).toBe(true);
+    // Signed for the staff member who is looking; the customer opening the same link sees only the fixed sentence.
+    expect(viewerErrorMessage(params(location), staff)).toBe(VIEW_ONLY_SUPPORT_MESSAGE);
+    expect(viewerErrorMessage(params(location), customer)).toBe(UNVERIFIED_ERROR_MESSAGE);
     expect(state.databaseCalls).toEqual([]);
   });
 
@@ -111,9 +123,11 @@ describe("guarded actions during a support view", () => {
 
   it("lets the owner past the guard to the action's own validation", async () => {
     state.impersonation = null;
-    expect(await destination(() => createCustomDateTypeAction(form({ name: "" })))).toBe(`/settings/jump-date-types?error=${encodeURIComponent("Give the saved date type a name.")}`);
+    const dateTypeRefusal = await destination(() => createCustomDateTypeAction(form({ name: "" })));
+    expect(dateTypeRefusal.startsWith("/settings/jump-date-types?error=")).toBe(true);
+    expect(viewerErrorMessage(params(dateTypeRefusal), customer)).toBe("Give the saved date type a name.");
     const tagRefusal = await destination(() => createContactGroupAction(form({ name: "" })));
     expect(tagRefusal).toMatch(/^\/contacts\?error=/);
-    expect(tagRefusal).not.toContain(refusal);
+    expect(viewerErrorMessage(params(tagRefusal), customer)).toBe("Give the group a name.");
   });
 });

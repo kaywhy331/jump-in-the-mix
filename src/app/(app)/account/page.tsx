@@ -6,6 +6,7 @@ import { AccountDeletionForm } from "@/components/AccountDeletionForm";
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import {
   changePasswordAction,
   revokeSessionAction,
@@ -24,6 +25,8 @@ export const metadata: Metadata = { title: "My Account" };
 
 type SearchParams = {
   error?: string;
+  at?: string;
+  sig?: string;
   passwordChanged?: string;
   sessionRevoked?: string;
   sessionsClosed?: string;
@@ -50,7 +53,7 @@ export default async function AccountPage({ searchParams }: { searchParams: Prom
   return <div className="page page--content account-page">
     <BackLink href="/more" label="More" phoneOnly /><header className="page-header"><div><h1>My Account</h1><p>Your profile, security, and personal data.</p></div></header>
     <nav className="account-section-nav" aria-label="Account sections">{[["overview", "Profile"], ["security", "Security"], ["privacy", "Data & privacy"]].map(([key, label]) => <Link aria-current={section === key ? "page" : undefined} className={section === key ? "active" : ""} href={`/account?section=${key}`} key={key}>{label}</Link>)}</nav>
-    {params.error && <Notice type="error">{params.error}</Notice>}
+    <UrlErrorNotice params={params} viewer={session} />
     {params.passwordChanged && <Notice type="success">Password updated. Other active sessions were signed out.</Notice>}
     {params.sessionRevoked && <Notice type="success">That session was signed out.</Notice>}
     {params.sessionsClosed !== undefined && <Notice type="success">Signed out {params.sessionsClosed} other session{params.sessionsClosed === "1" ? "" : "s"}.</Notice>}

@@ -1,13 +1,21 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const session = vi.hoisted(() => ({ workspaceId: "", userId: "" }));
-vi.mock("@/lib/auth", () => ({ requireWorkspace: async () => ({ workspace: { id: session.workspaceId }, user: { id: session.userId } }) }));
+vi.mock("@/lib/auth", () => ({ requireWorkspace: async () => ({ session: { authUser: { id: session.userId } }, workspace: { id: session.workspaceId }, user: { id: session.userId } }) }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`REDIRECT ${url}`); } }));
+vi.mock("@/lib/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/lib/env")>();
+  return { ...actual, env: { ...actual.env, authRateLimitSecret: "snooze-action-test-secret-000000001" } };
+});
 
+import { UNVERIFIED_ERROR_MESSAGE, viewerErrorMessage } from "../src/lib/form-errors";
 import { reconcileJumps } from "../src/lib/jump-engine";
 import { prisma } from "../src/lib/prisma";
 import { snoozeJumpAction } from "../src/lib/snooze-actions";
 import { createBroadcastFixture, type BroadcastFixture } from "./helpers/broadcast-fixture";
+
+const params = (location: string) => Object.fromEntries(new URL(location, "https://app.invalid").searchParams);
+const viewer = () => ({ authUser: { id: session.userId } });
 
 async function snooze(fields: Record<string, string>): Promise<string> {
   const formData = new FormData();
@@ -66,13 +74,20 @@ describe.sequential("the snooze command", () => {
     const before = await prisma.jump.findUniqueOrThrow({ where: { id: upcoming } });
     const destination = await snooze({ jumpId: upcoming, preset: "tomorrow", returnTo: "/jumps" });
     expect(destination.startsWith("/jumps?error=")).toBe(true);
-    expect(decodeURIComponent(destination)).toContain("Snooze can't move it earlier than that.");
+    expect(viewerErrorMessage(params(destination), viewer())).toMatch(/^This follow-up is due .+\. Snooze can't move it earlier than that\.$/);
     const after = await prisma.jump.findUniqueOrThrow({ where: { id: upcoming } });
     expect(after.snoozedUntil).toBeNull();
     expect(after.scheduledAt.toISOString()).toBe(before.scheduledAt.toISOString());
   });
 
   it("reports a follow-up that is no longer pending", async () => {
-    expect(decodeURIComponent(await snooze({ jumpId: "missing", preset: "tomorrow", returnTo: "/jumps" }))).toContain("no longer available to snooze");
+    expect(viewerErrorMessage(params(await snooze({ jumpId: "missing", preset: "tomorrow", returnTo: "/jumps" })), viewer())).toBe("This follow-up is no longer available to snooze.");
+  });
+
+  it("says why a date cannot be used, signed only for the person who snoozed", async () => {
+    const destination = await snooze({ jumpId: upcoming, preset: "custom", customDate: "not-a-date", returnTo: "/jumps?range=all" });
+    expect(destination.startsWith("/jumps?range=all&error=")).toBe(true);
+    expect(viewerErrorMessage(params(destination), viewer())).toBe("Choose a valid date.");
+    expect(viewerErrorMessage(params(destination), { authUser: { id: "someone-else" } })).toBe(UNVERIFIED_ERROR_MESSAGE);
   });
 });

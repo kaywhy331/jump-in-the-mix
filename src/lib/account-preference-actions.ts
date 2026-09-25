@@ -1,5 +1,5 @@
 "use server";
-import { captureFormFailure, recoverableFormAction, type FormResult } from "@/lib/form-errors";
+import { captureFormFailure, recoverableFormAction, withViewerError, type ErrorViewer, type FormResult } from "@/lib/form-errors";
 
 import { redirect } from "next/navigation";
 import type { WeekendScheduling } from "@/generated/prisma/client";
@@ -15,9 +15,9 @@ function value(formData: FormData, key: string, maximum = 500): string {
   return String(formData.get(key) ?? "").trim().slice(0, maximum);
 }
 
-function fail(message: string): never {
+function fail(message: string, viewer: ErrorViewer): never {
   captureFormFailure(message);
-  redirect(`/account/preferences?error=${encodeURIComponent(message)}`);
+  redirect(withViewerError("/account/preferences", message, viewer));
 }
 
 function validTimezone(timezone: string): boolean {
@@ -29,21 +29,21 @@ function validTimezone(timezone: string): boolean {
   }
 }
 
-function minutes(formData: FormData, key: string): number {
+function minutes(formData: FormData, key: string, viewer: ErrorViewer): number {
   const parsed = parseTimeInput(value(formData, key, 5));
-  if (parsed === null) fail(`Choose a valid time for ${key}.`);
+  if (parsed === null) fail(`Choose a valid time for ${key}.`, viewer);
   return parsed;
 }
 
 export async function updatePersonalPreferencesAction(formData: FormData): Promise<void> {
-  const { user, workspace, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Personal settings are unavailable during a view-only support session.");
+  const { session, user, workspace, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Personal settings are unavailable during a view-only support session.", session);
   const name = value(formData, "name", 120);
   const locale = value(formData, "locale", 40) || DEFAULT_LOCALE;
   const timezone = value(formData, "timezone", 160);
-  if (!name) fail("Enter your display name.");
-  if (!isDisplayLocale(locale)) fail("Choose one of the listed locales.");
-  if (!validTimezone(timezone)) fail("Choose a valid IANA timezone.");
+  if (!name) fail("Enter your display name.", session);
+  if (!isDisplayLocale(locale)) fail("Choose one of the listed locales.", session);
+  if (!validTimezone(timezone)) fail("Choose a valid IANA timezone.", session);
   await prisma.$transaction([
     prisma.user.update({ where: { id: user.id }, data: { name } }),
     prisma.userPreference.upsert({ where: { userId: user.id }, create: { userId: user.id, locale, timezone }, update: { locale, timezone } }),
@@ -53,17 +53,17 @@ export async function updatePersonalPreferencesAction(formData: FormData): Promi
 }
 
 export async function updatePersonalSchedulingAction(formData: FormData): Promise<void> {
-  const { user, workspace, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Personal settings are unavailable during a view-only support session.");
-  const defaultFollowUpMinutes = minutes(formData, "defaultFollowUpTime");
-  const quietHoursStart = minutes(formData, "quietHoursStart");
-  const quietHoursEnd = minutes(formData, "quietHoursEnd");
+  const { session, user, workspace, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Personal settings are unavailable during a view-only support session.", session);
+  const defaultFollowUpMinutes = minutes(formData, "defaultFollowUpTime", session);
+  const quietHoursStart = minutes(formData, "quietHoursStart", session);
+  const quietHoursEnd = minutes(formData, "quietHoursEnd", session);
   const weekendRaw = value(formData, "weekendScheduling", 30);
   const weekendScheduling: WeekendScheduling = ["KEEP", "NEXT_MONDAY", "PREVIOUS_FRIDAY"].includes(weekendRaw)
     ? weekendRaw as WeekendScheduling
     : "KEEP";
   const appointmentBufferMinutes = normalizeBufferMinutes(value(formData, "appointmentBufferMinutes", 4));
-  if (!(APPOINTMENT_BUFFER_CHOICES as readonly number[]).includes(appointmentBufferMinutes)) fail("Choose one of the listed appointment buffers.");
+  if (!(APPOINTMENT_BUFFER_CHOICES as readonly number[]).includes(appointmentBufferMinutes)) fail("Choose one of the listed appointment buffers.", session);
   await prisma.$transaction(async (tx) => {
     await tx.workspacePreference.upsert({
       where: { workspaceId: workspace.id },
@@ -81,10 +81,10 @@ export async function updatePersonalPreferencesFormAction(_previous: FormResult,
 export async function updatePersonalSchedulingFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => updatePersonalSchedulingAction(data)); }
 
 export async function updateMixActivationPreferenceAction(formData: FormData): Promise<void> {
-  const { user, workspace, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Personal settings are unavailable during a view-only support session.");
+  const { session, user, workspace, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Personal settings are unavailable during a view-only support session.", session);
   const mode = value(formData, "mixActivation", 20);
-  if (mode !== "REVIEW" && mode !== "DIRECT") fail("Choose how you want to activate mixes.");
+  if (mode !== "REVIEW" && mode !== "DIRECT") fail("Choose how you want to activate mixes.", session);
   const reviewMixActivation = mode === "REVIEW";
   await prisma.$transaction([
     prisma.userPreference.upsert({ where: { userId: user.id }, create: { userId: user.id, reviewMixActivation }, update: { reviewMixActivation } }),
@@ -96,10 +96,10 @@ export async function updateMixActivationPreferenceAction(formData: FormData): P
 export async function updateMixActivationPreferenceFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => updateMixActivationPreferenceAction(data)); }
 
 export async function updateQuietDayPreferenceAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Personal settings are unavailable during a view-only support session.");
+  const { session, workspace, user, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Personal settings are unavailable during a view-only support session.", session);
   const quietDays = Number(value(formData, "quietDays", 10));
-  if (!Number.isInteger(quietDays) || quietDays < 1 || quietDays > 365) fail("Choose between 1 and 365 quiet days.");
+  if (!Number.isInteger(quietDays) || quietDays < 1 || quietDays > 365) fail("Choose between 1 and 365 quiet days.", session);
   const quietDaysEnabled = formData.get("quietDaysEnabled") === "on";
   await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR NO KEY UPDATE`;
@@ -117,11 +117,11 @@ export async function updateQuietDayPreferenceFormAction(_previous: FormResult, 
  * workspace, which re-reads every key from the untouched display values.
  */
 export async function updatePhoneRegionAction(formData: FormData): Promise<void> {
-  const { user, workspace, impersonation } = await requireWorkspace();
-  if (impersonation) fail("Workspace settings are unavailable during a view-only support session.");
-  if (workspace.ownerId !== user.id) fail("Only the account owner can change the country for phone numbers.");
+  const { session, user, workspace, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Workspace settings are unavailable during a view-only support session.", session);
+  if (workspace.ownerId !== user.id) fail("Only the account owner can change the country for phone numbers.", session);
   const phoneRegion = value(formData, "phoneRegion", 8).toUpperCase();
-  if (!isPhoneRegion(phoneRegion)) fail("Choose one of the listed countries.");
+  if (!isPhoneRegion(phoneRegion)) fail("Choose one of the listed countries.", session);
   const current = await workspacePhoneRegion(prisma, workspace.id);
   if (current === phoneRegion) redirect("/account/preferences?phoneRegionSaved=1#phone-region");
   const readAgain = await countPhonesReadAgain(workspace.id, current, phoneRegion);

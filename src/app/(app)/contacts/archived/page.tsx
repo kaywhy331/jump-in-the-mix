@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { requireWorkspace } from "@/lib/auth";
 import { restoreContactAction } from "@/lib/contact-lifecycle-actions";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
@@ -17,11 +18,11 @@ import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Archived Contacts" };
 
-type SearchParams = { q?: string; page?: string; restored?: string; error?: string };
+type SearchParams = { q?: string; page?: string; restored?: string; error?: string; at?: string; sig?: string };
 const PAGE_SIZE = 50;
 
 export default async function ArchivedContactsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [query, { workspace, user }] = await Promise.all([searchParams, requireWorkspace()]);
+  const [query, { session, workspace, user }] = await Promise.all([searchParams, requireWorkspace()]);
   const displayPreferences = await displayPreferencesForUser(user.id);
   const q = query.q?.trim() ?? "";
   const requestedPage = Math.max(Number.parseInt(query.page ?? "1", 10) || 1, 1);
@@ -60,7 +61,7 @@ export default async function ArchivedContactsPage({ searchParams }: { searchPar
   return (
     <div className="page archived-contacts-page">
       {query.restored && <Notice type="success">Contact restored.</Notice>}
-      {query.error && <Notice type="error">{query.error}</Notice>}
+      <UrlErrorNotice params={query} viewer={session} />
       <BackLink href="/contacts" label="Contacts" /><header className="page-header"><div><h1>Archived Contacts</h1><p>Restore a relationship without losing its notes, dates, communication history, or assignments.</p></div></header>
       <form className="filter-bar live-search-form" action="/contacts/archived" method="get"><input name="q" type="search" defaultValue={q} placeholder="Search archived name, email, phone, or company" aria-label="Search archived Contacts" autoComplete="off" />{q && <Link className="button" href="/contacts/archived">Clear</Link>}</form>
       <p className="sr-only" role="status" aria-live="polite">{total} archived Contact{total === 1 ? "" : "s"} found.</p>

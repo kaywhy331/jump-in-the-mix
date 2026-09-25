@@ -3,6 +3,7 @@ import { FormSubmitButton } from "@/components/FormSubmitButton";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { ViewOnlySupportNotice } from "@/components/ViewOnlySupportNotice";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Sheet } from "@/components/Sheet";
@@ -26,10 +27,12 @@ type SearchParams = {
   activationSaved?: string;
   deleted?: string;
   error?: string;
+  at?: string;
+  sig?: string;
 };
 
 export default async function JumpDateTypesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [params, { workspace, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
+  const [params, { session, workspace, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
   const viewOnly = Boolean(impersonation);
   const q = params.q?.trim() ?? "";
   const [allCustomTypes, systemTypes] = await Promise.all([
@@ -50,7 +53,7 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
       {params.updated && <Notice type="success">Date type renamed.</Notice>}
       {params.activationSaved && <Notice type="success">Date types saved.</Notice>}
       {params.deleted && <Notice type="success">Date type deleted.</Notice>}
-      {params.error && <Notice type="error">{params.error}</Notice>}
+      <UrlErrorNotice params={params} viewer={session} />
       {viewOnly && <ViewOnlySupportNotice />}
       <BackLink href="/settings" label="Settings" /><header className="page-header">
         <div><h1>Saved date types</h1><p>Name the moments that can start a follow-up mix.</p></div>

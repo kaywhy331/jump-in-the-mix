@@ -12,12 +12,13 @@ import { intakeMatches, parseIntakePayload } from "@/lib/intake";
 import { decryptIntegrationCredentials, integrationEncryptionConfigured } from "@/lib/integration-crypto";
 import { CopyField } from "@/components/CopyField";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { ViewOnlySupportNotice } from "@/components/ViewOnlySupportNotice";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { BackLink } from "@/components/BackLink";
 export const metadata = { title: "Lead connections" };
-export default async function LeadConnectionsPage({ searchParams }: { searchParams: Promise<{ reviewPage?: string; reviewQ?: string; selected?: string; saved?: string; error?: string; page?: string }> }) {
-  const [{ workspace, user, impersonation }, query] = await Promise.all([requireWorkspace(), searchParams]);
+export default async function LeadConnectionsPage({ searchParams }: { searchParams: Promise<{ reviewPage?: string; reviewQ?: string; selected?: string; saved?: string; error?: string; at?: string; sig?: string; page?: string }> }) {
+  const [{ session, workspace, user, impersonation }, query] = await Promise.all([requireWorkspace(), searchParams]);
   const viewOnly = Boolean(impersonation);
   const page = Math.max(1, Math.min(10000, Number.parseInt(query.page ?? "1", 10) || 1));
   const display = await displayPreferencesForUser(user.id);
@@ -34,7 +35,7 @@ export default async function LeadConnectionsPage({ searchParams }: { searchPara
   ]);
   const reviewData = await Promise.all(reviews.map(async receipt => { const payload = parseIntakePayload(receipt.payload); return { receipt, payload, matches: await intakeMatches(prisma, workspace.id, receipt.connectionId, payload) }; }));
   return <div className="page connections-page"><BackLink href="/settings" label="Settings" /><header className="page-header"><div><h1>Every inquiry, one place</h1><p>Connect the channels your business already uses.</p></div><Link className="button" href="/contacts/import">Import CSV or vCard</Link></header>
-    {query.saved && <Notice>Connection settings saved.</Notice>}{query.error && <Notice type="error">{query.error}</Notice>}{viewOnly && <ViewOnlySupportNotice />}
+    {query.saved && <Notice>Connection settings saved.</Notice>}<UrlErrorNotice params={query} viewer={session} />{viewOnly && <ViewOnlySupportNotice />}
     <div className="connection-paths"><section className="card"><h2>A simple lead form</h2><p>Share a link from your website, social bio, email, or QR code. New inquiries arrive here automatically.</p><a className="button" href="#add-connection">Create a form</a></section><section className="card"><h2>Connect an existing source</h2><p>Use your provider’s automation, Zapier, Make, n8n, or a small integration to send inquiries and milestones here.</p><a className="button" href="#source-guide">Find your source</a></section></div>
     <section className="card" id="add-connection"><h2>Create a hosted form</h2>{integrationEncryptionConfigured() && <form action={intakeConnectionAction} className="form-stack"><input type="hidden" name="kind" value="HOSTED_FORM" /><label className="field"><span>Form name</span><input name="name" maxLength={100} placeholder="Website inquiries" required /></label><button className="button primary" name="intent" value="create" disabled={viewOnly}>Create shareable form</button><p>Next, copy the form link into your website or social profile. No code or API key is needed.</p></form>}<details><summary>Technical connectors: existing forms and automation tools</summary><h3>Add a lead connection</h3>{integrationEncryptionConfigured() ? <form action={intakeConnectionAction} className="form-grid"><label className="field"><span>Connection name</span><input name="name" placeholder="For example, Website inquiries" maxLength={100} required /></label><label className="field"><span>Source</span><select name="kind" defaultValue="HOSTED_FORM">{INTAKE_KINDS.map(kind => <option key={kind.value} value={kind.value}>{kind.label}</option>)}</select></label><div className="form-actions field full"><button className="button primary" name="intent" value="create" disabled={viewOnly}>Create connection</button></div></form> : <Notice type="info">Lead connections are unavailable until this installation enables encrypted connections. You can still import CSV and vCard files.</Notice>}</details></section>
     <section aria-label="Your lead connections">{connections.map(connection => {

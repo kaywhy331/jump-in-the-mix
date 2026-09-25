@@ -6,8 +6,13 @@ import { prisma } from "../src/lib/prisma";
 const auth = vi.hoisted(() => ({ context: {} as Record<string, unknown> }));
 vi.mock("@/lib/auth", () => ({ requireWorkspace: async () => auth.context }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`REDIRECT ${url}`); } }));
+vi.mock("@/lib/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/lib/env")>();
+  return { ...actual, env: { ...actual.env, authRateLimitSecret: "contact-bulk-undo-test-secret-00001" } };
+});
 import { bulkArchiveContactsAction } from "../src/lib/bulk-contact-actions";
 import { restoreContactAction, restoreContactsAction } from "../src/lib/contact-lifecycle-actions";
+import { viewerErrorMessage } from "../src/lib/form-errors";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 
@@ -22,6 +27,9 @@ async function redirectOf(action: Promise<unknown>): Promise<string> {
   try { await action; } catch (error) { if (error instanceof Error && error.message.startsWith("REDIRECT ")) return error.message.slice("REDIRECT ".length); throw error; }
   throw new Error("The action finished without redirecting.");
 }
+
+/** The error message a redirect carries, as its page shows it to `viewerId` (signed for that person or the fixed sentence). */
+const errorFor = (location: string, viewerId: string) => viewerErrorMessage(Object.fromEntries(new URL(location, "https://app.invalid").searchParams), { authUser: { id: viewerId } });
 
 describe.skipIf(!local)("bulk archive Undo with PostgreSQL", () => {
   let workspaceId = "";
@@ -40,7 +48,7 @@ describe.skipIf(!local)("bulk archive Undo with PostgreSQL", () => {
     userId = owner.id;
     otherWorkspaceId = otherWorkspace.id;
     otherUserId = other.id;
-    auth.context = { user: owner, workspace, impersonation: null };
+    auth.context = { session: { authUser: owner }, user: owner, workspace, impersonation: null };
   });
 
   afterAll(async () => {
@@ -109,11 +117,16 @@ describe.skipIf(!local)("bulk archive Undo with PostgreSQL", () => {
     expect(await redirectOf(bulkArchiveContactsAction(form({ contactIds: many.map((item) => item.id) })))).toBe("/contacts?bulkArchived=51");
 
     const outsider = await prisma.contact.create({ data: { workspaceId: otherWorkspaceId, displayName: "Other Business Person", archivedAt: new Date() } });
-    expect(await redirectOf(restoreContactsAction(form({ contactIds: [outsider.id] })))).toBe("/contacts?error=Archived%20Contacts%20not%20found.");
+    const outsiderOnly = await redirectOf(restoreContactsAction(form({ contactIds: [outsider.id] })));
+    expect(outsiderOnly.startsWith("/contacts?error=")).toBe(true);
+    expect(errorFor(outsiderOnly, userId)).toBe("Archived Contacts not found.");
     expect(await redirectOf(restoreContactsAction(form({ contactIds: [many[0].id, outsider.id] })))).toBe("/contacts?bulkRestored=1");
     expect((await prisma.contact.findUniqueOrThrow({ where: { id: many[0].id } })).archivedAt).toBeNull();
     expect((await prisma.contact.findUniqueOrThrow({ where: { id: outsider.id } })).archivedAt).not.toBeNull();
-    expect(await redirectOf(restoreContactsAction(form({})))).toBe("/contacts?error=Select%20at%20least%20one%20Contact.");
+    const nobody = await redirectOf(restoreContactsAction(form({})));
+    expect(nobody.startsWith("/contacts?error=")).toBe(true);
+    expect(errorFor(nobody, userId)).toBe("Select at least one Contact.");
+    expect(errorFor(nobody, otherUserId)).toBe("Something went wrong. Please try again.");
   });
 
   it("returns a restore from an archived person's page to that person", async () => {
@@ -124,6 +137,8 @@ describe.skipIf(!local)("bulk archive Undo with PostgreSQL", () => {
     // Another person's page is not a return target; a missing person goes to the Archived list.
     expect(await redirectOf(restoreContactAction(form({ contactId: fay.id, returnTo: "/contacts/someone-else" })))).toBe("/contacts/archived?restored=1");
     const missing = `missing-${randomUUID()}`;
-    expect(await redirectOf(restoreContactAction(form({ contactId: missing, returnTo: `/contacts/${missing}` })))).toBe("/contacts/archived?error=Archived%20Contact%20not%20found.");
+    const gone = await redirectOf(restoreContactAction(form({ contactId: missing, returnTo: `/contacts/${missing}` })));
+    expect(gone.startsWith("/contacts/archived?error=")).toBe(true);
+    expect(errorFor(gone, userId)).toBe("Archived Contact not found.");
   });
 });

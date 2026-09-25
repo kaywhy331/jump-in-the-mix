@@ -3,6 +3,7 @@
 import type { DateRecurrence } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
+import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { daysInMonth } from "@/lib/jump-schedule";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { prisma } from "@/lib/prisma";
@@ -11,15 +12,15 @@ function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
 }
 
-function fail(path: string, message: string): never {
-  redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
+function fail(path: string, message: string, viewer: ErrorViewer): never {
+  redirect(withViewerError(path, message, viewer));
 }
 
 function recurrenceValue(raw: string): DateRecurrence {
   return ["NONE", "MONTHLY", "YEARLY"].includes(raw) ? raw as DateRecurrence : "NONE";
 }
 
-function parseDateFields(formData: FormData, path: string): {
+function parseDateFields(formData: FormData, path: string, viewer: ErrorViewer): {
   dateValue: Date | null;
   month: number;
   day: number;
@@ -31,16 +32,16 @@ function parseDateFields(formData: FormData, path: string): {
     const month = Number(value(formData, "month"));
     const day = Number(value(formData, "day"));
     if (!Number.isInteger(month) || month < 1 || month > 12 || !Number.isInteger(day) || day < 1 || day > daysInMonth(2000, month)) {
-      fail(path, "Choose a valid month and day.");
+      fail(path, "Choose a valid month and day.", viewer);
     }
-    if (recurrence === "NONE") fail(path, "A month-and-day saved date must repeat monthly or yearly.");
+    if (recurrence === "NONE") fail(path, "A month-and-day saved date must repeat monthly or yearly.", viewer);
     return { dateValue: null, month, day, recurrence };
   }
 
   const dateValueRaw = value(formData, "dateValue");
   const parsed = new Date(`${dateValueRaw}T12:00:00Z`);
   if (!dateValueRaw || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== dateValueRaw) {
-    fail(path, "Choose a valid date.");
+    fail(path, "Choose a valid date.", viewer);
   }
   return {
     dateValue: parsed,
@@ -51,13 +52,13 @@ function parseDateFields(formData: FormData, path: string): {
 }
 
 export async function createImportantDateAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { workspace, user, session, impersonation } = await requireWorkspace();
   const contactId = value(formData, "contactId");
   const path = `/contacts/${contactId}`;
-  if (impersonation) fail(path, "Administrator support sessions are view-only.");
+  if (impersonation) fail(path, "Administrator support sessions are view-only.", session);
   const dateTypeId = value(formData, "dateTypeId");
   const label = value(formData, "label");
-  const fields = parseDateFields(formData, path);
+  const fields = parseDateFields(formData, path, session);
   const autoAssignRecommended = formData.get("autoAssignRecommended") === "on";
   const timezone = await timezoneForUser(user.id);
 
@@ -68,8 +69,8 @@ export async function createImportantDateAction(formData: FormData): Promise<voi
       select: { id: true }
     })
   ]);
-  if (!contact) fail("/contacts", "Contact not found.");
-  if (!dateType) fail(path, "Choose a valid saved date type.");
+  if (!contact) fail("/contacts", "Contact not found.", session);
+  if (!dateType) fail(path, "Choose a valid saved date type.", session);
 
   const matchingMix = autoAssignRecommended
     ? await prisma.mix.findFirst({
@@ -131,14 +132,14 @@ export async function createImportantDateAction(formData: FormData): Promise<voi
 }
 
 export async function updateImportantDateAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { workspace, user, session, impersonation } = await requireWorkspace();
   const contactId = value(formData, "contactId");
   const jumpDateId = value(formData, "jumpDateId");
   const dateTypeId = value(formData, "dateTypeId");
   const label = value(formData, "label");
   const path = `/contacts/${contactId}`;
-  if (impersonation) fail(path, "Administrator support sessions are view-only.");
-  const fields = parseDateFields(formData, path);
+  if (impersonation) fail(path, "Administrator support sessions are view-only.", session);
+  const fields = parseDateFields(formData, path, session);
   const timezone = await timezoneForUser(user.id);
 
   const [contact, dateType, existing] = await Promise.all([
@@ -149,8 +150,8 @@ export async function updateImportantDateAction(formData: FormData): Promise<voi
     }),
     prisma.jumpDate.findFirst({ where: { id: jumpDateId, contactId, workspaceId: workspace.id, isActive: true }, select: { id: true } })
   ]);
-  if (!contact || !existing) fail("/contacts", "Saved date not found.");
-  if (!dateType) fail(path, "Choose a valid saved date type.");
+  if (!contact || !existing) fail("/contacts", "Saved date not found.", session);
+  if (!dateType) fail(path, "Choose a valid saved date type.", session);
 
   await prisma.$transaction([
     prisma.jumpDate.update({
@@ -180,16 +181,16 @@ export async function updateImportantDateAction(formData: FormData): Promise<voi
 }
 
 export async function deactivateImportantDateAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { workspace, user, session, impersonation } = await requireWorkspace();
   const contactId = value(formData, "contactId");
   const jumpDateId = value(formData, "jumpDateId");
   const path = `/contacts/${contactId}`;
-  if (impersonation) fail(path, "Administrator support sessions are view-only.");
+  if (impersonation) fail(path, "Administrator support sessions are view-only.", session);
   const existing = await prisma.jumpDate.findFirst({
     where: { id: jumpDateId, contactId, workspaceId: workspace.id, isActive: true },
     select: { id: true }
   });
-  if (!existing) fail(path, "Saved date not found.");
+  if (!existing) fail(path, "Saved date not found.", session);
 
   await prisma.$transaction([
     prisma.jumpDate.update({ where: { id: existing.id }, data: { isActive: false } }),

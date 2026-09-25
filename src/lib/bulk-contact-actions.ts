@@ -3,6 +3,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { Channel } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
+import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { addLogicalDays, daysInMonth, logicalDateInTimezone, zonedDateTimeToUtc, type LogicalDate } from "@/lib/jump-schedule";
 import { renderJumpSnapshot } from "@/lib/jump-render";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
@@ -17,22 +18,22 @@ function selectedContactIds(formData: FormData): string[] {
   return [...new Set(formData.getAll("contactIds").map(String).filter(Boolean))];
 }
 
-function fail(message: string): never {
-  redirect(`/contacts?error=${encodeURIComponent(message)}`);
+function fail(message: string, viewer: ErrorViewer): never {
+  redirect(withViewerError("/contacts", message, viewer));
 }
 
-async function scopedContacts(workspaceId: string, contactIds: string[]) {
-  if (!contactIds.length) fail("Select at least one Contact.");
+async function scopedContacts(workspaceId: string, contactIds: string[], viewer: ErrorViewer) {
+  if (!contactIds.length) fail("Select at least one Contact.", viewer);
   const contacts = await prisma.contact.findMany({
     where: { workspaceId, archivedAt: null, id: { in: contactIds } },
     include: { emails: true, phones: true, addresses: true, customFieldValues: { include: { definition: true } } },
     orderBy: { displayName: "asc" }
   });
-  if (contacts.length !== contactIds.length) fail("One or more selected Contacts are unavailable.");
+  if (contacts.length !== contactIds.length) fail("One or more selected Contacts are unavailable.", viewer);
   return contacts;
 }
 
-async function assertContactable(workspaceId: string, contacts: Array<{ id: string; displayName: string }>): Promise<void> {
+async function assertContactable(workspaceId: string, contacts: Array<{ id: string; displayName: string }>, viewer: ErrorViewer): Promise<void> {
   const blocked = await prisma.contactRelationshipState.findMany({
     where: { workspaceId, contactId: { in: contacts.map((contact) => contact.id) }, doNotContact: true },
     select: { contactId: true }
@@ -40,7 +41,7 @@ async function assertContactable(workspaceId: string, contacts: Array<{ id: stri
   if (!blocked.length) return;
   const blockedIds = new Set(blocked.map((item) => item.contactId));
   const names = contacts.filter((contact) => blockedIds.has(contact.id)).map((contact) => contact.displayName);
-  fail(`Do-not-contact is enabled for ${names.join(", ")}. Clear that permission before creating outreach.`);
+  fail(`Do-not-contact is enabled for ${names.join(", ")}. Clear that permission before creating outreach.`, viewer);
 }
 
 async function queueWorkspaceReconciliation(workspaceId: string): Promise<void> {
@@ -48,36 +49,36 @@ async function queueWorkspaceReconciliation(workspaceId: string): Promise<void> 
 }
 
 export async function bulkAssignGroupAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireWritableWorkspace();
+  const { workspace, session } = await requireWritableWorkspace();
   const contactIds = selectedContactIds(formData);
   const groupId = value(formData, "groupId");
   const [contacts, group] = await Promise.all([
-    scopedContacts(workspace.id, contactIds),
+    scopedContacts(workspace.id, contactIds, session),
     prisma.group.findFirst({ where: { id: groupId, workspaceId: workspace.id }, select: { id: true } })
   ]);
-  if (!group) fail("Choose an available tag.");
+  if (!group) fail("Choose an available tag.", session);
   await prisma.contactGroupMembership.createMany({ data: contacts.map((contact) => ({ contactId: contact.id, groupId: group.id })), skipDuplicates: true });
   await queueWorkspaceReconciliation(workspace.id);
   redirect(`/contacts?bulkAssigned=${contacts.length}`);
 }
 
 export async function bulkRemoveGroupAction(formData: FormData): Promise<void> {
-  const { workspace } = await requireWritableWorkspace();
+  const { workspace, session } = await requireWritableWorkspace();
   const contactIds = selectedContactIds(formData);
   const groupId = value(formData, "groupId");
   const [contacts, group] = await Promise.all([
-    scopedContacts(workspace.id, contactIds),
+    scopedContacts(workspace.id, contactIds, session),
     prisma.group.findFirst({ where: { id: groupId, workspaceId: workspace.id }, select: { id: true } })
   ]);
-  if (!group) fail("Choose an available tag.");
+  if (!group) fail("Choose an available tag.", session);
   await prisma.contactGroupMembership.deleteMany({ where: { groupId: group.id, contactId: { in: contacts.map((contact) => contact.id) } } });
   await queueWorkspaceReconciliation(workspace.id);
   redirect(`/contacts?bulkRemoved=${contacts.length}`);
 }
 
 export async function bulkArchiveContactsAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWritableWorkspace();
-  const contacts = await scopedContacts(workspace.id, selectedContactIds(formData));
+  const { workspace, user, session } = await requireWritableWorkspace();
+  const contacts = await scopedContacts(workspace.id, selectedContactIds(formData), session);
   const contactIds = contacts.map((contact) => contact.id);
   const archivedAt = new Date();
   // Archiving several people works exactly like archiving one: their Mix assignments stay in
@@ -121,19 +122,22 @@ function channelFromForm(raw: string): Channel | null {
   return channels.includes(raw as Channel) ? raw as Channel : null;
 }
 
+/** A one-time follow-up the owner typed that cannot be prepared; its message is shown to them as written. */
+class ManualContentError extends Error {}
+
 function validateManualContent(formData: FormData) {
   const channel = channelFromForm(value(formData, "manualChannel"));
   const subject = value(formData, "manualSubject");
   const body = value(formData, "manualBody");
   const script = value(formData, "manualScript");
-  if (!channel) throw new Error("Choose a valid message type.");
-  if (channel === "EMAIL" && (!subject || !body)) throw new Error("Email follow-ups require a subject and message.");
-  if (["SMS", "WHATSAPP"].includes(channel) && !body) throw new Error("This follow-up needs a message.");
-  if (["PHONE_CALL", "VOICEMAIL"].includes(channel) && !script) throw new Error("This follow-up needs call notes.");
+  if (!channel) throw new ManualContentError("Choose a valid message type.");
+  if (channel === "EMAIL" && (!subject || !body)) throw new ManualContentError("Email follow-ups require a subject and message.");
+  if (["SMS", "WHATSAPP"].includes(channel) && !body) throw new ManualContentError("This follow-up needs a message.");
+  if (["PHONE_CALL", "VOICEMAIL"].includes(channel) && !script) throw new ManualContentError("This follow-up needs call notes.");
   const content = [subject, body, script].filter(Boolean).join("\n");
   const unknown = findUnknownPlaceholders(content);
-  if (unknown.length) throw new Error(`Unsupported placeholders: ${unknown.join(", ")}`);
-  if (channel !== "PHONE_CALL" && containsPrivateNotesPlaceholder(content)) throw new Error("Private-note placeholders may only be used in phone-call follow-ups.");
+  if (unknown.length) throw new ManualContentError(`Unsupported placeholders: ${unknown.join(", ")}`);
+  if (channel !== "PHONE_CALL" && containsPrivateNotesPlaceholder(content)) throw new ManualContentError("Private-note placeholders may only be used in phone-call follow-ups.");
   return { channel, subject: subject || null, body: body || null, script: script || null };
 }
 
@@ -150,9 +154,9 @@ function selectedDate(raw: string): LogicalDate | null {
 }
 
 export async function applyJumpToContactsAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWritableWorkspace();
-  const contacts = await scopedContacts(workspace.id, selectedContactIds(formData));
-  await assertContactable(workspace.id, contacts);
+  const { workspace, user, session } = await requireWritableWorkspace();
+  const contacts = await scopedContacts(workspace.id, selectedContactIds(formData), session);
+  await assertContactable(workspace.id, contacts, session);
   const mode = value(formData, "applyMode") === "manual" ? "manual" : "existing";
   const reason = value(formData, "reason");
   const batchId = randomUUID();
@@ -163,12 +167,12 @@ export async function applyJumpToContactsAction(formData: FormData): Promise<voi
     const stepTemplateId = value(formData, "stepTemplateId");
     const template = await prisma.stepTemplate.findFirst({ where: { id: stepTemplateId, workspaceId: workspace.id, isActive: true }, include: { versions: { orderBy: { version: "desc" }, take: 1 } } });
     const version = template?.versions[0];
-    if (!template || !version) fail("Choose an available reusable follow-up.");
+    if (!template || !version) fail("Choose an available reusable follow-up.", session);
     prepared = { name: template.name, channel: template.channel, subject: version.subject, body: version.body, script: version.script, templateId: template.id, versionId: version.id };
   } else {
     let manual: ReturnType<typeof validateManualContent>;
     try { manual = validateManualContent(formData); }
-    catch (error) { fail(error instanceof Error ? error.message : "The one-time follow-up could not be prepared."); }
+    catch (error) { fail(error instanceof ManualContentError ? error.message : "The one-time follow-up could not be prepared.", session); }
     prepared = {
       name: value(formData, "manualName") || `One-time ${manual.channel.replaceAll("_", " ").toLowerCase()}`,
       channel: manual.channel,
@@ -193,9 +197,9 @@ export async function applyJumpToContactsAction(formData: FormData): Promise<voi
     const date = sendWhen === "tomorrow"
       ? addLogicalDays(logicalDateInTimezone(now, timezone), 1)
       : selectedDate(value(formData, "scheduledDate"));
-    if (!date) fail("Choose a valid message date.");
+    if (!date) fail("Choose a valid message date.", session);
     scheduledAt = zonedDateTimeToUtc(date, scheduling?.defaultFollowUpMinutes ?? 600, timezone);
-    if (scheduledAt <= now) fail("Choose a future message date.");
+    if (scheduledAt <= now) fail("Choose a future message date.", session);
   }
 
   await prisma.$transaction(async (tx) => {

@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { requireWorkspace } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
@@ -27,6 +28,8 @@ type SearchParams = {
   replied?: string;
   reopened?: string;
   error?: string;
+  at?: string;
+  sig?: string;
 };
 
 export default async function SupportTicketPage({
@@ -36,7 +39,7 @@ export default async function SupportTicketPage({
   params: Promise<{ ticketId: string }>;
   searchParams: Promise<SearchParams>;
 }) {
-  const [{ ticketId }, query, { workspace, user, impersonation }] = await Promise.all([
+  const [{ ticketId }, query, { session, workspace, user, impersonation }] = await Promise.all([
     params,
     searchParams,
     requireWorkspace()
@@ -67,7 +70,7 @@ export default async function SupportTicketPage({
       {query.created && <Notice type="success">Your ticket was submitted to Jump in the Mix Support.</Notice>}
       {query.replied && <Notice type="success">Your reply was added to the ticket.</Notice>}
       {query.reopened && <Notice type="success">The ticket was reopened and returned to the support queue.</Notice>}
-      {query.error && <Notice type="error">{query.error}</Notice>}
+      <UrlErrorNotice params={query} viewer={session} />
       <p>{SUPPORT_RETENTION_NOTICE}</p><p>Support is best effort; there is no guaranteed reply time. Check this conversation for responses. If you cannot sign in, use <Link href="/contact">public contact support</Link>.</p>
       {impersonation && <Notice type="info">This is a view-only administrator support session. Ticket replies and status changes are unavailable.</Notice>}
 

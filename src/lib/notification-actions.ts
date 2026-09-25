@@ -1,5 +1,5 @@
 "use server";
-import { captureFormFailure, recoverableFormAction, type FormResult } from "@/lib/form-errors";
+import { captureFormFailure, recoverableFormAction, withViewerError, type FormResult } from "@/lib/form-errors";
 
 import { redirect } from "next/navigation";
 import { automaticEmailConfigured, automaticSmsConfigured } from "@/lib/automatic-delivery";
@@ -9,10 +9,10 @@ import { lockAccess } from "@/lib/access-lock";
 
 export async function updateNotificationPreferencesAction(formData: FormData): Promise<void> {
   const { workspace, user, session, impersonation } = await requireWorkspace();
-  if (impersonation) redirect("/settings/notifications?error=View-only%20sessions%20cannot%20change%20notifications.");
+  if (impersonation) redirect(withViewerError("/settings/notifications", "View-only sessions cannot change notifications.", session));
   const digestHour = Number(formData.get("digestHour"));
   if (!Number.isInteger(digestHour) || digestHour < 0 || digestHour > 23) {
-    redirect("/settings/notifications?error=Choose%20a%20valid%20digest%20time.");
+    redirect(withViewerError("/settings/notifications", "Choose a valid digest time.", session));
   }
   await prisma.$transaction(async tx => {
     await lockAccess(tx);
@@ -40,30 +40,30 @@ export async function updateNotificationPreferencesAction(formData: FormData): P
 export async function updateAutomationPreferencesAction(formData: FormData): Promise<void> {
   const { workspace, user, session, impersonation } = await requireWorkspace();
   const path = "/settings/sending";
-  if (impersonation) redirect(`${path}?error=${encodeURIComponent("View-only sessions cannot change automatic sending.")}`);
+  if (impersonation) redirect(withViewerError(path, "View-only sessions cannot change automatic sending.", session));
   const enabled = formData.get("automationEnabled") === "on";
   const emailEnabled = enabled && formData.get("automationEmailEnabled") === "on";
   const smsEnabled = enabled && formData.get("automationSmsEnabled") === "on";
   const reviewWindowMinutes = Number(formData.get("reviewWindowMinutes"));
   if (!Number.isInteger(reviewWindowMinutes) || reviewWindowMinutes < 5 || reviewWindowMinutes > 1440) {
     captureFormFailure("Choose a review window between 5 minutes and 24 hours.");
-    redirect(`${path}?error=${encodeURIComponent("Choose a review window between 5 minutes and 24 hours.")}`);
+    redirect(withViewerError(path, "Choose a review window between 5 minutes and 24 hours.", session));
   }
   if (enabled && formData.get("automationConsent") !== "on") {
     captureFormFailure("Confirm that you understand messages will send without a final tap.");
-    redirect(`${path}?error=${encodeURIComponent("Confirm that you understand messages will send without a final tap.")}`);
+    redirect(withViewerError(path, "Confirm that you understand messages will send without a final tap.", session));
   }
   if (enabled && !emailEnabled && !smsEnabled) {
     captureFormFailure("Choose email, text, or both for automatic sending.");
-    redirect(`${path}?error=${encodeURIComponent("Choose email, text, or both for automatic sending.")}`);
+    redirect(withViewerError(path, "Choose email, text, or both for automatic sending.", session));
   }
   if (emailEnabled && !automaticEmailConfigured()) {
     captureFormFailure("Automatic email is not configured on this server.");
-    redirect(`${path}?error=${encodeURIComponent("Automatic email is not configured on this server.")}`);
+    redirect(withViewerError(path, "Automatic email is not configured on this server.", session));
   }
   if (smsEnabled && !automaticSmsConfigured()) {
     captureFormFailure("Automatic text delivery is not configured on this server.");
-    redirect(`${path}?error=${encodeURIComponent("Automatic text delivery is not configured on this server.")}`);
+    redirect(withViewerError(path, "Automatic text delivery is not configured on this server.", session));
   }
 
   await prisma.$transaction(async (tx) => {

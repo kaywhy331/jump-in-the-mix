@@ -14,6 +14,7 @@ import { FollowUpChannelChoice, type ChannelChoiceOption } from "@/components/Fo
 import { EmptyState } from "@/components/EmptyState";
 import { JumpOutcomeButton, JumpReturnTray, JumpStampEditor, JumpWorkflowCard } from "@/components/JumpWorkflow";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { TodayBriefing } from "@/components/TodayBriefing";
 import { todayBriefing } from "@/lib/today-briefing";
 import { PreparationNotice } from "@/components/PreparationNotice";
@@ -79,6 +80,8 @@ type SearchParams = {
   snoozed?: string;
   firstContact?: string;
   error?: string;
+  at?: string;
+  sig?: string;
   after?: string;
   before?: string;
   listReset?: string;
@@ -121,7 +124,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const range = params.jump ? "all" : ["due", "week", "month", "all"].includes(params.range ?? "") ? params.range! : "due";
   const status = params.jump ? "all" : ["all", "pending", "done", "skipped"].includes(params.status ?? "") ? params.status! : "all";
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { session, workspace, user, impersonation } = await requireWorkspace();
   const displayPreferences = await displayPreferencesForUser(user.id);
   const timezone = displayPreferences.timeZone;
   const today = logicalDateInTimezone(new Date(), timezone);
@@ -416,7 +419,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       {params.contactSaved === "1" && <Notice type="success">Contact saved. This follow-up now uses the new details.</Notice>}
       {params.verified === "1" && <Notice type="success">Your email is verified.</Notice>}
       {params.listReset && <Notice type="info">This part of the list changed. You’re back at the first follow-ups.</Notice>}
-      {params.error && <Notice type="error">{params.error}</Notice>}
+      <UrlErrorNotice params={params} viewer={session} />
 
       <header className="page-header today-page-header">
         <div><h1 tabIndex={-1}>Today</h1><p>{attentionCount ? `${attentionCount.toLocaleString()} follow-up${attentionCount === 1 ? " needs" : "s need"} your attention${overdueCount ? ` · ${overdueCount.toLocaleString()} overdue` : ""}.` : !workflowAttention ? "Your next steps could not be checked." : workflowAttention.total ? `${workflowAttention.total} item${workflowAttention.total === 1 ? " needs" : "s need"} your input.` : workflowAttention.preparing || preparation.state !== "ready" ? "Your follow-up list is awaiting preparation." : (upcomingCount + (workflowAttention.futureTotal ?? 0)) ? `${(upcomingCount + (workflowAttention.futureTotal ?? 0)).toLocaleString()} upcoming follow-up${upcomingCount === 1 ? "" : "s"}.` : activeFilterCount ? "No open follow-ups in this view." : "You’re caught up."}</p>{(!workflowAttention || workflowAttention.total > 0) && <a className="text-button" href="#needs-your-input">Needs your input{workflowAttention ? ` · ${workflowAttention.total}` : ""}</a>}</div>

@@ -1,11 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { withViewerError } from "@/lib/form-errors";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { prisma } from "@/lib/prisma";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 import { calculateSnoozeAt, resolveSnooze, type SnoozePreset } from "@/lib/snooze-schedule";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -21,7 +23,7 @@ function withParam(path: string, key: string, parameterValue: string): string {
 }
 
 export async function snoozeJumpAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWritableWorkspace((message) => redirect(withParam(safeReturnTo(value(formData, "returnTo")), "error", message)));
+  const { workspace, user, session } = await requireWritableWorkspace((message, viewer) => redirect(withViewerError(safeReturnTo(value(formData, "returnTo")), message, viewer)));
   const jumpId = value(formData, "jumpId");
   const returnTo = safeReturnTo(value(formData, "returnTo"));
   const presetRaw = value(formData, "preset") || "custom";
@@ -44,14 +46,14 @@ export async function snoozeJumpAction(formData: FormData): Promise<void> {
       quietHoursEnd: scheduling?.quietHoursEnd
     });
   } catch (error) {
-    redirect(withParam(returnTo, "error", error instanceof Error ? error.message : "Choose a future date and time."));
+    redirect(withViewerError(returnTo, error instanceof UserFacingError ? error.message : "Choose a future date and time.", session));
   }
 
   const jump = await prisma.jump.findFirst({
     where: { id: jumpId, workspaceId: workspace.id, status: "PENDING" },
     select: { scheduledAt: true, snoozedUntil: true, baseScheduledAt: true }
   });
-  if (!jump) redirect(withParam(returnTo, "error", "This follow-up is no longer available to snooze."));
+  if (!jump) redirect(withViewerError(returnTo, "This follow-up is no longer available to snooze.", session));
 
   // A snooze is a not-before time: it may hold a follow-up later but never pull it ahead of the
   // scheduler's base instant. A row written before the base was stored has no snooze yet, so its
@@ -59,7 +61,7 @@ export async function snoozeJumpAction(formData: FormData): Promise<void> {
   const baseScheduledAt = jump.baseScheduledAt ?? (jump.snoozedUntil ? null : jump.scheduledAt);
   const resolution = resolveSnooze({ chosen: scheduledAt, baseScheduledAt });
   if (!resolution.ok) {
-    redirect(withParam(returnTo, "error", `This follow-up is due ${formatDateTime(resolution.dueAt, preferences)}. Snooze can't move it earlier than that.`));
+    redirect(withViewerError(returnTo, `This follow-up is due ${formatDateTime(resolution.dueAt, preferences)}. Snooze can't move it earlier than that.`, session));
   }
 
   // Guarded on the snooze just read, so a second tab or device that snoozed in the meantime is not
@@ -68,6 +70,6 @@ export async function snoozeJumpAction(formData: FormData): Promise<void> {
     where: { id: jumpId, workspaceId: workspace.id, status: "PENDING", snoozedUntil: jump.snoozedUntil },
     data: { scheduledAt: resolution.scheduledAt, snoozedUntil: resolution.scheduledAt }
   });
-  if (!result.count) redirect(withParam(returnTo, "error", "This follow-up changed a moment ago. Check it and snooze again."));
+  if (!result.count) redirect(withViewerError(returnTo, "This follow-up changed a moment ago. Check it and snooze again.", session));
   redirect(withParam(returnTo, "snoozed", "1"));
 }

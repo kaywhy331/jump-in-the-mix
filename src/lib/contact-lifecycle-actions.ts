@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { Prisma } from "@/generated/prisma/client";
+import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { prisma } from "@/lib/prisma";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
 
@@ -9,18 +10,18 @@ function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
 }
 
-function fail(message: string, path = "/contacts"): never {
-  redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
+function fail(message: string, viewer: ErrorViewer, path = "/contacts"): never {
+  redirect(withViewerError(path, message, viewer));
 }
 
 export async function archiveContactAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWritableWorkspace();
+  const { workspace, user, session } = await requireWritableWorkspace();
   const contactId = value(formData, "contactId");
   const contact = await prisma.contact.findFirst({
     where: { id: contactId, workspaceId: workspace.id, archivedAt: null },
     select: { id: true, displayName: true }
   });
-  if (!contact) fail("Contact not found.");
+  if (!contact) fail("Contact not found.", session);
 
   const archivedAt = new Date();
   await prisma.$transaction(async (tx) => {
@@ -47,7 +48,7 @@ export async function archiveContactAction(formData: FormData): Promise<void> {
 }
 
 export async function restoreContactAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWritableWorkspace();
+  const { workspace, user, session } = await requireWritableWorkspace();
   const contactId = value(formData, "contactId");
   const returnTo = value(formData, "returnTo");
   // "Undo" on the Contacts list restores in place and an archived person's own page returns to
@@ -55,7 +56,7 @@ export async function restoreContactAction(formData: FormData): Promise<void> {
   const profile = `/contacts/${encodeURIComponent(contactId)}`;
   const path = returnTo === "/contacts" ? "/contacts" : contactId && returnTo === profile ? profile : "/contacts/archived";
   const contact = await prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id }, select: { id: true, displayName: true, archivedAt: true } });
-  if (!contact) fail("Archived Contact not found.", path === profile ? "/contacts/archived" : path);
+  if (!contact) fail("Archived Contact not found.", session, path === profile ? "/contacts/archived" : path);
   // A second tap of Undo or Restore finds the person already back: that is the same success, not an error.
   if (!contact.archivedAt) redirect(`${path}?restored=1`);
   await prisma.$transaction(async (tx) => {
@@ -82,11 +83,11 @@ export async function restoreContactAction(formData: FormData): Promise<void> {
  * queues one reconciliation; a repeated Undo finds nobody left to restore and is the same success.
  */
 export async function restoreContactsAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWritableWorkspace();
+  const { workspace, user, session } = await requireWritableWorkspace();
   const contactIds = [...new Set(formData.getAll("contactIds").map(String).filter((id) => id && id.length <= 120))].slice(0, 50);
-  if (!contactIds.length) fail("Select at least one Contact.");
+  if (!contactIds.length) fail("Select at least one Contact.", session);
   const known = await prisma.contact.count({ where: { workspaceId: workspace.id, id: { in: contactIds } } });
-  if (!known) fail("Archived Contacts not found.");
+  if (!known) fail("Archived Contacts not found.", session);
   await prisma.$transaction(async (tx) => {
     // The row locks make a double tap restore, log and reconcile each person exactly once: the
     // second request waits, then no longer matches "still archived".

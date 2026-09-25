@@ -20,6 +20,10 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`REDIRECT ${url}`); } }));
 vi.mock("@/lib/auth", () => ({ requireWorkspace: mocks.auth }));
+vi.mock("@/lib/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/env")>();
+  return { ...actual, env: { ...actual.env, authRateLimitSecret: "contact-actions-test-secret-0000001" } };
+});
 vi.mock("@/lib/journey", () => ({ applyJourneyEvent: vi.fn() }));
 vi.mock("@/lib/group-activity", () => ({ listGroupStates: async () => [], mergeGroupActivity: () => [] }));
 vi.mock("@/lib/contact-custom-fields", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/contact-custom-fields")>()), validateContactCustomFieldInputs: async () => undefined }));
@@ -35,8 +39,9 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   workspacePreference: { findUnique: async () => null },
   $transaction: (fn: (tx: typeof mocks.tx) => unknown) => fn(mocks.tx)
 } }));
-import { saveContactFormAction } from "@/lib/contact-actions";
+import { createContactAction, saveContactFormAction, updateContactAction } from "@/lib/contact-actions";
 import { STALE_CONTACT_SAVE, contactRevision } from "@/lib/contact-revision";
+import { UNVERIFIED_ERROR_MESSAGE, viewerErrorMessage } from "@/lib/form-errors";
 import { VIEW_ONLY_SUPPORT_MESSAGE } from "@/lib/writable-workspace";
 
 function form(fields: Record<string, string | string[]>): FormData {
@@ -53,9 +58,14 @@ const SHOWN = {
 };
 const REVISION = contactRevision(SHOWN);
 
+const params = (location: string) => Object.fromEntries(new URL(location, "https://app.invalid").searchParams);
+/** Where a redirecting action sent the browser (the mocked redirect throws it). */
+const redirected = (action: Promise<unknown>) => action.then(() => "", (error: Error) => error.message.replace(/^REDIRECT /, ""));
+const owner = { authUser: { id: "owner" } };
+
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.auth.mockResolvedValue({ user: { id: "owner" }, workspace: { id: "workspace" }, impersonation: null });
+  mocks.auth.mockResolvedValue({ session: owner, user: { id: "owner" }, workspace: { id: "workspace" }, impersonation: null });
   mocks.memberships.mockResolvedValue([]);
   mocks.emailConflict.mockResolvedValue(null);
   mocks.phoneConflict.mockResolvedValue(null);
@@ -156,6 +166,36 @@ describe("saving an edit form that is out of date", () => {
   it("saves a form opened before fingerprints existed, as it did before the check", async () => {
     await expect(saveContactFormAction({}, form({ contactId: "contact_1", firstName: "Bob" }))).rejects.toThrow("REDIRECT /contacts/contact_1?updated=1");
     expect(mocks.tx.contact.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "contact_1" } }));
+  });
+});
+
+describe("errors the save cannot explain", () => {
+  it("show the fixed sentence instead of a database failure's own text", async () => {
+    mocks.emailConflict.mockRejectedValue(new Error("Invalid `prisma.contactEmail.findFirst()` invocation: Can't reach database server at db.internal:5432"));
+    expect(await saveContactFormAction({}, form({ firstName: "Dana", emailValue: "dana@example.com" }))).toEqual({ error: "The contact could not be saved." });
+    expect(await saveContactFormAction({}, form({ contactId: "contact_1", revision: REVISION, firstName: "Bob", emailValue: "bob@example.com" }))).toEqual({ error: "The contact could not be updated." });
+  });
+
+  it("keep the wording of the form's own refusals", async () => {
+    expect(await saveContactFormAction({}, form({ firstName: "Dana", groupIds: "group_elsewhere" }))).toEqual({ error: "One or more selected groups are not available in this workspace." });
+    expect(await saveContactFormAction({}, form({ firstName: "Dana", scheduleFollowUp: "on", followUpDate: "" }))).toEqual({ error: "Choose a valid first follow-up date." });
+  });
+});
+
+describe("the redirecting saves", () => {
+  it("sign the form's message for the signed-in person only", async () => {
+    const location = await redirected(createContactAction(form({ phoneValue: "12" })));
+    expect(location.startsWith("/contacts/new?error=")).toBe(true);
+    expect(viewerErrorMessage(params(location), owner)).toBe("Invalid phone number: 12");
+    expect(viewerErrorMessage(params(location), { authUser: { id: "someone-else" } })).toBe(UNVERIFIED_ERROR_MESSAGE);
+  });
+
+  it("never put a database failure's text into the address", async () => {
+    mocks.emailConflict.mockRejectedValue(new Error("connection terminated unexpectedly at 10.0.0.5"));
+    const location = await redirected(updateContactAction(form({ contactId: "contact_1", revision: REVISION, firstName: "Bob", emailValue: "bob@example.com" })));
+    expect(location.startsWith("/contacts/contact_1/edit?error=")).toBe(true);
+    expect(viewerErrorMessage(params(location), owner)).toBe("The contact could not be updated.");
+    expect(decodeURIComponent(location)).not.toContain("10.0.0.5");
   });
 });
 

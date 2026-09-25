@@ -8,7 +8,12 @@ import { prisma } from "../src/lib/prisma";
 const auth = vi.hoisted(() => ({ context: {} as Record<string, unknown> }));
 vi.mock("@/lib/auth", () => ({ requireWorkspace: async () => auth.context }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`REDIRECT ${url}`); } }));
+vi.mock("@/lib/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/lib/env")>();
+  return { ...actual, env: { ...actual.env, authRateLimitSecret: "contact-save-integrity-secret-00001" } };
+});
 import { saveContactFormAction } from "../src/lib/contact-actions";
+import { viewerErrorMessage } from "../src/lib/form-errors";
 import { updateContactBasicsInlineAction, updateContactRelationshipStateAction } from "../src/lib/contact-state-actions";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
@@ -36,7 +41,7 @@ describe.skipIf(!local)("contact edit and create integrity with PostgreSQL", () 
     await prisma.workspaceMember.create({ data: { workspaceId: workspace.id, userId: owner.id, role: "OWNER" } });
     workspaceId = workspace.id;
     userId = owner.id;
-    auth.context = { user: owner, workspace, impersonation: null };
+    auth.context = { session: { authUser: owner }, user: owner, workspace, impersonation: null };
   });
 
   afterAll(async () => {
@@ -146,7 +151,10 @@ describe.skipIf(!local)("contact edit and create integrity with PostgreSQL", () 
     // ...and a swept row through its canonical key, however the number is typed.
     expect(await saveContactFormAction({}, form({ firstName: "Copy", phoneValue: ["555-010-0099", "1-555-010-0007"] }))).toMatchObject({ error: conflict("Eli Swept"), field: "phoneValue:1" });
     const frankie = await person("Frankie Inline");
-    await expect(updateContactBasicsInlineAction(form({ contactId: frankie.id, primaryPhone: "555 010 0006" }))).rejects.toThrow(`REDIRECT /contacts/${frankie.id}?error=${encodeURIComponent("That phone already belongs to Dana Legacy. Use the duplicate center if these are the same person.")}`);
+    // The inline save names the owner of the number; the message is signed for the person who typed it.
+    const inline = (await outcome(updateContactBasicsInlineAction(form({ contactId: frankie.id, primaryPhone: "555 010 0006" })))).replace(/^REDIRECT /, "");
+    expect(inline.startsWith(`/contacts/${frankie.id}?error=`)).toBe(true);
+    expect(viewerErrorMessage(Object.fromEntries(new URL(inline, "https://app.invalid").searchParams), { authUser: { id: userId } })).toBe("That phone already belongs to Dana Legacy. Use the duplicate center if these are the same person.");
     // Until the sweep, another digit spelling of an unswept row is missed (as before this release); after it, found.
     const lookup = () => prisma.contactPhone.findFirst({ where: { normalized: { in: phoneLookupKeys("+1 555 010 0006", "US") }, contact: { workspaceId } }, select: { contactId: true } });
     expect(await lookup()).toBeNull();

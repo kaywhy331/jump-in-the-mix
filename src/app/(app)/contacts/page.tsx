@@ -6,6 +6,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { ContactSavedViewsBar } from "@/components/ContactSavedViewsBar";
 import { ContactsBulkWorkspace, type ContactBulkDto } from "@/components/ContactsBulkWorkspace";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { AppIcon } from "@/components/AppIcon";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { restoreContactAction, restoreContactsAction } from "@/lib/contact-lifecycle-actions";
@@ -51,6 +52,8 @@ type SearchParams = {
   defaultViewSaved?: string;
   viewDeleted?: string;
   error?: string;
+  at?: string;
+  sig?: string;
   intent?: string;
 };
 
@@ -100,7 +103,7 @@ function pageHref(input: {
 
 export default async function ContactsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
-  const { user, workspace } = await requireWorkspace();
+  const { session, user, workspace } = await requireWorkspace();
   const displayPreferences = await displayPreferencesForUser(user.id);
   const savedViews = await prisma.contactSavedView.findMany({
     where: { userId: user.id, workspaceId: workspace.id },
@@ -270,7 +273,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.defaultViewSaved && <Notice type="success">Default view saved.</Notice>}
       {params.viewDeleted && <Notice type="success">View deleted.</Notice>}
       {importBatchId && <Notice type={importBatch ? "info" : "error"}>{importBatch ? `Showing Contacts touched by the selected ${importBatch.status.toLowerCase()} import.` : "That import batch is unavailable in your personal data."}</Notice>}
-      {params.error && <Notice type="error">{params.error}</Notice>}
+      <UrlErrorNotice params={params} viewer={session} />
       <p className="sr-only" role="status" aria-live="polite">{resultMessage}</p>
       <div className="contacts-workspace"><section className="contacts-directory" aria-label="Contact directory">
       <ContactsBulkWorkspace

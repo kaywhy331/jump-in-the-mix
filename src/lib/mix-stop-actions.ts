@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { prisma } from "@/lib/prisma";
 
@@ -20,9 +21,9 @@ function withFlag(path: string, flag: string): string {
 
 /** During a view-only support session the person goes back to the page they came from, with the reason. */
 function refuseTo(formData: FormData) {
-  return (message: string): never => {
+  return (message: string, viewer: ErrorViewer): never => {
     const path = safeReturnTo(value(formData, "returnTo"), value(formData, "contactId"));
-    redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
+    redirect(withViewerError(path, message, viewer));
   };
 }
 

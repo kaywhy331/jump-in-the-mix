@@ -7,6 +7,7 @@ import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { ViewOnlySupportNotice } from "@/components/ViewOnlySupportNotice";
 import { RepeatableProfileRecords } from "@/components/RepeatableProfileRecords";
 import { requireWorkspace } from "@/lib/auth";
@@ -15,7 +16,7 @@ import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "My business" };
 
-type SearchParams = { saved?: string; error?: string };
+type SearchParams = { saved?: string; error?: string; at?: string; sig?: string };
 type ProfileRecord = { name: string; value: string };
 
 function records(raw: unknown, legacy: Array<string | null | undefined>): ProfileRecord[] {
@@ -28,7 +29,7 @@ function records(raw: unknown, legacy: Array<string | null | undefined>): Profil
 }
 
 export default async function BusinessSettingsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [params, { workspace, user, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
+  const [params, { session, workspace, user, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
   const viewOnly = Boolean(impersonation);
   const profile = workspace.profile;
   const [display, sending] = await Promise.all([displayPreferencesForUser(user.id), prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id } })]);
@@ -36,7 +37,7 @@ export default async function BusinessSettingsPage({ searchParams }: { searchPar
 
   return <div className="page page--form settings-business-page">
     {params.saved && <Notice type="success">Business details saved.</Notice>}
-    {params.error && <Notice type="error">{params.error}</Notice>}
+    <UrlErrorNotice params={params} viewer={session} />
     {viewOnly && <ViewOnlySupportNotice />}
     <BackLink href="/settings" label="Settings" /><header className="page-header"><div><h1>My business</h1><p>These details make every prepared message sound complete and personal.</p></div></header>
     <section className="notice info"><p>Timezone: {display.timeZone} · {sending?.enabled ? "Automatic sending enabled" : "You review and send"}.</p><Link href="/account/preferences">Timezone and scheduling</Link> · <Link href="/settings/sending">Sending defaults</Link></section>

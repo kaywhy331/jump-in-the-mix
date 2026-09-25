@@ -7,9 +7,14 @@ import { prisma } from "../src/lib/prisma";
 const auth = vi.hoisted(() => ({ context: {} as Record<string, unknown> }));
 vi.mock("@/lib/auth", () => ({ requireWorkspace: async () => auth.context }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`REDIRECT ${url}`); } }));
+vi.mock("@/lib/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/lib/env")>();
+  return { ...actual, env: { ...actual.env, authRateLimitSecret: "contact-lifecycle-test-secret-00001" } };
+});
 import { bulkArchiveContactsAction } from "../src/lib/bulk-contact-actions";
 import { restoreContactAction } from "../src/lib/contact-lifecycle-actions";
 import { mergeContactsAction } from "../src/lib/contact-merge-actions";
+import { viewerErrorMessage } from "../src/lib/form-errors";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 const read = (path: string) => readFileSync(path, "utf8");
@@ -47,7 +52,7 @@ describe.skipIf(!local)("contact lifecycle actions with PostgreSQL", () => {
     workspaceId = workspace.id;
     userId = owner.id;
     otherUserId = other.id;
-    auth.context = { user: owner, workspace, impersonation: null };
+    auth.context = { session: { authUser: owner }, user: owner, workspace, impersonation: null };
   });
 
   afterAll(async () => {
@@ -144,7 +149,9 @@ describe.skipIf(!local)("contact lifecycle actions with PostgreSQL", () => {
     expect(await generateJumpsJobs()).toBe(jobsAfterFirst);
     expect(await prisma.auditLog.count({ where: { workspaceId, action: "contact.restore", entityId: dana.id } })).toBe(1);
 
-    await expect(restoreContactAction(form({ contactId: `missing-${randomUUID()}` }))).rejects.toThrow("REDIRECT /contacts/archived?error=Archived%20Contact%20not%20found.");
+    const missing = await restoreContactAction(form({ contactId: `missing-${randomUUID()}` })).then(() => "", (error: Error) => error.message.replace(/^REDIRECT /, ""));
+    expect(missing.startsWith("/contacts/archived?error=")).toBe(true);
+    expect(viewerErrorMessage(Object.fromEntries(new URL(missing, "https://app.invalid").searchParams), { authUser: { id: userId } })).toBe("Archived Contact not found.");
   });
 });
 

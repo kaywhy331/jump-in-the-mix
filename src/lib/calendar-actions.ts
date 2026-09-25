@@ -2,6 +2,7 @@
 import { workflowContinuation } from "@/lib/workflow-continuation";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
+import { withViewerError } from "@/lib/form-errors";
 import { prisma } from "@/lib/prisma";
 import { parseCalendarTime } from "@/lib/calendar-time";
 import { importCalendar, queueBoundReconciliation, syncCalendarConnection } from "@/lib/calendar";
@@ -10,6 +11,7 @@ import { calendarFeedUrl } from "@/lib/calendar-feed-fetch";
 import { encryptIntegrationCredentials } from "@/lib/integration-crypto";
 import { createConnectionToken } from "@/lib/connection-tokens";
 import { isValidTimezone } from "@/lib/mix-broadcast";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 const value = (data: FormData, name: string) => String(data.get(name) ?? "").trim();
 async function context() { const ctx = await requireWorkspace(); if (ctx.impersonation) throw new Error("Support sessions are view-only."); return ctx; }
@@ -36,12 +38,13 @@ export async function saveCalendarAction(_state: CalendarSaveState, data: FormDa
 
 /** What happened at the visit: it anchors the bound plan and is a journey event the stage rules can act on. */
 export async function appointmentOutcomeAction(data: FormData) {
-  const { workspace, user } = await context();
+  const { workspace, user, session } = await context();
   const raw = value(data, "outcome");
   const outcome = raw === "COMPLETED" || raw === "NO_SHOW" ? raw as AppointmentOutcome : null;
   const result = await recordAppointmentOutcome({ workspaceId: workspace.id, actorUserId: user.id, entryId: value(data, "id"), version: Number(value(data, "version")), outcome });
   const next = new URLSearchParams({ date: value(data, "date") });
-  if (result.ok) next.set("saved", "1"); else next.set("error", result.message);
+  if (!result.ok) redirect(withViewerError(`/calendar?${next}`, result.message, session));
+  next.set("saved", "1");
   redirect(`/calendar?${next}`);
 }
 
@@ -73,8 +76,11 @@ export async function cancelCalendarAction(data: FormData) {
   redirect("/calendar?saved=1");
 }
 
+/** A calendar connection request this action refuses; its message is shown on the calendar as written. */
+class CalendarConnectionError extends Error {}
+
 export async function calendarConnectionAction(data: FormData) {
-  const { workspace } = await context(); const intent = value(data, "intent"), id = value(data, "id");
+  const { workspace, session } = await context(); const intent = value(data, "intent"), id = value(data, "id");
   try {
     if (intent === "rotate" || intent === "subscribe") await prisma.calendarPreference.upsert({ where: { workspaceId: workspace.id }, create: { workspaceId: workspace.id, ...createConnectionToken() }, update: createConnectionToken() });
     else if (intent === "revoke") await prisma.calendarPreference.deleteMany({ where: { workspaceId: workspace.id } });
@@ -82,21 +88,23 @@ export async function calendarConnectionAction(data: FormData) {
     else if (intent === "sync") await syncCalendarConnection(workspace.id, id);
     else {
       const name = value(data, "name"), timezone = value(data, "timezone");
-      if (!name || name.length > 100) throw new Error("Give this calendar a name of up to 100 characters.");
-      if (!timezone || !isValidTimezone(timezone)) throw new Error("Choose a valid timezone.");
-      if (await prisma.calendarConnection.count({ where: { workspaceId: workspace.id } }) >= 20) throw new Error("Connect up to 20 calendars. Disconnect one before adding another.");
+      if (!name || name.length > 100) throw new CalendarConnectionError("Give this calendar a name of up to 100 characters.");
+      if (!timezone || !isValidTimezone(timezone)) throw new CalendarConnectionError("Choose a valid timezone.");
+      if (await prisma.calendarConnection.count({ where: { workspaceId: workspace.id } }) >= 20) throw new CalendarConnectionError("Connect up to 20 calendars. Disconnect one before adding another.");
       if (intent === "connect") {
-        const url = calendarFeedUrl(value(data, "url")).href;
+        // The address check fails only for a URL this app will not fetch, so its fixed advice is safe to show.
+        let url: string;
+        try { url = calendarFeedUrl(value(data, "url")).href; } catch { throw new CalendarConnectionError("Use an HTTPS calendar URL without a username, password, or custom port."); }
         const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name, urlEncrypted: encryptIntegrationCredentials({ url, timezone }) } });
         await syncCalendarConnection(workspace.id, connection.id);
       } else if (intent === "import") {
         const file = data.get("file");
-        if (!(file instanceof File) || !file.size || file.size > 900_000) throw new Error("Choose an .ics file of up to 900 KB.");
+        if (!(file instanceof File) || !file.size || file.size > 900_000) throw new CalendarConnectionError("Choose an .ics file of up to 900 KB.");
         const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name } });
         try { await importCalendar(workspace.id, connection.id, await file.text(), timezone); }
         catch (error) { await prisma.calendarConnection.delete({ where: { id: connection.id } }); throw error; }
-      } else throw new Error("Choose a calendar action.");
+      } else throw new CalendarConnectionError("Choose a calendar action.");
     }
-  } catch (error) { redirect(`/calendar?error=${encodeURIComponent(error instanceof Error ? error.message : "The calendar could not be updated.")}#calendar-connections`); }
+  } catch (error) { redirect(`${withViewerError("/calendar", error instanceof CalendarConnectionError || error instanceof UserFacingError ? error.message : "The calendar could not be updated.", session)}#calendar-connections`); }
   redirect("/calendar?saved=1#calendar-connections");
 }

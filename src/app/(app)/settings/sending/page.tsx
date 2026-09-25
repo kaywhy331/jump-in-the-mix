@@ -4,6 +4,7 @@ import { FormSubmitButton } from "@/components/FormSubmitButton";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { ViewOnlySupportNotice } from "@/components/ViewOnlySupportNotice";
 import { automaticEmailConfigured, automaticSmsConfigured } from "@/lib/automatic-delivery";
 import { requireWorkspace } from "@/lib/auth";
@@ -13,8 +14,8 @@ import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Sending to customers" };
 
-export default async function SendingSettingsPage({ searchParams }: { searchParams: Promise<{ automationSaved?: string; error?: string }> }) {
-  const [params, { workspace, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
+export default async function SendingSettingsPage({ searchParams }: { searchParams: Promise<{ automationSaved?: string; error?: string; at?: string; sig?: string }> }) {
+  const [params, { session, workspace, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
   const viewOnly = Boolean(impersonation);
   const automation = await prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id } });
   const automaticEmailAvailable = automaticEmailConfigured();
@@ -22,7 +23,7 @@ export default async function SendingSettingsPage({ searchParams }: { searchPara
   return <div className="page page--form sending-settings-page">
     <BackLink href="/settings" label="Settings" /><header className="page-header"><div><h1>Sending to customers</h1><p>Choose how your prepared messages reach people.</p></div></header>
     {params.automationSaved && <Notice type="success">Sending preferences saved.</Notice>}
-    {params.error && <Notice type="error">{params.error}</Notice>}
+    <UrlErrorNotice params={params} viewer={session} />
     {viewOnly && <ViewOnlySupportNotice />}
     <section className="card sending-status"><span className="status-pill">{automation?.enabled ? "Automatic sending on" : "You review and send"}</span><h2>{automation?.enabled ? "Your mixes can send for you" : "Every message starts with you"}</h2><p>{automation?.enabled ? "Prepared messages send after your review window. Quiet hours still apply." : "Open a follow-up in Today, make it your own, and choose when to send. Automatic sending is optional."}</p><Link className="button" href="/jumps">Open Today</Link></section>
     <section className="card automation-settings-card">

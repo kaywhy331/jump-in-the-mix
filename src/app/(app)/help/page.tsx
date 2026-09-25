@@ -4,6 +4,7 @@ import { SupportContext } from "@/components/SupportContext";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { SupportFaq } from "@/components/SupportFaq";
 import { requireWorkspace } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
@@ -17,7 +18,7 @@ import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Help" };
 
-type SearchParams = { error?: string };
+type SearchParams = { error?: string; at?: string; sig?: string };
 
 function SelfHostedHelp() {
   const email = env.emailReplyTo.trim();
@@ -41,7 +42,7 @@ function SelfHostedHelp() {
 
 export default async function HelpPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [query, context] = await Promise.all([searchParams, requireWorkspace()]);
-  const { workspace, user, impersonation } = context;
+  const { session, workspace, user, impersonation } = context;
   const displayPreferences = await displayPreferencesForUser(user.id);
 
   if (env.pilotMode) {
@@ -69,7 +70,7 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
         <div className="page-actions"><Link className="button" href="/account/tickets">My conversations</Link></div>
       </header>
 
-      {query.error && <Notice type="error">{query.error}</Notice>}
+      <UrlErrorNotice params={query} viewer={session} />
       {impersonation && <Notice type="info">This view is read-only. End the support session before submitting or replying.</Notice>}
 
       <div className="page-actions"><Link className="button" href="/onboarding">Getting started</Link><Link className="button" href="/journey">Review my Journey</Link></div>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { requireWorkspace } from "@/lib/auth";
 import { DuplicateMergeForm } from "@/components/DuplicateMergeForm";
 import { prisma } from "@/lib/prisma";
@@ -11,7 +12,7 @@ import { workspacePhoneRegion } from "@/lib/phone-number";
 
 export const metadata: Metadata = { title: "Duplicate Contacts" };
 
-type SearchParams = { error?: string };
+type SearchParams = { error?: string; at?: string; sig?: string };
 
 type CandidateContact = Awaited<ReturnType<typeof loadContacts>>[number];
 
@@ -41,13 +42,13 @@ function contactSummary(contact: CandidateContact) {
 }
 
 export default async function DuplicateContactsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [query, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
+  const [query, { session, workspace }] = await Promise.all([searchParams, requireWorkspace()]);
   const [contacts, region] = await Promise.all([loadContacts(workspace.id), workspacePhoneRegion(prisma, workspace.id)]);
   const { pairs, groups } = duplicateCandidates(contacts, DUPLICATE_PAIR_GROUP_LIMIT, region);
   const total = await prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null } });
   return (
     <div className="page duplicate-contacts-page">
-      {query.error && <Notice type="error">{query.error}</Notice>}
+      <UrlErrorNotice params={query} viewer={session} />
       <BackLink href="/contacts" label="Contacts" /><header className="page-header"><div><h1>Duplicate Contacts</h1><p>Review people with matching names or contact details, then choose which record to keep.</p></div><div className="page-actions"><Link className="button" href="/contacts/archived">Archived</Link></div></header>
       <Notice type="info">Merging keeps contact methods, saved dates, tags, custom values, completed follow-ups, and history together. The extra record is archived so the change remains traceable.</Notice>
       {total > contacts.length && <Notice type="info">This review covers {contacts.length.toLocaleString()} of {total.toLocaleString()} active contacts, ordered by name. Matches outside that range have not been checked. Contact support for a complete large-address-book review.</Notice>}

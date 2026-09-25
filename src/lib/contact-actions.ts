@@ -6,6 +6,7 @@ import { workflowContinuation } from "@/lib/workflow-continuation";
 import { customerReturnPath } from "@/lib/customer-return-path";
 import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
+import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import {
   buildContactCustomFieldInputs,
   validateContactCustomFieldInputs
@@ -17,6 +18,7 @@ import { canonicalPhoneKey, phoneLookupKeys, phoneRowKeys, workspacePhoneRegion 
 import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { ViewOnlySupportSessionError, requireWritableWorkspace } from "@/lib/writable-workspace";
+import { WorkspaceScopeError } from "@/lib/workspace-repository";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -26,8 +28,8 @@ function values(formData: FormData, key: string): string[] {
   return formData.getAll(key).map((item) => String(item));
 }
 
-function fail(path: string, message: string): never {
-  redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
+function fail(path: string, message: string, viewer: ErrorViewer): never {
+  redirect(withViewerError(path, message, viewer));
 }
 
 function withParam(path: string, key: string, parameterValue: string): string {
@@ -62,6 +64,9 @@ class ContactMethodConflict extends Error {
 /** The contact changed after the edit form was opened, so this save would undo that change. */
 class StaleContactSaveError extends Error {}
 
+/** A submitted value this form cannot save (an unavailable tag, date type or Mix); the message is shown as written. */
+class ContactInputError extends Error {}
+
 function methodConflict(kind: "phone" | "email", typed: string, owner: { displayName: string; archivedAt: Date | null }, field?: string): ContactMethodConflict {
   const other = kind === "phone" ? "number" : "address";
   if (owner.archivedAt) {
@@ -81,7 +86,8 @@ function methodConflict(kind: "phone" | "email", typed: string, owner: { display
 function formFailure(error: unknown, fallback: string): ContactFormState {
   if (error instanceof ContactMethodConflict) return { error: error.message, errorLink: error.link, ...(error.field ? { field: error.field } : {}) };
   if (error instanceof ContactFieldError) return { error: error.message, field: error.field };
-  return { error: error instanceof Error ? error.message : fallback };
+  // Anything else (a database or network failure) gets the fixed sentence, never its own text.
+  return { error: error instanceof ContactInputError || error instanceof WorkspaceScopeError ? error.message : fallback };
 }
 
 /** `<name>:<index>` for the first submitted, non-empty row that matches. */
@@ -174,12 +180,12 @@ async function initialFollowUpPayload(workspaceId: string, formData: FormData): 
   const reason = value(formData, "followUpReason") || "Follow up";
   const requestedMixId = value(formData, "followUpMixId");
   const dateValue = new Date(`${dateValueRaw}T12:00:00Z`);
-  if (!dateValueRaw || Number.isNaN(dateValue.getTime())) throw new Error("Choose a valid first follow-up date.");
+  if (!dateValueRaw || Number.isNaN(dateValue.getTime())) throw new ContactInputError("Choose a valid first follow-up date.");
   const dateType = await prisma.dateType.findFirst({
     where: { id: dateTypeId, isActive: true, OR: [{ workspaceId }, { workspaceId: null }] },
     select: { id: true }
   });
-  if (!dateType) throw new Error("The selected saved date type is unavailable.");
+  if (!dateType) throw new ContactInputError("The selected saved date type is unavailable.");
   if (!requestedMixId) return { dateTypeId: dateType.id, dateValue, reason, mixId: null };
   const mix = await prisma.mix.findFirst({
     where: {
@@ -192,7 +198,7 @@ async function initialFollowUpPayload(workspaceId: string, formData: FormData): 
     },
     select: { id: true }
   });
-  if (!mix) throw new Error("The selected follow-up mix is no longer active or does not match this saved date.");
+  if (!mix) throw new ContactInputError("The selected follow-up mix is no longer active or does not match this saved date.");
   return { dateTypeId: dateType.id, dateValue, reason, mixId: mix.id };
 }
 
@@ -206,12 +212,12 @@ async function validateContactPayload(workspaceId: string, region: string, paylo
       ? prisma.contactGroupMembership.findMany({ where: { contactId: excludeContactId }, select: { groupId: true } })
       : []
   ]);
-  if (groups.length !== payload.groupIds.length) throw new Error("One or more selected groups are not available in this workspace.");
+  if (groups.length !== payload.groupIds.length) throw new ContactInputError("One or more selected groups are not available in this workspace.");
   const existingGroupIds = new Set(existingMemberships.map((membership) => membership.groupId));
   const unavailableNewGroup = mergeGroupActivity(groups, groupStates)
     .some((group) => !group.isActive && !existingGroupIds.has(group.id));
   if (unavailableNewGroup) {
-    throw new Error("Hidden tags cannot receive new assignments. Choose an active tag from Contacts.");
+    throw new ContactInputError("Hidden tags cannot receive new assignments. Choose an active tag from Contacts.");
   }
 
   await validateContactCustomFieldInputs(prisma, workspaceId, payload.customFields);
@@ -374,11 +380,11 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
 }
 
 async function updateContact(formData: FormData): Promise<ContactFormState> {
-  const { workspace, user } = await requireWritableWorkspace();
+  const { workspace, user, session } = await requireWritableWorkspace();
   const contactId = value(formData, "contactId");
   const path = `/contacts/${contactId}/edit`;
   const existing = await prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, select: { id: true } });
-  if (!existing) fail("/contacts", "Contact not found.");
+  if (!existing) fail("/contacts", "Contact not found.", session);
 
   const region = await workspacePhoneRegion(prisma, workspace.id);
   let payload: ReturnType<typeof contactPayload>;
@@ -510,12 +516,15 @@ export async function saveContactFormAction(_previous: ContactFormState, formDat
   }
 }
 
+// The redirecting forms of the save: the error goes back to the form page, signed for the signed-in person.
 export async function createContactAction(formData: FormData): Promise<void> {
+  const { session } = await requireWritableWorkspace();
   const result = await createContact(formData);
-  if (result.error) fail("/contacts/new", result.error);
+  if (result.error) fail("/contacts/new", result.error, session);
 }
 
 export async function updateContactAction(formData: FormData): Promise<void> {
+  const { session } = await requireWritableWorkspace();
   const result = await updateContact(formData);
-  if (result.error) fail(`/contacts/${value(formData, "contactId")}/edit`, result.error);
+  if (result.error) fail(`/contacts/${value(formData, "contactId")}/edit`, result.error, session);
 }

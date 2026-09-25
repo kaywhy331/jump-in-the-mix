@@ -16,6 +16,7 @@ import { Notice } from "@/components/Notice";
 import { PreparationNotice } from "@/components/PreparationNotice";
 import { ReviewRequestButton } from "@/components/ReviewRequestButton";
 import { Sheet } from "@/components/Sheet";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { requireWorkspace } from "@/lib/auth";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { restoreContactAction } from "@/lib/contact-lifecycle-actions";
@@ -35,7 +36,7 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 export type ContactProfileSearchParams = {
   created?: string; dateCreated?: string; dateUpdated?: string; dateDeleted?: string; mixAssigned?: string; mixRemoved?: string;
   mixStopped?: string; mixResumed?: string; mixStopError?: string; mixResumeError?: string; updated?: string; inlineUpdated?: string;
-  stateUpdated?: string; merged?: string; restored?: string; error?: string;
+  stateUpdated?: string; merged?: string; restored?: string; error?: string; at?: string; sig?: string;
 };
 
 function addressText(address: { street1: string | null; street2: string | null; city: string | null; state: string | null; postalCode: string | null; country: string | null }): string {
@@ -43,7 +44,7 @@ function addressText(address: { street1: string | null; street2: string | null; 
 }
 
 export async function ContactProfile({ contactId, query = {}, embedded = false }: { contactId: string; query?: ContactProfileSearchParams; embedded?: boolean }) {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { session, workspace, user, impersonation } = await requireWorkspace();
   const preparation = await readPreparationStatus(workspace.id, contactId);
   const [contact, dateTypes, plans, stops, groupStates, relationshipState, mergeHistory, nextFollowUp, comingUp, journeyStages, journeyEvents] = await Promise.all([
     // Archived people are found too: an old link or merge note opens their archived state, not a 404.
@@ -80,7 +81,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
   if (contact.archivedAt) {
     return (
       <div className={`page contact-detail-page${embedded ? " contact-profile-embedded" : ""}`}>
-        {query.error && <Notice type="error">{query.error}</Notice>}
+        <UrlErrorNotice params={query} viewer={session} />
         <header className="contact-profile-header">
           <div className="contact-detail-header-actions">
             <ContactsBackLink className="contact-inline-action" ariaLabel="Back to contacts"><AppIcon name="chevronLeft" />Contacts</ContactsBackLink>
@@ -176,7 +177,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
       {query.mixResumed && <Notice type="success">Mix resumed.</Notice>}
       {query.mixStopError && <Notice type="error">Mix could not be stopped.</Notice>}
       {query.mixResumeError && <Notice type="error">Mix could not be resumed.</Notice>}
-      {query.error && <Notice type="error">{query.error}</Notice>}
+      <UrlErrorNotice params={query} viewer={session} />
       {state.doNotContact && <Notice type="info">Do not contact is on.</Notice>}
 
       <header className="contact-profile-header">

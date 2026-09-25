@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
+import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { originalLocalDateOf } from "@/lib/jump-engine";
 import { prisma } from "@/lib/prisma";
 import { mergeWorkflowContact } from "@/lib/mix-workflow";
@@ -12,8 +13,8 @@ function value(formData: FormData, key: string, maximum = 500): string {
   return String(formData.get(key) ?? "").trim().slice(0, maximum);
 }
 
-function fail(message: string): never {
-  redirect(`/contacts/duplicates?error=${encodeURIComponent(message)}`);
+function fail(message: string, viewer: ErrorViewer): never {
+  redirect(withViewerError("/contacts/duplicates", message, viewer));
 }
 
 function appendNote(current: string | null, incoming: string | null, sourceName: string): string | null {
@@ -50,19 +51,19 @@ async function loadMergeContact(workspaceId: string, contactId: string) {
 }
 
 export async function mergeContactsAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
-  if (impersonation) fail("View-only support sessions cannot merge Contacts.");
+  const { workspace, user, session, impersonation } = await requireWorkspace();
+  if (impersonation) fail("View-only support sessions cannot merge Contacts.", session);
   const survivorId = value(formData, "survivorContactId", 120);
   const sourceId = value(formData, "sourceContactId", 120);
   const confirmation = value(formData, "confirmation", 240);
-  if (!survivorId || !sourceId || survivorId === sourceId) fail("Choose two different Contacts and select the survivor.");
+  if (!survivorId || !sourceId || survivorId === sourceId) fail("Choose two different Contacts and select the survivor.", session);
 
   const [survivor, source] = await Promise.all([
     loadMergeContact(workspace.id, survivorId),
     loadMergeContact(workspace.id, sourceId)
   ]);
-  if (!survivor || !source) fail("One of the selected Contacts is no longer active.");
-  if (confirmation !== source.displayName) fail(`Type ${source.displayName} exactly to confirm the merge.`);
+  if (!survivor || !source) fail("One of the selected Contacts is no longer active.", session);
+  if (confirmation !== source.displayName) fail(`Type ${source.displayName} exactly to confirm the merge.`, session);
 
   const survivorEmails = new Set(survivor.emails.map((item) => item.normalized));
   // A number counts as the survivor's under its stored key or the key its display value has now, so a

@@ -7,6 +7,7 @@ import { FormSubmitButton } from "@/components/FormSubmitButton";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { updateQuietDayPreferenceFormAction, updateMixActivationPreferenceFormAction, updatePersonalPreferencesFormAction, updatePersonalSchedulingFormAction, updatePhoneRegionFormAction } from "@/lib/account-preference-actions";
 import { requireWorkspace } from "@/lib/auth";
@@ -19,10 +20,10 @@ import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Personal preferences" };
 
-type SearchParams = { journeySetup?: string; journeySaved?: string; quietDaysSaved?: string; mixActivationSaved?: string; error?: string; personalSaved?: string; schedulingSaved?: string; phoneRegion?: string; phoneRegionSaved?: string };
+type SearchParams = { journeySetup?: string; journeySaved?: string; quietDaysSaved?: string; mixActivationSaved?: string; error?: string; at?: string; sig?: string; personalSaved?: string; schedulingSaved?: string; phoneRegion?: string; phoneRegionSaved?: string };
 
 export default async function AccountPreferencesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [query, { user, workspace, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
+  const [query, { session, user, workspace, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
   if (impersonation) return <div className="page"><Notice type="info">Preferences are private during a view-only support session.</Notice></div>;
   const [userPreference, schedulingPreference] = await Promise.all([
     prisma.userPreference.findUnique({ where: { userId: user.id } }),
@@ -40,7 +41,7 @@ export default async function AccountPreferencesPage({ searchParams }: { searchP
 
   return <div className="page page--form account-preferences-page">
     {query.journeySaved && <Notice type="success">Journey preferences saved. Future flexible follow-ups use your working hours; new mega-mixes use your communication and spacing choices.</Notice>}
-    {query.error && <Notice type="error">{query.error}</Notice>}
+    <UrlErrorNotice params={query} viewer={session} />
     {query.quietDaysSaved && <Notice type="success">Quiet-day check-in preferences saved.</Notice>}
     {query.mixActivationSaved && <Notice type="success">Mix activation preference saved.</Notice>}
     {query.personalSaved && <Notice type="success">Personal preferences saved.</Notice>}

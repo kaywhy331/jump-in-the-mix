@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { ViewOnlySupportNotice } from "@/components/ViewOnlySupportNotice";
 import { JourneyRuleForm } from "@/components/JourneyRuleForm";
 import { requireWorkspace } from "@/lib/auth";
@@ -10,8 +11,8 @@ import { BackLink } from "@/components/BackLink";
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 export const metadata = { title: "Customer journey settings" };
-export default async function JourneySettings({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string; stage?: string }> }) {
-  const [{ workspace, impersonation }, query] = await Promise.all([requireWorkspace(), searchParams]);
+export default async function JourneySettings({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string; at?: string; sig?: string; stage?: string }> }) {
+  const [{ session, workspace, impersonation }, query] = await Promise.all([requireWorkspace(), searchParams]);
   const viewOnly = Boolean(impersonation);
   const [preference, stages, plans] = await Promise.all([
     prisma.journeyPreference.findUnique({ where: { workspaceId: workspace.id } }),
@@ -21,7 +22,7 @@ export default async function JourneySettings({ searchParams }: { searchParams: 
   const activeStages = stages.filter(stage => stage.isActive);
   const ruleStages = activeStages.map(stage => ({ id: stage.id, name: stage.name, planName: stage.plan?.status === "ACTIVE" ? stage.plan.name : null }));
   return <div className="page"><BackLink href="/settings" label="Settings" /><header className="page-header"><div><h1>Make the journey yours</h1><p>Choose the stages, triggers, and follow-ups that fit your business.</p></div><Link className="button" href="/journey">View journey</Link></header>
-    {query.error && <Notice type="error">{query.error}</Notice>}{query.saved && <Notice type="success">Journey settings saved.</Notice>}{viewOnly && <ViewOnlySupportNotice />}
+    <UrlErrorNotice params={query} viewer={session} />{query.saved && <Notice type="success">Journey settings saved.</Notice>}{viewOnly && <ViewOnlySupportNotice />}
     <section className="card"><h2>{preference ? preference.enabled ? "Automatic transitions are on" : "Automatic transitions are paused" : "Start with a simple journey"}</h2>{preference ? <><p className="journey-saved-stages">{activeStages.map(stage => stage.name).join(" → ")}</p><p>Your rules decide how people move. They can skip stages or return to an earlier one; the order above organizes your view.</p></> : <p>Start with Lead → Prospect → Client → Retention, then rename stages and choose the events that matter to your business.</p>}
       <p className="muted-copy">Existing contacts keep their history and stay unassigned until you choose a stage or record a milestone. {preference ? <>New contacts use the rules for <strong>{activeStages[0]?.name}</strong>, your first stage.</> : "New contacts use the rules for the first stage."} Changing a stage’s mix applies when someone next enters it; people already there keep their current mix.</p><form action={setJourneyEnabledAction}><input type="hidden" name="enabled" value={String(!preference?.enabled)} /><button className={`button ${preference?.enabled ? "" : "primary"}`} disabled={viewOnly}>{preference ? preference.enabled ? "Pause automatic transitions" : "Resume automatic transitions" : "Use this starting journey"}</button></form></section>
     {stages.map(stage => <details className="card journey-stage-settings" key={stage.id} id={`stage-${stage.id}`} open={query.stage === stage.id || undefined}><summary><strong>{stage.name}</strong><span>{stage.isActive ? `${stage._count.contacts} ${stage._count.contacts === 1 ? "person" : "people"} · ${stage.plan?.name ?? "No mix assigned"}` : "Retired"}</span></summary>
