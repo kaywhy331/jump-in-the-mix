@@ -59,6 +59,7 @@ describe("failedDeliveryNotice", () => {
       ["The prepared message is empty or cannot be sent automatically.", "the message was empty"],
       ["The prepared text exceeds Twilio's 1,600-character limit.", "the message was too long"],
       ["Automatic text delivery is not configured.", "automatic sending isn’t set up"],
+      ["The saved phone number could not be read with its country code, so it was not texted automatically.", "the saved phone number couldn’t be read with a country code"],
       ["Text delivery failed with status 400: The 'To' number is not a valid phone number.", "the provider rejected it"],
       ["Resend returned 422", "the provider rejected it"],
       [null, "the provider rejected it"]

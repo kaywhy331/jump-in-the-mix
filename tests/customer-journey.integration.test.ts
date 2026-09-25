@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { enableJourney, recordJourneyEvent, runJourneyMaintenance } from "@/lib/journey";
@@ -141,6 +141,28 @@ describe.skipIf(!local)("customer journey, scheduling and intake integration", (
     expect((await receiveIntake(source.id,{ eventId: "archived", phone: "+14155550123" },{ tokenHash: source.tokenHash })).status).toBe("REVIEW");
     await prisma.intakeConnection.update({ where: { id: source.id }, data: { enabled: false } });
     await expect(receiveIntake(source.id,{ eventId: "paused", email: "new@example.com" },{ tokenHash: source.tokenHash })).rejects.toThrow("unavailable");
+  });
+  it("matches and saves intake phones by the canonical key in the workspace's region, hashing the payload as before", async () => {
+    const source = await connection();
+    // A contact saved before the phone-key change keeps its format-based key until the sweep.
+    const saved = await prisma.contact.create({ data: { workspaceId, displayName: "Saved caller", phones: { create: { phone: "(415) 555-0124", normalized: "4155550124", isPrimary: true } } } });
+    const first = await receiveIntake(source.id,{ eventId: "phone-legacy", phone: "415.555.0124" },{ tokenHash: source.tokenHash });
+    expect(first).toMatchObject({ status: "ACCEPTED", contactId: saved.id });
+    // The receipt keeps the payload in the form hashed before this release, so a source retrying an old eventId still matches.
+    const receipt = await prisma.intakeReceipt.findUniqueOrThrow({ where: { id: first.receiptId } });
+    expect(receipt.payload).toMatchObject({ phone: "4155550124" });
+    const hashedBeforeRelease = { eventId: "phone-legacy", externalId: "", displayName: "", firstName: "", lastName: "", company: "", email: "", phone: "4155550124", message: "", eventType: "CONTACT_RECEIVED" };
+    expect(receipt.payloadHash).toBe(createHash("sha256").update(JSON.stringify(hashedBeforeRelease)).digest("hex"));
+    expect(await receiveIntake(source.id,{ eventId: "phone-legacy", phone: "415.555.0124" },{ tokenHash: source.tokenHash })).toMatchObject({ duplicate: true, contactId: saved.id });
+    // A new person is saved under the canonical key; the same number typed another way then matches them.
+    const created = await receiveIntake(source.id,{ eventId: "phone-new", phone: "(415) 555-0199", displayName: "New caller" },{ tokenHash: source.tokenHash });
+    expect(await prisma.contactPhone.findFirstOrThrow({ where: { contactId: created.contactId! } })).toMatchObject({ phone: "4155550199", normalized: "+14155550199" });
+    expect(await receiveIntake(source.id,{ eventId: "phone-new-2", phone: "+1 415 555 0199" },{ tokenHash: source.tokenHash })).toMatchObject({ status: "ACCEPTED", contactId: created.contactId });
+    // In a UK workspace a national number is read as a UK number.
+    await prisma.workspacePreference.create({ data: { workspaceId, phoneRegion: "GB" } });
+    const uk = await receiveIntake(source.id,{ eventId: "phone-uk", phone: "07911 123456", displayName: "UK caller" },{ tokenHash: source.tokenHash });
+    expect(await prisma.contactPhone.findFirstOrThrow({ where: { contactId: uk.contactId! } })).toMatchObject({ normalized: "+447911123456" });
+    expect(await receiveIntake(source.id,{ eventId: "phone-uk-2", phone: "+44 7911 123456" },{ tokenHash: source.tokenHash })).toMatchObject({ contactId: uk.contactId });
   });
   it("keeps hosted forms separate from privileged milestone connectors", async () => {
     const source = await connection("HOSTED_FORM");

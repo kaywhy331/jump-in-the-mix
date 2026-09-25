@@ -36,10 +36,10 @@ import { prisma } from "@/lib/prisma";
 import { readPreparationStatus } from "@/lib/preparation";
 import { snoozeJumpAction } from "@/lib/snooze-actions";
 import { snoozeChoices } from "@/lib/snooze-schedule";
-import { parseTodayCursor, readTodayPage } from "@/lib/today-list";
+import { followUpPhone, parseTodayCursor, readTodayPage } from "@/lib/today-list";
 import { calendarDaysOverdue, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
 import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
-import { dialablePhone } from "@/lib/phone-dial";
+import { phoneRegionOrDefault } from "@/lib/phone-number";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -198,9 +198,11 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const returnTo = currentCursor ? pageHref(currentCursor.direction, currentCursor.value) : firstHref;
   const scheduling = await prisma.workspacePreference.findUnique({
     where: { workspaceId: workspace.id },
-    select: { defaultFollowUpMinutes: true, quietHoursStart: true, quietHoursEnd: true, journeyPreferences: true, appointmentBufferMinutes: true }
+    select: { defaultFollowUpMinutes: true, quietHoursStart: true, quietHoursEnd: true, journeyPreferences: true, appointmentBufferMinutes: true, phoneRegion: true }
   });
   const ownerPreferred = readJourneyPreferences(scheduling?.journeyPreferences)?.communication ?? null;
+  // Numbers saved without a country code are read in the workspace's region; dial targets are computed here.
+  const phoneRegion = phoneRegionOrDefault(scheduling?.phoneRegion);
   const now = new Date();
   // The review's "not before" time comes from the worker's own rule (review window, quiet hours,
   // working hours, appointments) in the owner's timezone; the page only formats it for the viewer.
@@ -247,7 +249,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const renderCard = (followUp: (typeof ordered)[number]) => {
     const snapshot = (followUp.renderedSnapshot ?? {}) as Snapshot;
     const email = followUp.accessInvite?.recipientEmail ?? followUp.contact.emails.find((item) => item.isPrimary)?.email ?? followUp.contact.emails[0]?.email;
-    const phone = followUp.accessInvite?.recipientPhone ?? followUp.contact.phones.find((item) => item.isPrimary)?.phone ?? followUp.contact.phones[0]?.phone;
+    const { phone, dialTarget } = followUpPhone(followUp, phoneRegion);
     const planChannel = followUp.stepVersion.stepTemplate.channel;
     const isPending = pendingStatuses.includes(followUp.status);
     // The small preview never connects separate runs of a reusable Mix. Keep the
@@ -261,7 +263,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     // receive. The owner's choice for this follow-up wins while usable; otherwise the plan's channel.
     // WhatsApp needs a full international number; without one, a preferred WhatsApp text goes by SMS.
     const preferredChannel = followUp.contact.relationshipState?.preferredChannel ?? null;
-    const methods = { email: email ?? null, phone: phone ?? null, preferredChannel: preferredChannel === "WHATSAPP" && !dialablePhone(phone) ? null : preferredChannel };
+    const methods = { email: email ?? null, phone, preferredChannel: preferredChannel === "WHATSAPP" && !dialTarget ? null : preferredChannel };
     const automaticForPlan = !followUp.manualOnly && !followUp.accessInvite && automaticFor(planChannel);
     const prepared = planTemplate ? preparedVariants({ channel: planChannel, template: planTemplate }, variantsOfSnapshot(followUp.templateSnapshot, planChannel), methods) : [];
     const usable = usableVariants(prepared, methods);
@@ -332,7 +334,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       contactName={followUp.contact.displayName}
       channel={followUpChannel}
       email={email ?? null}
-      phone={phone ?? null}
+      phone={phone}
+      phoneDialTarget={dialTarget}
       initialSubject={preparedSubject}
       initialContent={content}
       family={family}

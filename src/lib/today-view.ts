@@ -33,6 +33,7 @@ function plainReason(stored: string): string {
   if (/exceeds|character limit|too long/i.test(stored)) return "the message was too long";
   if (/only email and text/i.test(stored)) return "only texts and emails can be sent automatically";
   if (/not configured/i.test(stored)) return "automatic sending isn’t set up";
+  if (/read with its country code/i.test(stored)) return "the saved phone number couldn’t be read with a country code";
   return "the provider rejected it";
 }
 

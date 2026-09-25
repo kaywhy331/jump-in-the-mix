@@ -2,6 +2,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { queueBoundReconciliation, saveCalendarEntryIn, type CalendarEntryInput } from "@/lib/calendar";
 import { isValidEmail, normalizeEmail, normalizePhone } from "@/lib/contact-input";
 import { applyJourneyEvent } from "@/lib/journey";
+import { phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
 import { boundPlanOutlook, type BoundPlanOutlook } from "@/lib/step-timing";
 
@@ -53,15 +54,18 @@ function nameParts(name: string): { firstName: string; lastName: string | null }
   return { firstName: parts[0] ?? "", lastName: parts.length > 1 ? parts.slice(1).join(" ") : null };
 }
 
-/** Every saved person the entered methods point at, with the method that matched each. */
-async function matchingContacts(tx: Prisma.TransactionClient, workspaceId: string, phone: string | null, email: string | null): Promise<ContactCandidate[]> {
-  if (!phone && !email) return [];
+/**
+ * Every saved person the entered methods point at, with the method that matched each. `phoneKeys` are
+ * the entered number's canonical key and, for rows saved before the phone-key change, its old one.
+ */
+async function matchingContacts(tx: Prisma.TransactionClient, workspaceId: string, phoneKeys: string[], email: string | null): Promise<ContactCandidate[]> {
+  if (!phoneKeys.length && !email) return [];
   const rows = await tx.contact.findMany({
-    where: { workspaceId, archivedAt: null, OR: [...(phone ? [{ phones: { some: { normalized: phone } } }] : []), ...(email ? [{ emails: { some: { normalized: email } } }] : [])] },
+    where: { workspaceId, archivedAt: null, OR: [...(phoneKeys.length ? [{ phones: { some: { normalized: { in: phoneKeys } } } }] : []), ...(email ? [{ emails: { some: { normalized: email } } }] : [])] },
     select: {
       id: true,
       displayName: true,
-      phones: { where: { normalized: phone ?? "" }, select: { id: true }, take: 1 },
+      phones: { where: { normalized: { in: phoneKeys } }, select: { id: true }, take: 1 },
       emails: { where: { normalized: email ?? "" }, select: { id: true }, take: 1 }
     },
     orderBy: [{ displayName: "asc" }, { id: "asc" }],
@@ -79,11 +83,14 @@ async function matchingContacts(tx: Prisma.TransactionClient, workspaceId: strin
 async function findOrCreateContact(tx: Prisma.TransactionClient, workspaceId: string, input: NonNullable<ScheduleVisitInput["newContact"]>): Promise<{ id: string; created: boolean }> {
   const name = input.name.trim();
   if (!name || name.length > 200) throw new Error("Enter the person's name.");
-  const phone = input.phone?.trim() ? normalizePhone(input.phone) : null;
-  if (input.phone?.trim() && !phone) throw new Error("Enter a phone number with 7 to 15 digits.");
+  const typedPhone = input.phone?.trim() ?? "";
+  if (typedPhone && !normalizePhone(typedPhone)) throw new Error("Enter a phone number with 7 to 15 digits.");
+  // [canonical, old key]: a new person is saved under the first; a match may still hold the second.
+  const phoneKeys = typedPhone ? phoneLookupKeys(typedPhone, await workspacePhoneRegion(tx, workspaceId)) : [];
+  const phone = phoneKeys[0] ?? null;
   const email = input.email?.trim() ? normalizeEmail(input.email) : null;
   if (email && !isValidEmail(email)) throw new Error("Enter a valid email address.");
-  const candidates = await matchingContacts(tx, workspaceId, phone, email);
+  const candidates = await matchingContacts(tx, workspaceId, phoneKeys, email);
   if (input.resolvedContactId) {
     const chosen = candidates.find((candidate) => candidate.id === input.resolvedContactId);
     if (!chosen) throw new Error("The person you chose no longer matches these details. Check the phone and email, then save again.");

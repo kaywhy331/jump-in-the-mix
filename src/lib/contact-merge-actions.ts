@@ -6,6 +6,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { originalLocalDateOf } from "@/lib/jump-engine";
 import { prisma } from "@/lib/prisma";
 import { mergeWorkflowContact } from "@/lib/mix-workflow";
+import { canonicalRowKey, phoneRowKeys, workspacePhoneRegion } from "@/lib/phone-number";
 
 function value(formData: FormData, key: string, maximum = 500): string {
   return String(formData.get(key) ?? "").trim().slice(0, maximum);
@@ -64,7 +65,11 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
   if (confirmation !== source.displayName) fail(`Type ${source.displayName} exactly to confirm the merge.`);
 
   const survivorEmails = new Set(survivor.emails.map((item) => item.normalized));
-  const survivorPhones = new Set(survivor.phones.map((item) => item.normalized));
+  // A number counts as the survivor's under its stored key or the key its display value has now, so a
+  // row saved before the phone-key change still matches; a copied row gets the canonical key.
+  const region = await workspacePhoneRegion(prisma, workspace.id);
+  const survivorPhoneKeys = new Set(survivor.phones.flatMap((item) => phoneRowKeys(item, region)));
+  const survivorPhones = new Set(survivorPhoneKeys);
   const survivorAddresses = new Set(survivor.addresses.map(addressKey));
   const survivorGroups = new Set(survivor.groupMemberships.map((item) => item.groupId));
   const survivorFields = new Map(survivor.customFieldValues.map((item) => [item.definitionId, item]));
@@ -97,9 +102,10 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
       survivorEmails.add(email.normalized);
     }
     for (const phone of source.phones) {
-      if (survivorPhones.has(phone.normalized)) continue;
-      await tx.contactPhone.create({ data: { contactId: survivor.id, phone: phone.phone, normalized: phone.normalized, label: phone.label, isPrimary: !survivor.phones.length && phone.isPrimary } });
-      survivorPhones.add(phone.normalized);
+      const keys = phoneRowKeys(phone, region);
+      if (keys.some((key) => survivorPhones.has(key))) continue;
+      await tx.contactPhone.create({ data: { contactId: survivor.id, phone: phone.phone, normalized: canonicalRowKey(phone, region), label: phone.label, isPrimary: !survivor.phones.length && phone.isPrimary } });
+      for (const key of keys) survivorPhones.add(key);
     }
     for (const address of source.addresses) {
       const key = addressKey(address);
@@ -240,7 +246,7 @@ export async function mergeContactsAction(formData: FormData): Promise<void> {
         sourceSnapshot: sourceSnapshot(source),
         mergeSummary: {
           copiedEmails: source.emails.filter((item) => !survivor.emails.some((existing) => existing.normalized === item.normalized)).length,
-          copiedPhones: source.phones.filter((item) => !survivor.phones.some((existing) => existing.normalized === item.normalized)).length,
+          copiedPhones: source.phones.filter((item) => !phoneRowKeys(item, region).some((key) => survivorPhoneKeys.has(key))).length,
           movedDates: source.jumpDates.length,
           movedAssignments: source.mixAssignments.length,
           copiedStops,

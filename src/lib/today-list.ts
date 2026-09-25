@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { storedPhoneDialTarget } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
 
 export const TODAY_PAGE_SIZE = 30;
@@ -55,7 +56,7 @@ const select = {
       appointmentBindingId: true, templateSnapshot: true, mixStep: { select: { dayOffset: true, plannedAt: true } }
     } },
     displayName: true, updatedAt: true, firstName: true, lastName: true, company: true, publicNotes: true, privateNotes: true,
-    emails: { select: { email: true, isPrimary: true } }, phones: { select: { phone: true, isPrimary: true } },
+    emails: { select: { email: true, isPrimary: true } }, phones: { select: { phone: true, normalized: true, isPrimary: true } },
     addresses: { select: { street1: true, street2: true, city: true, state: true, postalCode: true, country: true, isPrimary: true } },
     customFieldValues: { select: { value: true, definition: { select: { key: true } } } },
     // The person's stated preference decides whether a text alternative goes by WhatsApp; it is never inferred.
@@ -64,6 +65,22 @@ const select = {
   mix: { select: { name: true, source: true } },
   stepVersion: { select: { stepTemplate: { select: { channel: true } } } }
 } satisfies Prisma.JumpSelect;
+
+/**
+ * The number a follow-up's text or call goes to (an invitation's own number first, then the person's
+ * primary number, then their first), and the E.164 form to dial it with. The dial target is computed
+ * here on the server from the stored canonical key, so the browser never needs the phone metadata; it
+ * is null when the number has no full international form (see `phoneDialTarget`).
+ */
+export function followUpPhone(
+  item: { accessInvite: { recipientPhone: string | null } | null; contact: { phones: Array<{ phone: string; normalized: string; isPrimary: boolean }> } },
+  region: string
+): { phone: string | null; dialTarget: string | null } {
+  const invited = item.accessInvite?.recipientPhone;
+  if (invited) return { phone: invited, dialTarget: storedPhoneDialTarget({ phone: invited, normalized: invited }, region) };
+  const row = item.contact.phones.find((phone) => phone.isPrimary) ?? item.contact.phones[0];
+  return row ? { phone: row.phone, dialTarget: storedPhoneDialTarget(row, region) } : { phone: null, dialTarget: null };
+}
 
 /** Cursor values describe an ordering position, never a workspace or authority.
  * Open work precedes completed history; both groups sort by time and stable ID.

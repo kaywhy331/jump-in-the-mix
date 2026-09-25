@@ -11,6 +11,7 @@ import { AccessInviteError, allocateAccessInvite } from "@/lib/referral-access";
 import { lockAccess } from "@/lib/access-lock";
 import { REFERRAL_INVITE_LIMIT, SystemMixError } from "@/lib/system-mix";
 import { isValidEmail, normalizePhone } from "@/lib/contact-input";
+import { phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
 
 const path = "/mixes/system";
 function fail(message: string): never { redirect(`${path}?error=${encodeURIComponent(message)}`); }
@@ -30,23 +31,25 @@ export async function sendSystemInviteAction(formData: FormData): Promise<void> 
   const names = formData.getAll("name").map(value => String(value).trim().slice(0, 160));
   const contactIds = formData.getAll("contactId").map(String);
   if (addresses.length < 1 || addresses.length > REFERRAL_INVITE_LIMIT || addresses.some(address => !address)) fail("Add one to three email addresses or text numbers.");
+  const region = await workspacePhoneRegion(prisma, workspace.id);
   const recipients = addresses.map((address, index) => {
     const email = address.includes("@") ? address.toLowerCase() : null;
     const phone = email ? null : normalizePhone(address);
     if (email ? !isValidEmail(email) : !phone || !/^[+\d\s().-]+$/.test(address)) fail("Enter a valid email address or text number for each person.");
-    return { email, phone, name: names[index] || address, contactId: contactIds[index] || "" };
+    // [canonical, old key]: a new contact is saved under the first; a saved one may still hold the second.
+    return { email, phone, phoneKeys: phone ? phoneLookupKeys(address, region) : [], name: names[index] || address, contactId: contactIds[index] || "" };
   });
-  if (new Set(recipients.map(person => person.email ?? person.phone)).size !== recipients.length) fail("Each invitation needs a different email address or text number.");
+  if (new Set(recipients.map(person => person.email ?? person.phoneKeys[0])).size !== recipients.length) fail("Each invitation needs a different email address or text number.");
   try {
     await prisma.$transaction(async tx => {
       await lockAccess(tx);
       const selectedContacts = new Set<string>();
       for (const person of recipients) {
-        const matches = person.contactId ? [] : await tx.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null, ...(person.email ? { emails: { some: { normalized: person.email } } } : { phones: { some: { normalized: person.phone! } } }) }, select: { id: true }, take: 2 });
+        const matches = person.contactId ? [] : await tx.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null, ...(person.email ? { emails: { some: { normalized: person.email } } } : { phones: { some: { normalized: { in: person.phoneKeys } } } }) }, select: { id: true }, take: 2 });
         if (matches.length > 1) throw new AccessInviteError("More than one contact has these details. Choose a saved contact.");
         const contactId = person.contactId || matches[0]?.id || (await tx.contact.create({ data: {
           workspaceId: workspace.id, displayName: person.name, firstName: person.name,
-          ...(person.email ? { emails: { create: { email: person.email, normalized: person.email, isPrimary: true } } } : { phones: { create: { phone: person.phone!, normalized: person.phone!, isPrimary: true } } })
+          ...(person.email ? { emails: { create: { email: person.email, normalized: person.email, isPrimary: true } } } : { phones: { create: { phone: person.phone!, normalized: person.phoneKeys[0], isPrimary: true } } })
         } })).id;
         if (selectedContacts.has(contactId)) throw new AccessInviteError("Choose each person only once per batch.");
         selectedContacts.add(contactId);

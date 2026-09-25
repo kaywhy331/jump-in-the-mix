@@ -80,4 +80,20 @@ describe("duplicateCandidates", () => {
     expect(review.pairs[0].reasons).toEqual(["Same email · lead@example.com"]);
     expect(review.groups).toHaveLength(1);
   });
+
+  it("groups by the canonical key in the workspace's region, swept or not, keeping extensions apart", () => {
+    const swept = (id: string, name: string, phone: string, normalized: string) => ({ id, displayName: name, company: null, emails: [], phones: [{ phone, normalized }] });
+    const review = duplicateCandidates([
+      swept("a", "Ada Legacy", "07911 123456", "07911123456"),
+      swept("b", "Bea Swept", "+44 7911 123456", "+447911123456"),
+      swept("c", "Cy Other", "07911 654321", "+447911654321"),
+      swept("d", "Desk One", "020 7946 0958 ext 12", "+442079460958;ext=12"),
+      swept("e", "Desk Two", "020 7946 0958 ext 13", "0207946095813")
+    ], DUPLICATE_PAIR_GROUP_LIMIT, "GB");
+    expect(pairIds(review)).toEqual(["a:b"]);
+    expect(phoneDuplicateKey({ phone: "07911 123456", normalized: "07911123456" }, "GB")).toBe("+447911123456");
+    expect(phoneDuplicateKey({ phone: "555-234-5678 x12", normalized: "555234567812" }, "US")).toBe("+15552345678;ext=12");
+    // Without a region the North American reading of the display value is kept (the page's behaviour before it passes one).
+    expect(pairIds(duplicateCandidates([swept("a", "Ada Legacy", "07911 123456", "07911123456"), swept("b", "Bea Swept", "+44 7911 123456", "+447911123456")]))).toEqual([]);
+  });
 });

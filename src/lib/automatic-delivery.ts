@@ -9,7 +9,7 @@ import { isValidTimezone } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
 import { processWorkflowInstance, queueWorkflowForJump } from "@/lib/mix-workflow";
 import { preparationFamilyForChannel } from "@/lib/preparation-family";
-import { dialablePhone } from "@/lib/phone-dial";
+import { phoneRegionOrDefault, storedPhoneDialTarget } from "@/lib/phone-number";
 import { escapeHtml, sendTransactionalEmail, transactionalEmailConfigured } from "@/lib/transactional-email";
 
 const uncertainLeaseMs = 20 * 60_000;
@@ -66,9 +66,16 @@ async function sendTwilioSms(to: string, body: string): Promise<string> {
   return payload.sid;
 }
 
-async function deliver(channel: Channel, recipient: string, prepared: PreparedDelivery, jumpId: string, company: string): Promise<string | null> {
-  // Twilio needs E.164; the stored display value stays the recorded recipient.
-  if (channel === "SMS") return sendTwilioSms(dialablePhone(recipient) ?? recipient, prepared.body);
+/** The error when a saved number has no full international form: nothing is texted on a guess. */
+export const UNDIALABLE_PHONE_ERROR = "The saved phone number could not be read with its country code, so it was not texted automatically.";
+
+async function deliver(channel: Channel, recipient: string, textTo: string | null, prepared: PreparedDelivery, jumpId: string, company: string): Promise<string | null> {
+  // Twilio gets the E.164 number from the stored canonical key (see phone-number.ts); the stored
+  // display value stays the recorded recipient. A number without one is never sent as typed.
+  if (channel === "SMS") {
+    if (!textTo) throw new Error(UNDIALABLE_PHONE_ERROR);
+    return sendTwilioSms(textTo, prepared.body);
+  }
   if (channel !== "EMAIL") throw new Error("Only email and text follow-ups can be sent automatically.");
   if (!automaticEmailConfigured()) throw new Error("Automatic email delivery is not configured.");
   const result = await sendTransactionalEmail({
@@ -124,6 +131,7 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
       prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })
     ]);
     const timeZone = isValidTimezone(display?.timezone ?? "") ? display!.timezone : "UTC";
+    const phoneRegion = phoneRegionOrDefault(scheduling?.phoneRegion);
     // One sending rule, shared with Today's review line and the settings preview. Quiet hours close
     // the workspace for this pass before anything else is read; working hours and appointments next.
     const quietHours = scheduling ? { start: scheduling.quietHoursStart, end: scheduling.quietHoursEnd } : null;
@@ -170,9 +178,9 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
       const eligibleAt = window.eligibleAt;
       const channel = jump.stepVersion.stepTemplate.channel;
       if (jump.selectedFamily && jump.selectedFamily !== preparationFamilyForChannel(channel)) continue;
-      const recipient = channel === "EMAIL"
-        ? primaryValue(jump.contact.emails)?.email
-        : channel === "SMS" ? primaryValue(jump.contact.phones)?.phone : undefined;
+      const phoneRow = channel === "SMS" ? primaryValue(jump.contact.phones) : undefined;
+      const recipient = channel === "EMAIL" ? primaryValue(jump.contact.emails)?.email : phoneRow?.phone;
+      const textTo = phoneRow ? storedPhoneDialTarget(phoneRow, phoneRegion) : null;
       const prepared = preparedDelivery(jump.renderedSnapshot, channel);
       let deliveryId: string;
       try {
@@ -225,7 +233,7 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
 
         const currentPrepared = preparedDelivery(currentJump.renderedSnapshot, channel);
         if (!currentPrepared) throw new Error("The prepared message is empty or cannot be sent automatically.");
-        const providerId = await deliver(channel, recipient, currentPrepared, jump.id, workspace.profile?.company || workspace.name);
+        const providerId = await deliver(channel, recipient, textTo, currentPrepared, jump.id, workspace.profile?.company || workspace.name);
         await prisma.automatedDelivery.updateMany({
           where: { id: deliveryId, lockedBy: workerId, status: "PROCESSING" },
           data: { providerId }

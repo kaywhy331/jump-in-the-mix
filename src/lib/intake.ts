@@ -4,6 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeEmail, normalizePhone, isValidEmail } from "@/lib/contact-input";
 import { applyJourneyEvent } from "@/lib/journey";
+import { canonicalPhoneKey, phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
 
 const short = (max: number) => z.string().trim().max(max).optional().default("");
 const intakeSchema = z.object({
@@ -14,6 +15,12 @@ const intakeSchema = z.object({
 }).strict();
 export type IntakePayload = z.infer<typeof intakeSchema>;
 export class IntakeError extends Error { constructor(message: string, public status = 400) { super(message); } }
+/**
+ * The submitted phone is reduced to its format-based key here, before the connection (and so the
+ * workspace's phone region) is known. That form is what `payloadHash` covers, so a source retrying
+ * an eventId it sent before this release still matches; the canonical key is derived from it once the
+ * workspace is known (`intakeMatches`, `acceptIntake`).
+ */
 export function parseIntakePayload(value: unknown): IntakePayload {
   const parsed = intakeSchema.safeParse(value);
   if (!parsed.success) throw new IntakeError("Map an eventId and supported contact fields. Names are limited to 160 characters and messages to 4,000 characters.");
@@ -30,17 +37,18 @@ export async function intakeMatches(tx: Prisma.TransactionClient, workspaceId: s
   const identity = data.externalId ? await tx.intakeIdentity.findUnique({ where: { connectionId_externalId: { connectionId, externalId: data.externalId } } }) : null;
   const conditions: Prisma.ContactWhereInput[] = [];
   if (data.email) conditions.push({ emails: { some: { normalized: data.email } } });
-  if (data.phone) conditions.push({ phones: { some: { normalized: data.phone } } });
+  if (data.phone) conditions.push({ phones: { some: { normalized: { in: phoneLookupKeys(data.phone, await workspacePhoneRegion(tx, workspaceId)) } } } });
   if (identity) conditions.push({ id: identity.contactId });
   return conditions.length ? tx.contact.findMany({ where: { workspaceId, OR: conditions }, select: { id: true, displayName: true, archivedAt: true }, take: 21 }) : [];
 }
 
 async function acceptIntake(tx: Prisma.TransactionClient, connection: { id: string; workspaceId: string; name: string; kind: string }, data: IntakePayload, existingId?: string) {
+  const phoneKey = !existingId && data.phone ? canonicalPhoneKey(data.phone, await workspacePhoneRegion(tx, connection.workspaceId)) : null;
   const contact = existingId ? await tx.contact.findFirst({ where: { id: existingId, workspaceId: connection.workspaceId, archivedAt: null } }) : await tx.contact.create({ data: {
     workspaceId: connection.workspaceId, displayName: data.displayName || [data.firstName, data.lastName].filter(Boolean).join(" ") || data.company || data.email || data.phone || "New contact",
     firstName: data.firstName || null, lastName: data.lastName || null, company: data.company || null, source: connection.kind === "HOSTED_FORM" ? "WEBSITE" : "API",
     emails: data.email ? { create: { email: data.email, normalized: data.email, isPrimary: true } } : undefined,
-    phones: data.phone ? { create: { phone: data.phone, normalized: data.phone, isPrimary: true } } : undefined
+    phones: data.phone && phoneKey ? { create: { phone: data.phone, normalized: phoneKey, isPrimary: true } } : undefined
   } });
   if (!contact) throw new IntakeError("Choose an active contact in this business.");
   // Incoming submissions never overwrite contact details, permissions, or stops.

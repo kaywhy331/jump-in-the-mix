@@ -11,6 +11,7 @@ import { restoreContactAction } from "@/lib/contact-lifecycle-actions";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 import { phoneSearchDigits } from "@/lib/phone-dial";
+import { phoneQueryKeys } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
 
@@ -24,8 +25,9 @@ export default async function ArchivedContactsPage({ searchParams }: { searchPar
   const displayPreferences = await displayPreferencesForUser(user.id);
   const q = query.q?.trim() ?? "";
   const requestedPage = Math.max(Number.parseInt(query.page ?? "1", 10) || 1, 1);
-  // A number typed with different punctuation than it was saved with still finds the person.
-  const phoneFilters: Prisma.ContactWhereInput[] = phoneSearchDigits(q).map((digits) => ({ phones: { some: { normalized: { contains: digits } } } }));
+  // A number typed with different punctuation than it was saved with still finds the person; a whole
+  // number also finds its canonical key in the workspace's region (a national form such as 07911 123456).
+  const phoneFilters: Prisma.ContactWhereInput[] = [...new Set([...phoneSearchDigits(q), ...await phoneQueryKeys(prisma, workspace.id, q)])].map((digits) => ({ phones: { some: { normalized: { contains: digits } } } }));
   const where: Prisma.ContactWhereInput = {
     workspaceId: workspace.id,
     archivedAt: { not: null },

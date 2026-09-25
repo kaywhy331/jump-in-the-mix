@@ -1,4 +1,5 @@
 import { phoneEquivalenceKey, stripPhoneExtension } from "@/lib/phone-dial";
+import { canonicalRowKey } from "@/lib/phone-number";
 
 export type DuplicateCandidateContact = {
   id: string;
@@ -25,9 +26,13 @@ function normalizedText(value: string | null | undefined): string {
 /**
  * One key per real-world number however it was typed: "(555) 234-5678", "+1 555 234 5678" and
  * "15552345678" agree. An extension keeps its own key, because x12 and x13 on one office line
- * are two desks, not one person.
+ * are two desks, not one person. With the workspace's phone region this is the canonical phone key
+ * (which keeps the extension, `+15552345678;ext=12`), read from the display value so a row the
+ * phone-key sweep has not reached yet groups with its swept twins; without it, the North American
+ * reading of the display value.
  */
-export function phoneDuplicateKey(phone: { phone: string; normalized: string }): string {
+export function phoneDuplicateKey(phone: { phone: string; normalized: string }, region?: string): string {
+  if (region) return canonicalRowKey(phone, region);
   const key = phoneEquivalenceKey(phone.phone) ?? phone.normalized;
   const extension = phone.phone.slice(stripPhoneExtension(phone.phone).length).replace(/\D/g, "");
   return extension ? `${key} x${extension}` : key;
@@ -50,11 +55,11 @@ function byId<T extends { id: string }>(left: T, right: T): number {
  * format) or a name plus company, with the reasons per pair. A value shared by more than
  * `limit` people is returned as one group instead of n(n-1)/2 pairs.
  */
-export function duplicateCandidates<T extends DuplicateCandidateContact>(contacts: T[], limit = DUPLICATE_PAIR_GROUP_LIMIT): DuplicateReview<T> {
+export function duplicateCandidates<T extends DuplicateCandidateContact>(contacts: T[], limit = DUPLICATE_PAIR_GROUP_LIMIT, region?: string): DuplicateReview<T> {
   const buckets = { email: new Map<string, Bucket<T>>(), phone: new Map<string, Bucket<T>>(), name: new Map<string, Bucket<T>>() };
   for (const contact of contacts) {
     for (const email of contact.emails) collect(buckets.email, email.normalized, contact, email.email);
-    for (const phone of contact.phones) collect(buckets.phone, phoneDuplicateKey(phone), contact, phone.phone);
+    for (const phone of contact.phones) collect(buckets.phone, phoneDuplicateKey(phone, region), contact, phone.phone);
     const name = normalizedText(contact.displayName);
     if (name.length >= 4) collect(buckets.name, [name, normalizedText(contact.company)].filter(Boolean).join("|"), contact, contact.displayName, contact.company);
   }

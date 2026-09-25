@@ -8,16 +8,18 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
 import { TimezonePicker } from "@/components/TimezonePicker";
-import { updateQuietDayPreferenceFormAction, updateMixActivationPreferenceFormAction, updatePersonalPreferencesFormAction, updatePersonalSchedulingFormAction } from "@/lib/account-preference-actions";
+import { updateQuietDayPreferenceFormAction, updateMixActivationPreferenceFormAction, updatePersonalPreferencesFormAction, updatePersonalSchedulingFormAction, updatePhoneRegionFormAction } from "@/lib/account-preference-actions";
 import { requireWorkspace } from "@/lib/auth";
 import { APPOINTMENT_BUFFER_CHOICES, normalizeBufferMinutes } from "@/lib/calendar-availability";
 import { formatTimeInput } from "@/lib/mix-broadcast";
+import { countPhonesReadAgain } from "@/lib/phone-canonicalization";
+import { PHONE_REGIONS, isPhoneRegion, phoneRegionLabel, phoneRegionOrDefault } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Personal preferences" };
 
-type SearchParams = { journeySetup?: string; journeySaved?: string; quietDaysSaved?: string; mixActivationSaved?: string; error?: string; personalSaved?: string; schedulingSaved?: string };
+type SearchParams = { journeySetup?: string; journeySaved?: string; quietDaysSaved?: string; mixActivationSaved?: string; error?: string; personalSaved?: string; schedulingSaved?: string; phoneRegion?: string; phoneRegionSaved?: string };
 
 export default async function AccountPreferencesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [query, { user, workspace, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
@@ -28,6 +30,13 @@ export default async function AccountPreferencesPage({ searchParams }: { searchP
   ]);
   const quietHoursStart = schedulingPreference?.quietHoursStart ?? 1200;
   const quietHoursEnd = schedulingPreference?.quietHoursEnd ?? 480;
+  // The country for numbers saved without a country code. Choosing another one shows how many saved
+  // numbers it reads again before the owner confirms, because calls and automatic texts follow the key.
+  const phoneRegion = phoneRegionOrDefault(schedulingPreference?.phoneRegion);
+  const regionName = (code: string) => PHONE_REGIONS.find(region => region.code === code)?.name ?? code;
+  const ownsWorkspace = workspace.ownerId === user.id;
+  const requestedRegion = ownsWorkspace && isPhoneRegion(query.phoneRegion) && query.phoneRegion !== phoneRegion ? query.phoneRegion : null;
+  const readAgain = requestedRegion ? await countPhonesReadAgain(workspace.id, phoneRegion, requestedRegion) : 0;
 
   return <div className="page page--form account-preferences-page">
     {query.journeySaved && <Notice type="success">Journey preferences saved. Future flexible follow-ups use your working hours; new mega-mixes use your communication and spacing choices.</Notice>}
@@ -36,11 +45,14 @@ export default async function AccountPreferencesPage({ searchParams }: { searchP
     {query.mixActivationSaved && <Notice type="success">Mix activation preference saved.</Notice>}
     {query.personalSaved && <Notice type="success">Personal preferences saved.</Notice>}
     {query.schedulingSaved && <Notice type="success">Scheduling defaults saved. Pending follow-ups are updating in the background.</Notice>}
+    {query.phoneRegionSaved && <Notice type="success">Country for phone numbers saved. Saved numbers are updating in the background.</Notice>}
     <BackLink href="/account" label="My Account" /><header className="page-header"><div><h1>Personal preferences</h1><p>Choose how your account identifies you and schedules relationship work.</p></div></header>
 
     <p><Link href="/settings/business">Review message signatures</Link> · <Link href="/settings/sending">Review sending defaults</Link></p>
     <section className="card"><h2>Make yourself at home</h2><AppearanceControl /></section>
     <section className="card"><div className="card-header"><div><h2>Profile</h2><p>These details apply to your personal account.</p></div></div><ActionForm protect action={updatePersonalPreferencesFormAction} className="form-grid"><label className="field"><span>Display name</span><input name="name" defaultValue={user.name} maxLength={120} required /></label><label className="field"><span>Locale</span><select name="locale" defaultValue={userPreference?.locale ?? "en-US"}><option value="en-US">English · United States</option><option value="en-CA">English · Canada</option><option value="en-GB">English · United Kingdom</option><option value="en-AU">English · Australia</option></select></label><div className="field full"><span className="field-label">Timezone</span><TimezonePicker name="timezone" id="personal-timezone" label="Personal timezone" defaultValue={userPreference?.timezone ?? "UTC"} /></div><div className="form-actions field full"><FormSubmitButton label="Save profile" pendingLabel="Saving…" /></div></ActionForm></section>
+
+    <section className="card" id="phone-region"><div className="card-header"><div><h2>Phone numbers</h2><p>Numbers saved without a country code are read as this country’s numbers.</p></div></div>{requestedRegion ? <div className="form-stack"><Notice type="info">Change to {phoneRegionLabel(requestedRegion)}? {readAgain === 0 ? "No saved numbers are read differently." : `${readAgain} saved number${readAgain === 1 ? " is" : "s are"} read again as ${regionName(requestedRegion)} numbers, so calls and automatic texts to ${readAgain === 1 ? "it" : "them"} use the new reading.`} Numbers saved with + and a country code don’t change.</Notice><ActionForm action={updatePhoneRegionFormAction} className="form-stack"><input type="hidden" name="phoneRegion" value={requestedRegion} /><div className="form-actions"><FormSubmitButton label={`Use ${regionName(requestedRegion)}`} pendingLabel="Saving…" /><Link className="button" href="/account/preferences#phone-region">Keep {regionName(phoneRegion)}</Link></div></ActionForm></div> : ownsWorkspace ? <form className="form-grid" action="/account/preferences#phone-region"><label className="field"><span>Country for phone numbers</span><select name="phoneRegion" defaultValue={phoneRegion}>{PHONE_REGIONS.map(region => <option key={region.code} value={region.code}>{region.name} (+{region.callingCode})</option>)}</select><small>Numbers saved with + and a country code keep their own country.</small></label><div className="form-actions field full"><button className="button primary" type="submit">Review change</button></div></form> : <p>{phoneRegionLabel(phoneRegion)}. Only the account owner can change this.</p>}</section>
 
     <section className="card"><h2>Starting mixes</h2><p>Choose what happens when you save a mix with “Start the mix” selected.</p><ActionForm protect action={updateMixActivationPreferenceFormAction} className="form-stack"><label className="field"><span>Mix activation</span><select name="mixActivation" defaultValue={userPreference?.reviewMixActivation === false ? "DIRECT" : "REVIEW"}><option value="REVIEW">Review who gets it before activating</option><option value="DIRECT">Activate when I save</option></select><small>You can still review first on any mix. Activation prepares follow-ups using your existing audience and sending settings.</small></label><div className="form-actions"><FormSubmitButton label="Save activation preference" pendingLabel="Saving…" /></div></ActionForm></section>
 

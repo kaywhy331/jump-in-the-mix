@@ -7,6 +7,7 @@ vi.mock("@/lib/env", () => ({ env: { pilotMode: false } }));
 vi.mock("@/lib/integration-crypto", () => ({ integrationEncryptionConfigured: () => true }));
 vi.mock("@/lib/referral-access", () => ({ AccessInviteError: class extends Error {}, allocateAccessInvite: mocks.allocate }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
+  workspacePreference: { findUnique: async () => null },
   $transaction: (fn: any) => fn({ $executeRaw: vi.fn(), referralAccessInvite: { updateMany: mocks.update }, waitlistDelivery: { updateMany: mocks.cancel }, jump: { updateMany: mocks.cancelReminder }, contact: { findMany: mocks.contacts, create: mocks.createContact } })
 } }));
 vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: mocks.rate }));
@@ -23,6 +24,13 @@ describe("personal invitation reminders", () => {
     await expect(sendSystemInviteAction(form(["CONTACT@example.com", "+1 (555) 010-0123"]))).rejects.toThrow("REDIRECT /jumps?invitations=2");
     expect(mocks.allocate).toHaveBeenCalledTimes(2);
     expect(mocks.allocate).toHaveBeenNthCalledWith(2, expect.anything(), expect.objectContaining({ userId: "owner", workspaceId: "workspace", recipientPhone: "+15550100123", recipientEmail: undefined, expectedVersion: 1 }));
+  });
+  it("matches a saved contact under both phone keys, saves a new one under the canonical key, and treats two spellings of one number as one", async () => {
+    const data = form(["(555) 010-0124"]); data.delete("contactId");
+    await expect(sendSystemInviteAction(data)).rejects.toThrow("invitations=1");
+    expect(mocks.contacts).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ phones: { some: { normalized: { in: ["+15550100124", "5550100124"] } } } }) }));
+    expect(mocks.createContact).toHaveBeenCalledWith({ data: expect.objectContaining({ phones: { create: { phone: "5550100124", normalized: "+15550100124", isPrimary: true } } }) });
+    await expect(sendSystemInviteAction(form(["(555) 010-0125", "+1 555 010 0125"]))).rejects.toThrow("different%20email%20address%20or%20text%20number");
   });
   it.each([[], ["one@example.com", "two@example.com", "three@example.com", "four@example.com"], ["invalid"], ["same@example.com", "SAME@example.com"]].map(addresses => ({ addresses })))("rejects invalid or oversized batches before allocating: $addresses", async ({ addresses }) => {
     await expect(sendSystemInviteAction(form(addresses))).rejects.toThrow("/mixes/system?error=");

@@ -1,9 +1,10 @@
 import { normalizePhone } from "@/lib/contact-input";
 
 /**
- * Dialing helpers that do not change stored data. Stored phone rows keep the owner's typed
- * value and the format-based `normalized` key; these functions derive what a phone app or an SMS
- * provider needs from that display value.
+ * Dialing helpers that do not change stored data and never load the phone metadata: this file is
+ * bundled into client code (Today). The E.164 number to dial is computed on the server from the
+ * stored canonical key (`phoneDialTarget` in phone-number.ts) and passed down; the helpers here
+ * handle the display value and the North American fallbacks used by search and duplicate grouping.
  */
 
 const EXTENSION = /(?:\s*(?:,|;)?\s*(?:x|ext\.?|extension|#)\s*\d{1,6})\s*$/i;
@@ -38,6 +39,16 @@ export function dialablePhone(value: string | null | undefined): string | null {
 export function phoneLinkTarget(value: string | null | undefined): string | null {
   if (typeof value !== "string") return null;
   return dialablePhone(value) ?? normalizePhone(stripPhoneExtension(value));
+}
+
+/**
+ * What a tel: or sms: link carries: the E.164 number the server computed from the stored key, else
+ * the digits as typed without an extension (a "+" only when the owner typed one). Never a raw string
+ * with spaces or punctuation, never a country code the server did not read.
+ */
+export function phoneHandoffTarget(dialTarget: string | null | undefined, display: string | null | undefined): string | null {
+  if (dialTarget) return dialTarget;
+  return typeof display === "string" ? normalizePhone(stripPhoneExtension(display)) : null;
 }
 
 /**

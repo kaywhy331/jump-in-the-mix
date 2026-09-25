@@ -9,8 +9,10 @@ import type {
   ImportJumpDate,
   ImportMatch,
   ImportMatchCandidate,
+  ImportPhone,
   ImportResolution
 } from "@/lib/contact-import-types";
+import { canonicalPhoneKey, phoneLookupKeys, phoneRowKeys, workspacePhoneRegion } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
 import { lockAccess } from "@/lib/access-lock";
 import { lockImportJob, lockRunningImport, type ImportRowLease } from "@/lib/contact-import-lease";
@@ -95,17 +97,20 @@ export async function contactImportUsage(workspaceId: string): Promise<ContactIm
   return { activeContacts, contactLimit: Number.MAX_SAFE_INTEGER, remainingContacts: Number.MAX_SAFE_INTEGER };
 }
 
-function exactReasons(record: ImportContactRecord, contact: MatchContact): string[] {
+/** Both keys of every incoming phone: its canonical key and, for rows saved before the phone-key change, its old one. */
+function incomingPhoneKeys(record: ImportContactRecord, region: string): string[] {
+  return [...new Set(record.phones.flatMap((item) => phoneLookupKeys(item.value, region)))];
+}
+
+function exactReasons(record: ImportContactRecord, contact: MatchContact, region: string): string[] {
   const reasons: string[] = [];
   const incomingEmails = new Set(record.emails.map((item) => normalizeEmail(item.value)).filter(Boolean));
-  const incomingPhones = new Set(
-    record.phones.map((item) => normalizePhone(item.value)).filter((value): value is string => Boolean(value))
-  );
+  const incomingPhones = new Set(incomingPhoneKeys(record, region));
   for (const email of contact.emails) {
     if (incomingEmails.has(email.normalized)) reasons.push(`Exact email · ${email.email}`);
   }
   for (const phone of contact.phones) {
-    if (incomingPhones.has(phone.normalized)) reasons.push(`Exact phone · ${phone.phone}`);
+    if (phoneRowKeys(phone, region).some((key) => incomingPhones.has(key))) reasons.push(`Exact phone · ${phone.phone}`);
   }
   return [...new Set(reasons)];
 }
@@ -151,14 +156,15 @@ export async function findImportMatches(
   records: ImportContactRecord[]
 ): Promise<ImportMatchResponse> {
   if (records.length > 100) throw new ImportRowError("Analyze no more than 100 import rows per request.");
-  const [contacts, usage] = await Promise.all([
+  const [contacts, usage, region] = await Promise.all([
     loadWorkspaceContacts(workspaceId),
-    contactImportUsage(workspaceId)
+    contactImportUsage(workspaceId),
+    workspacePhoneRegion(prisma, workspaceId)
   ]);
 
   const matches: ImportMatch[] = records.map((record) => {
     const exact = contacts
-      .map((contact) => ({ contact, reasons: exactReasons(record, contact) }))
+      .map((contact) => ({ contact, reasons: exactReasons(record, contact, region) }))
       .filter((item) => item.reasons.length > 0)
       .map((item) => matchCandidate(item.contact, item.reasons, "EXACT"));
     if (exact.length === 1) return { rowId: record.rowId, kind: "EXACT", candidates: exact, recommendedAction: "MERGE" };
@@ -218,6 +224,24 @@ function validateImportRecord(record: ImportContactRecord): void {
   }
 }
 
+/**
+ * One row may hold the same number typed two ways ("(555) 123-4567" and "+1 555 123 4567"): they share
+ * a canonical key, so they collapse into the first, which keeps a primary flag or label the other had.
+ * A value repeated exactly, or an invalid one, is left for `validateImportRecord` to refuse as before.
+ */
+export function collapseImportPhones(record: ImportContactRecord, region: string): ImportContactRecord {
+  const legacy = record.phones.map((item) => normalizePhone(item.value));
+  if (legacy.some((key) => !key) || new Set(legacy).size !== legacy.length) return record;
+  const byKey = new Map<string, ImportPhone>();
+  for (const item of record.phones) {
+    const key = canonicalPhoneKey(item.value, region);
+    const first = byKey.get(key);
+    if (!first) byKey.set(key, { ...item });
+    else byKey.set(key, { ...first, label: first.label ?? item.label, isPrimary: first.isPrimary || item.isPrimary });
+  }
+  return byKey.size === record.phones.length ? record : { ...record, phones: [...byKey.values()] };
+}
+
 async function validateWorkspaceReferences(tx: Prisma.TransactionClient, workspaceId: string, record: ImportContactRecord): Promise<void> {
   const groupIds = [...new Set(record.groupIds)];
   const customFieldIds = [...new Set(record.customFields.map((item) => item.definitionId))];
@@ -236,13 +260,12 @@ async function validateWorkspaceReferences(tx: Prisma.TransactionClient, workspa
 async function assertNoMethodConflict(
   tx: Prisma.TransactionClient,
   workspaceId: string,
+  region: string,
   record: ImportContactRecord,
   targetContactId?: string
 ): Promise<void> {
   const emailKeys = [...new Set(record.emails.map((item) => normalizeEmail(item.value)).filter(Boolean))];
-  const phoneKeys = [...new Set(
-    record.phones.map((item) => normalizePhone(item.value)).filter((value): value is string => Boolean(value))
-  )];
+  const phoneKeys = incomingPhoneKeys(record, region);
   if (!emailKeys.length && !phoneKeys.length) return;
 
   const or: Prisma.ContactWhereInput[] = [];
@@ -378,10 +401,11 @@ async function createImportedContact(tx: Prisma.TransactionClient, input: {
   workspaceId: string;
   actorUserId: string;
   timezone: string;
+  region: string;
   record: ImportContactRecord;
 }): Promise<{ contactId: string; message: string }> {
-  const { workspaceId, actorUserId, timezone, record } = input;
-  await assertNoMethodConflict(tx, workspaceId, record);
+  const { workspaceId, actorUserId, timezone, region, record } = input;
+  await assertNoMethodConflict(tx, workspaceId, region, record);
   const resolvedDates = await resolveJumpDates(tx, workspaceId, record.jumpDates);
   const inactiveTypes = [...new Set(
     resolvedDates.map((item) => item.createdInactiveType).filter((value): value is string => Boolean(value))
@@ -407,7 +431,7 @@ async function createImportedContact(tx: Prisma.TransactionClient, input: {
       phones: record.phones.length ? {
         create: record.phones.map((item, index) => ({
           phone: item.value.trim(),
-          normalized: normalizePhone(item.value)!,
+          normalized: canonicalPhoneKey(item.value, region),
           label: clean(item.label, 80),
           isPrimary: index === 0
         }))
@@ -450,12 +474,13 @@ async function mergeImportedContact(tx: Prisma.TransactionClient, input: {
   workspaceId: string;
   actorUserId: string;
   timezone: string;
+  region: string;
   record: ImportContactRecord;
   contactId: string;
   preferImported: boolean;
 }): Promise<{ contactId: string; message: string }> {
-  const { workspaceId, actorUserId, timezone, record, contactId, preferImported } = input;
-  await assertNoMethodConflict(tx, workspaceId, record, contactId);
+  const { workspaceId, actorUserId, timezone, region, record, contactId, preferImported } = input;
+  await assertNoMethodConflict(tx, workspaceId, region, record, contactId);
   const existing = await tx.contact.findFirst({
     where: { id: contactId, workspaceId, archivedAt: null },
     include: {
@@ -519,21 +544,26 @@ async function mergeImportedContact(tx: Prisma.TransactionClient, input: {
     }
   }
 
-  const phoneByKey = new Map(existing.phones.map((item) => [item.normalized, item]));
+  // The same number already on this person: the row holding the canonical key, else one saved before
+  // the phone-key change (matched by its display value), whose key is rewritten to the canonical one.
+  const unmatchedPhones = [...existing.phones];
   const existingHasPrimaryPhone = existing.phones.some((item) => item.isPrimary);
   if (preferImported && record.phones.length) {
     await tx.contactPhone.updateMany({ where: { contactId }, data: { isPrimary: false } });
   }
   for (let index = 0; index < record.phones.length; index += 1) {
     const item = record.phones[index];
-    const normalized = normalizePhone(item.value)!;
-    const found = phoneByKey.get(normalized);
+    const normalized = canonicalPhoneKey(item.value, region);
+    const found = unmatchedPhones.find((phone) => phone.normalized === normalized)
+      ?? unmatchedPhones.find((phone) => phoneRowKeys(phone, region).includes(normalized) && !existing.phones.some((other) => other.normalized === normalized));
+    if (found) unmatchedPhones.splice(unmatchedPhones.indexOf(found), 1);
     const shouldBePrimary = preferImported ? index === 0 : !existingHasPrimaryPhone && index === 0;
     if (found) {
-      if (preferImported || shouldBePrimary) {
+      if (preferImported || shouldBePrimary || found.normalized !== normalized) {
         await tx.contactPhone.update({
           where: { id: found.id },
           data: {
+            ...(found.normalized !== normalized ? { normalized } : {}),
             ...(preferImported ? { phone: item.value.trim(), label: clean(item.label, 80) } : {}),
             ...(shouldBePrimary ? { isPrimary: true } : {})
           }
@@ -666,18 +696,20 @@ export async function commitContactImportBatch(input: {
         const cached = await tx.idempotencyKey.findUnique({ where: { workspaceId_key: { workspaceId: input.workspaceId, key } }, select: { response: true } });
         const previous = cachedImportResult(cached?.response ?? null);
         if (previous) return previous;
-        validateImportRecord(record);
-        await validateWorkspaceReferences(tx, input.workspaceId, record);
-        if (resolution.rowId !== record.rowId) throw new ImportRowError("The duplicate resolution does not match this import row.");
+        const region = await workspacePhoneRegion(tx, input.workspaceId);
+        const row = collapseImportPhones(record, region);
+        validateImportRecord(row);
+        await validateWorkspaceReferences(tx, input.workspaceId, row);
+        if (resolution.rowId !== row.rowId) throw new ImportRowError("The duplicate resolution does not match this import row.");
         let status: ImportCommitResult["status"] = "SKIPPED";
         let outcome: { contactId: string; message: string };
         if (resolution.action === "SKIP") {
           outcome = { contactId: resolution.targetContactId ?? "", message: "Skipped by user." };
         } else if (resolution.action === "CREATE") {
-          outcome = await createImportedContact(tx, { ...input, record }); status = "CREATED";
+          outcome = await createImportedContact(tx, { ...input, region, record: row }); status = "CREATED";
         } else {
           if (!resolution.targetContactId) throw new ImportRowError("Choose the existing Contact to update.");
-          outcome = await mergeImportedContact(tx, { ...input, record, contactId: resolution.targetContactId, preferImported: resolution.action === "REPLACE" });
+          outcome = await mergeImportedContact(tx, { ...input, region, record: row, contactId: resolution.targetContactId, preferImported: resolution.action === "REPLACE" });
           status = resolution.action === "REPLACE" ? "REPLACED" : "MERGED";
         }
         const saved: ImportCommitResult = { rowId: record.rowId, sourceRow: record.sourceRow, status, contactId: outcome.contactId || null, message: outcome.message };

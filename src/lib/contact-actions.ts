@@ -10,9 +10,10 @@ import {
   buildContactCustomFieldInputs,
   validateContactCustomFieldInputs
 } from "@/lib/contact-custom-fields";
-import { buildAddressInputs, buildEmailInputs, buildPhoneInputs, normalizeEmail, normalizePhone } from "@/lib/contact-input";
+import { buildAddressInputs, buildEmailInputs, buildPhoneInputs, normalizeEmail } from "@/lib/contact-input";
 import { CONTACT_REVISION_INCLUDE, STALE_CONTACT_SAVE, contactRevision } from "@/lib/contact-revision";
 import { listGroupStates, mergeGroupActivity } from "@/lib/group-activity";
+import { canonicalPhoneKey, phoneLookupKeys, phoneRowKeys, workspacePhoneRegion } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { ViewOnlySupportSessionError, requireWritableWorkspace } from "@/lib/writable-workspace";
@@ -102,7 +103,8 @@ function buildForField<T>(build: () => T, field: () => string | undefined): T {
   }
 }
 
-function contactPayload(formData: FormData) {
+/** `region` is the workspace's phone region: phones are stored under their canonical key for it. */
+function contactPayload(formData: FormData, region: string) {
   const firstName = value(formData, "firstName");
   const lastName = value(formData, "lastName");
   const company = value(formData, "company");
@@ -116,7 +118,7 @@ function contactPayload(formData: FormData) {
     () => rowField("emailValue", submittedEmails, (typed) => rejects(() => buildEmailInputs([typed], [])))
   );
   const phones = buildForField(
-    () => buildPhoneInputs(submittedPhones, values(formData, "phoneLabel"), value(formData, "phonePrimaryIndex")),
+    () => buildPhoneInputs(submittedPhones, values(formData, "phoneLabel"), value(formData, "phonePrimaryIndex"), (typed) => canonicalPhoneKey(typed, region)),
     () => rowField("phoneValue", submittedPhones, (typed) => rejects(() => buildPhoneInputs([typed], [])))
   );
   const addresses = buildAddressInputs(
@@ -194,7 +196,7 @@ async function initialFollowUpPayload(workspaceId: string, formData: FormData): 
   return { dateTypeId: dateType.id, dateValue, reason, mixId: mix.id };
 }
 
-async function validateContactPayload(workspaceId: string, payload: ReturnType<typeof contactPayload>, excludeContactId?: string) {
+async function validateContactPayload(workspaceId: string, region: string, payload: ReturnType<typeof contactPayload>, excludeContactId?: string) {
   const [groups, groupStates, existingMemberships] = await Promise.all([
     payload.groupIds.length
       ? prisma.group.findMany({ where: { workspaceId, id: { in: payload.groupIds } }, select: { id: true } })
@@ -227,16 +229,17 @@ async function validateContactPayload(workspaceId: string, payload: ReturnType<t
     });
     if (duplicate) throw methodConflict("email", email.value, duplicate.contact, rowField("emailValue", payload.submittedEmails, (typed) => normalizeEmail(typed) === email.normalized));
   }
+  // A number saved before this release may still hold its format-based key, so both keys are looked up.
   for (const phone of payload.phones) {
     const duplicate = await prisma.contactPhone.findFirst({
       where: {
-        normalized: phone.normalized,
+        normalized: { in: phoneLookupKeys(phone.value, region) },
         ...(excludeContactId ? { contactId: { not: excludeContactId } } : {}),
         contact: { workspaceId }
       },
       select: { contact: { select: { displayName: true, archivedAt: true } } }
     });
-    if (duplicate) throw methodConflict("phone", phone.value, duplicate.contact, rowField("phoneValue", payload.submittedPhones, (typed) => normalizePhone(typed) === phone.normalized));
+    if (duplicate) throw methodConflict("phone", phone.value, duplicate.contact, rowField("phoneValue", payload.submittedPhones, (typed) => phoneLookupKeys(typed, region)[0] === phone.normalized));
   }
 }
 
@@ -277,11 +280,12 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
   const replayed = await earlierCreation(workspace.id, idempotencyKey);
   if (replayed) redirect(createdContactPath(returnTo, replayed));
   const timezone = await timezoneForUser(user.id);
+  const region = await workspacePhoneRegion(prisma, workspace.id);
   let payload: ReturnType<typeof contactPayload>;
   let followUp: InitialFollowUp | null;
   try {
-    payload = contactPayload(formData);
-    await validateContactPayload(workspace.id, payload);
+    payload = contactPayload(formData, region);
+    await validateContactPayload(workspace.id, region, payload);
     followUp = await initialFollowUpPayload(workspace.id, formData);
   } catch (error) {
     // A retry that raced its own first submission finds its phone or email taken by that save.
@@ -376,10 +380,11 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
   const existing = await prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, select: { id: true } });
   if (!existing) fail("/contacts", "Contact not found.");
 
+  const region = await workspacePhoneRegion(prisma, workspace.id);
   let payload: ReturnType<typeof contactPayload>;
   try {
-    payload = contactPayload(formData);
-    await validateContactPayload(workspace.id, payload, contactId);
+    payload = contactPayload(formData, region);
+    await validateContactPayload(workspace.id, region, payload, contactId);
   } catch (error) {
     return formFailure(error, "The contact could not be updated.");
   }
@@ -414,6 +419,18 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
     }
     await tx.contactEmail.deleteMany({ where: { contactId, ...(payload.emails.length ? { normalized: { notIn: payload.emails.map((item) => item.normalized) } } : {}) } });
 
+    // A number saved before this release keeps its row: its format-based key is rewritten to the
+    // canonical one first, so the upsert below updates it instead of replacing it.
+    const phoneKeys = new Set(payload.phones.map((item) => item.normalized));
+    const heldKeys = new Set(current.phones.map((row) => row.normalized));
+    for (const item of payload.phones) {
+      if (heldKeys.has(item.normalized)) continue;
+      const earlier = current.phones.find((row) => !phoneKeys.has(row.normalized) && heldKeys.has(row.normalized) && phoneRowKeys(row, region).includes(item.normalized));
+      if (!earlier) continue;
+      await tx.contactPhone.update({ where: { id: earlier.id }, data: { normalized: item.normalized } });
+      heldKeys.delete(earlier.normalized);
+      heldKeys.add(item.normalized);
+    }
     for (const item of payload.phones) {
       await tx.contactPhone.upsert({
         where: { contactId_normalized: { contactId, normalized: item.normalized } },

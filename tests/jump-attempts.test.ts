@@ -184,6 +184,36 @@ describe.sequential("follow-up handoff attempts", () => {
     expect(await prisma.jumpAttempt.count({ where: { jumpId: jump.id } })).toBe(2);
   });
 
+  it("matches the recipient to a saved number under either key, and to an invitation's number under both", async () => {
+    // A number saved before the phone-key change still holds its format-based key.
+    const legacyRow = await prisma.contactPhone.create({ data: { contactId: fixture.contactId, phone: "(555) 010-0300", normalized: "5550100300", isPrimary: false } });
+    const jump = await newPendingJump();
+    const invite = await prisma.referralAccessInvite.create({ data: { inviterUserId: fixture.userId, workspaceId, contactId: fixture.contactId, recipientPhone: "5550100200", manualDelivery: true, tokenHash: `attempt-${randomUUID()}`, tokenCiphertext: "unused" } });
+    const created: string[] = [];
+    const record = async (target: string, overrides: Partial<AttemptPayload>) => {
+      const input = payload(overrides);
+      const result = await recordJumpAttempt({ workspaceId, jumpId: target, payload: input });
+      if (result.ok) created.push(input.id);
+      return result;
+    };
+    try {
+      expect(await record(jumpId, { recipient: "(555) 010-0300" })).toMatchObject({ ok: true, duplicate: false });
+      expect(await record(jumpId, { recipient: "+1 555 010 0300" })).toMatchObject({ ok: true, duplicate: false });
+      const row = await prisma.jumpAttempt.findUniqueOrThrow({ where: { id: created[0] } });
+      // The evidence hash keeps the format-based form, as before the change.
+      expect(row.recipientHash).toBe(recipientHash("SMS", "5550100300"));
+      // The invitation stored its number without the country code; the saved number with it is the same number.
+      await prisma.jump.update({ where: { id: jump.id }, data: { accessInviteId: invite.id } });
+      expect(await record(jump.id, { stepVersionId: jump.stepVersionId, recipient: RECIPIENT })).toMatchObject({ ok: true, duplicate: false });
+      expect(await record(jump.id, { stepVersionId: jump.stepVersionId, recipient: "(555) 010-0300" })).toMatchObject({ ok: false, reason: "unavailable" });
+    } finally {
+      await prisma.jumpAttempt.deleteMany({ where: { id: { in: created } } });
+      await prisma.jump.update({ where: { id: jump.id }, data: { accessInviteId: null } });
+      await prisma.referralAccessInvite.delete({ where: { id: invite.id } });
+      await prisma.contactPhone.delete({ where: { id: legacyRow.id } });
+    }
+  });
+
   it("exports attempts with the recipient decrypted for the owner", async () => {
     const response = await exportAccount(new Request("https://example.test/api/account/export"));
     const document = await response.json() as { followUpAttempts: Array<Record<string, unknown>> };

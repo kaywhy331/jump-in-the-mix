@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { CONTACT_REVISION_INCLUDE, STALE_CONTACT_SAVE, contactRevision } from "../src/lib/contact-revision";
+import { runPhoneKeySweep } from "../src/lib/phone-canonicalization";
+import { phoneLookupKeys } from "../src/lib/phone-number";
 import { prisma } from "../src/lib/prisma";
 
 const auth = vi.hoisted(() => ({ context: {} as Record<string, unknown> }));
@@ -45,6 +47,8 @@ describe.skipIf(!local)("contact edit and create integrity with PostgreSQL", () 
     await prisma.user.deleteMany({ where: { id: userId } });
   });
 
+  // Fixture phones are saved the way the previous release saved them (the format-based key), as rows
+  // written before the phone-key change are; new writes store the canonical key.
   const person = (displayName: string, data: { company?: string; publicNotes?: string; phone?: string } = {}) => prisma.contact.create({
     data: {
       workspaceId,
@@ -99,7 +103,9 @@ describe.skipIf(!local)("contact edit and create integrity with PostgreSQL", () 
     await expect(saveContactFormAction({}, editSubmission(opened, { lastName: "Inlined" }))).rejects.toThrow(`REDIRECT /contacts/${casey.id}?updated=1`);
     const saved = await prisma.contact.findUniqueOrThrow({ where: { id: casey.id }, include: { phones: true, relationshipState: true } });
     expect(saved).toMatchObject({ lastName: "Inlined", displayName: "Casey Inlined", company: "Acme Plumbing", publicNotes: "Gate code 12" });
-    expect(saved.phones.map((item) => item.normalized)).toEqual(["5550100001"]);
+    // The save rewrote the row's format-based key to the canonical key in place.
+    expect(saved.phones.map((item) => item.normalized)).toEqual(["+15550100001"]);
+    expect(saved.phones[0].id).toBe(opened.contact.phones[0].id);
     expect(saved.relationshipState).toMatchObject({ priority: "HIGH" });
   });
 
@@ -112,8 +118,60 @@ describe.skipIf(!local)("contact edit and create integrity with PostgreSQL", () 
     expect(result).toEqual({ error: STALE_CONTACT_SAVE });
     const kept = await prisma.contact.findUniqueOrThrow({ where: { id: riley.id }, include: { phones: true } });
     expect(kept.firstName).toBe("Riley");
-    expect(kept.phones.map((item) => item.normalized).sort()).toEqual(["5550100002", "5550100098"]);
+    expect(kept.phones.map((item) => item.normalized).sort()).toEqual(["+15550100098", "5550100002"]);
     expect(await prisma.auditLog.count({ where: { workspaceId, action: "contact.update", entityId: riley.id } })).toBe(0);
+  });
+
+  it("does not refuse an open edit form after the phone-key sweep rewrote its keys", async () => {
+    const quinn = await person("Quinn Swept", { phone: "(555) 010-0004" });
+    await prisma.contactPhone.create({ data: { contactId: quinn.id, phone: "555-010-0005 x12", normalized: "555010000512", label: "Desk", isPrimary: false } });
+    const opened = await openEditForm(quinn.id);
+    const result = await runPhoneKeySweep({ workspaceId }, { shouldStop: () => false });
+    expect(result.rewritten).toBeGreaterThanOrEqual(2);
+    const swept = await openEditForm(quinn.id);
+    expect(swept.contact.phones.map((item) => item.normalized).sort()).toEqual(["+15550100004", "+15550100005;ext=12"]);
+    expect(swept.revision).toBe(opened.revision);
+    await expect(saveContactFormAction({}, editSubmission(opened, { lastName: "Saved" }))).rejects.toThrow(`REDIRECT /contacts/${quinn.id}?updated=1`);
+    const saved = await prisma.contact.findUniqueOrThrow({ where: { id: quinn.id }, include: { phones: true } });
+    expect(saved.lastName).toBe("Saved");
+    expect(saved.phones.map((item) => [item.phone, item.normalized, item.label]).sort()).toEqual([["(555) 010-0004", "+15550100004", "Mobile"], ["555-010-0005 x12", "+15550100005;ext=12", "Desk"]]);
+  });
+
+  it("looks up both keys: a number saved before the key change, and a swept one typed any way", async () => {
+    const dana = await person("Dana Legacy", { phone: "(555) 010-0006" });
+    await prisma.contact.create({ data: { workspaceId, displayName: "Eli Swept", firstName: "Eli", phones: { create: { phone: "(555) 010-0007", normalized: "+15550100007", isPrimary: true } } } });
+    const conflict = (name: string) => `That phone already belongs to ${name}. Use Find duplicates if these are the same person.`;
+    // A row that still holds its format-based key is found through that key (any punctuation, same digits)...
+    expect(await saveContactFormAction({}, form({ firstName: "Copy", phoneValue: "555.010.0006" }))).toMatchObject({ error: conflict("Dana Legacy"), field: "phoneValue:0" });
+    // ...and a swept row through its canonical key, however the number is typed.
+    expect(await saveContactFormAction({}, form({ firstName: "Copy", phoneValue: ["555-010-0099", "1-555-010-0007"] }))).toMatchObject({ error: conflict("Eli Swept"), field: "phoneValue:1" });
+    const frankie = await person("Frankie Inline");
+    await expect(updateContactBasicsInlineAction(form({ contactId: frankie.id, primaryPhone: "555 010 0006" }))).rejects.toThrow(`REDIRECT /contacts/${frankie.id}?error=${encodeURIComponent("That phone already belongs to Dana Legacy. Use the duplicate center if these are the same person.")}`);
+    // Until the sweep, another digit spelling of an unswept row is missed (as before this release); after it, found.
+    const lookup = () => prisma.contactPhone.findFirst({ where: { normalized: { in: phoneLookupKeys("+1 555 010 0006", "US") }, contact: { workspaceId } }, select: { contactId: true } });
+    expect(await lookup()).toBeNull();
+    await runPhoneKeySweep({ workspaceId }, { shouldStop: () => false });
+    expect(await lookup()).toEqual({ contactId: dana.id });
+    expect(await saveContactFormAction({}, form({ firstName: "Copy", phoneValue: "+1 555 010 0006" }))).toMatchObject({ error: conflict("Dana Legacy") });
+    // The owner's own number typed another way is the same row: the inline save updates it, never adds a second.
+    await expect(updateContactBasicsInlineAction(form({ contactId: dana.id, primaryPhone: "+1 (555) 010-0006" }))).rejects.toThrow(`REDIRECT /contacts/${dana.id}?inlineUpdated=1`);
+    const rows = await prisma.contactPhone.findMany({ where: { contactId: dana.id } });
+    expect(rows.map((row) => [row.phone, row.normalized, row.isPrimary])).toEqual([["+1 (555) 010-0006", "+15550100006", true]]);
+  });
+
+  it("rewrites an unswept row's key in place when the inline primary phone names it", async () => {
+    const gray = await person("Gray Inline", { phone: "(555) 010-0010" });
+    const before = await prisma.contactPhone.findFirstOrThrow({ where: { contactId: gray.id } });
+    await expect(updateContactBasicsInlineAction(form({ contactId: gray.id, primaryPhone: "555-010-0010" }))).rejects.toThrow(`REDIRECT /contacts/${gray.id}?inlineUpdated=1`);
+    const after = await prisma.contactPhone.findMany({ where: { contactId: gray.id } });
+    expect(after).toHaveLength(1);
+    expect(after[0]).toMatchObject({ id: before.id, phone: "555-010-0010", normalized: "+15550100010", isPrimary: true });
+  });
+
+  it("saves one phone when an Add form holds the same number typed two ways", async () => {
+    await expect(saveContactFormAction({}, form({ requestId: randomUUID(), firstName: "Gale", lastName: "Twofold", phoneValue: ["(555) 010-0008", "+1 555 010 0008"], phoneLabel: ["Mobile", "Cell"], phonePrimaryIndex: "1" }))).rejects.toThrow(/REDIRECT \/contacts\/[^/?]+\?created=1/);
+    const gale = await prisma.contact.findFirstOrThrow({ where: { workspaceId, displayName: "Gale Twofold" }, include: { phones: true } });
+    expect(gale.phones.map((row) => [row.phone, row.normalized, row.label, row.isPrimary])).toEqual([["(555) 010-0008", "+15550100008", "Mobile", true]]);
   });
 
   it("refuses an open edit form after an inline company change it would undo", async () => {

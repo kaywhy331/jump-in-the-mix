@@ -4,6 +4,7 @@ import { normalizeEmail, normalizePhone } from "@/lib/contact-input";
 import { env } from "@/lib/env";
 import { decryptIntegrationCredentials, encryptIntegrationCredentials } from "@/lib/integration-crypto";
 import { DRAFT_LIMITS, isPreparationFamily, preparationFamilyForChannel, type PreparationFamily } from "@/lib/preparation-family";
+import { phoneLookupKeys, phoneMatchesRow, workspacePhoneRegion } from "@/lib/phone-number";
 import { attemptChannelAllowed } from "@/lib/preparation-variants";
 import { prisma } from "@/lib/prisma";
 
@@ -103,7 +104,11 @@ export function normalizeRecipient(channel: Channel, recipient: string): string 
   return channel === "EMAIL" ? normalizeEmail(recipient) : normalizePhone(recipient) ?? recipient.trim();
 }
 
-/** Keyed hash of the normalized recipient, for matching and reporting without decrypting. */
+/**
+ * Keyed hash of the normalized recipient, for matching and reporting without decrypting. A phone is
+ * hashed in its format-based form, as before the phone-key change, so evidence recorded on either side
+ * of that change hashes alike; which saved number it was is decided by `recordJumpAttempt`.
+ */
 export function recipientHash(channel: Channel, recipient: string): string {
   return createHmac("sha256", env.dataEncryptionKey).update(`attempt-recipient:${normalizeRecipient(channel, recipient)}`).digest("hex");
 }
@@ -141,7 +146,7 @@ export async function recordJumpAttempt(input: { workspaceId: string; jumpId: st
       accessInvite: { select: { recipientEmail: true, recipientPhone: true, acceptedAt: true, revokedAt: true } },
       contactId: true,
       templateSnapshot: true,
-      contact: { select: { emails: { select: { normalized: true } }, phones: { select: { normalized: true } }, relationshipState: { select: { preferredChannel: true } } } },
+      contact: { select: { emails: { select: { normalized: true } }, phones: { select: { phone: true, normalized: true } }, relationshipState: { select: { preferredChannel: true } } } },
       stepVersion: { select: { stepTemplate: { select: { channel: true } } } }
     }
   });
@@ -151,10 +156,18 @@ export async function recordJumpAttempt(input: { workspaceId: string; jumpId: st
   if (!attemptChannelAllowed({ primaryChannel: jump.stepVersion.stepTemplate.channel, snapshot: jump.templateSnapshot, channel: payload.channel, family: payload.family, preferredChannel: jump.contact.relationshipState?.preferredChannel ?? null })) {
     return { ok: false, reason: "invalid", message: "This follow-up uses a different channel." };
   }
+  // A number matches whatever key its row holds: the canonical key, or the format-based one of a row saved
+  // before the phone-key change. The browser records the number as saved, so its keys are computed here.
+  const region = payload.channel === "EMAIL" ? null : await workspacePhoneRegion(prisma, workspaceId);
   const normalized = normalizeRecipient(payload.channel, payload.recipient);
-  if (jump.accessInvite && (jump.accessInvite.revokedAt || jump.accessInvite.acceptedAt || normalized !== normalizeRecipient(payload.channel, jump.accessInvite.recipientEmail ?? jump.accessInvite.recipientPhone ?? ""))) return { ok: false, reason: "unavailable", message: "This invitation is no longer available for this recipient." };
-  const stored = payload.channel === "EMAIL" ? jump.contact.emails.map((item) => item.normalized) : jump.contact.phones.map((item) => item.normalized);
-  if (!stored.includes(normalized)) return { ok: false, reason: "invalid", message: "That address or number isn't saved for this person." };
+  const sameRecipient = (other: string) => region === null
+    ? normalized === normalizeRecipient(payload.channel, other)
+    : phoneLookupKeys(payload.recipient, region).some((key) => phoneLookupKeys(other, region).includes(key));
+  if (jump.accessInvite && (jump.accessInvite.revokedAt || jump.accessInvite.acceptedAt || !sameRecipient(jump.accessInvite.recipientEmail ?? jump.accessInvite.recipientPhone ?? ""))) return { ok: false, reason: "unavailable", message: "This invitation is no longer available for this recipient." };
+  const saved = region === null
+    ? jump.contact.emails.some((item) => item.normalized === normalized)
+    : jump.contact.phones.some((item) => phoneMatchesRow(payload.recipient, item, region));
+  if (!saved) return { ok: false, reason: "invalid", message: "That address or number isn't saved for this person." };
 
   try {
     await prisma.jumpAttempt.create({

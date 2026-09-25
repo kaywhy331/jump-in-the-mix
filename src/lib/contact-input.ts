@@ -35,6 +35,12 @@ export function isValidEmail(value: string): boolean {
   return normalized.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized);
 }
 
+/**
+ * The legacy phone key: the digits, keeping a typed "+". It also decides whether a value is a phone
+ * number at all (7 to 15 digits). This file is bundled into client code, so it never loads the phone
+ * metadata: the server stores the canonical key from `canonicalPhoneKey` (src/lib/phone-number.ts)
+ * and looks up both keys while older rows still hold this one.
+ */
 export function normalizePhone(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
@@ -65,15 +71,20 @@ export function buildEmailInputs(values: string[], labels: string[], primaryRaw?
   }));
 }
 
-export function buildPhoneInputs(values: string[], labels: string[], primaryRaw?: string): ContactMethodInput[] {
+/**
+ * Phone rows from a form. Validation is always `normalizePhone`; `keyFor` gives the stored key of a
+ * valid value (the server passes the canonical key for the workspace's region), and rows that share
+ * a key collapse into the first one.
+ */
+export function buildPhoneInputs(values: string[], labels: string[], primaryRaw?: string, keyFor: (value: string) => string = (value) => normalizePhone(value)!): ContactMethodInput[] {
   const requestedIndex = requestedPrimaryIndex(primaryRaw, values.length);
   let requestedKey: string | null = null;
   const deduped = new Map<string, { value: string; label: string | null }>();
   for (let index = 0; index < values.length; index += 1) {
     const value = clean(values[index]);
     if (!value) continue;
-    const normalized = normalizePhone(value);
-    if (!normalized) throw new Error(`Invalid phone number: ${value}`);
+    if (!normalizePhone(value)) throw new Error(`Invalid phone number: ${value}`);
+    const normalized = keyFor(value);
     if (index === requestedIndex) requestedKey = normalized;
     if (!deduped.has(normalized)) deduped.set(normalized, { value, label: clean(labels[index]) || null });
   }

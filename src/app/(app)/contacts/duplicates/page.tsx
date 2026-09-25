@@ -6,7 +6,8 @@ import { requireWorkspace } from "@/lib/auth";
 import { DuplicateMergeForm } from "@/components/DuplicateMergeForm";
 import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
-import { duplicateCandidates, type DuplicateGroup } from "@/lib/contact-duplicate-candidates";
+import { DUPLICATE_PAIR_GROUP_LIMIT, duplicateCandidates, type DuplicateGroup } from "@/lib/contact-duplicate-candidates";
+import { workspacePhoneRegion } from "@/lib/phone-number";
 
 export const metadata: Metadata = { title: "Duplicate Contacts" };
 
@@ -41,8 +42,8 @@ function contactSummary(contact: CandidateContact) {
 
 export default async function DuplicateContactsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [query, { workspace }] = await Promise.all([searchParams, requireWorkspace()]);
-  const contacts = await loadContacts(workspace.id);
-  const { pairs, groups } = duplicateCandidates(contacts);
+  const [contacts, region] = await Promise.all([loadContacts(workspace.id), workspacePhoneRegion(prisma, workspace.id)]);
+  const { pairs, groups } = duplicateCandidates(contacts, DUPLICATE_PAIR_GROUP_LIMIT, region);
   const total = await prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null } });
   return (
     <div className="page duplicate-contacts-page">

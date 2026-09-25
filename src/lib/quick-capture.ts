@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { saveCalendarEntryIn } from "@/lib/calendar";
 import { parseCalendarTime } from "@/lib/calendar-time";
 import { isValidEmail, normalizeEmail, normalizePhone } from "@/lib/contact-input";
+import { canonicalPhoneKey, phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
 import { applyJourneyEvent } from "@/lib/journey";
 import { renderJumpSnapshot } from "@/lib/jump-render";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
@@ -20,7 +21,9 @@ const candidate = (c: { id: string; displayName: string; archivedAt: Date | null
 export async function searchQuickCaptureContacts(workspaceId: string, query: string) {
   const q = query.trim().slice(0, 200);
   if (!q) return [];
-  return (await prisma.contact.findMany({ where: { workspaceId, OR: [{ displayName: { contains: q, mode: "insensitive" } }, { emails: { some: { normalized: { contains: normalizeEmail(q) } } } }, ...(normalizePhone(q) ? [{ phones: { some: { normalized: { contains: normalizePhone(q)! } } } }] : [])] }, select: contactSelect, orderBy: [{ archivedAt: "asc" }, { displayName: "asc" }, { id: "asc" }], take: 10 })).map(candidate);
+  // A typed number finds the person under its canonical key or, for a row saved before the phone-key change, its old one.
+  const phoneKeys = normalizePhone(q) ? phoneLookupKeys(q, await workspacePhoneRegion(prisma, workspaceId)) : [];
+  return (await prisma.contact.findMany({ where: { workspaceId, OR: [{ displayName: { contains: q, mode: "insensitive" } }, { emails: { some: { normalized: { contains: normalizeEmail(q) } } } }, ...phoneKeys.map((key) => ({ phones: { some: { normalized: { contains: key } } } }))] }, select: contactSelect, orderBy: [{ archivedAt: "asc" }, { displayName: "asc" }, { id: "asc" }], take: 10 })).map(candidate);
 }
 
 /** All selected records and the retry receipt commit together. Identity is supplied only by the authenticated route. */
@@ -52,10 +55,11 @@ export async function saveQuickCapture(context: { workspaceId: string; actorUser
       const { name, phone, email, allowDuplicate } = data.person;
       if (email && !isValidEmail(email)) throw new QuickCaptureError("Enter a valid email address or leave it blank.");
       if (phone && !normalizePhone(phone)) throw new QuickCaptureError("Enter a valid phone number or leave it blank.");
-      const matches = await tx.contact.findMany({ where: { workspaceId, OR: [{ displayName: { equals: name, mode: "insensitive" } }, ...(email ? [{ emails: { some: { normalized: normalizeEmail(email) } } }] : []), ...(phone ? [{ phones: { some: { normalized: normalizePhone(phone)! } } }] : [])] }, select: contactSelect, take: 10 });
+      const region = await workspacePhoneRegion(tx, workspaceId);
+      const matches = await tx.contact.findMany({ where: { workspaceId, OR: [{ displayName: { equals: name, mode: "insensitive" } }, ...(email ? [{ emails: { some: { normalized: normalizeEmail(email) } } }] : []), ...(phone ? [{ phones: { some: { normalized: { in: phoneLookupKeys(phone, region) } } } }] : [])] }, select: contactSelect, take: 10 });
       if (matches.length && !allowDuplicate) throw new QuickCaptureError("There may already be a person with these details. Choose them, or confirm this is a different person.", matches.map(candidate));
       const names = splitContactName(name);
-      const person = await tx.contact.create({ data: { workspaceId, displayName: name, ...names, ...(email ? { emails: { create: { email, normalized: normalizeEmail(email), isPrimary: true } } } : {}), ...(phone ? { phones: { create: { phone, normalized: normalizePhone(phone)!, isPrimary: true } } } : {}) } });
+      const person = await tx.contact.create({ data: { workspaceId, displayName: name, ...names, ...(email ? { emails: { create: { email, normalized: normalizeEmail(email), isPrimary: true } } } : {}), ...(phone ? { phones: { create: { phone, normalized: canonicalPhoneKey(phone, region), isPrimary: true } } } : {}) } });
       contactId = person.id;
       await applyJourneyEvent(tx, { workspaceId, contactId, actorUserId, eventKey: `contact-created:${contactId}`, eventType: "CONTACT_RECEIVED", source: "Quick Add" });
     }

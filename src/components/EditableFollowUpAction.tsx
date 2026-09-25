@@ -6,7 +6,7 @@ import { JumpActionLink, JumpCopyButton, type AttemptDraft } from "@/components/
 import { useConfirmDialog } from "@/components/useConfirmDialog";
 import { applyDraftEdit, draftSource, parseDraftSource, projectDraft, type DraftSegment, type DraftValues } from "@/lib/draft-segments";
 import { DRAFT_LIMITS, type DetachedChange, type DraftContent, type PreparationFamily } from "@/lib/preparation-family";
-import { dialablePhone, phoneLinkTarget } from "@/lib/phone-dial";
+import { phoneHandoffTarget } from "@/lib/phone-dial";
 
 type ActionType = "COMPOSED" | "CALLED" | "VOICEMAIL_STARTED";
 type SavedDraft = DraftContent & { revision: number };
@@ -44,20 +44,18 @@ function actionLabel(channel: string): string {
 
 /**
  * The handoff link for the text on screen. Phone apps get a number, never the typed display value:
- * E.164 when it can be derived, otherwise the digits as stored. WhatsApp needs a full international
- * number, so it is offered only then. The `?&body=` spelling is the one both iOS Messages and Android
- * accept. The "To" hint and the recorded attempt keep the stored display value.
+ * the E.164 `dialTarget` the server computed from the stored key, otherwise the digits as typed.
+ * WhatsApp needs a full international number, so it is offered only with a dial target. The `?&body=`
+ * spelling is the one both iOS Messages and Android accept. The "To" hint and the recorded attempt
+ * keep the stored display value.
  */
-export function followUpHandoffUrl(channel: string, email: string | null, phone: string | null, subject: string, content: string): string | null {
+export function followUpHandoffUrl(channel: string, email: string | null, phone: string | null, dialTarget: string | null, subject: string, content: string): string | null {
   const body = encodeURIComponent(content);
   if (channel === "EMAIL") return email ? `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${body}` : null;
-  const number = phoneLinkTarget(phone);
+  const number = phone ? phoneHandoffTarget(dialTarget, phone) : null;
   if (!number) return null;
   if (channel === "SMS") return `sms:${number}?&body=${body}`;
-  if (channel === "WHATSAPP") {
-    const dialable = dialablePhone(phone);
-    return dialable ? `https://wa.me/${dialable.slice(1)}?text=${body}` : null;
-  }
+  if (channel === "WHATSAPP") return dialTarget ? `https://wa.me/${dialTarget.slice(1)}?text=${body}` : null;
   if (channel === "PHONE_CALL" || channel === "VOICEMAIL") return `tel:${number}`;
   return null;
 }
@@ -98,6 +96,7 @@ export function EditableFollowUpAction({
   channel,
   email,
   phone,
+  phoneDialTarget = null,
   initialSubject,
   initialContent,
   family,
@@ -120,6 +119,8 @@ export function EditableFollowUpAction({
   channel: string;
   email: string | null;
   phone: string | null;
+  /** The E.164 number for `phone`, computed on the server from its stored key; null when it has none. */
+  phoneDialTarget?: string | null;
   initialSubject?: string | null;
   initialContent: string;
   family: PreparationFamily;
@@ -365,7 +366,7 @@ export function EditableFollowUpAction({
     await discard();
   };
 
-  const url = useMemo(() => followUpHandoffUrl(channel, email, phone, subject, content), [channel, content, email, phone, subject]);
+  const url = useMemo(() => followUpHandoffUrl(channel, email, phone, phoneDialTarget, subject, content), [channel, content, email, phone, phoneDialTarget, subject]);
   const needsEmail = channel === "EMAIL";
   const methodLabel = needsEmail ? "email" : "phone";
   const longSms = channel === "SMS" && content.length > 900;

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ session: vi.fn(), findMany: vi.fn() }));
+const mocks = vi.hoisted(() => ({ session: vi.fn(), findMany: vi.fn(), preference: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getCurrentSession: mocks.session }));
-vi.mock("@/lib/prisma", () => ({ prisma: { contact: { findMany: mocks.findMany } } }));
+vi.mock("@/lib/prisma", () => ({ prisma: { contact: { findMany: mocks.findMany }, workspacePreference: { findUnique: mocks.preference } } }));
 import { GET } from "./route";
 
 type WhereInput = { AND: Array<{ OR: unknown[] }> };
@@ -17,6 +17,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.session.mockResolvedValue({ user: { id: "owner", memberships: [{ workspaceId: "workspace" }] } });
   mocks.findMany.mockResolvedValue([]);
+  mocks.preference.mockResolvedValue(null);
 });
 
 describe("recipient search by phone digits", () => {
@@ -37,10 +38,25 @@ describe("recipient search by phone digits", () => {
     ]));
   });
 
+  it("also finds a whole number by its canonical key, read in the workspace's region", async () => {
+    let where = await search("555-234-5678");
+    expect(where.AND[1].OR).toContainEqual({ phones: { some: { normalized: { contains: "+15552345678" } } } });
+    mocks.findMany.mockClear();
+    mocks.preference.mockResolvedValue({ phoneRegion: "GB" });
+    where = await search("07911 123456");
+    expect(mocks.preference).toHaveBeenLastCalledWith({ where: { workspaceId: "workspace" }, select: { phoneRegion: true } });
+    expect(where.AND[1].OR).toEqual(expect.arrayContaining([
+      { phones: { some: { normalized: { contains: "+447911123456" } } } },
+      { phones: { some: { normalized: { contains: "07911123456" } } } }
+    ]));
+  });
+
   it("needs at least four digits before searching the stored digits", async () => {
     const where = await search("Bob 123");
     expect(where.AND[1].OR).toHaveLength(3);
     expect(JSON.stringify(where)).not.toContain("normalized");
+    // A query that cannot be a whole number never reads the region.
+    expect(mocks.preference).not.toHaveBeenCalled();
   });
 
   it("keeps the workspace scope and the sign-in requirement", async () => {

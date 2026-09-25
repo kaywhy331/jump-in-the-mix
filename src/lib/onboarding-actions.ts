@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { splitContactName } from "@/lib/quick-add-capture";
 import { ensureStarterMix } from "@/lib/starter-mix";
 import { buildEmailInputs, buildPhoneInputs } from "@/lib/contact-input";
+import { DEFAULT_PHONE_REGION, canonicalPhoneKey, workspacePhoneRegion } from "@/lib/phone-number";
 import { onboardingUses, onboardingReasons } from "@/lib/onboarding-options";
 import { storedMarketingScenario } from "@/lib/marketing-scenarios";
 
@@ -63,11 +64,12 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
 
   if (!displayName || !followUpDate) fail(path, "Add a person and choose when you want to follow up.");
   if (!isValidTimezone(timezone)) fail(path, "Choose a valid timezone before creating the first follow-up.");
+  const phoneRegion = contactPhone ? await workspacePhoneRegion(prisma, workspace.id) : null;
   let emails;
   let phones;
   try {
     emails = buildEmailInputs(contactEmail ? [contactEmail] : [], ["Email"]);
-    phones = buildPhoneInputs(contactPhone ? [contactPhone] : [], ["Mobile"]);
+    phones = buildPhoneInputs(contactPhone ? [contactPhone] : [], ["Mobile"], undefined, (typed) => canonicalPhoneKey(typed, phoneRegion ?? DEFAULT_PHONE_REGION));
   } catch (error) {
     fail(path, error instanceof Error ? error.message : "Check the contact details and try again.");
   }

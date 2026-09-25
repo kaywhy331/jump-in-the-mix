@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
     $queryRaw: vi.fn(),
     contact: { update: vi.fn(), findFirst: vi.fn() },
     contactEmail: { upsert: vi.fn(), deleteMany: vi.fn() },
-    contactPhone: { upsert: vi.fn(), deleteMany: vi.fn() },
+    contactPhone: { upsert: vi.fn(), deleteMany: vi.fn(), update: vi.fn() },
     contactAddress: { findMany: vi.fn(), update: vi.fn(), create: vi.fn(), deleteMany: vi.fn() },
     contactGroupMembership: { upsert: vi.fn(), deleteMany: vi.fn() },
     contactCustomFieldValue: { upsert: vi.fn(), deleteMany: vi.fn() },
@@ -31,6 +31,8 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   contactPhone: { findFirst: mocks.phoneConflict },
   contact: { findFirst: mocks.contactFindFirst },
   job: { create: mocks.jobCreate },
+  // No preference row: the workspace reads phone numbers as North American (US).
+  workspacePreference: { findUnique: async () => null },
   $transaction: (fn: (tx: typeof mocks.tx) => unknown) => fn(mocks.tx)
 } }));
 import { saveContactFormAction } from "@/lib/contact-actions";
@@ -46,7 +48,7 @@ function form(fields: Record<string, string | string[]>): FormData {
 /** The contact as the edit form showed it, and the fingerprint the form carries. */
 const SHOWN = {
   firstName: "Bob", lastName: null, displayName: "Bob", company: null, publicNotes: null, privateNotes: null,
-  emails: [], phones: [{ phone: "(555) 234-5678", normalized: "5552345678", label: null, isPrimary: true }],
+  emails: [], phones: [{ id: "phone_1", phone: "(555) 234-5678", normalized: "5552345678", label: null, isPrimary: true }],
   addresses: [], groupMemberships: [], customFieldValues: []
 };
 const REVISION = contactRevision(SHOWN);
@@ -71,8 +73,9 @@ describe("contact form duplicate check", () => {
       errorLink: { href: "/contacts/archived?q=%2B1%20(555)%20234-5678", label: "Open Archived contacts" },
       field: "phoneValue:0"
     });
+    // Both keys: the canonical one and the format-based one a row saved before the key change holds.
     expect(mocks.phoneConflict).toHaveBeenCalledWith({
-      where: { normalized: "+15552345678", contact: { workspaceId: "workspace" } },
+      where: { normalized: { in: ["+15552345678"] }, contact: { workspaceId: "workspace" } },
       select: { contact: { select: { displayName: true, archivedAt: true } } }
     });
     expect(JSON.stringify(mocks.phoneConflict.mock.calls[0][0].where)).not.toContain("archivedAt");
@@ -124,7 +127,7 @@ describe("contact form field errors", () => {
   });
 
   it("names the row whose phone belongs to someone else, whatever punctuation was typed", async () => {
-    mocks.phoneConflict.mockImplementation(async ({ where }: { where: { normalized: string } }) => where.normalized === "5552345678" ? { contact: { displayName: "Dana Reyes", archivedAt: null } } : null);
+    mocks.phoneConflict.mockImplementation(async ({ where }: { where: { normalized: { in: string[] } } }) => where.normalized.in.includes("5552345678") ? { contact: { displayName: "Dana Reyes", archivedAt: null } } : null);
     const result = await saveContactFormAction({}, form({ firstName: "Bob", phoneValue: ["(555) 111-2222", "555.234.5678"] }));
     expect(result).toMatchObject({ error: "That phone already belongs to Dana Reyes. Use Find duplicates if these are the same person.", field: "phoneValue:1" });
   });
@@ -171,6 +174,10 @@ describe("returning to Today after an edit", () => {
     await expect(saveContactFormAction({}, form({ contactId: "contact_1", revision: REVISION, firstName: "Bob", phoneValue: "(555) 234-5678", returnTo: "/jumps?focus=jump_1" })))
       .rejects.toThrow("REDIRECT /jumps?focus=jump_1&contactSaved=1");
     expect(mocks.tx.contact.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "contact_1" } }));
+    // The row saved under its format-based key is rewritten to the canonical key, then updated in place.
+    expect(mocks.tx.contactPhone.update).toHaveBeenCalledWith({ where: { id: "phone_1" }, data: { normalized: "+15552345678" } });
+    expect(mocks.tx.contactPhone.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { contactId_normalized: { contactId: "contact_1", normalized: "+15552345678" } } }));
+    expect(mocks.tx.contactPhone.deleteMany).toHaveBeenCalledWith({ where: { contactId: "contact_1", normalized: { notIn: ["+15552345678"] } } });
     expect(mocks.jobCreate).toHaveBeenCalledWith({ data: { workspaceId: "workspace", task: "generate-jumps", payload: { contactId: "contact_1" } } });
   });
 

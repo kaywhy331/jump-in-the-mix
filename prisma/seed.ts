@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
 import { generateJumps } from "../src/lib/jump-engine";
 import { installApplicationCatalog } from "../src/lib/install-application-catalog";
+import { canonicalPhoneKey } from "../src/lib/phone-number";
 
 const demoMode = (process.env.DEMO_MODE ?? "true").toLowerCase() === "true";
 const demoEmail = process.env.DEMO_USER_EMAIL ?? "demo@jumpinthemix.local";
@@ -74,7 +75,7 @@ async function seedDemoWorkspace() {
       publicNotes: "Introduced by a past customer; asked about a water-heater replacement.",
       source: "MANUAL",
       emails: { create: { email: "sarah@example.com", normalized: "sarah@example.com", isPrimary: true, label: "Work" } },
-      phones: { create: { phone: "+1 555 010 1001", normalized: "15550101001", isPrimary: true, label: "Mobile" } },
+      phones: { create: { phone: "+1 555 010 1001", normalized: canonicalPhoneKey("+1 555 010 1001", "US"), isPrimary: true, label: "Mobile" } },
       groupMemberships: { create: [{ groupId: "demo_group_referrals" }, { groupId: "demo_group_leads" }] }
     }
   });
@@ -88,7 +89,7 @@ async function seedDemoWorkspace() {
       company: null,
       source: "MANUAL",
       emails: { create: { email: "marcus@example.com", normalized: "marcus@example.com", isPrimary: true, label: "Work" } },
-      phones: { create: { phone: "+1 555 010 1002", normalized: "15550101002", isPrimary: true, label: "Mobile" } },
+      phones: { create: { phone: "+1 555 010 1002", normalized: canonicalPhoneKey("+1 555 010 1002", "US"), isPrimary: true, label: "Mobile" } },
       groupMemberships: { create: { groupId: "demo_group_clients" } }
     }
   });
@@ -102,7 +103,7 @@ async function seedDemoWorkspace() {
       company: null,
       source: "MANUAL",
       emails: { create: { email: "elena@example.com", normalized: "elena@example.com", isPrimary: true, label: "Work" } },
-      phones: { create: { phone: "+1 555 010 1003", normalized: "15550101003", isPrimary: true, label: "Mobile" } },
+      phones: { create: { phone: "+1 555 010 1003", normalized: canonicalPhoneKey("+1 555 010 1003", "US"), isPrimary: true, label: "Mobile" } },
       groupMemberships: { create: { groupId: "demo_group_clients" } }
     }
   });

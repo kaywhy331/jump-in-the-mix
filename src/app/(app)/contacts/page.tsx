@@ -15,6 +15,7 @@ import { contactFollowUpSummary } from "@/lib/contact-follow-up-summary";
 import { formatDateTime } from "@/lib/format";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { mergeGroupActivity } from "@/lib/group-activity";
+import { phoneQueryKeys } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Contacts" };
@@ -139,8 +140,9 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   }
   const selectedPeople = [...new Set((params.people ?? "").split(",").filter(id => id && id.length <= 120))].slice(0, 50);
   const bulkArchivedIds = [...new Set((params.archivedContacts ?? "").split(",").filter(id => id && id.length <= 120))].slice(0, 50);
-  // A number typed with different punctuation than it was saved with still finds the person.
-  const phoneFilters: Prisma.ContactWhereInput[] = phoneSearchDigits(q).map((digits) => ({ phones: { some: { normalized: { contains: digits } } } }));
+  // A number typed with different punctuation than it was saved with still finds the person; a whole
+  // number also finds its canonical key in the workspace's region (a national form such as 07911 123456).
+  const phoneFilters: Prisma.ContactWhereInput[] = [...new Set([...phoneSearchDigits(q), ...await phoneQueryKeys(prisma, workspace.id, q)])].map((digits) => ({ phones: { some: { normalized: { contains: digits } } } }));
   const contactWhere: Prisma.ContactWhereInput = {
     workspaceId: workspace.id,
     archivedAt: null,

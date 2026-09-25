@@ -7,6 +7,8 @@ import { requireWorkspace } from "@/lib/auth";
 import { APPOINTMENT_BUFFER_CHOICES, normalizeBufferMinutes } from "@/lib/calendar-availability";
 import { DEFAULT_LOCALE, isDisplayLocale } from "@/lib/display-preferences";
 import { parseTimeInput } from "@/lib/mix-broadcast";
+import { PHONE_KEYS_TASK, countPhonesReadAgain } from "@/lib/phone-canonicalization";
+import { isPhoneRegion, workspacePhoneRegion } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
 
 function value(formData: FormData, key: string, maximum = 500): string {
@@ -107,3 +109,29 @@ export async function updateQuietDayPreferenceAction(formData: FormData): Promis
   redirect("/account/preferences?quietDaysSaved=1#quiet-days");
 }
 export async function updateQuietDayPreferenceFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => updateQuietDayPreferenceAction(data)); }
+
+/**
+ * The workspace's country for phone numbers saved without a country code. Owner only, never during a
+ * support view. The page shows how many saved numbers the change reads again before this runs; the
+ * save records the old and new country with that count and queues the phone-key sweep for this
+ * workspace, which re-reads every key from the untouched display values.
+ */
+export async function updatePhoneRegionAction(formData: FormData): Promise<void> {
+  const { user, workspace, impersonation } = await requireWorkspace();
+  if (impersonation) fail("Workspace settings are unavailable during a view-only support session.");
+  if (workspace.ownerId !== user.id) fail("Only the account owner can change the country for phone numbers.");
+  const phoneRegion = value(formData, "phoneRegion", 8).toUpperCase();
+  if (!isPhoneRegion(phoneRegion)) fail("Choose one of the listed countries.");
+  const current = await workspacePhoneRegion(prisma, workspace.id);
+  if (current === phoneRegion) redirect("/account/preferences?phoneRegionSaved=1#phone-region");
+  const readAgain = await countPhonesReadAgain(workspace.id, current, phoneRegion);
+  await prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR NO KEY UPDATE`;
+    const previous = await workspacePhoneRegion(tx, workspace.id);
+    await tx.workspacePreference.upsert({ where: { workspaceId: workspace.id }, create: { workspaceId: workspace.id, phoneRegion }, update: { phoneRegion } });
+    await tx.job.create({ data: { workspaceId: workspace.id, task: PHONE_KEYS_TASK, payload: { workspaceId: workspace.id } } });
+    await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "workspace.phone-region.update", entityType: "WorkspacePreference", entityId: workspace.id, source: "account.preferences", beforeData: { phoneRegion: previous }, afterData: { phoneRegion }, metadata: { numbersReadAgain: readAgain } } });
+  });
+  redirect("/account/preferences?phoneRegionSaved=1#phone-region");
+}
+export async function updatePhoneRegionFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => updatePhoneRegionAction(data)); }
