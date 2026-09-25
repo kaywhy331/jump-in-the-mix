@@ -10,11 +10,12 @@ import { acknowledgeOperationsCheckAction } from "@/lib/operations-actions";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 
 export const metadata: Metadata = { title: "Admin · Operational alerts" };
-export default async function OperationsAlertsPage({ searchParams }: { searchParams: Promise<{ error?: string; acknowledged?: string; page?: string; view?: string }> }) {
-  const { user, permissions } = await requirePlatformAdmin("operations.read");
+export default async function OperationsAlertsPage({ searchParams }: { searchParams: Promise<{ error?: string; at?: string; sig?: string; acknowledged?: string; page?: string; view?: string }> }) {
+  const { user, session, permissions } = await requirePlatformAdmin("operations.read");
   const params = await searchParams, preferences = await displayPreferencesForUser(user.id);
   const noticeCount = await prisma.operationsNotice.count();
   const noticePages = Math.max(1, Math.ceil(noticeCount / 30));
@@ -29,7 +30,7 @@ export default async function OperationsAlertsPage({ searchParams }: { searchPar
   const stale = !monitor?.observedAt || Boolean(monitor.lastError) || Date.now() - monitor.observedAt.getTime() > operationsPolicy().monitorStaleSeconds * 1000;
   return <div className="page" style={{ overflowWrap: "anywhere" }}>
     <header className="page-header"><div><h1>Operational alerts</h1></div><Link className="button" href="/admin/operations">Background operations</Link></header>
-    {params.error && <Notice type="error">{String(params.error).slice(0, 400)}</Notice>}
+    <UrlErrorNotice params={params} viewer={session} fallback="The alert could not be acknowledged. Reload and review it again." />
     {params.acknowledged && <Notice>Alert acknowledged. It stays open until recovery is verified.</Notice>}
     {stale ? <Notice type="error">Monitoring is stale or incomplete. Check the monitor; saved results may be outdated.</Notice> : <Notice type="info">Independent checks last completed {formatDateTime(monitor!.observedAt!, preferences)}.</Notice>}
     <AdminRefresh observedAt={new Date().toISOString()} /><nav className="admin-content-tabs" aria-label="Alert views">{[["open", "Unresolved, including acknowledged"], ["acknowledged", "Acknowledged"], ["all", "All checks"]].map(([key,label]) => <Link key={key} href={adminQuery("/admin/operations/alerts", { view: key })} aria-current={view === key ? "page" : undefined}>{label}</Link>)}</nav>

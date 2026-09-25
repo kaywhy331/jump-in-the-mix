@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requirePlatformAdminIdentity } from "@/lib/auth";
+import { withViewerError } from "@/lib/form-errors";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { AdmissionError } from "@/lib/admission";
@@ -35,9 +36,9 @@ export async function changeAdmissionPolicyAction(formData: FormData): Promise<v
   const fields = admissionDraftFields(formData);
   const number = (key: string) => /^\d+$/.test(String(formData.get(key) ?? "")) ? Number(formData.get(key)) : NaN;
   const expectedRevision = number("revision");
-  if (!admissionOperation(operation) || !fields || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) redirect("/admin/admission?error=Reload+admission+controls+and+use+a+reason+of+at+most+500+characters.");
+  if (!admissionOperation(operation) || !fields || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0) redirect(withViewerError("/admin/admission", "Reload admission controls and use a reason of at most 500 characters.", session));
   const returnTo = `/admin/admission?draft=${operation}`;
-  const fail = (message: string): never => redirect(`${returnTo}&error=${encodeURIComponent(message)}`);
+  const fail = (message: string): never => redirect(withViewerError(returnTo, message, session));
   const prior = await readAdmissionDraft(session.id, user.id);
   if (prior?.kind === "draft" && prior.operation === operation && prior.revision !== expectedRevision && formData.get("reviewedRevision") !== String(expectedRevision)) fail("Review the current saved settings before confirming your draft.");
   const draft: AdmissionDraftState = { kind: "draft", operation, revision: expectedRevision, fields };

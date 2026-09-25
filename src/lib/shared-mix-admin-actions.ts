@@ -4,17 +4,19 @@ import { safeAdminReturnTo } from "@/lib/admin-navigation";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requirePlatformAdmin } from "@/lib/auth";
+import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { saveLibraryDraft, releaseLibraryVersion } from "@/lib/library-admin";
 import { LibraryError, validateLibraryContent } from "@/lib/library-content";
 import { SharedMixContentError } from "@/lib/shared-mix";
 
 const value = (data: FormData, key: string) => String(data.get(key) ?? "").trim();
-function fail(path: string, error: unknown): never {
+/** Known library errors keep their wording, signed for the staff member (`viewer`); anything else gets the fixed sentence. */
+function fail(path: string, error: unknown, viewer: ErrorViewer): never {
   if (error instanceof LibraryError && error.needsMfa) redirect(`/account/admin-mfa?verify=1&returnTo=${encodeURIComponent(path)}`);
   if (error instanceof Error && "digest" in error) throw error;
   const message = error instanceof LibraryError || error instanceof SharedMixContentError ? error.message.slice(0, 500) : "The library change could not be saved. Please try again later.";
-  redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(message)}`);
+  redirect(withViewerError(path, message, viewer));
 }
 
 export async function saveSharedMixDraftFormAction(_previous: { error?: string; field?: string; redirectTo?: string }, data: FormData): Promise<{ error?: string; field?: string; redirectTo?: string }> {
@@ -39,7 +41,7 @@ export async function saveSharedMixDraftFormAction(_previous: { error?: string; 
     if (error instanceof LibraryError && error.needsMfa) {
       const context = new URLSearchParams({ returnTo: safeAdminReturnTo(value(data, "returnTo"), "/admin/templates") });
       if (!id && value(data, "sourceMixId")) context.set("sourceMixId", value(data, "sourceMixId").slice(0, 100));
-      fail(`${path}?${context}`, error);
+      fail(`${path}?${context}`, error, session);
     }
     return { error: error instanceof LibraryError || error instanceof SharedMixContentError ? error.message : "The draft could not be saved. Your edits remain here.", field: error instanceof LibraryError ? error.field : undefined };
   }
@@ -48,8 +50,9 @@ export async function saveSharedMixDraftFormAction(_previous: { error?: string; 
 }
 
 export async function saveSharedMixAdminAction(data: FormData): Promise<void> {
+  const { session } = await requirePlatformAdmin("mixes.edit");
   const result = await saveSharedMixDraftFormAction({}, data);
-  if (result.error) fail(value(data, "sharedMixId") ? `/admin/templates/${encodeURIComponent(value(data, "sharedMixId"))}/edit` : "/admin/templates/new", new LibraryError(result.error));
+  if (result.error) fail(value(data, "sharedMixId") ? `/admin/templates/${encodeURIComponent(value(data, "sharedMixId"))}/edit` : "/admin/templates/new", new LibraryError(result.error), session);
   redirect(result.redirectTo!);
 }
 
@@ -57,12 +60,12 @@ export async function releaseSharedMixAction(data: FormData): Promise<void> {
   const { user, session } = await requirePlatformAdmin(["mixes.edit", "mixes.publish"]);
   const id = value(data, "sharedMixId"), path = `/admin/templates/${encodeURIComponent(id)}/edit?returnTo=${encodeURIComponent(safeAdminReturnTo(value(data, "returnTo"), "/admin/templates"))}`;
   const rate = await consumeRateLimit({ scope: "library.release", identifiers: [user.id], limit: 10, windowMs: 15 * 60_000 });
-  if (!rate.allowed) fail(path, new LibraryError("Too many publication attempts. Try again later."));
+  if (!rate.allowed) fail(path, new LibraryError("Too many publication attempts. Try again later."), session);
   let result;
   try {
     result = await releaseLibraryVersion({ actorUserId: user.id, actorSessionId: session.id, sharedMixId: id, expectedRevision: Number(value(data, "revision")), version: Number(value(data, "version")),
       operation: value(data, "operation") as "publish" | "rollback" | "unpublish", reason: value(data, "reason"), password: String(data.get("currentPassword") ?? "") });
-  } catch (error) { fail(path, error); }
+  } catch (error) { fail(path, error, session); }
   revalidatePath("/admin/templates", "layout"); revalidatePath("/templates", "layout");
   redirect(`${path}${path.includes("?") ? "&" : "?"}released=${result.revision}`);
 }

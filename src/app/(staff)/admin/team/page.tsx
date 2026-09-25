@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { AdminPagination } from "@/components/AdminPagination";
 import { AdminDraftForm } from "@/components/AdminDraftForm";
 import { StaffAccessForm } from "@/components/StaffAccessForm";
@@ -13,9 +14,9 @@ import { EMAIL_RETRY_WINDOW_MS } from "@/lib/email-budget";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 export const metadata = { title: "Admin · Team" };
-type Search = { error?: string; saved?: string; invitation?: string; invitePage?: string; page?: string; view?: string; q?: string; email?: string; edit?: string; changed?: string };
+type Search = { error?: string; at?: string; sig?: string; saved?: string; invitation?: string; invitePage?: string; page?: string; view?: string; q?: string; email?: string; edit?: string; changed?: string };
 export default async function TeamPage({ searchParams }: { searchParams: Promise<Search> }) {
-  const { user, permissions } = await requirePlatformAdmin("staff.manage"), params = await searchParams;
+  const { user, session, permissions } = await requirePlatformAdmin("staff.manage"), params = await searchParams;
   const view = params.view === "add" || params.view === "invitations" || params.invitePage ? params.view === "add" ? "add" : "invitations" : "roster";
   const q = params.q?.trim().slice(0,254) ?? "";
   const where = q ? { OR: [{ id: q }, { user: { name: { contains: q, mode: "insensitive" as const } } }, { user: { email: { contains: q, mode: "insensitive" as const } } }] } : {};
@@ -33,7 +34,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   const href = (page:number) => adminQuery("/admin/team", { view, q, page });
   const date = (value:Date) => formatDateTime(value,display);
   return <div className="page"><header className="page-header"><div><h1>Team</h1></div>{view !== "add" && <Link className="button primary" href="/admin/team?view=add">Add a person</Link>}</header>
-    {params.error && <Notice type="error">{params.error}</Notice>}{params.saved && <Notice>Staff access updated. The person must sign in again.</Notice>}{params.invitation === "queued" && <Notice>Staff invitation queued. The recipient must accept and set up MFA.</Notice>}{params.invitation === "updated" && <Notice>Staff invitation updated.</Notice>}
+    <UrlErrorNotice params={params} viewer={session} />{params.saved && <Notice>Staff access updated. The person must sign in again.</Notice>}{params.invitation === "queued" && <Notice>Staff invitation queued. The recipient must accept and set up MFA.</Notice>}{params.invitation === "updated" && <Notice>Staff invitation updated.</Notice>}
     <nav className="admin-content-tabs" aria-label="Team views">{[["roster", "Staff"], ["invitations", "Invitations"], ["add", "Add a person"]].map(([key,label]) => <Link key={key} href={adminQuery("/admin/team", { view:key })} aria-current={view===key ? "page" : undefined}>{label}</Link>)}<Link href="/account/admin-mfa">Your security</Link></nav>
     {view !== "add" && <form method="get" className="admin-library-search live-search-form"><input name="view" type="hidden" value={view} /><label className="field"><span>{view === "roster" ? "Search staff name or email" : "Search invitation email"}</span><input name="q" type="search" defaultValue={q} maxLength={254} /></label><button className="button" type="submit">Search</button></form>}
     {view === "add" && <section className="card form-stack admin-add-staff"><h2>Add staff access</h2><p>Enter an email to add access or send a 7-day invitation.</p><form method="get" className="admin-filter-toolbar"><input name="view" type="hidden" value="add" /><label className="field"><span>Person’s email</span><input name="email" type="email" defaultValue={email} maxLength={254} required /></label><button className="button" type="submit">Review account</button></form>

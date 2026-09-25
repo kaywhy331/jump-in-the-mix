@@ -4,6 +4,7 @@ import { adminActionDestination } from "@/lib/admin-navigation";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requirePlatformAdmin } from "@/lib/auth";
+import { withViewerError } from "@/lib/form-errors";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { clearRecipientSuppression, EmailReviewError } from "@/lib/email-suppression-admin";
 import { recoverInvitationReceipt, repeatInvitationDelivery } from "@/lib/invitation-receipt-recovery";
@@ -17,7 +18,7 @@ export async function recoverInvitationReceiptAction(formData: FormData): Promis
   } catch (error) {
     if (error instanceof EmailReviewError && error.needsMfa) redirect(`/account/admin-mfa?verify=1&returnTo=${encodeURIComponent(returnPath)}`);
     if (error instanceof Error && "digest" in error) throw error;
-    redirect(adminActionDestination(formData, returnPath, { error: error instanceof EmailReviewError ? error.message : "The acceptance receipt could not be recovered." }));
+    redirect(withViewerError(adminActionDestination(formData, returnPath), error instanceof EmailReviewError ? error.message : "The acceptance receipt could not be recovered.", session));
   }
   revalidatePath("/admin/email"); revalidatePath("/admin/email/recovery"); revalidatePath("/admin/access"); revalidatePath("/admin/team");
   redirect(adminActionDestination(formData, returnPath, { recovered: "1" }));
@@ -32,7 +33,7 @@ export async function repeatInvitationDeliveryAction(formData: FormData): Promis
   } catch (error) {
     if (error instanceof EmailReviewError && error.needsMfa) redirect(`/account/admin-mfa?verify=1&returnTo=${encodeURIComponent(returnPath)}`);
     if (error instanceof Error && "digest" in error) throw error;
-    redirect(adminActionDestination(formData, returnPath, { error: error instanceof EmailReviewError ? error.message : "The invitation could not be queued. Reload its review." }));
+    redirect(withViewerError(adminActionDestination(formData, returnPath), error instanceof EmailReviewError ? error.message : "The invitation could not be queued. Reload its review.", session));
   }
   revalidatePath("/admin/email"); revalidatePath("/admin/email/recovery"); revalidatePath("/admin/access"); revalidatePath("/admin/waitlist"); revalidatePath("/admin/team");
   redirect(adminActionDestination(formData, returnPath, { queued: "1" }));
@@ -51,7 +52,7 @@ export async function clearRecipientSuppressionAction(formData: FormData): Promi
   } catch (error) {
     if (error instanceof EmailReviewError && error.needsMfa) redirect(`/account/admin-mfa?verify=1&returnTo=${encodeURIComponent(path)}`);
     if (error instanceof Error && "digest" in error) throw error;
-    redirect(adminActionDestination(formData, path, { error: error instanceof EmailReviewError ? error.message : "Suppression could not be cleared. Reload the review." }));
+    redirect(withViewerError(adminActionDestination(formData, path), error instanceof EmailReviewError ? error.message : "Suppression could not be cleared. Reload the review.", session));
   }
   revalidatePath("/admin/email"); revalidatePath("/admin/email/suppressions"); revalidatePath("/admin/waitlist");
   redirect(adminActionDestination(formData, path, { cleared: "1" }));

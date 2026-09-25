@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Notice } from "@/components/Notice";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { requirePlatformAdmin } from "@/lib/auth";
+import { viewerErrorMessage } from "@/lib/form-errors";
 import { getAdmissionSnapshot } from "@/lib/admission";
 import { changeAdmissionPolicyAction, discardAdmissionDraftAction } from "@/lib/admission-admin-actions";
 import { readAdmissionDraft } from "@/lib/admission-draft-cookie";
@@ -14,7 +15,7 @@ import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Admin · Admission" };
 
-export default async function AdmissionPage({ searchParams }: { searchParams: Promise<{ error?: string; saved?: string; draft?: string; operation?: string }> }) {
+export default async function AdmissionPage({ searchParams }: { searchParams: Promise<{ error?: string; at?: string; sig?: string; saved?: string; draft?: string; operation?: string }> }) {
   const { session, user, permissions } = await requirePlatformAdmin("settings.manage");
   const params = await searchParams;
   const snapshot = await getAdmissionSnapshot();
@@ -26,10 +27,11 @@ export default async function AdmissionPage({ searchParams }: { searchParams: Pr
   const operation = draft?.operation ?? randomUUID();
   const fields = draft?.fields ?? policy;
   const conflict = draft !== null && draft.revision !== policy.revision;
+  const error = viewerErrorMessage(params, session);
   const schedule = await prisma.waitlistSchedule.findUnique({ where: { id: "default" }, select: { paused: true } });
   return <div className="page admin-control-page">
     <header className="page-header"><div><h1>Admission</h1></div></header>
-    {params.error && !conflict && <Notice type="error">{params.error}</Notice>}
+    {error && !conflict && <Notice type="error">{error}</Notice>}
     {saved && <Notice type="success">Admission controls saved.</Notice>}
     {draft && <Notice type="info">Your admission changes have not been saved. Review the restored draft, re-enter your administrator password, then select Save admission controls. Authenticator verification alone does not save changes.</Notice>}
     {params.draft && !draft && <Notice type="error">This draft expired, was replaced, or belongs to another session. The form shows the current saved settings.</Notice>}
@@ -45,7 +47,7 @@ export default async function AdmissionPage({ searchParams }: { searchParams: Pr
       <form key={`${operation}:${randomUUID()}`} action={changeAdmissionPolicyAction} className="form-stack admin-admission-form">
         <input type="hidden" name="operation" value={operation} />
         <input type="hidden" name="revision" value={policy.revision} />
-        {conflict && <Notice type="error">Admission controls changed while this draft was open. Compare your draft with the current saved settings above before confirming a replacement.{params.error && <p>{params.error}</p>}</Notice>}
+        {conflict && <Notice type="error">Admission controls changed while this draft was open. Compare your draft with the current saved settings above before confirming a replacement.{error && <p>{error}</p>}</Notice>}
         <div className="form-grid"><label className="field"><span>Total account and reservation limit</span><input name="accountCeiling" type="number" min={0} max={1_000_000} step={1} defaultValue={fields.accountCeiling} required /><small>Accounts + unused email grants. Zero stops new waitlist email grants.</small></label>
         <label className="field"><span>Outstanding invitation limit</span><input name="outstandingCeiling" type="number" min={0} max={1_000_000} step={1} defaultValue={fields.outstandingCeiling} required /><small>Cannot exceed the total limit.</small></label></div>
         <div className="admin-pause-options"><label><input name="collectionPaused" type="checkbox" defaultChecked={fields.collectionPaused} /> Pause new waitlist requests</label>

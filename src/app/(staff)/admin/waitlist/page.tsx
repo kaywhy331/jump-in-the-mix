@@ -5,6 +5,7 @@ import { adminQuery } from "@/lib/admin-navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getAdmissionSnapshot, issuanceProblem } from "@/lib/admission";
@@ -15,8 +16,8 @@ import { waitlistSendingReady } from "@/lib/waitlist";
 export const metadata: Metadata = { title: "Admin · Waitlist" };
 const date = (value: Date | null) => value ? `${value.toISOString().slice(0, 16).replace("T", " ")} UTC` : "—";
 
-export default async function AdminWaitlistPage({ searchParams }: { searchParams: Promise<{ q?: string; view?: string; page?: string; error?: string; queued?: string; skipped?: string; retry?: string; confirmed?: string; scheduleSaved?: string }> }) {
-  const { permissions } = await requirePlatformAdmin("waitlist.read");
+export default async function AdminWaitlistPage({ searchParams }: { searchParams: Promise<{ q?: string; view?: string; page?: string; error?: string; at?: string; sig?: string; queued?: string; skipped?: string; retry?: string; confirmed?: string; scheduleSaved?: string }> }) {
+  const { session, permissions } = await requirePlatformAdmin("waitlist.read");
   const params = await searchParams;
   const query = (params.q ?? "").trim().slice(0, 254);
   const view = ["history", "delivery", "waves"].includes(params.view ?? "") ? params.view! : "waiting";
@@ -56,7 +57,7 @@ export default async function AdminWaitlistPage({ searchParams }: { searchParams
   const href = (nextPage: number) => adminQuery("/admin/waitlist", { q: query, view, confirmed, page: nextPage });
   return <div className="page admin-waitlist-page">
     <header className="page-header"><div><h1>Waitlist</h1></div></header>
-    {params.error && <Notice type="error">{params.error}</Notice>}
+    <UrlErrorNotice params={params} viewer={session} />
     {params.queued !== undefined && <Notice>{Number(params.queued) || 0} invitations queued. {Number(params.skipped) || 0} skipped because they were no longer eligible. The worker sends queued email.</Notice>}
     {params.retry && <Notice>Delivery queued for another attempt.</Notice>}
     {params.scheduleSaved && <Notice>Weekly wave schedule updated.</Notice>}

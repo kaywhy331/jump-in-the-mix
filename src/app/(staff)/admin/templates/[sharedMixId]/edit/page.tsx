@@ -6,6 +6,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { LibraryDraftForm } from "@/components/LibraryDraftForm";
 import { LibraryPreview } from "@/components/LibraryPreview";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
@@ -26,9 +27,9 @@ function Preview({ content }: { content: LibraryContent }) {
   } catch { return <Notice type="error">This version has invalid content. Save a corrected draft before publishing.</Notice>; }
 }
 export default async function AdminEditTemplatePage({ params, searchParams }: {
-  params: Promise<{ sharedMixId: string }>; searchParams: Promise<{ saved?: string; released?: string; error?: string; historyPage?: string; returnTo?: string }>;
+  params: Promise<{ sharedMixId: string }>; searchParams: Promise<{ saved?: string; released?: string; error?: string; at?: string; sig?: string; historyPage?: string; returnTo?: string }>;
 }) {
-  const { user, permissions } = await requirePlatformAdmin("mixes.edit");
+  const { user, session, permissions } = await requirePlatformAdmin("mixes.edit");
   const { sharedMixId } = await params, query = await searchParams;
   let state;
   try { state = await getLibraryState(sharedMixId); } catch (error) { if (error instanceof LibraryError) notFound(); throw error; }
@@ -59,7 +60,7 @@ export default async function AdminEditTemplatePage({ params, searchParams }: {
     <header className="page-header"><div><h1>Review {draft.title}</h1><p>{shared.status === "APPROVED" ? `Version ${version} is published.` : "Hidden from the customer library."} Latest draft: version {draftVersion}.</p></div><Link className="button" href={returnTo}>Back to mixes</Link></header>
     {query.saved && <Notice type="success">Draft version {query.saved} saved. Publication is a separate step.</Notice>}
     {query.released && <Notice type="success">Library publication updated.</Notice>}
-    {query.error && <Notice type="error">{query.error}</Notice>}
+    <UrlErrorNotice params={query} viewer={session} fallback="The library change could not be saved. Please try again later." />
     <AdminEditorNavigation prefix="library" />
     <details id="library-draft" className="card admin-editor-section admin-editor-disclosure" open={!query.saved && !query.released}><summary><h2>Edit the next draft</h2></summary><LibraryDraftForm id={sharedMixId} revision={controlRevision} content={draft} returnTo={returnTo} /></details>
     <details id="library-review" className="card admin-editor-section admin-editor-disclosure" open={Boolean(query.saved || query.released)}><summary><h2>Preview & publish · draft {draftVersion}</h2></summary>

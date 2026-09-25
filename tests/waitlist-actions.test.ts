@@ -16,6 +16,13 @@ vi.mock("@/lib/waitlist", () => ({
 vi.mock("@/lib/transactional-email", () => ({ transactionalEmailConfigured: mocks.configured, sendTransactionalEmail: mocks.send, escapeHtml: (v: string) => v }));
 import { inviteWaitlistSelectionAction, retryWaitlistDeliveryAction, setWaitlistScheduleAction } from "../src/lib/waitlist-admin-actions";
 import { confirmWaitlistAction, joinWaitlistAction, joinWaitlistFormAction } from "../src/lib/waitlist-actions";
+import { viewerErrorMessage } from "../src/lib/form-errors";
+const admin = { id: "admin-session", authUser: { id: "admin" } };
+/** A waitlist refusal, as the staff member who caused it sees it on the page. */
+async function refusal(action: Promise<unknown>): Promise<string | null> {
+  try { await action; } catch (error) { const location = (error as Error).message.replace(/^REDIRECT /, ""); expect(location.startsWith("/admin/waitlist?")).toBe(true); return viewerErrorMessage(Object.fromEntries(new URL(location, "https://example.test").searchParams), admin); }
+  throw new Error("Expected a redirect");
+}
 function form(values: Record<string, string | string[]>) {
   const data = new FormData();
   for (const [key, value] of Object.entries(values)) for (const item of Array.isArray(value) ? value : [value]) data.append(key, item);
@@ -23,7 +30,7 @@ function form(values: Record<string, string | string[]>) {
 }
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.admin.mockResolvedValue({ user: { id: "admin" }, session: { id: "admin-session" } }); mocks.ready.mockReturnValue(true); mocks.configured.mockReturnValue(true);
+  mocks.admin.mockResolvedValue({ user: { id: "admin" }, session: admin }); mocks.ready.mockReturnValue(true); mocks.configured.mockReturnValue(true);
   mocks.selected.mockResolvedValue({ queued: 1, skipped: 0 }); mocks.rate.mockResolvedValue({ allowed: true }); mocks.send.mockResolvedValue({ delivered: true });
 });
 describe("waitlist server action boundaries", () => {
@@ -37,13 +44,13 @@ describe("waitlist server action boundaries", () => {
     expect(mocks.selected).toHaveBeenCalledWith(["entry"], { userId: "admin", sessionId: "admin-session" }, "Launch");
   });
   it.each([{ entryId: [] }, { entryId: Array.from({ length: 51 }, (_, i) => String(i)) }])("rejects empty or oversized selections", async ({ entryId }) => {
-    await expect(inviteWaitlistSelectionAction(form({ entryId, reason: "Launch" }))).rejects.toThrow(/Select(?:%20|\+)between/);
+    expect(await refusal(inviteWaitlistSelectionAction(form({ entryId, reason: "Launch" })))).toBe("Select between 1 and 50 people.");
     expect(mocks.selected).not.toHaveBeenCalled();
   });
   it("requires a reason and configured email before reserving access", async () => {
-    await expect(inviteWaitlistSelectionAction(form({ entryId: "entry" }))).rejects.toThrow("reason");
+    expect(await refusal(inviteWaitlistSelectionAction(form({ entryId: "entry" })))).toBe("Enter a reason of 1–500 characters.");
     mocks.ready.mockReturnValue(false);
-    await expect(inviteWaitlistSelectionAction(form({ entryId: "entry", reason: "Launch" }))).rejects.toThrow("Configure");
+    expect(await refusal(inviteWaitlistSelectionAction(form({ entryId: "entry", reason: "Launch" })))).toBe("Configure transactional email and encryption before sending invitations.");
     expect(mocks.selected).not.toHaveBeenCalled();
   });
   it("normalizes public input and sends confirmation rather than an access link", async () => {

@@ -4,9 +4,9 @@ const APP_URL = "https://app.jumpinthemix.test";
 const mocks = vi.hoisted(() => ({ create: vi.fn(), end: vi.fn(), session: vi.fn(), permission: vi.fn(), limit: vi.fn() }));
 vi.mock("@/lib/env", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/env")>();
-  return { ...actual, env: { ...actual.env, appUrl: "https://app.jumpinthemix.test" } };
+  return { ...actual, env: { ...actual.env, appUrl: "https://app.jumpinthemix.test", authRateLimitSecret: "impersonation-redirect-secret-00001" } };
 });
-vi.mock("@/lib/auth", () => ({ requirePlatformAdmin: async () => ({ user: { id: "staff-1" }, session: { id: "staff-session" } }), getCurrentSession: mocks.session }));
+vi.mock("@/lib/auth", () => ({ requirePlatformAdmin: async () => ({ user: { id: "staff-1" }, session: { id: "staff-session", authUser: { id: "staff-1" } } }), getCurrentSession: mocks.session }));
 vi.mock("@/lib/impersonation", () => ({
   createAdminImpersonationGrant: mocks.create,
   endAdminImpersonationGrant: mocks.end,
@@ -18,6 +18,7 @@ import { POST as endView } from "@/app/api/admin/impersonation/end/route";
 import { POST as startView } from "@/app/api/admin/impersonation/start/route";
 import { env } from "@/lib/env";
 import { SupportAccessError } from "@/lib/support-case-access";
+import { UNVERIFIED_ERROR_MESSAGE, viewerErrorMessage } from "@/lib/form-errors";
 
 // What a misconfigured edge could forward from the client.
 const forged = { host: "attacker.example", "x-forwarded-host": "evil.example, app.jumpinthemix.test", "x-forwarded-proto": "http" };
@@ -31,6 +32,13 @@ function location(response: Response): URL {
   const value = response.headers.get("location") ?? "";
   expect(value).not.toMatch(/attacker|evil|0\.0\.0\.0/);
   return new URL(value);
+}
+
+/** The refusal is shown to the staff member who started the view, and only the fixed sentence to anyone else. */
+function refusal(url: URL): string | null {
+  const params = Object.fromEntries(url.searchParams);
+  expect(viewerErrorMessage(params, { authUser: { id: "staff-2" } })).toBe(UNVERIFIED_ERROR_MESSAGE);
+  return viewerErrorMessage(params, { authUser: { id: "staff-1" } });
 }
 
 beforeEach(() => {
@@ -52,16 +60,16 @@ describe("support-view redirects use the configured application URL", () => {
     const refused = location(await startView(post("/api/admin/impersonation/start", { ticketId: "ticket-1", assignmentRevision: "1", reason: "Investigate" })));
     expect(refused.origin).toBe(APP_URL);
     expect(refused.pathname).toBe("/admin/support/ticket-1");
-    expect(refused.searchParams.get("error")).toBe("This case is no longer assigned to you.");
+    expect(refusal(refused)).toBe("This case is no longer assigned to you.");
 
     mocks.create.mockRejectedValueOnce(new Error("database unavailable"));
     const failed = location(await startView(post("/api/admin/impersonation/start", { ticketId: "ticket-1", assignmentRevision: "1", reason: "Investigate" })));
     expect(`${failed.origin}${failed.pathname}`).toBe(`${APP_URL}/admin/support/ticket-1`);
-    expect(failed.searchParams.get("error")).toBe("The view-only session could not be started.");
+    expect(refusal(failed)).toBe("The view-only session could not be started.");
 
     const invalid = location(await startView(post("/api/admin/impersonation/start", { ticketId: "" })));
     expect(`${invalid.origin}${invalid.pathname}`).toBe(`${APP_URL}/admin/support`);
-    expect(invalid.searchParams.get("error")).toBe("Choose a valid support ticket.");
+    expect(refusal(invalid)).toBe("Choose a valid support ticket.");
   });
 
   it("ends the view back on the support list at APP_URL and clears the cookie", async () => {

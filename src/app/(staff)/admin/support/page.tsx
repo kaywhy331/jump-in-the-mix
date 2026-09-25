@@ -3,6 +3,7 @@ import { adminPage, adminQuery } from "@/lib/admin-navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import type { Prisma } from "@/generated/prisma/client";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
@@ -30,6 +31,8 @@ type SearchParams = {
   q?: string;
   email?: string;
   error?: string;
+  at?: string;
+  sig?: string;
   impersonationEnded?: string;
   status?: string;
   category?: string;
@@ -37,7 +40,7 @@ type SearchParams = {
 };
 
 export default async function AdminSupportPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [params, { user, permissions }] = await Promise.all([searchParams, requirePlatformAdmin("support.manage")]);
+  const [params, { user, session, permissions }] = await Promise.all([searchParams, requirePlatformAdmin("support.manage")]);
   const displayPreferences = await displayPreferencesForUser(user.id);
   const query = typeof params.q === "string" ? params.q.trim().slice(0, 200) : "";
   const view = ["mine", "unassigned", "waiting", "all"].includes(params.view ?? "") ? params.view! : params.email === "review" ? "all" : "attention";
@@ -123,7 +126,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
         </div>
       </header>
 
-      {params.error && <Notice type="error">{params.error}</Notice>}
+      <UrlErrorNotice params={params} viewer={session} />
       {params.impersonationEnded && <Notice type="success">The view-only support session has ended.</Notice>}
       <section className="stats-grid admin-support-stats">
         <article className="stat-card"><small>Waiting on support</small><strong>{openCount}</strong></article>

@@ -4,6 +4,7 @@ import { safeAdminReturnTo } from "@/lib/admin-navigation";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requirePlatformAdmin } from "@/lib/auth";
+import { SIGNED_ERROR_PARAMS, withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { lockAccess } from "@/lib/access-lock";
 import { prisma } from "@/lib/prisma";
 import { inviteSelectedWaitlistEntries, WAITLIST_INTERVAL_MS, waitlistSendingReady, WAITLIST_MANUAL_LIMIT } from "@/lib/waitlist";
@@ -12,19 +13,19 @@ import { AdmissionError } from "@/lib/admission";
 import { lockStaff, staffSessionHasPermissions } from "@/lib/staff-access";
 import { invitationEmailSuppressed } from "@/lib/invitation-preferences";
 
-function destination(data: FormData, updates: Record<string,string> = {}) { const url = new URL(safeAdminReturnTo(String(data.get("returnTo") ?? ""), "/admin/waitlist"), "https://admin.invalid"); for (const name of ["error", "queued", "skipped", "retry", "scheduleSaved"]) url.searchParams.delete(name); for (const [name,value] of Object.entries(updates)) url.searchParams.set(name,value); return `${url.pathname}${url.search}`; }
-function fail(message: string, data: FormData): never { redirect(destination(data, { error: message })); }
+function destination(data: FormData, updates: Record<string,string> = {}) { const url = new URL(safeAdminReturnTo(String(data.get("returnTo") ?? ""), "/admin/waitlist"), "https://admin.invalid"); for (const name of [...SIGNED_ERROR_PARAMS, "queued", "skipped", "retry", "scheduleSaved"]) url.searchParams.delete(name); for (const [name,value] of Object.entries(updates)) url.searchParams.set(name,value); return `${url.pathname}${url.search}`; }
+function fail(message: string, data: FormData, viewer: ErrorViewer): never { redirect(withViewerError(destination(data), message, viewer)); }
 
 export async function inviteWaitlistSelectionAction(formData: FormData): Promise<void> {
   const { user, session } = await requirePlatformAdmin(["waitlist.read", "waitlist.manage"]);
   const ids = [...new Set(formData.getAll("entryId").map(String))];
   const reason = String(formData.get("reason") ?? "").trim();
-  if (!ids.length || ids.length > WAITLIST_MANUAL_LIMIT || ids.some(id => id.length > 100)) fail(`Select between 1 and ${WAITLIST_MANUAL_LIMIT} people.`, formData);
-  if (!reason || reason.length > 500) fail("Enter a reason of 1–500 characters.", formData);
-  if (!waitlistSendingReady()) fail("Configure transactional email and encryption before sending invitations.", formData);
+  if (!ids.length || ids.length > WAITLIST_MANUAL_LIMIT || ids.some(id => id.length > 100)) fail(`Select between 1 and ${WAITLIST_MANUAL_LIMIT} people.`, formData, session);
+  if (!reason || reason.length > 500) fail("Enter a reason of 1–500 characters.", formData, session);
+  if (!waitlistSendingReady()) fail("Configure transactional email and encryption before sending invitations.", formData, session);
   let result;
   try { result = await inviteSelectedWaitlistEntries(ids, { userId: user.id, sessionId: session.id }, reason); }
-  catch (error) { if (error instanceof AdmissionError) fail(error.message, formData); throw error; }
+  catch (error) { if (error instanceof AdmissionError) fail(error.message, formData, session); throw error; }
   revalidatePath("/admin/waitlist");
   redirect(destination(formData, { queued: String(result.queued), skipped: String(result.skipped) }));
 }
@@ -32,9 +33,9 @@ export async function inviteWaitlistSelectionAction(formData: FormData): Promise
 export async function setWaitlistScheduleAction(formData: FormData): Promise<void> {
   const { user, session } = await requirePlatformAdmin(["waitlist.read", "waves.pause"]);
   const action = String(formData.get("scheduleAction") ?? "");
-  if (action !== "pause" && action !== "resume") fail("Choose pause or resume.", formData);
+  if (action !== "pause" && action !== "resume") fail("Choose pause or resume.", formData, session);
   const reason = String(formData.get("reason") ?? "").trim();
-  if (!reason || reason.length > 500) fail("Enter a reason of 1–500 characters.", formData);
+  if (!reason || reason.length > 500) fail("Enter a reason of 1–500 characters.", formData, session);
   const authorized = await prisma.$transaction(async tx => {
     await lockStaff(tx); await lockAccess(tx);
     if (!await staffSessionHasPermissions(tx, { userId: user.id, sessionId: session.id }, ["waitlist.read", "waves.pause"])) return false;
@@ -46,7 +47,7 @@ export async function setWaitlistScheduleAction(formData: FormData): Promise<voi
     await tx.waitlistAudit.create({ data: { actorUserId: user.id, action: `SCHEDULE_${action.toUpperCase()}`, reason } });
     return true;
   });
-  if (!authorized) fail("Your staff access changed. Sign in and verify your current permissions before changing weekly waves.", formData);
+  if (!authorized) fail("Your staff access changed. Sign in and verify your current permissions before changing weekly waves.", formData, session);
   revalidatePath("/admin/waitlist");
   redirect(destination(formData, { scheduleSaved: String(Date.now()) }));
 }
@@ -54,7 +55,7 @@ export async function setWaitlistScheduleAction(formData: FormData): Promise<voi
 export async function retryWaitlistDeliveryAction(formData: FormData): Promise<void> {
   const { user, session } = await requirePlatformAdmin(["waitlist.read", "waitlist.manage"]);
   const id = String(formData.get("deliveryId") ?? "");
-  if (!id || id.length > 100) fail("Choose a listed invitation delivery.", formData);
+  if (!id || id.length > 100) fail("Choose a listed invitation delivery.", formData, session);
   const retried = await prisma.$transaction(async tx => {
     await lockStaff(tx); await lockAccess(tx);
     if (!await staffSessionHasPermissions(tx, { userId: user.id, sessionId: session.id }, ["waitlist.read", "waitlist.manage"])) return 0;
@@ -64,7 +65,7 @@ export async function retryWaitlistDeliveryAction(formData: FormData): Promise<v
     if (changed.count) await tx.waitlistAudit.create({ data: { actorUserId: user.id, action: "DELIVERY_RETRY", reason: `Delivery ${id}` } });
     return changed.count;
   });
-  if (!retried) fail("This delivery cannot be safely retried. Check the provider record before sending again.", formData);
+  if (!retried) fail("This delivery cannot be safely retried. Check the provider record before sending again.", formData, session);
   revalidatePath("/admin/waitlist");
   redirect(destination(formData, { retry: "1" }));
 }

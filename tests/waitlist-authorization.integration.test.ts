@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/env", async original => {
   const mod = await original<typeof import("../src/lib/env")>();
-  return { ...mod, env: { ...mod.env, requireAdminMfa: true, pilotMode: false, appUrl: "https://example.test", dataEncryptionKey: "waitlist-authorization-test-key", resendApiKey: "test-key", emailFrom: "sender@example.test" } };
+  return { ...mod, env: { ...mod.env, requireAdminMfa: true, pilotMode: false, appUrl: "https://example.test", dataEncryptionKey: "waitlist-authorization-test-key", resendApiKey: "test-key", emailFrom: "sender@example.test", authRateLimitSecret: "waitlist-authorization-signing-secret" } };
 });
 const auth = vi.hoisted(() => ({ require: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requirePlatformAdmin: auth.require }));
@@ -13,6 +13,7 @@ import { inviteSelectedWaitlistEntries } from "../src/lib/waitlist";
 import { lockStaff, staffSessionHasPermissions } from "../src/lib/staff-access";
 import { createEmailReviewFixture } from "./helpers/email-review-fixture";
 import { openTestAdmission } from "./helpers/admission-fixture";
+import { viewerErrorMessage } from "../src/lib/form-errors";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 const changes = ["valid", "permission", "read-permission", "disabled-staff", "session", "expired-session", "mfa", "expired-mfa", "credential", "suspended", "unverified"] as const;
@@ -55,11 +56,14 @@ describe.skipIf(!local).sequential("waitlist mutation authorization on PostgreSQ
       if (change === "suspended") await prisma.user.update({ where: { id: actor.userId }, data: { suspendedAt: new Date() } });
       if (change === "unverified") await prisma.user.update({ where: { id: actor.userId }, data: { emailVerifiedAt: null } });
       expect(await currentAuthority()).toBe(change === "valid");
-      return { user: fixture.user, session: fixture.session };
+      return { user: fixture.user, session: { ...fixture.session, authUser: fixture.user } };
     });
     const form = new FormData(); form.set("entryId", entry.id); form.set("scheduleAction", "pause"); form.set("reason", "Waitlist authorization regression");
     const run = action === "manual" ? inviteWaitlistSelectionAction : setWaitlistScheduleAction;
-    await expect(run(form)).rejects.toThrow(change === "valid" ? action === "manual" ? "queued=1&skipped=0" : "REDIRECT /admin/waitlist" : /error=Your(?:%20|\+)staff(?:%20|\+)access(?:%20|\+)changed/);
+    const location = await run(form).then(() => "", (error: Error) => error.message.replace(/^REDIRECT /, ""));
+    if (change === "valid") expect(location).toContain(action === "manual" ? "queued=1&skipped=0" : "/admin/waitlist");
+    // The refusal is signed for the staff member who acted, whose access just changed.
+    else expect(viewerErrorMessage(Object.fromEntries(new URL(location, "https://example.test").searchParams), { authUser: fixture.user })).toBe(`Your staff access changed. Sign in and verify your current permissions before ${action === "manual" ? "sending invitations" : "changing weekly waves"}.`);
     const granted = change === "valid" && action === "manual";
     expect(await prisma.waitlistEntry.findUnique({ where: { id: entry.id } })).toMatchObject({ status: granted ? "ACCESS_GRANTED" : "WAITING" });
     expect(await prisma.referralAccessInvite.count({ where: { recipientEmail: fixture.email } })).toBe(granted ? 1 : 0);

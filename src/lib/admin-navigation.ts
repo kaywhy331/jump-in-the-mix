@@ -1,4 +1,6 @@
 import { ADMIN_AREAS, type AdminPermission } from "@/lib/admin-permissions";
+// Types only: client components (AdminNav, AdminSecurityLink) import this module, so it must not load the signing code.
+import type { SIGNED_ERROR_PARAMS } from "@/lib/form-errors";
 
 const GROUPS = [
   { label: "Overview", paths: ["/admin"] },
@@ -51,9 +53,19 @@ export function adminPage(value: string | undefined) {
   return Number.isSafeInteger(page) && page > 0 ? Math.min(page, 100000) : 1;
 }
 
-export function adminActionDestination(data: FormData, fallback: string, updates: Record<string, string> = {}) {
+/** The keys of a signed error (form-errors' SIGNED_ERROR_PARAMS, which the compiler keeps this list equal to). */
+const SIGNED_ERROR_KEYS = ["error", "at", "sig"] as const satisfies typeof SIGNED_ERROR_PARAMS;
+/** Notice keys for an admin action's redirect. An error never goes here: see adminActionDestination. */
+export type AdminNoticeUpdates = Record<string, string> & { [key in typeof SIGNED_ERROR_KEYS[number]]?: never };
+
+/**
+ * The action's return page (`returnTo`, else `fallback`) without any earlier notice or signed error, plus `updates`.
+ * For an error, sign the message for the staff member who will see it:
+ * `withViewerError(adminActionDestination(data, fallback), message, session)`.
+ */
+export function adminActionDestination(data: FormData, fallback: string, updates: AdminNoticeUpdates = {}) {
   const url = new URL(safeAdminReturnTo(String(data.get("returnTo") ?? ""), fallback), "https://admin.invalid");
-  for (const key of ["error", "saved", "done", "queued", "cleared", "recovered", "updated", "retried"]) url.searchParams.delete(key);
+  for (const key of [...SIGNED_ERROR_KEYS, "saved", "done", "queued", "cleared", "recovered", "updated", "retried"]) url.searchParams.delete(key);
   for (const [key, value] of Object.entries(updates)) url.searchParams.set(key, value);
   return `${url.pathname}${url.search}`;
 }

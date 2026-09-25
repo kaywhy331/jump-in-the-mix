@@ -3,6 +3,7 @@ import { AdminContentDiff } from "@/components/AdminContentDiff";
 import { AdminDraftForm } from "@/components/AdminDraftForm";
 import type { Metadata } from "next";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { SystemMixPreview } from "@/components/SystemMixPreview";
 import { requirePlatformAdmin } from "@/lib/auth";
@@ -14,8 +15,8 @@ import { formatDateTime } from "@/lib/format";
 import Link from "next/link";
 
 export const metadata: Metadata = { title: "Admin · Invitation wording" };
-export default async function SystemMixAdminPage({ searchParams }: { searchParams: Promise<{ saved?: string; released?: string; error?: string; historyPage?: string }> }) {
-  const { user, permissions } = await requirePlatformAdmin("mixes.edit");
+export default async function SystemMixAdminPage({ searchParams }: { searchParams: Promise<{ saved?: string; released?: string; error?: string; at?: string; sig?: string; historyPage?: string }> }) {
+  const { user, session, permissions } = await requirePlatformAdmin("mixes.edit");
   const query = await searchParams, { config, published, draft } = await getSystemMixState();
   const display = await displayPreferencesForUser(user.id);
   const historyPage = Math.max(1, Math.floor(Math.min(100_000, Number(query.historyPage) || 1)));
@@ -38,7 +39,7 @@ export default async function SystemMixAdminPage({ searchParams }: { searchParam
   </AdminDraftForm></details>;
   return <div className="page">
     <header className="page-header"><div><h1>Invitation wording</h1><p>Version {config.publishedVersion} is published. Latest draft: version {config.draftVersion}.</p></div></header>
-    {query.saved && <Notice type="success">Draft version {query.saved} saved for review.</Notice>}{query.released && <Notice type="success">Invitation wording published.</Notice>}{query.error && <Notice type="error">{query.error}</Notice>}
+    {query.saved && <Notice type="success">Draft version {query.saved} saved for review.</Notice>}{query.released && <Notice type="success">Invitation wording published.</Notice>}<UrlErrorNotice params={query} viewer={session} fallback="System Mix could not be updated. Please try again later." />
     <AdminEditorNavigation prefix="wording" />
     <details id="wording-draft" className="card admin-editor-section admin-editor-disclosure" open={!query.saved && !query.released}><summary><h2>Edit the next draft</h2></summary>    <AdminDraftForm draftKey="system-wording" fields={["subject", "body", "reason"]} revision={config.controlRevision} saved={query.saved} action={saveSystemMixDraftAction} className="form-stack admin-wording-form">
 

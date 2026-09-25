@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { AdminPagination } from "@/components/AdminPagination";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
@@ -14,6 +15,8 @@ export const metadata: Metadata = { title: "Admin · Users" };
 type SearchParams = {
   q?: string;
   error?: string;
+  at?: string;
+  sig?: string;
   impersonationEnded?: string;
   updated?: string;
   page?: string;
@@ -21,7 +24,7 @@ type SearchParams = {
 };
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [params, { user: adminUser, permissions }] = await Promise.all([searchParams, requirePlatformAdmin("users.read")]);
+  const [params, { user: adminUser, session, permissions }] = await Promise.all([searchParams, requirePlatformAdmin("users.read")]);
   const displayPreferences = await displayPreferencesForUser(adminUser.id);
   const query = (params.q?.trim() ?? "").slice(0, 254);
   const requestedPage = Math.min(10_000, Math.max(1, Number.parseInt(params.page ?? "1", 10) || 1));
@@ -77,7 +80,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
         </div>
       </header>
 
-      {params.error && <Notice type="error">{params.error}</Notice>}
+      <UrlErrorNotice params={params} viewer={session} />
       {params.impersonationEnded && <Notice type="success">The view-only support session has ended.</Notice>}
       {params.updated === "suspend" && <Notice>Account suspended. Sessions ended, sending and reminders switched off, and unused referrals revoked. A message already handed to a provider may still arrive.</Notice>}
       {params.updated === "restore" && <Notice>Access restored. The member must sign in again and choose any sending or reminders they want to enable.</Notice>}

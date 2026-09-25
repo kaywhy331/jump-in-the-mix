@@ -82,9 +82,8 @@ export async function enableAdminMfaAction(
   } catch (error) {
     return {
       status: "error",
-      message: error instanceof AdminMfaError || error instanceof Error
-        ? error.message
-        : "Administrator MFA could not be enabled."
+      // Only our own MFA errors carry wording for the page; database or decryption errors never reach it.
+      message: error instanceof AdminMfaError ? error.message : "Administrator MFA could not be enabled."
     };
   }
 }
@@ -112,9 +111,7 @@ export async function verifyAdminMfaAction(
   } catch (error) {
     return {
       status: "error",
-      message: error instanceof AdminMfaError || error instanceof Error
-        ? error.message
-        : "Administrator verification failed."
+      message: error instanceof AdminMfaError ? error.message : "Administrator verification failed."
     };
   }
 }

@@ -10,6 +10,7 @@ import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { RETENTION_COUNT_LABELS, RETENTION_STALE_MS } from "@/lib/data-retention-policy";
 import { authReserveUse, readEmailBudget } from "@/lib/email-budget";
@@ -23,6 +24,8 @@ type SearchParams = {
   status?: "all" | "pending" | "running" | "completed" | "failed";
   task?: string;
   error?: string;
+  at?: string;
+  sig?: string;
   retried?: string;
 };
 
@@ -43,7 +46,7 @@ function heartbeatStaleSeconds(): number {
 }
 
 export default async function AdminOperationsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const { user, permissions } = await requirePlatformAdmin("operations.read");
+  const { user, session, permissions } = await requirePlatformAdmin("operations.read");
   const displayPreferences = await displayPreferencesForUser(user.id);
   const params = await searchParams;
   const status = typeof params.status === "string" && ["all", "pending", "running", "completed", "failed"].includes(params.status) ? params.status : "failed";
@@ -92,7 +95,7 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
       <header className="page-header">
         <div><h1>Operations</h1></div><Link className="button" href="/admin/operations/alerts">Operational alerts</Link>
       </header>
-      {params.error && <Notice type="error">{String(params.error).slice(0, 400)}</Notice>}{params.retried && <Notice>Job queued for another attempt.</Notice>}
+      <UrlErrorNotice params={params} viewer={session} fallback="The job could not be retried. Reload Operations." />{params.retried && <Notice>Job queued for another attempt.</Notice>}
       {authReserve && <Notice type="error">Account email (sign-in links, verification and password resets) sent {authReserve.used} {authReserve.used === 1 ? "email" : "emails"} {authReserve.name === "day" ? "in the last 24 hours" : "in the last 31 days"}, at least half of the {authReserve.reserve} reserved for it. Heavy use can mean someone is requesting links for many addresses. <Link href="/admin/email">Review email use</Link>.</Notice>}
 
       <AdminRefresh observedAt={new Date().toISOString()} />

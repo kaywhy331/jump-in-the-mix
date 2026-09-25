@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-vi.mock("@/lib/env", async original => { const mod = await original<typeof import("../src/lib/env")>(); return { ...mod, env: { ...mod.env, requireAdminMfa: true, pilotMode: false, dataEncryptionKey: "email-repeat-test-key", resendApiKey: "test-sending-key", resendRecoveryApiKey: "test-recovery-key", emailFrom: "sender@example.test", emailDailyLimit: 90, emailMonthlyLimit: 2700, emailDailyAuthReserve: 20, emailMonthlyAuthReserve: 300 } }; });
+vi.mock("@/lib/env", async original => { const mod = await original<typeof import("../src/lib/env")>(); return { ...mod, env: { ...mod.env, requireAdminMfa: true, pilotMode: false, dataEncryptionKey: "email-repeat-test-key", resendApiKey: "test-sending-key", resendRecoveryApiKey: "test-recovery-key", emailFrom: "sender@example.test", authRateLimitSecret: "invitation-repeat-signing-secret-01", emailDailyLimit: 90, emailMonthlyLimit: 2700, emailDailyAuthReserve: 20, emailMonthlyAuthReserve: 300 } }; });
 const actionAuth = vi.hoisted(() => ({ require: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requirePlatformAdmin: actionAuth.require }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`REDIRECT ${url}`); } }));
@@ -15,11 +15,12 @@ import { emailMessageId } from "../src/lib/email-budget";
 import { deliverWaitlistInvitations } from "../src/lib/waitlist-delivery";
 import { receiveEmailProviderEvent } from "../src/lib/email-events";
 import type { TransactionalEmail } from "../src/lib/transactional-email";
+import { viewerErrorMessage } from "../src/lib/form-errors";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 describe.skipIf(!local).sequential("verified receipts and deliberate invitation repeats", () => {
   let f: Awaited<ReturnType<typeof createEmailReviewFixture>>;
-  beforeEach(async () => { f = await createEmailReviewFixture(); actionAuth.require.mockResolvedValue({ user: f.user, session: f.session }); vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Unexpected provider operation"); })); });
+  beforeEach(async () => { f = await createEmailReviewFixture(); actionAuth.require.mockResolvedValue({ user: f.user, session: { ...f.session, authUser: f.user } }); vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Unexpected provider operation"); })); });
   afterEach(async () => { await f.cleanup(); vi.unstubAllGlobals(); });
   const reason = "Recipient requested another copy after provider investigation";
   function input(delivery: { id: string; updatedAt: Date }) { return { ...f.actor, deliveryId: delivery.id, expectedUpdatedAt: delivery.updatedAt.toISOString(), reason }; }
@@ -166,7 +167,10 @@ describe.skipIf(!local).sequential("verified receipts and deliberate invitation 
     if (condition === "session") await prisma.session.delete({ where: { id: f.session.id } });
     if (condition === "suppression") await prisma.emailSuppression.create({ data: { email: f.email, reason: "INVITATION_OPTOUT" } });
     const form = new FormData(); form.set("deliveryId", item.delivery.id); form.set("inviteId", item.invite.id); form.set("operation", "retry"); form.set("reason", reason);
-    await expect((action === "waitlist" ? retryWaitlistDeliveryAction : manageAccessInvitationAction)(form)).rejects.toThrow(condition === "valid" ? /retry=1|done=retry/ : /error=/);
+    const location = await (action === "waitlist" ? retryWaitlistDeliveryAction : manageAccessInvitationAction)(form).then(() => "", (error: Error) => error.message.replace(/^REDIRECT /, ""));
+    if (condition === "valid") expect(location).toMatch(/retry=1|done=retry/);
+    // The refusal is signed for the staff member who acted.
+    else expect(viewerErrorMessage(Object.fromEntries(new URL(location, "https://example.test").searchParams), { authUser: f.user })).toBe(action === "waitlist" ? "This delivery cannot be safely retried. Check the provider record before sending again." : "The invitation changed or cannot be safely retried. Check the provider record.");
     expect((await prisma.waitlistDelivery.findUniqueOrThrow({ where: { id: item.delivery.id } })).status).toBe(condition === "valid" ? "QUEUED" : "REVIEW");
     expect(fetch).not.toHaveBeenCalled();
   });

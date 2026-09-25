@@ -13,6 +13,7 @@ import { readSupportCase } from "@/lib/support-case-access";
 import { supportReadContext } from "@/lib/support-read-audit";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { SupportReplyComposer } from "@/components/SupportReplyComposer";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
@@ -43,6 +44,8 @@ type SearchParams = {
   triageSaved?: string;
   statusSaved?: string;
   error?: string;
+  at?: string;
+  sig?: string;
 };
 
 export default async function AdminSupportTicketPage({
@@ -96,7 +99,7 @@ export default async function AdminSupportTicketPage({
       {query.emailReviewed && <Notice type="success">Notification review saved. See its current status below.</Notice>}
       {query.triageSaved && <Notice type="success">Ticket category and priority updated.</Notice>}
       {query.statusSaved && <Notice type="success">Ticket status updated.</Notice>}
-      {query.error && <Notice type="error">{query.error}</Notice>}
+      <UrlErrorNotice params={query} viewer={session} />
 
       <section className="card admin-ticket-context"><h2>{requester?.name ?? "Customer"} · {adminSupportStatusLabel(ticket.status)}</h2><p>{requester?.email} · {workspace?.name} · {supportPriorityLabel(ticket.priority)} priority · Assignee: {assignees.find(person => person.id === ticket.assignedToUserId)?.name ?? "Unassigned"}</p><a href="#ticket-controls">Ticket controls</a></section>
       <section className="support-admin-detail-grid">
