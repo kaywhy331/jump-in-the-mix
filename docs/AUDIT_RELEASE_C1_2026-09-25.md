@@ -1,6 +1,6 @@
 # Audit release C-1 — September 25, 2026
 
-Release C-1 is the first part of the [2026-09-24 full audit](FULL_AUDIT_2026-09-24.md)'s scale work (§5, "Release C"), after Releases A, A2, B and B11. An independent review of the Release C plan split it into four releases; C-1 holds the items that change the request path and need no migration:
+Release C-1 is live at **https://jumpinthemix.com/** as of 2026-09-25 18:27 UTC. It is the first part of the [2026-09-24 full audit](FULL_AUDIT_2026-09-24.md)'s scale work (§5, "Release C"), after Releases A, A2, B and B11. An independent review of the Release C plan split it into four releases; C-1 holds the items that change the request path and need no migration:
 
 - C9: one session and display-preference read per page render
 - C6: a bounded push reminder pass, with one summary push for a backlog
@@ -14,7 +14,10 @@ Nothing here should be visible to users except in speed, with two small exceptio
 | --- | --- |
 | Branch | `feat/audit-release-c1-20260925` (based on Release B11, `f511984`, and its record) |
 | Previous production commit | `f511984a4867a98c5d97b6a2a4a16e6266105dc0` (tag `prod-2026-09-25-f511984`) |
-| Application commit | the commit that adds this record |
+| Application commit | `34ffdaed6c2e49342f3e7033f969ada6ec9b33ce` (tag `prod-2026-09-25-34ffdae`) |
+| Worker deploy | `dep-darbn2mgekts738vvhj0`, live 2026-09-25 18:22:21 UTC |
+| Web deploy | `dep-darbod8u01pc73ba2ut0`, live 2026-09-25 18:27:39 UTC, build `N4pMD9J_8_aCLt9xPnalS` |
+| Final check | 2026-09-25 18:28:42 UTC |
 
 ## What changed
 
@@ -58,7 +61,14 @@ All checks ran on TrixBot (3.8 GB), one heavy job at a time, against the `jitm_d
 
 ## Release
 
-Pending. The code-only pipeline (`.artifacts/market-live-20260924/c1-*.mjs`) runs after this record is committed and pushed: preflight, worker deploy with a queue probe, web deploy, postflight, live smoke (now also: the synthetic owner downloads the streamed JSON export and it parses), final check.
+Released on 2026-09-25 between 18:20 and 18:29 UTC, under the owner's standing release authority, with the code-only pipeline in `.artifacts/market-live-20260924/c1-*.mjs`. Every step passed on the first run.
+
+- **Preflight (read-only).** Both services were live on `f511984` with auto-deploy off; the pushed branch matched the release commit; the database was ready with the runtime boundary intact; every applied migration matched the release tree; the release touched no schema, dependency or runtime configuration.
+- **Worker.** `dep-darbn2mgekts738vvhj0` went live at 18:22:21 UTC. Its scoped queue probe passed, and the synthetic job was removed.
+- **Web.** `dep-darbod8u01pc73ba2ut0` went live at 18:27:39 UTC with build `N4pMD9J_8_aCLt9xPnalS`.
+- **Postflight.** 18 public, security and sign-in redirect checks passed. On the live instance, 28 release files and 20 served assets hashed identically to the candidate. The database was ready.
+- **Live smoke.** One synthetic owner was used, and every row was removed. Eleven checks passed, among them the new one: the owner downloads the streamed JSON export, and it parses with the account and its one contact. The earlier checks (cookies, Today on a phone, the phone-number country preview, the real client address, magic links and signed errors on public and signed-in pages, reflow and axe in both themes) passed again.
+- **Final check.** Record counts were unchanged from the preflight. There were no probe jobs, synthetic users or workspaces, failed jobs since the release, or active rate-limit blocks. Health returned 200 three times, and both services are on `34ffdae` with auto-deploy off.
 
 ## Rollback
 
