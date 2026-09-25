@@ -18,6 +18,7 @@ import { runReportExport } from "@/lib/report-exports";
 import { queueDailyReports, runReportSnapshot, markReportJobFailed } from "@/lib/report-snapshots";
 import { REPORT_EXPORT_TASK, REPORT_SNAPSHOT_TASK } from "@/lib/report-storage-policy";
 import { PHONE_KEYS_TASK, runPhoneKeySweep } from "@/lib/phone-canonicalization";
+import { MARKETPLACE_REFRESH_INTERVAL_MS, refreshStaleListings, type ListingRefreshCursor } from "@/lib/marketplace-service";
 
 const workerId = `worker-${randomUUID().slice(0, 8)}`;
 const workerStartedAt = new Date();
@@ -282,6 +283,12 @@ async function processJob(job: ClaimedJob) {
   }
 }
 
+// The hourly Marketplace refresh keeps its gate and cursor here rather than in MaintenanceState, because
+// runWorkerPass builds a fresh state on every call. Author saves refresh their own shares at once; this
+// pass catches the changes no save sees (date-type renames, Journey edits, archived members).
+let marketplaceRefreshAt = 0;
+let marketplaceCursor: ListingRefreshCursor | null = null;
+
 type MaintenanceState = {
   automaticDelivery: number;
   jumpReconciliation: number;
@@ -345,6 +352,12 @@ async function runMaintenanceIfDue(state: MaintenanceState): Promise<void> {
     try { await queueDailyReports(); } catch { console.error("Daily report scheduling failed; the worker will retry."); }
     try { await cleanupOperationalData(); } catch { console.error("Operational retention cleanup failed; inspect the retention checkpoint and retry."); }
     state.retentionCleanup = Date.now();
+  }
+  if (stopping) return;
+  if (now - marketplaceRefreshAt >= MARKETPLACE_REFRESH_INTERVAL_MS) {
+    marketplaceRefreshAt = Date.now();
+    try { marketplaceCursor = (await refreshStaleListings({ limit: 200, after: marketplaceCursor })).next; }
+    catch (error) { console.error("Marketplace refresh pass failed", error); }
   }
 }
 

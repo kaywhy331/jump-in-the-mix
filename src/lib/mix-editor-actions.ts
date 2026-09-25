@@ -13,6 +13,7 @@ import { preparationFamilyForChannel, type PreparationFamily } from "@/lib/prepa
 import { variantFieldsForFamily } from "@/lib/preparation-variants";
 import { prisma } from "@/lib/prisma";
 import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
+import { refreshSharesOf } from "@/lib/marketplace-service";
 import { startDraftMix } from "@/lib/mix-start";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
@@ -388,5 +389,9 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
     fail(path, error instanceof MixSaveRefusal || (error instanceof Error && JOURNEY_REFUSALS.has(error.message)) ? error.message : "The mix could not be saved.", session);
   }
 
+  // Committed. The Marketplace shares of this Mix and of its Mega-Mix now show what was saved. Refreshed out
+  // here, because a Mega-Mix export inside the save would hold the workspace lock and risk its timeout; it
+  // never throws.
+  await refreshSharesOf({ workspaceId: workspace.id, mixIds: [mixId] });
   redirect(`/mixes/${mixId}/edit?${existingMix ? "updated" : "created"}=manual`);
 }

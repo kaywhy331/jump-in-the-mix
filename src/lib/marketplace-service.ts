@@ -21,7 +21,7 @@ async function assertOwner(db: DB, workspaceId: string, actorUserId: string) {
   return owner;
 }
 
-/** The author's current saved content. Every view of a listing reads this, so edits show at once. */
+/** The author's current saved content, read whenever a listing is opened, shared, added, reviewed or refreshed. */
 async function livePackage(db: DB, listing: Pick<MarketplaceListing, "kind" | "workspaceId" | "mixId" | "pipelineId">): Promise<PortablePackage | null> {
   try {
     if (listing.kind === "MIX" && listing.mixId) return (await exportSingleMix(db, listing.workspaceId, listing.mixId)).package;
@@ -30,14 +30,73 @@ async function livePackage(db: DB, listing: Pick<MarketplaceListing, "kind" | "w
   return null;
 }
 
-/** Keep directory facts in step with the live content; returns the fresh package. */
-export async function refreshListing(db: DB, listing: MarketplaceListing) {
-  const value = await livePackage(db, listing);
-  if (!value) return { listing, value: null };
-  const facts = listingFacts(value), fingerprint = portableFingerprint(value);
-  if (listing.fingerprint === fingerprint && listing.title === facts.title && listing.beatCount === facts.beatCount && listing.mixCount === facts.mixCount) return { listing, value };
-  const updated = await db.marketplaceListing.update({ where: { id: listing.id }, data: { ...facts, fingerprint, contentAt: new Date() } });
-  return { listing: updated, value };
+/**
+ * Keep directory facts in step with the live content; returns the fresh package. The write lands only on the
+ * facts this export started from (every write of them moves `contentAt`), so an export begun before an author's
+ * save never overwrites the newer facts that save's refresh wrote meanwhile: it reads the row again and
+ * retries, three times at most. Inside a transaction that locked the row first, the first write always lands.
+ */
+export async function refreshListing(db: DB, listing: MarketplaceListing): Promise<{ listing: MarketplaceListing; value: PortablePackage | null; changed: boolean }> {
+  let current = listing;
+  for (let attempt = 1; ; attempt += 1) {
+    const value = await livePackage(db, current);
+    if (!value) return { listing: current, value: null, changed: false };
+    const facts = listingFacts(value), fingerprint = portableFingerprint(value);
+    if (current.fingerprint === fingerprint && current.title === facts.title && current.beatCount === facts.beatCount && current.mixCount === facts.mixCount) return { listing: current, value, changed: false };
+    const [updated] = await db.marketplaceListing.updateManyAndReturn({ where: { id: current.id, contentAt: current.contentAt, fingerprint: current.fingerprint }, data: { ...facts, fingerprint, contentAt: new Date() } });
+    if (updated) return { listing: updated, value, changed: true };
+    const latest = await db.marketplaceListing.findUnique({ where: { id: current.id } });
+    if (!latest || attempt === 3) return { listing: latest ?? current, value, changed: false };
+    current = latest;
+  }
+}
+
+/**
+ * The post-commit hook for author saves (the Mix editor; a Mega-Mix's name, description or Mixes): the shares
+ * of these Mixes, of the Mega-Mixes holding them and of these Mega-Mixes show the saved content at once. Call
+ * it after the save's transaction has committed, never inside it, so an export neither holds the save's locks
+ * nor runs into its timeout. Every status is refreshed, so the author's own list is current too. It never
+ * throws: the save is done, and a share it missed converges in the hourly pass or when it is opened.
+ */
+export async function refreshSharesOf(input: { workspaceId: string; mixIds?: string[]; pipelineIds?: string[] }): Promise<void> {
+  const mixIds = input.mixIds ?? [], pipelineIds = input.pipelineIds ?? [];
+  if (!mixIds.length && !pipelineIds.length) return;
+  try {
+    const listings = await prisma.marketplaceListing.findMany({ where: { workspaceId: input.workspaceId, OR: [
+      ...(mixIds.length ? [{ mixId: { in: mixIds } }, { pipeline: { members: { some: { mixId: { in: mixIds } } } } }] : []),
+      ...(pipelineIds.length ? [{ pipelineId: { in: pipelineIds } }] : [])
+    ] } });
+    for (const listing of listings) await refreshListing(prisma, listing).catch(error => console.error(`Marketplace share ${listing.id} was not refreshed after a save.`, error));
+  } catch (error) {
+    console.error("Marketplace shares were not refreshed after a save.", error);
+  }
+}
+
+/** How often the worker runs `refreshStaleListings`. */
+export const MARKETPLACE_REFRESH_INTERVAL_MS = 60 * 60_000;
+/** Where the hourly pass stopped: the last share it checked, in its (contentAt, id) order. */
+export type ListingRefreshCursor = { contentAt: Date; id: string };
+
+/**
+ * The hourly safety net for changes no author-save hook sees: a date type renamed, a Journey connection changed,
+ * a Mega-Mix's Mix archived or restored. A worker maintenance step, not a Job task. It walks the shares the
+ * Community section shows, oldest content first, at most `limit` per call, after `after`. `next` is where the
+ * following call continues, or null once the walk has reached the end so the next call starts over; the worker
+ * keeps it, and the hourly gate, in memory. A share that fails is logged and left for the next walk.
+ */
+export async function refreshStaleListings({ limit = 100, after = null }: { limit?: number; after?: ListingRefreshCursor | null } = {}) {
+  const take = Math.min(Math.max(Math.floor(limit) || 1, 1), 1_000);
+  const listings = await prisma.marketplaceListing.findMany({
+    where: { ...visible, AND: [available, ...(after ? [{ OR: [{ contentAt: { gt: after.contentAt } }, { contentAt: after.contentAt, id: { gt: after.id } }] }] : [])] },
+    orderBy: [{ contentAt: "asc" }, { id: "asc" }], take
+  });
+  let changed = 0;
+  for (const listing of listings) {
+    try { if ((await refreshListing(prisma, listing)).changed) changed += 1; }
+    catch (error) { console.error(`Marketplace share ${listing.id} was not refreshed by the hourly pass.`, error); }
+  }
+  const last = listings.at(-1);
+  return { checked: listings.length, changed, next: last && listings.length === take ? { contentAt: last.contentAt, id: last.id } : null };
 }
 
 export async function readMarketplaceAuthor(workspaceId: string) {
@@ -138,13 +197,17 @@ export async function readMarketplace(filters: MarketplaceFilters, viewer: { use
       _count: { select: { favorites: true, imports: true, reports: { where: { status: "OPEN" } } } },
       favorites: { where: { userId: viewer.userId }, select: { userId: true } } } })
   ]);
-  // Visible rows always reflect the author's latest save. Community rows were counted as available;
-  // the author's own list keeps an unavailable share so its status and reports stay reachable.
-  const fresh = await Promise.all(listings.map(item => refreshListing(prisma, item).then(result => ({ ...item, ...result.listing, available: Boolean(result.value) }))));
-  return { total, rows: fresh.filter(item => item.available || filters.section === "mine").map((item): MarketplaceRow => ({
+  // Rows show the stored facts, so a list read exports nothing and writes nothing: an author's save refreshes
+  // its shares at once (`refreshSharesOf`) and the hourly pass (`refreshStaleListings`) catches every other
+  // change. Community rows were counted as available; the author's own list keeps an unavailable share so its
+  // status and reports stay reachable, and one query says which of its rows have something to show.
+  const availableIds = filters.section === "mine" && listings.length
+    ? new Set((await prisma.marketplaceListing.findMany({ where: { id: { in: listings.map(item => item.id) }, AND: [available] }, select: { id: true } })).map(item => item.id))
+    : null;
+  return { total, rows: listings.map((item): MarketplaceRow => ({
     id: item.id, section: "community", kind: item.kind, title: item.title, author: item.workspace.marketplaceAuthor?.publicName ?? "Community member", summary: item.summary,
     mixCount: item.mixCount, beatCount: item.beatCount, channels: item.channels, industry: item.industry, favorites: item._count.favorites, favorite: item.favorites.length > 0, added: item._count.imports,
-    available: item.available, own: item.workspaceId === viewer.workspaceId, status: item.status, openReports: item._count.reports, reviewRequested: Boolean(item.reviewRequestedAt), href: `/marketplace?${filters.section === "mine" ? "section=mine&" : "section=community&"}item=${encodeURIComponent(`listing:${item.id}`)}` })) };
+    available: availableIds ? availableIds.has(item.id) : true, own: item.workspaceId === viewer.workspaceId, status: item.status, openReports: item._count.reports, reviewRequested: Boolean(item.reviewRequestedAt), href: `/marketplace?${filters.section === "mine" ? "section=mine&" : "section=community&"}item=${encodeURIComponent(`listing:${item.id}`)}` })) };
 }
 
 /** One item for the detail pane, with its live content. `item` is mega:<id>, mix:<id> or listing:<id>. */
@@ -224,13 +287,16 @@ export async function addFromMarketplace(input: { listingId: string; workspaceId
   }, { timeout: 30_000 });
 }
 
-/** Copies whose shared original has changed since they were added, checked against the live original. */
+/**
+ * Copies whose shared original has changed since they were added, by the original's stored fingerprint. Every
+ * Mix and Mega-Mix page asks, so nothing is exported here: author saves refresh the fingerprint at once and the
+ * hourly pass catches every other change, so a notice appears within the hour at the latest.
+ */
 export async function marketplaceUpdates(workspaceId: string, only?: { mixId?: string; pipelineId?: string }) {
-  const imports = await prisma.marketplaceImport.findMany({ where: { workspaceId, listing: visible, ...(only?.mixId ? { mixId: only.mixId } : only?.pipelineId ? { pipelineId: only.pipelineId } : {}) }, orderBy: { createdAt: "desc" }, take: 50, include: { listing: true } });
+  const imports = await prisma.marketplaceImport.findMany({ where: { workspaceId, listing: visible, ...(only?.mixId ? { mixId: only.mixId } : only?.pipelineId ? { pipelineId: only.pipelineId } : {}) }, orderBy: { createdAt: "desc" }, take: 50, include: { listing: { select: { title: true, fingerprint: true } } } });
   const latest = new Map<string, (typeof imports)[number]>();
   for (const item of imports) if (!latest.has(item.listingId)) latest.set(item.listingId, item);
-  const checked = await Promise.all([...latest.values()].map(async item => ({ item, current: (await refreshListing(prisma, item.listing)).listing })));
-  return checked.filter(({ item, current }) => current.fingerprint !== item.fingerprint).map(({ item, current }) => ({ listingId: item.listingId, title: current.title, mixId: item.mixId, pipelineId: item.pipelineId }));
+  return [...latest.values()].filter(item => item.listing.fingerprint !== item.fingerprint).map(item => ({ listingId: item.listingId, title: item.listing.title, mixId: item.mixId, pipelineId: item.pipelineId }));
 }
 
 const authorEmail = async (workspaceId: string) => (await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { owner: { select: { email: true } } } }))?.owner.email ?? null;
@@ -426,7 +492,10 @@ const needsDecision: Prisma.MarketplaceListingWhereInput = { OR: [{ reports: { s
 
 /**
  * The staff queue for one tab, with each share's live wording (null when it has nothing to show) and when
- * staff last decided on it, so a request for another review can say what changed since.
+ * staff last decided on it, so a request for another review can say what changed since. Unlike the directory,
+ * this rarely viewed queue refreshes every row it shows: a restore sends the fingerprint of the wording staff
+ * read, `reviewListing` checks it against the live content, and a stored fingerprint that lagged behind would
+ * be refused on every reload.
  */
 export async function readModerationQueue(view: ModerationView) {
   const where: Prisma.MarketplaceListingWhereInput = view === "hidden" ? { status: "HIDDEN" } : view === "reviewed" ? { reviewRequestedAt: null, reports: { some: { status: { not: "OPEN" } }, none: { status: "OPEN" } } } : needsDecision;

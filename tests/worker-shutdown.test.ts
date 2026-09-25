@@ -28,6 +28,7 @@ vi.mock("@/lib/report-snapshots", () => ({ queueDailyReports: vi.fn(), runReport
 vi.mock("@/lib/report-exports", () => ({ runReportExport: vi.fn() }));
 vi.mock("@/lib/contact-import-jobs", () => ({ CONTACT_IMPORT_JOB_TASK: "contact-import", runContactImportBatch: mocks.importBatch }));
 vi.mock("@/lib/phone-canonicalization", () => ({ PHONE_KEYS_TASK: "canonicalize-phones", runPhoneKeySweep: mocks.phoneSweep }));
+vi.mock("@/lib/marketplace-service", () => ({ MARKETPLACE_REFRESH_INTERVAL_MS: 3_600_000, refreshStaleListings: vi.fn().mockResolvedValue({ checked: 0, changed: 0, next: null }) }));
 
 import { runWorkerPass } from "../src/worker/index";
 import { ImportInterruptedError } from "../src/lib/contact-import-lease";

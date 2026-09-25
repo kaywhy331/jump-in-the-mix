@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { test, expect, type BrowserContext } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
 import { installMegaMix } from "../src/lib/mega-mix-service";
+import { refreshSharesOf } from "../src/lib/marketplace-service";
 import { axeInPage } from "./axe-in-page";
 
 test.skip(!/^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? ""), "Requires isolated local fixtures.");
@@ -79,8 +80,10 @@ test("share a Mega-Mix, favorite and add it, see live edits and updates, report 
   await expect(page.getByRole("heading", { name: "Rivera pipeline", exact: true })).toBeVisible();
   expect(await prisma.mix.count({ where: { workspaceId: reader.workspaceId } })).toBe(13);
 
-  // The author edits; the listing shows it live and the reader is offered the update.
+  // The author edits; the listing shows it live and the reader is offered the update. The edit goes straight to the
+  // database, so the test runs what the author's save now does after it commits: refresh the shares of that Mix.
   await prisma.stepVersion.update({ where: { id: step.stepVersionId }, data: { body: "Hi {{First Name}}, thanks for reaching out. {{SMS Signature}}" } });
+  await refreshSharesOf({ workspaceId: author.workspaceId, mixIds: [step.mixId] });
   await page.goto(`/mixes/mega?megaMix=${(await prisma.megaMixPipeline.findFirstOrThrow({ where: { workspaceId: reader.workspaceId } })).id}`);
   await expect(page.getByText("The shared original of this has been updated. Your copy stays as it is.")).toBeVisible();
   expect(await prisma.stepVersion.count({ where: { stepTemplate: { workspaceId: reader.workspaceId }, body: { contains: "Maria" } } })).toBe(1);
