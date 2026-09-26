@@ -9,8 +9,10 @@ model UserPreference {
   userId    String   @unique
   locale    String   @default("en-US")
   timezone  String   @default("UTC")
+  reviewMixActivation Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model WorkspacePreference {
@@ -20,8 +22,16 @@ model WorkspacePreference {
   quietHoursStart        Int               @default(1200)
   quietHoursEnd          Int               @default(480)
   weekendScheduling      WeekendScheduling @default(KEEP)
+  // Minutes kept free before and after each appointment when checking for conflicts.
+  appointmentBufferMinutes Int             @default(0)
+  // Reviewed onboarding choices; null preserves existing scheduling behavior.
+  journeyPreferences     Json?
+  quietDaysEnabled       Boolean           @default(false)
+  quietDays              Int               @default(60)
   nextReconcileAt        DateTime          @default(now())
   lastReconciledAt       DateTime?
   createdAt              DateTime          @default(now())
   updatedAt              DateTime          @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  phoneRegion String @default("US") // ISO 3166-1 alpha-2 for numbers saved without a country code (CHECK in the migration)
 }

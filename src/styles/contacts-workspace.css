@@ -1,0 +1,193 @@
+/* Contacts composition from the supplied export. This file owns the directory
+   and profile layout; generic legacy card/header rules are not its structure. */
+.app-main:has(> .contacts-page) { padding: 0; }
+.app-main:has(.contact-detail-page):not(:has(.contacts-page)) { padding: 0; }
+.app-main > .contacts-page { width: 100%; max-width: none; margin: 0; padding: 0; }
+.contacts-workspace { display: block; min-width: 0; }
+.contacts-directory { min-width: 0; padding: 20px; }
+.contacts-selected { display: none; }
+.contacts-page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; margin: 0 0 18px; }
+.contacts-page-header h1 { margin: 0; font-size: 30px; line-height: 1.2; letter-spacing: -.04em; }
+.contacts-page-actions { display: flex; align-items: center; gap: 12px; }
+.contacts-page-actions .button { min-height: 40px; padding: 8px 14px; font-size: .875rem; }
+.contacts-page-actions .mobile-header-action { display: inline-flex; width: 36px; min-width: 36px; min-height: 36px; padding: 8px; border: 0; background: transparent; }
+.contacts-page-actions .mobile-header-action svg { width: 20px; height: 20px; }
+.contact-import-action { display: none; }
+.contact-search-row { display: flex; align-items: center; min-width: 0; min-height: 44px; border: 1px solid transparent; border-radius: var(--radius-control); background: var(--surface); }
+.contact-search-row:focus-within { outline: 2px solid var(--violet-mark); outline-offset: 2px; }
+.contacts-directory .contact-header-search { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; max-width: none; margin: 0; padding-left: 14px; }
+.contact-header-search > svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--text-3); }
+.contacts-directory .contact-header-search input[type="search"] { width: 100%; min-width: 0; min-height: 42px; padding: 8px 0; border: 0; background: transparent; outline: none; box-shadow: none; font-size: .9375rem; }
+.contact-filter-button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 44px; min-height: 44px; padding: 8px; border: 0; background: transparent; color: var(--text-2); cursor: pointer; }
+.contact-filter-button svg { width: 18px; height: 18px; }
+.contact-filter-button span { color: var(--violet-text); font-size: .75rem; }
+.contact-list-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; margin: 0; font-size: .8125rem; color: var(--text-3); }
+.contact-list-summary form { margin: 0 0 0 auto; min-width: 0; }
+.contact-list-summary select { width: auto; max-width: 150px; min-height: 44px; margin: 0; padding: 8px 4px; border: 0; background: transparent; font-size: .8125rem; color: var(--text-2); }
+.contacts-page .contact-list { margin: 6px -12px 0; padding: 0; border: 0; background: var(--page); }
+.contacts-page .contact-select-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 65px; margin: 0; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: var(--page); box-shadow: none; }
+.contacts-page .contact-select-row.selected { border-radius: 12px; background: var(--violet-wash); }
+.contacts-page .contact-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.contacts-page .contact-main > div:last-child { display: block; min-width: 0; flex: 1; }
+.contacts-page .contact-main .avatar { width: 36px; height: 36px; min-width: 36px; border-radius: 50%; font-size: .875rem; background: var(--surface); }
+.contacts-page .contact-main h3 { margin: 0 0 2px; font-size: 1rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.contact-open { color: var(--text); }
+.contact-open::after { position: absolute; content: ""; inset: 0; border-radius: 12px; }
+.contact-open:focus-visible { outline: none; }
+.contact-open:focus-visible::after { outline: 2px solid var(--violet-mark); outline-offset: -2px; }
+.contacts-page .contact-row-summary { display: flex; align-items: baseline; gap: 0 4px; margin: 0; font-size: .8125rem; line-height: 1.4; color: var(--text-2); }
+.contact-row-summary > :last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contact-row-summary > :first-child { flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contact-summary-separator { flex-shrink: 0; }
+.contact-missing-method { position: relative; z-index: 1; font-weight: 600; color: var(--violet-text); }
+.contacts-page .contact-select-control { display: none; }
+.contacts-page .selection-mode { grid-template-columns: 36px minmax(0, 1fr) auto; }
+.contacts-page .selection-mode .contact-select-control { position: relative; z-index: 1; display: flex; }
+.contacts-page .contact-select-row .table-actions { position: relative; z-index: 1; }
+.contacts-page .contact-select-row .table-actions:empty { display: none; }
+.contacts-directory .pagination-bar { margin-top: 24px; font-size: .8125rem; flex-wrap: wrap; }
+.contacts-directory .pagination-bar > span { display: none; }
+.contacts-directory .pagination-bar .page-actions { flex-wrap: wrap; }
+
+.contact-detail-page { --contact-inset: 24px; display: flex; flex-direction: column; gap: 0; min-width: 0; padding: 24px; }
+.contact-detail-page .contact-inline-action { display: inline-flex; align-items: center; gap: 8px; width: auto; min-height: 32px; padding: 0; border: 0; background: transparent; color: var(--violet-text); font: inherit; font-weight: 600; cursor: pointer; }
+.contact-inline-action svg { width: 18px; height: 18px; flex-shrink: 0; }
+.contact-profile-header { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 16px; margin: 0 0 28px; padding: 0; }
+.contact-profile-header .contact-detail-header-actions { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; margin: 0; }
+.contact-profile-header .profile-avatar { width: 56px; height: 56px; font-size: 1rem; }
+.profile-identity { min-width: 0; }
+.contact-profile-header .profile-identity :is(h1, h2) { margin: 0 0 6px; font-size: 28px; font-weight: 600; letter-spacing: -.04em; line-height: 1.2; overflow-wrap: anywhere; }
+.contact-stage-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; max-width: 100%; padding: 4px 10px; border: 0; border-radius: 18px; background: var(--surface); color: var(--text-2); font-size: .8125rem; cursor: pointer; text-align: left; }
+.contact-stage-chip svg { width: 14px; height: 14px; flex-shrink: 0; }
+.contact-profile-header .contact-profile-quick-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 0; padding: 0; }
+.contact-profile-header .contact-profile-quick-actions > .button { display: inline-flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; min-height: 44px; width: auto; margin: 0; padding: 10px 16px; background: transparent; color: var(--text); font-size: .875rem; font-weight: 500; }
+.contact-profile-header .contact-profile-quick-actions > .button svg { width: 18px; height: 18px; padding: 0; border-radius: 0; background: transparent; }
+.contact-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 28px; margin: 0; padding: 0 0 6px; border-bottom: 1px solid var(--line); }
+.contact-detail-page .contact-section-heading h2, .contact-detail-page .contact-next-line h2 { margin: 0; font-size: .8125rem; line-height: 1.4; font-weight: 500; color: var(--text-3); }
+.contact-section-heading .contact-inline-action { font-size: .8125rem; }
+.contact-detail-page .contact-next-line { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 16px; row-gap: 0; margin: 0 0 28px; padding: 20px 22px 22px; border: 0; border-radius: 20px; background: var(--surface); }
+.contact-next-line h2 { grid-column: 1; }
+/* The box grows when preparation finishes. Keep scroll anchoring out of it so the browser anchors on what
+   the owner is reading below (an open note) and that stays in place instead of sliding down the page. */
+.contact-next-line { overflow-anchor: none; }
+/* On phones the browser picks its anchor inside the partly scrolled-away profile header above the box; exclude it as well. */
+.contact-profile-header { overflow-anchor: none; }
+.contact-next-description { display: contents; }
+.contact-next-description > strong { grid-column: 1; grid-row: 2; display: block; font-size: 1rem; font-weight: 600; line-height: 1.35; }
+.contact-next-description > span { grid-column: 2; grid-row: 1 / 3; align-self: center; display: flex; flex-wrap: wrap; gap: 0 8px; margin-top: 2px; color: var(--text-2); font-size: .8125rem; }
+.contact-detail-page .contact-next-line .contact-review-button { grid-column: 3; grid-row: 1 / 3; align-self: center; min-height: 44px; margin: 0; padding: 10px 18px; border-radius: 999px; font-size: .875rem; }
+.contact-next-empty { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+.contact-beat-track { grid-column: 1 / -1; display: flex; justify-content: space-between; list-style: none; margin: 18px 0 0; padding: 0; min-width: 0; overflow-x: auto; }
+.contact-beat-track li { position: relative; flex: 1; min-width: 70px; font-size: .8125rem; color: var(--text-3); }
+.contact-beat-track li::before { content: ""; position: absolute; top: 5px; left: 5px; right: -5px; height: 2px; background: var(--line); }
+.contact-beat-track li:last-child { flex: 0 0 70px; text-align: right; }
+.contact-beat-track li:only-child { text-align: left; }
+.contact-beat-track li:last-child::before { display: none; }
+.contact-beat-track li:nth-last-child(2)::before { right: -65px; }
+.contact-beat-track li > :is(a, span) { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-height: 44px; padding: 0 2px; color: inherit; }
+.contact-beat-track li:last-child:not(:only-child) > :is(a, span) { align-items: flex-end; }
+.contact-beat-track i { display: block; width: 10px; height: 10px; border: 2px solid var(--text-3); border-radius: 50%; background: var(--surface); }
+.contact-beat-track .is-current i { border-color: var(--violet); background: var(--violet); box-shadow: 0 0 0 4px var(--violet-wash); }
+.contact-beat-track .is-current time { color: var(--text); font-weight: 600; }
+.contact-beat-track .is-complete i { background: var(--text-3); }
+.contact-profile-details { min-width: 0; margin: 0 0 28px; padding: 0; border: 0; }
+.contact-detail-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; column-gap: 12px; min-height: 48px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.contact-detail-row > svg { width: 18px; height: 18px; color: var(--text-3); }
+.contact-detail-row > :is(a, span) { min-width: 0; color: var(--text); font-size: .9375rem; overflow-wrap: anywhere; }
+.contact-detail-row small { max-width: 80px; font-size: .75rem; color: var(--text-3); overflow-wrap: anywhere; text-align: right; }
+.contact-detail-page .contact-add-details { min-height: 44px; margin: 0; font-size: .9375rem; }
+.contact-coming-up { margin-top: 28px; }
+.contact-coming-up ol { list-style: none; padding: 0; margin: 0; }
+.contact-coming-up li { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: .8125rem; }
+.contact-coming-up time { color: var(--text-3); }
+.contact-coming-up a { color: var(--text-2); overflow-wrap: anywhere; }
+.contact-empty-copy { color: var(--text-3); font-size: .8125rem; }
+.contact-detail-primary { display: contents; }
+.contact-priority-card { margin: 0 0 28px; padding: 0; border: 0; }
+.contact-priority-card .contact-section-heading { min-height: 28px; padding: 0; border: 0; }
+.contact-priority-card .contact-section-heading .contact-inline-action { min-height: 28px; }
+.contact-journey-track { display: flex; align-items: stretch; min-width: 0; overflow-x: auto; padding: 6px 0 0; }
+.contact-journey-track ol { display: flex; list-style: none; padding: 0; margin: 0; }
+.contact-stage-history { flex: 1.5; }
+.contact-stage-future { flex: 1; color: var(--text-3); }
+.contact-journey-track li { position: relative; display: flex; flex-direction: column; gap: 0; flex: 1; min-width: 90px; padding: 0 8px 30px; font-size: .8125rem; }
+.contact-journey-track strong { font-weight: 500; }
+.contact-journey-track time { font-size: .75rem; color: var(--text-3); }
+.contact-journey-track li::after { content: ""; position: absolute; left: 8px; right: -8px; top: 43px; height: 2px; background: var(--text-3); }
+.contact-journey-track li > i { position: absolute; z-index: 1; top: 38px; left: 7px; width: 12px; height: 12px; border-radius: 50%; background: var(--text-3); }
+.contact-journey-track .is-current i { background: var(--violet); box-shadow: 0 0 0 4px var(--violet-wash); }
+.contact-journey-track .is-current strong { color: var(--violet-text); }
+.contact-stage-future li::after { height: 0; border-top: 2px dashed var(--line); background: transparent; }
+.contact-stage-future li > i { background: var(--page); border: 2px solid var(--text-3); }
+.contact-stage-future li:last-child::after { display: none; }
+.contact-journey-today { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-width: 66px; padding-top: 58px; font-size: .75rem; }
+.contact-journey-today::before { position: absolute; content: ""; top: 43px; width: 100%; border-top: 2px dashed var(--line); }
+.contact-journey-today > i { position: absolute; top: 34px; height: 20px; width: 2px; background: var(--text); }
+.contact-journey-touchpoints { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px 20px; min-height: 20px; margin-top: 10px; font-size: .8125rem; }
+.contact-journey-touchpoints a { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; min-height: 44px; overflow-wrap: anywhere; color: var(--text-3); }
+.contact-journey-touchpoints svg { width: 14px; height: 14px; }
+.contact-timeline-card { padding: 0; margin: 0; border: 0; }
+.contact-icon-button { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 28px; padding: 3px 6px; border: 0; background: transparent; color: var(--text-3); cursor: pointer; }
+.contact-icon-button svg { width: 18px; height: 18px; }
+.contact-note-composer:not([open]) { display: none; }
+.contact-note-composer > summary { padding-top: 12px; font-size: .875rem; }
+.contact-notes-card { margin: 24px 0 0; padding: 12px 0; border-top: 1px solid var(--line); }
+.contact-notes-card > summary { cursor: pointer; }
+.contact-notes-card .note-copy, .contact-notes-card .private-note p { font-family: var(--font-voice); font-size: 1.125rem; }
+.contact-detail-page .contact-detail-more { margin: 0; padding: 12px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
+.contact-detail-more > summary { cursor: pointer; }
+.contact-mobile-journey { display: none; }
+
+@media (min-width: 1200px) {
+  .contacts-workspace { display: grid; grid-template-columns: 360px minmax(0, 1fr); min-height: 100dvh; }
+  .contacts-directory { padding: 28px 24px; border-right: 1px solid var(--line); }
+  .contacts-page-header h1 { font-size: 26px; }
+  .contact-import-action { display: inline-flex; }
+  .contacts-page .contact-list { margin-inline: -16px; }
+  .contacts-page .contact-select-row { min-height: 60px; padding: 10px 16px; border-bottom: 0; }
+  .contacts-page .contact-select-row.contact-current { border-radius: 12px; background: var(--violet-wash); }
+  .contacts-page .contact-main h3 { font-size: .9375rem; }
+  .contacts-selected { display: block; min-width: 0; padding: 0; }
+  .contact-profile-embedded { width: 100%; max-width: none; margin: 0; padding: 40px 28px; }
+  .contact-profile-embedded .contact-detail-header-actions { display: none; }
+  .contact-profile-embedded .contact-profile-header { grid-template-columns: 56px minmax(0, 1fr); }
+  .contact-profile-embedded .contact-details-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
+  .contact-profile-embedded .contact-coming-up { display: none; }
+}
+@media (min-width: 1700px) {
+  .contacts-workspace { grid-template-columns: 440px minmax(0, 1fr); }
+  .contact-profile-embedded { --contact-inset: clamp(28px, 3.44vw, 66px); display: grid; grid-template-columns: minmax(0, 1fr) 340px; align-content: start; gap: 0; padding: 40px 0; }
+  .contact-profile-embedded > :not(.contact-profile-details), .contact-profile-embedded .contact-detail-primary > * { grid-column: 1; margin-inline: var(--contact-inset); }
+  .contact-profile-embedded .contact-detail-primary { margin: 0; }
+  .contact-profile-embedded .contact-profile-details { grid-column: 2; grid-row: 1 / span 50; min-height: 100dvh; margin: -40px 0; padding: 40px 28px; border-left: 1px solid var(--line); }
+  .contact-profile-embedded .contact-details-rows { display: block; }
+  .contact-profile-embedded .contact-coming-up { display: block; }
+}
+@media (min-width: 1840px) {
+  .contact-profile-embedded .contact-profile-header { grid-template-columns: 56px minmax(0, 1fr) auto; }
+  .contact-profile-embedded .contact-profile-quick-actions { grid-column: 3; grid-row: 1; flex-wrap: nowrap; margin: 0; }
+}
+@media (min-width: 2200px) {
+  .contact-profile-embedded { grid-template-columns: minmax(0, 1fr) 340px; }
+  .contact-profile-embedded > :not(.contact-profile-details), .contact-profile-embedded .contact-detail-primary > * { width: min(100% - 96px, 1000px); margin-inline: auto; }
+}
+@media (max-width: 600px) {
+  .app-main > .contact-detail-page { margin: 0; padding: 20px; max-width: none; }
+  .contact-profile-header { gap: 16px 14px; margin-bottom: 22px; }
+  .contact-profile-header .profile-identity :is(h1, h2) { font-size: 24px; }
+  .contact-profile-header .contact-profile-quick-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+  .contact-profile-header .contact-profile-quick-actions > .button { flex-direction: column; gap: 8px; min-height: 76px; width: auto; padding: 0; border: 0; background: transparent; font-size: .75rem; }
+  .contact-profile-header .contact-profile-quick-actions > .button svg { width: 48px; height: 48px; padding: 13px; border-radius: 50%; background: var(--surface); }
+  .contact-detail-page .contact-next-line { grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; padding: 0; margin-bottom: 28px; border-radius: 0; background: transparent; }
+  .contact-detail-page .contact-next-line h2 { grid-column: 1 / -1; padding-bottom: 6px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .contact-detail-page .contact-next-line .contact-review-button { grid-column: 2; grid-row: 2; padding-inline: 18px; }
+  .contact-next-description { display: block; grid-column: 1; min-width: 0; }
+  .contact-next-description > strong { font-size: 1rem; }
+  .contact-beat-track { margin-top: 18px; }
+  .contact-beat-track i { background: var(--page); }
+  .contact-profile-details { margin-bottom: 24px; }
+  .contact-detail-page .contact-details-edit, .contact-birthday, .contact-coming-up, .contact-detail-primary > .contact-priority-card { display: none; }
+  .contact-detail-row { min-height: 44px; padding-block: 10px; }
+  .contact-mobile-journey { display: block; }
+  .contact-detail-page .contact-add-details { font-size: .9375rem; }
+}

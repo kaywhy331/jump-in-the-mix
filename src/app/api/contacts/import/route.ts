@@ -1,3 +1,4 @@
+import { boundedRequestText, RequestTooLargeError } from "@/lib/bounded-request";
 import { ContactImportInputError, contactImportFailure } from "@/lib/contact-import-errors";
 import { NextResponse } from "next/server";
 import { timezoneForUser } from "@/lib/display-preferences";
@@ -114,6 +115,21 @@ async function assertActiveGroupReferences(workspaceId: string, items: CommitIte
   }
 }
 
+/** Reads at most MAX_BODY_BYTES whether or not the client sent Content-Length; chunked uploads stop at the cap. */
+async function importBody(request: Request): Promise<{ tooLarge: true } | { tooLarge: false; body: unknown }> {
+  let text: string;
+  try {
+    text = await boundedRequestText(request, MAX_BODY_BYTES);
+  } catch (error) {
+    return error instanceof RequestTooLargeError ? { tooLarge: true } : { tooLarge: false, body: null };
+  }
+  try {
+    return { tooLarge: false, body: JSON.parse(text) };
+  } catch {
+    return { tooLarge: false, body: null };
+  }
+}
+
 async function context(request: Request) {
   const session = await getCurrentSession();
   const membership = session?.user.memberships[0];
@@ -159,12 +175,12 @@ export async function DELETE(request: Request) {
 export async function POST(request: Request) {
   const scoped = await context(request);
   if ("error" in scoped) return scoped.error;
-  const contentLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+  const read = await importBody(request);
+  if (read.tooLarge) {
     return NextResponse.json({ error: "The import request is too large. Split the file into smaller batches." }, { status: 413 });
   }
 
-  const parsed = requestSchema.safeParse(await request.json().catch(() => null));
+  const parsed = requestSchema.safeParse(read.body);
   if (!parsed.success) {
     return NextResponse.json({ error: "The import payload is invalid.", details: parsed.error.flatten() }, { status: 400 });
   }

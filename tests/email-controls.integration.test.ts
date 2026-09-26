@@ -1,4 +1,5 @@
 import { openTestAdmission } from "./helpers/admission-fixture";
+import { createEmailReviewFixture } from "./helpers/email-review-fixture";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { beforeAll, afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Webhook } from "svix";
@@ -52,16 +53,20 @@ async function cleanup() {
 
 describe.skipIf(!local)("email delivery controls on PostgreSQL", () => {
   let restoreAdmission: (() => Promise<void>) | undefined;
+  let admin: Awaited<ReturnType<typeof createEmailReviewFixture>>;
+  let actor: { userId: string; sessionId: string };
   beforeAll(async () => { restoreAdmission = await openTestAdmission(); });
   afterAll(async () => { await restoreAdmission?.(); });
   beforeEach(async () => {
     await cleanup();
+    admin = await createEmailReviewFixture();
+    actor = { userId: admin.user.id, sessionId: admin.session.id };
     settings.daily = 90; settings.monthly = 2700; settings.dailyReserve = 20; settings.monthlyReserve = 300;
     settings.secret = `whsec_${randomBytes(32).toString("base64")}`;
     fetchMock.mockReset().mockImplementation(async () => new Response(JSON.stringify({ id: randomUUID() }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(async () => { await admin.cleanup(); vi.unstubAllGlobals(); });
   afterAll(cleanup);
 
   it("serializes competing reservations and preserves the daily account-email reserve", async () => {
@@ -116,7 +121,7 @@ describe.skipIf(!local)("email delivery controls on PostgreSQL", () => {
     await reserveEmailAttempt(reserveInput());
     const email = recipient();
     const entry = await prisma.waitlistEntry.create({ data: { email, verifiedAt: new Date() } });
-    await inviteSelectedWaitlistEntries([entry.id], "test-operator", "Budget deferral test");
+    await inviteSelectedWaitlistEntries([entry.id], actor, "Budget deferral test");
     await deliverWaitlistInvitations();
     expect(fetchMock).not.toHaveBeenCalled();
     const delivery = await prisma.waitlistDelivery.findFirstOrThrow({ where: { invite: { recipientEmail: email } } });
@@ -139,7 +144,7 @@ describe.skipIf(!local)("email delivery controls on PostgreSQL", () => {
   it("processes a valid bounce once, cancels grants, and blocks every future email category", async () => {
     const email = recipient();
     const entry = await prisma.waitlistEntry.create({ data: { email, verifiedAt: new Date() } });
-    await inviteSelectedWaitlistEntries([entry.id], "test-operator", "Bounce test");
+    await inviteSelectedWaitlistEntries([entry.id], actor, "Bounce test");
     const payload = event("email.bounced", email); const id = `msg_${randomUUID()}`;
     expect((await signedRequest(payload, { id })).status).toBe(200);
     expect(await (await signedRequest(payload, { id })).json()).toEqual({ duplicate: true });
@@ -166,7 +171,7 @@ describe.skipIf(!local)("email delivery controls on PostgreSQL", () => {
   it("preserves cancellation when a bounce arrives during the outgoing API request", async () => {
     const email = recipient(); const providerId = randomUUID();
     const entry = await prisma.waitlistEntry.create({ data: { email, verifiedAt: new Date() } });
-    await inviteSelectedWaitlistEntries([entry.id], "test-operator", "Concurrent webhook test");
+    await inviteSelectedWaitlistEntries([entry.id], actor, "Concurrent webhook test");
     fetchMock.mockImplementationOnce(async () => {
       await receiveEmailProviderEvent(randomUUID(), event("email.bounced", email, providerId));
       return new Response(JSON.stringify({ id: providerId }), { status: 200 });

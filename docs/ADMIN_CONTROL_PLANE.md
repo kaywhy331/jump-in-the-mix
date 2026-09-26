@@ -6,27 +6,29 @@ Each admin route requires an active staff membership, its specific permission, a
 
 ## Navigation
 
-The desktop sidebar groups destinations into Workspace, People, Content, Operations, and Settings. On phones, **Menu** opens the same permission-filtered links; the current section stays visible when the menu is closed. Nested routes highlight their most specific destination.
+The desktop sidebar has eight task destinations: Overview, Customers, Access, Support, Content, Reports, Operations, and Settings. Each destination exposes only permitted page tabs. Access contains Waitlist, Invitations and Admission; Content contains Ready-made mixes, Invitation wording and Library options; Reports contains the live report, History and Exports; Operations contains background work, Alerts, Email, Recovery, Recipient blocks and Audit; Settings contains Team. On phones, **Menu** opens the same permission-filtered links; the current section stays visible when the menu is closed. Nested routes highlight their most specific destination.
 
 - **Overview** — three aggregate activity totals, a permission-filtered **Needs attention** queue, quick actions, and compact content/invitation links. Missing or stale independent monitoring remains visible as an attention item; a zero alert count alone never implies current health. Support links open the **Needs a reply** filter, covering new tickets and those waiting on support.
 - **Reports** — bounded UTC cohorts, waitlist conversion/age, invitation sources and time to join, wave outcomes, activation, D7/D30 returns, library version use, daily trends and operational usage. Saved daily reports retain observation times and storage history; background CSV exports expire and require the requesting sign-in. Requires `reports.read`; see [Report definitions and limits](ADMIN_REPORTS.md).
 - **Invitations** — member/platform grant history, revocation, and safe outbox retry with individual permissions.
 - **Waitlist** — confirmed queue, seven-day waves, manual selection, schedule controls, and delivery recovery.
-- **Team** — Owner-controlled staff roles, individual overrides, and access revocation.
-- **Users** — account search/filter/pagination, suspension/restoration, session revocation, and time-limited view-only support sessions. Account changes require individual permissions, password reauthentication, recent MFA and an audit reason; see [Account administration](USER_ADMINISTRATION.md).
-- **Support** — private customer conversations and replies.
-- **Ready-made plans** — create drafts, review saved previews, publish, hide, and roll back immutable library versions. Drafting and publication have separate permissions. Existing customer copies remain independent; see [Library administration](LIBRARY_ADMINISTRATION.md).
-- **System Mix** — draft, preview, publish and roll back the personal invitation subject/introduction. Future member previews change; queued invitation content and access links stay frozen. See [System Mix administration](SYSTEM_MIX_ADMINISTRATION.md).
-- **Operations** — worker heartbeat, background jobs, failures, and safe retry.
+- **Team** — searchable roster, separate invitation ledger, and one account-aware Add a person flow. Each permission has one override state: role default, allow or deny, with effective-access and change previews.
+- **Customers / Users** — compact account search/filter/pagination and a focused account page for suspension/restoration and session revocation. Case-bound support views are opened from the assigned support ticket. Account changes require individual permissions, password reauthentication, recent MFA and an audit reason; see [Account administration](USER_ADMINISTRATION.md).
+- **Support** — paginated Needs reply, Mine, Unassigned, Waiting on customer and All views. A prepared reply survives triage changes; replacing it with a template requires confirmation. Send reply and resolve records both changes atomically.
+- **Ready-made mixes** — create drafts, review saved previews, publish, hide, and roll back immutable library versions. Drafting and publication have separate permissions. Existing customer copies remain independent; see [Library administration](LIBRARY_ADMINISTRATION.md).
+- **Invitation wording** (System Mix) — draft, preview, publish and roll back the personal invitation subject/introduction. Future member previews change; queued invitation content and access links stay frozen. See [System Mix administration](SYSTEM_MIX_ADMINISTRATION.md).
+- **Operations** — separate Failed work, Health and Maintenance views, paginated jobs, impact/next steps before expandable diagnostics, and manual refresh. Alerts default to unacknowledged problems ordered by severity.
 - **Email** — sending allowances and account reserve, verified provider events, suppression totals, and delivery review; requires `operations.read`. See [Email operations](EMAIL_OPERATIONS.md).
-- **Audit** — read-only security and product-event search.
-- **System settings** — reviewed plan-library categories and industries.
+- **Audit** — platform/workspace scopes, matching date/filter controls, pagination, readable actors and permitted entity links; changed-field summaries precede redacted evidence.
+- **Library options** — enable and reorder reviewed categories and industries; concurrent changes require review before replacing current values.
 
 Retired billing, provider-sync, community-submission, reward, and AI-draft surfaces are not hidden routes; they no longer compile into the application.
 
 ## MFA and support views
 
-An administrator without MFA is redirected to enrollment. Enrollment requires the current password and a valid TOTP code and returns one-time recovery codes. A new application session requires a new MFA step-up.
+An administrator without MFA is redirected to enrollment. Enrollment requires the current password and a valid TOTP code and returns one-time recovery codes. A new application session requires a new MFA step-up. Admin browsing and recent verification for sensitive changes are separate; the latter expires after ten minutes. Security retains the current staff page as its return destination.
+
+Nonsecret admin drafts are held in memory for 30 minutes in the current tab and session. Sensitive forms retain their reasons and review fields through errors and MFA; passwords and verification codes are never retained. Verification returns for review and explicit resubmission. Switching staff sessions clears these drafts. Reloading or closing the tab discards them; Admission retains its separately encrypted, server-issued draft cookie as documented in [Admin MFA](ADMIN_MFA.md). Saved-record revision checks continue to reject stale mutations.
 
 A support view requires an active ticket assigned to the handler, `support.manage`, and the separate `support.view_customer` permission (no role receives it by default). The server derives the requester/workspace from that case and binds the time-limited, read-only view to the originating staff session. Each resolution rechecks staff/session/MFA and case/membership state. Reassignment or resolution ends access; reopening cannot revive a prior view. Private conversation and customer-page reads are audited without their content or search queries. The persistent banner identifies the case, reason and expiry. The centralized boundary rejects unsafe methods except ending the view, and personal account controls remain private. See [Support case operations and limitations](SUPPORT_CASE_ACCESS.md).
 

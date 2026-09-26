@@ -53,6 +53,8 @@ test("preparation refresh keeps an unsaved note, keyboard focus and reading posi
   const notice = page.getByRole("complementary", { name: "Follow-up preparation" });
   await expect(notice).toContainText("Preparing your follow-ups");
   await expect(page.getByRole("region", { name: "Next follow-up" })).not.toContainText("Nothing scheduled");
+  // The note composer stays folded away until the profile's Note action opens it.
+  await page.getByRole("navigation", { name: "Contact Preparation sample" }).getByRole("link", { name: "Note", exact: true }).click();
   const note = page.getByRole("textbox", { name: "Add a note", exact: true });
   await note.fill("Keep this unsaved note while follow-ups prepare."); await expect(note).toBeFocused();
   // Focusing a field may start the app's smooth scroll. Measure only after
@@ -142,6 +144,7 @@ test("preparation controls are accessible across themes, narrow widths and expir
     expect(result.violations.map(item => ({ id: item.id, targets: item.nodes.map(node => node.target) }))).toEqual([]);
   }
   await page.route(endpoint, route => route.fulfill({ status: 401, json: { error: "Sign in" } }));
+  await page.getByRole("navigation", { name: "Contact Preparation sample" }).getByRole("link", { name: "Note", exact: true }).click();
   const note = page.getByRole("textbox", { name: "Add a note", exact: true }); await note.fill("Unsaved after sign-out");
   await page.getByRole("button", { name: "Check again" }).click();
   await expect(page.getByRole("link", { name: "Sign in in a new tab" })).toHaveAttribute("target", "_blank");
@@ -154,7 +157,8 @@ test("Today refreshes untouched messages and waits for drafts before reordering"
     await prisma.stepVersion.update({ where: { id: versionId }, data: { body: "Original prepared text" } });
     await complete(); await queued();
     await page.goto("/jumps");
-    const message = page.getByRole("textbox", { name: "Fine-tune before sending", exact: true });
+    await page.getByRole("button", { name: "Review message for Preparation sample" }).click();
+    const message = page.getByRole("textbox", { name: "Your message", exact: true });
     await expect(message).toHaveValue("Original prepared text");
     if (edited) {
       await message.fill("My personal unsent draft");
@@ -167,17 +171,25 @@ test("Today refreshes untouched messages and waits for drafts before reordering"
     await expect(notice).toContainText(edited ? "Follow-ups are prepared" : "Follow-up list updated");
     const expected = edited ? "My personal unsent draft" : "Updated prepared text";
     await expect(message).toHaveValue(expected);
-    await expect(page.getByRole("link", { name: "Open text for Preparation sample", exact: true })).toHaveAttribute("href", `sms:+15550101111?body=${encodeURIComponent(expected)}`);
+    await expect(page.getByRole("link", { name: "Open text for Preparation sample", exact: true })).toHaveAttribute("href", `sms:+15550101111?&body=${encodeURIComponent(expected)}`);
     if (edited) {
       await expect(message).toBeFocused();
       await expect(page.locator(".next-follow-up")).toContainText("Preparation sample");
+      // On a phone the review is a modal sheet over the page, so the notice is reachable once the sheet is
+      // closed (the draft stays in it); Return to draft reopens the sheet on the message.
+      if (await message.evaluate(element => Boolean(element.closest("dialog")?.matches(":modal")))) {
+        await page.getByRole("button", { name: "Close Follow up with Preparation sample", exact: true }).click();
+        await expect(message).toBeHidden();
+      }
       await notice.getByRole("button", { name: "Return to draft" }).click(); await expect(message).toBeFocused();
       const result = await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
       expect(result.violations.map(item => item.id)).toEqual([]);
-      await page.getByRole("button", { name: "Discard edits" }).click();
+      // "Discard edits" sits in the review's draft status row and asks before removing the wording.
+      await page.getByRole("button", { name: "Discard edits", exact: true }).click();
+      await page.getByRole("dialog", { name: "Discard your edits?" }).getByRole("button", { name: "Discard edits", exact: true }).click();
       await expect(notice).toContainText("Follow-up list updated");
       await expect(page.locator(".next-follow-up")).toContainText("Earlier sample");
-      await expect(page.getByRole("textbox", { name: "Fine-tune before sending", exact: true })).toHaveValue("Updated prepared text");
+      await expect(page.getByRole("textbox", { name: "Your message", exact: true })).toHaveValue("Updated prepared text");
     }
   }
 });

@@ -15,7 +15,10 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # The validate job runs 37 to 41 minutes since the Lighthouse gate measures the real throttled
+    # paint (about 7.5 minutes for its 18 runs, against 3.5 simulated). A 40-minute cap cancelled a
+    # green run at that last gate; the cap is a safety limit, not a budget.
+    timeout-minutes: 60
     env:
       APP_URL: http://127.0.0.1:3000
       # Fixture suites require an explicitly named, loopback-only test database.
@@ -28,6 +31,8 @@ jobs:
       AUTH_ADMIN_MFA_MAX_AGE_MINUTES: "720"
       WORKER_HEARTBEAT_STALE_SECONDS: "90"
       DEMO_MODE: "false"
+      # The suites exercise automatic customer email; production keeps it off for the beta.
+      AUTOMATIC_CUSTOMER_EMAIL: "true"
       PUBLIC_OPERATOR_NAME: Synthetic CI operator
       PUBLIC_SUPPORT_EMAIL: support@example.test
       PUBLIC_BACKUP_RETENTION_NOTICE: Synthetic fixture backups expire after 30 days. This is test configuration and does not describe a live customer service.
@@ -295,7 +300,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          npx playwright test e2e/staff-onboarding.spec.ts e2e/voice-capture.spec.ts e2e/admission-controls.spec.ts e2e/admin-workspace.spec.ts e2e/library-administration.spec.ts e2e/system-mix-administration.spec.ts e2e/admin-reports.spec.ts e2e/support-cases.spec.ts e2e/email-recovery.spec.ts e2e/operational-alerts.spec.ts e2e/data-retention.spec.ts e2e/support-email.spec.ts --project desktop-chromium 2>&1 | tee staff-onboarding-e2e.log
+          npx playwright test e2e/staff-onboarding.spec.ts e2e/voice-capture.spec.ts e2e/admission-controls.spec.ts e2e/admission-mfa.spec.ts e2e/admin-workspace.spec.ts e2e/admin-workflow-regressions.spec.ts e2e/library-administration.spec.ts e2e/system-mix-administration.spec.ts e2e/admin-reports.spec.ts e2e/support-cases.spec.ts e2e/email-recovery.spec.ts e2e/operational-alerts.spec.ts e2e/data-retention.spec.ts e2e/support-email.spec.ts --project desktop-chromium 2>&1 | tee staff-onboarding-e2e.log
       - name: Staff and waitlist browser flows with isolated fixtures
         env:
           PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
@@ -331,7 +336,10 @@ jobs:
           set -o pipefail
           npm run test:lighthouse 2>&1 | tee lighthouse.log
       - name: Upload Lighthouse diagnostics
-        if: failure()
+        # Every run, and including the dot-directory the reports live in: with the default
+        # include-hidden-files, only lighthouse.log reached the artifact and a failed budget
+        # could not be diagnosed from CI.
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lighthouse-diagnostics
@@ -339,6 +347,7 @@ jobs:
             lighthouse.log
             .artifacts/lighthouse
           if-no-files-found: ignore
+          include-hidden-files: true
           retention-days: 7
       - name: Build production web and worker images
         shell: bash

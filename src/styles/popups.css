@@ -1,0 +1,53 @@
+/* Popup consistency (design-consistency audit, 2026-09-23). The export's popups share an 18px/700
+   title, 14px supporting copy in --text-2, a 44px round close control, 24px sheet corners, a
+   grabber on phone bottom sheets, an upward sheet shadow and one scrim per theme. */
+.sheet::backdrop, .quick-add-dialog::backdrop, .confirm-dialog::backdrop, .review-dialog::backdrop { background: var(--scrim); backdrop-filter: blur(3px); }
+
+.sheet-header h2, .sheet:not(.follow-up-review-sheet) > .sheet-panel > .sheet-header h2,
+.confirm-dialog-header h2, .review-dialog-header h2, .quick-add-dialog h2, .quick-add-dialog-header h2 {
+  margin: 0; font-size: 1.125rem; line-height: 1.35; font-weight: 700; letter-spacing: -.01em; color: var(--text);
+}
+.sheet-header p, .confirm-dialog-header p, .review-dialog-header p { font-size: .875rem; line-height: 1.45; color: var(--text-2); }
+.confirm-dialog-header, .review-dialog-header, .quick-add-dialog-header { align-items: center; }
+
+/* Confirmation actions: equal 44px buttons; explanatory copy or errors sit above the buttons. */
+.confirm-dialog-actions .button, .confirm-dialog-actions .button.small { min-height: 44px; padding: 9px 16px; font-size: .9375rem; }
+.confirm-dialog-actions > :not(button, form, .button, a) { flex: 1 0 100%; order: -1; margin: 0 0 4px; }
+
+/* Flat destination rows in the Profile sheet match the other tools sheets. */
+.contact-tools-links > button { width: 100%; background: transparent; color: var(--text); font-family: inherit; cursor: pointer; }
+.profile-sheet .contact-tools-links { padding-bottom: 0; border-bottom: 0; }
+.profile-sheet form.contact-tools-links { margin-top: -14px; border-top: 1px solid var(--line); }
+
+/* Phone and portrait-phone widths: every sheet is a bottom sheet with the export's anatomy. */
+@media (max-width: 767px) {
+  .sheet-panel { border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; padding: 20px max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left)); box-shadow: var(--shadow-sheet); }
+  .sheet-header { top: -20px; margin: -20px -20px 12px; padding: 24px 20px 12px; border-bottom: 0; }
+  .sheet-header::before { content: ""; position: absolute; top: 8px; left: calc(50% - 18px); width: 36px; height: 4px; border-radius: 4px; background: var(--border); }
+  .follow-up-review-sheet > .sheet-panel > .sheet-header p { font-size: .875rem; }
+}
+/* Between the phone and tablet layouts Quick Add fills the screen, so it has no rounded corners. */
+@media (min-width: 601px) and (max-width: 767px) {
+  .quick-add-dialog { border-radius: 0; }
+}
+@media (max-height: 480px) {
+  .sheet-header { position: static; }
+}
+
+/* Fixed panels use the shared surface, line, radius and overlay shadow, and stay above the
+   bottom navigation wherever it is shown (up to 900px). */
+/* The install prompt keeps its deliberate brand border (it must stay distinct in dark mode). */
+.pwa-install-prompt { border-radius: var(--radius-bubble); box-shadow: var(--shadow); }
+@media (max-width: 900px) {
+  .pwa-install-prompt { right: 12px; width: calc(100vw - 24px); bottom: calc(82px + env(safe-area-inset-bottom)); }
+}
+
+/* Public Explore menu: the same 44px control and dropdown from phones through 760px. */
+@media (max-width: 760px) {
+  .homepage > .public-header { clip-path: none; box-shadow: none; position: relative; z-index: 30; max-width: none; }
+  .public-mobile-menu { position: relative; flex: 0 0 44px; }
+  .public-mobile-menu > summary { width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: var(--radius-control); }
+  .public-mobile-menu[open] > summary { background: var(--raised); }
+  .public-page .public-mobile-menu > nav { position: absolute; z-index: 20; right: 0; top: calc(100% + 8px); width: min(260px, calc(100vw - 40px)); display: grid; gap: 0; padding: 8px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--raised); box-shadow: var(--shadow); }
+  .public-mobile-menu > nav a { padding: 12px; min-height: 44px; font-weight: 500; }
+}

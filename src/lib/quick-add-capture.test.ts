@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inferQuickAddCapture, splitContactName } from "./quick-add-capture";
+import { inferQuickAddCapture, inferQuickCaptureReview, splitContactName } from "./quick-add-capture";
 
 describe("splitContactName", () => {
   it("keeps the first token as the first name and preserves the remaining family name", () => {
@@ -65,5 +65,24 @@ describe("inferQuickAddCapture", () => {
 
   it("rolls a yearless date forward when it has already passed", () => {
     expect(inferQuickAddCapture("Text Sam 1/15 about planning", now).dateValue).toBe("2027-01-15");
+  });
+});
+
+describe("combined capture suggestions", () => {
+  const now = new Date("2026-09-20T19:00:00Z");
+  it("keeps event and follow-up dates separate without inventing follow-up time", () => {
+    const result = inferQuickCaptureReview("Coffee with Marcus Thursday at 9 am at Blue Door, then remind me Friday to send revised proposal", now, "America/Los_Angeles");
+    expect(result.name).toBe("Marcus");
+    expect(result.event).toMatchObject({ enabled: true, title: "Coffee with Marcus", date: "2026-09-24", time: "09:00", location: "Blue Door" });
+    expect(result.followUp).toMatchObject({ enabled: true, date: "2026-09-25", time: "", reason: "send revised proposal" });
+  });
+  it("does not turn a past meeting note into a future event", () => {
+    const result = inferQuickCaptureReview("Met Jordan at the home show. Follow up Tuesday about the quote", now, "UTC");
+    expect(result.name).toBe("Jordan"); expect(result.event.enabled).toBe(false);
+    expect(result.followUp).toMatchObject({ date: "2026-09-22", reason: "the quote" });
+  });
+  it("keeps text instructions out of customer-facing message copy", () => {
+    const result = inferQuickCaptureReview("Text Maria Friday at 3 pm about the estimate", now, "UTC");
+    expect(result.followUp).toMatchObject({ channel: "SMS", time: "15:00", wording: "" });
   });
 });

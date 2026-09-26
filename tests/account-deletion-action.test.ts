@@ -1,0 +1,54 @@
+import bcrypt from "bcryptjs";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// The form action keeps a refusal the person can act on in the form's error slot (audit F11).
+const mocks = vi.hoisted(() => ({ requireWorkspace: vi.fn(), destroySession: vi.fn(), consumeRateLimit: vi.fn(), deleteAccountData: vi.fn() }));
+vi.mock("@/lib/auth", () => ({ requireWorkspace: mocks.requireWorkspace, destroySession: mocks.destroySession }));
+vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
+vi.mock("@/lib/prisma", () => ({ prisma: {} }));
+vi.mock("@/lib/staff-access", () => ({ lockStaff: async () => undefined }));
+vi.mock("@/lib/account-deletion", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/account-deletion")>()), deleteAccountData: mocks.deleteAccountData }));
+vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`REDIRECT ${url}`); } }));
+import { AccountDeletionBlockedError, LAST_ACTIVE_OWNER_MESSAGE } from "../src/lib/account-deletion";
+import { deleteAccountAction } from "../src/lib/account-deletion-actions";
+import { ACCOUNT_DELETION_PHRASE } from "../src/lib/account-deletion-policy";
+
+const password = "correct horse battery";
+const passwordHash = bcrypt.hashSync(password, 4);
+
+function submission(currentPassword = password, confirmation = ACCOUNT_DELETION_PHRASE) {
+  const form = new FormData();
+  form.set("currentPassword", currentPassword);
+  form.set("confirmation", confirmation);
+  return form;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mocks.requireWorkspace.mockResolvedValue({ user: { id: "user-1", passwordHash }, session: { createdAt: new Date() }, impersonation: null });
+  mocks.consumeRateLimit.mockResolvedValue({ allowed: true });
+  mocks.deleteAccountData.mockResolvedValue({ deleted: true, requestId: "request-1" });
+});
+
+describe("deleteAccountAction", () => {
+  it("returns the last-owner refusal to the form instead of failing the request", async () => {
+    mocks.deleteAccountData.mockRejectedValueOnce(new AccountDeletionBlockedError(LAST_ACTIVE_OWNER_MESSAGE));
+    await expect(deleteAccountAction({ error: null }, submission())).resolves.toEqual({ error: "Add another active owner before deleting your account." });
+    expect(mocks.deleteAccountData).toHaveBeenCalledWith("user-1");
+  });
+
+  it("sends the person to the deleted page after a successful deletion", async () => {
+    await expect(deleteAccountAction({ error: null }, submission())).rejects.toThrow("REDIRECT /account/deleted");
+  });
+
+  it("does not disguise unexpected failures as a form message", async () => {
+    mocks.deleteAccountData.mockRejectedValueOnce(new Error("connection reset"));
+    await expect(deleteAccountAction({ error: null }, submission())).rejects.toThrow("connection reset");
+  });
+
+  it("still checks the phrase and password before touching any data", async () => {
+    await expect(deleteAccountAction({ error: null }, submission("wrong"))).resolves.toEqual({ error: "The current password is incorrect." });
+    await expect(deleteAccountAction({ error: null }, submission(password, "delete my account"))).resolves.toEqual({ error: `Type ${ACCOUNT_DELETION_PHRASE} exactly to continue.` });
+    expect(mocks.deleteAccountData).not.toHaveBeenCalled();
+  });
+});

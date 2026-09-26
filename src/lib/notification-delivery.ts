@@ -1,3 +1,4 @@
+import { readWorkflowAttention, type WorkflowAttentionItem } from "@/lib/workflow-attention";
 import type { NotificationDeliveryKind } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
 import { sendFollowUpPush } from "@/lib/follow-up-push";
@@ -11,6 +12,7 @@ import {
 } from "@/lib/jump-schedule";
 import { isValidTimezone } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
+import { isQuietTime } from "@/lib/snooze-schedule";
 import { escapeHtml, sendTransactionalEmail, transactionalEmailConfigured } from "@/lib/transactional-email";
 
 const deliveryLeaseMs = 15 * 60_000;
@@ -43,10 +45,8 @@ export function notificationClock(value: Date, timeZone: string): NotificationCl
   };
 }
 
-export function isQuietTime(minutes: number, start: number, end: number): boolean {
-  if (start === end) return false;
-  return start < end ? minutes >= start && minutes < end : minutes >= start || minutes < end;
-}
+// One quiet-hours rule for reminders, automatic sending and snoozes; it lives in snooze-schedule.
+export { isQuietTime };
 
 export function digestIsDue(clock: NotificationClock, digestHour: number): boolean {
   return clock.hour * 60 + clock.minute >= digestHour * 60;
@@ -146,15 +146,17 @@ type DueFollowUp = {
   contact: { displayName: string };
 };
 
-function digestMessage(input: {
+export function digestMessage(input: {
   ownerName: string;
   company: string;
   due: DueFollowUp[];
   overdueCount: number;
+  needsInput?: { items: WorkflowAttentionItem[]; total: number };
   preferences: { locale: string; timeZone: string };
 }) {
   const total = input.due.length;
-  const headline = total === 1 ? "1 person to reach today" : `${total} people to reach today`;
+  const inputCount = input.needsInput?.total ?? 0;
+  const headline = inputCount ? `${total} follow-ups and ${inputCount} item${inputCount === 1 ? " needs" : "s need"} your input` : total === 1 ? "1 person to reach today" : `${total} people to reach today`;
   const rows = input.due.slice(0, 10).map((item) => {
     const when = formatDateTime(item.scheduledAt, input.preferences);
     return `${item.contact.displayName} — ${item.reason} (${when})`;
@@ -172,9 +174,12 @@ function digestMessage(input: {
     "",
     `Open Today: ${env.appUrl.replace(/\/$/, "")}/jumps`
   ].join("\n");
+  const inputRows = input.needsInput?.items.slice(0, 10).map(item => `${item.contactName} — ${item.reason}`) ?? [];
+  const inputText = inputRows.length ? `\nNeeds your input:\n${inputRows.map(row => `• ${row}`).join("\n")}\nOpen Today for all ${inputCount} items.` : "";
+  const inputHtml = inputRows.length ? `<p>Needs your input (${inputCount})</p><ul>${inputRows.map(row => `<li>${escapeHtml(row)}</li>`).join("")}</ul>` : "";
   const htmlRows = rows.map((row) => `<li>${escapeHtml(row)}</li>`).join("");
   const html = `<p>Good morning ${escapeHtml(input.ownerName)},</p><p><strong>${escapeHtml(headline)}</strong> for ${escapeHtml(input.company)}.</p>${input.overdueCount ? `<p>${input.overdueCount} ${input.overdueCount === 1 ? "follow-up is" : "follow-ups are"} overdue.</p>` : ""}<ul>${htmlRows}</ul>${more.length ? `<p>${escapeHtml(more[0])}</p>` : ""}<p><a href="${escapeHtml(env.appUrl.replace(/\/$/, "") + "/jumps")}">Open Today</a></p>`;
-  return { subject: headline, text, html };
+  return { subject: headline, text: text + inputText, html: html + inputHtml };
 }
 
 async function dueFollowUps(workspaceId: string, end: Date, now: Date): Promise<{ items: DueFollowUp[]; overdueCount: number }> {
@@ -209,8 +214,9 @@ async function sendDigest(input: {
       await finishDelivery(deliveryId, input.workerId, { skipped: true });
       return true;
     }
-    const due = await dueFollowUps(input.workspaceId, input.end, input.now);
-    if (!due.items.length) {
+    const [due, needsInput] = await Promise.all([dueFollowUps(input.workspaceId, input.end, input.now), readWorkflowAttention(input.workspaceId, 10, 0, input.now)]);
+    if (!due.items.length && !needsInput.total && needsInput.preparing) throw new Error("Follow-up updates are still being prepared. The reminder will retry.");
+    if (!due.items.length && !needsInput.total) {
       await finishDelivery(deliveryId, input.workerId, { skipped: true });
       return true;
     }
@@ -218,7 +224,7 @@ async function sendDigest(input: {
       await finishDelivery(deliveryId, input.workerId, { skipped: true });
       return true;
     }
-    const message = digestMessage({ ...input, due: due.items, overdueCount: due.overdueCount });
+    const message = digestMessage({ ...input, due: due.items, overdueCount: due.overdueCount, needsInput });
     const result = await sendTransactionalEmail({
       to: input.email,
       ...message,

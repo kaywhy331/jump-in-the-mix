@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jump in the Mix · design export</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:'Instrument Sans','Helvetica Neue',Helvetica,system-ui,sans-serif;color:#1A1830;background:#F5F5F8;-webkit-font-smoothing:antialiased}
+main{max-width:1080px;margin:0 auto;padding:64px 32px 96px}h1{font-size:40px;line-height:44px;letter-spacing:-0.035em;margin:0 0 8px}p.lead{font-size:17px;line-height:27px;color:#55546B;margin:0 0 40px;max-width:640px}
+.cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:40px}@media(max-width:760px){.cols{grid-template-columns:1fr}}
+section{border-radius:20px;padding:28px 28px 20px}section.light{background:#FFFFFF}section.dark{background:#12101F;color:#EEEDF6}
+h2{font-size:24px;line-height:30px;letter-spacing:-0.02em;margin:0 0 12px}h3{font-size:13px;line-height:18px;font-weight:600;margin:22px 0 4px;color:#6B6A82}section.dark h3{color:#9795AD}
+ul{list-style:none;margin:0;padding:0}li{border-top:1px solid #E7E6EE}section.dark li{border-top-color:#2B2842}
+a.row{display:flex;justify-content:space-between;align-items:center;gap:16px;min-height:46px;color:inherit;text-decoration:none;font-size:15px;font-weight:600}a.row span{font-size:13px;font-weight:500;color:#6B6A82;white-space:nowrap}section.dark a.row span{color:#9795AD}
+a.row:hover{color:#5D4CF2}section.dark a.row:hover{color:#A79DFF}a:focus-visible{outline:2px solid #5D4CF2;outline-offset:2px}
+footer{margin-top:40px;font-size:14px;line-height:22px;color:#55546B}footer a{color:#4234C9}code{font-size:13px;background:#E9E8F0;padding:1px 6px;border-radius:6px}
+</style>
+</head>
+<body>
+<main>
+<h1>Jump in the Mix, reimagined</h1>
+<p class="lead">Every screen from the design canvas as a standalone page. Each one opens on its own in any browser; links inside the app screens (tab bar, sidebar, rows) move between screens like a prototype.</p>
+<div class="cols">
+<section class="light">
+<h2>Light</h2>
+<h3>Mobile app</h3>
+<ul>
+<li><a class="row" href="screens/Main.html">Today<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/Review.html">Review a follow-up<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/TodaySent.html">Today, after sending<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/QuickAdd.html">Quick add<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/Contacts.html">Contacts<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/Contact.html">Contact<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/Mixes.html">Mixes<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/Journey.html">Journey<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/Calendar.html">Calendar<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/More.html">More<span>390 × 844</span></a></li>
+</ul>
+<h3>Tablet app</h3>
+<ul>
+<li><a class="row" href="screens/TabletToday.html">Tablet, Today (portrait)<span>834 × 1194</span></a></li>
+<li><a class="row" href="screens/TabletTodayWide.html">Tablet, Today (landscape)<span>1194 × 834</span></a></li>
+<li><a class="row" href="screens/TabletJourney.html">Tablet, Journey (portrait)<span>834 × 1194</span></a></li>
+</ul>
+<h3>Desktop app</h3>
+<ul>
+<li><a class="row" href="screens/DesktopToday.html">Today, wide<span>1920 × 1080</span></a></li>
+<li><a class="row" href="screens/DesktopQuickAdd.html">Quick add, command bar<span>1920 × 1080</span></a></li>
+<li><a class="row" href="screens/DesktopMixes.html">Mixes, library and editor<span>1920 × 1080</span></a></li>
+<li><a class="row" href="screens/DesktopJourney.html">Journey, the web<span>1920 × 1080</span></a></li>
+<li><a class="row" href="screens/DesktopJourneyStage.html">Journey, inside a stage<span>1920 × 1080</span></a></li>
+<li><a class="row" href="screens/DesktopContacts.html">Contacts, wide<span>1920 × 1080</span></a></li>
+<li><a class="row" href="screens/DesktopCalendar.html">Calendar, agenda and event<span>1920 × 1080</span></a></li>
+</ul>
+<h3>Landing page</h3>
+<ul>
+<li><a class="row" href="screens/Landing.html">Landing page, desktop<span>1920 × 3272</span></a></li>
+<li><a class="row" href="screens/LandingTablet.html">Landing page, tablet<span>834 × 3800</span></a></li>
+<li><a class="row" href="screens/LandingPhone.html">Landing page, phone<span>390 × 4382</span></a></li>
+</ul>
+<h3>Kits</h3>
+<ul>
+<li><a class="row" href="screens/BubbleKit.html">Bubble kit<span>1920 × 640</span></a></li>
+<li><a class="row" href="screens/ThemeTokens.html">Theme tokens, light and dark<span>1920 × 640</span></a></li>
+</ul>
+</section>
+<section class="dark">
+<h2>Dark</h2>
+<h3>Mobile app</h3>
+<ul>
+<li><a class="row" href="screens/DarkMain.html">Today<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/DarkReview.html">Review a follow-up<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/DarkTodaySent.html">Today, after sending<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/DarkQuickAdd.html">Quick add<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/DarkContacts.html">Contacts<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/DarkContact.html">Contact<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/DarkMixes.html">Mixes<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/DarkJourney.html">Journey<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/DarkCalendar.html">Calendar<span>390 × 844</span></a></li>
+<li><a class="row" href="screens/DarkMore.html">More<span>390 × 844</span></a></li>
+</ul>
+<h3>Tablet app</h3>
+<ul>
+<li><a class="row" href="screens/DarkTabletToday.html">Tablet, Today (portrait)<span>834 × 1194</span></a></li>
+<li><a class="row" href="screens/DarkTabletTodayWide.html">Tablet, Today (landscape)<span>1194 × 834</span></a></li>
+<li><a class="row" href="screens/DarkTabletJourney.html">Tablet, Journey (portrait)<span>834 × 1194</span></a></li>
+</ul>
+<h3>Desktop app</h3>
+<ul>
+<li><a class="row" href="screens/DarkDesktopToday.html">Today, wide<span>1920 × 1080</span></a></li>
+<li><a class="row" href="screens/DarkDesktopQuickAdd.html">Quick add, command bar<span>1920 × 1080</span></a></li>
+<li><a class="row" href="screens/DarkDesktopMixes.html">Mixes, library and editor<span>1920 × 1080</span></a></li>
+<li><a class="row" href="screens/DarkDesktopJourney.html">Journey, the web<span>1920 × 1080</span></a></li>
+<li><a class="row" href="screens/DarkDesktopJourneyStage.html">Journey, inside a stage<span>1920 × 1080</span></a></li>
+<li><a class="row" href="screens/DarkDesktopContacts.html">Contacts, wide<span>1920 × 1080</span></a></li>
+<li><a class="row" href="screens/DarkDesktopCalendar.html">Calendar, agenda and event<span>1920 × 1080</span></a></li>
+</ul>
+<h3>Landing page</h3>
+<ul>
+<li><a class="row" href="screens/DarkLanding.html">Landing page, desktop<span>1920 × 3272</span></a></li>
+<li><a class="row" href="screens/DarkLandingTablet.html">Landing page, tablet<span>834 × 3800</span></a></li>
+<li><a class="row" href="screens/DarkLandingPhone.html">Landing page, phone<span>390 × 4382</span></a></li>
+</ul>
+<h3>Kits</h3>
+<ul>
+<li><a class="row" href="screens/DarkBubbleKit.html">Bubble kit<span>1920 × 640</span></a></li>
+</ul>
+</section>
+</div>
+<footer><p><a href="tokens.css">tokens.css</a> has every color, font and radius as CSS variables, with dark mode wired to the system setting and a manual override. The <code>canvas-source</code> folder holds the original canvas files if you ever want to bring them back into the editor.</p></footer>
+</main>
+</body>
+</html>

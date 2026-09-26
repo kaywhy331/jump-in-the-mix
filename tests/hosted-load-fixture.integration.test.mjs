@@ -37,7 +37,7 @@ describe.skipIf(!local || process.env.RUN_HOSTED_LOAD_WEB_TESTS !== 'true').sequ
     const child = spawn(process.execPath, args, { env: { ...process.env, RENDER_GIT_COMMIT: 'a'.repeat(40) }, stdio: ['pipe', 'pipe', 'pipe'] });
     const run = { child, output: '', errors: '', ended: false, events: [] }; children.push(run);
     let pending = '';
-    child.stdout.on('data', chunk => { run.output += chunk; pending += chunk; const lines = pending.split('\n'); pending = lines.pop(); for (const line of lines) { try { run.events.push(JSON.parse(line)); } catch {} } });
+    child.stdout.on('data', chunk => { run.output += chunk; pending += chunk; const lines = pending.split('\n'); pending = lines.pop(); for (const line of lines) { try { const event = JSON.parse(line); run.events.push(event); if (run.cancelOnReady && event.event === 'ready') child.kill('SIGTERM'); } catch {} } });
     child.stderr.on('data', chunk => { run.errors += chunk; });
     run.done = new Promise(resolve => child.once('close', (code, signal) => { run.ended = true; resolve({ code, signal }); }));
     run.event = (name, after = 0) => until(() => { const event = run.events.slice(after).find(value => value.event === name); if (event) return event; if (run.ended) throw new Error(`Fixture exited before ${name}: ${run.output} ${run.errors}`); }, 90000);
@@ -155,8 +155,11 @@ describe.skipIf(!local || process.env.RUN_HOSTED_LOAD_WEB_TESTS !== 'true').sequ
     await removed(fixture.plan);
   }, 120000);
   it('cleans up after controller cancellation', async () => {
-    const fixture = await setup(), run = fixture.start(); await run.event('ready');
-    run.child.kill('SIGTERM'); expect((await run.done).code).toBe(0);
+    const fixture = await setup(), run = fixture.start();
+    // Cancel on the readiness event, while the initial snapshot may still be in
+    // flight; polling first usually waits until the command loop is listening.
+    run.cancelOnReady = true; await run.event('ready');
+    expect((await run.done).code).toBe(0);
     expect(run.events.find(event => event.event === 'cleanup')).toMatchObject({ databaseRemoved: true, roleRemoved: true, credentialsRemoved: true });
     await removed(fixture.plan);
   }, 90000);

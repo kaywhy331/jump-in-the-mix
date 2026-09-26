@@ -1,30 +1,45 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ status: vi.fn() }));
-vi.mock("@/lib/recovery-hold", () => ({ databaseRecoveryStatus: mocks.status }));
+vi.mock("@/lib/recovery-boundary-client", () => ({ recoveryBoundaryStatus: mocks.status }));
 import { proxy, config } from "../src/proxy";
 import { unstable_doesMiddlewareMatch as doesProxyMatch } from "next/experimental/testing/server";
 beforeEach(() => { vi.stubEnv("PRIVATE_TEST_MODE", "false"); mocks.status.mockReset().mockResolvedValue("held"); });
 afterEach(() => vi.unstubAllEnvs());
 
 describe("recovery hold web boundary", () => {
-  it.each(["/", "/contacts", "/contacts/private.png", "/api/auth/magic?token=private", "/api/webhooks/resend", "/_next/data/build/contacts.json"])("holds %s without revealing recovery identifiers", async path => {
+  it.each(["/contacts", "/contacts/private.png", "/api/auth/magic?token=private", "/api/webhooks/resend", "/_next/data/build/contacts.json"])("holds %s without revealing recovery identifiers", async path => {
     expect(doesProxyMatch({ config, nextConfig: {}, url: `http://localhost${path}` })).toBe(true);
     const response = await proxy(new NextRequest(`http://localhost${path}`));
     expect(response.status).toBe(503); expect(response.headers.get("cache-control")).toContain("no-store"); expect(response.headers.get("retry-after")).toBe("60");
     const body = await response.text(); expect(body).toContain("temporarily unavailable"); expect(body).not.toContain("private"); expect(body).not.toContain("database");
   });
+  it.each(["/", "/for/realtors", "/for/consultants", "/for/photographers", "/for/contractors", "/for/recruiters"])("keeps the public experience available during recovery at %s", async path => {
+    expect((await proxy(new NextRequest(`http://localhost${path}`))).status).toBe(200);
+    expect(mocks.status).not.toHaveBeenCalled();
+  });
   it("holds Server Actions and does not trust client-supplied bypass headers", async () => {
     const response = await proxy(new NextRequest("http://localhost/register", { method: "POST", headers: { origin: "http://localhost", "next-action": "action", "x-jitm-recovery": "released" } }));
     expect(response.status).toBe(503);
   });
+  it("still holds the private test site's worker handoff, even with a valid worker secret", async () => {
+    const secret = "worker-secret".repeat(4);
+    for (const [key, value] of Object.entries({ PRIVATE_TEST_MODE: "true", PRIVATE_TEST_USERNAME: "tester", PRIVATE_TEST_PASSWORD: "s".repeat(40), NETLIFY_WORKER_SECRET: secret, APP_URL: "https://jump-in-the-mix-test.netlify.app" })) vi.stubEnv(key, value);
+    const handoff = () => proxy(new NextRequest("https://jump-in-the-mix-test.netlify.app/.netlify/functions/jump-worker-background", { method: "POST", headers: { authorization: `Bearer ${secret}`, origin: "https://jump-in-the-mix-test.netlify.app" } }));
+    expect((await handoff()).status).toBe(503);
+    expect(mocks.status).toHaveBeenCalledTimes(1);
+    mocks.status.mockResolvedValue("unavailable"); expect((await handoff()).status).toBe(503);
+    mocks.status.mockResolvedValue("clear"); expect((await handoff()).status).toBe(200);
+  });
   it("fails closed when the recovery catalog cannot be read", async () => {
-    mocks.status.mockResolvedValue("unavailable"); expect((await proxy(new NextRequest("http://localhost/login"))).status).toBe(503);
+    mocks.status.mockResolvedValue("unavailable"); expect((await proxy(new NextRequest("http://localhost/contacts"))).status).toBe(503);
   });
   it("keeps readiness/liveness and named public assets available without exempting mutations", async () => {
-    for (const path of ["/api/health/live", "/api/health/ready", "/brand-logo.png", "/sw.js"]) expect((await proxy(new NextRequest(`http://localhost${path}`))).status).toBe(200);
+    for (const path of ["/api/health/live", "/api/health/ready", "/api/health/recovery-boundary", "/.netlify/functions/recovery-boundary", "/brand-logo.png", "/sw.js"]) expect((await proxy(new NextRequest(`http://localhost${path}`))).status).toBe(200);
     expect(mocks.status).not.toHaveBeenCalled();
+    // The dedicated probe is exempt only for safe methods, so the proxy's own check cannot recurse into it and a mutation there is still held.
     expect((await proxy(new NextRequest("http://localhost/api/health/live", { method: "POST" }))).status).toBe(503);
+    expect((await proxy(new NextRequest("http://localhost/.netlify/functions/recovery-boundary", { method: "POST" }))).status).toBe(503);
   });
   it("preserves security headers and normal routing after a successful catalog check", async () => {
     mocks.status.mockResolvedValue("clear"); const response = await proxy(new NextRequest("http://localhost/contacts"));

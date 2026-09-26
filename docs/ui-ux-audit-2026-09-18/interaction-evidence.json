@@ -1,0 +1,37 @@
+[
+  {
+    "id": "demo-switch-loses-edit",
+    "valueAfterSwitch": "Hi Alex, it's Jamie. Thanks for getting in touch! I've got your message and I'll get back to you within one business day. What's the main thing you'd like a hand with?"
+  },
+  {
+    "id": "duplicate-second-survivor-fails",
+    "selected": {
+      "value": "demo_contact_sarah",
+      "text": "Sarah Chen"
+    },
+    "hiddenSource": "demo_contact_sarah",
+    "error": "Choose two different Contacts and select the survivor."
+  },
+  {
+    "id": "contact-error-draft-loss",
+    "error": "Invalid phone number: not-a-phone",
+    "nameAfterError": "",
+    "phoneAfterError": ""
+  },
+  {
+    "id": "contact-navigation-draft-loss",
+    "dialogCount": 0,
+    "nameAfterReturning": "Sarah"
+  },
+  {
+    "id": "mix-overlapping-audience",
+    "text": "Name and cue\n\nChoose what cues this mix and who it is for.\n\nMix name\nCue · when should it start?\nWhen I add a date\nWhen I start it for someone\nOn one fixed date\nWhich date?\nAnniversary\nAppointment\nBirthday\nClosed Deal\nEvent\nFollow-up\nReferral\nRenewal\nManage date types\nAfter saving\nKeep as a draft\nStart the mix\nWho is this mix for?\nEveryone4 active people\nCustomers2 people\nEstimates1 person\nReferrals1 person\nYou can also start a mix from one person’s page.\nAdvanced mix settings\nBeats\n\nEach beat is a text, email, or call reminder. Set the tempo with the days between touchpoints. Give the conversation room to breathe.\n\nAdd a beat\nBeat 1\n↑\n↓\nRemove\nChannel\nText\nCall\nEmail\nVoicemail\nWhatsApp\nTempo · days after start\nTiming\nCalendar day\nMinutes from the appointment start\nMinutes from the appointment end\nAfter the visit is marked completed\nMessage\nAlso offer as…\nMore tempo settings\nCancel\nCreate a mix",
+    "knownUniquePeopleInBothSelectedTags": 1
+  },
+  {
+    "id": "template-draft-requires-audience",
+    "url": "http://127.0.0.1:3108/templates/mix_relationship_next_verse/use",
+    "buttonDisabled": true,
+    "text": "Set up your mix\nMix library\nRemix it\n\nMake your own copy, then fine-tune the beats and tempo. Start with a draft to make every message sound like you.\n\n2 beats · 14 days\nMix name\nAfter setup\nKeep as a draft\nStart the mix\nStarts\n\nDay 0 is when you first turn on this draft\n\nWho is this mix for?\n\nChoose everyone or one or more tags.\n\nEveryone4 active people\nOr choose tags\nCustomers2 people\nEstimates1 person\nReferrals1 person\n\nChoose who gets this mix.\n\nQuick check\n0\npeople\n2\nbeats each\n0\nscheduled follow-ups\n14\ndays\n\nCreate a draft to review the messages first. Active mixes follow your automatic-sending settings, if enabled.\n\nBack to ready-made mixes\nCreate my remix\n\nYour starting point\n\nThe Next Verse\n\nRecognize a milestone and stay interested in what comes next.\n\n2 beats\n14 days\n\nPreview the rhythm\n\nWhen someone replies, pause their mix and continue the conversation. Replies are not detected automatically."
+  }
+]

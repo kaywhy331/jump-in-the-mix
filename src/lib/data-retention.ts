@@ -148,13 +148,42 @@ async function retainSupportData(now: Date, limit: number): Promise<Counts> {
   }, { timeout: 20_000 });
 }
 
+async function retainPreparationData(now: Date, limit: number): Promise<Counts> {
+  return prisma.$transaction(async tx => {
+    await tx.$executeRaw`SET LOCAL statement_timeout = '15000ms'`;
+    const cutoff = before(now, RETENTION_DAYS.followUpDrafts);
+    // A draft outlives its follow-up by a month once that follow-up is done, skipped, or cancelled
+    // for a reason that is not an owner hold. A paused mix, an archived contact or a do-not-contact
+    // flag brings the same row back, so those drafts wait for the hold to lift.
+    const drafts = await tx.$executeRaw`
+      DELETE FROM "JumpDraft" WHERE ("jumpId", family) IN (
+        SELECT d."jumpId", d.family FROM "JumpDraft" d JOIN "Jump" j ON j.id = d."jumpId"
+        WHERE (j.status IN ('DONE', 'SKIPPED') AND COALESCE(j."completedAt", j."updatedAt") < ${cutoff})
+           OR (j.status = 'CANCELED' AND j."updatedAt" < ${cutoff}
+               AND (j."completionMethod" IS NULL OR j."completionMethod" NOT IN ('mix_paused', 'contact_archived', 'do_not_contact')))
+        ORDER BY d."updatedAt", d."jumpId", d.family LIMIT ${limit}
+      )`;
+    // The address or number an attempt used stays recoverable for the owner for 400 days after
+    // the attempt and its recorded outcome, then only the keyed hash remains, as with email details.
+    const recipientCutoff = before(now, RETENTION_DAYS.attemptRecipients);
+    const recipients = await tx.$queryRaw<Array<{ id: string }>>`
+      WITH selected AS (
+        SELECT a.id FROM "JumpAttempt" a WHERE a."recipientRetiredAt" IS NULL
+          AND GREATEST(a."createdAt", COALESCE(a."recordedAt", a."createdAt")) < ${recipientCutoff}
+        ORDER BY a."createdAt", a.id LIMIT ${limit} FOR UPDATE OF a SKIP LOCKED
+      ) UPDATE "JumpAttempt" a SET "recipientCiphertext" = '', "recipientRetiredAt" = ${now}
+        FROM selected WHERE a.id = selected.id RETURNING a.id`;
+    return { followUpDrafts: drafts, attemptRecipients: recipients.length };
+  }, { timeout: 20_000 });
+}
+
 // Separate, bounded transactions keep customer operations ahead of large
 // backlogs. Only successful complete passes advance the visible checkpoint.
 export async function runDataRetention(now = new Date(), limit = RETENTION_BATCH_SIZE): Promise<Counts> {
   if (!Number.isFinite(now.getTime()) || !Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Invalid data retention pass.");
   const startedAt = new Date();
   try {
-    const counts = { ...await retainEmailData(now, limit), ...await retainSupportData(now, limit) };
+    const counts = { ...await retainEmailData(now, limit), ...await retainSupportData(now, limit), ...await retainPreparationData(now, limit) };
     await prisma.$transaction(async tx => {
       const completedAt = new Date();
       await tx.dataRetentionState.upsert({ where: { id: "primary" }, create: { id: "primary", completedAt, counts }, update: { completedAt, failedAt: null, lastError: null, counts } });

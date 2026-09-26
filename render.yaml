@@ -73,7 +73,8 @@ services:
     runtime: node
     plan: 0.5c-512mb
     buildCommand: npm ci --include=dev --no-audit --no-fund && npm run db:generate
-    startCommand: npm run worker
+    startCommand: node --import tsx src/worker/index.ts
+    maxShutdownDelaySeconds: 300
     autoDeployTrigger: "off"
     envVars:
       - fromGroup: jump-in-the-mix-hosted

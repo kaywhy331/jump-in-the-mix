@@ -1,0 +1,22 @@
+## E2 LOOP-02: Add to a mix (date-triggered starter) for a new person
+  after save: http://127.0.0.1:3111/contacts/cmuipinok0000ovl3l1yjlbxm?created=1
+  mixes offered: Estimate sent: gentle follow-up
+--- after Add to a mix /contacts/cmuipinok0000ovl3l1yjlbxm?mixAssigned=1 (Contact details | Jump in the Mix) scrollWidth=390 innerWidth=390
+  headings: H1: Pat Lee | H2: Next | H2: Details | H2: History | H2:  | H2:  | H2:  | H2: 
+  notices: Start saved. Follow-ups are being prepared. Set up reminders for me (optional). | Follow-up preparation | Follow-up list updated Your latest saved changes have been checked. | Showing 0 events in this view.
+  fields: input[radio] "" name=priority [ ] | input[radio] "" name=priority [x] | input[radio] "" name=priority [ ] | input[radio] "" name=priority [ ] | input[radio] "" name=preferredChannel [x] | input[radio] "" name=preferredChannel [ ] | input[radio] "" name=preferredChannel [ ] | input[radio] "" name=preferredChannel [ ] | input[checkbox] "" name=doNotContact [ ] | select[select-one] "" name=dateTypeId required = "system_follow_up" | input[date] "" name=dateValue required | select[select-one] "" name=recurrence = "NONE" | input[text] "" name=label | input[checkbox] "" name=autoAssignRecommended [x] | select[select-one] "" name=mixId = "91c92a7a-959d-4098-aada-4cf327bce159"
+  buttons: Change journey stage: No stage | Email | Start a touchpoint | Dismiss | History options | Stop the Estimate sent: gentle follow-up mix | Remove the Estimate sent: gentle follow-up mix | Quick Add
+  links: Skip to content -> #workspace-main | Set up reminders for me (optional) -> /settings/notifications | Back to contacts -> /contacts | Edit -> /contacts/cmuipinok0000ovl3l1yjlbxm/edit | Text -> sms:(303) 555-0170 | Call -> tel:(303) 555-0170 | Note -> #add-note | (303) 555-0170 -> tel:(303) 555-0170 | Add company, phone or email -> /contacts/cmuipinok0000ovl3l1yjlbxm/edit | Today -> /jumps | Contacts -> /contacts | Mixes -> /mixes | More -> /more
+  [capture] docs/beta-audit-2026-09-26/captures/e2-add-to-mix-390-light.png
+  Pat Lee jumps after 15 s with the worker running: []
+## E3 LOOP-01 variant: Quick Add + Rescheduled
+--- quick add review /jumps (Today | Jump in the Mix) scrollWidth=390 innerWidth=390
+  headings: H1: Today | H2: Today | H3: Invite Tester | H2: Quick Add | H3: New person
+  notices: Showing 2 of 2 follow-ups in this view.
+  fields: input[text] "Name or search for someone" name= required = "Sam Ortiz" | input[tel] "" name= | input[email] "" name= | input[checkbox] "Private note" name= [x] | textarea[textarea] "" name= required = "Follow up with Sam Ortiz today about the" | input[checkbox] "Event" name= [ ] | input[checkbox] "Follow-up" name= [x] | input[text] "Reason" name= required = "the kitchen quote" | input[date] "Follow-up date" name= required = "2026-09-26" | input[time] "Follow-up time" name= required | select[select-one] "How to follow up Choose a method Call Text Email WhatsApp Voicemail" name= required | textarea[textarea] "Draft message" name= required
+  buttons: Search Today | Filter | Review message for Invite Tester | More options for Invite Tester | Completed Sep 26, 10:57 AM. Change the time | Reopen follow-up with Chris Parker | Quick Add | Close Quick Add | Edit capture | Save all 3
+  links: Skip to content -> #workspace-main | Today -> /jumps | Contacts -> /contacts | Mixes -> /mixes | More -> /more
+  [capture] docs/beta-audit-2026-09-26/captures/e3-quick-add-review-390-light.png
+  Sam Ortiz jumps after Quick Add: []
+!! ERROR: locator.click: Timeout 30000ms exceeded. / Call log: / [2m  - waiting for getByRole('button', { name: /Review (message|call) for Sam Ortiz/ }).first()[22m / 
+(elapsed 58 s)

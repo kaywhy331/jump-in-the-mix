@@ -1,57 +1,38 @@
 "use client";
 
-import { useState } from "react";
-import { useFormStatus } from "react-dom";
-import { adminReplyToSupportTicketAction } from "@/lib/support-admin-actions";
+import { FormGuard } from "@/components/FormGuard";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { adminReplyToSupportTicketFormAction } from "@/lib/support-admin-actions";
 import { SUPPORT_REPLY_TEMPLATES } from "@/lib/support-content";
+import { useAdminDraft } from "@/components/AdminDraftProvider";
+import { useConfirmDialog } from "@/components/useConfirmDialog";
 
-function SubmitSupportResponseButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button className="button primary" type="submit" disabled={pending}>
-      {pending ? "Saving response…" : "Send Jump in the Mix Response"}
-    </button>
-  );
-}
-
-export function SupportReplyComposer({ ticketId, requestKey }: { ticketId: string; requestKey: string }) {
-  const [body, setBody] = useState("");
-
-  return (
-    <form action={adminReplyToSupportTicketAction} className="form-stack support-reply-composer">
-      <input type="hidden" name="ticketId" value={ticketId} />
-      <input type="hidden" name="requestKey" value={requestKey} />
-      <label className="field">
-        <span className="field-label">Response template</span>
-        <select
-          defaultValue=""
-          onChange={(event) => {
-            const selected = SUPPORT_REPLY_TEMPLATES.find((template) => template.name === event.target.value);
-            if (selected) setBody(selected.body);
-          }}
-        >
-          <option value="">Start from a blank response</option>
-          {SUPPORT_REPLY_TEMPLATES.map((template) => (
-            <option value={template.name} key={template.name}>{template.name}</option>
-          ))}
-        </select>
-      </label>
-      <label className="field">
-        <span className="field-label">Jump in the Mix Response</span>
-        <textarea
-          name="body"
-          aria-describedby={`support-reply-help-${ticketId}`}
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-          minLength={2}
-          maxLength={5000}
-          rows={8}
-          placeholder="Write a clear response with the next action the customer should take…"
-          required
-        />
-      </label>
-      <small id={`support-reply-help-${ticketId}`}>Your response appears in the customer’s ticket immediately. An email notification is queued separately.</small>
-      <div className="form-actions"><SubmitSupportResponseButton /></div>
-    </form>
-  );
+export function SupportReplyComposer({ ticketId, requestKey, returnTo }: { ticketId: string; requestKey: string; returnTo: string }) {
+  const [state, action, pending] = useActionState(adminReplyToSupportTicketFormAction, {});
+  const [confirm, confirmDialog] = useConfirmDialog();
+  const draft = useAdminDraft(`support-reply:${ticketId}`, { body: "", requestKey });
+  const [template, setTemplate] = useState("");
+  const [replacement, setReplacement] = useState<string | null>(null);
+  const applied = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (state.nextKey && applied.current !== state.nextKey) { applied.current = state.nextKey; draft.clear(); setTemplate(""); }
+  }, [state.nextKey, draft]);
+  const body = draft.value.body;
+  function changeBody(body: string) { draft.set({ body, requestKey: draft.dirty ? draft.value.requestKey : state.nextKey ?? requestKey }); }
+  return <form action={action} className="form-stack support-reply-composer"><FormGuard key={state.nextKey ?? "new"} forceDirty={draft.dirty} />
+    <input type="hidden" name="ticketId" value={ticketId} />
+    <input type="hidden" name="returnTo" value={returnTo} />
+    <input type="hidden" name="requestKey" value={draft.dirty ? draft.value.requestKey : state.nextKey ?? requestKey} />
+    <label className="field"><span className="field-label">Response template</span><select value={template} onChange={event => {
+      setTemplate(event.target.value);
+      const selected = SUPPORT_REPLY_TEMPLATES.find(item => item.name === event.target.value);
+      if (selected) { if (body.trim()) setReplacement(selected.body); else changeBody(selected.body); }
+    }}><option value="">Choose a starting point</option>{SUPPORT_REPLY_TEMPLATES.map(item => <option value={item.name} key={item.name}>{item.name}</option>)}</select></label>
+    {replacement !== null && <div className="notice info" role="status"><p>Replace your current reply with this template?</p><button className="button" type="button" onClick={() => { changeBody(replacement); setReplacement(null); }}>Replace reply</button><button className="button" type="button" onClick={() => { setReplacement(null); setTemplate(""); }}>Keep my reply</button></div>}
+    <label className="field"><span className="field-label">Reply to customer</span><textarea name="body" aria-describedby={`support-reply-help-${ticketId}`} value={body} onChange={event => changeBody(event.target.value)} minLength={2} maxLength={5000} rows={4} required /></label>
+    <small id={`support-reply-help-${ticketId}`}>Saves to the ticket; email queues separately. Draft kept for 30 minutes in this tab. Save before leaving. Reloading asks before discarding unsaved text.</small>
+    {state.error && <p className="notice error" role="alert">{state.error}</p>}
+    {state.saved && !draft.dirty && <p className="notice success" role="status">{state.saved}</p>}
+    <div className="form-actions"><button className="button primary" type="submit" disabled={pending}>{pending ? "Saving…" : "Save customer reply"}</button><button className="button" name="resolve" value="true" type="submit" disabled={pending}>Save reply and resolve</button>{draft.dirty && <button className="button" type="button" onClick={() => void confirm({ title: "Discard this unsent reply?", description: "The saved draft in this tab is removed.", confirmLabel: "Discard reply", danger: true }).then(ok => { if (ok) draft.clear(); })}>Discard draft</button>}</div>
+  {confirmDialog}</form>;
 }

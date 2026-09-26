@@ -1,0 +1,17 @@
+// Personal favorites are scoped to the current workspace and persist across devices.
+model MixFavorite {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  mixId       String?
+  sharedMixId String?
+  createdAt   DateTime @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mix         Mix?      @relation(fields: [mixId], references: [id], onDelete: Cascade)
+  sharedMix   SharedMix? @relation(fields: [sharedMixId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId, mixId])
+  @@unique([workspaceId, userId, sharedMixId])
+  @@index([workspaceId, userId])
+}

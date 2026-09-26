@@ -5,14 +5,14 @@ import { beforeAll, afterAll, afterEach, describe, expect, it, vi } from "vitest
 import { prisma } from "../src/lib/prisma";
 
 const context = vi.hoisted(() => ({ cookies: new Map<string, string>(), mail: vi.fn() }));
-vi.mock("next/headers", () => ({ cookies: async () => ({ get: (key: string) => context.cookies.has(key) ? { value: context.cookies.get(key) } : undefined, set: (key: string, value: string) => context.cookies.set(key, value), delete: (key: string) => context.cookies.delete(key) }) }));
+vi.mock("next/headers", () => ({ headers: async () => new Headers(), cookies: async () => ({ get: (key: string) => context.cookies.has(key) ? { value: context.cookies.get(key) } : undefined, set: (key: string, value: string) => context.cookies.set(key, value), delete: (key: string) => context.cookies.delete(key) }) }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`REDIRECT ${path}`); } }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/request-context", () => ({ getRequestMetadata: async () => ({ ipAddress: null, userAgent: "Local account-access test" }) }));
 vi.mock("@/lib/worker-dispatch-after", () => ({ wakeWorkerAfterResponse: vi.fn() }));
 vi.mock("@/lib/env", async original => {
   const mod = await original<typeof import("../src/lib/env")>();
-  return { ...mod, env: { ...mod.env, cookieName: "jitm_session", requireAdminMfa: true, pilotMode: false, dataEncryptionKey: "user-access-test-key", resendApiKey: "local-test-only", emailFrom: "test@example.test" } };
+  return { ...mod, env: { ...mod.env, cookieName: "jitm_session", requireAdminMfa: true, pilotMode: false, dataEncryptionKey: "user-access-test-key", resendApiKey: "local-test-only", emailFrom: "test@example.test", authRateLimitSecret: "user-admin-signing-secret-000000001" } };
 });
 vi.mock("@/lib/transactional-email", async original => ({ ...await original<typeof import("../src/lib/transactional-email")>(), sendTransactionalEmail: context.mail }));
 
@@ -25,6 +25,7 @@ import { runAutomaticDeliveries } from "../src/lib/automatic-delivery";
 import { runScheduledNotifications } from "../src/lib/notification-delivery";
 import { loginAction, requestMagicLinkAction, requestPasswordResetAction, resetPasswordAction } from "../src/lib/auth-actions";
 import { hashAuthToken, AUTH_TOKEN_PURPOSES } from "../src/lib/auth-tokens";
+import { viewerErrorMessage } from "../src/lib/form-errors";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 const ids: string[] = [];
@@ -132,7 +133,9 @@ describe.skipIf(!local)("administrator account access with PostgreSQL", () => {
     data.set("operation", "suspend"); data.set("revision", "1");
     await expect(manageUserAccessAction(data)).rejects.toThrow("access-denied");
     data.set("operation", "erase_everything");
-    await expect(manageUserAccessAction(data)).rejects.toThrow("listed+account+operation");
+    const refused = await manageUserAccessAction(data).then(() => "", (error: Error) => error.message.replace(/^REDIRECT /, ""));
+    // Signed for the staff member who submitted it, after the users.read check.
+    expect(viewerErrorMessage(Object.fromEntries(new URL(refused, "https://example.test").searchParams), { authUser: actor })).toBe("Choose a listed account operation.");
   });
 
   it("rejects self changes and protects staff accounts, including an owner", async () => {

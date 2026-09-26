@@ -35,8 +35,8 @@
   }
   .jump-primary-action { width: auto; display: flex; align-items: center; gap: 8px; }
   .jump-primary-action .jump-channel-action { width: auto; min-width: 126px; min-height: 44px; padding: 0 14px; }
-  .jump-list .jump-primary-action .jump-channel-action { color: var(--brand-dark); border-color: #c9c2ff; background: white; box-shadow: none; }
-  .jump-list .jump-primary-action .jump-channel-action:hover { color: white; background: var(--brand); }
+  .jump-list .jump-primary-action .jump-channel-action { color: var(--brand-dark); border-color: var(--violet-mark); background: var(--raised); box-shadow: none; }
+  .jump-list .jump-primary-action .jump-channel-action:hover { color: var(--on-violet); background: var(--brand); }
   .jump-completion-actions { display: flex; align-items: center; gap: 6px; margin: 0; }
   .jump-completion-actions form .button { width: auto; min-width: 94px; min-height: 42px; }
   .jump-overflow > summary { min-width: 44px; min-height: 42px; padding-inline: 11px; }

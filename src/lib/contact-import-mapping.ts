@@ -33,6 +33,46 @@ export function decodeMappingTarget(value: string): ImportMappingTarget {
   return { kind: "IGNORE" };
 }
 
+// Header guesses run on `normalizedImportText` output: lower case, punctuation collapsed to
+// single spaces ("E-mail 1 - Value" → "e mail 1 value"). Google, Outlook and hand-made sheets
+// qualify the same few words; fax, pager and switchboard columns must stay unmapped.
+const EMAIL_HEADER = /^(?:(?:work|home|business|personal|primary|main|other) )?e ?mail(?: address)?(?: \d+)?(?: (?:address|value))?$/;
+const PHONE_HEADER = /^(?:(?:mobile|cell|home|work|business|main|primary|other) )?(?:phone|telephone|tel|mobile|cell)(?: number)?(?: \d+)?(?: value)?$/;
+const SIBLING_LABEL_HEADER = /^(.+) (?:type|label)$/;
+const HEADER_QUALIFIER = /^(mobile|cell|home|work|business|main|primary|other|personal)\b/;
+const QUALIFIER_LABELS: Record<string, string> = { mobile: "Mobile", cell: "Mobile", home: "Home", work: "Work", business: "Business", main: "Main", primary: "Primary", other: "Other", personal: "Personal" };
+
+/**
+ * "E-mail 1 - Type", "Phone 1 - Label" or "Organization 1 - Type" describes a sibling column
+ * with the same prefix ("E-mail 1 - Value", "Phone", "Organization 1 - Name"); it is never a
+ * value itself. A lone "Roof Type" column has no sibling and is left to the other rules.
+ */
+function labelsSiblingColumn(normalized: string, normalizedHeaders: Set<string>): boolean {
+  const match = SIBLING_LABEL_HEADER.exec(normalized);
+  if (!match) return false;
+  const prefix = match[1];
+  for (const header of normalizedHeaders) {
+    if (header !== normalized && (header === prefix || header.startsWith(`${prefix} `))) return true;
+  }
+  return false;
+}
+
+/**
+ * The label for a phone, email or address column: a sibling "Label" / "- Label" / "- Type"
+ * column (Google marks the primary one "* Mobile"), otherwise the qualifier in the header
+ * itself ("Mobile Phone" → "Mobile"). A plain "Email" or "Phone" column stays unlabeled.
+ */
+function importLabel(raw: Record<string, string>, header: string, type: "email" | "phone" | "address"): string | null {
+  const base = header.replace(/\s*-\s*value\s*$/i, "").replace(/\s+value\s*$/i, "");
+  for (const sibling of [`${header} Label`, `${base} - Label`, `${base} - Type`, `${base} Label`, `${base} Type`]) {
+    const label = cleanImportValue(raw[sibling]).replace(/^\*\s*/, "").trim();
+    if (label) return label;
+  }
+  if (type === "address") return null;
+  const qualifier = HEADER_QUALIFIER.exec(normalizedImportText(header))?.[1];
+  return qualifier ? QUALIFIER_LABELS[qualifier] : null;
+}
+
 function dateHeaderName(header: string): string {
   return header
     .replace(/[_-]+/g, " ")
@@ -61,17 +101,21 @@ export function guessImportMappings(
     ])
   );
 
+  const normalizedHeaders = new Set(headers.map(normalizedImportText));
+
   for (const header of headers) {
     const normalized = normalizedImportText(header);
     const compact = normalized.replace(/\s+/g, "");
+    const customField = customByKey.get(stableKey(header));
     let target: ImportMappingTarget = { kind: "IGNORE" };
 
-    if (/^(first|given)(name)?$/.test(compact) || normalized === "given name") target = { kind: "FIELD", field: "firstName" };
+    if (!customField && labelsSiblingColumn(normalized, normalizedHeaders)) target = { kind: "IGNORE" };
+    else if (/^(first|given)(name)?$/.test(compact) || normalized === "given name") target = { kind: "FIELD", field: "firstName" };
     else if (/^(last|family|surname)(name)?$/.test(compact) || normalized === "family name") target = { kind: "FIELD", field: "lastName" };
     else if (["name", "full name", "display name", "contact name"].includes(normalized)) target = { kind: "FIELD", field: "displayName" };
-    else if (/company|organization|organisation|employer/.test(normalized)) target = { kind: "FIELD", field: "company" };
-    else if (/^e ?mail( address)?( \d+)?$/.test(normalized) && !/label|type/.test(normalized)) target = { kind: "FIELD", field: "email" };
-    else if (/^(mobile|cell|phone|telephone|tel)( number)?( \d+)?$/.test(normalized) && !/label|type/.test(normalized)) target = { kind: "FIELD", field: "phone" };
+    else if (/company|organization|organisation|employer/.test(normalized) && !/\b(?:phone|telephone|tel|fax)\b/.test(normalized)) target = { kind: "FIELD", field: "company" };
+    else if (EMAIL_HEADER.test(normalized) && !/label|type/.test(normalized)) target = { kind: "FIELD", field: "email" };
+    else if (PHONE_HEADER.test(normalized) && !/label|type/.test(normalized)) target = { kind: "FIELD", field: "phone" };
     else if ((/^address( \d+)?$/.test(normalized) || normalized === "mailing address") && !/label|type/.test(normalized)) target = { kind: "FIELD", field: "address" };
     else if (/address 1|street 1|street address|address line 1/.test(normalized) && !/label|type/.test(normalized)) target = { kind: "FIELD", field: "street1" };
     else if (/address 2|street 2|address line 2|suite|unit/.test(normalized) && !/label|type/.test(normalized)) target = { kind: "FIELD", field: "street2" };
@@ -81,7 +125,6 @@ export function guessImportMappings(
     else if (/^country$/.test(normalized)) target = { kind: "FIELD", field: "country" };
     else if (/note|comments|context/.test(normalized)) target = { kind: "FIELD", field: "publicNotes" };
     else {
-      const customField = customByKey.get(stableKey(header));
       if (customField) target = { kind: "CUSTOM", definitionId: customField.id };
       else {
         const isBirthday = /birthday|birth date|bday|date of birth|dob/.test(normalized);
@@ -104,10 +147,18 @@ export function guessImportMappings(
   return result;
 }
 
+/** Several values in one cell: Google's " ::: ", pipes and newlines; emails also split on commas. */
 function splitMultiValue(value: string, type: "email" | "phone"): string[] {
   if (!value.trim()) return [];
-  const separator = type === "email" ? /[|\n,]+/ : /[|\n]+/;
+  const separator = type === "email" ? /\s*:::\s*|[|\n,]+/ : /\s*:::\s*|[|\n]+/;
   return value.split(separator).map((part) => part.trim()).filter(Boolean);
+}
+
+export const NO_CONTACT_METHOD_WARNING = "This Contact has no email or phone number.";
+
+/** Rows that would be created with no way to reach the person, read from the row warnings. */
+export function countRowsWithoutContactMethod(rows: PreparedImportRow[]): number {
+  return rows.filter((row) => row.warnings.includes(NO_CONTACT_METHOD_WARNING)).length;
 }
 
 function isValidCalendarDate(year: number, month: number, day: number): boolean {
@@ -191,15 +242,18 @@ export function buildImportRows(table: ParsedImportTable, mapping: ImportColumnM
         else if (target.field === "displayName") displayNames.push(cell);
         else if (target.field === "company") companies.push(cell);
         else if (target.field === "publicNotes") notes.push(cell);
-        else if (target.field === "email") emailValues.push(...splitMultiValue(cell, "email").map((item) => ({ value: item, label: cleanImportValue(raw[`${header} Label`]) || null })));
-        else if (target.field === "phone") phoneValues.push(...splitMultiValue(cell, "phone").map((item) => ({ value: item, label: cleanImportValue(raw[`${header} Label`]) || null })));
-        else if (target.field === "address") looseAddresses.push({ value: cell, label: cleanImportValue(raw[`${header} Label`]) || null });
+        else if (target.field === "email") emailValues.push(...splitMultiValue(cell, "email").map((item) => ({ value: item, label: importLabel(raw, header, "email") })));
+        else if (target.field === "phone") phoneValues.push(...splitMultiValue(cell, "phone").map((item) => ({ value: item, label: importLabel(raw, header, "phone") })));
+        else if (target.field === "address") looseAddresses.push({ value: cell, label: importLabel(raw, header, "address") });
         else structured[target.field].push(cell);
       } else if (target.kind === "CUSTOM") customFields.set(target.definitionId, cell);
       else if (target.kind === "DATE") {
+        // Outlook writes 0/0/00 for an empty date. Any other unreadable date is left out with a
+        // warning; the person still imports.
+        if (/^0{1,2}[/.-]0{1,2}[/.-]0{2,4}$/.test(cell)) continue;
         const parsed = parseImportDate(cell);
         if (!parsed) {
-          errors.push(`Column “${header}” has an invalid date: ${cell}`);
+          warnings.push(`Column “${header}” has an unreadable date, so it was left out: ${cell}`);
           continue;
         }
         jumpDates.push({
@@ -252,7 +306,7 @@ export function buildImportRows(table: ParsedImportTable, mapping: ImportColumnM
     const company = firstNonempty(companies);
     const displayName = importedDisplayName || [firstName, lastName].filter(Boolean).join(" ") || company || emails[0]?.value || phones[0]?.value || null;
     if (!displayName) errors.push("Add a name, company, email, or phone number.");
-    if (!emails.length && !phones.length) warnings.push("This Contact has no email or phone number.");
+    if (!emails.length && !phones.length) warnings.push(NO_CONTACT_METHOD_WARNING);
 
     const sourceRow = table.rowNumbers[rowIndex] ?? rowIndex + 1;
     return {

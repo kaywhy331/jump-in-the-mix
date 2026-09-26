@@ -69,16 +69,23 @@ export function useTodayUpdates(children: ReactNode, viewKey: string, root: RefO
       // Let the outcome component commit its Undo marker first.
       schedule();
     };
+    const onWorkflow = () => { changed.current = true; version.current++; schedule(); };
+    const workflowTimer = setInterval(() => { if (!document.hidden && root.current?.querySelector('[data-workflow-refresh="true"]')) onWorkflow(); }, 15000);
+    window.addEventListener("jitm:workflow-updated", onWorkflow);
+    window.addEventListener("focus", onWorkflow);
     check.current = schedule;
     const observer = new MutationObserver(schedule);
     observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true,
-      attributeFilter: ["data-follow-up-draft", "data-follow-up-undo", "inert"] });
+      attributeFilter: ["data-follow-up-draft", "data-follow-up-editing", "data-follow-up-undo", "inert"] });
     window.addEventListener("jitm:jump-state", onOutcome);
     window.addEventListener("online", schedule);
     document.addEventListener("visibilitychange", schedule);
     schedule();
     return () => {
       check.current = () => undefined;
+      clearInterval(workflowTimer);
+      window.removeEventListener("jitm:workflow-updated", onWorkflow);
+      window.removeEventListener("focus", onWorkflow);
       clearTimeout(timer); clearTimeout(timeout.current); observer.disconnect();
       window.removeEventListener("jitm:jump-state", onOutcome);
       window.removeEventListener("online", schedule);

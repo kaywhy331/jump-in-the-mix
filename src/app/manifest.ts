@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Jump in the Mix",
     short_name: "JITM",
-    description: "A phone-first CRM that keeps small-business follow-ups moving.",
+    description: "A client follow-up app for independent professionals: follow-up plans, message templates, and reminders you review and send yourself.",
     start_url: "/jumps?source=pwa",
     scope: "/",
     display: "standalone",

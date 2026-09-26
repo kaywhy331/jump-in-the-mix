@@ -1,0 +1,116 @@
+
+Running 4 tests using 1 worker
+
+[1/4] [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails
+  1) [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator: locator('.jump-task-card:visible').filter({ hasText: 'Email Guest' }).first().getByLabel('Your message')
+    Expected pattern: /\/register\?invite=[A-Za-z0-9_-]{43}/
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveValue" with timeout 10000ms
+      - waiting for locator('.jump-task-card:visible').filter({ hasText: 'Email Guest' }).first().getByLabel('Your message')
+
+
+      92 |     const review = card.getByRole("button", { name: `Review message for ${name}` });
+      93 |     if (await review.count()) await review.click();
+    > 94 |     await expect(card.getByLabel("Your message")).toHaveValue(/\/register\?invite=[A-Za-z0-9_-]{43}/);
+         |                                                   ^
+      95 |     await expect(card.getByRole("link", { name: new RegExp(`Open .* for ${name}`) })).toHaveAttribute("href", new RegExp(`^${protocol}${name === "Email Guest" ? email : ""}`));
+      96 |     const dialog = page.getByRole("dialog");
+      97 |     if (await dialog.count()) {
+        at /tmp/jitm-beta-audit-20260926/e2e/onboarding-invitations.spec.ts:94:51
+
+    Error Context: test-results/onboarding-invitations-thr-59e2c--links-and-no-queued-emails-mobile-chromium/error-context.md
+
+
+[2/4] [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails
+  2) [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator: locator('.jump-task-card:visible').filter({ hasText: 'Email Guest' }).first().getByLabel('Your message')
+    Expected pattern: /\/register\?invite=[A-Za-z0-9_-]{43}/
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveValue" with timeout 10000ms
+      - waiting for locator('.jump-task-card:visible').filter({ hasText: 'Email Guest' }).first().getByLabel('Your message')
+
+
+      92 |     const review = card.getByRole("button", { name: `Review message for ${name}` });
+      93 |     if (await review.count()) await review.click();
+    > 94 |     await expect(card.getByLabel("Your message")).toHaveValue(/\/register\?invite=[A-Za-z0-9_-]{43}/);
+         |                                                   ^
+      95 |     await expect(card.getByRole("link", { name: new RegExp(`Open .* for ${name}`) })).toHaveAttribute("href", new RegExp(`^${protocol}${name === "Email Guest" ? email : ""}`));
+      96 |     const dialog = page.getByRole("dialog");
+      97 |     if (await dialog.count()) {
+        at /tmp/jitm-beta-audit-20260926/e2e/onboarding-invitations.spec.ts:94:51
+
+    Error Context: test-results/onboarding-invitations-thr-59e2c--links-and-no-queued-emails-mobile-chromium-repeat1/error-context.md
+
+
+[3/4] [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails
+  3) [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator: locator('.jump-task-card:visible').filter({ hasText: 'Email Guest' }).first().getByLabel('Your message')
+    Expected pattern: /\/register\?invite=[A-Za-z0-9_-]{43}/
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveValue" with timeout 10000ms
+      - waiting for locator('.jump-task-card:visible').filter({ hasText: 'Email Guest' }).first().getByLabel('Your message')
+
+
+      92 |     const review = card.getByRole("button", { name: `Review message for ${name}` });
+      93 |     if (await review.count()) await review.click();
+    > 94 |     await expect(card.getByLabel("Your message")).toHaveValue(/\/register\?invite=[A-Za-z0-9_-]{43}/);
+         |                                                   ^
+      95 |     await expect(card.getByRole("link", { name: new RegExp(`Open .* for ${name}`) })).toHaveAttribute("href", new RegExp(`^${protocol}${name === "Email Guest" ? email : ""}`));
+      96 |     const dialog = page.getByRole("dialog");
+      97 |     if (await dialog.count()) {
+        at /tmp/jitm-beta-audit-20260926/e2e/onboarding-invitations.spec.ts:94:51
+
+    Error Context: test-results/onboarding-invitations-thr-59e2c--links-and-no-queued-emails-mobile-chromium-repeat2/error-context.md
+
+
+[4/4] [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails
+  4) [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails 
+
+    Error: expect(locator).toHaveValue(expected) failed
+
+    Locator: locator('.jump-task-card:visible').filter({ hasText: 'Email Guest' }).first().getByLabel('Your message')
+    Expected pattern: /\/register\?invite=[A-Za-z0-9_-]{43}/
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toHaveValue" with timeout 10000ms
+      - waiting for locator('.jump-task-card:visible').filter({ hasText: 'Email Guest' }).first().getByLabel('Your message')
+
+
+      92 |     const review = card.getByRole("button", { name: `Review message for ${name}` });
+      93 |     if (await review.count()) await review.click();
+    > 94 |     await expect(card.getByLabel("Your message")).toHaveValue(/\/register\?invite=[A-Za-z0-9_-]{43}/);
+         |                                                   ^
+      95 |     await expect(card.getByRole("link", { name: new RegExp(`Open .* for ${name}`) })).toHaveAttribute("href", new RegExp(`^${protocol}${name === "Email Guest" ? email : ""}`));
+      96 |     const dialog = page.getByRole("dialog");
+      97 |     if (await dialog.count()) {
+        at /tmp/jitm-beta-audit-20260926/e2e/onboarding-invitations.spec.ts:94:51
+
+    Error Context: test-results/onboarding-invitations-thr-59e2c--links-and-no-queued-emails-mobile-chromium-repeat3/error-context.md
+
+
+  4 failed
+    [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails 
+    [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails 
+    [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails 
+    [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails 

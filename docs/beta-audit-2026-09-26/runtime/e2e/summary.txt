@@ -1,0 +1,150 @@
+== start 2026-09-26T17:14:04Z
+== main-desktop-01 17:14:04: e2e/a2-contacts.spec.ts e2e/a2-css-checks.spec.ts e2e/accessibility.spec.ts e2e/admin-reports.spec.ts e2e/admin-workflow-regressions.spec.ts
+   exit=0
+  10 skipped
+  13 passed (46.5s)
+== main-desktop-02 17:14:53: e2e/admin-workspace.spec.ts e2e/admission-controls.spec.ts e2e/admission-mfa.spec.ts e2e/appointment-visit.spec.ts e2e/automatic-delivery-states.spec.ts
+   exit=0
+  16 skipped
+  3 passed (23.3s)
+== main-desktop-03 17:15:19: e2e/beat-timing.spec.ts e2e/browser-privacy.spec.ts e2e/channel-variants.spec.ts e2e/contact-lifecycle-management.spec.ts e2e/contact-search-import-jobs.spec.ts
+   exit=0
+  1 skipped
+  19 passed (1.2m)
+== main-desktop-04 17:16:33: e2e/contractor-user-journey.spec.ts e2e/core-flows.spec.ts e2e/core-ux-friction.spec.ts e2e/correctness-route-continuity.spec.ts e2e/customer-journey.spec.ts
+   exit=0
+  2 skipped
+  23 passed (2.7m)
+== main-desktop-05 17:19:15: e2e/data-retention.spec.ts e2e/design-adoption.spec.ts e2e/design-consistency.spec.ts e2e/design-correction.spec.ts e2e/design-details-public.spec.ts
+   exit=0
+  3 skipped
+  25 passed (45.9s)
+== main-desktop-06 17:20:04: e2e/design-refresh.spec.ts e2e/email-operations.spec.ts e2e/email-recovery.spec.ts e2e/follow-up-drafts.spec.ts e2e/homepage-conversion.spec.ts
+   exit=0
+  7 skipped
+  21 passed (1.7m)
+== main-desktop-07 17:21:45: e2e/journey-analytics.spec.ts e2e/journey-connections.spec.ts e2e/journey-rule-editing.spec.ts e2e/jump-outcome-timeline.spec.ts e2e/library-administration.spec.ts
+   exit=1
+  1) [desktop-chromium] › e2e/journey-connections.spec.ts:310:1 › delete an individual branch and a shared join while preserving other paths 
+  1 failed
+  2 skipped
+  32 passed (2.8m)
+== main-desktop-08 17:24:36: e2e/live-search-contact-layout.spec.ts e2e/marketplace.spec.ts e2e/mega-mixes.spec.ts e2e/mega-mix-pipelines.spec.ts e2e/mix-authoring-convergence.spec.ts
+   exit=0
+  1 skipped
+  20 passed (1.9m)
+== main-desktop-09 17:26:32: e2e/mix-library-workspace.spec.ts e2e/mix-list-pagination.spec.ts e2e/mobile-clarity.spec.ts e2e/onboarding-invitations.spec.ts e2e/onboarding-journey-preferences.spec.ts
+   exit=0
+  19 passed (1.8m)
+== main-desktop-10 17:28:21: e2e/operational-alerts.spec.ts e2e/outcome-retry.spec.ts e2e/phone-region.spec.ts e2e/preparation.spec.ts e2e/product-demo.spec.ts
+   exit=0
+  4 skipped
+  15 passed (1.3m)
+== main-desktop-11 17:29:41: e2e/profession-pages.spec.ts e2e/public-pages.spec.ts e2e/public-trust.spec.ts e2e/push-ownership.spec.ts e2e/quick-capture-config.spec.ts
+   exit=0
+  24 passed (1.3m)
+== main-desktop-12 17:31:01: e2e/quiet-days.spec.ts e2e/ready-made-panes.spec.ts e2e/registration.spec.ts e2e/relationship-vocabulary.spec.ts e2e/save-recovery.spec.ts
+   exit=0
+  1 skipped
+  35 passed (2.1m)
+== main-desktop-13 17:33:06: e2e/session-cookie-cross-site.spec.ts e2e/sheet-interactions.spec.ts e2e/staff-onboarding.spec.ts e2e/staff-permissions.spec.ts e2e/staging-channel-variants.spec.ts
+   exit=0
+  9 skipped
+  13 passed (1.3m)
+== main-desktop-14 17:34:26: e2e/staging-smoke.spec.ts e2e/support-cases.spec.ts e2e/support-email.spec.ts e2e/system-mix-administration.spec.ts e2e/today-navigation.spec.ts
+   exit=0
+  9 skipped
+  15 passed (2.3m)
+== main-desktop-15 17:36:46: e2e/ui-ux-admin.spec.ts e2e/ui-ux-public-auth.spec.ts e2e/ui-ux-readiness.spec.ts e2e/ui-ux-workflows.spec.ts e2e/user-administration.spec.ts
+   exit=0
+  2 skipped
+  16 passed (34.3s)
+== main-desktop-16 17:37:24: e2e/visual-fitment.spec.ts e2e/voice-capture.spec.ts e2e/waitlist-admin.spec.ts e2e/waitlist.spec.ts
+   exit=0
+  13 skipped
+  13 passed (56.8s)
+== mfa-01 17:38:23: e2e/staff-onboarding.spec.ts e2e/voice-capture.spec.ts e2e/admission-controls.spec.ts e2e/admission-mfa.spec.ts e2e/admin-workspace.spec.ts
+   exit=0
+  2 skipped
+  22 passed (1.4m)
+== mfa-02 17:39:51: e2e/admin-workflow-regressions.spec.ts e2e/library-administration.spec.ts e2e/system-mix-administration.spec.ts e2e/admin-reports.spec.ts e2e/support-cases.spec.ts
+   exit=1
+  1) [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:92:1 › a different staff session cannot recover the previous operator's in-memory draft 
+  1 failed
+  16 passed (1.6m)
+== mfa-03 17:41:29: e2e/email-recovery.spec.ts e2e/operational-alerts.spec.ts e2e/data-retention.spec.ts e2e/support-email.spec.ts
+   exit=0
+  16 passed (1.1m)
+== main-mobile-01 17:42:34: e2e/a2-contacts.spec.ts e2e/a2-css-checks.spec.ts e2e/accessibility.spec.ts e2e/admin-reports.spec.ts e2e/admin-workflow-regressions.spec.ts
+   exit=0
+  22 skipped
+  1 passed (12.8s)
+== main-mobile-02 17:42:49: e2e/admin-workspace.spec.ts e2e/admission-controls.spec.ts e2e/admission-mfa.spec.ts e2e/appointment-visit.spec.ts e2e/automatic-delivery-states.spec.ts
+   exit=0
+  17 skipped
+  2 passed (21.6s)
+== main-mobile-03 17:43:13: e2e/beat-timing.spec.ts e2e/browser-privacy.spec.ts e2e/channel-variants.spec.ts e2e/contact-lifecycle-management.spec.ts e2e/contact-search-import-jobs.spec.ts
+   exit=0
+  8 skipped
+  12 passed (47.4s)
+== main-mobile-04 17:44:02: e2e/contractor-user-journey.spec.ts e2e/core-flows.spec.ts e2e/core-ux-friction.spec.ts e2e/correctness-route-continuity.spec.ts e2e/customer-journey.spec.ts
+   exit=0
+  9 skipped
+  16 passed (1.2m)
+== main-mobile-05 17:45:15: e2e/data-retention.spec.ts e2e/design-adoption.spec.ts e2e/design-consistency.spec.ts e2e/design-correction.spec.ts e2e/design-details-public.spec.ts
+   exit=0
+  4 skipped
+  24 passed (43.1s)
+== main-mobile-06 17:45:59: e2e/design-refresh.spec.ts e2e/email-operations.spec.ts e2e/email-recovery.spec.ts e2e/follow-up-drafts.spec.ts e2e/homepage-conversion.spec.ts
+   exit=0
+  10 skipped
+  18 passed (1.5m)
+== main-mobile-07 17:47:32: e2e/journey-analytics.spec.ts e2e/journey-connections.spec.ts e2e/journey-rule-editing.spec.ts e2e/jump-outcome-timeline.spec.ts e2e/library-administration.spec.ts
+   exit=0
+  3 skipped
+  32 passed (2.5m)
+== main-mobile-08 17:50:05: e2e/live-search-contact-layout.spec.ts e2e/marketplace.spec.ts e2e/mega-mixes.spec.ts e2e/mega-mix-pipelines.spec.ts e2e/mix-authoring-convergence.spec.ts
+   exit=0
+  5 skipped
+  16 passed (1.9m)
+== main-mobile-09 17:52:00: e2e/mix-library-workspace.spec.ts e2e/mix-list-pagination.spec.ts e2e/mobile-clarity.spec.ts e2e/onboarding-invitations.spec.ts e2e/onboarding-journey-preferences.spec.ts
+   exit=1
+  1) [mobile-chromium] › e2e/onboarding-invitations.spec.ts:60:1 › three mixed-channel invitations become Today reminders with single-use links and no queued emails 
+  1 failed
+  18 passed (2.2m)
+== main-mobile-10 17:54:12: e2e/operational-alerts.spec.ts e2e/outcome-retry.spec.ts e2e/phone-region.spec.ts e2e/preparation.spec.ts e2e/product-demo.spec.ts
+   exit=0
+  7 skipped
+  12 passed (1.1m)
+== main-mobile-11 17:55:20: e2e/profession-pages.spec.ts e2e/public-pages.spec.ts e2e/public-trust.spec.ts e2e/push-ownership.spec.ts e2e/quick-capture-config.spec.ts
+   exit=0
+  2 skipped
+  22 passed (1.3m)
+== main-mobile-12 17:56:41: e2e/quiet-days.spec.ts e2e/ready-made-panes.spec.ts e2e/registration.spec.ts e2e/relationship-vocabulary.spec.ts e2e/save-recovery.spec.ts
+   exit=0
+  3 skipped
+  33 passed (1.7m)
+== main-mobile-13 17:58:27: e2e/session-cookie-cross-site.spec.ts e2e/sheet-interactions.spec.ts e2e/staff-onboarding.spec.ts e2e/staff-permissions.spec.ts e2e/staging-channel-variants.spec.ts
+   exit=0
+  9 skipped
+  13 passed (1.3m)
+== main-mobile-14 17:59:45: e2e/staging-smoke.spec.ts e2e/support-cases.spec.ts e2e/support-email.spec.ts e2e/system-mix-administration.spec.ts e2e/today-navigation.spec.ts
+   exit=0
+  10 skipped
+  14 passed (1.5m)
+== main-mobile-15 18:01:17: e2e/ui-ux-admin.spec.ts e2e/ui-ux-public-auth.spec.ts e2e/ui-ux-readiness.spec.ts e2e/ui-ux-workflows.spec.ts e2e/user-administration.spec.ts
+   exit=0
+  2 skipped
+  16 passed (34.1s)
+== main-mobile-16 18:01:53: e2e/visual-fitment.spec.ts e2e/voice-capture.spec.ts e2e/waitlist-admin.spec.ts e2e/waitlist.spec.ts
+   exit=0
+  18 skipped
+  8 passed (21.1s)
+== end all 2026-09-26T18:02:16Z
+== start 2026-09-26T18:09:15Z
+== staff-01 18:09:15: e2e/staff-permissions.spec.ts e2e/waitlist-admin.spec.ts e2e/email-operations.spec.ts e2e/user-administration.spec.ts
+   exit=1
+  1) [desktop-chromium] › e2e/staff-permissions.spec.ts:64:1 › an ended support cookie can be cleared after the staff session is revoked 
+  1 failed
+  11 passed (52.7s)
+== end staff 2026-09-26T18:10:09Z

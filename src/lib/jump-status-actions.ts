@@ -4,6 +4,7 @@ import type { JumpStatus } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { queueWorkflowForJump } from "@/lib/mix-workflow";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -44,6 +45,7 @@ export async function updateJumpStatusAction(formData: FormData): Promise<void> 
       }
     });
     if (changed.count) {
+      await queueWorkflowForJump(tx, workspace.id, jumpId);
       await tx.auditLog.create({
         data: {
           workspaceId: workspace.id,

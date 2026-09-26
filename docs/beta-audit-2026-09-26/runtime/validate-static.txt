@@ -1,0 +1,17 @@
+# validate:static at 4b5abd8 2026-09-26T16:13:10Z
+
+> jump-in-the-mix-mvp@0.1.0 validate:schema
+> node scripts/validate-schema.mjs
+
+[OK] Prisma schema is valid: prisma/activity.prisma, prisma/admission.prisma, prisma/appointments.prisma, prisma/auth.prisma, prisma/contact-group-state.prisma, prisma/contact-import-batches.prisma, prisma/contact-lifecycle.prisma, prisma/customer-journey.prisma, prisma/email.prisma, prisma/marketplace.prisma, prisma/mega-mix.prisma, prisma/mix-favorites.prisma, prisma/mix-workflow.prisma, prisma/operations.prisma, prisma/personal-preferences.prisma, prisma/platform-settings.prisma, prisma/preparation.prisma, prisma/privacy.prisma, prisma/product-platform.prisma, prisma/reports.prisma, prisma/schema.prisma, prisma/shared-mix-library.prisma, prisma/staff.prisma, prisma/support.prisma, prisma/system-mix.prisma, prisma/workflow.prisma
+
+> jump-in-the-mix-mvp@0.1.0 validate:syntax
+> node scripts/validate-syntax.mjs
+
+[OK] Parsed 689 TypeScript/JavaScript source files.
+
+> jump-in-the-mix-mvp@0.1.0 validate:imports
+> node scripts/validate-imports.mjs
+
+[OK] Resolved local imports across 625 source files and verified the Server Action boundary.
+exit=0

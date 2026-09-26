@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
+import { verifiedErrorMessage } from "@/lib/form-errors";
 import { peekStaffInvitation } from "@/lib/staff-invitations";
 import { acceptStaffInvitationAction } from "@/lib/staff-invitation-actions";
 import { ADMIN_PERMISSIONS, effectiveAdminPermissions } from "@/lib/admin-permissions";
@@ -9,13 +10,14 @@ import { ADMIN_PERMISSIONS, effectiveAdminPermissions } from "@/lib/admin-permis
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Set up staff access", robots: { index: false, follow: false }, referrer: "no-referrer" };
 
-export default async function AcceptStaffPage({ searchParams }: { searchParams: Promise<{ token?: string; error?: string }> }) {
+export default async function AcceptStaffPage({ searchParams }: { searchParams: Promise<{ token?: string; error?: string; sig?: string }> }) {
   const params = await searchParams;
+  const error = verifiedErrorMessage(params);
   const token = params.token ?? "";
   const invitation = await peekStaffInvitation(token);
   return <main className="auth-shell"><section className="auth-card"><Logo />
     <h1>Set up your staff access</h1>
-    {params.error && <Notice type="error">{params.error.slice(0, 500)}</Notice>}
+    {error && <Notice type="error">{error}</Notice>}
     {!invitation ? <><p>This invitation is unavailable. Ask a Jump in the Mix Owner for a new invitation or access to your existing account.</p><Link href="/login">Sign in to an existing account</Link></> : <>
       <p>You’ve been invited as {invitation.role.toLowerCase()}. Create your staff account, then set up an authenticator to open the admin tools.</p>
       <details><summary>Review the access offered</summary><ul>{effectiveAdminPermissions({ ...invitation, status: "ACTIVE" }).map(permission => <li key={permission}>{ADMIN_PERMISSIONS[permission]}</li>)}</ul></details>

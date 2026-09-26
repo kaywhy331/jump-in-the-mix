@@ -28,7 +28,7 @@ async function createDraft(page: Page, title: string) {
   await page.getByLabel("Message", { exact: true }).fill("Hi {{First Name}}, how did your event go?");
   await page.getByLabel("Reason for draft change").fill("Prepare the first reviewed relationship mix");
   await page.getByRole("button", { name: "Save draft for review" }).click();
-  await expect(page).toHaveURL(/\/admin\/templates\/[a-z0-9]+\/edit\?saved=1$/);
+  await expect(page).toHaveURL(url => /\/admin\/templates\/[a-z0-9]+\/edit$/.test(url.pathname) && url.searchParams.get("saved") === "1");
   const id = new URL(page.url()).pathname.split("/")[3]; sharedIds.push(id); return id;
 }
 async function openDraft(page: Page) {
@@ -37,6 +37,7 @@ async function openDraft(page: Page) {
 }
 async function release(page: Page, label: string) {
   if (label === "Hide from customer library") await page.getByText(/^Currently published · version/).click();
+  await page.locator(".admin-release-confirmation > summary").filter({ hasText: label }).click();
   const form = page.locator("form").filter({ has: page.getByRole("button", { name: label, exact: true }) });
   const revision = Number(await form.locator('input[name="revision"]').inputValue());
   await form.locator('textarea[name="reason"]').fill("Review and release the exact saved content");
@@ -87,17 +88,22 @@ test("staff drafts, previews, publishes and rolls back while customers retain re
     await page.getByRole("textbox", { name: "Message", exact: true }).fill("Second edition prepared message.");
     await page.getByLabel("Reason for draft change").fill("Improve the second edition message");
     await page.getByRole("button", { name: "Save draft for review" }).click();
-    await expect(page).toHaveURL(/saved=2$/);
+    await expect(page).toHaveURL(/saved=2(?:&|$)/);
     expect((await prisma.sharedMix.findUniqueOrThrow({ where: { id } })).title).toBe("Library browser review");
     await release(page, "Publish version 2");
+    await customerPage.getByRole("button", { name: "Continue", exact: true }).click();
     await customerPage.getByRole("checkbox", { name: /Everyone/ }).check();
-    await customerPage.getByRole("button", { name: "Create my remix" }).click();
+    await customerPage.getByRole("button", { name: "Continue", exact: true }).click();
+    await customerPage.getByRole("button", { name: "Save draft" }).click();
     await expect(customerPage.locator(".notice.error")).toContainText("changed since your preview");
     expect(await prisma.mix.count({ where: { workspaceId: workspace.id } })).toBe(0);
     await expect(customerPage.locator('input[name="expectedVersion"]')).toHaveValue("2");
+    await customerPage.getByRole("button", { name: "Continue", exact: true }).click();
     await customerPage.getByRole("checkbox", { name: /Everyone/ }).check();
-    await customerPage.getByRole("button", { name: "Create my remix" }).click();
-    await expect(customerPage).toHaveURL(/\/mixes\/[a-z0-9-]+\/edit\?imported=1$/);
+    await customerPage.getByRole("button", { name: "Continue", exact: true }).click();
+    await customerPage.getByRole("button", { name: "Save draft" }).click();
+    // /mixes/<id>/edit forwards to the Mix library's editor view (bd125c6).
+    await expect(customerPage).toHaveURL(/\/mixes\?mix=[a-z0-9-]+&view=edit&imported=1$/);
     const imported = await prisma.mix.findFirstOrThrow({ where: { workspaceId: workspace.id }, include: { steps: { include: { stepVersion: true } } } });
     const history = page.locator("#library-history");
     await history.locator(":scope > details > summary").click();
@@ -106,7 +112,10 @@ test("staff drafts, previews, publishes and rolls back while customers retain re
     expect((await prisma.sharedMixMetadata.findUniqueOrThrow({ where: { sharedMixId: id } })).version).toBe(1);
     expect((await prisma.stepVersion.findUniqueOrThrow({ where: { id: imported.steps[0].stepVersionId } })).body).toBe("Second edition prepared message.");
     await release(page, "Hide from customer library");
-    const hidden = await customerPage.goto(`/templates/${id}/use`); expect(hidden?.status()).toBe(404);
+    await customerPage.goto(`/templates/${id}/use`);
+    await expect(customerPage.getByRole("heading", { name: "Let’s get you back on track." })).toBeVisible();
+    await expect(customerPage.getByRole("button", { name: "Save draft" })).toHaveCount(0);
+    expect(await prisma.mix.count({ where: { workspaceId: workspace.id } })).toBe(1);
   } finally { await customerContext.close(); }
 });
 
@@ -120,30 +129,31 @@ test("editors can save drafts while stale forms and removed publication rights a
   await page.getByRole("button", { name: "Save draft for review" }).click();
   await expect(page.locator(".notice.error")).toContainText("mix changed");
   expect(await prisma.sharedMixRevision.count({ where: { sharedMixId: id } })).toBe(1);
-  await page.locator("#library-review > summary").click();
+  await page.getByRole("link", { name: "2. Preview and publish", exact: true }).click();
+  await page.locator(".admin-release-confirmation > summary").filter({ hasText: "Publish version 1" }).click();
   const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Publish version 1", exact: true }) });
   await form.locator('textarea[name="reason"]').fill("Publication denied after permission removal");
   await form.getByLabel("Your administrator password").fill(password);
   await prisma.staffMembership.update({ where: { userId: staff.user.id }, data: { grants: [] } });
   await form.getByRole("button", { name: "Publish version 1", exact: true }).click();
-  await expect(page).toHaveURL(/\/admin\/access-denied$/);
+  await expect(page).toHaveURL(/\/admin\/access-denied\?/);
   await page.goto(`/admin/templates/${id}/edit`);
   await expect(page.getByRole("button", { name: "Publish version 1", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save draft for review" })).toBeVisible();
-  const firstBeat = page.getByRole("group", { name: "Beat 1", exact: true });
+  const firstBeat = page.locator(".admin-beat-editor").nth(0);
   await firstBeat.getByRole("textbox", { name: "Message", exact: true }).fill("Keep these first-beat edits through reordering.");
   await page.getByRole("button", { name: "Add beat", exact: true }).click();
-  const secondBeat = page.getByRole("group", { name: "Beat 2", exact: true });
+  const secondBeat = page.locator(".admin-beat-editor").nth(1);
   await secondBeat.getByLabel("Beat name", { exact: true }).fill("Later check-in");
   await secondBeat.getByRole("textbox", { name: "Message", exact: true }).fill("Keep this second message with its timing and options.");
-  await secondBeat.getByLabel("Days after start").fill("7");
-  await secondBeat.getByLabel("Send time", { exact: true }).fill("14:25");
-  await secondBeat.getByLabel("Allow long SMS").check();
+  await secondBeat.getByLabel("Days from the cue date (negative = before)").fill("7");
+  await secondBeat.getByLabel("Send time", { exact: false }).fill("14:25");
+  await secondBeat.getByLabel("Allow long text messages").check();
   await secondBeat.getByLabel("Include opt-out wording").check();
-  await secondBeat.getByRole("button", { name: "Move beat 2 earlier" }).click();
+  await secondBeat.getByRole("button", { name: "Move earlier", exact: true }).click();
   await page.getByLabel("Reason for draft change").fill("Reorder prepared beats while preserving their content");
   await page.getByRole("button", { name: "Save draft for review" }).click();
-  await expect(page).toHaveURL(/saved=2$/);
+  await expect(page).toHaveURL(/saved=2(?:&|$)/);
   const saved = (await prisma.sharedMixRevision.findUniqueOrThrow({ where: { sharedMixId_version: { sharedMixId: id, version: 2 } } })).snapshot as { steps: Array<Record<string, unknown>> };
   expect(saved.steps).toHaveLength(2);
   expect(saved.steps[0]).toMatchObject({ name: "Later check-in", dayOffset: 7, sendTimeMinutes: 865, longSms: true, includeOptOut: true, body: "Keep this second message with its timing and options." });

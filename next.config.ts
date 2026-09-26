@@ -19,6 +19,7 @@ function serverActionOrigins(): string[] {
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  distDir: process.env.JITM_BUILD_DIR || ".next",
   poweredByHeader: false,
   allowedDevOrigins: ["127.0.0.1"],
   async headers() {

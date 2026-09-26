@@ -16,7 +16,8 @@ describe("timezone-aware display formatting", () => {
   it("passes the stored display preferences into the client-rendered timeline", () => {
     const page = readFileSync("src/app/(app)/contacts/[contactId]/page.tsx", "utf8");
     const timeline = readFileSync("src/components/ContactTimeline.tsx", "utf8");
-    expect(page).toContain("displayPreferences={displayPreferences}");
+    expect(page).toContain("<ContactProfile");
+    expect(readFileSync("src/components/ContactProfile.tsx", "utf8")).toContain("displayPreferences={displayPreferences}");
     expect(timeline).toContain("formatDateTime(item.occurredAt, displayPreferences)");
     expect(timeline).not.toContain("Intl.DateTimeFormat(undefined");
   });

@@ -8,8 +8,8 @@ const coreRoutes = ["/jumps", "/contacts", "/contacts/new", "/mixes/new"] as con
 
 async function signIn(page: Page) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(userEmail);
-  await page.getByLabel("Password").fill(userPassword);
+  await page.getByLabel("Email", { exact: true }).fill(userEmail);
+  await page.getByLabel("Password", { exact: true }).fill(userPassword);
   await Promise.all([
     page.waitForURL(/\/(jumps|onboarding)(\?|$)/),
     page.getByRole("button", { name: "Sign in" }).click()
@@ -41,4 +41,15 @@ test("core signed-in pages pass automated WCAG checks", async ({ page }, testInf
       expect(results.violations, summary).toEqual([]);
     });
   }
+});
+
+test("the portrait tablet profile initial is named for where it goes", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The tablet viewport is set explicitly.");
+  await signIn(page);
+  await page.setViewportSize({ width: 834, height: 1194 });
+  await page.goto("/jumps");
+  const profile = page.locator(".mobile-app-header .mobile-profile-link");
+  await expect(profile).toBeVisible();
+  await expect(profile).toHaveAccessibleName("More");
+  await expect(profile).toHaveAttribute("href", "/more");
 });

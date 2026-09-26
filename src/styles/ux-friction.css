@@ -1,6 +1,6 @@
 .contact-first-follow-up {
-  border-color: #d7d1ff;
-  background: linear-gradient(180deg, #fbfaff 0%, #ffffff 100%);
+  border-color: var(--violet-mark);
+  background: linear-gradient(180deg, var(--surface) 0%, var(--raised) 100%);
 }
 
 .contact-first-follow-up-fields { margin-top: 14px; }
@@ -19,25 +19,6 @@
 
   .jump-completion-actions > form { display: block; }
   .jump-task-complete .jump-completion-actions > form { display: none; }
-
-  .jump-completion-actions .jump-done-action {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    min-height: 44px;
-    padding: 0;
-    border-radius: 12px;
-    font-size: 0;
-  }
-
-  .jump-completion-actions .jump-done-action::after {
-    content: "✓";
-    font-size: 1.05rem;
-    line-height: 1;
-  }
 
   .contact-selection-controls {
     grid-template-columns: minmax(0, 1fr) auto auto;

@@ -10,6 +10,7 @@ import {
   type SharedMixStep
 } from "@/lib/shared-mix";
 import { slugify } from "@/lib/slug";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export type MixSnapshot = {
   mixId: string;
@@ -41,8 +42,8 @@ export async function snapshotWorkspaceMix(workspaceId: string, mixId: string): 
       }
     }
   });
-  if (!mix) throw new Error("Mix not found.");
-  if (!mix.steps.length) throw new Error("Add at least one follow-up before publishing this mix.");
+  if (!mix) throw new UserFacingError("Mix not found.");
+  if (!mix.steps.length) throw new UserFacingError("Add at least one follow-up before publishing this mix.");
 
   const steps: SharedMixStep[] = mix.steps.map((item, index) => ({
     name: item.stepVersion.stepTemplate.name || `Follow-up #${index + 1}`,
@@ -72,6 +73,20 @@ export async function snapshotWorkspaceMix(workspaceId: string, mixId: string): 
   };
 }
 
+/**
+ * The saved date type a file or ready-made Mix refers to: the exported slug as it is, then the
+ * name (case-insensitive), across this account's own types and the system ones. Slugs made here
+ * carry a random suffix, so slugifying before the lookup could never match an existing type.
+ */
+export async function matchDateType(db: Prisma.TransactionClient | typeof prisma, workspaceId: string, dateType: { name: string | null; slug: string | null }) {
+  const scope = { OR: [{ workspaceId, isSystem: false }, { workspaceId: null, isSystem: true }] };
+  const orderBy: Prisma.DateTypeOrderByWithRelationInput[] = [{ isActive: "desc" }, { isSystem: "desc" }, { createdAt: "asc" }];
+  const slug = dateType.slug?.trim() ?? "", name = dateType.name?.trim() ?? "";
+  const bySlug = slug ? await db.dateType.findFirst({ where: { slug, ...scope }, orderBy }) : null;
+  if (bySlug) return bySlug;
+  return name ? db.dateType.findFirst({ where: { name: { equals: name, mode: "insensitive" }, ...scope }, orderBy }) : null;
+}
+
 async function resolveImportedDateType(
   tx: Prisma.TransactionClient,
   workspaceId: string,
@@ -81,22 +96,16 @@ async function resolveImportedDateType(
 ): Promise<string | null> {
   if (triggerMode !== "DATE_TRIGGERED") return null;
   const name = clean(dateTypeName, 120);
-  const slug = slugify(dateTypeSlug || name);
-  if (!name || !slug) throw new Error("This date-based mix does not identify the date that starts it.");
-  const existing = await tx.dateType.findFirst({
-    where: {
-      slug,
-      OR: [{ workspaceId, isSystem: false }, { workspaceId: null, isSystem: true }]
-    },
-    orderBy: { isSystem: "desc" }
-  });
+  const slug = clean(dateTypeSlug, 120);
+  if (!name) throw new UserFacingError("This date-based mix does not identify the date that starts it.");
+  const existing = await matchDateType(tx, workspaceId, { name, slug });
   if (existing) {
-    if (!existing.isActive) throw new Error(`Turn on the ${existing.name} date before adding this mix.`);
+    if (!existing.isActive) throw new UserFacingError(`Turn on the ${existing.name} date before adding this mix.`);
     return existing.id;
   }
 
   const created = await tx.dateType.create({
-    data: { workspaceId, scopeKey: workspaceId, name, slug, isSystem: false, isActive: true }
+    data: { workspaceId, scopeKey: workspaceId, name, slug: slugify(name), isSystem: false, isActive: true }
   });
   return created.id;
 }
@@ -107,7 +116,7 @@ export async function importSharedMixIntoWorkspace(input: {
   sharedMixId: string;
 }): Promise<{ mixId: string; importNumber: number }> {
   const workspace = await prisma.workspace.findFirst({ where: { id: input.workspaceId, ownerId: input.actorUserId }, select: { id: true } });
-  if (!workspace) throw new Error("Business account not found.");
+  if (!workspace) throw new UserFacingError("Business account not found.");
 
   return prisma.$transaction(async (tx) => {
     await lockLibrary(tx);
@@ -158,7 +167,7 @@ export async function importSharedMixIntoWorkspace(input: {
         include: { versions: true }
       });
       const version = template.versions[0];
-      if (!version) throw new Error(`Follow-up #${index + 1} could not be created.`);
+      if (!version) throw new UserFacingError(`Follow-up #${index + 1} could not be created.`);
       await tx.mixStep.create({
         data: {
           mixId: mix.id,

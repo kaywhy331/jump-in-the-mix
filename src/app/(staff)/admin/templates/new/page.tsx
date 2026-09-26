@@ -1,15 +1,18 @@
+import { safeAdminReturnTo } from "@/lib/admin-navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { LibraryDraftForm } from "@/components/LibraryDraftForm";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { EMPTY_LIBRARY_CONTENT } from "@/lib/library-content";
 import { prisma } from "@/lib/prisma";
 import { snapshotWorkspaceMix } from "@/lib/shared-mix-service";
 
 export const metadata: Metadata = { title: "Admin · New library draft" };
-export default async function NewLibraryDraftPage({ searchParams }: { searchParams: Promise<{ error?: string; sourceMixId?: string }> }) {
-  const { user } = await requirePlatformAdmin("mixes.edit"); const query = await searchParams;
+export default async function NewLibraryDraftPage({ searchParams }: { searchParams: Promise<{ error?: string; at?: string; sig?: string; sourceMixId?: string; returnTo?: string }> }) {
+  const { user, session } = await requirePlatformAdmin("mixes.edit"); const query = await searchParams;
+  const returnTo = safeAdminReturnTo(query.returnTo, "/admin/templates");
   let content = EMPTY_LIBRARY_CONTENT;
   let sourceIssue = false;
   const source = query.sourceMixId && await prisma.mix.findFirst({ where: { id: query.sourceMixId.slice(0, 100), workspace: { ownerId: user.id }, status: { not: "ARCHIVED" } }, select: { id: true, workspaceId: true } });
@@ -21,9 +24,9 @@ export default async function NewLibraryDraftPage({ searchParams }: { searchPara
     } catch { sourceIssue = true; }
   }
   return <div className="page admin-template-editor-page">
-    <header className="page-header"><div><h1>Create a library draft</h1><p>Prepare a useful starting point customers can adapt to their own relationships.</p></div><Link className="button" href="/admin/templates">Back to mixes</Link></header>
-    {query.error && <Notice type="error">{query.error}</Notice>}
+    <header className="page-header"><div><h1>Create a library draft</h1></div><Link className="button" href={returnTo}>Back to mixes</Link></header>
+    <UrlErrorNotice params={query} viewer={session} fallback="The library change could not be saved. Please try again later." />
     {query.sourceMixId && (!source || sourceIssue) && <Notice type="error">This source mix cannot be copied. Choose an available mix from your own account, or start a new draft below.</Notice>}
-    <LibraryDraftForm revision={0} content={content} />
+    <LibraryDraftForm revision={0} content={content} sourceKey={source ? source.id : "new"} returnTo={returnTo} />
   </div>;
 }

@@ -1,0 +1,98 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+import { requireWorkspace, requirePlatformAdmin } from "@/lib/auth";
+import type { FormResult } from "@/lib/form-errors";
+import { consumeRateLimit } from "@/lib/rate-limit";
+import { cleanReviewNote } from "@/lib/marketplace";
+import { addFromMarketplace, markReportsSeen, reportListing, requestListingReview, reviewListing, shareOnMarketplace, unshareFromMarketplace } from "@/lib/marketplace-service";
+import { UserFacingError } from "@/lib/user-facing-error";
+
+/** Messages our own code writes are shown as they are; database and unexpected errors get the plain fallback. */
+const failed = (error: unknown, fallback: string): FormResult => ({ error: error instanceof UserFacingError ? error.message : fallback });
+async function writer() {
+  const session = await requireWorkspace();
+  if (session.impersonation) throw new UserFacingError("Administrator support sessions are view-only.");
+  return session;
+}
+const refresh = () => { revalidatePath("/marketplace"); revalidatePath("/mixes"); revalidatePath("/mixes/mega"); };
+const item = (listingId: string, section = "mine") => `/marketplace?section=${section}&item=${encodeURIComponent(`listing:${listingId}`)}`;
+
+export async function shareAction(_previous: FormResult, data: FormData): Promise<FormResult> {
+  let listingId = "";
+  try {
+    const { workspace, user } = await writer();
+    const kind = data.get("kind") === "MEGA_MIX" ? "MEGA_MIX" : "MIX";
+    listingId = (await shareOnMarketplace({ workspaceId: workspace.id, actorUserId: user.id, kind, targetId: String(data.get("targetId") ?? ""), publicName: String(data.get("publicName") ?? ""),
+      summary: String(data.get("summary") ?? ""), industry: String(data.get("industry") ?? ""), confirmed: data.get("confirmed") === "on" })).id;
+  } catch (error) { return failed(error, "This could not be shared. Your entries are kept."); }
+  refresh();
+  redirect(`${item(listingId)}&shared=1`);
+}
+
+export async function unshareAction(_previous: FormResult, data: FormData): Promise<FormResult> {
+  const listingId = String(data.get("listingId") ?? "");
+  try { const { workspace, user } = await writer(); await unshareFromMarketplace({ workspaceId: workspace.id, actorUserId: user.id, listingId }); }
+  catch (error) { return failed(error, "Sharing could not be stopped. Try again."); }
+  refresh();
+  redirect(`${item(listingId)}&unshared=1`);
+}
+
+export async function addFromMarketplaceAction(_previous: FormResult, data: FormData): Promise<FormResult> {
+  let target = "/mixes";
+  try {
+    const { workspace, user } = await writer();
+    if (data.get("reviewed") !== "on") return { error: "Review the wording before adding it." };
+    const result = await addFromMarketplace({ listingId: String(data.get("listingId") ?? ""), workspaceId: workspace.id, actorUserId: user.id, name: String(data.get("name") ?? ""), expectedFingerprint: String(data.get("fingerprint") ?? "") });
+    target = result.pipelineId ? `/mixes/mega?megaMix=${encodeURIComponent(result.pipelineId)}&imported=1` : `/mixes?mix=${encodeURIComponent(result.mixIds[0])}&imported=1#selected-mix`;
+  } catch (error) { return failed(error, "That share couldn’t be added. Try again."); }
+  refresh();
+  redirect(target);
+}
+
+export async function reportAction(_previous: FormResult, data: FormData): Promise<FormResult> {
+  const listingId = String(data.get("listingId") ?? "");
+  let hidden = false;
+  try {
+    const { workspace, user } = await writer();
+    const limit = await consumeRateLimit({ scope: "marketplace.report", identifiers: [workspace.id, user.id], limit: 10, windowMs: 3_600_000, blockMs: 3_600_000 });
+    if (!limit.allowed) return { error: "You’ve sent several reports recently. Try again later, or contact support." };
+    hidden = (await reportListing({ listingId, reporterUserId: user.id, reporterWorkspaceId: workspace.id, reason: String(data.get("reason") ?? ""), details: String(data.get("details") ?? "") })).hidden;
+  } catch (error) { return failed(error, "The report could not be sent. Try again."); }
+  refresh();
+  redirect(`/marketplace?section=community&reported=${hidden ? "hidden" : "1"}`);
+}
+
+/** The author asks for another review of a hidden share they changed. A note that would be refused costs no attempt. */
+export async function requestReviewAction(_previous: FormResult, data: FormData): Promise<FormResult> {
+  const listingId = String(data.get("listingId") ?? "");
+  try {
+    const { workspace, user } = await writer();
+    const note = cleanReviewNote(data.get("note"));
+    const limit = await consumeRateLimit({ scope: "marketplace.review-request", identifiers: [workspace.id, user.id], limit: 5, windowMs: 86_400_000, blockMs: 86_400_000 });
+    if (!limit.allowed) return { error: "You’ve asked for several reviews today. Try again tomorrow, or contact support." };
+    await requestListingReview({ workspaceId: workspace.id, actorUserId: user.id, listingId, note });
+  } catch (error) { return failed(error, "Your request could not be sent. Try again."); }
+  refresh();
+  redirect(`${item(listingId)}&review=requested`);
+}
+
+export async function markReportsSeenAction(data: FormData) {
+  const { workspace, impersonation } = await requireWorkspace();
+  if (impersonation) return;
+  await markReportsSeen(workspace.id, String(data.get("listingId") ?? ""));
+  refresh();
+}
+
+export async function reviewListingAction(_previous: FormResult, data: FormData): Promise<FormResult> {
+  try {
+    const { user } = await requirePlatformAdmin("mixes.publish");
+    // The wording staff read; a restore is refused if the author changed it since the page was opened.
+    const fingerprint = data.get("fingerprint");
+    await reviewListing({ listingId: String(data.get("listingId") ?? ""), staffUserId: user.id, decision: data.get("decision") === "RESTORE" ? "RESTORE" : "HIDE", note: String(data.get("note") ?? ""),
+      expectedFingerprint: typeof fingerprint === "string" ? fingerprint : undefined });
+  } catch (error) { return failed(error, "The decision could not be saved."); }
+  revalidatePath("/admin/marketplace"); revalidatePath("/marketplace");
+  redirect("/admin/marketplace?reviewed=1");
+}

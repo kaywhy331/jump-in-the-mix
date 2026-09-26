@@ -21,8 +21,22 @@ const TENANT_ACTION_MODULES = [
   "src/lib/workspace-profile-actions.ts"
 ] as const;
 
+// requireWritableWorkspace() is requireWorkspace() that also refuses during a support view.
+const WORKSPACE_GUARD = /\brequire(?:Writable)?Workspace\(/;
+const WRITABLE_ACTION_MODULES = [
+  "src/lib/bulk-contact-actions.ts",
+  "src/lib/contact-actions.ts",
+  "src/lib/contact-lifecycle-actions.ts",
+  "src/lib/custom-field-actions.ts",
+  "src/lib/date-type-actions.ts",
+  "src/lib/group-actions.ts",
+  "src/lib/mix-stop-actions.ts",
+  "src/lib/onboarding-actions.ts",
+  "src/lib/snooze-actions.ts"
+] as const;
+
 function exportedAsyncFunctions(source: string): { name: string; source: string }[] {
-  const matches = [...source.matchAll(/export async function\s+(\w+)\s*\(/g)];
+  const matches = [...source.matchAll(/(?:export )?async function\s+(\w+)\s*\(/g)];
   return matches.map((match, index) => ({
     name: match[1],
     source: source.slice(match.index, matches[index + 1]?.index ?? source.length)
@@ -35,11 +49,26 @@ describe("tenant mutation authentication guards", () => {
       const source = readFileSync(path, "utf8");
       const functions = exportedAsyncFunctions(source);
       expect(functions.length).toBeGreaterThan(0);
-      for (const fn of functions) {
-        expect(fn.source, `${fn.name} must derive the active workspace from the authenticated session`).toContain("requireWorkspace(");
+      const delegates: Record<string, string[]> = {
+        saveContactFormAction: ["createContact", "updateContact"], createContactAction: ["createContact"], updateContactAction: ["updateContact"],
+        completeOnboardingFormAction: ["completeOnboardingAction"], createSupportTicketFormAction: ["createSupportTicketAction"],
+        replyToSupportTicketFormAction: ["replyToSupportTicketAction"], updateWorkspaceProfileFormAction: ["updateWorkspaceProfileAction"]
+      };
+      for (const fn of functions.filter(fn => fn.source.startsWith("export async function"))) {
+        const targets = delegates[fn.name];
+        if (targets) for (const name of targets) {
+          expect(fn.source, `${fn.name} must delegate to its guarded implementation`).toContain(`${name}(`);
+          expect(functions.find(item => item.name === name)?.source, `${name} must authenticate before mutation`).toMatch(WORKSPACE_GUARD);
+        } else expect(fn.source, `${fn.name} must derive the active workspace from the authenticated session`).toMatch(WORKSPACE_GUARD);
       }
     });
   }
+
+  it.each(WRITABLE_ACTION_MODULES)("%s refuses support views in the action as well as at the proxy", (path) => {
+    const source = readFileSync(path, "utf8");
+    expect(source).toContain('from "@/lib/writable-workspace"');
+    expect(source, "every mutation in this module uses the writable guard").not.toContain("requireWorkspace(");
+  });
 
   it("keeps the legacy action barrel free of mutation implementations", () => {
     const source = readFileSync("src/lib/actions.ts", "utf8");

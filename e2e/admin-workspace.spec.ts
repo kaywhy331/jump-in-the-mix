@@ -49,7 +49,7 @@ test("overview highlights missing monitoring, respects roles, and offers a usabl
     await applyRenderedTheme(page, colorScheme, { width, height: 1000 });
     if (width === 320) {
       await page.getByRole("button", { name: "Menu", exact: true }).click();
-      await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Team", exact: true })).toBeVisible();
+      await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Settings", exact: true })).toBeVisible();
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
@@ -57,18 +57,18 @@ test("overview highlights missing monitoring, respects roles, and offers a usabl
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Ready-made mixes", exact: true }).click();
+  await page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Content", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/templates$/);
   await expect(page.getByRole("button", { name: "Menu", exact: true })).toHaveAttribute("aria-expanded", "false");
   await page.goBack();
-  await expect(page.getByRole("heading", { name: "Admin · Overview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await prisma.staffMembership.update({ where: { userId: user.id }, data: { role: "ANALYST" } });
   await page.reload();
   await expect(page.getByRole("link", { name: /Monitoring needs a check/ })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Create a library draft/ })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Explore reports/ })).toBeVisible();
   await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Team", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Settings", exact: true })).toHaveCount(0);
 });
 
 test("content search, visibility, ordering and pagination work together without losing filters", async ({ page, context }, info) => {
@@ -82,13 +82,12 @@ test("content search, visibility, ordering and pagination work together without 
   await page.goto("/admin/templates");
   await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill(prefix);
   await page.getByLabel("Sort mixes").selectOption("title");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(25);
   await expect(page.locator(".admin-library-row").first()).toContainText(`${prefix} 00`);
   await page.getByRole("link", { name: "Next", exact: true }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(2);
   await expect(page.getByRole("searchbox", { name: "Search ready-made mixes" })).toHaveValue(prefix);
-  await page.getByRole("navigation", { name: "Library visibility" }).getByRole("link", { name: /Drafts & hidden/ }).click();
+  await page.getByRole("navigation", { name: "Library visibility" }).getByRole("link", { name: /Unpublished/ }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(1);
   await expect(page.locator(".admin-library-row")).toContainText(`${prefix} 26`);
   await expect(page.getByRole("navigation", { name: "Library pages" })).toContainText("Page 1 of 1");
@@ -99,10 +98,8 @@ test("content search, visibility, ordering and pagination work together without 
   }
   await page.getByRole("navigation", { name: "Library visibility" }).getByRole("link", { name: /All mixes/ }).click();
   await page.getByLabel("Sort mixes").selectOption("popular");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.locator(".admin-library-row").first()).toContainText(`${prefix} 26`);
   await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill(`${prefix} missing`);
-  await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("heading", { name: "No mixes match these filters" })).toBeVisible();
   await page.getByRole("link", { name: "Show all mixes", exact: true }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(25);
@@ -121,14 +118,50 @@ test("overview support action opens only conversations needing a reply and prese
     await page.goto("/admin");
     await page.getByRole("link", { name: /Support is waiting on a reply/ }).click();
     await expect(page).toHaveURL(/status=attention$/);
+    await page.getByText("More filters", { exact: true }).click();
     await expect(page.getByRole("combobox", { name: "Status", exact: true })).toHaveValue("attention");
-    await page.getByRole("textbox", { name: "Search", exact: true }).fill(marker);
-    await page.getByRole("button", { name: "Apply filters" }).click();
+    await page.getByRole("searchbox", { name: "Search tickets", exact: true }).fill(marker);
     await expect(page.locator(".support-admin-ticket")).toHaveCount(2);
     await expect(page.locator(".support-admin-ticket-list")).toContainText("new request");
     await expect(page.locator(".support-admin-ticket-list")).toContainText("WAITING_ON_SUPPORT");
+    if (!await page.getByRole("combobox", { name: "Status", exact: true }).isVisible()) await page.locator("details.admin-filter-options > summary").click();
     await page.getByRole("combobox", { name: "Status", exact: true }).selectOption("all");
-    await page.getByRole("button", { name: "Apply filters" }).click();
     await expect(page.locator(".support-admin-ticket")).toHaveCount(4);
   } finally { await fixture.cleanup(); }
+});
+
+test("desktop primary controls fit above the fold and editor focus stays visible", async ({ page, context }, info) => {
+  test.skip(info.project.name !== "desktop-chromium", "Desktop fold contract; mobile layouts are checked separately.");
+  const { token } = await identity();
+  await context.addCookies([{ name: "jitm_session", value: token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
+  await page.setViewportSize({ width: 1366, height: 768 });
+  for (const path of ["/admin/reports", "/admin/settings", "/admin/admission", "/admin/email"]) {
+    await page.goto(path);
+    await expect(page.locator("h1")).toBeVisible();
+    const controls = path === "/admin/reports" ? page.locator(".admin-report-domain dl")
+      : path === "/admin/settings" ? page.getByRole("button", { name: "Save options", exact: true })
+      : path === "/admin/admission" ? page.getByRole("button", { name: "Save admission controls", exact: true })
+      : page.locator("meter");
+    expect(await controls.count(), path).toBeGreaterThan(0);
+    for (const control of await controls.all()) {
+      await expect(control).toBeVisible();
+      const box = await control.boundingBox();
+      expect(box, path).not.toBeNull();
+      expect(box!.y, path).toBeGreaterThanOrEqual(0);
+      expect(box!.y + box!.height, `${path}: primary content below fold`).toBeLessThanOrEqual(768);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), path).toBeLessThanOrEqual(1366);
+  }
+  await page.goto("/admin/templates/new");
+  await page.waitForLoadState("networkidle");
+  await page.locator('textarea[name="stepBody"]').focus();
+  for (let step = 0; step < 6; step++) {
+    await page.keyboard.press("Tab");
+    await expect.poll(() => page.evaluate(() => {
+      const active = document.activeElement as HTMLElement;
+      const box = active.getBoundingClientRect();
+      const bar = document.querySelector(".admin-save-bar")!.getBoundingClientRect();
+      return box.top >= 0 && box.bottom <= innerHeight && (Boolean(active.closest(".admin-save-bar")) || box.bottom <= bar.top);
+    }), { message: "A keyboard target must remain visible above the save bar" }).toBe(true);
+  }
 });

@@ -40,7 +40,7 @@ export async function deliverWaitlistInvitations(now = new Date(), limit = 10): 
     const invite = candidate.inviteId ? await prisma.referralAccessInvite.findUnique({ where: { id: candidate.inviteId } }) : null;
     const staffInvite = candidate.staffInvitationId ? await prisma.staffInvitation.findUnique({ where: { id: candidate.staffInvitationId } }) : null;
     const available = staffInvite ? await staffInvitationAvailable(prisma, staffInvite, now)
-      : Boolean(invite && !invite.acceptedAt && !invite.revokedAt && !await invitationEmailSuppressed(prisma, invite.recipientEmail));
+      : Boolean(invite && invite.recipientEmail && !invite.manualDelivery && !invite.acceptedAt && !invite.revokedAt && !await invitationEmailSuppressed(prisma, invite.recipientEmail));
     if (!available) {
       await prisma.waitlistDelivery.updateMany({ where: owned, data: { status: "CANCELED", leaseId: null, lockedAt: null } });
       continue;

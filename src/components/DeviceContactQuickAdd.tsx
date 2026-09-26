@@ -70,7 +70,7 @@ function readableError(error: unknown): string {
   return error instanceof Error ? error.message : "The device Contact Picker could not be opened.";
 }
 
-export function DeviceContactQuickAdd() {
+export function DeviceContactQuickAdd({ onboarding = false }: { onboarding?: boolean }) {
   const router = useRouter();
   const [support, setSupport] = useState<"detecting" | "supported" | "unsupported">("detecting");
   const [properties, setProperties] = useState<ContactProperty[]>([]);
@@ -166,19 +166,21 @@ export function DeviceContactQuickAdd() {
     return (
       <div className="device-contact-quick-add">
         <button className="settings-hub-card device-contact-picker" type="button" disabled>
-          <span className="settings-hub-icon"><AppIcon name="contacts" /></span>
-          <span><strong>Quick Add</strong><small>Checking device support…</small></span>
+          <span className="settings-hub-icon"><AppIcon name="smartphone" /></span>
+          <span><strong>Add from phone contacts</strong><small>Checking device support…</small></span>
         </button>
       </div>
     );
   }
 
+  if (support === "unsupported" && onboarding) return <p className="muted">Device contact selection isn’t available in this browser. Import a CSV or vCard file, or enter a person below.</p>;
+
   if (support === "unsupported") {
     return (
       <div className="device-contact-quick-add">
         <Link className="settings-hub-card device-contact-picker" href="/contacts/new?quickAddFallback=1">
-          <span className="settings-hub-icon"><AppIcon name="contacts" /></span>
-          <span><strong>Quick Add</strong><small>Use the fast manual form on this browser.</small></span>
+          <span className="settings-hub-icon"><AppIcon name="smartphone" /></span>
+          <span><strong>Add from phone contacts</strong><small>Not available in this browser. Use the fast manual form instead.</small></span>
         </Link>
       </div>
     );
@@ -193,9 +195,9 @@ export function DeviceContactQuickAdd() {
         disabled={phase !== "idle"}
         aria-busy={phase !== "idle"}
       >
-        <span className="settings-hub-icon"><AppIcon name="contacts" /></span>
+        <span className="settings-hub-icon"><AppIcon name="smartphone" /></span>
         <span>
-          <strong>{summary ? "Pick more from device" : "Pick from device"}</strong>
+          <strong>{summary ? "Add more from phone contacts" : "Add from phone contacts"}</strong>
           <small>{phase === "picking" ? "Opening your address book…" : phase === "saving" ? "Adding selected Contacts…" : "Choose one or more without leaving the app."}</small>
         </span>
       </button>
@@ -216,7 +218,7 @@ export function DeviceContactQuickAdd() {
               : "Exact email and phone matches were merged without overwriting existing primary values."}
           </span>
           {reviewItems.length > 0 && (
-            <details className="quick-add-review">
+            <details className="duplicate-review">
               <summary>Review possible duplicates</summary>
               <div>
                 {reviewItems.map((item) => (

@@ -118,7 +118,7 @@ export function PushNotificationControl({ publicKey, configured }: { publicKey: 
     } finally { setBusy(false); }
   };
 
-  if (!configured) return <p className="muted-copy">Web Push is not configured on this server.</p>;
+  if (!configured) return <p className="muted-copy">Device reminders are not available yet. Continue using Today; visit Help to ask about availability.</p>;
   if (supported === null || checking) return <p className="muted-copy">Checking reminders on this device…</p>;
   if (installFirst) return <div className="muted-copy"><p>On iPhone or iPad (16.4 or later), open this site in Safari, tap Share, then Add to Home Screen.</p><p>Open the app from your Home Screen, return here, and tap Turn on.</p></div>;
   if (!supported) return <p className="muted-copy">This browser does not support push reminders. Try Chrome on Android or install the app on an iPhone Home Screen.</p>;

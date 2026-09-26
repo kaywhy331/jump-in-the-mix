@@ -224,3 +224,16 @@ The collection scripts are `.artifacts/design-audit-2026-09-05/capture-text-only
 The main run had three cleanup timeouts after the Quick Add interpreted state was captured. Both initial activation attempts also hit strict label-selector timeouts. Focused checks subsequently verified Quick Add clearing/closing and activation using stable field selectors. These harness errors are retained in raw progress files and are not counted as successfully inspected states. The hydration errors remain genuine recorded browser findings.
 
 All 43 page files are accounted for in the coverage table, but live qualification is incomplete for restricted administration, valid feedback/reset tokens, populated support threads, populated duplicates, and later import steps. No real customer messages were sent, no campaigns were activated, and no account or business data was intentionally changed. Signing in creates the ordinary test session. This audit is complete as a documented assessment with those limits; it is not a claim that every possible state or device passed.
+
+## September 12 verification
+
+Re-checked on the current tree with the seeded demo account (Playwright and axe, light and dark themes, 390, 768 and 1280px).
+
+- **F01** — resolved earlier: the activation review is a native `<dialog>` opened with `showModal`, traps Tab and Shift+Tab, closes on Escape and returns focus (`src/components/ReviewDialog.tsx`); its actions sit in a sticky footer inside the top layer, clear of the bottom navigation.
+- **F02** — resolved earlier: the "Ready-made mixes" link measures 184×48px with visible 16px text at 320, 390 and 430px.
+- **F03, F08** — resolved: an axe color-contrast sweep over ten signed-in pages in both themes reported no violations; the muted token is now #56627a (5.3:1 on the lavender surface).
+- **F04** — resolved earlier: every address input has an `id` and a `label` with `htmlFor`; the label rule passes on contact edit and on the expanded new-contact form.
+- **F07** — improved: a deliberate 768–900px tablet block exists; Today measures 1,530px at 768 against 1,260px at 390 for the demo data, and the contact rows are fixed on September 12 (see the mobile audit follow-up). No further tablet work is planned before launch.
+- **F14** — resolved on September 12 with the public-page copy: approval-first is the default, optional automatic sending is explained on `/faq`, and no effectiveness claims remain.
+- **F15** — the audit-era mismatches came from the timezone picker computing `Intl.supportedValuesOf` and short zone names during render on a different ICU than the browser; the picker was rewritten on September 9. One live mismatch remained on `/calendar`: the date and time trigger labels formatted with the runtime's default locale. The formatters in `src/lib/when-picker.ts` now default to one fixed locale and the calendar page passes the user's saved locale, and a check across en-GB, en-CA and en-US browsers in three timezones reports no hydration messages on Today, Calendar, new contact, preferences or the mix editor.
+

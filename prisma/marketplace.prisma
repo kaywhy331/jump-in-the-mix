@@ -1,0 +1,127 @@
+// Community Marketplace. A listing always shows its author's current saved Mix or Mega-Mix;
+// the cached counts and fingerprint only serve search, filters and "Update available".
+enum MarketplaceListingKind {
+  MIX
+  MEGA_MIX
+}
+
+enum MarketplaceListingStatus {
+  LIVE
+  UNSHARED
+  HIDDEN // hidden by an automatic report rule or by staff, until staff restore it
+}
+
+enum MarketplaceReportReason {
+  PRIVATE_INFO
+  OFFENSIVE
+  SPAM
+  MISLEADING
+  COPYRIGHT
+  OTHER
+}
+
+enum MarketplaceReportStatus {
+  OPEN
+  UPHELD
+  DISMISSED
+}
+
+// The author's public name, chosen on first share. Never an email address or contact detail.
+model MarketplaceAuthor {
+  workspaceId String    @id
+  publicName  String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model MarketplaceListing {
+  id            String                   @id @default(cuid())
+  kind          MarketplaceListingKind
+  workspaceId   String
+  authorUserId  String?
+  mixId         String?                  @unique
+  pipelineId    String?                  @unique
+  summary       String?
+  industry      String?
+  status        MarketplaceListingStatus @default(LIVE)
+  hiddenReason  MarketplaceReportReason?
+  hiddenAt      DateTime?
+  // Cached from the author's live content for the directory; refreshed whenever it is read.
+  title         String
+  mixCount      Int                      @default(1)
+  beatCount     Int                      @default(0)
+  channels      String[]
+  fingerprint   String
+  contentAt     DateTime                 @default(now())
+  publishedAt   DateTime                 @default(now())
+  workspace     Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  mix           Mix?                     @relation(fields: [mixId], references: [id], onDelete: Cascade)
+  pipeline      MegaMixPipeline?         @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  favorites     MarketplaceFavorite[]
+  imports       MarketplaceImport[]
+  reports       MarketplaceReport[]
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  reviewRequestedAt    DateTime? // the author asked for another review after an upheld report
+  reviewRequestNote    String?
+  reviewedFingerprint  String? // content fingerprint at the last staff decision or automatic hide
+  reviewResponseNote   String?
+  reviewRespondedAt    DateTime?
+  reviewResponseSeenAt DateTime?
+
+
+  @@index([status, kind, publishedAt])
+  @@index([workspaceId])
+}
+
+model MarketplaceFavorite {
+  listingId   String
+  userId      String
+  workspaceId String
+  listing     MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime           @default(now())
+
+  @@id([listingId, userId])
+  @@index([userId, workspaceId])
+}
+
+// A copy added from a listing. Its fingerprint says which shared version the copy started from.
+model MarketplaceImport {
+  id          String             @id @default(cuid())
+  listingId   String
+  workspaceId String
+  mixId       String?
+  pipelineId  String?
+  fingerprint String
+  listing     MarketplaceListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime           @default(now())
+
+  @@index([workspaceId, listingId])
+  @@index([listingId])
+}
+
+model MarketplaceReport {
+  id                  String                  @id @default(cuid())
+  listingId           String
+  reporterUserId      String
+  reporterWorkspaceId String
+  reason              MarketplaceReportReason
+  details             String?
+  status              MarketplaceReportStatus @default(OPEN)
+  autoHidden          Boolean                 @default(false)
+  // The author sees every report on their listing; this records when they dismissed the notice.
+  authorSeenAt        DateTime?
+  authorEmailedAt     DateTime?
+  reviewedAt          DateTime?
+  reviewerUserId      String?
+  reviewNote          String?
+  listing             MarketplaceListing      @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt           DateTime                @default(now())
+
+  @@unique([listingId, reporterUserId])
+  @@index([status, createdAt])
+}

@@ -1,19 +1,24 @@
+import { ActionForm } from "@/components/ActionForm";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { SupportContext } from "@/components/SupportContext";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { SupportFaq } from "@/components/SupportFaq";
 import { requireWorkspace } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { env } from "@/lib/env";
 import { formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
-import { createSupportTicketAction } from "@/lib/support-actions";
+import { createSupportTicketFormAction } from "@/lib/support-actions";
 import { SUPPORT_CATEGORIES, supportCategoryLabel, supportStatusLabel } from "@/lib/support-content";
 import { SUPPORT_RETENTION_NOTICE } from "@/lib/data-retention-policy";
+import { BackLink } from "@/components/BackLink";
 
 export const metadata: Metadata = { title: "Help" };
 
-type SearchParams = { error?: string };
+type SearchParams = { error?: string; at?: string; sig?: string };
 
 function SelfHostedHelp() {
   const email = env.emailReplyTo.trim();
@@ -37,13 +42,14 @@ function SelfHostedHelp() {
 
 export default async function HelpPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [query, context] = await Promise.all([searchParams, requireWorkspace()]);
-  const { workspace, user, impersonation } = context;
+  const { session, workspace, user, impersonation } = context;
   const displayPreferences = await displayPreferencesForUser(user.id);
 
   if (env.pilotMode) {
     return (
-      <div className="page help-page">
-        <header className="page-header"><div><h1>Help</h1><p>Plain-language answers plus operator steps for this self-hosted installation.</p></div></header>
+      <div className="page page--content help-page">
+        <BackLink href="/more" label="More" phoneOnly /><header className="page-header"><div><h1>Help</h1><p>Plain-language answers plus operator steps for this self-hosted installation.</p></div></header>
+        <div className="page-actions"><Link className="button" href="/onboarding">Getting started</Link><Link className="button" href="/journey">Review my Journey</Link></div>
         <SupportFaq />
         <SelfHostedHelp />
       </div>
@@ -58,28 +64,29 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
   });
 
   return (
-    <div className="page help-page">
-      <header className="page-header">
+    <div className="page page--content help-page">
+      <BackLink href="/more" label="More" phoneOnly /><header className="page-header">
         <div><h1>Help</h1><p>Find a quick answer or send a private message to the support team.</p></div>
         <div className="page-actions"><Link className="button" href="/account/tickets">My conversations</Link></div>
       </header>
 
-      {query.error && <Notice type="error">{query.error}</Notice>}
+      <UrlErrorNotice params={query} viewer={session} />
       {impersonation && <Notice type="info">This view is read-only. End the support session before submitting or replying.</Notice>}
 
-      <SupportFaq />
+      <div className="page-actions"><Link className="button" href="/onboarding">Getting started</Link><Link className="button" href="/journey">Review my Journey</Link></div>
+        <SupportFaq />
 
       <section className="support-contact-grid" id="contact-support">
         <section className="card support-contact-card">
           <div className="card-header"><div><h2>Message support</h2><p>Tell us what you were trying to do and what happened.</p></div></div>
-          <form action={createSupportTicketAction} className="form-stack">
-            <p>{SUPPORT_RETENTION_NOTICE}</p>
+          <ActionForm protect action={createSupportTicketFormAction} className="form-stack">
+            <p>{SUPPORT_RETENTION_NOTICE}</p><p>Support is best effort; there is no guaranteed reply time. Check this conversation for responses. If you cannot sign in, use <Link href="/contact">public contact support</Link>.</p>
             <label className="field"><span className="field-label">Topic</span><select name="category" defaultValue="GENERAL" disabled={Boolean(impersonation)} required>{SUPPORT_CATEGORIES.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
             <label className="field"><span className="field-label">Short title</span><input name="title" minLength={5} maxLength={160} placeholder="Example: An imported tag is missing" disabled={Boolean(impersonation)} required /></label>
             <label className="field"><span className="field-label">What happened?</span><textarea name="body" minLength={10} maxLength={5000} rows={8} placeholder="What did you expect, what happened instead, and which page were you on? Do not include passwords or customer information." disabled={Boolean(impersonation)} required /></label>
             <div className="support-safety-note"><strong>Keep private data out.</strong><span>Never send passwords, customer information, private keys, session tokens, or provider credentials.</span></div>
-            <div className="form-actions"><button className="button primary" type="submit" disabled={Boolean(impersonation)}>Send to support</button></div>
-          </form>
+            <SupportContext /><div className="form-actions"><FormSubmitButton disabled={Boolean(impersonation)} label="Send to support" pendingLabel="Sending…" /></div>
+          </ActionForm>
         </section>
 
         <aside className="card support-recent-card">

@@ -12,9 +12,10 @@ describe.skipIf(!local).sequential("unattended worker processes on PostgreSQL", 
   const database = `jitm_design_runtime_${randomUUID().replaceAll("-", "").slice(0, 10)}`;
   let admin: Client, sql: Client, gate: Client, db: PrismaClient, url: URL;
   const children: ChildProcess[] = [], output = new Map<ChildProcess, string>();
-  const sockets = new Set<Socket>(); let proxyOffline = false;
+  const sockets = new Set<Socket>(); let proxyOffline = false, proxyStalled = false;
   const proxy = createServer(incoming => {
     if (proxyOffline) { incoming.destroy(); return; }
+    if (proxyStalled) { sockets.add(incoming); incoming.on("error", () => undefined); incoming.on("close", () => sockets.delete(incoming)); return; }
     const upstream = connect({ host: url.hostname, port: Number(url.port) });
     for (const socket of [incoming, upstream]) { sockets.add(socket); socket.on("error", () => { incoming.destroy(); upstream.destroy(); }); socket.on("close", () => { sockets.delete(socket); incoming.destroy(); upstream.destroy(); }); }
     incoming.pipe(upstream); upstream.pipe(incoming);
@@ -37,7 +38,8 @@ describe.skipIf(!local).sequential("unattended worker processes on PostgreSQL", 
   }
   afterEach(async () => {
     await Promise.all(children.splice(0).map(child => stop(child)));
-    for (const socket of sockets) socket.destroy(); proxyOffline = false;
+    for (const socket of sockets) socket.destroy(); proxyOffline = false; proxyStalled = false;
+    await sql.query(`ALTER DATABASE "${database}" RESET jitm.recovery_hold`);
     await gate.query("SELECT pg_advisory_unlock_all()");
     await sql.query('DROP TRIGGER IF EXISTS worker_import_gate ON "IdempotencyKey"'); await sql.query('DROP FUNCTION IF EXISTS worker_import_gate()');
     await db.contactImportBatch.deleteMany(); await db.workspacePreference.deleteMany(); await db.workspace.deleteMany(); await db.user.deleteMany();
@@ -77,6 +79,24 @@ describe.skipIf(!local).sequential("unattended worker processes on PostgreSQL", 
     await db.mixAssignment.create({ data: { assignmentKey: randomUUID(), workspaceId: workspace.id, mixId: mix.id, contactId: contact.id, startDate: new Date() } });
     return { user, workspace, contact, mix };
   }
+  it.each(["held", "unavailable", "timed-out"])("does not claim queued work while recovery is %s, then processes it when clear", async state => {
+    const f = await fixture();
+    const job = await db.job.create({ data: { workspaceId: f.workspace.id, task: "generate-jumps", payload: { contactId: f.contact.id } } });
+    if (state === "held") await sql.query(`ALTER DATABASE "${database}" SET jitm.recovery_hold TO 'isolated-runtime-test'`);
+    proxyOffline = state === "unavailable"; proxyStalled = state === "timed-out";
+    const started = Date.now(), worker = start(true);
+    await until(() => output.get(worker)!.includes(`verification (${state === "held" ? "recovery-held" : "unavailable"})`), 20_000);
+    expect(Date.now() - started).toBeLessThan(20_000);
+    expect(await db.job.findUnique({ where: { id: job.id } })).toMatchObject({ attempts: 0, completedAt: null, lockedBy: null });
+    expect(await db.jump.count()).toBe(0); expect(await db.workerHeartbeat.count()).toBe(0);
+    await stop(worker);
+    await sql.query(`ALTER DATABASE "${database}" RESET jitm.recovery_hold`);
+    proxyOffline = false; proxyStalled = false; for (const socket of sockets) socket.destroy();
+    await ready(start(true));
+    await until(async () => Boolean((await db.job.findUnique({ where: { id: job.id } }))?.completedAt));
+    expect(await db.jump.count({ where: { contactId: f.contact.id } })).toBe(1);
+    expect(await db.job.findUnique({ where: { id: job.id } })).toMatchObject({ attempts: 1, failedAt: null });
+  }, 50_000);
   it("runs a future job only when due, with two workers and no web requests", async () => {
     const f = await fixture(); const first = start(), second = start(); await ready(first); await ready(second);
     const job = await db.job.create({ data: { workspaceId: f.workspace.id, task: "generate-jumps", payload: { contactId: f.contact.id }, runAt: new Date(Date.now() + 4000) } });
@@ -115,6 +135,52 @@ describe.skipIf(!local).sequential("unattended worker processes on PostgreSQL", 
     expect(await db.idempotencyKey.count()).toBe(2); expect(await db.auditLog.count({ where: { action: "contact.import.create" } })).toBe(2);
     expect(await db.contact.count()).toBe(3);
   }, 40_000);
+  it("pauses an import between chunks on SIGTERM, takes no new work, and the next worker resumes without repeating a row", async () => {
+    const f = await fixture(), importId = `pause_${randomUUID()}`;
+    const rows = Array.from({ length: 27 }, (_, index) => { const rowId = `row-${String(index + 1).padStart(2, "0")}`; return { record: { rowId, sourceRow: index + 2, source: "CSV", displayName: rowId, firstName: null, lastName: null, company: null, publicNotes: null, emails: [], phones: [], addresses: [], groupIds: [], customFields: [], jumpDates: [] }, resolution: { rowId, action: "CREATE", targetContactId: null } }; });
+    const batch = await db.contactImportBatch.create({ data: { workspaceId: f.workspace.id, actorUserId: f.user.id, importId, totalRows: rows.length, payload: { items: rows, initialResults: [] }, results: [] } });
+    const job = await db.job.create({ data: { workspaceId: f.workspace.id, task: "contact-import", payload: { batchId: batch.id } } });
+    // Hold the tenth row of the first 25-row chunk so the stop request arrives mid-chunk.
+    await gate.query("SELECT pg_advisory_lock(772383)");
+    await sql.query(`CREATE FUNCTION worker_import_gate() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.key LIKE '%:row-10' THEN PERFORM pg_advisory_xact_lock(772383); END IF; RETURN NEW; END $$`);
+    await sql.query('CREATE TRIGGER worker_import_gate BEFORE INSERT ON "IdempotencyKey" FOR EACH ROW EXECUTE FUNCTION worker_import_gate()');
+    const first = start(); await ready(first);
+    await until(async () => (await sql.query("SELECT 1 FROM pg_locks WHERE locktype='advisory' AND objid=772383 AND NOT granted")).rowCount === 1, 30_000);
+    const waiting = await db.job.create({ data: { workspaceId: f.workspace.id, task: "generate-jumps", payload: { contactId: f.contact.id } } });
+    const exited = new Promise<number | null>(resolve => first.once("exit", code => resolve(code)));
+    first.kill("SIGTERM");
+    await until(() => output.get(first)!.includes("SIGTERM received"));
+    await gate.query("SELECT pg_advisory_unlock(772383)");
+    expect(await exited).toBe(0);
+    expect(output.get(first)).toContain(`Paused job ${job.id} (contact-import)`);
+    const paused = await db.job.findUniqueOrThrow({ where: { id: job.id } });
+    expect(paused).toMatchObject({ attempts: 0, lockedAt: null, lockedBy: null, completedAt: null, failedAt: null, lastError: "Paused while the worker stopped. It resumes from its saved progress." });
+    expect(paused.runAt.getTime()).toBeLessThanOrEqual(Date.now());
+    expect(await db.contactImportBatch.findUniqueOrThrow({ where: { id: batch.id } })).toMatchObject({ status: "RUNNING", processedRows: 25, createdCount: 25, errorSummary: null });
+    expect(await db.idempotencyKey.count()).toBe(25);
+    expect(await db.job.findUniqueOrThrow({ where: { id: waiting.id } })).toMatchObject({ attempts: 0, lockedBy: null, completedAt: null });
+    expect(await db.workerHeartbeat.findFirstOrThrow()).toMatchObject({ status: "STOPPED" });
+
+    const second = start(); await ready(second);
+    await until(async () => Boolean((await db.job.findUnique({ where: { id: job.id } }))?.completedAt), 30_000);
+    expect(await db.job.findUniqueOrThrow({ where: { id: job.id } })).toMatchObject({ attempts: 1, failedAt: null, lastError: null });
+    expect(await db.contactImportBatch.findUniqueOrThrow({ where: { id: batch.id } })).toMatchObject({ status: "COMPLETED", processedRows: 27, createdCount: 27, errorSummary: null });
+    expect(await db.idempotencyKey.count()).toBe(27); expect(await db.auditLog.count({ where: { action: "contact.import.create" } })).toBe(27);
+    expect(await db.auditLog.count({ where: { action: "contact.import.completed" } })).toBe(1);
+    expect(await db.contact.count()).toBe(28);
+  }, 90_000);
+  it("dispatches a phone-number sweep for one workspace and completes it", async () => {
+    const f = await fixture(), display = "(415) 555-0132";
+    const { normalizePhone } = await import("../src/lib/contact-input");
+    const { canonicalPhoneKey } = await import("../src/lib/phone-number");
+    const phone = await db.contactPhone.create({ data: { contactId: f.contact.id, phone: display, normalized: normalizePhone(display)!, isPrimary: true } });
+    const job = await db.job.create({ data: { workspaceId: f.workspace.id, task: "canonicalize-phones", payload: { workspaceId: f.workspace.id } } });
+    await ready(start());
+    await until(async () => { const row = await db.job.findUnique({ where: { id: job.id } }); return Boolean(row?.completedAt || row?.failedAt); });
+    expect(await db.job.findUniqueOrThrow({ where: { id: job.id } })).toMatchObject({ attempts: 1, failedAt: null, lastError: null });
+    const key = (await db.contactPhone.findUniqueOrThrow({ where: { id: phone.id } })).normalized;
+    expect(key).toBe(canonicalPhoneKey(display, "US")); expect(key).toMatch(/^\+1\d{10}$/);
+  }, 30_000);
   it("recovers queued work after a connection outage and supervisor restart", async () => {
     const f = await fixture(), first = start(true); await ready(first);
     const job = await db.job.create({ data: { workspaceId: f.workspace.id, task: "generate-jumps", payload: { contactId: f.contact.id }, runAt: new Date(Date.now() + 4000) } });

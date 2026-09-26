@@ -47,13 +47,14 @@ async function configuration(data: Partial<typeof DEFAULT_ADMISSION_POLICY>) {
 async function operator() {
   const user = await person(true);
   const session = await prisma.session.create({ data: { userId: user.id, tokenHash: createHash("sha256").update(randomUUID()).digest("hex"), expiresAt: new Date(Date.now() + 3600_000) } });
+  await prisma.adminMfaCredential.create({ data: { userId: user.id, enabledAt: new Date(), secretCiphertext: "admission-fixture-only" } });
   await prisma.adminMfaSession.create({ data: { userId: user.id, sessionId: session.id, expiresAt: session.expiresAt } });
   return { actorUserId: user.id, actorSessionId: session.id, password, reason: "Measured launch rehearsal capacity", expectedRevision: (await getAdmissionSnapshot()).policy.revision,
     configuration: { ...DEFAULT_ADMISSION_POLICY, accountCeiling: 20, outstandingCeiling: 10 } };
 }
-async function accept(invite: { tokenCiphertext: string; recipientEmail: string }) {
+async function accept(invite: { tokenCiphertext: string; recipientEmail: string | null }) {
   const { token } = decryptIntegrationCredentials<{ token: string }>(invite.tokenCiphertext);
-  const user = await prisma.$transaction(tx => createBusinessAccount(tx, { email: invite.recipientEmail, name: "New customer", passwordHash, emailVerifiedAt: new Date(), accessToken: token }));
+  const user = await prisma.$transaction(tx => createBusinessAccount(tx, { email: invite.recipientEmail!, name: "New customer", passwordHash, emailVerifiedAt: new Date(), accessToken: token }));
   ids.push(user.id); return user;
 }
 
@@ -75,31 +76,31 @@ describe.skipIf(!local)("admission reservations on PostgreSQL", () => {
     ids.length = 0; emails.length = 0; await restore?.();
   });
 
-  it("defaults closed for new grants without disabling collection or existing redemptions", async () => {
+  it("defaults closed for email waves while personal reminders use the member quota", async () => {
     await prisma.admissionPolicy.deleteMany();
     expect((await getAdmissionSnapshot()).policy).toMatchObject(DEFAULT_ADMISSION_POLICY);
     const { inputs, owner } = await network();
-    await expect(prisma.$transaction(tx => allocateAccessInvite(tx, inputs[0]))).rejects.toThrow("access limit");
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).referralInvitesIssued).toBe(0);
+    expect((await prisma.$transaction(tx => allocateAccessInvite(tx, inputs[0]))).manualDelivery).toBe(true);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).referralInvitesIssued).toBe(1);
     expect(await requestWaitlistEntry(email())).toMatch(/^[\w-]{43}$/);
   });
-  it("serializes competing referrals for the last available reservation without spending blocked slots", async () => {
+  it("keeps personal reminders independent of shared email-wave reservations", async () => {
     const a = await network(1), b = await network(1);
     const initial = await getAdmissionSnapshot();
     await configuration({ accountCeiling: initial.committed + 1, outstandingCeiling: 1 });
     const results = await Promise.allSettled([a, b].map(f => prisma.$transaction(tx => allocateAccessInvite(tx, f.inputs[0]))));
-    expect(results.filter(row => row.status === "fulfilled")).toHaveLength(1);
-    expect((await getAdmissionSnapshot()).remaining).toBe(0);
-    expect((await prisma.user.aggregate({ where: { id: { in: [a.owner.id, b.owner.id] } }, _sum: { referralInvitesIssued: true } }))._sum.referralInvitesIssued).toBe(1);
+    expect(results.filter(row => row.status === "fulfilled")).toHaveLength(2);
+    expect((await getAdmissionSnapshot()).remaining).toBe(1);
+    expect((await prisma.user.aggregate({ where: { id: { in: [a.owner.id, b.owner.id] } }, _sum: { referralInvitesIssued: true } }))._sum.referralInvitesIssued).toBe(2);
   });
-  it("enforces the outstanding ceiling even when total capacity has room, and retries keep their reservation", async () => {
+  it("allows personal reminders at the email-wave ceiling and retries reuse their slot", async () => {
     const { inputs, owner } = await network();
     await configuration({ outstandingCeiling: 1 });
     const invite = await prisma.$transaction(tx => allocateAccessInvite(tx, inputs[0]));
-    await expect(prisma.$transaction(tx => allocateAccessInvite(tx, inputs[1]))).rejects.toThrow("access limit");
+    expect((await prisma.$transaction(tx => allocateAccessInvite(tx, inputs[1]))).manualDelivery).toBe(true);
     await configuration({ grantsPaused: true });
     expect((await prisma.$transaction(tx => allocateAccessInvite(tx, inputs[0]))).id).toBe(invite.id);
-    expect((await prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).referralInvitesIssued).toBe(1);
+    expect((await prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).referralInvitesIssued).toBe(2);
   });
   it("waits for a whole wave and then releases five oldest plus five random once, skipping missed slots", async () => {
     const pool = await entries(15);
@@ -118,23 +119,25 @@ describe.skipIf(!local)("admission reservations on PostgreSQL", () => {
     expect((await prisma.waitlistSchedule.findUniqueOrThrow({ where: { id: "default" } })).nextRunAt.getTime()).toBe(scheduled.getTime() + 3 * WAITLIST_INTERVAL_MS);
   });
   it("manual batches are all-or-nothing and do not bypass a wave's capacity reservations", async () => {
+    const admin = await operator(), actor = { userId: admin.actorUserId, sessionId: admin.actorSessionId };
     const pool = await entries(12);
     await configuration({ outstandingCeiling: 10 });
-    await expect(inviteSelectedWaitlistEntries(pool.map(row => row.id), "local-admin", "Manual batch test")).rejects.toThrow("not queued");
+    await expect(inviteSelectedWaitlistEntries(pool.map(row => row.id), actor, "Manual batch test")).rejects.toThrow("not queued");
     expect(await prisma.waitlistDelivery.count()).toBe(0);
     await prisma.waitlistSchedule.create({ data: { nextRunAt: new Date() } });
-    await Promise.allSettled([runDueWaitlistWave(), inviteSelectedWaitlistEntries([pool[11].id], "local-admin", "Competing manual batch")]);
+    await Promise.allSettled([runDueWaitlistWave(), inviteSelectedWaitlistEntries([pool[11].id], actor, "Competing manual batch")]);
     const state = await getAdmissionSnapshot();
     expect([1, 10]).toContain(state.outstanding);
     expect(state.outstanding).toBeLessThanOrEqual(10);
   });
   it("pauses member referrals independently and pauses all new grants without touching queued delivery", async () => {
+    const admin = await operator(), actor = { userId: admin.actorUserId, sessionId: admin.actorSessionId };
     const { inputs } = await network(); const [entry, later] = await entries(2);
     await configuration({ referralsPaused: true });
     await expect(prisma.$transaction(tx => allocateAccessInvite(tx, inputs[0]))).rejects.toThrow("paused");
-    await inviteSelectedWaitlistEntries([entry.id], "local-admin", "Platform release remains enabled");
+    await inviteSelectedWaitlistEntries([entry.id], actor, "Platform release remains enabled");
     await configuration({ grantsPaused: true });
-    await expect(inviteSelectedWaitlistEntries([later.id], "local-admin", "Paused platform release")).rejects.toThrow("paused");
+    await expect(inviteSelectedWaitlistEntries([later.id], actor, "Paused platform release")).rejects.toThrow("paused");
     expect(await prisma.waitlistDelivery.count({ where: { status: "QUEUED" } })).toBe(1);
   });
   it("preserves existing confirmation links while pausing new collection", async () => {
@@ -150,19 +153,19 @@ describe.skipIf(!local)("admission reservations on PostgreSQL", () => {
     await configuration({ accountCeiling: 0, outstandingCeiling: 0, grantsPaused: true, redemptionPaused: true });
     await expect(accept(invite)).rejects.toThrow("invitation has not been used");
     expect((await prisma.referralAccessInvite.findUniqueOrThrow({ where: { id: invite.id } })).acceptedAt).toBeNull();
-    expect(await prisma.user.findUnique({ where: { email: invite.recipientEmail } })).toBeNull();
+    expect(await prisma.user.findUnique({ where: { email: invite.recipientEmail! } })).toBeNull();
     await configuration({ redemptionPaused: false }); await accept(invite);
-    expect(await getAdmissionSnapshot()).toMatchObject({ committed: initial.committed, outstanding: initial.outstanding - 1, accounts: initial.accounts + 1, remaining: 0 });
+    expect(await getAdmissionSnapshot()).toMatchObject({ committed: initial.committed + 1, outstanding: initial.outstanding, accounts: initial.accounts + 1, remaining: 0 });
     await expect(accept(invite)).rejects.toThrow("already been used");
   });
-  it("revocation releases capacity without refunding lifetime referral allowance", async () => {
+  it("revocation does not refund the personal invitation allowance", async () => {
     const { inputs, owner } = await network();
     await configuration({ outstandingCeiling: 1 });
     const invite = await prisma.$transaction(tx => allocateAccessInvite(tx, inputs[0]));
     await prisma.$transaction(async tx => { await lockAccess(tx); await tx.referralAccessInvite.update({ where: { id: invite.id }, data: { revokedAt: new Date() } }); });
     await prisma.$transaction(tx => allocateAccessInvite(tx, inputs[1]));
     expect((await prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).referralInvitesIssued).toBe(2);
-    expect((await getAdmissionSnapshot()).outstanding).toBe(1);
+    expect((await getAdmissionSnapshot()).outstanding).toBe(0);
   });
   it("counts suspended and unverified customers, excluding only staff-only accounts", async () => {
     const baseline = (await getAdmissionSnapshot()).accounts;
@@ -193,6 +196,17 @@ describe.skipIf(!local)("admission reservations on PostgreSQL", () => {
     expect(audit.beforeData).toMatchObject({ revision: input.expectedRevision });
     expect(audit.afterData).toMatchObject({ accountCeiling: state.policy.accountCeiling, revision: input.expectedRevision + 1 });
     expect(JSON.stringify(audit)).not.toContain(password);
+  });
+  it("commits concurrent duplicate submissions once and revalidates credential removal", async () => {
+    const input = await operator();
+    await prisma.adminMfaCredential.update({ where: { userId: input.actorUserId }, data: { enabledAt: null } });
+    await expect(changeAdmissionPolicy(input)).rejects.toMatchObject({ needsMfa: true });
+    expect(await prisma.platformAuditEvent.count({ where: { actorUserId: input.actorUserId, action: "admission.policy.change" } })).toBe(0);
+    await prisma.adminMfaCredential.update({ where: { userId: input.actorUserId }, data: { enabledAt: new Date() } });
+    const attempts = await Promise.allSettled([changeAdmissionPolicy(input), changeAdmissionPolicy(input)]);
+    expect(attempts.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect((await getAdmissionSnapshot()).policy.revision).toBe(input.expectedRevision + 1);
+    expect(await prisma.platformAuditEvent.count({ where: { actorUserId: input.actorUserId, action: "admission.policy.change" } })).toBe(1);
   });
   it("rejects invalid limits and malformed database singleton writes", async () => {
     const input = await operator();

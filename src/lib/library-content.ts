@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { MIX_TEMPLATE_CATEGORIES, MIX_TEMPLATE_INDUSTRIES, normalizeSharedMixSteps } from "@/lib/shared-mix";
-import { slugify } from "@/lib/slug";
+import { MAX_STEP_OFFSET_DAYS } from "@/lib/step-timing";
+export function libraryDateKey(value: string): string {
+  return value.normalize("NFKD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 120);
+}
 
 const text = (max: number) => z.string().trim().max(max).nullable();
 const schema = z.object({
@@ -10,21 +13,26 @@ const schema = z.object({
   framework: text(160), triggerMode: z.enum(["MANUAL_START", "DATE_TRIGGERED", "BROADCAST"]),
   dateTypeName: text(120), dateTypeSlug: text(120), featured: z.boolean(),
   steps: z.array(z.object({ name: z.string().trim().min(1).max(160), channel: z.enum(["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"]),
-    dayOffset: z.number().int().min(-3650).max(3650), sendTimeMinutes: z.number().int().min(0).max(1439).nullable(),
+    dayOffset: z.number().int(), sendTimeMinutes: z.number().int().min(0).max(1439).nullable(),
     subject: text(300), body: text(20_000), script: text(20_000), longSms: z.boolean(), includeOptOut: z.boolean()
   }).strict()).min(1).max(50)
 }).strict();
 export type LibraryContent = z.infer<typeof schema>;
 
 export class LibraryError extends Error {
-  constructor(message: string, readonly needsMfa = false) { super(message); }
+  constructor(message: string, readonly needsMfa = false, readonly field?: string) { super(message); }
 }
 export function validateLibraryContent(value: unknown): LibraryContent {
   const result = schema.safeParse(value);
-  if (!result.success) throw new LibraryError(result.error.issues[0]?.message ?? "Check the mix content.");
+  if (!result.success) throw new LibraryError(result.error.issues[0]?.message ?? "Check the mix content.", false, result.error.issues[0]?.path.join("."));
   const content = result.data;
+  // The Mix editor's calendar-day rules (mix-editor-actions.ts), so every library Mix can be added and edited as saved.
+  for (const [index, step] of content.steps.entries()) {
+    if (Math.abs(step.dayOffset) > MAX_STEP_OFFSET_DAYS) throw new LibraryError(`Beat ${index + 1} must be between -${MAX_STEP_OFFSET_DAYS} and ${MAX_STEP_OFFSET_DAYS} days.`, false, `steps.${index}.dayOffset`);
+    if (content.triggerMode === "MANUAL_START" && step.dayOffset < 0) throw new LibraryError(`Beat ${index + 1} is scheduled before its start date, which only a Mix that starts from a date can do.`, false, `steps.${index}.dayOffset`);
+  }
   if (content.triggerMode === "DATE_TRIGGERED") {
-    content.dateTypeSlug = slugify(content.dateTypeSlug || content.dateTypeName || "");
+    content.dateTypeSlug = libraryDateKey(content.dateTypeSlug || content.dateTypeName || "");
     if (!content.dateTypeName || !content.dateTypeSlug) throw new LibraryError("Date-based mixes must identify the saved date that starts them.");
   } else { content.dateTypeName = null; content.dateTypeSlug = null; }
   content.steps = normalizeSharedMixSteps(content.steps);

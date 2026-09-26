@@ -1,0 +1,335 @@
+# Production read-only checks (GET only, public URLs) against https://jumpinthemix.com at 2026-09-26T17:07:56Z from TrixBot
+## first-request timings (cold-start probe; no control over earlier traffic)
+GET /api/health/live -> 200 ttfb=0.232060s total=0.232326s
+GET /api/health/live -> 200 ttfb=0.119016s total=0.119087s
+GET /api/health/ready -> 200 ttfb=0.187157s total=0.187403s
+GET /api/health/ready -> 200 ttfb=0.361732s total=0.361889s
+GET / -> 200 ttfb=0.170015s total=0.198124s
+GET / -> 200 ttfb=0.086791s total=0.241138s
+GET /login -> 200 ttfb=0.083589s total=0.158266s
+## scripts/production-smoke.mjs
+      "id": "redirect:/journey",
+      "group": "redirects",
+      "url": "/journey",
+      "ok": true,
+      "status": 307,
+      "expected": "302/303/307/308 to /login"
+    },
+    {
+      "id": "redirect:/more",
+      "group": "redirects",
+      "url": "/more",
+      "ok": true,
+      "status": 307,
+      "expected": "302/303/307/308 to /login"
+    },
+    {
+      "id": "csp",
+      "group": "headers",
+      "url": "/login",
+      "ok": true,
+      "expected": "Content-Security-Policy with script-src and a 'nonce-…' source"
+    },
+    {
+      "id": "nonce",
+      "group": "headers",
+      "url": "/login",
+      "ok": true,
+      "expected": "a different CSP nonce on each response"
+    },
+    {
+      "id": "hsts",
+      "group": "headers",
+      "url": "/login",
+      "ok": true,
+      "expected": "Strict-Transport-Security with max-age"
+    },
+    {
+      "id": "x-frame-options",
+      "group": "headers",
+      "url": "/login",
+      "ok": true,
+      "expected": "X-Frame-Options: DENY"
+    }
+  ]
+}
+exit=0
+
+## public headers and files (GET)
+### GET /
+HTTP/2 103 
+HTTP/2 200 
+content-type: text/html; charset=utf-8
+cache-control: private, no-cache, no-store, max-age=0, must-revalidate
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: <ray>-LAX
+body: <l
+### GET /login
+HTTP/2 103 
+HTTP/2 200 
+content-type: text/html; charset=utf-8
+cache-control: private, no-cache, no-store, max-age=0, must-revalidate
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: <ray>-LAX
+body: <l
+### GET /register
+HTTP/2 103 
+HTTP/2 200 
+content-type: text/html; charset=utf-8
+cache-control: private, no-store
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: no-referrer
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: <ray>-LAX
+body: <l
+### GET /.well-known/security.txt
+HTTP/2 200 
+content-type: text/plain; charset=UTF-8
+cache-control: public, max-age=0
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: <ray>-LAX
+body: Contact: mailto:security@jumpinthemix.com Contact: mailto:support@jumpinthemix.com Expires: 2027-09-25T00:00:00.000Z Preferred-Languages: en Canonical: https://jumpinthemix.com/.well-known/security.txt Policy: https://jumpinthemix.com/security 
+### GET /security
+HTTP/2 200 
+content-type: text/html; charset=utf-8
+cache-control: private, no-cache, no-store, max-age=0, must-revalidate
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: <ray>-LAX
+body: <l
+### GET /robots.txt
+HTTP/2 200 
+content-type: text/plain
+cache-control: public, max-age=0, must-revalidate
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: <ray>-LAX
+body: User-Agent: * Allow: /$ Allow: /for/real-estate-agents$ Allow: /for/consultants$ Allow: /for/photographers$ Allow: /for/contractors$ Allow: /for/independent-recruiters$ Allow: /follow-up-templates$ Allow: /follow-up-templates/estimate-follow-up$ Allow: /follow-up-templates/proposal-follow-up$ Allow:
+### GET /sitemap.xml
+HTTP/2 200 
+content-type: application/xml
+cache-control: public, max-age=0, must-revalidate
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: <ray>-LAX
+body:    https://jumpinthemix.com/   https://jumpinthemix.com/for/real-estate-agents   https://jumpinthemix.com/for/consultants   https://jumpinthemix.com/for/photographers   https://jumpinthemix.com/for/contra
+### GET /api/health/monitor
+HTTP/2 503 
+content-type: application/json
+cache-control: no-store
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: <ray>-LAX
+body: {"status":"not-ready"}
+### GET /api/health/worker
+HTTP/2 200 
+content-type: application/json
+cache-control: no-store
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: <ray>-LAX
+body: {"status":"ready"}
+### GET /api/health/recovery-boundary
+HTTP/2 200 
+content-type: application/json
+cache-control: private, no-store
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: <ray>-LAX
+body: {"status":"clear"}
+### GET /offline
+HTTP/2 200 
+content-type: text/html; charset=utf-8
+cache-control: private, no-cache, no-store, max-age=0, must-revalidate
+cf-cache-status: DYNAMIC
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-ray: <ray>-LAX
+body: <l
+### GET /manifest.webmanifest
+HTTP/2 200 
+content-type: application/manifest+json
+cache-control: public, max-age=0, must-revalidate
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: <ray>-LAX
+body: {"name":"Jump in the Mix","short_name":"JITM","description":"A client follow-up app for independent professionals: follow-up plans, message templates, and reminders you review and send yourself.","start_url":"/jumps?source=pwa","scope":"/","display":"standalone","background_color":"#f7f7fb","theme_c
+### GET /sw.js
+HTTP/2 200 
+content-type: application/javascript; charset=utf-8
+cache-control: no-cache, no-store, must-revalidate
+content-security-policy: default-src 'self'; script-src 'self' 'nonce-<nonce>' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; media-src 'self' blob:; manifest-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+cross-origin-opener-policy: same-origin
+cross-origin-resource-policy: same-origin
+permissions-policy: camera=(), microphone=(self), geolocation=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+x-render-origin-server: Render
+cf-cache-status: DYNAMIC
+cf-ray: <ray>-LAX
+body: const CACHE = "jitm-public-v4"; const PUBLIC_ICONS = new Set(["/icon-192.png", "/icon-512.png", "/apple-touch-icon.png", "/favicon.png"]);  // Self-contained: no saved account HTML, scripts, fonts, or connection needed. const OFFLINE = `<meta name="theme-color" content="#5d
+
+## production policy/FAQ wording (GET, text extracted), 2026-09-26T17:08:31Z
+### /.well-known/security.txt (6 text lines, 3 matching)
+  | Contact: mailto:security@jumpinthemix.com
+  | Contact: mailto:support@jumpinthemix.com
+  | Expires: 2027-09-25T00:00:00.000Z
+### /privacy (50 text lines, 15 matching)
+  | support@jumpinthemix.com
+  | We store your account details and the contacts, notes, dates, mixes, follow-up history, and preferences you save. Joining the waitlist records your email and confirmation or access status without creating a customer account. If you join from a profession example, we can retain that allowlisted examp
+  | Only add information you have permission to use. Avoid adding unnecessary sensitive information to contact notes or support messages.
+  | Messages and service providers
+  | By default, you review a follow-up and send it through your chosen messaging app. Automatic sending requires a configured provider and your opt-in. Personal invitation links are prepared as reminders in Today. You review and send them through your own text or email app.
+  | The production service uses Render for hosting and database storage, Resend for application email, and Amazon Web Services for independently stored encrypted backups and recovery keys. Emails sent to our support address are forwarded through ImprovMX to the operator's Gmail inbox. These services pro
+  | Dictation starts only when you choose it. Your browser may send audio to its speech-recognition provider. Jump in the Mix does not create a raw-audio recording or transcript archive. You can review recognized text and decide whether to save it. The optional spoken Today summary uses a voice your bro
+  | Temporary capture drafts stay in the current tab for up to ten minutes and are removed when loaded into the destination form. Cookies and account-scoped browser storage support sign-in and application preferences. The current app does not send website usage events to an analytics provider or set an 
+  | Account and workspace permissions control customer access. Staff permissions limit administrative access and require multifactor authentication. The private support-view workflow requires customer permission and records staff access. Hosting administrators have separate operational access controlled
+  | In Settings → Data & privacy, export your account data or permanently delete your account. You can edit contacts and preferences and turn optional automatic sending or notifications off. Invitation recipients can
+  | Contact our support address about information you cannot manage yourself, including information entered by another customer. We need to verify a request before sharing private records or changing an account.
+  | Retention and deletion
+  | Saved customer information stays with the account unless deleted. Cleanup removes expired temporary records and ages out operational details. Resolved or closed support conversations become eligible for deletion after 180 inactive days; recent activity and unresolved delivery can extend this. Some e
+  | Managed database recovery copies expire within 7 days. Independently stored encrypted backup objects become eligible for automatic deletion between 7 and 8 days after creation; storage-provider processing can delay removal. Deleted records may remain in recovery copies until removal. After a restore
+  | Our application email provider currently documents 30-day email and log retention for its standard plans, with seven-day backups; early removal of a specific message requires a provider request. ImprovMX forwarding logs are configured to expire after seven days. Support emails in the operator's mail
+### /terms (45 text lines, 9 matching)
+  | support@jumpinthemix.com
+  | Free accounts and invitations
+  | The current invitation release is free and requires no payment card. Access is limited by available capacity. Waitlist waves, invitation redemption, or new accounts may pause while capacity or operational issues are resolved. Joining the waitlist does not guarantee an invitation date. Each member re
+  | Use accurate account information and protect your sign-in credentials. Use only accounts and workspaces you are authorized to access. Only upload contact details or other content you have permission to use. You remain responsible for the accuracy of your content, your intended recipients, and your m
+  | You retain ownership of the content you provide. You permit us and our service providers to process it as needed to operate the features you use, provide support, and protect the service, as described in the
+  | Do not use the service for spam, harassment, impersonation, unlawful content, or attempts to bypass access controls or sending limits. Respect recipient opt-outs and the rules of the messaging providers you connect. An invitation allowance does not give permission to contact someone who has asked yo
+  | Review suggested messages, contact details, and dates before acting on them. Opening a messaging app or marking a follow-up done does not prove a message was delivered, read, or answered. Automatic sending and notifications depend on the services and devices involved and can be delayed or unavailabl
+  | You can export your data or permanently delete your account in Settings → Data & privacy. Deletion cannot retract messages already sent or remove copies controlled by recipients and other providers. The
+  | explains retained operational records and backup handling.
+### /faq (45 text lines, 4 matching)
+  | You review your follow-ups and send them through your own messaging app by default. Automatic sending is optional and needs a connected provider. Personal invitations appear in Today for you to review and send through your own text or email app.
+  | Keep contact details, notes, and follow-up history together. In Settings, open Data & privacy to export your data or delete your account. Private notes stay out of text messages and emails.
+  | Joining the waitlist and creating your account are free. You don’t need a payment card.
+  | Accounts are by invitation. A member can invite you: each member has three personal invitations to share by text or email. Or join the waitlist: we email invitations from it in small groups as space opens, so we can’t promise a date. Either way, your invitation is a personal link that creates one fr
+### /security (49 text lines, 6 matching)
+  | security@jumpinthemix.com
+  | Describe what you found, where it happens, the steps to reproduce it, and what someone could do with it. Include how we can reach you. If you have not heard from us within five business days, also write to
+  | support@jumpinthemix.com
+  | Test only accounts you own or have permission to use. Stop as soon as you reach someone else's information, do not keep, share, or change it, and tell us what you saw. Do not disrupt the service: no denial-of-service or load testing, no high-volume automated scanning, and no messages to people who d
+  | This page covers jumpinthemix.com: the application, its sign-in, account and invitation pages, and the email the service sends. The providers named in the
+  | support@jumpinthemix.com
+### /contact (39 text lines, 3 matching)
+  | support@jumpinthemix.com
+  | Export or delete your information
+  | how information is used and retained
+
+## idle probe: first request after ~27 minutes without audit traffic, 2026-09-26T17:35:15Z
+GET /api/health/live -> 200 connect=0.031778s ttfb=0.217470s total=0.217572s
+GET / -> 200 connect=0.029867s ttfb=0.118215s total=0.377227s
+GET /login -> 200 connect=0.023245s ttfb=0.080106s total=0.196262s

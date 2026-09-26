@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 import { lockStaff } from "@/lib/staff-access";
-import { lockAccess } from "@/lib/access-lock";
+import { lockAccess, lockWorkspaceImports } from "@/lib/access-lock";
 import { hasAdminPermission } from "@/lib/admin-permissions";
 import { AUTH_TOKEN_PURPOSES } from "@/lib/auth-tokens";
 import { revokeStaffInvitations } from "@/lib/staff-invitation-state";
@@ -40,10 +40,13 @@ export async function manageUserAccess(input: {
     if (target.staffMembership) throw new UserAdminError("Manage staff access from Admin → Team.");
     if (target.accessRevision !== input.expectedRevision) throw new UserAdminError("This account changed. Reload before saving.");
     if (input.operation === "suspend" && target.suspendedAt || input.operation === "restore" && !target.suspendedAt) throw new UserAdminError("This account already has that access state. Reload before saving.");
+    const workspaceIds = target.ownedWorkspaces.map(row => row.id);
+    // Imports commit under their workspace's key instead of the access lock. Wait for a row in
+    // progress; every later row reads this change (lockStaff → lockAccess → import keys).
+    await lockWorkspaceImports(tx, workspaceIds);
     let revokedInvites = 0;
     if (input.operation === "suspend") {
       await revokeStaffInvitations(tx, { email: target.email }, now);
-      const workspaceIds = target.ownedWorkspaces.map(row => row.id);
       // Saved content and recipient accounts remain. Reactivation requires new opt-in.
       await tx.automationPreference.updateMany({ where: { workspaceId: { in: workspaceIds } }, data: { enabled: false } });
       await tx.notificationPreference.updateMany({ where: { OR: [{ userId: target.id }, { workspaceId: { in: workspaceIds } }] }, data: { emailDigestEnabled: false, weeklyReportEnabled: false, pushEnabled: false } });

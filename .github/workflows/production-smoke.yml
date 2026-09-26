@@ -1,0 +1,36 @@
+name: production-smoke
+
+# Hourly read-only check of https://jumpinthemix.com (GET requests only, no sign-in). A failed run
+# is the outage alert: GitHub emails the account that owns this schedule. A first failure is retried
+# after a minute, because the hosting plan can take that long to wake an idle instance.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/production-smoke.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check production
+        shell: bash
+        run: |
+          if node scripts/production-smoke.mjs --timeout 60000; then exit 0; fi
+          echo "First check failed; retrying once after 60 s."
+          sleep 60
+          node scripts/production-smoke.mjs --timeout 60000

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { BROWSER_CHANGE_CHANNEL, BROWSER_CHANGE_KEY, browserChangeMarker, clearForeignNotifications, clearPrivateBrowserState, signalBrowserChange } from "@/lib/private-browser-state";
+import { revealObscuredFocus } from "@/lib/focus-visibility";
 
 const AccountScope = createContext<string | null>(null);
 export function useBrowserScope() { return useContext(AccountScope); }
@@ -10,9 +11,13 @@ type State = "checking" | "ready" | "offline" | "expired" | "changed" | "signed-
 export function BrowserAccountBoundary({ scope, children }: { scope: string; children: ReactNode }) {
   const [state, setState] = useState<State>("checking");
   const [discarded, setDiscarded] = useState(false);
+  // An installed app opens a new tab in the browser, which keeps its own sign-in (iOS), so sign in in place there.
+  const [standalone, setStandalone] = useState(false);
   const checkRef = useRef<() => void>(() => undefined);
   const content = useRef<HTMLDivElement>(null);
   const gate = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => { setStandalone(window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true); }, []);
 
   useEffect(() => {
     let sequence = 0, controller: AbortController | null = null, gone = false;
@@ -100,16 +105,18 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
   }, [scope]);
 
   return <AccountScope.Provider value={scope}>
-    <div ref={content} data-browser-scope={scope} inert={state !== "ready"} style={{ visibility: state === "ready" ? "visible" : "hidden" }}>
+    <div ref={content} data-browser-scope={scope} inert={state !== "ready"} style={{ visibility: state === "ready" ? "visible" : "hidden" }} onFocusCapture={event => revealObscuredFocus(event.target)}>
       {!discarded && children}
     </div>
     <dialog ref={gate} className="browser-account-gate" aria-labelledby="browser-account-title" onCancel={event => event.preventDefault()} onKeyDown={event => {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); }
     }}><div className="auth-card">
       <h1 id="browser-account-title">{state === "checking" ? "Checking your account…" : state === "changed" ? "Your account changed" : state === "signed-out" ? "You’re signed out" : state === "expired" ? "Sign in to continue" : "Reconnect to continue"}</h1>
-      <p role="status">{state === "checking" ? "Your workspace will be ready in a moment." : state === "changed" || state === "signed-out" ? "This tab’s previous account has been cleared." : state === "expired" ? "Sign in to the same account in another tab, then return here to keep your draft." : "We couldn’t confirm your account. Reconnect, then try again. Your unsaved work stays in this tab."}</p>
+      <p role="status">{state === "checking" ? "Your workspace will be ready in a moment." : state === "changed" || state === "signed-out" ? "This tab’s previous account has been cleared." : state === "expired" ? standalone ? "Sign in again to continue on this screen. Changes that haven’t been saved yet may be lost." : "Sign in to the same account in another tab, then return here to keep your draft." : "We couldn’t confirm your account. Reconnect, then try again. Your unsaved work stays in this tab."}</p>
       {(state === "changed" || state === "signed-out") ? <a className="button primary" href={state === "changed" ? "/jumps" : "/login"}>{state === "changed" ? "Open current account" : "Sign in"}</a> : state !== "checking" && <div className="page-actions">
-        {state === "expired" && <a className="button primary" href="/login" target="_blank" rel="noopener noreferrer">Sign in in another tab</a>}
+        {state === "expired" && (standalone
+          ? <a className="button primary" href={`/login?next=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`}>Sign in</a>
+          : <a className="button primary" href="/login" target="_blank" rel="noopener noreferrer">Sign in in another tab</a>)}
         <button className="button" type="button" onClick={() => checkRef.current()}>Check again</button>
       </div>}
       <noscript>Enable JavaScript to confirm your account and open your workspace.</noscript>

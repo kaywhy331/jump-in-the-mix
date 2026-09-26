@@ -1,89 +1,47 @@
+import Link from "next/link";
 import { Notice } from "@/components/Notice";
-import { ADMIN_PERMISSIONS, effectiveAdminPermissions, STAFF_ROLES } from "@/lib/admin-permissions";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
+import { AdminPagination } from "@/components/AdminPagination";
+import { AdminDraftForm } from "@/components/AdminDraftForm";
+import { StaffAccessForm } from "@/components/StaffAccessForm";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { ADMIN_PERMISSIONS, effectiveAdminPermissions } from "@/lib/admin-permissions";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { saveStaffAccessAction } from "@/lib/staff-actions";
-import Link from "next/link";
-import { sendStaffInvitationAction, changeStaffInvitationAction } from "@/lib/staff-invitation-actions";
+import { adminPage, adminQuery } from "@/lib/admin-navigation";
+import { changeStaffInvitationAction } from "@/lib/staff-invitation-actions";
 import { EMAIL_RETRY_WINDOW_MS } from "@/lib/email-budget";
-
+import { displayPreferencesForUser } from "@/lib/display-preferences";
+import { formatDateTime } from "@/lib/format";
 export const metadata = { title: "Admin · Team" };
-
-export default async function TeamPage({ searchParams }: { searchParams: Promise<{ error?: string; saved?: string; invitation?: string; invitePage?: string }> }) {
-  await requirePlatformAdmin("staff.manage");
-  const params = await searchParams;
-  const staff = await prisma.staffMembership.findMany({ include: { user: { select: { email: true, name: true } } }, orderBy: { createdAt: "asc" }, take: 100 });
-  const mfa = await prisma.adminMfaCredential.findMany({ where: { userId: { in: staff.map(s => s.userId) } }, select: { userId: true, enabledAt: true } });
-  const invitePage = Math.min(10_000, Math.max(1, Number.parseInt(params.invitePage ?? "1", 10) || 1));
-  const [invitations, invitationCount] = await Promise.all([
-    prisma.staffInvitation.findMany({ select: { id: true, email: true, role: true, grants: true, denies: true, createdAt: true, expiresAt: true, acceptedAt: true, revokedAt: true, lastSentAt: true,
-      delivery: { select: { status: true, attempts: true, firstAttemptAt: true, providerId: true, lastError: true } } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 20, skip: (invitePage - 1) * 20 }),
-    prisma.staffInvitation.count()
+type Search = { error?: string; at?: string; sig?: string; saved?: string; invitation?: string; invitePage?: string; page?: string; view?: string; q?: string; email?: string; edit?: string; changed?: string };
+export default async function TeamPage({ searchParams }: { searchParams: Promise<Search> }) {
+  const { user, session, permissions } = await requirePlatformAdmin("staff.manage"), params = await searchParams;
+  const view = params.view === "add" || params.view === "invitations" || params.invitePage ? params.view === "add" ? "add" : "invitations" : "roster";
+  const q = params.q?.trim().slice(0,254) ?? "";
+  const where = q ? { OR: [{ id: q }, { user: { name: { contains: q, mode: "insensitive" as const } } }, { user: { email: { contains: q, mode: "insensitive" as const } } }] } : {};
+  const count = view === "invitations" ? await prisma.staffInvitation.count({ where: q ? { email: { contains: q, mode: "insensitive" } } : {} }) : await prisma.staffMembership.count({ where });
+  const size = view === "invitations" ? 20 : 25, page = Math.min(adminPage(params.page ?? params.invitePage),Math.max(1,Math.ceil(count/size)));
+  const [staff, invitations, display] = await Promise.all([
+    view === "roster" ? prisma.staffMembership.findMany({ where, include: { user: { select: { email: true, name: true } } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: size, skip: (page-1)*size }) : [],
+    view === "invitations" ? prisma.staffInvitation.findMany({ where: q ? { email: { contains: q, mode: "insensitive" } } : {}, select: { id: true, email: true, role: true, grants: true, denies: true, createdAt: true, expiresAt: true, acceptedAt: true, revokedAt: true, lastSentAt: true, delivery: { select: { id: true, status: true, attempts: true, firstAttemptAt: true, providerId: true, lastError: true } } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: size, skip: (page-1)*size }) : [],
+    displayPreferencesForUser(user.id)
   ]);
-  const date = (value: Date) => value.toISOString().slice(0, 16).replace("T", " ") + " UTC";
-  return <div className="page"><header className="page-header"><div><h1>Admin · Team</h1><p>Give each person only the access they need. Saving signs that person out and closes their support views.</p></div></header>
-    {params.error && <Notice type="error">{params.error}</Notice>}{params.saved && <Notice>Staff access updated. The person must sign in again.</Notice>}
-    {params.invitation === "queued" && <Notice>Staff invitation queued. The worker will send the email. The person must accept and set up MFA before using admin tools.</Notice>}
-    {params.invitation === "updated" && <Notice>Staff invitation updated. Review its current status below.</Notice>}
-    <section className="card form-stack"><h2>Invite a new staff account</h2><p>Send a personal invitation to someone who does not have an account. It lasts seven days and creates staff access without a customer workspace. Existing verified accounts can use Add staff access below.</p>
-      <form action={sendStaffInvitationAction} className="form-stack">
-        <label className="field"><span>New staff email</span><input type="email" name="email" maxLength={254} required /></label>
-        <label className="field"><span>Initial staff role</span><select name="role" defaultValue="SUPPORT">{STAFF_ROLES.filter(role => role !== "OWNER").map(role => <option key={role}>{role}</option>)}</select></label>
-        <details><summary>Set individual permissions before acceptance</summary><fieldset><legend>Invitation permission overrides</legend><p>Role defaults apply. A denial wins. Owner promotion happens separately after MFA enrollment.</p>
-          {Object.entries(ADMIN_PERMISSIONS).filter(([permission]) => permission !== "staff.manage").map(([permission, label]) => <div key={permission}><strong>{label}</strong><label><input type="checkbox" name="grant" value={permission} /> Grant {label.toLowerCase()}</label><label><input type="checkbox" name="deny" value={permission} /> Deny {label.toLowerCase()}</label></div>)}
-        </fieldset></details>
-        <label className="field"><span>Reason for staff invitation</span><input name="reason" minLength={10} maxLength={500} required /></label>
-        <label className="field"><span>Your Owner password</span><input type="password" name="currentPassword" autoComplete="current-password" maxLength={72} required /></label>
-        <button className="button primary" type="submit">Send staff invitation</button>
-      </form>
-      <p>Invitations are sent inside the system. Secret setup URLs are never displayed here. Changing the issuing Owner’s staff access revokes their unused invitations.</p>
-    </section>
-    <section className="card form-stack"><h2>Staff invitation history · {invitationCount}</h2>
-      {!invitations.length && <p>No staff invitations yet.</p>}
-      {invitations.map(invite => {
-        const active = !invite.acceptedAt && !invite.revokedAt && invite.expiresAt > new Date();
-        const retry = active && invite.delivery?.status === "REVIEW" && invite.delivery.firstAttemptAt && Date.now() - invite.delivery.firstAttemptAt.getTime() < EMAIL_RETRY_WINDOW_MS;
-        return <article key={invite.id} className="card form-stack" style={{ overflowWrap: "anywhere" }}><h3>{invite.email}</h3>
-          <p>{invite.role} · {invite.acceptedAt ? "Accepted" : invite.revokedAt ? "Revoked" : invite.expiresAt <= new Date() ? "Expired" : invite.delivery?.status ?? "Pending"}</p>
-          <p>Offered access: {effectiveAdminPermissions({ role: invite.role, status: "ACTIVE", grants: invite.grants, denies: invite.denies }).map(permission => ADMIN_PERMISSIONS[permission]).join(", ") || "None"}.</p>
-          <p>Created {date(invite.createdAt)} · Expires {date(invite.expiresAt)}</p>
-          {invite.lastSentAt && <p>Provider accepted {date(invite.lastSentAt)}. This does not prove inbox delivery.</p>}
-          {invite.delivery?.providerId && <p>Provider record {invite.delivery.providerId}</p>}
-          {invite.delivery?.lastError && <p>{invite.delivery.lastError}</p>}
-          {active && <form action={changeStaffInvitationAction} className="form-stack"><input type="hidden" name="invitationId" value={invite.id} />
-            <label className="field"><span>Reason for invitation change</span><input name="reason" minLength={10} maxLength={500} required /></label>
-            <label className="field"><span>Your Owner password</span><input type="password" name="currentPassword" autoComplete="current-password" maxLength={72} required /></label>
-            <div className="form-actions"><button className="button" name="operation" value="revoke">Revoke staff invitation</button>{retry && <button className="button" name="operation" value="retry">Retry same staff invitation</button>}</div>
-          </form>}
-          {active && invite.delivery?.status === "REVIEW" && !retry && <p>Inspect the provider record before revoking and replacing this invitation. The original safe retry window has ended.</p>}
-        </article>;
-      })}
-      <nav className="page-actions" aria-label="Staff invitation pages">{invitePage > 1 && <Link href={`/admin/team?invitePage=${invitePage - 1}`}>Previous invitations</Link>}<span>Page {invitePage}</span>{invitePage * 20 < invitationCount && <Link href={`/admin/team?invitePage=${invitePage + 1}`}>Next invitations</Link>}</nav>
-    </section>
-    <section className="card form-stack"><h2>Add staff access</h2><p>Start with an existing verified account. New staff begin with their selected role; owners can grant or deny individual permissions below.</p>
-      <form action={saveStaffAccessAction} className="form-stack"><input type="hidden" name="revision" value="0" /><input type="hidden" name="status" value="ACTIVE" />
-        <label className="field"><span>Account email</span><input type="email" name="email" maxLength={254} required /></label>
-        <label className="field"><span>Role</span><select name="role" defaultValue="SUPPORT">{STAFF_ROLES.map(role => <option key={role}>{role}</option>)}</select></label>
-        <label className="field"><span>Reason</span><input name="reason" minLength={10} maxLength={500} required /></label>
-        <label className="field"><span>Your current password</span><input type="password" name="currentPassword" autoComplete="current-password" maxLength={72} required /></label>
-        <button className="button primary" type="submit">Add staff access</button>
-      </form>
-    </section>
-    {staff.map(member => <section className="card form-stack" key={member.id} style={{ overflowWrap: "anywhere" }}>
-      <h2>{member.user.name}</h2><p>{member.user.email} · {member.status} · MFA {mfa.some(m => m.userId === member.userId && m.enabledAt) ? "enabled" : "needs setup"}</p>
-      <p>Effective access: {effectiveAdminPermissions(member).map(p => ADMIN_PERMISSIONS[p]).join(", ") || "None"}.</p>
-      <details><summary>Change role and permissions</summary><form action={saveStaffAccessAction} className="form-stack">
-        <input type="hidden" name="email" value={member.user.email} /><input type="hidden" name="revision" value={member.revision} />
-        <label className="field"><span>Role for {member.user.name}</span><select name="role" defaultValue={member.role}>{STAFF_ROLES.map(role => <option key={role}>{role}</option>)}</select></label>
-        <label className="field"><span>Staff status</span><select name="status" defaultValue={member.status}><option value="ACTIVE">Active</option><option value="DISABLED">Disabled</option></select></label>
-        <fieldset><legend>Individual permission overrides</legend><p>Role defaults apply unless overridden. A denial wins over a grant. Staff management belongs to owners only.</p>
-          {Object.entries(ADMIN_PERMISSIONS).map(([permission, label]) => <div key={permission}><strong>{label}</strong><label><input type="checkbox" name="grant" value={permission} defaultChecked={member.grants.includes(permission)} /> Grant {label.toLowerCase()}</label><label><input type="checkbox" name="deny" value={permission} defaultChecked={member.denies.includes(permission)} /> Deny {label.toLowerCase()}</label></div>)}
-        </fieldset>
-        <label className="field"><span>Reason for access change</span><input name="reason" minLength={10} maxLength={500} required /></label>
-        <label className="field"><span>Your current password</span><input type="password" name="currentPassword" autoComplete="current-password" maxLength={72} required /></label>
-        <button className="button" type="submit">Save access and end sessions</button>
-      </form></details>
-    </section>)}
-    {staff.length === 100 && <Notice type="info">Showing the first 100 staff memberships. Contact the operator before adding more staff.</Notice>}
+  const mfa = await prisma.adminMfaCredential.findMany({ where: { userId: { in: staff.map(member => member.userId) } }, select: { userId: true, enabledAt: true } });
+  const email = params.email?.trim().toLowerCase().slice(0,254) ?? "", validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const target = view === "add" && validEmail ? await prisma.user.findUnique({ where: { email }, select: { id: true, name: true, emailVerifiedAt: true, suspendedAt: true, staffMembership: { select: { id: true } } } }) : null;
+  const targetMfa = target ? await prisma.adminMfaCredential.findUnique({ where: { userId: target.id }, select: { enabledAt: true } }) : null;
+  const href = (page:number) => adminQuery("/admin/team", { view, q, page });
+  const date = (value:Date) => formatDateTime(value,display);
+  return <div className="page"><header className="page-header"><div><h1>Team</h1></div>{view !== "add" && <Link className="button primary" href="/admin/team?view=add">Add a person</Link>}</header>
+    <UrlErrorNotice params={params} viewer={session} />{params.saved && <Notice>Staff access updated. The person must sign in again.</Notice>}{params.invitation === "queued" && <Notice>Staff invitation queued. The recipient must accept and set up MFA.</Notice>}{params.invitation === "updated" && <Notice>Staff invitation updated.</Notice>}
+    <nav className="admin-content-tabs" aria-label="Team views">{[["roster", "Staff"], ["invitations", "Invitations"], ["add", "Add a person"]].map(([key,label]) => <Link key={key} href={adminQuery("/admin/team", { view:key })} aria-current={view===key ? "page" : undefined}>{label}</Link>)}<Link href="/account/admin-mfa">Your security</Link></nav>
+    {view !== "add" && <form method="get" className="admin-library-search live-search-form"><input name="view" type="hidden" value={view} /><label className="field"><span>{view === "roster" ? "Search staff name or email" : "Search invitation email"}</span><input name="q" type="search" defaultValue={q} maxLength={254} /></label><button className="button" type="submit">Search</button></form>}
+    {view === "add" && <section className="card form-stack admin-add-staff"><h2>Add staff access</h2><p>Enter an email to add access or send a 7-day invitation.</p><form method="get" className="admin-filter-toolbar"><input name="view" type="hidden" value="add" /><label className="field"><span>Person’s email</span><input name="email" type="email" defaultValue={email} maxLength={254} required /></label><button className="button" type="submit">Review account</button></form>
+      {email && !validEmail && <Notice type="error">Enter a valid email.</Notice>}{validEmail && (target?.staffMembership ? <p>This person already has staff access. <Link href={adminQuery("/admin/team", { q:email, edit:target.staffMembership.id })}>Review their staff record</Link></p> : target && (!target.emailVerifiedAt || target.suspendedAt) ? <Notice type="info">This existing account must be verified and active before staff access can be added.</Notice> : <><h3>{target ? `Add access for ${target.name}` : "Invite a new staff account"}</h3><p>{email}</p><StaffAccessForm key={email} email={email} mode={target ? "add" : "new"} mfaEnabled={Boolean(targetMfa?.enabledAt)} returnTo={adminQuery("/admin/team", { view:"add", email })} saved={params.changed===email ? params.saved ?? params.invitation : undefined} /></>)}
+    </section>}
+    {view === "roster" && <><p className="admin-result-summary" role="status">{count} matching staff members</p>{staff.map(member => <details className="card admin-team-record" key={member.id} open={params.edit===member.id}><summary><span><strong>{member.user.name}</strong><small>{member.user.email}</small></span><span>{member.role.toLowerCase()} · {member.status.toLowerCase()} · MFA {mfa.some(record=>record.userId===member.userId && record.enabledAt) ? "enabled" : "needs setup"}</span><span>Manage access · {effectiveAdminPermissions(member).length}</span></summary><StaffAccessForm email={member.user.email} role={member.role} status={member.status} grants={member.grants} denies={member.denies} revision={member.revision} mfaEnabled={mfa.some(record=>record.userId===member.userId && Boolean(record.enabledAt))} returnTo={adminQuery("/admin/team", { view, q, page, edit:member.id })} saved={params.changed===member.user.email ? params.saved : undefined} /></details>)}</>}
+    {view === "invitations" && <><p className="admin-result-summary" role="status">{count} matching staff invitations</p>{invitations.map(invite=>{ const active=!invite.acceptedAt && !invite.revokedAt && invite.expiresAt>new Date(); const retry=active && invite.delivery?.status==="REVIEW" && invite.delivery.firstAttemptAt && Date.now()-invite.delivery.firstAttemptAt.getTime()<EMAIL_RETRY_WINDOW_MS; return <section className="card form-stack" key={invite.id}><div className="admin-queue-row"><div><h2>{invite.email}</h2><p>{invite.role.toLowerCase()} · Offer {invite.acceptedAt?"accepted":invite.revokedAt?"revoked":invite.expiresAt<=new Date()?"expired":"open"} · Email {invite.delivery?.status.toLowerCase()??"pending"}</p><small>Created {date(invite.createdAt)} · Expires {date(invite.expiresAt)}</small></div>{permissions.includes("email.manage")&&invite.delivery&&<Link className="button" href={adminQuery(`/admin/email/recovery/${invite.delivery.id}`,{returnTo:href(page)})}>Review delivery</Link>}</div><details open={params.edit===invite.id}><summary>Offer details and actions</summary><p>Offered access: {effectiveAdminPermissions({role:invite.role,status:"ACTIVE",grants:invite.grants,denies:invite.denies}).map(permission=>ADMIN_PERMISSIONS[permission]).join(", ")||"None"}.</p>{invite.delivery?.lastError&&<p>{invite.delivery.lastError}</p>}{active&&<AdminDraftForm draftKey={`staff-invitation:${invite.id}`} fields={["reason"]} saved={params.changed===invite.id?params.invitation:undefined} action={changeStaffInvitationAction}><input name="invitationId" type="hidden" value={invite.id}/><input name="returnTo" type="hidden" value={adminQuery("/admin/team",{view,q,page,edit:invite.id})}/><label className="field"><span>Reason for invitation change</span><input name="reason" minLength={10} maxLength={500} required/></label><label className="field"><span>Your Owner password</span><input type="password" name="currentPassword" maxLength={72} autoComplete="current-password" required/></label><div className="form-actions"><FormSubmitButton name="operation" value="revoke" label="Revoke staff invitation" pendingLabel="Revoking…"/>{retry&&<FormSubmitButton name="operation" value="retry" label="Retry same staff invitation" pendingLabel="Queueing…"/>}</div></AdminDraftForm>}{active&&invite.delivery?.status==="REVIEW"&&!retry&&<p>The safe retry window ended. Review provider evidence before replacing the offer.</p>}</details></section>;})}</>}
+    {view!=="add"&&<>{!count&&<p>No records match this search.</p>}<AdminPagination page={page} total={count} pageSize={size} href={href}/></>}
   </div>;
 }

@@ -5,7 +5,7 @@ import { hashReviewToken } from "@/lib/review-requests";
 export async function GET(_request: Request, { params }: { params: Promise<{ token: string }> }) {
   const token = (await params).token.slice(0, 200);
   const record = await prisma.reviewRequest.findUnique({ where: { tokenHash: hashReviewToken(token) } });
-  if (!record || record.expiresAt <= new Date() || !record.rating || record.rating < 4) return new NextResponse("This review link is invalid or expired.", { status: 404 });
+  if (!record || record.expiresAt <= new Date() || !record.rating) return new NextResponse("This review link is invalid or expired.", { status: 404 });
   const workspace = await prisma.workspace.findUnique({ where: { id: record.workspaceId }, select: { profile: { select: { reviewUrl: true } } } });
   const rawUrl = workspace?.profile?.reviewUrl;
   let destination: URL;

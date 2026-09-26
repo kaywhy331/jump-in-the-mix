@@ -1,0 +1,267 @@
+{
+  "recordedAt": "2026-09-18T21:01:48.983Z",
+  "commit": "8520b73cc41d72c40ecec1ca06ca752fd95ce5d5",
+  "branch": "release/email-receipt-qualification-20260918",
+  "tests": {
+    "passed": 114,
+    "failed": 0,
+    "skipped": 0,
+    "buildPassed": true,
+    "typecheckPassed": true,
+    "isolatedDatabaseRemoved": true
+  },
+  "production": {
+    "url": "https://jumpinthemix.com/",
+    "web": {
+      "id": "dep-damqb3bm8hqs73aei980",
+      "commit": "8520b73cc41d72c40ecec1ca06ca752fd95ce5d5",
+      "finishedAt": "2026-09-18T20:59:58.894611Z"
+    },
+    "worker": {
+      "id": "dep-damq9g740ujc738ushig",
+      "commit": "8520b73cc41d72c40ecec1ca06ca752fd95ce5d5",
+      "finishedAt": "2026-09-18T20:54:36.799669Z"
+    },
+    "checks": [
+      {
+        "path": "/api/health/live",
+        "status": 200
+      },
+      {
+        "path": "/api/health/ready",
+        "status": 200
+      },
+      {
+        "path": "/api/health/worker",
+        "status": 200
+      },
+      {
+        "path": "/api/health/recovery-boundary",
+        "status": 200
+      },
+      {
+        "path": "/",
+        "status": 200
+      },
+      {
+        "path": "/login",
+        "status": 200
+      },
+      {
+        "path": "/faq",
+        "status": 200
+      },
+      {
+        "path": "/terms",
+        "status": 200
+      },
+      {
+        "path": "/privacy",
+        "status": 200
+      },
+      {
+        "path": "/jumps",
+        "status": 307,
+        "redirectsToLogin": true
+      },
+      {
+        "path": "/onboarding",
+        "status": 307,
+        "redirectsToLogin": true
+      },
+      {
+        "path": "/mixes/system",
+        "status": 307,
+        "redirectsToLogin": true
+      },
+      {
+        "path": "/admin",
+        "status": 307,
+        "redirectsToLogin": true
+      }
+    ],
+    "sourceFiles": 629,
+    "assets": 19,
+    "database": {
+      "status": "ready",
+      "required": 61,
+      "missing": 0,
+      "mismatched": 0
+    },
+    "syntheticWorkerJobProcessed": true,
+    "syntheticWorkerJobRemoved": true,
+    "recoveryCredentialConfigured": true
+  },
+  "provider": {
+    "recipients": "Resend documented delivered/bounced simulators only",
+    "messagesCreated": 2,
+    "identicalKeyRetryReturnedSameMessageId": true,
+    "cachedRetryWithoutProviderCall": true,
+    "changedPayloadBlocked": true,
+    "postflight": {
+      "checkedAt": "2026-09-18T21:00:54.731Z",
+      "provider": [
+        {
+          "kind": "delivered",
+          "id": "01a0b63e-1a67-736b-b6d4-552323df7325",
+          "lastEvent": "delivered",
+          "createdAt": "2026-09-18 20:38:38.662000+00"
+        },
+        {
+          "kind": "bounced",
+          "id": "01a0b63e-1f39-77ac-abf0-eb9b1baef18a",
+          "lastEvent": "bounced",
+          "createdAt": "2026-09-18 20:38:39.826000+00"
+        }
+      ],
+      "app": {
+        "passed": true,
+        "results": [
+          {
+            "kind": "delivered",
+            "providerId": "01a0b63e-1a67-736b-b6d4-552323df7325",
+            "uiLabel": "Delivered to recipient’s mail server",
+            "acceptedAt": "2026-09-18T20:38:39.455Z",
+            "deliveredAt": "2026-09-18T20:38:39.197Z",
+            "bouncedAt": null,
+            "events": [
+              {
+                "type": "email.sent",
+                "occurredAt": "2026-09-18T20:38:38.831Z",
+                "receivedAt": "2026-09-18T20:38:40.039Z"
+              },
+              {
+                "type": "email.delivered",
+                "occurredAt": "2026-09-18T20:38:39.197Z",
+                "receivedAt": "2026-09-18T20:38:40.432Z"
+              }
+            ],
+            "providerRecoveryReceiptVerified": true
+          },
+          {
+            "kind": "bounced",
+            "providerId": "01a0b63e-1f39-77ac-abf0-eb9b1baef18a",
+            "uiLabel": "Bounced",
+            "acceptedAt": "2026-09-18T20:38:39.773Z",
+            "deliveredAt": null,
+            "bouncedAt": "2026-09-18T20:38:40.325Z",
+            "events": [
+              {
+                "type": "email.sent",
+                "occurredAt": "2026-09-18T20:38:39.935Z",
+                "receivedAt": "2026-09-18T20:38:41.420Z"
+              },
+              {
+                "type": "email.bounced",
+                "occurredAt": "2026-09-18T20:38:40.325Z",
+                "receivedAt": "2026-09-18T20:38:41.522Z"
+              }
+            ],
+            "suppressionBlocksNewSend": true,
+            "adverseReceiptNotRecoveredAsSuccess": true
+          }
+        ]
+      },
+      "passed": true
+    },
+    "observedHumanInbox": false,
+    "staffUiRecoverySession": false
+  },
+  "staging": {
+    "url": "https://jump-in-the-mix-test.netlify.app",
+    "siteId": "8fd20ccd-5c35-47e5-99ce-98e5670d52fe",
+    "deployId": "6aada4f0f08a71f4b359a8be",
+    "checks": [
+      {
+        "path": "/",
+        "status": 200
+      },
+      {
+        "path": "/login",
+        "status": 503
+      },
+      {
+        "path": "/faq",
+        "status": 200
+      },
+      {
+        "path": "/terms",
+        "status": 503
+      },
+      {
+        "path": "/privacy",
+        "status": 503
+      },
+      {
+        "path": "/api/health/live",
+        "status": 200
+      },
+      {
+        "path": "/api/health/ready",
+        "status": 503
+      },
+      {
+        "path": "/api/health/worker",
+        "status": 503
+      }
+    ],
+    "browser": [
+      {
+        "path": "/",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "axeViolations": 0
+      },
+      {
+        "path": "/login",
+        "width": 390,
+        "theme": "light",
+        "status": 503,
+        "tested": false,
+        "reason": "Unavailable while staging database health is failing"
+      },
+      {
+        "path": "/faq",
+        "width": 390,
+        "theme": "light",
+        "status": 200,
+        "overflow": false,
+        "axeViolations": 0
+      },
+      {
+        "path": "/",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "axeViolations": 0
+      },
+      {
+        "path": "/login",
+        "width": 1440,
+        "theme": "dark",
+        "status": 503,
+        "tested": false,
+        "reason": "Unavailable while staging database health is failing"
+      },
+      {
+        "path": "/faq",
+        "width": 1440,
+        "theme": "dark",
+        "status": 200,
+        "overflow": false,
+        "axeViolations": 0
+      }
+    ],
+    "assetsMatched": 16,
+    "databaseReady": false,
+    "workerReady": false,
+    "blocker": "Existing Neon compute quota exhaustion"
+  },
+  "completedFindings": 175,
+  "awaitingQualification": 9,
+  "schemaChanged": false,
+  "dependenciesChanged": false
+}

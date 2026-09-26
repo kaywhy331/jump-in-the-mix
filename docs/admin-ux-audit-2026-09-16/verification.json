@@ -1,0 +1,4357 @@
+{
+  "date": "2026-09-16",
+  "sourceRevision": "e52eea3",
+  "environment": "Isolated local source copy and disposable PostgreSQL database; synthetic data only; email and workers disabled.",
+  "scope": {
+    "adminPageRoutes": 25,
+    "securityPageRoutes": 1,
+    "routeStateCombinations": 28,
+    "baselineAccessibilityScans": 84,
+    "supplementaryDarkDesktopScans": 2,
+    "supplementaryTabletOverflowChecks": 10
+  },
+  "method": "Chromium, @axe-core/playwright 4.13.0; wcag2a, wcag2aa, wcag21aa, wcag22aa tags; viewport height 1000. Additional interaction probes exercise actual forms and navigation.",
+  "limitations": "No live deployment, production timing, real provider delivery, real MFA enrollment, exhaustive permission or mutation testing, or screen-reader usability certification. A development compilation restart caused one temporary offline fallback; the saved report was retested successfully.",
+  "screens": [
+    {
+      "name": "overview",
+      "path": "/admin",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1074,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Overview",
+              "y": 104
+            },
+            {
+              "text": "Needs attention",
+              "y": 380
+            },
+            {
+              "text": "Quick actions",
+              "y": 380
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1571,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Overview",
+              "y": 193
+            },
+            {
+              "text": "Needs attention",
+              "y": 517
+            },
+            {
+              "text": "Quick actions",
+              "y": 950
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 1741,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Overview",
+              "y": 225
+            },
+            {
+              "text": "Needs attention",
+              "y": 549
+            },
+            {
+              "text": "Quick actions",
+              "y": 1081
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "users",
+      "path": "/admin/users",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1278,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Users",
+              "y": 104
+            },
+            {
+              "text": "Morgan Sample",
+              "y": 468
+            },
+            {
+              "text": "Audit Owner",
+              "y": 866
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1636,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Users",
+              "y": 199
+            },
+            {
+              "text": "Morgan Sample",
+              "y": 677
+            },
+            {
+              "text": "Audit Owner",
+              "y": 1169
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 1752,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Users",
+              "y": 231
+            },
+            {
+              "text": "Morgan Sample",
+              "y": 761
+            },
+            {
+              "text": "Audit Owner",
+              "y": 1253
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "waitlist",
+      "path": "/admin/waitlist",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 3567,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Waitlist",
+              "y": 104
+            },
+            {
+              "text": "Automatic waves",
+              "y": 290
+            },
+            {
+              "text": "Waiting \u00b7 7",
+              "y": 911
+            },
+            {
+              "text": "Pending deliveries and problems",
+              "y": 2971
+            },
+            {
+              "text": "Recent waves",
+              "y": 3232
+            },
+            {
+              "text": "Recent waitlist activity",
+              "y": 3380
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 4001,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Waitlist",
+              "y": 207
+            },
+            {
+              "text": "Automatic waves",
+              "y": 392
+            },
+            {
+              "text": "Waiting \u00b7 7",
+              "y": 1144
+            },
+            {
+              "text": "Pending deliveries and problems",
+              "y": 3421
+            },
+            {
+              "text": "Recent waves",
+              "y": 3713
+            },
+            {
+              "text": "Recent waitlist activity",
+              "y": 3845
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 4351,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Waitlist",
+              "y": 239
+            },
+            {
+              "text": "Automatic waves",
+              "y": 448
+            },
+            {
+              "text": "Waiting \u00b7 7",
+              "y": 1276
+            },
+            {
+              "text": "Pending deliveries and problems",
+              "y": 3697
+            },
+            {
+              "text": "Recent waves",
+              "y": 4063
+            },
+            {
+              "text": "Recent waitlist activity",
+              "y": 4196
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "waitlist-history",
+      "path": "/admin/waitlist?view=history",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1907,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Waitlist",
+              "y": 104
+            },
+            {
+              "text": "Automatic waves",
+              "y": 290
+            },
+            {
+              "text": "Access history \u00b7 0",
+              "y": 911
+            },
+            {
+              "text": "Pending deliveries and problems",
+              "y": 1311
+            },
+            {
+              "text": "Recent waves",
+              "y": 1572
+            },
+            {
+              "text": "Recent waitlist activity",
+              "y": 1720
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 2113,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Waitlist",
+              "y": 207
+            },
+            {
+              "text": "Automatic waves",
+              "y": 392
+            },
+            {
+              "text": "Access history \u00b7 0",
+              "y": 1144
+            },
+            {
+              "text": "Pending deliveries and problems",
+              "y": 1533
+            },
+            {
+              "text": "Recent waves",
+              "y": 1825
+            },
+            {
+              "text": "Recent waitlist activity",
+              "y": 1957
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 2351,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Waitlist",
+              "y": 239
+            },
+            {
+              "text": "Automatic waves",
+              "y": 448
+            },
+            {
+              "text": "Access history \u00b7 0",
+              "y": 1276
+            },
+            {
+              "text": "Pending deliveries and problems",
+              "y": 1697
+            },
+            {
+              "text": "Recent waves",
+              "y": 2063
+            },
+            {
+              "text": "Recent waitlist activity",
+              "y": 2196
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "invitations",
+      "path": "/admin/access",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1462,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Invitations",
+              "y": 104
+            },
+            {
+              "text": "Find invitations \u00b7 1",
+              "y": 220
+            },
+            {
+              "text": "morgan@audit.example.test",
+              "y": 753
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1663,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Invitations",
+              "y": 207
+            },
+            {
+              "text": "Find invitations \u00b7 1",
+              "y": 274
+            },
+            {
+              "text": "morgan@audit.example.test",
+              "y": 886
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 1719,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Invitations",
+              "y": 239
+            },
+            {
+              "text": "Find invitations \u00b7 1",
+              "y": 306
+            },
+            {
+              "text": "morgan@audit.example.test",
+              "y": 918
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "support",
+      "path": "/admin/support",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 19257,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Support",
+              "y": 104
+            },
+            {
+              "text": "Help finding an invitation email",
+              "y": 630
+            },
+            {
+              "text": "Older queue item beyond first page",
+              "y": 816
+            },
+            {
+              "text": "Synthetic support request 3",
+              "y": 1002
+            },
+            {
+              "text": "Synthetic support request 4",
+              "y": 1189
+            },
+            {
+              "text": "Synthetic support request 5",
+              "y": 1375
+            },
+            {
+              "text": "Synthetic support request 6",
+              "y": 1561
+            },
+            {
+              "text": "Synthetic support request 7",
+              "y": 1747
+            },
+            {
+              "text": "Synthetic support request 8",
+              "y": 1934
+            },
+            {
+              "text": "Synthetic support request 9",
+              "y": 2120
+            },
+            {
+              "text": "Synthetic support request 10",
+              "y": 2306
+            },
+            {
+              "text": "Synthetic support request 11",
+              "y": 2493
+            },
+            {
+              "text": "Synthetic support request 12",
+              "y": 2679
+            },
+            {
+              "text": "Synthetic support request 13",
+              "y": 2865
+            },
+            {
+              "text": "Synthetic support request 14",
+              "y": 3052
+            },
+            {
+              "text": "Synthetic support request 15",
+              "y": 3238
+            },
+            {
+              "text": "Synthetic support request 16",
+              "y": 3424
+            },
+            {
+              "text": "Synthetic support request 17",
+              "y": 3610
+            },
+            {
+              "text": "Synthetic support request 18",
+              "y": 3797
+            },
+            {
+              "text": "Synthetic support request 19",
+              "y": 3983
+            },
+            {
+              "text": "Synthetic support request 20",
+              "y": 4169
+            },
+            {
+              "text": "Synthetic support request 21",
+              "y": 4356
+            },
+            {
+              "text": "Synthetic support request 22",
+              "y": 4542
+            },
+            {
+              "text": "Synthetic support request 23",
+              "y": 4728
+            },
+            {
+              "text": "Synthetic support request 24",
+              "y": 4915
+            },
+            {
+              "text": "Synthetic support request 25",
+              "y": 5101
+            },
+            {
+              "text": "Synthetic support request 26",
+              "y": 5287
+            },
+            {
+              "text": "Synthetic support request 27",
+              "y": 5473
+            },
+            {
+              "text": "Synthetic support request 28",
+              "y": 5660
+            },
+            {
+              "text": "Synthetic support request 29",
+              "y": 5846
+            },
+            {
+              "text": "Synthetic support request 30",
+              "y": 6032
+            },
+            {
+              "text": "Synthetic support request 31",
+              "y": 6219
+            },
+            {
+              "text": "Synthetic support request 32",
+              "y": 6405
+            },
+            {
+              "text": "Synthetic support request 33",
+              "y": 6591
+            },
+            {
+              "text": "Synthetic support request 34",
+              "y": 6777
+            },
+            {
+              "text": "Synthetic support request 35",
+              "y": 6964
+            },
+            {
+              "text": "Synthetic support request 36",
+              "y": 7150
+            },
+            {
+              "text": "Synthetic support request 37",
+              "y": 7336
+            },
+            {
+              "text": "Synthetic support request 38",
+              "y": 7523
+            },
+            {
+              "text": "Synthetic support request 39",
+              "y": 7709
+            },
+            {
+              "text": "Synthetic support request 40",
+              "y": 7895
+            },
+            {
+              "text": "Synthetic support request 41",
+              "y": 8082
+            },
+            {
+              "text": "Synthetic support request 42",
+              "y": 8268
+            },
+            {
+              "text": "Synthetic support request 43",
+              "y": 8454
+            },
+            {
+              "text": "Synthetic support request 44",
+              "y": 8640
+            },
+            {
+              "text": "Synthetic support request 45",
+              "y": 8827
+            },
+            {
+              "text": "Synthetic support request 46",
+              "y": 9013
+            },
+            {
+              "text": "Synthetic support request 47",
+              "y": 9199
+            },
+            {
+              "text": "Synthetic support request 48",
+              "y": 9386
+            },
+            {
+              "text": "Synthetic support request 49",
+              "y": 9572
+            },
+            {
+              "text": "Synthetic support request 50",
+              "y": 9758
+            },
+            {
+              "text": "Synthetic support request 51",
+              "y": 9945
+            },
+            {
+              "text": "Synthetic support request 52",
+              "y": 10131
+            },
+            {
+              "text": "Synthetic support request 53",
+              "y": 10317
+            },
+            {
+              "text": "Synthetic support request 54",
+              "y": 10503
+            },
+            {
+              "text": "Synthetic support request 55",
+              "y": 10690
+            },
+            {
+              "text": "Synthetic support request 56",
+              "y": 10876
+            },
+            {
+              "text": "Synthetic support request 57",
+              "y": 11062
+            },
+            {
+              "text": "Synthetic support request 58",
+              "y": 11249
+            },
+            {
+              "text": "Synthetic support request 59",
+              "y": 11435
+            },
+            {
+              "text": "Synthetic support request 60",
+              "y": 11621
+            },
+            {
+              "text": "Synthetic support request 61",
+              "y": 11807
+            },
+            {
+              "text": "Synthetic support request 62",
+              "y": 11994
+            },
+            {
+              "text": "Synthetic support request 63",
+              "y": 12180
+            },
+            {
+              "text": "Synthetic support request 64",
+              "y": 12366
+            },
+            {
+              "text": "Synthetic support request 65",
+              "y": 12553
+            },
+            {
+              "text": "Synthetic support request 66",
+              "y": 12739
+            },
+            {
+              "text": "Synthetic support request 67",
+              "y": 12925
+            },
+            {
+              "text": "Synthetic support request 68",
+              "y": 13112
+            },
+            {
+              "text": "Synthetic support request 69",
+              "y": 13298
+            },
+            {
+              "text": "Synthetic support request 70",
+              "y": 13484
+            },
+            {
+              "text": "Synthetic support request 71",
+              "y": 13670
+            },
+            {
+              "text": "Synthetic support request 72",
+              "y": 13857
+            },
+            {
+              "text": "Synthetic support request 73",
+              "y": 14043
+            },
+            {
+              "text": "Synthetic support request 74",
+              "y": 14229
+            },
+            {
+              "text": "Synthetic support request 75",
+              "y": 14416
+            },
+            {
+              "text": "Synthetic support request 76",
+              "y": 14602
+            },
+            {
+              "text": "Synthetic support request 77",
+              "y": 14788
+            },
+            {
+              "text": "Synthetic support request 78",
+              "y": 14975
+            },
+            {
+              "text": "Synthetic support request 79",
+              "y": 15161
+            },
+            {
+              "text": "Synthetic support request 80",
+              "y": 15347
+            },
+            {
+              "text": "Synthetic support request 81",
+              "y": 15533
+            },
+            {
+              "text": "Synthetic support request 82",
+              "y": 15720
+            },
+            {
+              "text": "Synthetic support request 83",
+              "y": 15906
+            },
+            {
+              "text": "Synthetic support request 84",
+              "y": 16092
+            },
+            {
+              "text": "Synthetic support request 85",
+              "y": 16279
+            },
+            {
+              "text": "Synthetic support request 86",
+              "y": 16465
+            },
+            {
+              "text": "Synthetic support request 87",
+              "y": 16651
+            },
+            {
+              "text": "Synthetic support request 88",
+              "y": 16838
+            },
+            {
+              "text": "Synthetic support request 89",
+              "y": 17024
+            },
+            {
+              "text": "Synthetic support request 90",
+              "y": 17210
+            },
+            {
+              "text": "Synthetic support request 91",
+              "y": 17396
+            },
+            {
+              "text": "Synthetic support request 92",
+              "y": 17583
+            },
+            {
+              "text": "Synthetic support request 93",
+              "y": 17769
+            },
+            {
+              "text": "Synthetic support request 94",
+              "y": 17955
+            },
+            {
+              "text": "Synthetic support request 95",
+              "y": 18142
+            },
+            {
+              "text": "Synthetic support request 96",
+              "y": 18328
+            },
+            {
+              "text": "Synthetic support request 97",
+              "y": 18514
+            },
+            {
+              "text": "Synthetic support request 98",
+              "y": 18700
+            },
+            {
+              "text": "Synthetic support request 99",
+              "y": 18887
+            },
+            {
+              "text": "Synthetic support request 100",
+              "y": 19073
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 27396,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Support",
+              "y": 199
+            },
+            {
+              "text": "Help finding an invitation email",
+              "y": 1241
+            },
+            {
+              "text": "Older queue item beyond first page",
+              "y": 1503
+            },
+            {
+              "text": "Synthetic support request 3",
+              "y": 1764
+            },
+            {
+              "text": "Synthetic support request 4",
+              "y": 2026
+            },
+            {
+              "text": "Synthetic support request 5",
+              "y": 2288
+            },
+            {
+              "text": "Synthetic support request 6",
+              "y": 2550
+            },
+            {
+              "text": "Synthetic support request 7",
+              "y": 2811
+            },
+            {
+              "text": "Synthetic support request 8",
+              "y": 3073
+            },
+            {
+              "text": "Synthetic support request 9",
+              "y": 3335
+            },
+            {
+              "text": "Synthetic support request 10",
+              "y": 3596
+            },
+            {
+              "text": "Synthetic support request 11",
+              "y": 3858
+            },
+            {
+              "text": "Synthetic support request 12",
+              "y": 4120
+            },
+            {
+              "text": "Synthetic support request 13",
+              "y": 4382
+            },
+            {
+              "text": "Synthetic support request 14",
+              "y": 4643
+            },
+            {
+              "text": "Synthetic support request 15",
+              "y": 4905
+            },
+            {
+              "text": "Synthetic support request 16",
+              "y": 5167
+            },
+            {
+              "text": "Synthetic support request 17",
+              "y": 5429
+            },
+            {
+              "text": "Synthetic support request 18",
+              "y": 5690
+            },
+            {
+              "text": "Synthetic support request 19",
+              "y": 5952
+            },
+            {
+              "text": "Synthetic support request 20",
+              "y": 6214
+            },
+            {
+              "text": "Synthetic support request 21",
+              "y": 6476
+            },
+            {
+              "text": "Synthetic support request 22",
+              "y": 6737
+            },
+            {
+              "text": "Synthetic support request 23",
+              "y": 6999
+            },
+            {
+              "text": "Synthetic support request 24",
+              "y": 7261
+            },
+            {
+              "text": "Synthetic support request 25",
+              "y": 7523
+            },
+            {
+              "text": "Synthetic support request 26",
+              "y": 7784
+            },
+            {
+              "text": "Synthetic support request 27",
+              "y": 8046
+            },
+            {
+              "text": "Synthetic support request 28",
+              "y": 8308
+            },
+            {
+              "text": "Synthetic support request 29",
+              "y": 8569
+            },
+            {
+              "text": "Synthetic support request 30",
+              "y": 8831
+            },
+            {
+              "text": "Synthetic support request 31",
+              "y": 9093
+            },
+            {
+              "text": "Synthetic support request 32",
+              "y": 9355
+            },
+            {
+              "text": "Synthetic support request 33",
+              "y": 9616
+            },
+            {
+              "text": "Synthetic support request 34",
+              "y": 9878
+            },
+            {
+              "text": "Synthetic support request 35",
+              "y": 10140
+            },
+            {
+              "text": "Synthetic support request 36",
+              "y": 10402
+            },
+            {
+              "text": "Synthetic support request 37",
+              "y": 10663
+            },
+            {
+              "text": "Synthetic support request 38",
+              "y": 10925
+            },
+            {
+              "text": "Synthetic support request 39",
+              "y": 11187
+            },
+            {
+              "text": "Synthetic support request 40",
+              "y": 11449
+            },
+            {
+              "text": "Synthetic support request 41",
+              "y": 11710
+            },
+            {
+              "text": "Synthetic support request 42",
+              "y": 11972
+            },
+            {
+              "text": "Synthetic support request 43",
+              "y": 12234
+            },
+            {
+              "text": "Synthetic support request 44",
+              "y": 12495
+            },
+            {
+              "text": "Synthetic support request 45",
+              "y": 12757
+            },
+            {
+              "text": "Synthetic support request 46",
+              "y": 13019
+            },
+            {
+              "text": "Synthetic support request 47",
+              "y": 13281
+            },
+            {
+              "text": "Synthetic support request 48",
+              "y": 13542
+            },
+            {
+              "text": "Synthetic support request 49",
+              "y": 13804
+            },
+            {
+              "text": "Synthetic support request 50",
+              "y": 14066
+            },
+            {
+              "text": "Synthetic support request 51",
+              "y": 14328
+            },
+            {
+              "text": "Synthetic support request 52",
+              "y": 14589
+            },
+            {
+              "text": "Synthetic support request 53",
+              "y": 14851
+            },
+            {
+              "text": "Synthetic support request 54",
+              "y": 15113
+            },
+            {
+              "text": "Synthetic support request 55",
+              "y": 15375
+            },
+            {
+              "text": "Synthetic support request 56",
+              "y": 15636
+            },
+            {
+              "text": "Synthetic support request 57",
+              "y": 15898
+            },
+            {
+              "text": "Synthetic support request 58",
+              "y": 16160
+            },
+            {
+              "text": "Synthetic support request 59",
+              "y": 16421
+            },
+            {
+              "text": "Synthetic support request 60",
+              "y": 16683
+            },
+            {
+              "text": "Synthetic support request 61",
+              "y": 16945
+            },
+            {
+              "text": "Synthetic support request 62",
+              "y": 17207
+            },
+            {
+              "text": "Synthetic support request 63",
+              "y": 17468
+            },
+            {
+              "text": "Synthetic support request 64",
+              "y": 17730
+            },
+            {
+              "text": "Synthetic support request 65",
+              "y": 17992
+            },
+            {
+              "text": "Synthetic support request 66",
+              "y": 18254
+            },
+            {
+              "text": "Synthetic support request 67",
+              "y": 18515
+            },
+            {
+              "text": "Synthetic support request 68",
+              "y": 18777
+            },
+            {
+              "text": "Synthetic support request 69",
+              "y": 19039
+            },
+            {
+              "text": "Synthetic support request 70",
+              "y": 19301
+            },
+            {
+              "text": "Synthetic support request 71",
+              "y": 19562
+            },
+            {
+              "text": "Synthetic support request 72",
+              "y": 19824
+            },
+            {
+              "text": "Synthetic support request 73",
+              "y": 20086
+            },
+            {
+              "text": "Synthetic support request 74",
+              "y": 20347
+            },
+            {
+              "text": "Synthetic support request 75",
+              "y": 20609
+            },
+            {
+              "text": "Synthetic support request 76",
+              "y": 20871
+            },
+            {
+              "text": "Synthetic support request 77",
+              "y": 21133
+            },
+            {
+              "text": "Synthetic support request 78",
+              "y": 21394
+            },
+            {
+              "text": "Synthetic support request 79",
+              "y": 21656
+            },
+            {
+              "text": "Synthetic support request 80",
+              "y": 21918
+            },
+            {
+              "text": "Synthetic support request 81",
+              "y": 22180
+            },
+            {
+              "text": "Synthetic support request 82",
+              "y": 22441
+            },
+            {
+              "text": "Synthetic support request 83",
+              "y": 22703
+            },
+            {
+              "text": "Synthetic support request 84",
+              "y": 22965
+            },
+            {
+              "text": "Synthetic support request 85",
+              "y": 23227
+            },
+            {
+              "text": "Synthetic support request 86",
+              "y": 23488
+            },
+            {
+              "text": "Synthetic support request 87",
+              "y": 23750
+            },
+            {
+              "text": "Synthetic support request 88",
+              "y": 24012
+            },
+            {
+              "text": "Synthetic support request 89",
+              "y": 24274
+            },
+            {
+              "text": "Synthetic support request 90",
+              "y": 24535
+            },
+            {
+              "text": "Synthetic support request 91",
+              "y": 24797
+            },
+            {
+              "text": "Synthetic support request 92",
+              "y": 25059
+            },
+            {
+              "text": "Synthetic support request 93",
+              "y": 25320
+            },
+            {
+              "text": "Synthetic support request 94",
+              "y": 25582
+            },
+            {
+              "text": "Synthetic support request 95",
+              "y": 25844
+            },
+            {
+              "text": "Synthetic support request 96",
+              "y": 26106
+            },
+            {
+              "text": "Synthetic support request 97",
+              "y": 26367
+            },
+            {
+              "text": "Synthetic support request 98",
+              "y": 26629
+            },
+            {
+              "text": "Synthetic support request 99",
+              "y": 26891
+            },
+            {
+              "text": "Synthetic support request 100",
+              "y": 27153
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 32002,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Support",
+              "y": 231
+            },
+            {
+              "text": "Help finding an invitation email",
+              "y": 1309
+            },
+            {
+              "text": "Older queue item beyond first page",
+              "y": 1641
+            },
+            {
+              "text": "Synthetic support request 3",
+              "y": 1972
+            },
+            {
+              "text": "Synthetic support request 4",
+              "y": 2279
+            },
+            {
+              "text": "Synthetic support request 5",
+              "y": 2586
+            },
+            {
+              "text": "Synthetic support request 6",
+              "y": 2892
+            },
+            {
+              "text": "Synthetic support request 7",
+              "y": 3199
+            },
+            {
+              "text": "Synthetic support request 8",
+              "y": 3506
+            },
+            {
+              "text": "Synthetic support request 9",
+              "y": 3812
+            },
+            {
+              "text": "Synthetic support request 10",
+              "y": 4119
+            },
+            {
+              "text": "Synthetic support request 11",
+              "y": 4425
+            },
+            {
+              "text": "Synthetic support request 12",
+              "y": 4732
+            },
+            {
+              "text": "Synthetic support request 13",
+              "y": 5039
+            },
+            {
+              "text": "Synthetic support request 14",
+              "y": 5345
+            },
+            {
+              "text": "Synthetic support request 15",
+              "y": 5652
+            },
+            {
+              "text": "Synthetic support request 16",
+              "y": 5958
+            },
+            {
+              "text": "Synthetic support request 17",
+              "y": 6265
+            },
+            {
+              "text": "Synthetic support request 18",
+              "y": 6572
+            },
+            {
+              "text": "Synthetic support request 19",
+              "y": 6878
+            },
+            {
+              "text": "Synthetic support request 20",
+              "y": 7185
+            },
+            {
+              "text": "Synthetic support request 21",
+              "y": 7491
+            },
+            {
+              "text": "Synthetic support request 22",
+              "y": 7798
+            },
+            {
+              "text": "Synthetic support request 23",
+              "y": 8105
+            },
+            {
+              "text": "Synthetic support request 24",
+              "y": 8411
+            },
+            {
+              "text": "Synthetic support request 25",
+              "y": 8718
+            },
+            {
+              "text": "Synthetic support request 26",
+              "y": 9024
+            },
+            {
+              "text": "Synthetic support request 27",
+              "y": 9331
+            },
+            {
+              "text": "Synthetic support request 28",
+              "y": 9638
+            },
+            {
+              "text": "Synthetic support request 29",
+              "y": 9944
+            },
+            {
+              "text": "Synthetic support request 30",
+              "y": 10251
+            },
+            {
+              "text": "Synthetic support request 31",
+              "y": 10558
+            },
+            {
+              "text": "Synthetic support request 32",
+              "y": 10864
+            },
+            {
+              "text": "Synthetic support request 33",
+              "y": 11171
+            },
+            {
+              "text": "Synthetic support request 34",
+              "y": 11477
+            },
+            {
+              "text": "Synthetic support request 35",
+              "y": 11784
+            },
+            {
+              "text": "Synthetic support request 36",
+              "y": 12091
+            },
+            {
+              "text": "Synthetic support request 37",
+              "y": 12397
+            },
+            {
+              "text": "Synthetic support request 38",
+              "y": 12704
+            },
+            {
+              "text": "Synthetic support request 39",
+              "y": 13010
+            },
+            {
+              "text": "Synthetic support request 40",
+              "y": 13317
+            },
+            {
+              "text": "Synthetic support request 41",
+              "y": 13624
+            },
+            {
+              "text": "Synthetic support request 42",
+              "y": 13930
+            },
+            {
+              "text": "Synthetic support request 43",
+              "y": 14237
+            },
+            {
+              "text": "Synthetic support request 44",
+              "y": 14543
+            },
+            {
+              "text": "Synthetic support request 45",
+              "y": 14850
+            },
+            {
+              "text": "Synthetic support request 46",
+              "y": 15157
+            },
+            {
+              "text": "Synthetic support request 47",
+              "y": 15463
+            },
+            {
+              "text": "Synthetic support request 48",
+              "y": 15770
+            },
+            {
+              "text": "Synthetic support request 49",
+              "y": 16077
+            },
+            {
+              "text": "Synthetic support request 50",
+              "y": 16383
+            },
+            {
+              "text": "Synthetic support request 51",
+              "y": 16690
+            },
+            {
+              "text": "Synthetic support request 52",
+              "y": 16996
+            },
+            {
+              "text": "Synthetic support request 53",
+              "y": 17303
+            },
+            {
+              "text": "Synthetic support request 54",
+              "y": 17610
+            },
+            {
+              "text": "Synthetic support request 55",
+              "y": 17916
+            },
+            {
+              "text": "Synthetic support request 56",
+              "y": 18223
+            },
+            {
+              "text": "Synthetic support request 57",
+              "y": 18529
+            },
+            {
+              "text": "Synthetic support request 58",
+              "y": 18836
+            },
+            {
+              "text": "Synthetic support request 59",
+              "y": 19143
+            },
+            {
+              "text": "Synthetic support request 60",
+              "y": 19449
+            },
+            {
+              "text": "Synthetic support request 61",
+              "y": 19756
+            },
+            {
+              "text": "Synthetic support request 62",
+              "y": 20062
+            },
+            {
+              "text": "Synthetic support request 63",
+              "y": 20369
+            },
+            {
+              "text": "Synthetic support request 64",
+              "y": 20676
+            },
+            {
+              "text": "Synthetic support request 65",
+              "y": 20982
+            },
+            {
+              "text": "Synthetic support request 66",
+              "y": 21289
+            },
+            {
+              "text": "Synthetic support request 67",
+              "y": 21595
+            },
+            {
+              "text": "Synthetic support request 68",
+              "y": 21902
+            },
+            {
+              "text": "Synthetic support request 69",
+              "y": 22209
+            },
+            {
+              "text": "Synthetic support request 70",
+              "y": 22515
+            },
+            {
+              "text": "Synthetic support request 71",
+              "y": 22822
+            },
+            {
+              "text": "Synthetic support request 72",
+              "y": 23129
+            },
+            {
+              "text": "Synthetic support request 73",
+              "y": 23435
+            },
+            {
+              "text": "Synthetic support request 74",
+              "y": 23742
+            },
+            {
+              "text": "Synthetic support request 75",
+              "y": 24048
+            },
+            {
+              "text": "Synthetic support request 76",
+              "y": 24355
+            },
+            {
+              "text": "Synthetic support request 77",
+              "y": 24662
+            },
+            {
+              "text": "Synthetic support request 78",
+              "y": 24968
+            },
+            {
+              "text": "Synthetic support request 79",
+              "y": 25275
+            },
+            {
+              "text": "Synthetic support request 80",
+              "y": 25581
+            },
+            {
+              "text": "Synthetic support request 81",
+              "y": 25888
+            },
+            {
+              "text": "Synthetic support request 82",
+              "y": 26195
+            },
+            {
+              "text": "Synthetic support request 83",
+              "y": 26501
+            },
+            {
+              "text": "Synthetic support request 84",
+              "y": 26808
+            },
+            {
+              "text": "Synthetic support request 85",
+              "y": 27114
+            },
+            {
+              "text": "Synthetic support request 86",
+              "y": 27421
+            },
+            {
+              "text": "Synthetic support request 87",
+              "y": 27728
+            },
+            {
+              "text": "Synthetic support request 88",
+              "y": 28034
+            },
+            {
+              "text": "Synthetic support request 89",
+              "y": 28341
+            },
+            {
+              "text": "Synthetic support request 90",
+              "y": 28647
+            },
+            {
+              "text": "Synthetic support request 91",
+              "y": 28954
+            },
+            {
+              "text": "Synthetic support request 92",
+              "y": 29261
+            },
+            {
+              "text": "Synthetic support request 93",
+              "y": 29567
+            },
+            {
+              "text": "Synthetic support request 94",
+              "y": 29874
+            },
+            {
+              "text": "Synthetic support request 95",
+              "y": 30181
+            },
+            {
+              "text": "Synthetic support request 96",
+              "y": 30487
+            },
+            {
+              "text": "Synthetic support request 97",
+              "y": 30794
+            },
+            {
+              "text": "Synthetic support request 98",
+              "y": 31100
+            },
+            {
+              "text": "Synthetic support request 99",
+              "y": 31407
+            },
+            {
+              "text": "Synthetic support request 100",
+              "y": 31714
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "support-detail",
+      "path": "/admin/support/cmu4hflup0006ezl3vfst9m75",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 2359,
+          "headings": [
+            {
+              "text": "Help finding an invitation email",
+              "y": 132
+            },
+            {
+              "text": "Conversation",
+              "y": 249
+            },
+            {
+              "text": "Reply",
+              "y": 470
+            },
+            {
+              "text": "Assignment",
+              "y": 249
+            },
+            {
+              "text": "Customer support view",
+              "y": 726
+            },
+            {
+              "text": "Triage",
+              "y": 1021
+            },
+            {
+              "text": "Status",
+              "y": 1412
+            },
+            {
+              "text": "Customer context",
+              "y": 1696
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 3530,
+          "headings": [
+            {
+              "text": "Help finding an invitation email",
+              "y": 227
+            },
+            {
+              "text": "Conversation",
+              "y": 375
+            },
+            {
+              "text": "Reply",
+              "y": 688
+            },
+            {
+              "text": "Assignment",
+              "y": 1337
+            },
+            {
+              "text": "Customer support view",
+              "y": 1802
+            },
+            {
+              "text": "Triage",
+              "y": 2081
+            },
+            {
+              "text": "Status",
+              "y": 2461
+            },
+            {
+              "text": "Customer context",
+              "y": 2740
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 3768,
+          "headings": [
+            {
+              "text": "Help finding an invitation email",
+              "y": 259
+            },
+            {
+              "text": "Conversation",
+              "y": 407
+            },
+            {
+              "text": "Reply",
+              "y": 770
+            },
+            {
+              "text": "Assignment",
+              "y": 1455
+            },
+            {
+              "text": "Customer support view",
+              "y": 1944
+            },
+            {
+              "text": "Triage",
+              "y": 2272
+            },
+            {
+              "text": "Status",
+              "y": 2651
+            },
+            {
+              "text": "Customer context",
+              "y": 2954
+            }
+          ],
+          "overflow": [],
+          "violations": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "count": 1,
+              "nodes": [
+                {
+                  "target": [
+                    "time"
+                  ],
+                  "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.65 (foreground color: #b8c0d2, background color: #f5f2ff, font size: 8.6pt (11.52px), font weight: normal). Expected contrast ratio of 4.5:1"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "library",
+      "path": "/admin/templates",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 3328,
+          "headings": [
+            {
+              "text": "Ready-made mixes",
+              "y": 104
+            },
+            {
+              "text": "The Next Verse",
+              "y": 408
+            },
+            {
+              "text": "Something Worth Sharing",
+              "y": 517
+            },
+            {
+              "text": "The Hand-Off",
+              "y": 626
+            },
+            {
+              "text": "Back in Rhythm",
+              "y": 735
+            },
+            {
+              "text": "Stay in the Mix",
+              "y": 844
+            },
+            {
+              "text": "The Afterparty",
+              "y": 953
+            },
+            {
+              "text": "The First Note",
+              "y": 1062
+            },
+            {
+              "text": "Home seller: compare the paths forward",
+              "y": 1171
+            },
+            {
+              "text": "Wellness inquiry: goals, comfort, and fit",
+              "y": 1280
+            },
+            {
+              "text": "Auto repair estimate: understand the hesitation",
+              "y": 1389
+            },
+            {
+              "text": "A considered purchase: price, fit, and aftercare",
+              "y": 1498
+            },
+            {
+              "text": "Vendor shortlist: compare against the real alternatives",
+              "y": 1607
+            },
+            {
+              "text": "After a demo: resolve the buying uncertainty",
+              "y": 1716
+            },
+            {
+              "text": "Professional-services proposal: agree on the next step",
+              "y": 1825
+            },
+            {
+              "text": "Renewal: understand the choices",
+              "y": 1934
+            },
+            {
+              "text": "Home buyer: priorities before property lists",
+              "y": 2043
+            },
+            {
+              "text": "Home-service estimate: scope, timing, confidence",
+              "y": 2152
+            },
+            {
+              "text": "Comparing options: find the right fit",
+              "y": 2261
+            },
+            {
+              "text": "Researching a purchase: answer the hard questions",
+              "y": 2370
+            },
+            {
+              "text": "A conversation goes quiet: reopen gently",
+              "y": 2479
+            },
+            {
+              "text": "A concern comes up: listen before answering",
+              "y": 2587
+            },
+            {
+              "text": "Ready but unsure: make the choice clearer",
+              "y": 2696
+            },
+            {
+              "text": "Not now: a respectful restart",
+              "y": 2805
+            },
+            {
+              "text": "First conversation: agree on mutual fit",
+              "y": 2914
+            },
+            {
+              "text": "Discovery: connect the problem to value",
+              "y": 3023
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 5644,
+          "headings": [
+            {
+              "text": "Ready-made mixes",
+              "y": 193
+            },
+            {
+              "text": "The Next Verse",
+              "y": 551
+            },
+            {
+              "text": "Something Worth Sharing",
+              "y": 740
+            },
+            {
+              "text": "The Hand-Off",
+              "y": 928
+            },
+            {
+              "text": "Back in Rhythm",
+              "y": 1117
+            },
+            {
+              "text": "Stay in the Mix",
+              "y": 1306
+            },
+            {
+              "text": "The Afterparty",
+              "y": 1495
+            },
+            {
+              "text": "The First Note",
+              "y": 1684
+            },
+            {
+              "text": "Home seller: compare the paths forward",
+              "y": 1873
+            },
+            {
+              "text": "Wellness inquiry: goals, comfort, and fit",
+              "y": 2062
+            },
+            {
+              "text": "Auto repair estimate: understand the hesitation",
+              "y": 2251
+            },
+            {
+              "text": "A considered purchase: price, fit, and aftercare",
+              "y": 2461
+            },
+            {
+              "text": "Vendor shortlist: compare against the real alternatives",
+              "y": 2672
+            },
+            {
+              "text": "After a demo: resolve the buying uncertainty",
+              "y": 2883
+            },
+            {
+              "text": "Professional-services proposal: agree on the next step",
+              "y": 3094
+            },
+            {
+              "text": "Renewal: understand the choices",
+              "y": 3305
+            },
+            {
+              "text": "Home buyer: priorities before property lists",
+              "y": 3494
+            },
+            {
+              "text": "Home-service estimate: scope, timing, confidence",
+              "y": 3705
+            },
+            {
+              "text": "Comparing options: find the right fit",
+              "y": 3916
+            },
+            {
+              "text": "Researching a purchase: answer the hard questions",
+              "y": 4105
+            },
+            {
+              "text": "A conversation goes quiet: reopen gently",
+              "y": 4316
+            },
+            {
+              "text": "A concern comes up: listen before answering",
+              "y": 4504
+            },
+            {
+              "text": "Ready but unsure: make the choice clearer",
+              "y": 4715
+            },
+            {
+              "text": "Not now: a respectful restart",
+              "y": 4904
+            },
+            {
+              "text": "First conversation: agree on mutual fit",
+              "y": 5093
+            },
+            {
+              "text": "Discovery: connect the problem to value",
+              "y": 5282
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 5932,
+          "headings": [
+            {
+              "text": "Ready-made mixes",
+              "y": 225
+            },
+            {
+              "text": "The Next Verse",
+              "y": 583
+            },
+            {
+              "text": "Something Worth Sharing",
+              "y": 774
+            },
+            {
+              "text": "The Hand-Off",
+              "y": 964
+            },
+            {
+              "text": "Back in Rhythm",
+              "y": 1155
+            },
+            {
+              "text": "Stay in the Mix",
+              "y": 1346
+            },
+            {
+              "text": "The Afterparty",
+              "y": 1537
+            },
+            {
+              "text": "The First Note",
+              "y": 1728
+            },
+            {
+              "text": "Home seller: compare the paths forward",
+              "y": 1919
+            },
+            {
+              "text": "Wellness inquiry: goals, comfort, and fit",
+              "y": 2132
+            },
+            {
+              "text": "Auto repair estimate: understand the hesitation",
+              "y": 2345
+            },
+            {
+              "text": "A considered purchase: price, fit, and aftercare",
+              "y": 2557
+            },
+            {
+              "text": "Vendor shortlist: compare against the real alternatives",
+              "y": 2770
+            },
+            {
+              "text": "After a demo: resolve the buying uncertainty",
+              "y": 2983
+            },
+            {
+              "text": "Professional-services proposal: agree on the next step",
+              "y": 3196
+            },
+            {
+              "text": "Renewal: understand the choices",
+              "y": 3409
+            },
+            {
+              "text": "Home buyer: priorities before property lists",
+              "y": 3600
+            },
+            {
+              "text": "Home-service estimate: scope, timing, confidence",
+              "y": 3813
+            },
+            {
+              "text": "Comparing options: find the right fit",
+              "y": 4026
+            },
+            {
+              "text": "Researching a purchase: answer the hard questions",
+              "y": 4239
+            },
+            {
+              "text": "A conversation goes quiet: reopen gently",
+              "y": 4452
+            },
+            {
+              "text": "A concern comes up: listen before answering",
+              "y": 4665
+            },
+            {
+              "text": "Ready but unsure: make the choice clearer",
+              "y": 4877
+            },
+            {
+              "text": "Not now: a respectful restart",
+              "y": 5090
+            },
+            {
+              "text": "First conversation: agree on mutual fit",
+              "y": 5281
+            },
+            {
+              "text": "Discovery: connect the problem to value",
+              "y": 5494
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "library-new",
+      "path": "/admin/templates/new",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 2439,
+          "headings": [
+            {
+              "text": "Create a library draft",
+              "y": 104
+            },
+            {
+              "text": "Draft details",
+              "y": 220
+            },
+            {
+              "text": "Prepared beats",
+              "y": 1009
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 3009,
+          "headings": [
+            {
+              "text": "Create a library draft",
+              "y": 199
+            },
+            {
+              "text": "Draft details",
+              "y": 317
+            },
+            {
+              "text": "Prepared beats",
+              "y": 1425
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 3109,
+          "headings": [
+            {
+              "text": "Create a library draft",
+              "y": 231
+            },
+            {
+              "text": "Draft details",
+              "y": 349
+            },
+            {
+              "text": "Prepared beats",
+              "y": 1457
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "library-edit",
+      "path": "/admin/templates/plan_home_job_done/edit",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 4630,
+          "headings": [
+            {
+              "text": "Review Job done: thank-you, review, and referral",
+              "y": 104
+            },
+            {
+              "text": "Edit the next draft",
+              "y": 295
+            },
+            {
+              "text": "Draft details",
+              "y": 372
+            },
+            {
+              "text": "Prepared beats",
+              "y": 1160
+            },
+            {
+              "text": "Preview & publish \u00b7 draft 1",
+              "y": 4354
+            },
+            {
+              "text": "Saved draft preview \u00b7 version 1",
+              "y": 4389
+            },
+            {
+              "text": "Version history",
+              "y": 4470
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 5658,
+          "headings": [
+            {
+              "text": "Review Job done: thank-you, review, and referral",
+              "y": 199
+            },
+            {
+              "text": "Edit the next draft",
+              "y": 474
+            },
+            {
+              "text": "Draft details",
+              "y": 542
+            },
+            {
+              "text": "Prepared beats",
+              "y": 1650
+            },
+            {
+              "text": "Preview & publish \u00b7 draft 1",
+              "y": 5430
+            },
+            {
+              "text": "Saved draft preview \u00b7 version 1",
+              "y": 5465
+            },
+            {
+              "text": "Version history",
+              "y": 5530
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 5936,
+          "headings": [
+            {
+              "text": "Review Job done: thank-you, review, and referral",
+              "y": 231
+            },
+            {
+              "text": "Edit the next draft",
+              "y": 535
+            },
+            {
+              "text": "Draft details",
+              "y": 604
+            },
+            {
+              "text": "Prepared beats",
+              "y": 1760
+            },
+            {
+              "text": "Preview & publish \u00b7 draft 1",
+              "y": 5708
+            },
+            {
+              "text": "Saved draft preview \u00b7 version 1",
+              "y": 5743
+            },
+            {
+              "text": "Version history",
+              "y": 5808
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "system-mix",
+      "path": "/admin/system-mix",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 3032,
+          "headings": [
+            {
+              "text": "System Mix invitation wording",
+              "y": 104
+            },
+            {
+              "text": "Release impact",
+              "y": 220
+            },
+            {
+              "text": "Saved draft preview \u00b7 version 1",
+              "y": 577
+            },
+            {
+              "text": "Currently published \u00b7 version 1",
+              "y": 1301
+            },
+            {
+              "text": "Edit the next draft",
+              "y": 1954
+            },
+            {
+              "text": "Version history",
+              "y": 2696
+            },
+            {
+              "text": "Recent publications",
+              "y": 2844
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 3902,
+          "headings": [
+            {
+              "text": "System Mix invitation wording",
+              "y": 199
+            },
+            {
+              "text": "Release impact",
+              "y": 287
+            },
+            {
+              "text": "Saved draft preview \u00b7 version 1",
+              "y": 867
+            },
+            {
+              "text": "Currently published \u00b7 version 1",
+              "y": 1839
+            },
+            {
+              "text": "Edit the next draft",
+              "y": 2740
+            },
+            {
+              "text": "Version history",
+              "y": 3542
+            },
+            {
+              "text": "Recent publications",
+              "y": 3699
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 4275,
+          "headings": [
+            {
+              "text": "System Mix invitation wording",
+              "y": 231
+            },
+            {
+              "text": "Release impact",
+              "y": 319
+            },
+            {
+              "text": "Saved draft preview \u00b7 version 1",
+              "y": 995
+            },
+            {
+              "text": "Currently published \u00b7 version 1",
+              "y": 2090
+            },
+            {
+              "text": "Edit the next draft",
+              "y": 3089
+            },
+            {
+              "text": "Version history",
+              "y": 3915
+            },
+            {
+              "text": "Recent publications",
+              "y": 4071
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "operations",
+      "path": "/admin/operations",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1465,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Operations",
+              "y": 104
+            },
+            {
+              "text": "Data retention",
+              "y": 400
+            },
+            {
+              "text": "Worker heartbeats",
+              "y": 746
+            },
+            {
+              "text": "Background jobs",
+              "y": 1065
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 2496,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Operations",
+              "y": 199
+            },
+            {
+              "text": "Data retention",
+              "y": 1043
+            },
+            {
+              "text": "Worker heartbeats",
+              "y": 1541
+            },
+            {
+              "text": "Background jobs",
+              "y": 1968
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 2653,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Operations",
+              "y": 231
+            },
+            {
+              "text": "Data retention",
+              "y": 1084
+            },
+            {
+              "text": "Worker heartbeats",
+              "y": 1654
+            },
+            {
+              "text": "Background jobs",
+              "y": 2081
+            }
+          ],
+          "overflow": [],
+          "violations": [
+            {
+              "id": "color-contrast",
+              "impact": "serious",
+              "count": 6,
+              "nodes": [
+                {
+                  "target": [
+                    ".critical.admin-metric-card.card:nth-child(1) > span"
+                  ],
+                  "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.71 (foreground color: #b8c0d2, background color: #fff6f7, font size: 9.4pt (12.48px), font weight: bold). Expected contrast ratio of 4.5:1"
+                },
+                {
+                  "target": [
+                    ".critical.admin-metric-card.card:nth-child(1) > small"
+                  ],
+                  "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.71 (foreground color: #b8c0d2, background color: #fff6f7, font size: 10.0pt (13.3333px), font weight: normal). Expected contrast ratio of 4.5:1"
+                },
+                {
+                  "target": [
+                    ".critical.admin-metric-card.card:nth-child(4) > span"
+                  ],
+                  "summary": "Fix any of the following:\n  Element has insufficient color contrast of 1.71 (foreground color: #b8c0d2, background color: #fff6f7, font size: 9.4pt (12.48px), font weight: bold). Expected contrast ratio of 4.5:1"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "alerts",
+      "path": "/admin/operations/alerts",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1291,
+          "headings": [
+            {
+              "text": "Operational alerts",
+              "y": 104
+            },
+            {
+              "text": "How alerts work",
+              "y": 314
+            },
+            {
+              "text": "Web readiness",
+              "y": 599
+            },
+            {
+              "text": "Recent operational notifications",
+              "y": 1087
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1591,
+          "headings": [
+            {
+              "text": "Operational alerts",
+              "y": 199
+            },
+            {
+              "text": "How alerts work",
+              "y": 459
+            },
+            {
+              "text": "Web readiness",
+              "y": 895
+            },
+            {
+              "text": "Recent operational notifications",
+              "y": 1419
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 1817,
+          "headings": [
+            {
+              "text": "Operational alerts",
+              "y": 231
+            },
+            {
+              "text": "How alerts work",
+              "y": 539
+            },
+            {
+              "text": "Web readiness",
+              "y": 1047
+            },
+            {
+              "text": "Recent operational notifications",
+              "y": 1595
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "email",
+      "path": "/admin/email",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1749,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Email",
+              "y": 104
+            },
+            {
+              "text": "Sending allowance",
+              "y": 220
+            },
+            {
+              "text": "Delivery health",
+              "y": 828
+            },
+            {
+              "text": "Recent provider events",
+              "y": 1474
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 2314,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Email",
+              "y": 207
+            },
+            {
+              "text": "Sending allowance",
+              "y": 274
+            },
+            {
+              "text": "Delivery health",
+              "y": 1105
+            },
+            {
+              "text": "Recent provider events",
+              "y": 1951
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 2610,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Email",
+              "y": 239
+            },
+            {
+              "text": "Sending allowance",
+              "y": 306
+            },
+            {
+              "text": "Delivery health",
+              "y": 1281
+            },
+            {
+              "text": "Recent provider events",
+              "y": 2223
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "recovery",
+      "path": "/admin/email/recovery",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1486,
+          "headings": [
+            {
+              "text": "Email recovery",
+              "y": 104
+            },
+            {
+              "text": "Invitation receipts",
+              "y": 220
+            },
+            {
+              "text": "morgan@audit.example.test",
+              "y": 879
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1766,
+          "headings": [
+            {
+              "text": "Email recovery",
+              "y": 199
+            },
+            {
+              "text": "Invitation receipts",
+              "y": 317
+            },
+            {
+              "text": "morgan@audit.example.test",
+              "y": 1139
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 1930,
+          "headings": [
+            {
+              "text": "Email recovery",
+              "y": 231
+            },
+            {
+              "text": "Invitation receipts",
+              "y": 349
+            },
+            {
+              "text": "morgan@audit.example.test",
+              "y": 1267
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "suppressions",
+      "path": "/admin/email/suppressions",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1074,
+          "headings": [
+            {
+              "text": "Recipient suppression",
+              "y": 104
+            },
+            {
+              "text": "Find a blocked recipient",
+              "y": 220
+            },
+            {
+              "text": "morgan@audit.example.test",
+              "y": 565
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1000,
+          "headings": [
+            {
+              "text": "Recipient suppression",
+              "y": 207
+            },
+            {
+              "text": "Find a blocked recipient",
+              "y": 274
+            },
+            {
+              "text": "morgan@audit.example.test",
+              "y": 678
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 1006,
+          "headings": [
+            {
+              "text": "Recipient suppression",
+              "y": 231
+            },
+            {
+              "text": "Find a blocked recipient",
+              "y": 319
+            },
+            {
+              "text": "morgan@audit.example.test",
+              "y": 747
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "suppression-detail",
+      "path": "/admin/email/suppressions/cmu4hfmee003bezl3m7lqhwi5",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1756,
+          "headings": [
+            {
+              "text": "Suppression review",
+              "y": 104
+            },
+            {
+              "text": "Recorded blocks",
+              "y": 220
+            },
+            {
+              "text": "Clear 1 provider block",
+              "y": 434
+            },
+            {
+              "text": "Clearance history",
+              "y": 1481
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 2096,
+          "headings": [
+            {
+              "text": "Suppression review",
+              "y": 199
+            },
+            {
+              "text": "Recorded blocks",
+              "y": 317
+            },
+            {
+              "text": "Clear 1 provider block",
+              "y": 515
+            },
+            {
+              "text": "Clearance history",
+              "y": 1829
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 2288,
+          "headings": [
+            {
+              "text": "Suppression review",
+              "y": 231
+            },
+            {
+              "text": "Recorded blocks",
+              "y": 349
+            },
+            {
+              "text": "Clear 1 provider block",
+              "y": 571
+            },
+            {
+              "text": "Clearance history",
+              "y": 1997
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "audit",
+      "path": "/admin/audit",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1318,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Audit",
+              "y": 104
+            },
+            {
+              "text": "Platform events",
+              "y": 404
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1861,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Audit",
+              "y": 207
+            },
+            {
+              "text": "Platform events",
+              "y": 626
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 2061,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Audit",
+              "y": 239
+            },
+            {
+              "text": "Platform events",
+              "y": 682
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "team",
+      "path": "/admin/team",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 2764,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Team",
+              "y": 104
+            },
+            {
+              "text": "Invite a new staff account",
+              "y": 220
+            },
+            {
+              "text": "Staff invitation history \u00b7 1",
+              "y": 989
+            },
+            {
+              "text": "Add staff access",
+              "y": 1745
+            },
+            {
+              "text": "Audit Owner",
+              "y": 2353
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 3334,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Team",
+              "y": 207
+            },
+            {
+              "text": "Invite a new staff account",
+              "y": 274
+            },
+            {
+              "text": "Staff invitation history \u00b7 1",
+              "y": 1174
+            },
+            {
+              "text": "Add staff access",
+              "y": 1974
+            },
+            {
+              "text": "Audit Owner",
+              "y": 2642
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 3658,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Team",
+              "y": 239
+            },
+            {
+              "text": "Invite a new staff account",
+              "y": 306
+            },
+            {
+              "text": "Staff invitation history \u00b7 1",
+              "y": 1278
+            },
+            {
+              "text": "Add staff access",
+              "y": 2154
+            },
+            {
+              "text": "Audit Owner",
+              "y": 2846
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "admission",
+      "path": "/admin/admission",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 2078,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Admission",
+              "y": 104
+            },
+            {
+              "text": "Current reservations",
+              "y": 360
+            },
+            {
+              "text": "Limits and pauses",
+              "y": 761
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 2839,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Admission",
+              "y": 207
+            },
+            {
+              "text": "Current reservations",
+              "y": 534
+            },
+            {
+              "text": "Limits and pauses",
+              "y": 1206
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 3227,
+          "headings": [
+            {
+              "text": "Admin \u00b7 Admission",
+              "y": 239
+            },
+            {
+              "text": "Current reservations",
+              "y": 614
+            },
+            {
+              "text": "Limits and pauses",
+              "y": 1406
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "settings",
+      "path": "/admin/settings",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1074,
+          "headings": [
+            {
+              "text": "Admin \u00b7 System Settings",
+              "y": 104
+            },
+            {
+              "text": "Mixes",
+              "y": 319
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1861,
+          "headings": [
+            {
+              "text": "Admin \u00b7 System Settings",
+              "y": 207
+            },
+            {
+              "text": "Mixes",
+              "y": 444
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 1976,
+          "headings": [
+            {
+              "text": "Admin \u00b7 System Settings",
+              "y": 231
+            },
+            {
+              "text": "Mixes",
+              "y": 513
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "reports",
+      "path": "/admin/reports",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 4722,
+          "headings": [
+            {
+              "text": "Reports",
+              "y": 104
+            },
+            {
+              "text": "Report dates",
+              "y": 220
+            },
+            {
+              "text": "Export this date range",
+              "y": 587
+            },
+            {
+              "text": "Waitlist",
+              "y": 811
+            },
+            {
+              "text": "New account activation",
+              "y": 1239
+            },
+            {
+              "text": "Member activity and return visits",
+              "y": 1750
+            },
+            {
+              "text": "Invitation conversion",
+              "y": 2178
+            },
+            {
+              "text": "Waitlist waves",
+              "y": 2679
+            },
+            {
+              "text": "Ready-made mix use",
+              "y": 2916
+            },
+            {
+              "text": "Operations and usage at observation",
+              "y": 3272
+            },
+            {
+              "text": "Daily activity",
+              "y": 3804
+            },
+            {
+              "text": "How to read these numbers",
+              "y": 4255
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 7860,
+          "headings": [
+            {
+              "text": "Reports",
+              "y": 207
+            },
+            {
+              "text": "Report dates",
+              "y": 274
+            },
+            {
+              "text": "Export this date range",
+              "y": 798
+            },
+            {
+              "text": "Waitlist",
+              "y": 1083
+            },
+            {
+              "text": "New account activation",
+              "y": 1960
+            },
+            {
+              "text": "Member activity and return visits",
+              "y": 3005
+            },
+            {
+              "text": "Invitation conversion",
+              "y": 3800
+            },
+            {
+              "text": "Waitlist waves",
+              "y": 4525
+            },
+            {
+              "text": "Ready-made mix use",
+              "y": 4818
+            },
+            {
+              "text": "Operations and usage at observation",
+              "y": 5302
+            },
+            {
+              "text": "Daily activity",
+              "y": 6633
+            },
+            {
+              "text": "How to read these numbers",
+              "y": 7089
+            }
+          ],
+          "overflow": [
+            {
+              "tag": "TABLE",
+              "cls": "AdminReports_table__VbGH6",
+              "text": "Invitation cohorts by sourceSourceIssuedJoinedJoin rateActivatedInviti"
+            },
+            {
+              "tag": "CAPTION",
+              "cls": "",
+              "text": "Invitation cohorts by source"
+            },
+            {
+              "tag": "THEAD",
+              "cls": "",
+              "text": "SourceIssuedJoinedJoin rateActivatedInviting membersMedian time to joi"
+            },
+            {
+              "tag": "TR",
+              "cls": "",
+              "text": "SourceIssuedJoinedJoin rateActivatedInviting membersMedian time to joi"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Activated"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Inviting members"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Median time to join"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Provider accepted"
+            }
+          ],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 8882,
+          "headings": [
+            {
+              "text": "Reports",
+              "y": 239
+            },
+            {
+              "text": "Report dates",
+              "y": 306
+            },
+            {
+              "text": "Export this date range",
+              "y": 1002
+            },
+            {
+              "text": "Waitlist",
+              "y": 1311
+            },
+            {
+              "text": "New account activation",
+              "y": 2236
+            },
+            {
+              "text": "Member activity and return visits",
+              "y": 3329
+            },
+            {
+              "text": "Invitation conversion",
+              "y": 4246
+            },
+            {
+              "text": "Waitlist waves",
+              "y": 5068
+            },
+            {
+              "text": "Ready-made mix use",
+              "y": 5408
+            },
+            {
+              "text": "Operations and usage at observation",
+              "y": 5988
+            },
+            {
+              "text": "Daily activity",
+              "y": 7418
+            },
+            {
+              "text": "How to read these numbers",
+              "y": 7895
+            }
+          ],
+          "overflow": [
+            {
+              "tag": "TABLE",
+              "cls": "AdminReports_table__VbGH6",
+              "text": "Invitation cohorts by sourceSourceIssuedJoinedJoin rateActivatedInviti"
+            },
+            {
+              "tag": "CAPTION",
+              "cls": "",
+              "text": "Invitation cohorts by source"
+            },
+            {
+              "tag": "THEAD",
+              "cls": "",
+              "text": "SourceIssuedJoinedJoin rateActivatedInviting membersMedian time to joi"
+            },
+            {
+              "tag": "TR",
+              "cls": "",
+              "text": "SourceIssuedJoinedJoin rateActivatedInviting membersMedian time to joi"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Join rate"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Activated"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Inviting members"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Median time to join"
+            }
+          ],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "report-history",
+      "path": "/admin/reports/history",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1133,
+          "headings": [
+            {
+              "text": "Saved daily reports",
+              "y": 104
+            },
+            {
+              "text": "History dates",
+              "y": 244
+            },
+            {
+              "text": "Database size history",
+              "y": 627
+            },
+            {
+              "text": "Daily activity reports",
+              "y": 863
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1623,
+          "headings": [
+            {
+              "text": "Saved daily reports",
+              "y": 207
+            },
+            {
+              "text": "History dates",
+              "y": 330
+            },
+            {
+              "text": "Database size history",
+              "y": 1030
+            },
+            {
+              "text": "Daily activity reports",
+              "y": 1323
+            }
+          ],
+          "overflow": [
+            {
+              "tag": "TABLE",
+              "cls": "AdminReports_table__VbGH6",
+              "text": "UTC activity dates and observed valuesActivity dayStatusObserved at (U"
+            },
+            {
+              "tag": "CAPTION",
+              "cls": "",
+              "text": "UTC activity dates and observed values"
+            },
+            {
+              "tag": "THEAD",
+              "cls": "",
+              "text": "Activity dayStatusObserved at (UTC)New accountsActive membersCompleted"
+            },
+            {
+              "tag": "TR",
+              "cls": "",
+              "text": "Activity dayStatusObserved at (UTC)New accountsActive membersCompleted"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "New accounts"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Active members"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Completed"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Email attempts"
+            }
+          ],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 1867,
+          "headings": [
+            {
+              "text": "Saved daily reports",
+              "y": 239
+            },
+            {
+              "text": "History dates",
+              "y": 394
+            },
+            {
+              "text": "Database size history",
+              "y": 1250
+            },
+            {
+              "text": "Daily activity reports",
+              "y": 1567
+            }
+          ],
+          "overflow": [
+            {
+              "tag": "TABLE",
+              "cls": "AdminReports_table__VbGH6",
+              "text": "UTC activity dates and observed valuesActivity dayStatusObserved at (U"
+            },
+            {
+              "tag": "CAPTION",
+              "cls": "",
+              "text": "UTC activity dates and observed values"
+            },
+            {
+              "tag": "THEAD",
+              "cls": "",
+              "text": "Activity dayStatusObserved at (UTC)New accountsActive membersCompleted"
+            },
+            {
+              "tag": "TR",
+              "cls": "",
+              "text": "Activity dayStatusObserved at (UTC)New accountsActive membersCompleted"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Observed at (UTC)"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "New accounts"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Active members"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Completed"
+            }
+          ],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "report-detail",
+      "path": "/admin/reports/history/cmu4hfmgi003fezl3t8egimdt",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 4090,
+          "headings": [
+            {
+              "text": "Saved daily report \u00b7 2026-09-16",
+              "y": 104
+            },
+            {
+              "text": "Waitlist",
+              "y": 324
+            },
+            {
+              "text": "New account activation",
+              "y": 752
+            },
+            {
+              "text": "Member activity and return visits",
+              "y": 1263
+            },
+            {
+              "text": "Invitation conversion",
+              "y": 1691
+            },
+            {
+              "text": "Waitlist waves",
+              "y": 2048
+            },
+            {
+              "text": "Ready-made mix use",
+              "y": 2284
+            },
+            {
+              "text": "Operations and usage at observation",
+              "y": 2640
+            },
+            {
+              "text": "Daily activity",
+              "y": 3172
+            },
+            {
+              "text": "How to read these numbers",
+              "y": 3623
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 7152,
+          "headings": [
+            {
+              "text": "Saved daily report \u00b7 2026-09-16",
+              "y": 199
+            },
+            {
+              "text": "Waitlist",
+              "y": 499
+            },
+            {
+              "text": "New account activation",
+              "y": 1377
+            },
+            {
+              "text": "Member activity and return visits",
+              "y": 2421
+            },
+            {
+              "text": "Invitation conversion",
+              "y": 3216
+            },
+            {
+              "text": "Waitlist waves",
+              "y": 3796
+            },
+            {
+              "text": "Ready-made mix use",
+              "y": 4089
+            },
+            {
+              "text": "Operations and usage at observation",
+              "y": 4573
+            },
+            {
+              "text": "Daily activity",
+              "y": 5905
+            },
+            {
+              "text": "How to read these numbers",
+              "y": 6381
+            }
+          ],
+          "overflow": [
+            {
+              "tag": "TABLE",
+              "cls": "AdminReports_table__VbGH6",
+              "text": "Daily totals in UTCDayNew accountsRequestsInvitations issuedInvitation"
+            },
+            {
+              "tag": "CAPTION",
+              "cls": "",
+              "text": "Daily totals in UTC"
+            },
+            {
+              "tag": "THEAD",
+              "cls": "",
+              "text": "DayNew accountsRequestsInvitations issuedInvitations acceptedActive me"
+            },
+            {
+              "tag": "TR",
+              "cls": "",
+              "text": "DayNew accountsRequestsInvitations issuedInvitations acceptedActive me"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Invitations issued"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Invitations accepted"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Active members"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Completed"
+            }
+          ],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 8053,
+          "headings": [
+            {
+              "text": "Saved daily report \u00b7 2026-09-16",
+              "y": 231
+            },
+            {
+              "text": "Waitlist",
+              "y": 603
+            },
+            {
+              "text": "New account activation",
+              "y": 1529
+            },
+            {
+              "text": "Member activity and return visits",
+              "y": 2621
+            },
+            {
+              "text": "Invitation conversion",
+              "y": 3538
+            },
+            {
+              "text": "Waitlist waves",
+              "y": 4239
+            },
+            {
+              "text": "Ready-made mix use",
+              "y": 4579
+            },
+            {
+              "text": "Operations and usage at observation",
+              "y": 5159
+            },
+            {
+              "text": "Daily activity",
+              "y": 6589
+            },
+            {
+              "text": "How to read these numbers",
+              "y": 7066
+            }
+          ],
+          "overflow": [
+            {
+              "tag": "TABLE",
+              "cls": "AdminReports_table__VbGH6",
+              "text": "Daily totals in UTCDayNew accountsRequestsInvitations issuedInvitation"
+            },
+            {
+              "tag": "CAPTION",
+              "cls": "",
+              "text": "Daily totals in UTC"
+            },
+            {
+              "tag": "THEAD",
+              "cls": "",
+              "text": "DayNew accountsRequestsInvitations issuedInvitations acceptedActive me"
+            },
+            {
+              "tag": "TR",
+              "cls": "",
+              "text": "DayNew accountsRequestsInvitations issuedInvitations acceptedActive me"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Requests"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Invitations issued"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Invitations accepted"
+            },
+            {
+              "tag": "TH",
+              "cls": "",
+              "text": "Active members"
+            }
+          ],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "exports",
+      "path": "/admin/reports/exports",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1074,
+          "headings": [
+            {
+              "text": "Report exports",
+              "y": 104
+            },
+            {
+              "text": "Available requests",
+              "y": 244
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1029,
+          "headings": [
+            {
+              "text": "Report exports",
+              "y": 207
+            },
+            {
+              "text": "Available requests",
+              "y": 330
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 1165,
+          "headings": [
+            {
+              "text": "Report exports",
+              "y": 239
+            },
+            {
+              "text": "Available requests",
+              "y": 394
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "access-denied",
+      "path": "/admin/access-denied",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1074,
+          "headings": [
+            {
+              "text": "This area needs another permission",
+              "y": 125
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1000,
+          "headings": [
+            {
+              "text": "This area needs another permission",
+              "y": 194
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 1000,
+          "headings": [
+            {
+              "text": "This area needs another permission",
+              "y": 226
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "security",
+      "path": "/account/admin-mfa",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1000,
+          "headings": [
+            {
+              "text": "Administrator MFA",
+              "y": 88
+            },
+            {
+              "text": "This session is verified",
+              "y": 204
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1000,
+          "headings": [
+            {
+              "text": "Administrator MFA",
+              "y": 97
+            },
+            {
+              "text": "This session is verified",
+              "y": 163
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 1000,
+          "headings": [
+            {
+              "text": "Administrator MFA",
+              "y": 129
+            },
+            {
+              "text": "This session is verified",
+              "y": 195
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    },
+    {
+      "name": "security-verify",
+      "path": "/account/admin-mfa?verify=1",
+      "status": 200,
+      "variants": [
+        {
+          "width": 1440,
+          "theme": "light",
+          "scrollWidth": 1440,
+          "height": 1000,
+          "headings": [
+            {
+              "text": "Administrator verification",
+              "y": 88
+            },
+            {
+              "text": "Verify administrator access",
+              "y": 204
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 390,
+          "theme": "light",
+          "scrollWidth": 390,
+          "height": 1000,
+          "headings": [
+            {
+              "text": "Administrator verification",
+              "y": 97
+            },
+            {
+              "text": "Verify administrator access",
+              "y": 163
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        },
+        {
+          "width": 320,
+          "theme": "dark",
+          "scrollWidth": 320,
+          "height": 1000,
+          "headings": [
+            {
+              "text": "Administrator verification",
+              "y": 120
+            },
+            {
+              "text": "Verify administrator access",
+              "y": 208
+            }
+          ],
+          "overflow": [],
+          "violations": []
+        }
+      ]
+    }
+  ],
+  "workflowChecks": [
+    {
+      "name": "support-truncation",
+      "total": 103,
+      "rendered": 100,
+      "pagination": 0,
+      "misleadingStatusCount": 25
+    },
+    {
+      "name": "support-draft-triage",
+      "draftAfterSave": ""
+    },
+    {
+      "name": "library-disclosure-jump",
+      "openBefore": null,
+      "openAfter": null,
+      "previewVisible": false
+    },
+    {
+      "name": "settings-validation",
+      "genericError": true,
+      "serverActionStatus": 500,
+      "note": "Unsupported option rejected through thrown error; generic error heading observed. HTTP status also confirmed in local server log."
+    },
+    {
+      "name": "support-role-dead-link",
+      "path": "/admin/access-denied"
+    },
+    {
+      "name": "mfa-staff-return",
+      "path": "/register",
+      "title": "An invitation from someone you know"
+    },
+    {
+      "name": "library-validation-draft",
+      "alert": "Date-based mixes must identify the saved date that starts them.",
+      "titleAfter": "",
+      "descriptionAfter": ""
+    },
+    {
+      "name": "invitation-filter-return",
+      "path": "/admin/access",
+      "query": "?done=revoke"
+    },
+    {
+      "name": "account-sheet-keyboard",
+      "opened": true,
+      "closed": true,
+      "focusRestored": true
+    },
+    {
+      "name": "tablet-layouts",
+      "rows": [
+        {
+          "path": "/admin/support",
+          "width": 768,
+          "scrollWidth": 768
+        },
+        {
+          "path": "/admin/support",
+          "width": 1080,
+          "scrollWidth": 1080
+        },
+        {
+          "path": "/admin/users",
+          "width": 768,
+          "scrollWidth": 768
+        },
+        {
+          "path": "/admin/users",
+          "width": 1080,
+          "scrollWidth": 1080
+        },
+        {
+          "path": "/admin/audit",
+          "width": 768,
+          "scrollWidth": 768
+        },
+        {
+          "path": "/admin/audit",
+          "width": 1080,
+          "scrollWidth": 1080
+        },
+        {
+          "path": "/admin/operations",
+          "width": 768,
+          "scrollWidth": 768
+        },
+        {
+          "path": "/admin/operations",
+          "width": 1080,
+          "scrollWidth": 1080
+        },
+        {
+          "path": "/admin/team",
+          "width": 768,
+          "scrollWidth": 768
+        },
+        {
+          "path": "/admin/team",
+          "width": 1080,
+          "scrollWidth": 1080
+        }
+      ]
+    },
+    {
+      "name": "desktop-dark-contrast",
+      "rows": [
+        {
+          "name": "support-detail",
+          "violations": [
+            {
+              "id": "color-contrast",
+              "count": 1
+            }
+          ]
+        },
+        {
+          "name": "operations",
+          "violations": [
+            {
+              "id": "color-contrast",
+              "count": 6
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    "reports-1440.png",
+    "waitlist-1440.png",
+    "support-detail-390.png",
+    "library-new-1440.png",
+    "system-mix-1440.png",
+    "operations-dark-1440.png",
+    "team-1440.png"
+  ]
+}

@@ -8,13 +8,16 @@ describe("best-in-class product workflows", () => {
     const schema = read("prisma/product-platform.prisma");
     const settings = read("src/app/(app)/settings/sending/page.tsx");
     const delivery = read("src/lib/automatic-delivery.ts");
+    const sendingRule = read("src/lib/automatic-delivery-window.ts");
     const worker = read("src/worker/index.ts");
     expect(schema).toContain("enabled             Boolean  @default(false)");
     expect(schema).toContain("reviewWindowMinutes Int      @default(30)");
     expect(settings).toContain("automationConsent");
     expect(settings).toContain("without a final tap");
     expect(delivery).toContain("It was not retried to prevent a duplicate message");
-    expect(delivery).toContain("isQuietTime");
+    // Quiet hours live in the one sending rule the worker, Today and the settings preview share.
+    expect(delivery).toContain("automaticSendingOpensAt");
+    expect(sendingRule).toContain("isQuietTime");
     expect(worker).toContain("runAutomaticDeliveries");
   });
 

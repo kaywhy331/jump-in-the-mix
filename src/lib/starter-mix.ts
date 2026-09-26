@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { starterPlanForBusinessType, starterPlanForOnboarding } from "@/lib/vertical-plan-library";
+import { starterPlanForBusinessType, starterPlanForMarketingScenario, starterPlanForOnboarding } from "@/lib/vertical-plan-library";
 
-export async function ensureStarterMix(workspaceId: string, businessType?: string | null, reason?: string) {
-  const draft = reason ? starterPlanForOnboarding(businessType, reason) : starterPlanForBusinessType(businessType);
+export async function ensureStarterMix(workspaceId: string, businessType?: string | null, reason?: string, marketingScenario?: string | null) {
+  const draft = marketingScenario ? starterPlanForMarketingScenario(marketingScenario) ?? starterPlanForOnboarding(businessType, reason ?? "General follow-up") : reason ? starterPlanForOnboarding(businessType, reason) : starterPlanForBusinessType(businessType);
   const existing = await prisma.mix.findFirst({
-    where: { workspaceId, source: "STARTER", status: { not: "ARCHIVED" }, ...(reason ? { name: draft.title } : {}) },
+    where: { workspaceId, source: "STARTER", status: { not: "ARCHIVED" }, ...((reason || marketingScenario) ? { name: draft.title } : {}) },
     orderBy: { createdAt: "asc" }
   });
   if (existing) return existing;

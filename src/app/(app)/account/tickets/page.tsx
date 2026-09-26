@@ -23,7 +23,7 @@ export default async function SupportConversationsPage({ searchParams }: { searc
   const page = Math.min(pages, Number.isSafeInteger(requested) && requested > 0 ? requested : 1);
   const tickets = await prisma.supportTicket.findMany({ where, orderBy: [{ lastActivityAt: "desc" }, { id: "desc" }], skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE, include: { _count: { select: { messages: true } } } });
 
-  return <div className="page conversations-page">
+  return <div className="page page--content conversations-page">
     <header className="page-header"><div><h1>Support conversations</h1><p>Your questions, replies, and next steps in one place.</p></div><Link className="button primary" href="/help#contact-support">New conversation</Link></header>
     <p>{SUPPORT_RETENTION_NOTICE}</p>
     {tickets.length ? <div className="support-ticket-list">{tickets.map(ticket => <Link className="support-ticket-row card" href={`/account/tickets/${ticket.id}`} key={ticket.id}>

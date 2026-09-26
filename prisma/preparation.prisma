@@ -1,0 +1,84 @@
+// Owner-prepared follow-up content. Drafts are the owner's edits to a follow-up's message in the
+// same double-brace token form the step editor validates; the rendered text is a projection over
+// the bound contact and business context and is never stored here. Attempts (the frozen content
+// actually handed to the phone) arrive in a later migration.
+
+enum PreparationFamily {
+  TEXT // SMS and WhatsApp
+  EMAIL
+  CALL // phone call and voicemail
+}
+
+model JumpDraft {
+  jumpId        String
+  family        PreparationFamily
+  workspaceId   String
+  subject       String?
+  body          String?
+  script        String?
+  // The step version the draft started from, so a later template release can be noticed.
+  stepVersionId String
+  // Optimistic revision: a save carries the revision it last saw and a stale save is refused.
+  revision      Int               @default(1)
+  // Template tokens this draft no longer carries, with the value each resolved to when it was
+  // removed, so a later change to that detail raises a review notice instead of a rewrite.
+  detached      Json?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  jump          Jump              @relation(fields: [jumpId], references: [id], onDelete: Cascade)
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([jumpId, family])
+  @@index([workspaceId, updatedAt])
+}
+
+// One row per handoff gesture: the exact content, channel and recipient handed to the phone.
+// Created once from a client-generated id; a retry with the same payload is acknowledged, a retry
+// with a different payload is refused, and nothing is ever merged. An outcome may attach its
+// activity reference and recorded time, and changes nothing else on the row. The recipient is
+// stored encrypted beside a normalized hash and minimized after the retention window.
+model JumpAttempt {
+  id                  String            @id
+  workspaceId         String
+  jumpId              String
+  contactId           String
+  channel             Channel
+  family              PreparationFamily
+  recipientCiphertext String
+  recipientHash       String
+  subject             String?
+  body                String?
+  script              String?
+  draftRevision       Int?
+  stepVersionId       String
+  contextVersions     Json
+  payloadHash         String
+  openedAt            DateTime
+  createdAt           DateTime          @default(now())
+  outcomeActivityId   String?
+  recordedAt          DateTime?
+  recipientRetiredAt  DateTime?
+  jump                Jump              @relation(fields: [jumpId], references: [id], onDelete: Cascade)
+  workspace           Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([jumpId, createdAt])
+  @@index([workspaceId, createdAt])
+}
+
+// Slice 3: authored alternatives for one beat's message. The step version's own subject, body
+// and script stay the plan's primary channel; a variant adds wording for another family so the
+// owner can switch channels on Today without another scheduled action. A TEXT variant carries a
+// body, an EMAIL variant a subject and body, a CALL variant only private call notes: outward
+// wording never comes from a call variant and private notes never leak into a text or email.
+model StepVersionVariant {
+  stepVersionId String
+  family        PreparationFamily
+  subject       String?
+  body          String?
+  script        String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  stepVersion   StepVersion       @relation(fields: [stepVersionId], references: [id], onDelete: Cascade)
+
+  @@id([stepVersionId, family])
+}

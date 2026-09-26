@@ -2,6 +2,8 @@ enum JourneyEventType {
   CONTACT_RECEIVED
   CONVERSATION_STARTED
   MEETING_SCHEDULED
+  MEETING_COMPLETED
+  MEETING_NO_SHOW
   SALE_CONFIRMED
   WORK_COMPLETED
   PLAN_COMPLETED
@@ -158,6 +160,15 @@ model CalendarEntry {
   startsAt     DateTime
   endsAt       DateTime
   timezone     String
+  // Typed details a bound plan's messages can use: where to meet, a link to join, and anything
+  // the owner wants the customer reminded of. Plain text and one https link, never files.
+  location     String?
+  link         String?
+  details      String?
+  // What happened at the visit, recorded by the owner: COMPLETED or NO_SHOW. A missed visit holds
+  // its bound follow-ups; a completed one lets the beats before it lapse and the ones after it run.
+  outcome      String?
+  outcomeAt    DateTime?
   version      Int                 @default(1)
   updatedAt    DateTime            @updatedAt
   canceledAt   DateTime?
@@ -165,6 +176,7 @@ model CalendarEntry {
   workspace    Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact      Contact?            @relation(fields: [contactId], references: [id], onDelete: Cascade)
   connection   CalendarConnection? @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  bindings     AppointmentBinding[]
 
   @@unique([connectionId, externalUid])
   @@index([workspaceId, startsAt, endsAt])

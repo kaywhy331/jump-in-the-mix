@@ -1,6 +1,6 @@
 # Jump in the Mix
 
-Jump in the Mix is a phone-first follow-up CRM for owner-operated small businesses. It prepares the texts, calls, and emails that keep estimates moving, customers cared for, and a business top of mind for repeat work and referrals.
+Jump in the Mix is a client follow-up app for independent professionals and owner-operated small businesses: contractors, consultants, real estate agents, photographers and recruiters. It organizes contacts into reusable follow-up plans called Mixes; each Beat is a scheduled text, call or email step with a draft ready to make your own. You review and send each message yourself, and the app does not read replies. The public site's positioning is recorded in [docs/SEARCH_STRATEGY_IMPLEMENTATION_2026-09-12.md](docs/SEARCH_STRATEGY_IMPLEMENTATION_2026-09-12.md).
 
 The primary product is a hosted free beta. A Docker-based, single-owner edition remains available as a secondary privacy-oriented option. The active product contract is [docs/CANONICAL_PRODUCT_DECISIONS.md](docs/CANONICAL_PRODUCT_DECISIONS.md).
 

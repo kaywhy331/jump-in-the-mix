@@ -22,7 +22,7 @@ export function saveCaptureDraft(scope: string | null, draft: QuickAddInterpreta
   } catch { return null; }
 }
 
-export function takeCaptureDraft(scope: string | null, id: string, now = Date.now()): QuickAddInterpretation | null {
+export function takeCaptureDraft(scope: string | null, id: string, now = Date.now(), consume = true): QuickAddInterpretation | null {
   if (!scope || !validId(id)) return null;
   try {
     const key = privateStorageKey(scope, "capture-draft");
@@ -33,7 +33,7 @@ export function takeCaptureDraft(scope: string | null, id: string, now = Date.no
     const entry = record as Record<string, unknown>;
     if (typeof entry.expiresAt !== "number" || entry.expiresAt <= now || entry.expiresAt > now + lifetime || !validDraft(entry.draft)) { window.sessionStorage.removeItem(key); return null; }
     if (entry.id !== id) return null;
-    window.sessionStorage.removeItem(key);
+    if (consume) window.sessionStorage.removeItem(key);
     return entry.draft;
   } catch { return null; }
 }

@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { storedPhoneDialTarget } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
 
 export const TODAY_PAGE_SIZE = 30;
@@ -31,15 +32,55 @@ export function todayCursor(item: { id: string; status: string; scheduledAt: Dat
 function withinGroup(cursor: Cursor, direction: Direction): Prisma.JumpWhereInput {
   const comparison = direction === "after" ? "gt" : "lt";
   const scheduledAt = new Date(cursor.scheduledAt);
-  return { OR: [{ scheduledAt: { [comparison]: scheduledAt } }, { scheduledAt, id: { [comparison]: cursor.id } }] };
+  // The OR alone is only a row filter, so an ordered scan walks every record on
+  // the far side of the cursor before it can stop; the empty first/last-page
+  // probe then reads a whole populated history group. The inclusive bound is
+  // implied by the OR and lets the planner start the scan at the cursor.
+  return { AND: [
+    { scheduledAt: { [direction === "after" ? "gte" : "lte"]: scheduledAt } },
+    { OR: [{ scheduledAt: { [comparison]: scheduledAt } }, { scheduledAt, id: { [comparison]: cursor.id } }] }
+  ] };
 }
 
 const select = {
-  id: true, contactId: true, mixId: true, scheduledAt: true, status: true, updatedAt: true, reason: true, renderedSnapshot: true,
-  contact: { select: { displayName: true, emails: { select: { email: true, isPrimary: true } }, phones: { select: { phone: true, isPrimary: true } } } },
+  appointmentBinding: { select: { automaticDelivery: true } },
+  accessInvite: { select: { recipientEmail: true, recipientPhone: true, acceptedAt: true, revokedAt: true } },
+  manualOnly: true, id: true, contactId: true, mixId: true, mixStepId: true, jumpDateId: true, appointmentBindingId: true,
+  mixStep: { select: { dayOffset: true, plannedAt: true } },
+  scheduledAt: true, baseScheduledAt: true, createdAt: true, status: true, updatedAt: true, reason: true, renderedSnapshot: true, templateSnapshot: true, stepVersionId: true, completedAt: true, completionMethod: true, selectedFamily: true,
+  // The contact fields the message tokens resolve from, so an owner's draft renders on the card.
+  contact: { select: {
+    journey: { select: { stage: { select: { name: true } } } },
+    jumps: { where: { status: "PENDING" }, orderBy: [{ scheduledAt: "asc" }, { id: "asc" }], take: 6, select: {
+      id: true, scheduledAt: true, reason: true, mixId: true, mixStepId: true, jumpDateId: true,
+      appointmentBindingId: true, templateSnapshot: true, mixStep: { select: { dayOffset: true, plannedAt: true } }
+    } },
+    displayName: true, updatedAt: true, firstName: true, lastName: true, company: true, publicNotes: true, privateNotes: true,
+    emails: { select: { email: true, isPrimary: true } }, phones: { select: { phone: true, normalized: true, isPrimary: true } },
+    addresses: { select: { street1: true, street2: true, city: true, state: true, postalCode: true, country: true, isPrimary: true } },
+    customFieldValues: { select: { value: true, definition: { select: { key: true } } } },
+    // The person's stated preference decides whether a text alternative goes by WhatsApp; it is never inferred.
+    relationshipState: { select: { preferredChannel: true } }
+  } },
   mix: { select: { name: true, source: true } },
   stepVersion: { select: { stepTemplate: { select: { channel: true } } } }
 } satisfies Prisma.JumpSelect;
+
+/**
+ * The number a follow-up's text or call goes to (an invitation's own number first, then the person's
+ * primary number, then their first), and the E.164 form to dial it with. The dial target is computed
+ * here on the server from the stored canonical key, so the browser never needs the phone metadata; it
+ * is null when the number has no full international form (see `phoneDialTarget`).
+ */
+export function followUpPhone(
+  item: { accessInvite: { recipientPhone: string | null } | null; contact: { phones: Array<{ phone: string; normalized: string; isPrimary: boolean }> } },
+  region: string
+): { phone: string | null; dialTarget: string | null } {
+  const invited = item.accessInvite?.recipientPhone;
+  if (invited) return { phone: invited, dialTarget: storedPhoneDialTarget({ phone: invited, normalized: invited }, region) };
+  const row = item.contact.phones.find((phone) => phone.isPrimary) ?? item.contact.phones[0];
+  return row ? { phone: row.phone, dialTarget: storedPhoneDialTarget(row, region) } : { phone: null, dialTarget: null };
+}
 
 /** Cursor values describe an ordering position, never a workspace or authority.
  * Open work precedes completed history; both groups sort by time and stable ID.

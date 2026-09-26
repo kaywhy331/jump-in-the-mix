@@ -37,6 +37,9 @@ model AuthOAuthState {
   expiresAt    DateTime
   usedAt       DateTime?
   createdAt    DateTime     @default(now())
+  inviteTokenHash String? // hashAuthToken(invitation token) when the sign-in started from an invitation
+  inviteId        String?
+
 
   @@index([provider, expiresAt])
 }

@@ -1,0 +1,13 @@
+  [capture] docs/beta-audit-2026-09-26/captures/w1-09-onboarding-default-375-light-full.png
+  "Unsaved changes" notice on arrival before any input: true
+  timezone field value: America/Chicago
+  tap #1: Review my setup
+--- after review /onboarding (Choose your starting point | Jump in the Mix) scrollWidth=375 innerWidth=375
+  headings: H1: Jump in the mix. | H2: Ready when you are | H3: Your preferences | H2:  | H3:  | H3:  | H3:  | H3:  | H3:  | H3:  | H3:  | H3:  | H3:  | H3:  | H3:  | H3:  | H3: 
+  notices: Unsaved changes. Save before leaving this page.
+  fields: input[radio] "A complete mega-mix · Recommended Your whole pipeline on day one: every follow-up from fir" name=setupMode [x] | input[radio] "Choose individual mixes Build your journey one Mix at a time. Preview and customize each o" name=setupMode [ ] | input[radio] "Other uses or one follow-up Personal connections, another kind of business, or a simple st" name=setupMode [ ] | select[select-one] "Your mega-mix" name= = "contractor" | input[checkbox] "I’ve reviewed my journey and preferences." name=reviewed required [ ]
+  buttons: Save answers and finish later | Edit preferences | Add Contractor mega-mix
+  links: Jump in the Mix home -> /
+  [capture] docs/beta-audit-2026-09-26/captures/w1-10-onboarding-review-375-light-full.png
+  taps so far: 1
+(elapsed 3 s)

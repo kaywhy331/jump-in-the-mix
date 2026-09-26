@@ -121,3 +121,32 @@ export function inferQuickAddCapture(input: string, now = new Date(), timezone?:
       : "Choose a capture type and finish the details."
   };
 }
+
+/** A conservative suggestion, always reviewed before saving. Unstated times and message copy stay blank. */
+export function inferQuickCaptureReview(input: string, now = new Date(), timezone?: string) {
+  const original = inferQuickAddCapture(input, now, timezone);
+  const eventMatch = input.match(/\b(coffee|lunch|meeting|meet|visit|appointment)\s+with\s+(.+?)(?=\s+(?:today|tomorrow|next|on|at|in\s+\d|sun\w*|mon\w*|tue\w*|wed\w*|thu\w*|fri\w*|sat\w*)\b|[,.;]|$)/i)
+    ?? input.match(/\b(meet)\s+(?!with\b)(.+?)(?=\s+(?:today|tomorrow|next|on|at|in\s+\d|sun\w*|mon\w*|tue\w*|wed\w*|thu\w*|fri\w*|sat\w*)\b|[,.;]|$)/i);
+  const followMatch = input.match(/\b(?:then\s+)?(?:remind me|follow[ -]?up|call|text|email|whatsapp)\b[\s\S]*/i);
+  const eventText = eventMatch ? input.slice(0, followMatch?.index ?? input.length) : "";
+  const followText = followMatch?.[0] ?? (eventMatch ? "" : input);
+  const follow = inferQuickAddCapture(followText, now, timezone);
+  const clock = (text: string) => {
+    const match = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+    if (!match || Number(match[1]) < 1 || Number(match[1]) > 12 || Number(match[2] ?? 0) > 59) return "";
+    return `${String(Number(match[1]) % 12 + (match[3].toLowerCase() === "pm" ? 12 : 0)).padStart(2, "0")}:${match[2] ?? "00"}`;
+  };
+  const channel = /\btext\b/i.test(followText) ? "SMS" : /\bemail\b/i.test(followText) ? "EMAIL" : /\bwhatsapp\b/i.test(followText) ? "WHATSAPP" : /\bvoicemail\b/i.test(followText) ? "VOICEMAIL" : /\bcall\b/i.test(followText) ? "PHONE_CALL" : "";
+  const namedReason = followText.match(/\b(?:about|regarding|to)\s+(.+?)[.!?]*$/i)?.[1]?.trim();
+  const reason = namedReason || follow.reason;
+  const suggestedName = eventMatch?.[2]?.trim() ?? original.name?.replace(/[,.;].*$/, "").trim() ?? "";
+  // A follow-up pronoun is not a person's identity. Leave it for explicit review.
+  const name = /^(?:him|her|them|me|us|you|someone)$/i.test(suggestedName) ? "" : suggestedName;
+  return {
+    ...original,
+    name,
+    note: original.original,
+    event: { enabled: Boolean(eventMatch), title: eventMatch ? `${eventMatch[1][0].toUpperCase()}${eventMatch[1].slice(1)} with ${eventMatch[2].trim()}` : "", date: eventText ? inferQuickAddCapture(eventText, now, timezone).dateValue ?? "" : "", time: clock(eventText), duration: "60", location: eventText.match(/\bat\s+(?!\d)(.+?)(?=[,.;]|$)/i)?.[1]?.trim() ?? "", allowOverlap: false },
+    followUp: { enabled: Boolean(followMatch || (!eventMatch && original.dateValue)), reason, date: follow.dateValue ?? "", time: clock(followText), channel, subject: "", wording: channel === "PHONE_CALL" ? reason : "" }
+  };
+}

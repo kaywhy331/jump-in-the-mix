@@ -84,13 +84,13 @@ test("Today counts the whole view and reaches every open follow-up beyond 300", 
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[270]}`);
   await pager(page).getByRole("link", { name: "First follow-ups", exact: true }).click();
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[0]}`);
-  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Today", exact: true, level: 1 })).toBeFocused();
 });
 
 test("completing earlier work and removing the anchor never skips untouched follow-ups", async ({ page }) => {
   await visit(page, "/jumps?status=pending");
   for (const id of smsIds.slice(0, 2)) {
-    await page.locator(`#jump-${id}`).getByRole("button", { name: "Done", exact: true }).click();
+    await markDone(page, id);
     await expect(page.locator(`#jump-${id}`)).toHaveCount(0);
   }
   await prisma.jump.update({ where: { id: smsIds[29] }, data: { status: "CANCELED" } });
@@ -101,8 +101,8 @@ test("completing earlier work and removing the anchor never skips untouched foll
 test("paging and filters protect closed message drafts until the owner discards them", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 844 }); await visit(page);
   await page.getByRole("button", { name: "Review message for Queue person 002", exact: true }).click();
-  const message = page.getByRole("dialog", { name: "Message Queue person 002", exact: true });
-  const draft = message.getByRole("textbox", { name: "Fine-tune before sending", exact: true }); await draft.fill("Keep my unsent customer draft.");
+  const message = page.getByRole("dialog", { name: "Follow up with Queue person 002", exact: true });
+  const draft = message.getByRole("textbox", { name: "Your message", exact: true }); await draft.fill("Keep my unsent customer draft.");
   await page.keyboard.press("Escape");
   await pager(page).getByRole("link", { name: "Next follow-ups", exact: true }).click();
   const guard = page.getByRole("dialog", { name: "Keep your message edits?", exact: true }); await expect(guard).toBeVisible();
@@ -140,7 +140,7 @@ test("filters reset the page and snooze/stop actions preserve the current filter
   await expect(page.locator(".jump-card")).toHaveCount(2); expect(await ids(page)).toEqual(emailIds);
   // Let the native dialog close event and its trigger restoration finish.
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeFocused();
+  await expect(page.getByRole("heading", { name: "Today", exact: true, level: 1 })).toBeFocused();
 });
 
 test("pagination stays reachable across themes, phone and sidebar breakpoints", async ({ page }) => {
@@ -168,6 +168,20 @@ test("pagination stays reachable across themes, phone and sidebar breakpoints", 
   }
 });
 
+test("history says when a follow-up was sent automatically instead of offering to reopen it", async ({ page }) => {
+  await prisma.jump.update({ where: { id: completedIds[0] }, data: { completionMethod: "automatic:sms" } });
+  try {
+    await visit(page, `/jumps?jump=${completedIds[0]}`);
+    const card = page.locator(`#jump-${completedIds[0]}`);
+    await expect(card.locator("[data-sent-automatically]")).toHaveText("Sent automatically");
+    await expect(card.locator(".jump-done-action")).toHaveCount(0);
+    await visit(page, `/jumps?jump=${completedIds[1]}`);
+    await expect(page.locator(`#jump-${completedIds[1]} .jump-done-action`)).toHaveAttribute("aria-label", "Reopen follow-up with Queue person 001");
+  } finally {
+    await prisma.jump.update({ where: { id: completedIds[0] }, data: { completionMethod: null } });
+  }
+});
+
 test.describe("live outcome updates", () => {
   // Intercept only these local race/recovery scenarios; regular paging keeps SWs enabled.
   test.use({ serviceWorkers: "block" });
@@ -187,7 +201,7 @@ test.describe("live outcome updates", () => {
     await page.clock.install();
     await visit(page, "/jumps?range=all&status=pending&channel=SMS"); await next(page, smsIds[30]);
     const location = page.url();
-    await page.locator(`#jump-${smsIds[30]}`).getByRole("button", { name: "Done", exact: true }).click();
+    await markDone(page, smsIds[30]);
     await expect(undoFor(page, smsIds[30])).toBeVisible();
     await page.clock.runFor(8_000); await expect(undoFor(page, smsIds[30])).toBeVisible();
     await expect(pager(page)).toContainText("Showing 30 of 321 follow-ups");
@@ -195,7 +209,7 @@ test.describe("live outcome updates", () => {
     await expect(pager(page)).toContainText("Showing 30 of 320 follow-ups");
     expect(await ids(page)).toEqual(smsIds.slice(31, 61)); expect(page.url()).toBe(location);
     await page.getByRole("button", { name: "More options for Queue person 032", exact: true }).click();
-    await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).getByRole("button", { name: "Skip this follow-up", exact: true }).click();
+    await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).filter({ hasText: "Move it to a better day" }).getByRole("button", { name: "Skip beat", exact: true }).click();
     await expect(undoFor(page, smsIds[31])).toBeVisible(); await page.clock.runFor(10_500);
     await expect(pager(page)).toContainText("Showing 30 of 319 follow-ups");
     expect(await ids(page)).toEqual(smsIds.slice(32, 62)); expect(page.url()).toBe(location);
@@ -210,11 +224,11 @@ test.describe("live outcome updates", () => {
       held = true; const response = await route.fetch(); captured = true; await hold; await deliverFetched(route, response); delivered = true;
     });
     try {
-      await page.locator(`#jump-${smsIds[0]}`).getByRole("button", { name: "Done", exact: true }).click();
+      await markDone(page, smsIds[0]);
       await expect(undoFor(page, smsIds[0])).toBeVisible(); await page.clock.runFor(10_500); await expect.poll(() => captured).toBe(true);
       await page.getByRole("button", { name: "Review message for Queue person 002", exact: true }).click();
-      const dialog = page.getByRole("dialog", { name: "Message Queue person 002", exact: true });
-      const draft = dialog.getByRole("textbox", { name: "Fine-tune before sending", exact: true });
+      const dialog = page.getByRole("dialog", { name: "Follow up with Queue person 002", exact: true });
+      const draft = dialog.getByRole("textbox", { name: "Your message", exact: true });
       await draft.fill("A draft created after the refresh started."); await page.keyboard.press("Escape");
       // Next can keep the browser's streaming request open after consuming the
       // response. Wait for fulfillment and the actual buffered-list UI.
@@ -224,6 +238,7 @@ test.describe("live outcome updates", () => {
       await updates(page).getByRole("button", { name: "Return to message edits", exact: true }).click();
       await expect(draft).toHaveValue("A draft created after the refresh started."); await expect(draft).toBeFocused();
       await dialog.getByRole("button", { name: "Discard edits", exact: true }).click();
+      await page.getByRole("dialog", { name: "Discard your edits?", exact: true }).getByRole("button", { name: "Discard edits", exact: true }).click();
       await expect(pager(page)).toContainText("Showing 30 of 322 follow-ups");
       expect(await ids(page)).toEqual(smsIds.slice(1, 31));
       await expect(page.locator('[data-follow-up-draft="true"]')).toHaveCount(0);
@@ -246,9 +261,9 @@ test.describe("live outcome updates", () => {
       const response = await route.fetch(); undoCaptured(); await undoHold; await deliverFetched(route, response);
     });
     try {
-      await page.locator(`#jump-${smsIds[0]}`).getByRole("button", { name: "Done", exact: true }).click();
+      await markDone(page, smsIds[0]);
       await expect(undoFor(page, smsIds[0])).toBeVisible(); await page.clock.runFor(10_500); await expect.poll(() => captured).toBe(true);
-      await page.locator(`#jump-${smsIds[1]}`).getByRole("button", { name: "Done", exact: true }).click();
+      await markDone(page, smsIds[1]);
       await expect(undoFor(page, smsIds[1])).toBeVisible();
       release(); await expect.poll(() => delivered).toBe(true);
       await page.clock.runFor(1_000);
@@ -272,7 +287,7 @@ test.describe("live outcome updates", () => {
       if (++attempts === 1) return route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "The follow-up could not be reopened. Try Undo again." }) });
       await route.continue();
     });
-    await page.locator(`#jump-${smsIds[0]}`).getByRole("button", { name: "Done", exact: true }).click();
+    await markDone(page, smsIds[0]);
     await expect(undoFor(page, smsIds[0])).toBeVisible();
     await page.clock.runFor(7_000); await undoFor(page, smsIds[0]).click();
     await expect(page.locator(`[data-jump-workflow="${smsIds[0]}"]`).getByRole("alert")).toContainText("Try Undo again");
@@ -289,7 +304,7 @@ test.describe("live outcome updates", () => {
   test("reconnection updates the list without repeating the saved outcome", async ({ page, context }) => {
     await page.clock.install(); await visit(page, "/jumps?status=pending");
     let outcomes = 0; page.on("request", request => { if (new URL(request.url()).pathname.endsWith("/outcome") && request.method() === "POST") outcomes++; });
-    await page.locator(`#jump-${smsIds[0]}`).getByRole("button", { name: "Done", exact: true }).click();
+    await markDone(page, smsIds[0]);
     await expect(undoFor(page, smsIds[0])).toBeVisible();
     try {
       await context.setOffline(true); await page.clock.runFor(10_500);
@@ -309,7 +324,7 @@ test.describe("live outcome updates", () => {
       held = true; await hold; await route.abort();
     });
     try {
-      await page.locator(`#jump-${smsIds[0]}`).getByRole("button", { name: "Done", exact: true }).click();
+      await markDone(page, smsIds[0]);
       await expect(undoFor(page, smsIds[0])).toBeVisible(); await page.clock.runFor(10_500);
       await expect.poll(() => held).toBe(true);
       await page.clock.runFor(21_000); await expect(updates(page)).toContainText("We couldn’t update this list");
@@ -332,7 +347,7 @@ test.describe("live outcome updates", () => {
       await deliverFetched(route, response);
     });
     page.on("request", request => { if (new URL(request.url()).pathname === "/jumps" && isRefresh(request)) refreshes++; });
-    await page.locator(`#jump-${smsIds[0]}`).getByRole("button", { name: "Done", exact: true }).click();
+    await markDone(page, smsIds[0]);
     await expect(undoFor(page, smsIds[0])).toBeVisible();
     const reopened = await prisma.jump.update({ where: { id: smsIds[0] }, data: { status: "PENDING", completedAt: null, completionMethod: null } });
     // Starting a read before React commits Undo can buffer a stale completion
@@ -352,9 +367,11 @@ test.describe("live outcome updates", () => {
     await prisma.jump.updateMany({ where: { workspaceId, id: { not: smsIds[0] } }, data: { status: "CANCELED" } });
     await page.clock.install(); await visit(page, "/jumps?range=all");
     await expect(pager(page)).toContainText("Showing 1 of 1 follow-up");
-    await page.locator(`#jump-${smsIds[0]}`).getByRole("button", { name: "Done", exact: true }).click();
+    await markDone(page, smsIds[0]);
     await expect(undoFor(page, smsIds[0])).toBeVisible(); await page.clock.runFor(10_500);
     await expect(page.locator(`#jump-${smsIds[0]}.jump-task-complete`)).toBeVisible();
+    // History offers a named Reopen control rather than a bare Undo.
+    await expect(page.locator(`#jump-${smsIds[0]} .jump-done-action`)).toHaveAttribute("aria-label", "Reopen follow-up with Queue person 001");
     await expect(pager(page)).toContainText("Showing 1 of 1 follow-up");
     await expect(page.locator(".today-page-header")).toContainText("No open follow-ups in this view");
   });
@@ -410,8 +427,8 @@ test("native browser zoom preserves Today drafts, filters and history at 200 and
           if (!history) {
             const review = page.getByRole("button", { name: "Review message for Queue person 002", exact: true });
             await review.focus(); await page.keyboard.press("Enter");
-            const message = page.getByRole("dialog", { name: "Message Queue person 002", exact: true });
-            const draft = message.getByRole("textbox", { name: "Fine-tune before sending", exact: true });
+            const message = page.getByRole("dialog", { name: "Follow up with Queue person 002", exact: true });
+            const draft = message.getByRole("textbox", { name: "Your message", exact: true });
             const original = await draft.inputValue();
             await draft.fill(`Unsent draft at ${zoom * 100}% zoom`); await audit(page);
             await page.keyboard.press("Escape"); await expect(review).toBeFocused();
@@ -423,6 +440,7 @@ test("native browser zoom preserves Today drafts, filters and history at 200 and
             await guard.getByRole("button", { name: "Keep editing", exact: true }).click();
             await expect(draft).toBeFocused(); await expect(draft).toHaveValue(`Unsent draft at ${zoom * 100}% zoom`);
             await message.getByRole("button", { name: "Discard edits", exact: true }).click();
+            await page.getByRole("dialog", { name: "Discard your edits?", exact: true }).getByRole("button", { name: "Discard edits", exact: true }).click();
             await expect(draft).toHaveValue(original); await page.keyboard.press("Escape");
             await expect(page.locator('[data-follow-up-draft="true"]')).toHaveCount(0);
             const filter = page.getByRole("button", { name: /^Filter(?: \d+)?$/ });
@@ -435,7 +453,7 @@ test("native browser zoom preserves Today drafts, filters and history at 200 and
             await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
           }
           await next(page, history ? completedIds[30] : smsIds[30]);
-          await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeFocused();
+          await expect(page.getByRole("heading", { name: "Today", exact: true, level: 1 })).toBeFocused();
           for (const link of await pager(page).getByRole("link").all()) {
             await link.scrollIntoViewIfNeeded();
             const target = await link.evaluate(element => {
@@ -457,3 +475,9 @@ test("native browser zoom preserves Today drafts, filters and history at 200 and
     await context?.close(); await rm(directory, { recursive: true, force: true });
   }
 });
+
+async function markDone(page: Page, id: string) {
+  const card = page.locator(`#jump-${id}`);
+  await card.getByRole("button", { name: /^More options for/ }).click();
+  await card.getByRole("button", { name: /^Mark done for/ }).click();
+}

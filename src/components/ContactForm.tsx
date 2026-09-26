@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useActionState, useEffect, useRef, useMemo, useState } from "react";
 import { VoiceNoteButton } from "@/components/VoiceNoteButton";
-import { createContactAction, updateContactAction } from "@/lib/contact-actions";
+import { saveContactFormAction, type ContactFormState } from "@/lib/contact-actions";
+import { UNCONFIRMED_SAVE, isNavigationSignal } from "@/lib/unconfirmed-save";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
+import { FormGuard } from "@/components/FormGuard";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { WhenField } from "@/components/WhenPicker";
 
 type GroupOption = { id: string; name: string; color: string | null; isActive: boolean };
 type CustomFieldOption = { id: string; name: string; key: string };
@@ -63,16 +67,43 @@ function removeAt<T>(values: T[], index: number): T[] {
 export function ContactForm({
   mode,
   contact,
+  revision,
   groups,
   customFields,
-  followUp
+  followUp,
+  returnTo
 }: {
   mode: "create" | "edit";
   contact?: ContactFormValue;
+  /** Edit only: the fingerprint of what the form shows, so the save can refuse to undo a newer change. */
+  revision?: string;
   groups: GroupOption[];
   customFields: CustomFieldOption[];
   followUp?: FollowUpOption | null;
+  returnTo?: string | null;
 }) {
+  // One id per opened Add form: a retry after a lost response opens the contact already saved.
+  const requestId = useRef("");
+  const [result, formAction] = useActionState(async (previous: ContactFormState, data: FormData): Promise<ContactFormState> => {
+    if (mode === "create") {
+      requestId.current ||= globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      data.set("requestId", requestId.current);
+    }
+    try { return await saveContactFormAction(previous, data); }
+    catch (cause) { if (isNavigationSignal(cause)) throw cause; return { error: UNCONFIRMED_SAVE }; }
+  }, {});
+  const formRef = useRef<HTMLFormElement>(null);
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (!result.error) return;
+    // Focus the control the error belongs to (opening its disclosure), otherwise the message.
+    const control = result.field ? formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]') : null;
+    if (!control) { errorRef.current?.focus(); return; }
+    for (let details = control.closest("details"); details; details = details.parentElement?.closest("details") ?? null) details.open = true;
+    control.focus();
+  }, [result]);
+  const invalid = (field: string) => result.error && result.field === field ? { "aria-invalid": true, "aria-describedby": "contact-save-error" } as const : {};
+  const [undoRemoval, setUndoRemoval] = useState<(() => void) | null>(null);
   const startingEmails = useMemo<ContactMethod[]>(() => {
     const values = contact?.emails?.map((item) => ({ value: item.email, label: item.label ?? "" })) ?? [];
     return values.length ? values : [{ value: "", label: "" }];
@@ -109,23 +140,26 @@ export function ContactForm({
   const [scheduleFollowUp, setScheduleFollowUp] = useState(Boolean(followUp?.defaultDate));
 
   const removeEmail = (index: number) => {
+    setUndoRemoval(() => () => { setEmails(current => [...current, emails[index]]); });
     const next = removeAt(emails, index);
     setEmails(next.length ? next : [{ value: "", label: "" }]);
     setPrimaryEmail((current) => current === index ? 0 : current > index ? current - 1 : current);
   };
   const removePhone = (index: number) => {
+    setUndoRemoval(() => () => { setPhones(current => [...current, phones[index]]); });
     const next = removeAt(phones, index);
     setPhones(next.length ? next : [{ value: "", label: "" }]);
     setPrimaryPhone((current) => current === index ? 0 : current > index ? current - 1 : current);
   };
   const removeAddress = (index: number) => {
+    setUndoRemoval(() => () => { setAddresses(current => [...current, addresses[index]]); });
     const next = removeAt(addresses, index);
     setAddresses(next.length ? next : [{ label: "", street1: "", street2: "", city: "", state: "", postalCode: "", country: "" }]);
     setPrimaryAddress((current) => current === index ? 0 : current > index ? current - 1 : current);
   };
 
   return (
-    <form action={mode === "create" ? createContactAction : updateContactAction} className="contact-editor" onFocusCapture={(event) => {
+    <form ref={formRef} action={formAction} onReset={(event) => event.preventDefault()} aria-describedby={result.error ? "contact-save-error" : undefined} className="contact-editor" onFocusCapture={(event) => {
       const control = event.target;
       if (!(control instanceof HTMLElement) || control.closest(".sticky-form-actions")) return;
       // Pointer-focused buttons and disclosures must stay put until activation.
@@ -138,21 +172,26 @@ export function ContactForm({
       });
       if (obscured) control.scrollIntoView({ block: "center", behavior: "instant" });
     }}>
+      <FormGuard />
+      {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
+      {result.error && <p id="contact-save-error" ref={errorRef} tabIndex={-1} className="notice error" role="alert">{result.error} Your entries are still here; correct the details and save again.{result.errorLink && <> <Link href={result.errorLink.href}>{result.errorLink.label}</Link></>}</p>}
+      {undoRemoval && <p role="status">Contact method removed. Undo adds it back without changing your current primary method. <button type="button" className="text-button" onClick={() => { undoRemoval(); setUndoRemoval(null); }}>Undo removal</button></p>}
       {contact?.id && <input type="hidden" name="contactId" value={contact.id} />}
+      {contact?.id && revision && <input type="hidden" name="revision" value={revision} />}
 
       <section className="card contact-editor-section contact-quick-form">
-        <div className="card-header"><div><h2>{mode === "create" ? "Add a person" : "Contact details"}</h2><p>{mode === "create" ? "A name and one way to reach them is plenty to start." : "Update the basics below."}</p></div></div>
+        <div className="card-header"><div><h2>{mode === "create" ? "Add a person" : "Contact details"}</h2><p>{mode === "create" ? "Enter at least a name, company, email, or phone number. Add a phone or email to prepare messages." : "Enter at least a name, company, email, or phone number."}</p></div></div>
         <div className="form-grid">
-          <div className="field"><label htmlFor="firstName">First name</label><input id="firstName" name="firstName" defaultValue={contact?.firstName ?? ""} autoFocus /></div>
-          <div className="field"><label htmlFor="lastName">Last name</label><input id="lastName" name="lastName" defaultValue={contact?.lastName ?? ""} /></div>
-          {mode === "edit" && <div className="field full"><label htmlFor="company">Company</label><input id="company" name="company" defaultValue={contact?.company ?? ""} /></div>}
+          <div className="field"><label htmlFor="firstName">First name</label><input id="firstName" name="firstName" autoComplete="given-name" defaultValue={contact?.firstName ?? ""} autoFocus {...invalid("firstName")} /></div>
+          <div className="field"><label htmlFor="lastName">Last name <small>optional</small></label><input id="lastName" name="lastName" autoComplete="family-name" defaultValue={contact?.lastName ?? ""} /></div>
+          {mode === "edit" && <div className="field full"><label htmlFor="company">Company <small>optional</small></label><input id="company" name="company" defaultValue={contact?.company ?? ""} /></div>}
           {mode === "create" && <>
             <input type="hidden" name="phonePrimaryIndex" value="0" />
-            {phones.map((item, index) => <div className="field" key={`quick-phone-${index}`}><label htmlFor={`quick-phone-${index}`}>{index ? `Phone ${index + 1}` : "Phone"}</label><input id={`quick-phone-${index}`} name="phoneValue" type="tel" inputMode="tel" autoComplete={index ? "off" : "tel"} value={item.value} onChange={(event) => setPhones((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} placeholder="(555) 555-0123" /><input type="hidden" name="phoneLabel" value={index ? item.label || "Other" : "Mobile"} />{index > 0 && <button className="text-button" type="button" onClick={() => removePhone(index)}>Remove</button>}</div>)}
+            {phones.map((item, index) => <div className="field" key={`quick-phone-${index}`}><label htmlFor={`quick-phone-${index}`}>{index ? <>Phone {index + 1} <small>optional</small></> : "Phone"}</label><input id={`quick-phone-${index}`} name="phoneValue" type="tel" inputMode="tel" autoComplete={index ? "off" : "tel"} value={item.value} onChange={(event) => setPhones((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} placeholder="(555) 555-0123" {...invalid(`phoneValue:${index}`)} /><input type="hidden" name="phoneLabel" value={index ? item.label || "Other" : "Mobile"} />{index > 0 && <button className="text-button" type="button" onClick={() => removePhone(index)}>Remove</button>}</div>)}
             <input type="hidden" name="emailPrimaryIndex" value="0" />
-            {emails.map((item, index) => <div className="field" key={`quick-email-${index}`}><label htmlFor={`quick-email-${index}`}>{index ? `Email ${index + 1}` : <>Email <small>optional</small></>}</label><input id={`quick-email-${index}`} name="emailValue" type="email" inputMode="email" autoComplete={index ? "off" : "email"} value={item.value} onChange={(event) => setEmails((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} /><input type="hidden" name="emailLabel" value={item.label || "Email"} />{index > 0 && <button className="text-button" type="button" onClick={() => removeEmail(index)}>Remove</button>}</div>)}
+            {emails.map((item, index) => <div className="field" key={`quick-email-${index}`}><label htmlFor={`quick-email-${index}`}>{index ? `Email ${index + 1}` : "Email"} <small>optional</small></label><input id={`quick-email-${index}`} name="emailValue" type="email" inputMode="email" autoComplete={index ? "off" : "email"} value={item.value} onChange={(event) => setEmails((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} {...invalid(`emailValue:${index}`)} /><input type="hidden" name="emailLabel" value={item.label || "Email"} />{index > 0 && <button className="text-button" type="button" onClick={() => removeEmail(index)}>Remove</button>}</div>)}
             {groups.length > 0 && <label className="field"><span>Tag <small>optional</small></span><select name="groupIds" defaultValue=""><option value="">No tag yet</option>{groups.filter((group) => group.isActive).map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>}
-            <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Note <small>optional</small></label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Job, estimate, how you met, or anything worth remembering" /></div>
+            <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Message context <small>optional · may appear in prepared messages</small></label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Job, estimate, how you met, or anything worth remembering" /></div>
           </>}
         </div>
         {mode === "create" && <div className="page-actions"><button className="button small" type="button" onClick={() => setPhones((current) => [...current, { value: "", label: "Other" }])}>Add another phone</button><button className="button small" type="button" onClick={() => setEmails((current) => [...current, { value: "", label: "Other" }])}>Add another email</button></div>}
@@ -162,24 +201,24 @@ export function ContactForm({
         <div className="card-header"><div><h2>First follow-up</h2><p>Choose when you want this person to appear on Today.</p></div></div>
         <label className="checkbox-card onboarding-default">
           <input type="checkbox" name="scheduleFollowUp" checked={scheduleFollowUp} onChange={(event) => setScheduleFollowUp(event.target.checked)} />
-          <span><strong>Schedule a follow-up now</strong><small>Start a matching mix if one is available.</small></span>
+          <span><strong>Schedule a follow-up now</strong><small>Start a matching mix, or just this one follow-up.</small></span>
         </label>
         {scheduleFollowUp && <div className="form-grid contact-first-follow-up-fields">
           <input type="hidden" name="followUpDateTypeId" value={followUp.dateTypeId} />
-          <div className="field"><label htmlFor="followUpDate">Follow-up date</label><input id="followUpDate" name="followUpDate" type="date" defaultValue={followUp.defaultDate ?? ""} required /></div>
-          <div className="field"><label htmlFor="followUpReason">Reason</label><input id="followUpReason" name="followUpReason" defaultValue={followUp.defaultReason ?? "Follow up"} placeholder="Proposal follow-up" /></div>
-          <div className="field full"><label htmlFor="followUpMixId">Mix</label>{followUp.mixes.length ? <select id="followUpMixId" name="followUpMixId" defaultValue={followUp.mixes[0]?.id ?? ""}><option value="">Just save the date</option>{followUp.mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select> : <><input id="followUpMixId" name="followUpMixId" type="hidden" value="" /><small>You can add a mix later.</small></>}</div>
+          <div className="field"><span className="field-label">Follow-up date</span><WhenField label="Follow-up date" dateName="followUpDate" defaultDate={followUp.defaultDate ?? ""} noPast /></div>
+          <div className="field"><label htmlFor="followUpReason">Reason <small>optional</small></label><input id="followUpReason" name="followUpReason" defaultValue={followUp.defaultReason ?? "Follow up"} placeholder="Proposal follow-up" /></div>
+          <div className="field full"><label htmlFor="followUpMixId">Mix</label>{followUp.mixes.length ? <select id="followUpMixId" name="followUpMixId" defaultValue={followUp.mixes[0]?.id ?? ""}><option value="">No mix: just this follow-up</option>{followUp.mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select> : <><input id="followUpMixId" name="followUpMixId" type="hidden" value="" /><small>You can add a mix later.</small></>}</div>
         </div>}
       </section>}
 
       {mode === "edit" && <section className="card contact-editor-section">
-        <div className="card-header"><div><h2>Email addresses</h2><p>Choose the address used for email follow-ups.</p></div><button type="button" className="button small" onClick={() => setEmails((current) => [...current, { value: "", label: "" }])}>+ Add email</button></div>
+        <div className="card-header"><div><h2>Email addresses</h2><p>Optional. Choose the address used for email follow-ups.</p></div><button type="button" className="button small" onClick={() => setEmails((current) => [...current, { value: "", label: "" }])}>+ Add email</button></div>
         <div className="repeatable-list">
           {emails.map((item, index) => (
             <div className="repeatable-row" key={`email-${index}`}>
               <label className="primary-choice"><input type="radio" name="emailPrimaryIndex" value={index} checked={primaryEmail === index} onChange={() => setPrimaryEmail(index)} /><span>Primary</span></label>
               <input name="emailLabel" value={item.label} onChange={(event) => setEmails((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, label: event.target.value } : row))} placeholder="Work" aria-label={`Email ${index + 1} label`} />
-              <input name="emailValue" type="email" inputMode="email" value={item.value} onChange={(event) => setEmails((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} placeholder="person@example.com" aria-label={`Email ${index + 1}`} />
+              <input name="emailValue" type="email" inputMode="email" value={item.value} onChange={(event) => setEmails((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} placeholder="person@example.com" aria-label={`Email ${index + 1}`} {...invalid(`emailValue:${index}`)} />
               <button type="button" className="button small danger" onClick={() => removeEmail(index)} aria-label={`Remove email ${index + 1}`}>Remove</button>
             </div>
           ))}
@@ -187,13 +226,13 @@ export function ContactForm({
       </section>}
 
       {mode === "edit" && <section className="card contact-editor-section">
-        <div className="card-header"><div><h2>Phone numbers</h2><p>Choose the best number to reach this person.</p></div><button type="button" className="button small" onClick={() => setPhones((current) => [...current, { value: "", label: "" }])}>+ Add phone</button></div>
+        <div className="card-header"><div><h2>Phone numbers</h2><p>Optional. Choose the best number to reach this person.</p></div><button type="button" className="button small" onClick={() => setPhones((current) => [...current, { value: "", label: "" }])}>+ Add phone</button></div>
         <div className="repeatable-list">
           {phones.map((item, index) => (
             <div className="repeatable-row" key={`phone-${index}`}>
               <label className="primary-choice"><input type="radio" name="phonePrimaryIndex" value={index} checked={primaryPhone === index} onChange={() => setPrimaryPhone(index)} /><span>Primary</span></label>
               <input name="phoneLabel" value={item.label} onChange={(event) => setPhones((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, label: event.target.value } : row))} placeholder="Mobile" aria-label={`Phone ${index + 1} label`} />
-              <input name="phoneValue" type="tel" inputMode="tel" value={item.value} onChange={(event) => setPhones((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} placeholder="+1 555 123 4567" aria-label={`Phone ${index + 1}`} />
+              <input name="phoneValue" type="tel" inputMode="tel" value={item.value} onChange={(event) => setPhones((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} placeholder="+1 555 123 4567" aria-label={`Phone ${index + 1}`} {...invalid(`phoneValue:${index}`)} />
               <button type="button" className="button small danger" onClick={() => removePhone(index)} aria-label={`Remove phone ${index + 1}`}>Remove</button>
             </div>
           ))}
@@ -203,7 +242,7 @@ export function ContactForm({
       <details className="contact-more-details"><summary>{mode === "create" ? "More details" : "Addresses, tags, and notes"}</summary>
       {mode === "create" && <section className="card contact-editor-section"><div className="card-header"><div><h2>Company</h2><p>Optional.</p></div></div><label className="field"><span>Company</span><input id="company" name="company" defaultValue={contact?.company ?? ""} /></label></section>}
       <section className="card contact-editor-section">
-        <div className="card-header"><div><h2>Addresses</h2><p>Save an address for visits, deliveries, or prepared messages.</p></div><button type="button" className="button small" onClick={() => setAddresses((current) => [...current, { label: "", street1: "", street2: "", city: "", state: "", postalCode: "", country: "" }])}>+ Add address</button></div>
+        <div className="card-header"><div><h2>Addresses</h2><p>Optional. Save an address for visits, deliveries, or prepared messages.</p></div><button type="button" className="button small" onClick={() => setAddresses((current) => [...current, { label: "", street1: "", street2: "", city: "", state: "", postalCode: "", country: "" }])}>+ Add address</button></div>
         <div className="repeatable-list">
           {addresses.map((item, index) => (
             <fieldset className="address-row" key={`address-${index}`}>
@@ -242,26 +281,26 @@ export function ContactForm({
           );
         })}</div> : <p className="muted-copy">No tags have been created yet. You can add them from the Contacts page.</p>}
         <div className="form-grid notes-grid">
-          <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Notes</label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="How you met, preferences, background, or details worth remembering." /><small>A mix can use a note only when you deliberately add its note placeholder.</small></div>
-          <div className="field full"><label htmlFor="privateNotes">Private note</label><textarea id="privateNotes" name="privateNotes" defaultValue={contact?.privateNotes ?? ""} placeholder="Sensitive context, commitments, or details for your eyes only." /><small>Private notes never appear in texts, emails, or WhatsApp messages.</small></div>
+          <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Notes <small>optional</small></label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="How you met, preferences, background, or details worth remembering." /><small>A mix can use a note only when you deliberately add its note placeholder.</small></div>
+          <div className="field full"><label htmlFor="privateNotes">Private note <small>optional</small></label><textarea id="privateNotes" name="privateNotes" defaultValue={contact?.privateNotes ?? ""} placeholder="Sensitive context, commitments, or details for your eyes only." /><small>Private notes never appear in texts, emails, or WhatsApp messages.</small></div>
         </div>
       </section>}
 
       <section className="card contact-editor-section">
-        <div className="card-header"><div><h2>Custom fields</h2><p>Customer details can be inserted into prepared messages with a placeholder.</p></div><Link className="button small" href="/contacts/custom-fields">Manage fields</Link></div>
+        <div className="card-header"><div><h2>Custom fields</h2><p>Optional. Customer details can be inserted into prepared messages with a placeholder.</p></div><Link className="button small" href="/contacts/custom-fields">Manage fields</Link></div>
         {customFields.length ? <div className="form-grid">{customFields.map((field) => (
           <div className="field" key={field.id}>
             <input type="hidden" name="customFieldDefinitionId" value={field.id} />
             <label htmlFor={`custom-field-${field.id}`}><span>{field.name}</span><code>{customFieldPlaceholder(field.key)}</code></label>
-            <input id={`custom-field-${field.id}`} name="customFieldValue" defaultValue={customValueByDefinition.get(field.id) ?? ""} maxLength={2000} />
+            <input id={`custom-field-${field.id}`} name="customFieldValue" defaultValue={customValueByDefinition.get(field.id) ?? ""} maxLength={2000} {...invalid(`custom:${field.id}`)} />
           </div>
         ))}</div> : <p className="muted-copy">No custom fields yet. Create one when your workflow needs data beyond the standard Contact fields.</p>}
       </section>
       </details>
 
       <div className="sticky-form-actions">
-        <Link className="button" href={contact?.id ? `/contacts/${contact.id}` : "/contacts"}>Cancel</Link>
-        <button className="button primary" type="submit">{mode === "create" ? scheduleFollowUp ? "Save & schedule follow-up" : "Save contact" : "Update contact"}</button>
+        <Link className="button" href={returnTo || (contact?.id ? `/contacts/${contact.id}` : "/contacts")}>Cancel</Link>
+        <FormSubmitButton label={mode === "create" ? scheduleFollowUp ? "Save & schedule follow-up" : "Save contact" : "Update contact"} pendingLabel="Saving contact…" />
       </div>
     </form>
   );

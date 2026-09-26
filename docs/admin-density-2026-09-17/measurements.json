@@ -1,0 +1,433 @@
+{
+  "viewport": {
+    "desktop": [
+      1366,
+      768
+    ],
+    "mobile": [
+      390,
+      844
+    ]
+  },
+  "note": "Synthetic local fixture observations. Bounded results and closed disclosures reduce document height; this is not a task-time measurement. Long forms, expanded sections and small screens still scroll.",
+  "routes": [
+    {
+      "view": "overview",
+      "desktopStatus": 200,
+      "beforeHeight": 1060,
+      "afterHeight": 768,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "users",
+      "desktopStatus": 200,
+      "beforeHeight": 768,
+      "afterHeight": 768,
+      "firstRowTopBefore": 300,
+      "firstRowTopAfter": 215,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "user",
+      "desktopStatus": 200,
+      "beforeHeight": 1128,
+      "afterHeight": 768,
+      "firstRowTopBefore": 347,
+      "firstRowTopAfter": 268,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "support",
+      "desktopStatus": 200,
+      "beforeHeight": 5450,
+      "afterHeight": 834,
+      "firstRowTopBefore": 663,
+      "firstRowTopAfter": 402,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "ticket",
+      "desktopStatus": 200,
+      "beforeHeight": 2537,
+      "afterHeight": 964,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "waitlist",
+      "desktopStatus": 200,
+      "beforeHeight": 1819,
+      "afterHeight": 932,
+      "firstRowTopBefore": 717,
+      "firstRowTopAfter": 515,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "waves",
+      "desktopStatus": 200,
+      "beforeHeight": 967,
+      "afterHeight": 768,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "invitations",
+      "desktopStatus": 200,
+      "beforeHeight": 768,
+      "afterHeight": 768,
+      "firstRowTopBefore": 457,
+      "firstRowTopAfter": 317,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "invitation",
+      "desktopStatus": 200,
+      "beforeHeight": 1473,
+      "afterHeight": 941,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "library",
+      "desktopStatus": 200,
+      "beforeHeight": 3463,
+      "afterHeight": 864,
+      "firstRowTopBefore": 526,
+      "firstRowTopAfter": 390,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "new-mix",
+      "desktopStatus": 200,
+      "beforeHeight": 2341,
+      "afterHeight": 1045,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "edit-mix",
+      "desktopStatus": 200,
+      "beforeHeight": 3078,
+      "afterHeight": 1459,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "wording",
+      "desktopStatus": 200,
+      "beforeHeight": 1596,
+      "afterHeight": 861,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "reports",
+      "desktopStatus": 200,
+      "beforeHeight": 3212,
+      "afterHeight": 1049,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "report-history",
+      "desktopStatus": 200,
+      "beforeHeight": 840,
+      "afterHeight": 768,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "saved-report",
+      "desktopStatus": 200,
+      "beforeHeight": 2876,
+      "afterHeight": 1073,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "exports",
+      "desktopStatus": 200,
+      "beforeHeight": 912,
+      "afterHeight": 768,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "operations",
+      "desktopStatus": 200,
+      "beforeHeight": 1080,
+      "afterHeight": 779,
+      "firstRowTopBefore": 715,
+      "firstRowTopAfter": 509,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "health",
+      "desktopStatus": 200,
+      "beforeHeight": 956,
+      "afterHeight": 768,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "maintenance",
+      "desktopStatus": 200,
+      "beforeHeight": 967,
+      "afterHeight": 768,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "alerts",
+      "desktopStatus": 200,
+      "beforeHeight": 1312,
+      "afterHeight": 923,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "email",
+      "desktopStatus": 200,
+      "beforeHeight": 1810,
+      "afterHeight": 778,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "recovery",
+      "desktopStatus": 200,
+      "beforeHeight": 768,
+      "afterHeight": 768,
+      "firstRowTopBefore": 401,
+      "firstRowTopAfter": 284,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "delivery",
+      "desktopStatus": 200,
+      "beforeHeight": 1325,
+      "afterHeight": 768,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "suppressions",
+      "desktopStatus": 200,
+      "beforeHeight": 768,
+      "afterHeight": 768,
+      "firstRowTopBefore": 401,
+      "firstRowTopAfter": 307,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "suppression",
+      "desktopStatus": 200,
+      "beforeHeight": 1736,
+      "afterHeight": 799,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "audit",
+      "desktopStatus": 200,
+      "beforeHeight": 1013,
+      "afterHeight": 802,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "team",
+      "desktopStatus": 200,
+      "beforeHeight": 768,
+      "afterHeight": 768,
+      "firstRowTopBefore": 403,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "team-add",
+      "desktopStatus": 200,
+      "beforeHeight": 768,
+      "afterHeight": 768,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "team-invitations",
+      "desktopStatus": 200,
+      "beforeHeight": 768,
+      "afterHeight": 768,
+      "firstRowTopBefore": 403,
+      "firstRowTopAfter": 296,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "admission",
+      "desktopStatus": 200,
+      "beforeHeight": 2543,
+      "afterHeight": 814,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "settings",
+      "desktopStatus": 200,
+      "beforeHeight": 2120,
+      "afterHeight": 773,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "denied",
+      "desktopStatus": 200,
+      "beforeHeight": 768,
+      "afterHeight": 768,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "engagement",
+      "desktopStatus": 200,
+      "beforeHeight": null,
+      "afterHeight": 909,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "content-report",
+      "desktopStatus": 200,
+      "beforeHeight": null,
+      "afterHeight": 909,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "operations-report",
+      "desktopStatus": 200,
+      "beforeHeight": null,
+      "afterHeight": 909,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "mfa",
+      "desktopStatus": 200,
+      "beforeHeight": null,
+      "afterHeight": 768,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    },
+    {
+      "view": "mfa-verify",
+      "desktopStatus": 200,
+      "beforeHeight": null,
+      "afterHeight": 768,
+      "firstRowTopBefore": null,
+      "firstRowTopAfter": null,
+      "desktopOverflow": false,
+      "mobileStatus": 200,
+      "mobileOverflow": false
+    }
+  ]
+}

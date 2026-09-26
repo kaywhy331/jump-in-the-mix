@@ -27,6 +27,18 @@ async function hitTarget(locator: Locator) {
   })).toBe(true);
 }
 
+// The ready-made page streams in after the app shell is ready, and each new selection or page resets the phone
+// pane on its first render; a tap before React attaches to the pane button is replayed and then undone by that
+// reset. Choose a pane only once its button is hydrated and a frame has passed for its effects.
+async function choosePane(page: Page, name: "Mixes" | "Details") {
+  if ((page.viewportSize()?.width ?? 1200) >= 1200) return; // From 1200 px every pane is shown side by side.
+  const button = page.getByRole("navigation", { name: "Mix workspace panels", exact: true }).getByRole("button", { name, exact: true });
+  await expect.poll(() => button.evaluate(element => Object.keys(element).some(key => key.startsWith("__reactProps")))).toBe(true);
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "true");
+}
+
 async function checkModal(page: Page, trigger: Locator, confirmation: string) {
   await trigger.click();
   const dialog = page.getByRole("dialog");
@@ -85,7 +97,7 @@ test("activation reviews contain focus, restore it, and keep confirmation reacha
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/mixes/new?custom=1");
     await page.getByLabel("Mix name", { exact: true }).fill("Review only");
-    await page.getByLabel("Cue · when should it start?").selectOption("MANUAL_START");
+    await page.getByLabel("When should it start?").selectOption("MANUAL_START");
     await page.getByLabel("After saving").selectOption("ACTIVE");
     await page.getByLabel("Everyone").check();
     await page.getByLabel("Message", { exact: true }).fill("A synthetic review message.");
@@ -93,41 +105,47 @@ test("activation reviews contain focus, restore it, and keep confirmation reacha
     await page.goto(`/templates/${templateId}-0/use`);
     await expect(page.getByLabel("After setup")).toHaveValue("DRAFT");
     await page.getByLabel("After setup").selectOption("ACTIVE");
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByLabel("Everyone").check();
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
     await checkModal(page, page.getByRole("button", { name: "Review and start" }), "Start the mix");
   }
 });
 
-test("library is compact and preview preserves filters, scroll, and keyboard focus", async ({ page }) => {
+test("library selection preserves filters and keyboard tools stay accessible", async ({ page }) => {
   await page.goto("/templates");
-  await expect(page.locator(".library-plan-card")).toHaveCount(9);
-  await page.getByRole("link", { name: "Next", exact: true }).click();
+  await expect(page.locator(".mix-library-row")).toHaveCount(20);
+  await page.getByRole("link", { name: "Next ready-made mixes", exact: true }).click();
   await expect(page).toHaveURL(/page=2/);
-  await expect(page.locator(".library-plan-card")).toHaveCount(9);
+  await expect(page.locator(".mix-library-row")).toHaveCount(20);
   await page.goto(`/templates?category=New+customers&industry=Home+services&framework=${encodeURIComponent(framework)}`);
-  await expect(page.locator(".library-plan-card")).toHaveCount(2);
-  const trigger = page.getByRole("button", { name: "Preview the rhythm: Design sample 0", exact: true });
-  await trigger.scrollIntoViewIfNeeded();
-  const scroll = await page.evaluate(() => scrollY);
-  const url = page.url();
-  await trigger.click();
-  await expect(page.getByRole("dialog").getByRole("link", { name: "Remix it" })).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(trigger).toBeFocused();
-  expect(page.url()).toBe(url);
-  expect(Math.abs(await page.evaluate(() => scrollY) - scroll)).toBeLessThan(3);
-  await page.locator(".library-refinements > summary").click();
+  await expect(page.locator(".mix-library-row")).toHaveCount(2);
+  await page.locator(".mix-library-item").filter({ hasText: "Design sample 0" }).click();
+  await expect(page.getByRole("region", { name: "Selected ready-made Mix" })).toContainText("Check in");
+  await expect(page).toHaveURL(/category=New\+customers/);
+  await expect(page).toHaveURL(new RegExp(`mix=${templateId}-0`));
+  // On a phone, choosing a Mix shows its Beats pane; the library tools are under the Mixes pane.
+  await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
+  await choosePane(page, "Mixes");
+  const filter = page.getByRole("button", { name: "Filter ready-made mixes", exact: true });
+  await filter.focus(); await page.keyboard.press("Enter");
   const goals = await page.getByLabel("Filter by goal").locator("option").allTextContents();
-  expect(goals).toContain("New customers");
-  expect(goals).not.toContain("New clients");
+  expect(goals).toContain("New customers"); expect(goals).not.toContain("New clients");
+  await page.keyboard.press("Escape"); await expect(filter).toBeFocused();
   await page.getByRole("link", { name: "Clear filters", exact: true }).click();
   await expect(page).toHaveURL(/\/templates$/, { timeout: 60_000 });
+  await filter.click();
   await expect(page.getByLabel("Filter by goal")).toHaveValue("");
   await expect(page.getByLabel("Filter by business type")).toHaveValue("");
   await expect(page.getByLabel("Filter by approach")).toHaveValue("");
+  await page.keyboard.press("Escape");
   await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill("Jeremy Miner");
+  await page.getByRole("button", { name: "Search ready-made mixes", exact: true }).click();
   await expect(page).toHaveURL(/q=Jeremy\+Miner|q=Jeremy%20Miner/, { timeout: 60_000 });
-  await expect(page.locator(".library-plan-card").first()).toContainText("NEPQ");
+  // The search loads a new page, which opens on the library pane; a phone shows the chosen Mix's details under Details.
+  await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
+  await choosePane(page, "Details");
+  await expect(page.getByRole("complementary", { name: "Ready-made Mix details" })).toContainText("NEPQ");
 });
 
 test("collapsed contact details retain address identity and notes on save", async ({ page }) => {
@@ -208,7 +226,8 @@ test("responsive destinations stay reachable and hydration stays consistent", as
     await page.goto("/mixes");
     await page.setViewportSize({ width, height: 1000 });
     await settle();
-    const library = page.getByRole("link", { name: "Ready-made mixes", exact: true });
+    // The ready-made library is reached through the Marketplace collection tab (91e5aad replaced the Ready-made tab).
+    const library = page.getByRole("navigation", { name: "Mix collection", exact: true }).getByRole("link", { name: "Marketplace", exact: true });
     const bounds = await library.boundingBox();
     expect(bounds?.width).toBeGreaterThanOrEqual(44);
     expect(bounds?.height).toBeGreaterThanOrEqual(44);
@@ -222,10 +241,16 @@ test("responsive destinations stay reachable and hydration stays consistent", as
   }
   await page.goto("/account/preferences");
   await settle();
-  for (const route of ["/settings", "/help", "/account/tickets"]) {
-    await page.goto(route);
-    await settle();
-    await expect(page.locator('.nav-link[aria-current="page"]:visible')).toContainText("More");
+  // The phone tab bar marks More for these pages; the desktop sidebar hides More (2c029bc) and marks
+  // the page itself among its Account and help links (7e37d73).
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const [route, label] of [["/settings", "Settings"], ["/help", "Help"], ["/account/tickets", "My account"]] as const) {
+      await page.goto(route);
+      await settle();
+      if (width < 1024) await expect(page.locator('.nav-link[aria-current="page"]:visible')).toContainText("More");
+      else await expect(page.getByRole("navigation", { name: "Account and help", exact: true }).locator('a[aria-current="page"]:visible')).toHaveText(label);
+    }
   }
   expect(errors, JSON.stringify([...new Set(networkFailures)].slice(0, 12))).toEqual([]);
 });

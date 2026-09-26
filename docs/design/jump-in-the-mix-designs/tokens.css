@@ -1,0 +1,77 @@
+/* Jump in the Mix: design tokens. Light is the default; dark follows the system, and [data-theme] lets the user override it. */
+/* Rule for bubbles: a tail always uses its bubble's background variable (e.g. the Quick add tail uses --violet, never --violet-mark). */
+
+:root {
+  --page: #FFFFFF;
+  --surface: #F5F5F8;
+  --raised: #FFFFFF;
+  --selected: #FFFFFF;
+  --line: #E7E6EE;
+  --border: #CFCEDB;
+  --track: #DDDCE7;
+  --text: #1A1830;
+  --text-2: #55546B;
+  --text-3: #6B6A82;
+  --violet: #5D4CF2;
+  --violet-text: #5D4CF2;
+  --violet-mark: #5D4CF2;
+  --violet-ink: #4234C9;
+  --violet-wash: #EFEDFE;
+  --late: #C8372D;
+  --quiet: #C5C4D2;
+  --toast: #1A1830;
+  --toast-text: #FFFFFF;
+  --on-violet: #FFFFFF;
+  --font-ui: 'Instrument Sans', 'Helvetica Neue', Helvetica, system-ui, sans-serif;
+  --font-voice: 'Newsreader', Georgia, 'Times New Roman', serif; /* anything in the user's own words: drafts, notes, Quick add */
+  --radius-control: 12px;
+  --radius-sheet: 24px;
+  --radius-bubble: 20px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #12101F;
+    --surface: #1B1930;
+    --raised: #25223D;
+    --selected: #35315A;
+    --line: #2B2842;
+    --border: #5A5777;
+    --track: #34314D;
+    --text: #EEEDF6;
+    --text-2: #B9B7CC;
+    --text-3: #9795AD;
+    --violet-text: #A79DFF;
+    --violet-mark: #7C6EFF;
+    --violet-ink: #C9C3FF;
+    --violet-wash: #2A2554;
+    --late: #FF8A7A;
+    --quiet: #56537A;
+    --toast: #EEEDF6;
+    --toast-text: #12101F;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --page: #12101F;
+  --surface: #1B1930;
+  --raised: #25223D;
+  --selected: #35315A;
+  --line: #2B2842;
+  --border: #5A5777;
+  --track: #34314D;
+  --text: #EEEDF6;
+  --text-2: #B9B7CC;
+  --text-3: #9795AD;
+  --violet-text: #A79DFF;
+  --violet-mark: #7C6EFF;
+  --violet-ink: #C9C3FF;
+  --violet-wash: #2A2554;
+  --late: #FF8A7A;
+  --quiet: #56537A;
+  --toast: #EEEDF6;
+  --toast-text: #12101F;
+  color-scheme: dark;
+}

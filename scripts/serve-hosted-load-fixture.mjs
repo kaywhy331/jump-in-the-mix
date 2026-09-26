@@ -105,6 +105,9 @@ async function main() {
     emit({ event: 'ready', id: plan.id, buildId: (await readFile('.next/BUILD_ID', 'utf8')).trim(), commit: process.env.RENDER_GIT_COMMIT ?? null, readyMs, profile: plan.profile, fixtureRoleRestricted: scope.ready, sourceCustomerReadDenied: true });
     phase = 'observations';
     emit(await snapshot());
+    // SIGTERM can arrive after readiness while snapshot() is awaiting I/O.
+    // No readline interface exists yet for cancel() to close in that window.
+    if (closing) return;
     input = createInterface({ input: process.stdin, crlfDelay: Infinity });
     for await (const line of input) {
       if (closing || line === 'stop') break;

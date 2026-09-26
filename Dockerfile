@@ -27,7 +27,9 @@ CMD ["npm", "run", "dev"]
 FROM source AS worker
 ENV NODE_ENV=production
 USER node
-CMD ["npm", "run", "worker"]
+# Node runs the worker directly so a stop signal reaches it (not npm or the tsx CLI). Give the
+# container a stop grace period long enough for the current job to finish or pause.
+CMD ["node", "--import", "tsx", "src/worker/index.ts"]
 
 FROM source AS builder
 ENV NODE_ENV=production

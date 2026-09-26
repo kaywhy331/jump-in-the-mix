@@ -1,0 +1,223 @@
+[
+  {
+    "id": "onboarding-390",
+    "url": "http://127.0.0.1:3108/onboarding",
+    "title": "Create your first follow-up | Jump in the Mix",
+    "text": "Jump in the Mix\nYour first follow-up\nJump in the mix.\n\nWho would you like to reconnect with? A customer, a friend, or someone you just met—start with one person.\n\n1 Make this fit your life\n\nHow will you use Jump in the Mix? Select all that apply.\n\nBusiness\nStay close to customers and keep business opportunities moving.\nPersonal connections\nKeep in touch with friends and the people who matter to you.\nNetworking and business development\nBuild professional relationships, continue introductions, and explore partnerships.\nType of business\nHome services\nReal estate\nInsurance & finance\nProfessional services\nB2B & technology\nRetail & ecommerce\nAutomotive\nHealth & wellness\nOther\nWe’ll suggest mixes that fit your work.\n2 Make it sound like you\nBusiness name\nHow do you sign texts?\n3 Choose a starting point\nWhat do you want to do?\nFollow up about an estimate\nFollow up on a quote\nFollow up on an inquiry\nReconnect with a lead\nReconnect with someone\nCheck in after the job\nAsk for a review\nReconnect\nGeneral follow-up\nChoose one follow-up to start with. You can add more later.\n4 Add your first person\nImport contacts from a file\nRefresh imported contacts\nFile import opens in another tab so your setup stays here. After importing, refresh and choose a saved person below.\nQuick Add\nChecking device support…\nName\nPhone recommended\nEmail recommended\nWhat should you remember?\nFollow up on\nYour timezone\nTimezone\nLos Angeles\nChange\nDetected automatically for follow-up times.\nWhat happens next\nWe prepare your first mix: a follow-up campaign starting on the date you picked. Your first beat appears in Today for you to review before sending.\nPrepare my first follow-up\nSkip for now",
+    "width": 390,
+    "height": 2768,
+    "scrollWidth": 390,
+    "axe": []
+  },
+  {
+    "id": "onboarding-no-method-result",
+    "url": "http://127.0.0.1:3108/jumps?welcome=1&range=all&firstContact=Unreachable+Person",
+    "title": "Today | Jump in the Mix",
+    "text": "Your first follow-up for Unreachable Person is ready.\nTry your first networking mix\n\nYou have three personal invitations. Add email addresses or text numbers, then review and send their unique signup links from Today.\n\nPrepare invitations\nToday\n\n1 follow-up needs your attention.\n\nFilter 1\n\nThis week: 2 open\n·\n0 completed today\n\nNEEDS ATTENTION\n1\nNEXT UP\nUnreachable Person\nToday · Sep 18, 10:00 AM\nEstimate sent: gentle follow-upFollow up about an estimate\nFine-tune before sending\nAdd phone\nCopy\nDone\nSkip\nMore\nUP NEXT\n1\nUnreachable Person\nSep 23, 11:00 AM\nEstimate sent: gentle follow-upFollow up about an estimate\n\nAsk whether they received the estimate and whether the timing or scope has changed. Answer questions plainly; offer the next available appointment …\n\nDone\nSkip\nMore\nShowing 2 of 2 follow-ups in this view.\nToday\nContacts\nQuick Add\nMixes\nMore",
+    "width": 390,
+    "height": 1356,
+    "scrollWidth": 390,
+    "axe": []
+  },
+  {
+    "id": "template-double-audience",
+    "url": "http://127.0.0.1:3108/templates/mix_relationship_next_verse/use",
+    "title": "Set up your mix | Jump in the Mix",
+    "text": "Set up your mix\nMix library\nRemix it\n\nMake your own copy, then fine-tune the beats and tempo. Start with a draft to make every message sound like you.\n\n2 beats · 14 days\nMix name\nAfter setup\nKeep as a draft\nStart the mix\nStarts\n\nDay 0 is when you first turn on this draft\n\nWho is this mix for?\n\nChoose everyone or one or more tags.\n\nEveryone4 active people\nOr choose tags\nCustomers2 people\nEstimates1 person\nReferrals1 person\nQuick check\n2\npeople\n2\nbeats each\n4\nscheduled follow-ups\n14\ndays\n\nCreate a draft to review the messages first. Active mixes follow your automatic-sending settings, if enabled.\n\nBack to ready-made mixes\nCreate my remix\n\nYour starting point\n\nThe Next Verse\n\nRecognize a milestone and stay interested in what comes next.\n\n2 beats\n14 days\n\nPreview the rhythm\n\nWhen someone replies, pause their mix and continue the conversation. Replies are not detected automatically.\n\nToday\nContacts\nQuick Add\nMixes\nMore",
+    "width": 390,
+    "height": 1986,
+    "scrollWidth": 390,
+    "knownUniquePeople": 1,
+    "axe": []
+  },
+  {
+    "id": "support-detail-390",
+    "url": "http://127.0.0.1:3108/account/tickets/audit_support",
+    "title": "Support ticket | Jump in the Mix",
+    "text": "",
+    "width": 390,
+    "height": 1503,
+    "scrollWidth": 390,
+    "axe": []
+  },
+  {
+    "id": "journey-configuration-populated",
+    "url": "http://127.0.0.1:3108/settings/journey",
+    "title": "Customer journey settings | Jump in the Mix",
+    "text": "",
+    "width": 390,
+    "height": 844,
+    "scrollWidth": 390,
+    "axe": []
+  },
+  {
+    "id": "journey-populated",
+    "url": "http://127.0.0.1:3108/journey",
+    "title": "Customer journey | Jump in the Mix",
+    "text": "",
+    "width": 390,
+    "height": 844,
+    "scrollWidth": 390,
+    "axe": []
+  },
+  {
+    "id": "dark320-jumps",
+    "url": "http://127.0.0.1:3108/jumps",
+    "title": "Today | Jump in the Mix",
+    "text": "Today\n\n3 follow-ups need your attention · 1 overdue.\n\nFilter\n\nThis week: 8 open\n·\n0 completed today\n\nToday at a glance\nNEEDS ATTENTION\n3\nNEXT UP\nMarcus Reed\n2 days overdue\nEstimate follow-upEstimate follow-up\nFine-tune before sending\nOpen text\nCopy\nDone\nSkip\nMore\nSarah Chen\nToday · Sep 18, 10:00 AM\nEstimate follow-upReferral follow-up\n\nHi Sarah, just checking that you received the estimate. Any questions I can clear up? — Alex at Northline Home Services\n\nDone\nSkip\nMore\nMarcus Reed\nToday · Sep 18, 10:00 AM\nEstimate follow-upEstimate follow-up\n\nAsk whether the estimate was clear, answer questions about the work or timing, and agree on the next step without pressure.\n\nDone\nSkip\nMore\nShowing 3 of 3 follow-ups in this view.\nToday\nContacts\nQuick Add\nMixes\nMore",
+    "width": 320,
+    "height": 1260,
+    "scrollWidth": 320,
+    "axe": []
+  },
+  {
+    "id": "dark320-contacts",
+    "url": "http://127.0.0.1:3108/contacts",
+    "title": "Contacts | Jump in the Mix",
+    "text": "4 Contacts found. Showing 1 through 4.\n\nContacts\nAdd\nMore\nFilter\nSelect\nET\nElena Torres\n+1 555 010 1003\nelena@example.com\nMore\nMR\nMarcus Reed\n+1 555 010 1002\nmarcus@example.com\nMore\nSA\nSarah Audit Duplicate\nsarah@example.com\nMore\nSC\nSarah Chen\n+1 555 010 1001\nsarah@example.com\n\nNote: Introduced by a past customer; asked about a water-heater replacement.\n\nMore\n4 Contacts found. Showing 1 through 4.\nPage 1 of 1\nToday\nContacts\nQuick Add\nMixes\nMore",
+    "width": 320,
+    "height": 800,
+    "scrollWidth": 320,
+    "axe": []
+  },
+  {
+    "id": "dark320-contacts-new",
+    "url": "http://127.0.0.1:3108/contacts/new",
+    "title": "Add contact | Jump in the Mix",
+    "text": "Add a contact\nAdd a person\n\nA name and one way to reach them is plenty to start.\n\nFirst name\nLast name\nPhone\nEmail\noptional\nTag optional\nNo tag yet\nCustomers\nEstimates\nReferrals\nNote\noptional\nDictate\nYour browser’s speech service may process audio. Review the text before saving.\nAdd another phone\nAdd another email\nFirst follow-up\n\nChoose when you want this person to appear on Today.\n\nSchedule a follow-up now\nStart a matching mix if one is available.\nMore details\nCancel\nSave contact\nToday\nContacts\nQuick Add\nMixes\nMore",
+    "width": 320,
+    "height": 1601,
+    "scrollWidth": 320,
+    "axe": []
+  },
+  {
+    "id": "dark320-mixes-new-custom-1",
+    "url": "http://127.0.0.1:3108/mixes/new?custom=1",
+    "title": "Create a mix | Jump in the Mix",
+    "text": "Create a mix\nName and cue\n\nChoose what cues this mix and who it is for.\n\nMix name\nCue · when should it start?\nWhen I add a date\nWhen I start it for someone\nOn one fixed date\nWhich date?\nAnniversary\nAppointment\nBirthday\nClosed Deal\nEvent\nFollow-up\nReferral\nRenewal\nManage date types\nAfter saving\nKeep as a draft\nStart the mix\nWho is this mix for?\nEveryone4 active people\nCustomers2 people\nEstimates1 person\nReferrals1 person\nYou can also start a mix from one person’s page.\nAdvanced mix settings\nBeats\n\nEach beat is a text, email, or call reminder. Set the tempo with the days between touchpoints. Give the conversation room to breathe.\n\nAdd a beat\nBeat 1\n↑\n↓\nRemove\nChannel\nText\nCall\nEmail\nVoicemail\nWhatsApp\nTempo · days after start\nTiming\nCalendar day\nMinutes from the appointment start\nMinutes from the appointment end\nAfter the visit is marked completed\nMessage\nAlso offer as…\nMore tempo settings\nCancel\nCreate a mix\nToday\nContacts\nQuick Add\nMixes\nMore",
+    "width": 320,
+    "height": 2281,
+    "scrollWidth": 320,
+    "axe": []
+  },
+  {
+    "id": "dark320-calendar",
+    "url": "http://127.0.0.1:3108/calendar",
+    "title": "Calendar | Jump in the Mix",
+    "text": "Calendar\nSchedule an event\nDownload calendar\nYOUR NEXT SEVEN DAYS\nAmerica/New_York\nStarting date\nShow dates\nPrevious week\nToday\nNext week\nFri, Sep 18\n\nNo time reserved.\n\nSat, Sep 19\n\nNo time reserved.\n\nSun, Sep 20\n\nNo time reserved.\n\nMon, Sep 21\n\nNo time reserved.\n\nTue, Sep 22\n\nNo time reserved.\n\nWed, Sep 23\n\nNo time reserved.\n\nThu, Sep 24\n\nNo time reserved.\n\nSchedule a meeting or time block\nFind a contact for this event\nTitle\nEvent type\nMeeting\nTime block\nAdd a new person for this visit\n\nNo mix is ready to line up with a visit yet.\nCreate a mix\nwith the cue “When I start it for someone” and start it; no one needs to be enrolled first.\n\nContact (optional)\nNo contact\nElena Torres\nMarcus Reed\nSarah Audit Duplicate\nSarah Chen\nStarts\nStarts, date:\nToday, Sep 18\nStarts, time:\n9:00 AM\nHow long\n15 min\n30 min\n45 min\n1 hr\n1.5 hr\n2 hr\nCustom end\n\nEnds 9:30 AM\n\nTimezone\nWhere\nLink to join or find it (optional)\nDetails the customer should be reminded of (optional)\nAllow an intentional overlap with another event\n\nA meeting linked to a contact can trigger your journey rules. Save it here, then use its calendar download to share through your preferred provider. Saving does not send an invitation.\n\nSave event\nBring your calendars together\n\nGoogle Calendar, Outlook, Apple Calendar, and other iCalendar providers can share availability here. Add a subscription URL for automatic refreshes, or import an .ics file for a snapshot.\n\nIncoming calendars show busy time from the past month through the next year. Subscriptions are checked about every 15 minutes while the worker runs. Imported files stay as they were when uploaded. Edit external events in their original calendar.\n\nConnect a calendar subscription\nImport a calendar file\nShow Jump in the Mix in another calendar\nToday\nContacts\nQuick Add\nMixes\nMore",
+    "width": 320,
+    "height": 3974,
+    "scrollWidth": 320,
+    "axe": []
+  },
+  {
+    "id": "dark320-settings-connections",
+    "url": "http://127.0.0.1:3108/settings/connections",
+    "title": "Lead connections | Jump in the Mix",
+    "text": "Every inquiry, one place\nImport CSV or vCard\nA simple lead form\n\nShare a link from your website, social bio, email, or QR code. New inquiries arrive here automatically.\n\nCreate a form\nConnect an existing source\n\nUse your provider’s automation, Zapier, Make, n8n, or a small integration to send inquiries and milestones here.\n\nFind your source\nAdd a lead connection\nConnection name\nSource\nShareable lead form\nWebsite forms\nEmail\nText and WhatsApp messages\nCalls and voicemail\nSocial DMs and comments\nAnother CRM\nRFID, QR, and shared contacts\nAnother source\nCreate connection\nAudit website form\nEnabled · Shareable lead form · 0 inquiries\nNeeds a person’s eye\n\nExact email, phone, and source IDs prevent duplicate contacts. When details point to different people or an archived contact, we hold the inquiry here.\n\nNo inquiries waiting for review.\n\nRecent inquiries\n\nConnect a source and send a sample inquiry to see its receipt here.\n\nWays to connect your sources\n\nNew inquiries preserve existing contact details, Do not contact preferences, and manual mix stops. Original submitted details remain available in each receipt. Configure customer journey rules to choose what happens next.\n\nToday\nContacts\nQuick Add\nMixes\nMore",
+    "width": 320,
+    "height": 2127,
+    "scrollWidth": 320,
+    "axe": []
+  },
+  {
+    "id": "dark320-account-preferences",
+    "url": "http://127.0.0.1:3108/account/preferences",
+    "title": "Personal preferences | Jump in the Mix",
+    "text": "Personal preferences\nAccount\nProfile\n\nThese details apply to your personal account.\n\nDisplay name\nLocale\nEnglish · United States\nEnglish · Canada\nEnglish · United Kingdom\nEnglish · Australia\nTimezone\nPersonal timezone\nNew York\nChange\nSave profile\nScheduling defaults\n\nUsed when a follow-up or saved date does not specify its own time.\n\nDefault follow-up time\nWeekend scheduling\nKeep Saturday and Sunday\nMove to next Monday\nMove to previous Friday\nQuiet hours begin\nQuiet hours end\nBuffer between appointments\nNo buffer · book back to back\n10 minutes before and after\n15 minutes before and after\n30 minutes before and after\n45 minutes before and after\n60 minutes before and after\n90 minutes before and after\n120 minutes before and after\nKept free around each meeting when you book. Time blocks are not padded.\nSave scheduling defaults\nToday\nContacts\nQuick Add\nMixes\nMore",
+    "width": 320,
+    "height": 1531,
+    "scrollWidth": 320,
+    "axe": []
+  },
+  {
+    "id": "dark320-help",
+    "url": "http://127.0.0.1:3108/help",
+    "title": "Help | Jump in the Mix",
+    "text": "Help\nMy conversations\nFrequently asked questions\n\nSearch for a quick, plain-language answer.\n\n13\nSearch Help\nTopic\nAll topics\nGetting started\nMixes\nSaved dates\nToday\nContacts\nImports\nPrivacy and security\nTroubleshooting\nWhat are Mixes, Beats, and Tempo?\nWhat does Remix it do?\nWhat are a cue and a loop?\nWhy is a follow-up not on Today?\nDoes opening a text, email, or call mark it done?\nHow are possible duplicate contacts found?\nWhich email or phone number does a follow-up use?\nHow do birthdays, job dates, and renewals work?\nCan I build a mix from scratch?\nWhat happens when I choose a ready-made mix?\nHow do CSV and VCF imports protect my data?\nHow can I control my data?\nWhat should I include when reporting a problem?\nMessage support\n\nTell us what you were trying to do and what happened.\n\nResolved and closed conversations are removed after 180 days without activity. Open conversations and pending support emails are kept until they are handled.\n\nTopic\nGeneral help\nAccount and access\nCustomers and tags\nToday and follow-ups\nMixes and scheduling\nSaved dates\nReady-made mixes\nContact imports\nPrivacy and security\nSomething is not working\nProduct suggestion\nShort title\nWhat happened?\nKeep private data out.\nNever send passwords, customer information, private keys, session tokens, or provider credentials.\nSend to support\nRecent conversations\n\nReplies and status changes stay together.\n\n1\nAudit: follow-up needs a clearer next step\nJITM-AUDIT-001 · General help\n1 message · Updated Sep 18, 9:51 AM\nOpen\nView all conversations\nToday\nContacts\nQuick Add\nMixes\nMore",
+    "width": 320,
+    "height": 2983,
+    "scrollWidth": 320,
+    "axe": []
+  },
+  {
+    "id": "hosted-lead-390",
+    "url": "http://127.0.0.1:3108/lead/audit_hosted_form",
+    "title": "Get in touch | Jump in the Mix",
+    "text": "Northline Home Services\nLet’s get in touch\n\nTell Northline Home Services a little about what you need.\n\nYour name\n\nShare an email or phone number so we can respond.\n\nEmail\nPhone\nCompany (optional)\nHow can we help?\nNorthline Home Services may contact me about this request using the details I provide.\nSend request\n\nPowered by Jump in the Mix",
+    "width": 390,
+    "height": 1226,
+    "scrollWidth": 390,
+    "axe": []
+  },
+  {
+    "id": "review-390",
+    "url": "http://127.0.0.1:3108/review/audit-local-review-token-20260918",
+    "title": "How did we do? | Jump in the Mix",
+    "text": "Hi Sarah, how did we do?\n\nYour answer goes directly to Northline Home Services. It is not posted publicly.\n\nHow was your experience?\n★\n1 out of 5\n★\n2 out of 5\n★\n3 out of 5\n★\n4 out of 5\n★\n5 out of 5\nAnything you’d like us to know? Optional and private\nSend private feedback",
+    "width": 390,
+    "height": 844,
+    "scrollWidth": 390,
+    "axe": []
+  },
+  {
+    "id": "review-low-score-receipt",
+    "url": "http://127.0.0.1:3108/review/audit-local-review-token-20260918",
+    "title": "How did we do? | Jump in the Mix",
+    "text": "Hi Sarah, how did we do?\n\nYour answer goes directly to Northline Home Services. It is not posted publicly.\n\nHow was your experience?\n★\n1 out of 5\n★\n2 out of 5\n★\n3 out of 5\n★\n4 out of 5\n★\n5 out of 5\nAnything you’d like us to know? Optional and private\nSending…",
+    "width": 390,
+    "height": 844,
+    "scrollWidth": 390,
+    "axe": []
+  },
+  {
+    "id": "admin-support-detail-390",
+    "url": "http://127.0.0.1:3108/admin/support/audit_support",
+    "title": "Admin · Support ticket | Jump in the Mix",
+    "text": "E2E Platform Admin · owner\nLocal development\nYour account\nSecurity\nSign out\nAdministration\nMenu\nJITM-AUDIT-001\nAudit: follow-up needs a clearer next step\nSupport queue\nCustomer account\nDemo Owner · Open\n\ndemo@jumpinthemix.local · Northline Home Services · Normal priority · Assignee: E2E Platform Admin\n\nTicket controls\nConversation\n1\nDemo Owner\nSep 18, 1:51 PM\n\nSynthetic audit ticket. I would like a clearer explanation of the next follow-up step.\n\nReply\nResponse template\nChoose a starting point\nNeed more information\nSteps to try\nResolved\nReply to customer\nSaves to the ticket; email queues separately. Draft kept for 30 minutes in this tab. Reloading discards it.\nSend reply\nSend reply and resolve\nTriage\nCategory\nGeneral help\nAccount and access\nCustomers and tags\nToday and follow-ups\nMixes and scheduling\nSaved dates\nReady-made mixes\nContact imports\nPrivacy and security\nSomething is not working\nProduct suggestion\nPriority\nLow\nNormal\nHigh\nUrgent\nSave triage\nStatus\n\nOpen · last activity Sep 18, 1:51 PM\n\nReturn to support queue\nResolve ticket\nClose ticket\nChange assignment\nCustomer support view\nCustomer context",
+    "width": 390,
+    "height": 1799,
+    "scrollWidth": 390,
+    "axe": []
+  },
+  {
+    "id": "dark320-admin-admission",
+    "url": "http://127.0.0.1:3108/admin/admission",
+    "title": "Admin · Admission | Jump in the Mix",
+    "text": "E2E Platform Admin · owner\nLocal development\nYour account\nSecurity\nSign out\nAdministration\nMenu\nWaitlist\nInvitations\nAdmission\nAdmission\nCustomer accounts\n3\nIncludes suspended and unverified\nReserved invitations\n0\nUnused email grants reserve places\nAvailable capacity\n0\nBefore pause and recipient checks\nEffective readiness\n\nEmail grants: Set both limits above zero to allow invitations.\n\nThese ceilings apply to waitlist email grants. Personal invitations use a separate allowance of three per member. The pause controls below still apply.\n\nLimits: 0 total · 0 unused invitations\n\nNew waitlist requests\nNot paused\nAll new customer invitations\nNot paused\nMember referrals\nNot paused\nAccount creation from issued invitations\nNot paused\nCapacity and wave rules\nManage waitlist waves\nLimits and pauses\nTotal account and reservation limit\nAccounts + unused email grants. Zero stops new waitlist email grants.\nOutstanding invitation limit\nCannot exceed the total limit.\nPause new waitlist requests\n\nConfirmation and withdrawal links stay active.\n\nPause all new customer invitations\n\nQueued emails and issued links continue.\n\nPause new member referrals\n\nBlocks personal referrals; no invitation slots are used.\n\nEmergency account-creation control\nAfter saving: 0 → 0 spaces available.\n\nNo pauses enabled.\n\nReason for admission change\nYour administrator password\n\nPassword and recent MFA required. Existing accounts and invitations stay valid.\n\nSave admission controls",
+    "width": 320,
+    "height": 1804,
+    "scrollWidth": 320,
+    "axe": []
+  },
+  {
+    "id": "dark320-admin-reports",
+    "url": "http://127.0.0.1:3108/admin/reports",
+    "title": "Admin · Reports | Jump in the Mix",
+    "text": "E2E Platform Admin · owner\nLocal development\nYour account\nSecurity\nSign out\nAdministration\nMenu\nReports\nReport history\nExports\nReports\nSaved daily reports\nYour exports\nFrom (UTC)\nThrough (UTC)\nUpdate report\n7 days\n30 days\n90 days\nExport CSV\n\nObserved 2026-09-18 13:55 UTC · Today is partial · Max 366 days, end date included\n\nGrowth\nEngagement\nContent\nOperations\nNew accounts\n2\nActive members\n0\nCompleted follow-ups\n0\nWaitlist\nConfirmed waiting now\n0\nOldest confirmed request\n—\nRequests in range\n0\nThose requests joined\n0 (—)\nDefinitions and scope\nNew account activation\nNew accounts\n2\nVerified email\n2\nSetup complete\n1\nHas a contact\n1\nHas a prepared mix\n1\nActivated\n0 (0%)\nDefinitions and scope\nDaily activity\nTrend metric\nNew accounts\nWaitlist requests\nAccounts joined by invitation\nActive members\nCompleted follow-ups\nEmail attempts\nEmail failures\n2026-08-20\n2026-09-18\nNew accounts per UTC day. Daily peak: 2 on 2026-09-18. Exact values are in the daily table below.\nShow daily values (30 days)\nInvitation conversion\nWaitlist waves\nDefinitions and limits for these numbers",
+    "width": 320,
+    "height": 2234,
+    "scrollWidth": 320,
+    "axe": []
+  },
+  {
+    "id": "dark320-admin-team-view-add",
+    "url": "http://127.0.0.1:3108/admin/team?view=add",
+    "title": "Admin · Team | Jump in the Mix",
+    "text": "E2E Platform Admin · owner\nLocal development\nYour account\nSecurity\nSign out\nAdministration\nMenu\nTeam\nStaff\nInvitations\nAdd a person\nYour security\nAdd staff access\n\nEnter an email to add access or send a 7-day invitation.\n\nPerson’s email\nReview account",
+    "width": 320,
+    "height": 800,
+    "scrollWidth": 320,
+    "axe": []
+  },
+  {
+    "id": "dark320-admin-templates-new",
+    "url": "http://127.0.0.1:3108/admin/templates/new",
+    "title": "Admin · New library draft | Jump in the Mix",
+    "text": "E2E Platform Admin · owner\nLocal development\nYour account\nSecurity\nSign out\nAdministration\nMenu\nReady-made mixes\nInvitation wording\nLibrary options\nCreate a library draft\nBack to mixes\n\nDraft · publishing is a separate step.\n\nDraft details\nTitle\nDescription\nCategory\nRelationships\nPersonal connections\nNetworking\nFinished jobs\nEstimates\nNew clients\nNew customers\nActive clients\nCurrent clients\nPast clients\nPast customers\nReviews & referrals\nReconnect\nDiscovery\nDecision support\nBuyer education\nNeighborhood\nOther\nIndustry\nAny business\nHome services\nReal estate\nInsurance & finance\nProfessional services\nB2B & technology\nRetail & ecommerce\nAutomotive\nHealth & wellness\nOther\nShort label\nStarts\nWhen chosen for someone\nFrom a saved date\nOn one fixed date\nFeature this mix when published\nPrepared beats (1)\nBeat 1: Follow up · SMS · day 0\nBeat name\nChannel\nSMS\nEmail\nPhone call\nVoicemail script\nWhatsApp\nDays after start\nSend time\nBlank: customer’s default\nMessage\nInsert placeholder\nChoose a placeholder…\n{{First Name}}\n{{Last Name}}\n{{Company}}\n{{Email}}\n{{Phone}}\n{{Address}}\n{{Public Notes}}\n{{My First Name}}\n{{My Last Name}}\n{{My Email}}\n{{My Phone}}\n{{My Company}}\n{{My Website}}\n{{My Address}}\nAllow long SMS\nInclude opt-out wording\nMove earlier\nMove later\nRemove beat\nAdd beat\nReason for draft change\nSave draft for review",
+    "width": 320,
+    "height": 2000,
+    "scrollWidth": 320,
+    "axe": []
+  }
+]

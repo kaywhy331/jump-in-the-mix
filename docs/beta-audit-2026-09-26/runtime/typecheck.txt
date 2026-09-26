@@ -1,0 +1,8 @@
+# typecheck at 4b5abd8 2026-09-26T16:13:12Z
+
+> jump-in-the-mix-mvp@0.1.0 typecheck
+> tsc --noEmit
+
+	Command being timed: "npm run typecheck"
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:07.64
+	Maximum resident set size (kbytes): 1718568

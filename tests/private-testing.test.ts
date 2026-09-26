@@ -1,4 +1,4 @@
-vi.mock("@/lib/recovery-hold", () => ({ databaseRecoveryStatus: async () => "clear" }));
+vi.mock("@/lib/recovery-boundary-client", () => ({ recoveryBoundaryStatus: async () => "clear" }));
 import { NextRequest } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { productionConfigurationIssues, sessionCookieSecure } from "../src/lib/env";

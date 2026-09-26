@@ -1,0 +1,3 @@
+export const ACCESS_SOURCES = { REFERRAL: "Member referral", WAITLIST_FIFO: "Waitlist · earliest first", WAITLIST_RANDOM: "Waitlist · random", WAITLIST_MANUAL: "Waitlist · manual" } as const;
+export function accessGrantLabel(invite: { acceptedAt: Date | null; revokedAt: Date | null }) { return invite.acceptedAt ? "Joined" : invite.revokedAt ? "Revoked" : "Reserved access"; }
+export function adminFilterDate(value?: string) { if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined; const date = new Date(`${value}T00:00:00Z`); return Number.isFinite(+date) && date.toISOString().slice(0,10) === value ? date : undefined; }

@@ -1,43 +1,90 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { DeviceContactQuickAdd } from "@/components/DeviceContactQuickAdd";
+import { ActionForm } from "@/components/ActionForm";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { RequiredFieldsNote } from "@/components/RequiredFieldsNote";
+import { StarterPreview } from "@/components/StarterPreview";
+import { useEffect, useState } from "react";
 import { LocalDateInput } from "@/components/LocalDateInput";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
-import { completeOnboardingAction, skipOnboardingAction } from "@/lib/onboarding-actions";
-import { ONBOARDING_USES, onboardingUse, type OnboardingUse } from "@/lib/onboarding-options";
+import { completeOnboardingFormAction, skipOnboardingAction } from "@/lib/onboarding-actions";
+import { ONBOARDING_USES, onboardingReasons, type OnboardingUse } from "@/lib/onboarding-options";
+import { MegaMixSetup } from "@/components/MegaMixSetup";
+import { suggestedMegaMix } from "@/lib/mega-mixes";
+import type { JourneySetupValues } from "@/lib/journey-preferences";
+import { marketingScenario } from "@/lib/marketing-scenarios";
 
-export function OnboardingForm({ userName, industry, initialUse, timezone, today }: { userName: string; industry: string | null; initialUse: OnboardingUse; timezone: string; today: string }) {
-  const [purpose, setPurpose] = useState<OnboardingUse>(initialUse);
-  const use = onboardingUse(purpose)!;
-  return <form action={completeOnboardingAction} className="form-stack">
+type ContactOption = { id: string; displayName: string };
+export function OnboardingForm({ userName, industry, initialUses, timezone, today, scenarioId, contacts, initialSetup, company, smsSignature }: { userName: string; industry: string | null; initialUses: OnboardingUse[]; timezone: string; today: string; scenarioId?: string; contacts: ContactOption[]; initialSetup: JourneySetupValues; company?: string; smsSignature?: string }) {
+  const router = useRouter();
+  const [setupMode, setSetupMode] = useState<"person" | "journey" | "individual">(initialSetup.preferences.draftSetupMode ?? "journey");
+  const [purposes, setPurposes] = useState<OnboardingUse[]>(initialUses);
+  const [businessType, setBusinessType] = useState(industry ?? "Home services");
+  const [selectedTimezone, setSelectedTimezone] = useState(timezone);
+  useEffect(() => { const refresh = () => router.refresh(); window.addEventListener("focus", refresh); return () => window.removeEventListener("focus", refresh); }, [router]);
+  // An installed app opens a new tab in the browser, which keeps its own sign-in (iOS), so import in place there.
+  const [standalone, setStandalone] = useState(false);
+  useEffect(() => { setStandalone(window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true); }, []);
+  const [contactId, setContactId] = useState("");
+  const scenario = marketingScenario(scenarioId);
+  const business = purposes.includes("business");
+  const organization = business || purposes.includes("networking");
+  const reasons = onboardingReasons(purposes);
+  const [choice, setChoice] = useState(scenario && business ? "suggested" : reasons[0] ?? "");
+  const selected = choice === "suggested" && scenario && business || reasons.includes(choice) ? choice : reasons[0] ?? "";
+  return <><fieldset className="onboarding-step-card"><legend>Choose your starting point</legend><div className="form-stack"><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "journey"} onChange={() => setSetupMode("journey")} /><span><strong>A complete mega-mix · Recommended</strong><small>Your whole pipeline on day one: every follow-up from first inquiry to repeat work, written and connected. Just tweak the wording to sound like you.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "individual"} onChange={() => setSetupMode("individual")} /><span><strong>Choose individual mixes</strong><small>Build your journey one Mix at a time. Preview and customize each one.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "person"} onChange={() => setSetupMode("person")} /><span><strong>Other uses or one follow-up</strong><small>Personal connections, another kind of business, or a simple start with one person.</small></span></label></div></fieldset>
+  <div hidden={setupMode === "person"}><MegaMixSetup initialId={initialSetup.preferences.draftBlueprintId || suggestedMegaMix(industry, scenarioId)} initialSetup={initialSetup} onboarding={{ userName, company, smsSignature }} individual={setupMode === "individual"} active={setupMode !== "person"} />{setupMode === "individual" && <button type="button" className="text-button" onClick={() => setSetupMode("person")}>Start with one person and one follow-up instead</button>}</div>
+  <div hidden={setupMode !== "person"}><ActionForm action={completeOnboardingFormAction} className="form-stack" protect={setupMode === "person"}>
+    <RequiredFieldsNote />
     <fieldset className="onboarding-step-card">
       <legend><span>1</span> Make this fit your life</legend>
       <div className="form-stack">
-        <label className="field"><span>How will you use Jump in the Mix?</span><select name="useCase" value={purpose} onChange={event => setPurpose(event.target.value as OnboardingUse)}>{ONBOARDING_USES.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}</select><small>{use.description} You can use it for more than one.</small></label>
-        {purpose === "business" && <label className="field"><span>Type of business</span><select name="businessType" defaultValue={industry ?? "Home services"}>{[...new Set([...BUSINESS_TYPES, ...(industry ? [industry] : [])])].map(type => <option key={type}>{type}</option>)}</select><small>We’ll suggest mixes that fit your work.</small></label>}
+        <p id="use-case-help">How will you use Jump in the Mix? Select all that apply.</p>
+        {ONBOARDING_USES.map(option => <label className="checkbox-card" key={option.id}><input type="checkbox" name="useCase" value={option.id} checked={purposes.includes(option.id)} aria-describedby="use-case-help" onChange={event => setPurposes(current => event.target.checked ? [...current, option.id] : current.filter(id => id !== option.id))} /><span><strong>{option.label}</strong><small>{option.description}</small></span></label>)}
+        {business && <label className="field"><span>Type of business</span><select name="businessType" value={businessType} onChange={event => setBusinessType(event.target.value)}>{[...new Set([...BUSINESS_TYPES, ...(industry ? [industry] : [])])].map(type => <option key={type}>{type}</option>)}</select><small>We’ll suggest mixes that fit your work.</small></label>}
       </div>
     </fieldset>
-    <fieldset className="onboarding-step-card">
-      <legend><span>2</span> Make it sound like you</legend>
+    <details className="onboarding-step-card" onInvalidCapture={event => { event.currentTarget.open = true; }}>
+      <summary>Optional business details and signature</summary>
       <div className="form-grid">
-        {purpose !== "personal" && <label className="field"><span>{purpose === "business" ? "Business name" : "Organization (optional)"}</span><input name="businessName" autoComplete="organization" placeholder={purpose === "business" ? "Lee Plumbing" : "Company, community, or group"} maxLength={200} required={purpose === "business"} /></label>}
-        <label className={purpose === "personal" ? "field full" : "field"}><span>How do you sign texts?</span><input name="smsSignature" defaultValue={userName} maxLength={160} required /></label>
+        {organization && <label className="field"><span>{business ? "Business name (optional)" : "Organization (optional)"}</span><input name="businessName" autoComplete="organization" placeholder={business ? "Lee Plumbing" : "Company, community, or group"} maxLength={200}  /></label>}
+        <label className={!organization ? "field full" : "field"}><span>How do you sign texts?</span><input name="smsSignature" defaultValue={userName} maxLength={160} required /></label>
+      </div>
+    </details>
+    <fieldset className="onboarding-step-card">
+      <legend><span>2</span> Choose a starting point</legend>
+      <div className="form-stack">
+        <input type="hidden" name="starterChoice" value={selected === "suggested" ? "suggested" : "choose"} />
+        <label className="field"><span>What do you want to do?</span><select name="reason" value={selected} onChange={event => setChoice(event.target.value)} required disabled={!purposes.length}>
+          {scenario && business && <option value="suggested">{scenario.starterTitle} — from the example you tried</option>}
+          {reasons.map(reason => <option key={reason}>{reason}</option>)}
+        </select><small>Choose one follow-up to start with. You can add more later.</small></label>
       </div>
     </fieldset>
     <fieldset className="onboarding-step-card">
       <legend><span>3</span> Add your first person</legend>
+      <div className="form-stack">
+        <div className="form-actions"><Link className="button" href="/contacts/import?onboarding=1" target={standalone ? undefined : "_blank"} rel={standalone ? undefined : "noopener"}>Import contacts from a file</Link><button className="button" type="button" onClick={() => router.refresh()}>Refresh imported contacts</button></div>
+        <small>{standalone ? "File import opens on this screen. Choose Open setup there to come back; answers you haven’t saved here are not kept." : "File import opens in another tab so your setup stays here. Return to this tab after importing; your saved people refresh automatically."}</small>
+        <DeviceContactQuickAdd onboarding />
+        {contacts.length > 0 && <label className="field"><span>Choose a saved person</span><select name="contactId" value={contactId} onChange={event => setContactId(event.target.value)}><option value="">Add someone new</option>{contacts.map(contact => <option key={contact.id} value={contact.id}>{contact.displayName}</option>)}</select></label>}
+      </div>
       <div className="form-grid">
-        <div className="field full"><label htmlFor="contactName">Name</label><input id="contactName" name="contactName" autoComplete="name" placeholder="Jordan Lee" required /></div>
-        <div className="field"><label htmlFor="contactPhone">Phone <small>recommended</small></label><input id="contactPhone" name="contactPhone" inputMode="tel" autoComplete="tel" placeholder="(555) 555-0123" /></div>
-        <div className="field"><label htmlFor="contactEmail">Email <small>optional</small></label><input id="contactEmail" name="contactEmail" type="email" inputMode="email" autoComplete="email" /></div>
-        <label className="field"><span>What should you remember?</span><select key={purpose} name="reason" defaultValue={use.reasons[0]}>{use.reasons.map(reason => <option key={reason}>{reason}</option>)}</select></label>
-        <div className="field"><label htmlFor="followUpDate">Follow up on</label><LocalDateInput id="followUpDate" name="followUpDate" initialValue={today} /></div>
-        <div className="field full"><label htmlFor="timezone">Your timezone</label><TimezonePicker defaultValue={timezone} confirmDetection /></div>
+        {!contactId && <><div className="field full"><label htmlFor="contactName">Name</label><input id="contactName" name="contactName" autoComplete="name" placeholder="Jordan Lee" required /></div>
+        <div className="field"><label htmlFor="contactPhone">Phone <small>recommended · optional</small></label><input id="contactPhone" name="contactPhone" inputMode="tel" autoComplete="tel" placeholder="(555) 555-0123" /></div>
+        <div className="field"><label htmlFor="contactEmail">Email <small>recommended · optional</small></label><input id="contactEmail" name="contactEmail" type="email" inputMode="email" autoComplete="email" /></div></>}
+        <label className="field full"><span>What should you remember? <small>optional</small></span><textarea name="privateContext" maxLength={1000} rows={3} placeholder="What did you discuss, and what timing or promise matters?" /></label>
+        <div className="field"><label htmlFor="followUpDate">Follow up on</label><LocalDateInput id="followUpDate" name="followUpDate" initialValue={today} timezone={selectedTimezone} /></div>
+        <div className="field full"><label htmlFor="timezone">Your timezone</label><TimezonePicker defaultValue={timezone} onChange={setSelectedTimezone} confirmDetection={timezone === "UTC"} /></div>
       </div>
     </fieldset>
-    <div className="onboarding-preview speech-bubble speech-bubble--soft"><strong>What happens next</strong><span>We prepare your first mix: a follow-up campaign starting on the date you picked. Your first beat appears in Today for you to review before sending.</span></div>
-    <button className="button primary" type="submit">Prepare my first follow-up</button>
+    <StarterPreview purposes={purposes} reason={selected === "suggested" ? scenario?.reason ?? reasons[0] : selected} businessType={businessType} scenarioId={selected === "suggested" ? scenario?.id : undefined} />
+    <p>If you save someone without a phone or email, we save the reminder and ask you to add their contact details before sending.</p>
+    <FormSubmitButton label="Prepare my first follow-up" pendingLabel="Preparing your follow-up…" />
     <div className="skip-setup-form"><button className="text-button" type="submit" formAction={skipOnboardingAction} formNoValidate>Skip for now</button></div>
-  </form>;
+  </ActionForm></div></>;
 }

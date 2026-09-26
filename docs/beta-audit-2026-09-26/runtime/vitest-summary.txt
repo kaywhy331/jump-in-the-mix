@@ -1,0 +1,43 @@
+# vitest on 4b5abd8, empty jitm_design_beta0926 (CI order: before seeding), CI env incl. RUN_PUSH/PLAN/WORKER_UNATTENDED tests, run 2026-09-26 in 6 shards
+# shards 1/6 and 2/6 = original shard 1/3 re-run with a PostgreSQL 17 client (pg_dump) on PATH; without it 5 backup tests + 2 recovery suites fail with 'spawn pg_dump ENOENT' (host tooling, not product)
+== vitest-shard1of6
+   Duration  481.34s (transform 3.19s, setup 0ms, import 11.72s, tests 461.33s, environment 7ms)
+ Test Files  47 passed | 1 skipped (48)
+      Tests  332 passed | 7 skipped (339)
+== vitest-shard2of6
+   Duration  120.71s (transform 3.25s, setup 0ms, import 11.29s, tests 101.21s, environment 7ms)
+ Test Files  47 passed | 1 skipped (48)
+      Tests  354 passed | 2 skipped (356)
+== vitest-shard3of6
+   Duration  81.94s (transform 3.93s, setup 0ms, import 13.00s, tests 59.94s, environment 8ms)
+ Test Files  48 passed (48)
+      Tests  389 passed (389)
+== vitest-shard4of6
+   Duration  85.40s (transform 3.48s, setup 0ms, import 11.97s, tests 64.75s, environment 8ms)
+ Test Files  48 passed (48)
+      Tests  373 passed (373)
+== vitest-shard5of6
+   Duration  53.61s (transform 3.21s, setup 0ms, import 11.70s, tests 33.08s, environment 8ms)
+ Test Files  48 passed (48)
+      Tests  351 passed | 1 skipped (352)
+== vitest-shard6of6
+   Duration  215.97s (transform 3.54s, setup 0ms, import 14.47s, tests 192.55s, environment 8ms)
+ Test Files  48 passed (48)
+      Tests  360 passed (360)
+== vitest-shard1
+   Duration  583.74s (transform 5.25s, setup 0ms, import 24.40s, tests 540.65s, environment 17ms)
+Error: spawn pg_dump ENOENT
+Error: /usr/bin/node exited with code 1: Backup failed: spawn pg_dump ENOENT
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  tests/backup-database.integration.test.mjs > encrypted PostgreSQL recovery > records backup evidence only after success and qualifies a separate restore before recording its receipt
+ FAIL  tests/backup-database.integration.test.mjs > encrypted PostgreSQL recovery > requires other target clients to be stopped before loading restored data
+ FAIL  tests/backup-database.integration.test.mjs > encrypted PostgreSQL recovery > restores legacy manifests and rejects tampering or a wrong key before writing data
+ FAIL  tests/backup-database.integration.test.mjs > encrypted PostgreSQL recovery > round-trips the current manifest and smoke test; protects same and nonempty databases
+ FAIL  tests/backup-database.integration.test.mjs > encrypted PostgreSQL recovery > uses an exported snapshot even when another connection commits before pg_dump
+ FAIL  tests/recovery-bundle.integration.test.mjs > complete recovery bundles
+ FAIL  tests/recovery-state.integration.test.mjs > authenticated recovery state and held-target review
+ Test Files  3 failed | 91 passed | 2 skipped (96)
+== vitest-backup-rerun
+   Duration  63.98s (transform 267ms, setup 0ms, import 506ms, tests 62.94s, environment 0ms)
+ Test Files  3 passed (3)
+      Tests  37 passed (37)

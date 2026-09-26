@@ -1,9 +1,11 @@
 import { runJourneyMaintenance } from "@/lib/journey";
+import { processWorkflowInstance, runMixWorkflowMaintenance, type WorkflowCommand } from "@/lib/mix-workflow";
 import { runCalendarSync } from "@/lib/calendar";
 import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { runAutomaticDeliveries } from "@/lib/automatic-delivery";
 import { CONTACT_IMPORT_JOB_TASK, runContactImportBatch } from "@/lib/contact-import-jobs";
+import { ImportInterruptedError } from "@/lib/contact-import-lease";
 import { generateJumps } from "@/lib/jump-engine";
 import { deliverSupportEmails } from "@/lib/support-email-delivery";
 import { runScheduledNotifications } from "@/lib/notification-delivery";
@@ -15,6 +17,9 @@ import { deliverWaitlistInvitations } from "@/lib/waitlist-delivery";
 import { runReportExport } from "@/lib/report-exports";
 import { queueDailyReports, runReportSnapshot, markReportJobFailed } from "@/lib/report-snapshots";
 import { REPORT_EXPORT_TASK, REPORT_SNAPSHOT_TASK } from "@/lib/report-storage-policy";
+import { PHONE_KEYS_TASK, runPhoneKeySweep } from "@/lib/phone-canonicalization";
+import { MARKETPLACE_REFRESH_INTERVAL_MS, refreshStaleListings, type ListingRefreshCursor } from "@/lib/marketplace-service";
+import { SUPPORT_OPERATOR_ALERT_TASK, sendSupportOperatorAlert } from "@/lib/support-operator-alert";
 
 const workerId = `worker-${randomUUID().slice(0, 8)}`;
 const workerStartedAt = new Date();
@@ -35,6 +40,21 @@ class PermanentJobError extends Error {
     this.name = "PermanentJobError";
   }
 }
+
+// A resumable job stopped at a saved checkpoint because this worker is shutting down or lost its
+// lease. It is not a failure: the job is handed back for immediate pickup and its attempt returned.
+class JobPausedError extends Error {
+  constructor() {
+    super("The job stopped at a saved checkpoint.");
+    this.name = "JobPausedError";
+  }
+}
+
+const PAUSED_JOB_MESSAGE = "Paused while the worker stopped. It resumes from its saved progress.";
+
+// What a running job sees of its claim. shouldStop() turns true once a shutdown is requested or the
+// lease is lost; long jobs check it between their saved steps (contact import chunks, phone sweeps).
+type JobLease = { jobId: string; leaseId: string; shouldStop(): boolean };
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -125,7 +145,24 @@ function retryDelayMs(attempts: number): number {
   return Math.round(base * (0.8 + Math.random() * 0.4));
 }
 
-async function executeJob(job: ClaimedJob): Promise<void> {
+// The phone-key sweep runs for one workspace (a region change) or for all of them (the release).
+function phoneSweepScope(job: ClaimedJob): { workspaceId?: string } {
+  const payload = job.payload;
+  if (payload !== null && (typeof payload !== "object" || Array.isArray(payload))) throw new PermanentJobError("Phone number job has an invalid payload.");
+  const requested: unknown = (payload as { workspaceId?: unknown } | null)?.workspaceId ?? undefined;
+  if (requested !== undefined && (typeof requested !== "string" || !requested || requested.length > 100)) throw new PermanentJobError("Phone number job has an invalid workspace.");
+  if (requested && job.workspaceId && requested !== job.workspaceId) throw new PermanentJobError("Phone number job names two different workspaces.");
+  const workspaceId = (requested as string | undefined) ?? job.workspaceId ?? undefined;
+  return workspaceId ? { workspaceId } : {};
+}
+
+async function executeJob(job: ClaimedJob, lease: JobLease): Promise<void> {
+  if (job.task === "mix-workflow") {
+    const payload = job.payload as { instanceId?: string } & Partial<WorkflowCommand>;
+    if (!job.workspaceId || typeof payload.instanceId !== "string") throw new PermanentJobError("Workflow job is missing its instance.");
+    await processWorkflowInstance(job.workspaceId, payload.instanceId, new Date(), payload.requestId ? payload as WorkflowCommand : undefined);
+    return;
+  }
   if (job.task === REPORT_EXPORT_TASK || job.task === REPORT_SNAPSHOT_TASK) {
     const payload = job.payload as { exportId?: unknown; snapshotId?: unknown };
     const id = job.task === REPORT_EXPORT_TASK ? payload?.exportId : payload?.snapshotId;
@@ -133,6 +170,10 @@ async function executeJob(job: ClaimedJob): Promise<void> {
     const lease = { jobId: job.id, leaseId: job.lockedBy };
     if (job.task === REPORT_EXPORT_TASK) await runReportExport(id, lease);
     else await runReportSnapshot(id, lease);
+    return;
+  }
+  if (job.task === SUPPORT_OPERATOR_ALERT_TASK) {
+    await sendSupportOperatorAlert(job.payload);
     return;
   }
   if (job.task === "generate-jumps") {
@@ -143,15 +184,41 @@ async function executeJob(job: ClaimedJob): Promise<void> {
   if (job.task === CONTACT_IMPORT_JOB_TASK) {
     const payload = job.payload as { batchId?: string };
     if (typeof payload?.batchId !== "string" || !payload.batchId || payload.batchId.length > 100) throw new PermanentJobError("Contact import job is missing its batch identifier.");
-    await runContactImportBatch(payload.batchId, { jobId: job.id, leaseId: job.lockedBy });
+    await runContactImportBatch(payload.batchId, lease);
+    return;
+  }
+  if (job.task === PHONE_KEYS_TASK) {
+    const scope = phoneSweepScope(job);
+    // The sweep is convergent: stopped early (by returning or by throwing once shouldStop() is true),
+    // it is paused rather than completed, and the next run skips rows that are already current.
+    try {
+      await runPhoneKeySweep(scope, lease);
+    } catch (error) {
+      if (lease.shouldStop()) throw new JobPausedError();
+      throw error;
+    }
+    if (lease.shouldStop()) throw new JobPausedError();
     return;
   }
   throw new PermanentJobError(`Unsupported worker task: ${job.task}`);
 }
 
+// A paused job goes back to the queue due now, with the attempt this run used given back, so a
+// worker restart never counts against the job or delays it until the lease expires.
+async function releasePausedJob(job: ClaimedJob): Promise<void> {
+  const released = await prisma.job.updateMany({
+    where: { id: job.id, lockedBy: job.lockedBy, completedAt: null, failedAt: null },
+    data: { lockedAt: null, lockedBy: null, runAt: new Date(), attempts: job.exhausted ? job.attempts : Math.max(0, job.attempts - 1), lastError: PAUSED_JOB_MESSAGE }
+  });
+  if (released.count === 1) console.log(`[${workerId}] Paused job ${job.id} (${job.task}); it resumes from its saved progress.`);
+  else console.error(`[${workerId}] Job ${job.id} stopped after this worker lost its lease; the job was left as it is.`);
+  await queueHeartbeat().catch((error) => console.error("Worker heartbeat failed", error));
+}
+
 async function processJob(job: ClaimedJob) {
   const leaseId = job.lockedBy;
   let leaseLost = false;
+  const lease: JobLease = { jobId: job.id, leaseId, shouldStop: () => stopping || leaseLost };
   const renewal = setInterval(() => {
     void prisma.job.updateMany({
       where: { id: job.id, lockedBy: leaseId, completedAt: null, failedAt: null },
@@ -167,7 +234,7 @@ async function processJob(job: ClaimedJob) {
 
   try {
     if (job.exhausted) throw new PermanentJobError("The attempt limit was reached before completion was recorded. Review the saved result before retrying.");
-    await executeJob(job);
+    await executeJob(job, lease);
     if (leaseLost) throw new Error("The job lease was lost before completion could be recorded.");
     const completed = await prisma.job.updateMany({
       where: { id: job.id, lockedBy: leaseId, completedAt: null, failedAt: null },
@@ -176,6 +243,12 @@ async function processJob(job: ClaimedJob) {
     if (completed.count !== 1) throw new Error("The job lease was lost before completion could be recorded.");
     await queueHeartbeat(new Date()).catch((error) => console.error("Worker heartbeat failed", error));
   } catch (error) {
+    // Stopped at a saved step because this worker is stopping or lost its lease: a sweep says so with
+    // JobPausedError, an import by being interrupted between chunks (ImportPausedError). Not a failure.
+    if (error instanceof JobPausedError || (error instanceof ImportInterruptedError && lease.shouldStop())) {
+      await releasePausedJob(job);
+      return;
+    }
     // Prisma errors may embed an imported row. Keep customer-facing batch
     // status and durable job errors free of contact contents and connection data.
     const message = job.task === CONTACT_IMPORT_JOB_TASK && !(error instanceof PermanentJobError)
@@ -215,6 +288,12 @@ async function processJob(job: ClaimedJob) {
   }
 }
 
+// The hourly Marketplace refresh keeps its gate and cursor here rather than in MaintenanceState, because
+// runWorkerPass builds a fresh state on every call. Author saves refresh their own shares at once; this
+// pass catches the changes no save sees (date-type renames, Journey edits, archived members).
+let marketplaceRefreshAt = 0;
+let marketplaceCursor: ListingRefreshCursor | null = null;
+
 type MaintenanceState = {
   automaticDelivery: number;
   jumpReconciliation: number;
@@ -253,15 +332,19 @@ async function runDueWorkspaceReconciliations(now = new Date()): Promise<void> {
 async function runMaintenanceIfDue(state: MaintenanceState): Promise<void> {
   const now = Date.now();
   if (now - state.automaticDelivery >= notificationIntervalMs) {
+    try { await runMixWorkflowMaintenance(new Date(now)); } catch (error) { console.error("Mix workflow pass failed", error); }
     try { await runJourneyMaintenance({ now: new Date(now), limit: 25 }); } catch (error) { console.error("Customer journey pass failed", error); }
     try { await runAutomaticDeliveries(workerId, new Date(now)); } catch (error) { console.error("Automatic delivery pass failed", error); }
     state.automaticDelivery = Date.now();
   }
+  // After a shutdown request the remaining passes wait for the next worker, which runs them at start.
+  if (stopping) return;
   if (now - state.jumpReconciliation >= maintenanceIntervalMs) {
     try { await runCalendarSync(new Date(now)); } catch (error) { console.error("Calendar refresh pass failed", error); }
     try { await runDueWorkspaceReconciliations(new Date(now)); } catch (error) { console.error("Periodic follow-up preparation failed", error); }
     state.jumpReconciliation = Date.now();
   }
+  if (stopping) return;
   if (now - state.notifications >= notificationIntervalMs) {
     try { await runDueWaitlistWave(new Date(now)); } catch { console.error("Waitlist wave pass failed; the schedule will retry."); }
     try { await deliverWaitlistInvitations(new Date()); } catch { console.error("Waitlist delivery pass failed; queued invitations will retry."); }
@@ -269,10 +352,17 @@ async function runMaintenanceIfDue(state: MaintenanceState): Promise<void> {
     try { await runScheduledNotifications(workerId, new Date(now)); } catch (error) { console.error("Scheduled notification pass failed", error); }
     state.notifications = Date.now();
   }
+  if (stopping) return;
   if (now - state.retentionCleanup >= maintenanceIntervalMs) {
     try { await queueDailyReports(); } catch { console.error("Daily report scheduling failed; the worker will retry."); }
     try { await cleanupOperationalData(); } catch { console.error("Operational retention cleanup failed; inspect the retention checkpoint and retry."); }
     state.retentionCleanup = Date.now();
+  }
+  if (stopping) return;
+  if (now - marketplaceRefreshAt >= MARKETPLACE_REFRESH_INTERVAL_MS) {
+    marketplaceRefreshAt = Date.now();
+    try { marketplaceCursor = (await refreshStaleListings({ limit: 200, after: marketplaceCursor })).next; }
+    catch (error) { console.error("Marketplace refresh pass failed", error); }
   }
 }
 
@@ -300,6 +390,8 @@ async function main() {
   while (!stopping) {
     if (Date.now() >= nextReleaseCheck) { await requireDatabaseRelease(); nextReleaseCheck = Date.now() + 30_000; }
     await runMaintenanceIfDue(maintenance);
+    // Take no new work once a shutdown is requested; the job in hand finishes or pauses first.
+    if (stopping) break;
     const job = await claimJob();
     if (job) {
       await processJob(job);
@@ -339,9 +431,16 @@ export async function runWorkerPass({ budgetMs = 8 * 60_000, maxJobs = 25 } = {}
   }
 }
 
+// Run as `node --import tsx src/worker/index.ts` so SIGTERM reaches this process directly (no npm or
+// tsx CLI in between). The host waits up to its shutdown delay (Render: maxShutdownDelaySeconds 300)
+// while the current job finishes or pauses at its next saved step.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.on("SIGTERM", () => { stopping = true; });
-  process.on("SIGINT", () => { stopping = true; });
+  const requestStop = (signal: NodeJS.Signals) => {
+    if (!stopping) console.log(`[${workerId}] ${signal} received; finishing the current step before stopping.`);
+    stopping = true;
+  };
+  process.on("SIGTERM", () => requestStop("SIGTERM"));
+  process.on("SIGINT", () => requestStop("SIGINT"));
   main().catch(async (error) => {
     console.error(error);
     if (heartbeatTimer) clearInterval(heartbeatTimer);

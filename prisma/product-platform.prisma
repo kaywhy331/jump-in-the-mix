@@ -37,6 +37,9 @@ model NotificationPreference {
   digestHour          Int      @default(7)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
 
   @@index([userId])
 }
@@ -55,6 +58,9 @@ model PushSubscription {
   updatedAt          DateTime               @updatedAt
   followUpDeliveries FollowUpPushDelivery[]
   session            Session?               @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
 
   @@index([workspaceId, userId])
   @@index([sessionId])
@@ -99,6 +105,9 @@ model NotificationDelivery {
   deliveredAt DateTime?
   createdAt   DateTime                   @default(now())
   updatedAt   DateTime                   @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
 
   @@unique([workspaceId, kind, localDate])
   @@index([status, createdAt])
@@ -114,6 +123,7 @@ model AutomationPreference {
   reviewWindowMinutes Int      @default(30)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
 
 model ReviewRequest {
@@ -131,6 +141,9 @@ model ReviewRequest {
   expiresAt         DateTime
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
 
   @@index([workspaceId, createdAt])
   @@index([contactId, createdAt])
@@ -152,6 +165,9 @@ model AutomatedDelivery {
   deliveredAt      DateTime?
   createdAt        DateTime                @default(now())
   updatedAt        DateTime                @updatedAt
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  jump      Jump      @relation(fields: [jumpId], references: [id], onDelete: Cascade)
+
 
   @@index([workspaceId, createdAt])
   @@index([status, reviewEligibleAt])

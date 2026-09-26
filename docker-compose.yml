@@ -86,6 +86,8 @@ services:
       context: .
       target: worker
     environment: *app_environment
+    # Let an in-flight job reach a safe point (imports pause between chunks) before Docker kills the worker.
+    stop_grace_period: 300s
     depends_on:
       setup:
         condition: service_completed_successfully

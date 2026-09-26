@@ -1,4 +1,6 @@
 import { headers } from "next/headers";
+import { clientAddressFromHeaders } from "@/lib/client-ip";
+import { env } from "@/lib/env";
 import { privateTestRequestAuthorized } from "@/lib/private-test";
 
 export type RequestMetadata = {
@@ -6,19 +8,18 @@ export type RequestMetadata = {
   userAgent: string | null;
 };
 
-function firstForwardedAddress(value: string | null): string | null {
-  return value?.split(",")[0]?.trim() || null;
-}
-
+/**
+ * The client address is read from the trusted proxy chain (Cloudflare in front of Render, plus
+ * TRUSTED_PROXY_CIDRS), never from the first X-Forwarded-For hop that the client controls; the
+ * rule and its truth table live in src/lib/client-ip.ts. The same rule applies in every
+ * environment, and it yields null when the chain proves nothing (for example a direct loopback
+ * request) so a forged value is never stored or rate-limited on.
+ */
 export async function getRequestMetadata(): Promise<RequestMetadata> {
   const store = await headers();
   if (!privateTestRequestAuthorized(store)) throw new Error("Private test access is required.");
   return {
-    ipAddress:
-      firstForwardedAddress(store.get("x-forwarded-for")) ??
-      store.get("cf-connecting-ip") ??
-      store.get("x-real-ip") ??
-      null,
+    ipAddress: clientAddressFromHeaders((name) => store.get(name), { trustedCidrs: env.trustedProxyCidrs }),
     userAgent: store.get("user-agent")?.slice(0, 500) ?? null
   };
 }

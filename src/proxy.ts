@@ -3,14 +3,16 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { privateTestConfigurationIssues, privateTestEnabled, privateTestRequestAuthorized } from "@/lib/private-test";
 import { workerRequestAuthorized } from "@/lib/worker-request";
-import { databaseRecoveryStatus } from "@/lib/recovery-hold";
+import { recoveryBoundaryStatus } from "@/lib/recovery-boundary-client";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const IMPERSONATION_COOKIE = process.env.AUTH_IMPERSONATION_COOKIE_NAME ?? "jitm_impersonation";
 const IMPERSONATION_END_PATH = "/api/admin/impersonation/end";
 const isProduction = process.env.NODE_ENV === "production";
 const RECOVERY_PUBLIC_PATHS = new Set([
-  "/api/health/live", "/api/health/ready", "/sw.js", "/favicon.ico", "/favicon.png",
+  "/", "/faq", "/for/real-estate-agents", "/for/consultants", "/for/photographers", "/for/contractors", "/for/independent-recruiters",
+  "/follow-up-templates", "/follow-up-templates/estimate-follow-up", "/follow-up-templates/proposal-follow-up", "/features/follow-up-reminders",
+  "/api/health/live", "/api/health/ready", "/api/health/recovery-boundary", "/.netlify/functions/recovery-boundary", "/sw.js", "/favicon.ico", "/favicon.png",
   "/brand-logo.png", "/relationship-preview.svg", "/relationship-preview.png", "/icon-source.svg",
   "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png", "/apple-touch-icon.png",
   "/product-proof/today.png", "/product-proof/contacts.png", "/product-proof/mixes.png",
@@ -126,8 +128,9 @@ export async function proxy(request: NextRequest) {
       return applySecurityHeaders(response, nonce);
     }
   }
-  if (!SAFE_METHODS.has(request.method.toUpperCase()) || !RECOVERY_PUBLIC_PATHS.has(request.nextUrl.pathname)) {
-    const recovery = await databaseRecoveryStatus();
+  const recoveryPublic = RECOVERY_PUBLIC_PATHS.has(request.nextUrl.pathname) || request.nextUrl.pathname.startsWith("/for/") || (!isProduction && request.nextUrl.pathname === "/login");
+  if (!SAFE_METHODS.has(request.method.toUpperCase()) || !recoveryPublic) {
+    const recovery = await recoveryBoundaryStatus(request);
     if (recovery !== "clear") {
       const message = "Jump in the Mix is temporarily unavailable. Please try again later.";
       const headers = { "Cache-Control": "private, no-store", "Retry-After": "60", "X-Robots-Tag": "noindex, nofollow" };
@@ -154,11 +157,14 @@ export async function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-jitm-request-id", randomUUID());
   requestHeaders.set("x-jitm-support-path", request.nextUrl.pathname);
+  requestHeaders.set("x-jitm-admin-return", `${request.nextUrl.pathname}${request.nextUrl.search}`.slice(0, 2000));
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", contentSecurityPolicy(nonce));
   const response = applySecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }), nonce);
 
-  if (request.nextUrl.pathname === "/register" || request.nextUrl.pathname.startsWith("/waitlist") || request.nextUrl.pathname.startsWith("/staff/accept")) {
+  // Invitation pages, and the Google and Apple sign-in hops whose addresses can carry an invitation token or a
+  // sign-in code, are never passed on as a referrer or stored by a cache.
+  if (request.nextUrl.pathname === "/register" || request.nextUrl.pathname.startsWith("/waitlist") || request.nextUrl.pathname.startsWith("/staff/accept") || request.nextUrl.pathname.startsWith("/api/auth/oauth/")) {
     response.headers.set("Referrer-Policy", "no-referrer");
     response.headers.set("Cache-Control", "private, no-store");
     response.headers.set("X-Robots-Tag", "noindex, nofollow");

@@ -40,9 +40,9 @@ test("review clears provider blocks while preserving recipient opt-out and all p
   await prisma.waitlistDelivery.update({ where: { id: delivery.id }, data: { status: "CANCELED" } });
   await prisma.waitlistEntry.create({ data: { email: f.email, status: "SUPPRESSED", verifiedAt: new Date() } });
   await prisma.emailSuppression.createMany({ data: ["HARD_BOUNCE", "COMPLAINT", "INVITATION_OPTOUT"].map(reason => ({ email: f.email, reason: reason as "HARD_BOUNCE" | "COMPLAINT" | "INVITATION_OPTOUT" })) });
-  await page.goto("/admin/email/suppressions"); await page.getByRole("searchbox", { name: "Recipient email" }).fill(f.email); await page.getByRole("button", { name: "Search recipients" }).click();
+  await page.goto("/admin/email/suppressions"); await page.getByRole("searchbox", { name: "Recipient email" }).fill(f.email);
   await expect(page.getByRole("heading", { name: f.email, exact: true })).toBeVisible(); await layout(page);
-  await page.getByRole("link", { name: "Review recipient", exact: true }).click(); await expect(page.getByRole("heading", { name: "Clear 2 provider blocks" })).toBeVisible(); await layout(page);
+  await page.getByRole("link", { name: "Review recipient", exact: true }).click(); await expect(page.getByRole("heading", { name: "Review evidence for 2 provider blocks" })).toBeVisible(); await layout(page);
   await reviewForm(page); await page.getByRole("button", { name: "Clear provider blocks locally" }).click();
   await expect(page).toHaveURL(/cleared=1$/); await expect(page.getByText("Provider blocks were cleared locally.", { exact: false })).toBeVisible();
   await expect(page.getByText("The recipient’s invitation opt-out remains in place.", { exact: false })).toBeVisible();
@@ -57,6 +57,7 @@ test("a changed suppression invalidates the rendered review and removal of permi
   await page.goto(`/admin/email/suppressions/${suppression.id}`); await reviewForm(page);
   await prisma.emailSuppression.update({ where: { id: suppression.id }, data: { revision: { increment: 1 } } });
   await page.getByRole("button", { name: "Clear provider blocks locally" }).click(); await expect(page.locator(".notice.error")).toContainText("suppression changed");
+  await page.getByRole("button", { name: "I reviewed the current record; keep my draft" }).click();
   await reviewForm(page); await prisma.staffMembership.update({ where: { userId: f.user.id }, data: { denies: ["email.manage"] } });
   await page.getByRole("button", { name: "Clear provider blocks locally" }).click(); await expect(page).toHaveURL(/access-denied/);
   expect((await prisma.emailSuppression.findUniqueOrThrow({ where: { id: suppression.id } })).clearedAt).toBeNull();
@@ -66,13 +67,15 @@ test("recorded acceptance recovers through the actual action while a missing rec
   const known = await f.invitation(), unknown = await f.invitation(false);
   await page.goto("/admin/email/recovery"); await expect(page.getByRole("heading", { name: "Email recovery", exact: true })).toBeVisible();
   expect(await page.content()).not.toMatch(/SECRET_INVITATION_SUBJECT|SECRET_ACCESS_URL_DO_NOT_EXPOSE|test-only-email-review/); await layout(page);
-  const card = page.locator("section.card").filter({ hasText: `Delivery record: ${known.delivery.id}` });
+  await page.goto(`/admin/email/recovery/${known.delivery.id}`);
+  const card = page.locator("main");
   await card.getByRole("textbox", { name: "Recovery reason", exact: true }).fill("Restore the locally recorded provider acceptance without sending again.");
   await card.getByRole("button", { name: "Recover recorded acceptance" }).click(); await expect(page).toHaveURL(/recovered=1$/);
-  await expect(page.getByText("The matching provider acceptance was recovered.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Provider acceptance recovered. No email was sent.", { exact: false })).toBeVisible();
   expect((await prisma.waitlistDelivery.findUniqueOrThrow({ where: { id: known.delivery.id } })).status).toBe("SENT");
   expect(await prisma.emailSendAttempt.count({ where: { messageId: known.record.id } })).toBe(0);
-  const other = page.locator("section.card").filter({ hasText: `Delivery record: ${unknown.delivery.id}` });
+  await page.goto(`/admin/email/recovery/${unknown.delivery.id}`);
+  const other = page.locator("main");
   await other.getByRole("textbox", { name: "Recovery reason", exact: true }).fill("Check whether this uncertain send has a recorded acceptance.");
   await other.getByRole("button", { name: "Recover recorded acceptance" }).click(); await expect(page.locator(".notice.error")).toContainText("No matching local acceptance");
   expect((await prisma.waitlistDelivery.findUniqueOrThrow({ where: { id: unknown.delivery.id } })).status).toBe("REVIEW");
@@ -88,7 +91,8 @@ test("current MFA and invitation-type permission are enforced independently", as
 test("reviewed resend uses the existing invitation and preserves history through the actual action", async ({ page }) => {
   const item = await f.invitation(false);
   await page.goto("/admin/email/recovery");
-  const card = page.locator("section.card").filter({ hasText: `Delivery record: ${item.delivery.id}` });
+  await page.goto(`/admin/email/recovery/${item.delivery.id}`);
+  const card = page.locator("main");
   await card.getByText("Review sending this invitation again", { exact: true }).click();
   await card.getByRole("textbox", { name: "Reason for another email", exact: true }).fill("Recipient requested another copy after we checked the provider record.");
   await card.getByRole("textbox", { name: "Provider investigation reference", exact: true }).fill("Provider OP-202");
@@ -110,15 +114,16 @@ test("reviewed resend uses the existing invitation and preserves history through
   // A late receipt is displayed from the original ledger, without exposing content.
   await prisma.emailMessage.update({ where: { id: item.record.id }, data: { providerId: "late-provider-receipt", acceptedAt: new Date() } });
   await prisma.waitlistDelivery.update({ where: { id: queued.id }, data: { status: "REVIEW" } });
-  await page.goto(`/admin/email/recovery?q=${encodeURIComponent(f.email)}`);
-  await page.getByText("Previous deliveries · latest five", { exact: true }).click();
+  await page.goto(`/admin/email/recovery/${item.delivery.id}`);
+  await page.getByText("Identifiers and previous deliveries (latest five)", { exact: true }).click();
   await expect(page.getByText(/Delivery 1: Provider acceptance recorded/)).toContainText("late-provider-receipt");
 });
 
 test("provider form rejects an arbitrary URL locally and resend requires renewed MFA", async ({ page }) => {
   const item = await f.invitation(false);
   await page.goto("/admin/email/recovery");
-  const card = page.locator("section.card").filter({ hasText: `Delivery record: ${item.delivery.id}` });
+  await page.goto(`/admin/email/recovery/${item.delivery.id}`);
+  const card = page.locator("main");
   await card.getByText("Check provider record", { exact: true }).click();
   // Exactly 36 characters passes HTML length checks; the server must still reject it.
   await card.getByRole("textbox", { name: "Provider email record ID", exact: true }).fill("https://attacker.test/".padEnd(36, "x"));

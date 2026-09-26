@@ -1,13 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
+import { createPendingJumpFixture, removePendingJumpFixture } from "./pending-jump-fixture";
 
 const userEmail = process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local";
 const userPassword = process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!";
 
 async function signIn(page: Page) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(userEmail);
-  await page.getByLabel("Password").fill(userPassword);
+  await page.getByLabel("Email", { exact: true }).fill(userEmail);
+  await page.getByLabel("Password", { exact: true }).fill(userPassword);
   await Promise.all([
     page.waitForURL(/\/(jumps|onboarding)(\?|$)/),
     page.getByRole("button", { name: "Sign in" }).click()
@@ -25,9 +26,12 @@ async function expectNoHorizontalOverflow(page: Page) {
 async function expectNoClippedControls(page: Page) {
   const clipped = await page.locator("button:visible, a.button:visible, summary.button:visible").evaluateAll((elements) => elements.flatMap((element) => {
     if (element.getAttribute("aria-label") === "Open Next.js Dev Tools" || element.classList.contains("sr-only")) return [];
+    // The phone Quick Add button's speech-bubble tail is drawn below the circle on purpose.
+    if (element.matches(".mobile-nav .nav-quick-add")) return [];
     const control = element as HTMLElement;
     const rect = control.getBoundingClientRect();
-    const container = control.closest(".card, .jump-task-card, .contact-row, .mix-card") as HTMLElement | null;
+    // An open sheet or dialog is its own container, even when its markup sits inside a card.
+    const container = control.closest("dialog, .sheet-panel") ? null : control.closest(".card, .jump-task-card, .contact-row, .mix-card") as HTMLElement | null;
     const containerRect = container?.getBoundingClientRect();
     const clippedByOwnBox = control.scrollWidth > control.clientWidth + 1 || control.scrollHeight > control.clientHeight + 1;
     const outsideContainer = Boolean(containerRect && (rect.left < containerRect.left - 1 || rect.right > containerRect.right + 1));
@@ -60,7 +64,9 @@ async function expectReadableMeaningfulText(page: Page) {
     const text = directText || controlText;
     if (!text) return [];
     const fontSize = Number.parseFloat(getComputedStyle(element).fontSize);
-    if (!Number.isFinite(fontSize) || fontSize === 0 || fontSize >= 13) return [];
+    // Floors follow the supplied phone design: 11px tab labels, 12px compact action labels, 13px for other text.
+    const floor = element.closest(".mobile-nav") ? 11 : element.closest("button, a.button, .button") ? 12 : 13;
+    if (!Number.isFinite(fontSize) || fontSize === 0 || fontSize >= floor) return [];
     return [{
       tag: element.tagName.toLowerCase(),
       className: element.className,
@@ -102,12 +108,11 @@ test("desktop personal account and settings cards share a common top edge", asyn
   expect(Math.abs(firstAccount!.y - secondAccount!.y)).toBeLessThanOrEqual(1);
 
   await page.goto("/settings");
-  const settingsCards = page.locator(".settings-hub-grid > .settings-hub-card");
-  const firstSetting = await settingsCards.nth(0).boundingBox();
-  const secondSetting = await settingsCards.nth(1).boundingBox();
-  expect(firstSetting).not.toBeNull();
-  expect(secondSetting).not.toBeNull();
-  expect(Math.abs(firstSetting!.y - secondSetting!.y)).toBeLessThanOrEqual(1);
+  // Settings is a single column of flat rows (design consistency, 2026-09-23): rows share one edge and width.
+  const settingsRows = await page.locator(".settings-hub-grid > .settings-hub-card").evaluateAll(rows => rows.map(row => { const box = row.getBoundingClientRect(); return { x: box.x, width: box.width, y: box.y, height: box.height }; }));
+  expect(settingsRows.length).toBeGreaterThan(3);
+  for (const row of settingsRows) { expect(Math.abs(row.x - settingsRows[0].x)).toBeLessThanOrEqual(1); expect(Math.abs(row.width - settingsRows[0].width)).toBeLessThanOrEqual(1); }
+  for (let index = 1; index < settingsRows.length; index++) expect(settingsRows[index].y).toBeGreaterThanOrEqual(settingsRows[index - 1].y + settingsRows[index - 1].height - 1);
 });
 
 test("mobile navigation fills the footer with five evenly spaced controls", async ({ page }, testInfo) => {
@@ -145,7 +150,7 @@ test("mobile navigation fills the footer with five evenly spaced controls", asyn
       await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { left: side, right: side, bottom } });
       const footer = (await page.locator(".mobile-nav").boundingBox())!;
       expect(footer.height).toBe(67 + bottom);
-      const controls = page.locator(".mobile-nav a.nav-link, .mobile-nav button.nav-quick-add");
+      const controls = page.locator(".mobile-nav a.nav-link:visible, .mobile-nav button.nav-quick-add:visible");
       for (let index = 0; index < 5; index += 1) {
         const box = (await controls.nth(index).boundingBox())!;
         expect(box.x).toBeGreaterThanOrEqual(side);
@@ -197,13 +202,18 @@ test("mobile text actions stay readable instead of collapsing into blank control
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile header geometry is checked once.");
   await signIn(page);
   await page.goto("/templates");
-  for (const label of ["My mixes", "Create a mix"]) {
-    const action = page.getByRole("link", { name: label, exact: true });
+  // Collection tabs keep their words; creating is a labelled icon since the phone icon pass (3f85c77).
+  for (const label of ["My mixes", "Mega-Mixes", "Marketplace"]) {
+    const action = page.locator(".mix-library-tabs").getByRole("link", { name: label, exact: true });
     await expect(action).toBeVisible();
     const box = await action.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.width).toBeGreaterThan(60);
   }
+  const create = page.getByRole("link", { name: "Create your own", exact: true });
+  await expect(create).toBeVisible();
+  const createBox = (await create.boundingBox())!;
+  expect(Math.min(createBox.width, createBox.height)).toBeGreaterThanOrEqual(44);
   await expectNoHorizontalOverflow(page);
 });
 
@@ -215,11 +225,12 @@ test("global Quick Add previews natural-language capture before continuing", asy
   await expect(dialog).toBeVisible();
   await dialog.getByLabel("What do you want to remember?").fill("Follow up with Jordan next Monday about the proposal");
   await dialog.getByRole("button", { name: "Continue", exact: true }).click();
-  await expect(dialog.getByText("Confirm this interpretation")).toBeVisible();
-  await expect(dialog.getByText("Jordan", { exact: true })).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Continue with Contact" })).toBeVisible();
-  page.once("dialog", (confirmation) => confirmation.accept());
+  await expect(dialog.getByText(/Check each item/)).toBeVisible();
+  await expect(dialog.getByRole("textbox", { name: "Name or search for someone" })).toHaveValue("Jordan");
+  await expect(dialog.getByRole("checkbox", { name: "Follow-up" })).toBeChecked();
+  await expect(dialog.getByRole("button", { name: /^Save all \d+$/ })).toBeVisible();
   await dialog.getByRole("button", { name: "Close Quick Add" }).click();
+  await page.getByRole("dialog", { name: "Discard this Quick Add draft?" }).getByRole("button", { name: "Discard draft", exact: true }).click();
   await expect(dialog).toBeHidden();
 });
 
@@ -234,9 +245,9 @@ test("settings hub opens focused personal scheduling controls", async ({ page })
   await expect(page.getByLabel("Display name")).toBeVisible();
   const timezone = page.locator(".timezone-current").filter({ hasText: "Personal timezone" });
   await expect(timezone).toBeVisible();
-  await timezone.getByRole("button", { name: "Change" }).click();
-  const timezoneDialog = page.getByRole("dialog", { name: "Choose your city" });
-  await expect(timezoneDialog.getByLabel("Search cities")).toBeVisible();
+  await timezone.getByRole("button", { name: "Change personal timezone" }).click();
+  const timezoneDialog = page.getByRole("dialog", { name: "Choose a timezone" });
+  await expect(timezoneDialog.getByRole("searchbox", { name: "Search timezones" })).toBeVisible();
   await timezoneDialog.getByRole("button", { name: "Close timezone picker" }).click();
   await expect(page.getByLabel("Default follow-up time")).toBeVisible();
   await expect(page.getByLabel("Quiet hours begin")).toBeVisible();
@@ -249,8 +260,9 @@ test("public single-user product story remains focused and responsive", async ({
   for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "Know who to follow up with. And what to say." })).toBeVisible();
-    await expect(page.getByRole("list", { name: "Made for your relationships" })).toContainText("BusinessPersonalYour network");
+    await expect(page.getByRole("heading", { name: "You meant to follow up. Then work happened." })).toBeVisible();
+    await expect(page.locator(".mixes-for a[aria-current='page']")).toHaveCount(0);
+    await expect(page.locator(".mixes-for a")).toHaveCount(5);
     await expect(page.locator(".hero-actions").getByRole("link", { name: "Join the waitlist" })).toHaveAttribute("href", "/waitlist");
     await expect(page.locator("main")).not.toContainText(/\b(?:pricing|billing|subscription|upgrade|downgrade|team|organization|stripe|google contacts|ai provider)\b/i);
     await expectNoHorizontalOverflow(page);
@@ -271,10 +283,13 @@ test("confirmation dialogs restore focus and accessibility preferences remain us
   await expect(trigger).toBeFocused();
   await expectNoHorizontalOverflow(page);
 
+  // Archiving moved from a per-row menu to the contact's own page.
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/contacts");
-  const firstContact = page.locator(".contact-row").first();
-  await firstContact.getByLabel(/More options for/).click();
-  const archiveTrigger = firstContact.getByRole("button", { name: "Archive…" });
+  await page.locator(".contact-main").first().click();
+  await expect(page).toHaveURL(/\/contacts\/[^/?]+$/);
+  await page.locator("details.contact-detail-more > summary").click();
+  const archiveTrigger = page.getByRole("button", { name: "Archive contact…" });
   await archiveTrigger.click();
   const archiveDialog = page.getByRole("dialog", { name: /Archive .+\?/ });
   await expect(archiveDialog).toBeVisible();
@@ -286,14 +301,41 @@ test("confirmation dialogs restore focus and accessibility preferences remain us
 test("Quick Add shortcuts continue into actionable contact journeys", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The stateful shortcut journeys run once.");
   await signIn(page);
+
+  // The single-key shortcut can be turned off in Personal preferences (WCAG 2.1.4); it is on by default.
+  await page.goto("/account/preferences");
+  const shortcutSwitch = page.getByRole("switch", { name: "Quick Add keyboard shortcut (N)", exact: true });
+  await expect(shortcutSwitch).toBeChecked();
+  await shortcutSwitch.uncheck();
+  await page.goto("/jumps");
+  const quickAdd = page.getByRole("button", { name: "Quick Add", exact: true }).first();
+  const quickAddDialog = page.getByRole("dialog", { name: "Quick Add", exact: true });
+  const today = page.getByRole("heading", { name: "Today", exact: true, level: 1 });
+  await expect(quickAdd).not.toHaveAttribute("aria-keyshortcuts", "N");
+  await today.click(); await page.keyboard.press("n");
+  await expect(quickAddDialog).toBeHidden();
+  await page.goto("/account/preferences");
+  await shortcutSwitch.check();
+  await page.goto("/jumps");
+  await expect(quickAdd).toHaveAttribute("aria-keyshortcuts", "N");
+  await today.click(); await page.keyboard.press("n");
+  await expect(quickAddDialog).toBeVisible();
+  await quickAddDialog.getByRole("button", { name: "Close Quick Add", exact: true }).click();
+  await expect(quickAddDialog).toBeHidden();
+  await page.goto("/contacts");
+  await page.getByRole("searchbox", { name: "Search contacts" }).fill("n");
+  await expect(quickAddDialog).toBeHidden();
+
   await page.goto("/jumps");
   await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
+  await page.getByRole("dialog", { name: "Quick Add" }).getByText("Other ways to add", { exact: true }).click();
   await page.getByRole("dialog", { name: "Quick Add" }).getByRole("link", { name: /Add a person/ }).click();
   await expect(page).toHaveURL(/\/contacts\/new$/);
   await expect(page.getByRole("heading", { name: "Add a contact" })).toBeVisible();
 
   await page.goto("/jumps");
   await page.getByRole("button", { name: "Quick Add", exact: true }).first().click();
+  await page.getByRole("dialog", { name: "Quick Add" }).getByText("Other ways to add", { exact: true }).click();
   await page.getByRole("dialog", { name: "Quick Add" }).getByRole("link", { name: /Log what happened/ }).click();
   await expect(page).toHaveURL(/\/contacts\?intent=log-note/);
   await expect(page.getByText("Then add what happened to their notes.")).toBeVisible();
@@ -304,42 +346,55 @@ test("Quick Add shortcuts continue into actionable contact journeys", async ({ p
 
 test("responsive controls remain complete and align to card width", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The explicit viewport matrix runs once.");
-  await signIn(page);
+  // Its own due follow-up, so the Today checks do not depend on what the shared demo workspace has due today.
+  const jumpId = await createPendingJumpFixture("Visual fitment row");
+  try {
+    await signIn(page);
 
-  for (const width of [320, 375, 412, 768, 1280]) {
-    await page.setViewportSize({ width, height: 900 });
-    for (const route of ["/jumps", "/contacts", "/mixes", "/settings", "/account"]) {
-      await page.goto(route);
-      await expect(page.locator("main")).toBeVisible();
-      await expectNoHorizontalOverflow(page);
-      await expectNoClippedControls(page);
-    }
+    for (const width of [320, 375, 412, 768, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const route of ["/jumps", "/contacts", "/mixes", "/settings", "/account"]) {
+        await page.goto(route);
+        await expect(page.locator("main")).toBeVisible();
+        await expectNoHorizontalOverflow(page);
+        await expectNoClippedControls(page);
+      }
 
-    if (width <= 900) {
-      await page.goto("/jumps");
-      const card = page.locator(".jump-task-card:visible").first();
-      const primary = card.locator(".jump-channel-action");
-      const actions = card.locator(".jump-primary-action");
-      await expect(card).toBeVisible();
-      const [cardBox, primaryBox, actionsBox] = await Promise.all([card.boundingBox(), primary.boundingBox(), actions.boundingBox()]);
-      expect(cardBox).not.toBeNull();
-      expect(primaryBox).not.toBeNull();
-      expect(actionsBox).not.toBeNull();
-      expect(actionsBox!.x).toBeGreaterThanOrEqual(cardBox!.x - 1);
-      expect(actionsBox!.x + actionsBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
-      expect(primaryBox!.width).toBeGreaterThanOrEqual(40);
-      expect(primaryBox!.height).toBeGreaterThanOrEqual(40);
+      if (width <= 900) {
+        await page.goto("/jumps");
+        // The first card with a Review action; captures added by earlier tests may offer other actions.
+        const card = page.locator(".jump-task-card:visible").filter({ has: page.getByRole("button", { name: /^Review (message|call) for / }) }).first();
+        // The card's own Review button; the review sheet inside the card also uses this class.
+        const primary = card.getByRole("button", { name: /^Review (message|call) for / });
+        const actions = card.locator(".jump-primary-action");
+        await expect(card).toBeVisible();
+        const [cardBox, primaryBox, actionsBox] = await Promise.all([card.boundingBox(), primary.boundingBox(), actions.boundingBox()]);
+        expect(cardBox).not.toBeNull();
+        expect(primaryBox).not.toBeNull();
+        expect(actionsBox).not.toBeNull();
+        expect(actionsBox!.x).toBeGreaterThanOrEqual(cardBox!.x - 1);
+        expect(actionsBox!.x + actionsBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 1);
+        expect(primaryBox!.width).toBeGreaterThanOrEqual(40);
+        expect(primaryBox!.height).toBeGreaterThanOrEqual(40);
+      }
     }
-  }
+  } finally { await removePendingJumpFixture(jumpId); }
 });
 
 test("Jump overflow provides first-class snooze presets", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The stateful snooze journey runs once.");
-  await signIn(page);
-  await page.goto("/jumps");
-  const pendingCard = page.locator(".jump-task-card").filter({ has: page.getByRole("button", { name: "Done", exact: true }) }).first();
-  await expect(pendingCard).toBeVisible();
-  await pendingCard.getByLabel(/More options for/).click();
-  await pendingCard.getByRole("button", { name: "Tomorrow" }).click();
-  await expect(page.getByText("Follow-up snoozed.")).toBeVisible();
+  // Snooze a follow-up of its own rather than whatever the shared demo workspace has due.
+  const jumpId = await createPendingJumpFixture("Snooze presets row");
+  try {
+    await signIn(page);
+    await page.goto("/jumps?range=all");
+    // Pending follow-ups carry a "More options" sheet; completed ones offer Undo instead.
+    const more = page.locator(`[data-jump-workflow="${jumpId}"]:visible`).getByRole("button", { name: /^More options for / });
+    await expect(more).toBeVisible();
+    await more.click();
+    const sheet = page.getByRole("dialog", { name: /^Follow up with / });
+    // The sheet also carries the inline date picker, whose quick chip is named "Tomorrow" too.
+    await sheet.locator(".sheet-actions").getByRole("button", { name: "Tomorrow", exact: true }).click();
+    await expect(page.getByText("Follow-up snoozed.")).toBeVisible();
+  } finally { await removePendingJumpFixture(jumpId); }
 });

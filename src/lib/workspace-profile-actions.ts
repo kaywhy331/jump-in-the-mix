@@ -1,4 +1,5 @@
 "use server";
+import { captureFormFailure, recoverableFormAction, withViewerError, type ErrorViewer, type FormResult } from "@/lib/form-errors";
 
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
@@ -16,40 +17,43 @@ function value(formData: FormData, key: string, maxLength = 2000): string {
   return String(formData.get(key) ?? "").trim().slice(0, maxLength);
 }
 
-function optionalHttpsUrl(formData: FormData, key: string, label: string, section = "business"): string | null {
+/** The business page holds this form; the settings hub shows no messages, so every result returns there. */
+const BUSINESS_SETTINGS = "/settings/business";
+
+function optionalHttpsUrl(formData: FormData, key: string, label: string, viewer: ErrorViewer): string | null {
   const raw = value(formData, key, 500);
   if (!raw) return null;
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    const path = section === "business" ? "/settings/business" : `/settings?section=${section}`;
-    redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(`${label} must be a valid https URL.`)}`);
+    captureFormFailure(`${label} must be a valid https URL.`);
+    redirect(withViewerError(BUSINESS_SETTINGS, `${label} must be a valid https URL.`, viewer));
   }
   if (url.protocol !== "https:") {
-    const path = section === "business" ? "/settings/business" : `/settings?section=${section}`;
-    redirect(`${path}${path.includes("?") ? "&" : "?"}error=${encodeURIComponent(`${label} must use https.`)}`);
+    captureFormFailure(`${label} must use https.`);
+    redirect(withViewerError(BUSINESS_SETTINGS, `${label} must use https.`, viewer));
   }
   return url.toString();
 }
 
 export async function updateWorkspaceProfileAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { workspace, user, session, impersonation } = await requireWorkspace();
   const section = value(formData, "settingsSection", 40) || "all";
   const editsBusiness = section === "business" || section === "profile" || section === "all";
   const editsMessaging = section === "business" || section === "messaging" || section === "all";
-  if (impersonation) redirect(`/settings?error=${encodeURIComponent("Administrator support sessions are view-only.")}`);
+  if (impersonation) { captureFormFailure("Administrator support sessions are view-only."); redirect(withViewerError(BUSINESS_SETTINGS, "Administrator support sessions are view-only.", session)); }
   const legacyProducts = [workspace.profile?.product1, workspace.profile?.product2, workspace.profile?.product3, workspace.profile?.product4, workspace.profile?.product5].flatMap((item, index) => item ? [{ name: `Product or service ${index + 1}`, value: item }] : []);
   const legacyDetails = [workspace.profile?.myCustom1, workspace.profile?.myCustom2, workspace.profile?.myCustom3].flatMap((item, index) => item ? [{ name: `Sender detail ${index + 1}`, value: item }] : []);
   const productRecords = editsBusiness ? records(formData, "products", section === "business" ? 5 : 20) : (workspace.profile?.products as { name: string; value: string }[] | null) ?? legacyProducts;
   const senderDetails = section === "profile" || section === "all" ? records(formData, "senderDetails", 20) : (workspace.profile?.senderDetails as { name: string; value: string }[] | null) ?? legacyDetails;
   const company = editsBusiness ? value(formData, "company", 200) : workspace.profile?.company ?? null;
-  if (section === "business" && !company) redirect(`/settings/business?error=${encodeURIComponent("Enter your business name.")}`);
+  if (section === "business" && !company) { captureFormFailure("Enter your business name."); redirect(withViewerError(BUSINESS_SETTINGS, "Enter your business name.", session)); }
   const workspaceData = {
     company: company || null,
     industry: editsBusiness ? value(formData, "industry", 160) || null : workspace.profile?.industry ?? null,
-    website: editsBusiness ? optionalHttpsUrl(formData, "website", "Website", section === "business" ? "business" : "profile") : workspace.profile?.website ?? null,
-    reviewUrl: editsBusiness ? optionalHttpsUrl(formData, "reviewUrl", "Public review page", section === "business" ? "business" : "profile") : workspace.profile?.reviewUrl ?? null,
+    website: editsBusiness ? optionalHttpsUrl(formData, "website", "Website", session) : workspace.profile?.website ?? null,
+    reviewUrl: editsBusiness ? optionalHttpsUrl(formData, "reviewUrl", "Public review page", session) : workspace.profile?.reviewUrl ?? null,
     phone: editsBusiness ? value(formData, "phone", 80) || null : workspace.profile?.phone ?? null,
     street: section === "profile" || section === "all" ? value(formData, "street", 200) || null : workspace.profile?.street ?? null,
     city: section === "profile" || section === "all" ? value(formData, "city", 120) || null : workspace.profile?.city ?? null,
@@ -74,6 +78,7 @@ export async function updateWorkspaceProfileAction(formData: FormData): Promise<
     create: { workspaceId: workspace.id, ...workspaceData, onboardingDone: true },
     update: workspaceData
   });
-  if (section === "business") redirect("/settings/business?saved=1");
-  redirect(`/settings?section=${section === "all" ? "profile" : section}&saved=1`);
+  redirect(`${BUSINESS_SETTINGS}?saved=1`);
 }
+
+export async function updateWorkspaceProfileFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => updateWorkspaceProfileAction(data)); }

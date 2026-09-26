@@ -1,3 +1,6 @@
+import { AdminDraftForm } from "@/components/AdminDraftForm";
+import { AdminSupportConversation } from "@/components/AdminSupportConversation";
+import { safeAdminReturnTo } from "@/lib/admin-navigation";
 import { randomUUID } from "node:crypto";
 import { SupportEmailRecovery } from "@/components/SupportEmailRecovery";
 import type { Metadata } from "next";
@@ -10,6 +13,7 @@ import { readSupportCase } from "@/lib/support-case-access";
 import { supportReadContext } from "@/lib/support-read-audit";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/Notice";
+import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { SupportReplyComposer } from "@/components/SupportReplyComposer";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
@@ -26,12 +30,13 @@ import {
   supportCategoryLabel,
   supportEmailStatusLabel,
   supportPriorityLabel,
-  supportStatusLabel
+  adminSupportStatusLabel
 } from "@/lib/support-content";
 
 export const metadata: Metadata = { title: "Admin · Support ticket" };
 
 type SearchParams = {
+  returnTo?: string;
   assignmentSaved?: string;
   replied?: string;
   email?: string;
@@ -39,6 +44,8 @@ type SearchParams = {
   triageSaved?: string;
   statusSaved?: string;
   error?: string;
+  at?: string;
+  sig?: string;
 };
 
 export default async function AdminSupportTicketPage({
@@ -72,17 +79,18 @@ export default async function AdminSupportTicketPage({
   ]);
 
   const requestKey = randomUUID();
+  const returnTo = safeAdminReturnTo(query.returnTo, "/admin/support");
   return (
     <div className="page admin-support-ticket-page">
       <header className="page-header">
         <div>
           <span className="support-ticket-reference">{ticket.reference}</span>
           <h1>{ticket.title}</h1>
-          <p>Review the complete customer thread, account context, triage state, and reply-email delivery.</p>
+
         </div>
         <div className="page-actions">
-          <Link className="button" href="/admin/support">Support queue</Link>
-          {permissions.includes("users.read") && <Link className="button" href="/admin/users">Users</Link>}
+          <Link className="button" href={returnTo}>Support queue</Link>
+          {permissions.includes("users.read") && <Link className="button" href={`/admin/users/${ticket.requesterUserId}?returnTo=${encodeURIComponent(`/admin/support/${ticket.id}?returnTo=${encodeURIComponent(returnTo)}`)}`}>Customer account</Link>}
         </div>
       </header>
 
@@ -91,16 +99,17 @@ export default async function AdminSupportTicketPage({
       {query.emailReviewed && <Notice type="success">Notification review saved. See its current status below.</Notice>}
       {query.triageSaved && <Notice type="success">Ticket category and priority updated.</Notice>}
       {query.statusSaved && <Notice type="success">Ticket status updated.</Notice>}
-      {query.error && <Notice type="error">{query.error}</Notice>}
+      <UrlErrorNotice params={query} viewer={session} />
 
+      <section className="card admin-ticket-context"><h2>{requester?.name ?? "Customer"} · {adminSupportStatusLabel(ticket.status)}</h2><p>{requester?.email} · {workspace?.name} · {supportPriorityLabel(ticket.priority)} priority · Assignee: {assignees.find(person => person.id === ticket.assignedToUserId)?.name ?? "Unassigned"}</p><a href="#ticket-controls">Ticket controls</a></section>
       <section className="support-admin-detail-grid">
         <div className="support-admin-main-column">
           <section className="card support-thread-card">
             <div className="card-header">
-              <div><h2>Conversation</h2><p>All messages use server timestamps. Administrator identity remains auditable.</p></div>
+              <div><h2>Conversation</h2></div>
               <span className="status-pill">{ticket.messages.length}</span>
             </div>
-            <div className="support-thread">
+            <AdminSupportConversation latestMessageId={ticket.messages.at(-1)?.id}>
               {ticket.messages.map((message) => (
                 <article className={`support-message ${message.authorType === "ADMIN" ? "admin" : "user"}`} key={message.id}>
                   <header>
@@ -113,19 +122,19 @@ export default async function AdminSupportTicketPage({
                       <span className={`status-pill email-${message.emailStatus.toLowerCase()}`}>{supportEmailStatusLabel(message.emailStatus)}</span>
                       {message.emailSentAt && <small>Provider accepted {formatDateTime(message.emailSentAt, displayPreferences)}</small>}
                       {message.emailError && <small className="support-email-error">{message.emailError}</small>}
-                      {message.emailDeliveries[0] && <SupportEmailRecovery ticketId={ticket.id} delivery={message.emailDeliveries[0]} canManageEmail={permissions.includes("email.manage")} />}
+                      {message.emailDeliveries[0] && <SupportEmailRecovery ticketId={ticket.id} returnTo={returnTo} saved={query.emailReviewed ? message.emailDeliveries[0].updatedAt.toISOString() : undefined} delivery={message.emailDeliveries[0]} canManageEmail={permissions.includes("email.manage")} />}
                       {message.emailDeliveries.length > 1 && <details><summary>Notification history ({message.emailDeliveries.length})</summary><ol>{message.emailDeliveries.map(delivery => <li key={delivery.id}>Notification {delivery.generation}: {delivery.status.toLowerCase()}, {delivery.attempts} worker attempts. Created {formatDateTime(delivery.createdAt, displayPreferences)}.</li>)}</ol></details>}
                     </footer>
                   )}
                 </article>
               ))}
-            </div>
+            </AdminSupportConversation>
           </section>
 
           {ticket.status !== "CLOSED" ? (
             <section className="card support-admin-reply-card">
-              <div className="card-header"><div><h2>Reply</h2><p>Use a prepared response as a starting point, then tailor it to this customer.</p></div></div>
-              <SupportReplyComposer key={requestKey} ticketId={ticket.id} requestKey={requestKey} />
+              <div className="card-header"><div><h2>Reply</h2></div></div>
+              <SupportReplyComposer ticketId={ticket.id} requestKey={requestKey} returnTo={returnTo} />
             </section>
           ) : (
             <section className="card support-inline-empty">
@@ -135,38 +144,12 @@ export default async function AdminSupportTicketPage({
           )}
         </div>
 
-        <aside className="support-admin-side-column">
+        <aside id="ticket-controls" className="support-admin-side-column">
           <section className="card">
-            <div className="card-header"><div><h2>Assignment</h2><p>Assign a handler before opening this customer’s workspace. Changing the handler ends any active support view.</p></div></div>
-            <form action={adminAssignSupportTicketAction} className="form-stack">
-              <input type="hidden" name="ticketId" value={ticket.id} />
-              <input type="hidden" name="assignmentRevision" value={ticket.assignmentRevision} />
-              <label className="field"><span className="field-label">Assigned to</span><select name="assignedToUserId" defaultValue={assignees.some(person => person.id === ticket.assignedToUserId) ? ticket.assignedToUserId ?? "" : ""}>
-                <option value="">Unassigned</option>
-                {assignees.map(person => <option key={person.id} value={person.id}>{person.name}{person.id === user.id ? " (you)" : ""}</option>)}
-              </select></label>
-              <label className="field"><span className="field-label">Assignment reason</span><textarea name="reason" minLength={10} maxLength={500} required /></label>
-              <FormSubmitButton label="Save assignment" pendingLabel="Saving…" />
-            </form>
-          </section>
-          {permissions.includes("support.view_customer") && (
-            <section className="card">
-              <div className="card-header"><div><h2>Customer support view</h2><p>Read this requester’s workspace for up to {env.impersonationMinutes} minutes. Each page request is audited. Private contact notes and mix content may be visible.</p></div></div>
-              {ticket.assignedToUserId === user.id && !["RESOLVED", "CLOSED"].includes(ticket.status) ? (
-                <form action="/api/admin/impersonation/start" method="post" className="form-stack">
-                  <input type="hidden" name="ticketId" value={ticket.id} />
-                  <input type="hidden" name="assignmentRevision" value={ticket.assignmentRevision} />
-                  <label className="field"><span className="field-label">Support reason</span><textarea name="reason" minLength={10} maxLength={500} required /></label>
-                  <button className="button" type="submit">Start view-only session</button>
-                </form>
-              ) : <p>An active ticket must be assigned to you first. Resolve or close the ticket when the investigation is finished.</p>}
-            </section>
-          )}
-          <section className="card">
-            <div className="card-header"><div><h2>Triage</h2><p>Classification helps the queue remain actionable.</p></div></div>
-            <form action={adminUpdateSupportTicketTriageAction} className="form-stack">
-              <input type="hidden" name="ticketId" value={ticket.id} />
-              <label className="field">
+            <div className="card-header"><div><h2>Triage</h2></div></div>
+            <AdminDraftForm draftKey={`support-triage:${ticket.id}`} fields={["category", "priority"]} saved={query.triageSaved ? ticket.updatedAt.toISOString() : undefined} action={adminUpdateSupportTicketTriageAction}>
+              <input type="hidden" name="returnTo" value={returnTo} /><input type="hidden" name="ticketId" value={ticket.id} />
+              <div className="form-grid"><label className="field">
                 <span className="field-label">Category</span>
                 <select name="category" defaultValue={ticket.category}>
                   {SUPPORT_CATEGORIES.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
@@ -178,29 +161,55 @@ export default async function AdminSupportTicketPage({
                   {SUPPORT_PRIORITIES.map((item) => <option value={item.value} key={item.value}>{item.label}</option>)}
                 </select>
               </label>
-              <button className="button" type="submit">Save triage</button>
-            </form>
+              </div><FormSubmitButton label="Save triage" pendingLabel="Saving…" />
+            </AdminDraftForm>
           </section>
 
           <section className="card">
-            <div className="card-header"><div><h2>Status</h2><p>{supportStatusLabel(ticket.status)} · last activity {formatDateTime(ticket.lastActivityAt, displayPreferences)}</p></div></div>
+            <div className="card-header"><div><h2>Status</h2><p>{adminSupportStatusLabel(ticket.status)} · last activity {formatDateTime(ticket.lastActivityAt, displayPreferences)}</p></div></div>
             <div className="support-status-actions">
               {ticket.status !== "WAITING_ON_SUPPORT" && (
-                <form action={adminUpdateSupportTicketStatusAction}><input type="hidden" name="ticketId" value={ticket.id} /><input type="hidden" name="status" value="WAITING_ON_SUPPORT" /><button className="button" type="submit">Return to support queue</button></form>
+                <form action={adminUpdateSupportTicketStatusAction}><input type="hidden" name="returnTo" value={returnTo} /><input type="hidden" name="ticketId" value={ticket.id} /><input type="hidden" name="status" value="WAITING_ON_SUPPORT" /><button className="button" type="submit">Return to support queue</button></form>
               )}
               {ticket.status !== "RESOLVED" && (
-                <form action={adminUpdateSupportTicketStatusAction}><input type="hidden" name="ticketId" value={ticket.id} /><input type="hidden" name="status" value="RESOLVED" /><button className="button primary" type="submit">Resolve ticket</button></form>
+                <form action={adminUpdateSupportTicketStatusAction}><input type="hidden" name="returnTo" value={returnTo} /><input type="hidden" name="ticketId" value={ticket.id} /><input type="hidden" name="status" value="RESOLVED" /><button className="button primary" type="submit">Resolve ticket</button></form>
               )}
               {ticket.status !== "CLOSED" ? (
-                <form action={adminUpdateSupportTicketStatusAction}><input type="hidden" name="ticketId" value={ticket.id} /><input type="hidden" name="status" value="CLOSED" /><button className="button danger" type="submit">Close ticket</button></form>
+                <form action={adminUpdateSupportTicketStatusAction}><input type="hidden" name="returnTo" value={returnTo} /><input type="hidden" name="ticketId" value={ticket.id} /><input type="hidden" name="status" value="CLOSED" /><button className="button danger" type="submit">Close ticket</button></form>
               ) : (
-                <form action={adminUpdateSupportTicketStatusAction}><input type="hidden" name="ticketId" value={ticket.id} /><input type="hidden" name="status" value="OPEN" /><button className="button" type="submit">Reopen ticket</button></form>
+                <form action={adminUpdateSupportTicketStatusAction}><input type="hidden" name="returnTo" value={returnTo} /><input type="hidden" name="ticketId" value={ticket.id} /><input type="hidden" name="status" value="OPEN" /><button className="button" type="submit">Reopen ticket</button></form>
               )}
             </div>
           </section>
 
-          <section className="card">
-            <div className="card-header"><div><h2>Customer context</h2><p>Use this information to investigate without asking the customer to repeat basic account details.</p></div></div>
+          <details className="card" id="case-assignment" open={!ticket.assignedToUserId}>
+            <summary>Change assignment</summary><p>Reassignment ends active customer views.</p>
+            <AdminDraftForm draftKey={`support-assignment:${ticket.id}`} fields={["assignedToUserId", "reason"]} revision={ticket.assignmentRevision} revisionField="assignmentRevision" saved={query.assignmentSaved ? String(ticket.assignmentRevision) : undefined} action={adminAssignSupportTicketAction}>
+              <input type="hidden" name="returnTo" value={returnTo} /><input type="hidden" name="ticketId" value={ticket.id} />
+
+              <label className="field"><span className="field-label">Assigned to</span><select name="assignedToUserId" defaultValue={assignees.some(person => person.id === ticket.assignedToUserId) ? ticket.assignedToUserId ?? "" : ""}>
+                <option value="">Unassigned</option>
+                {assignees.map(person => <option key={person.id} value={person.id}>{person.name}{person.id === user.id ? " (you)" : ""}</option>)}
+              </select></label>
+              <label className="field"><span className="field-label">Assignment reason</span><textarea name="reason" minLength={10} maxLength={500} required /></label>
+              <FormSubmitButton label="Save assignment" pendingLabel="Saving…" />
+            </AdminDraftForm>
+          </details>
+          {permissions.includes("support.view_customer") && (
+            <details className="card">
+              <summary>Customer support view</summary><p>Read this requester’s workspace for up to {env.impersonationMinutes} minutes. Each page request is audited. Private contact notes and mix content may be visible.</p>
+              {ticket.assignedToUserId === user.id && !["RESOLVED", "CLOSED"].includes(ticket.status) ? (
+                <form action="/api/admin/impersonation/start" method="post" className="form-stack">
+                  <input type="hidden" name="returnTo" value={returnTo} /><input type="hidden" name="ticketId" value={ticket.id} />
+                  <input type="hidden" name="assignmentRevision" value={ticket.assignmentRevision} />
+                  <label className="field"><span className="field-label">Support reason</span><textarea name="reason" minLength={10} maxLength={500} required /></label>
+                  <button className="button" type="submit">Start view-only session</button>
+                </form>
+              ) : <p>{["RESOLVED", "CLOSED"].includes(ticket.status) ? "This case is resolved or closed. Reopen it using the case status control before starting a customer view." : <>This case must be assigned to you first. <a href="#case-assignment">Review assignment</a>.</>}</p>}
+            </details>
+          )}
+          <details className="card">
+            <summary>Customer context</summary>
             <dl className="support-definition-list">
               <div><dt>Requester</dt><dd>{requester?.name ?? "Unavailable"}</dd></div>
               <div><dt>Email</dt><dd>{requester?.email ?? ticket.requesterUserId}</dd></div>
@@ -212,7 +221,7 @@ export default async function AdminSupportTicketPage({
               <div><dt>Category</dt><dd>{supportCategoryLabel(ticket.category)}</dd></div>
               <div><dt>Priority</dt><dd>{supportPriorityLabel(ticket.priority)}</dd></div>
             </dl>
-          </section>
+          </details>
         </aside>
       </section>
     </div>

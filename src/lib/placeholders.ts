@@ -59,10 +59,28 @@ export const MY_INFO_PLACEHOLDERS = [
   "{{my.email_signature}}"
 ] as const;
 
+// Details of the appointment a follow-up is bound to. They render empty on a follow-up with no
+// appointment, so a plan can be used both ways.
+export const APPOINTMENT_PLACEHOLDERS = [
+  "{{Appointment Title}}",
+  "{{Appointment Date}}",
+  "{{Appointment Time}}",
+  "{{Appointment Location}}",
+  "{{Appointment Link}}",
+  "{{Appointment Details}}",
+  "{{appointment.title}}",
+  "{{appointment.date}}",
+  "{{appointment.time}}",
+  "{{appointment.location}}",
+  "{{appointment.link}}",
+  "{{appointment.details}}"
+] as const;
+
 export const APPROVED_PLACEHOLDERS = [
   ...CONTACT_PLACEHOLDERS,
   ...PRIVATE_NOTE_PLACEHOLDERS,
-  ...MY_INFO_PLACEHOLDERS
+  ...MY_INFO_PLACEHOLDERS,
+  ...APPOINTMENT_PLACEHOLDERS
 ] as const;
 
 const CUSTOM_CONTACT_PLACEHOLDER = /^{{contact\.custom\.[a-z0-9_]{1,64}}}$/;

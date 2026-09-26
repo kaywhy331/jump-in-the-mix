@@ -38,7 +38,11 @@ export async function verifyProviderInvitation(providerId: string, message: Tran
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new EmailReviewError("The provider returned an unsupported email record. Keep this delivery in review.");
   const data = raw as Record<string, unknown>;
   const expected = JSON.parse(preparedEmail(message).body) as { from: string; to: string[]; subject: string; text: string; html: string; reply_to?: string };
-  const sameList = (actual: unknown, wanted: string[]) => Array.isArray(actual) && actual.length === wanted.length && actual.every((value, i) => value === wanted[i]);
+  // Live Resend receipts represent unset CC/BCC/reply-to as null as well as [].
+  // Null can match only an expected empty list; missing fields still fail closed.
+  const sameList = (actual: unknown, wanted: string[]) => actual === null
+    ? wanted.length === 0
+    : Array.isArray(actual) && actual.length === wanted.length && actual.every((value, i) => value === wanted[i]);
   // Fail closed when provider normalization prevents an exact match.
   if (data.object !== "email" || data.id !== providerId || data.from !== expected.from || !sameList(data.to, expected.to) || !sameList(data.cc, []) || !sameList(data.bcc, []) || !sameList(data.reply_to, expected.reply_to ? [expected.reply_to] : []) || data.subject !== expected.subject || data.text !== expected.text || data.html !== expected.html || data.scheduled_at != null) throw new EmailReviewError("The provider record does not exactly match this frozen email. Keep this delivery in review.");
   // Resend's example uses PostgreSQL timestamps with microseconds and +00.

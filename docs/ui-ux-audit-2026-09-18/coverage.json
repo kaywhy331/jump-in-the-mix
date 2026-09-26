@@ -1,0 +1,31 @@
+{
+  "date": "2026-09-18",
+  "majorAreas": 36,
+  "findings": 184,
+  "priority": {
+    "P2": 169,
+    "P3": 2,
+    "P1": 13
+  },
+  "evidence": {
+    "H": 94,
+    "C": 65,
+    "V": 15,
+    "R": 10
+  },
+  "mainBrowserScans": 150,
+  "supplementalBrowserScans": 22,
+  "interactionRecords": 6,
+  "mainRouteVariants": 75,
+  "screenshots": 178,
+  "selectedTestFiles": 8,
+  "selectedTestsPassed": 45,
+  "automatedAxeViolations": 0,
+  "pageHorizontalOverflows": 0,
+  "evidenceLegend": {
+    "R": "Reproduced in browser",
+    "C": "Confirmed in source",
+    "H": "Heuristic recommendation",
+    "V": "Validation gap"
+  }
+}

@@ -37,25 +37,41 @@ test("owners configure stages, custom triggers, order and individual pauses", as
   const proposal = page.locator(".journey-stage-settings").filter({ has: page.locator("summary strong",{ hasText: /^Proposal$/ }) });
   await proposal.locator("summary").first().click(); await submit(page, proposal.getByRole("button",{ name: "Move earlier" }));
   const ordered = await prisma.journeyStage.findMany({ where: { workspaceId }, orderBy: { position: "asc" } }); expect(ordered.map(stage => stage.name)).toEqual(["Lead","Prospect","Client","Proposal","Retention"]);
-  await page.goto(`/contacts/${contactId}`); await openDetails(page.getByText("Stage and automation",{ exact: true }));
-  const lead = ordered.find(stage => stage.name === "Lead")!; await page.getByLabel("Move to stage").selectOption(lead.id); await submit(page, page.getByRole("button",{ name: "Move stage", exact: true }));
-  await expect(page.locator(".journey-current")).toContainText("Lead");
-  await openDetails(page.getByText("Stage and automation",{ exact: true })); await submit(page, page.getByRole("button",{ name: "Pause transitions for this person" }));
-  await expect(page.locator(".contact-journey-panel")).toContainText("Automatic transitions are paused"); await expect(page.getByRole("button",{ name: "Record a sale", exact: true })).toHaveCount(0);
-  await openDetails(page.getByText("Stage and automation",{ exact: true })); await submit(page, page.getByRole("button",{ name: "Resume transitions for this person" }));
-  await page.goto("/journey"); await expect(page.getByRole("link",{ name: /Jordan Sample/ })).toBeVisible();
+  // The profile's stage chip opens the journey sheet; its "Stage and automation" controls start expanded.
+  const stageSheet = async () => {
+    await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
+    await page.getByRole("button",{ name: /^Change journey stage:/ }).click();
+    const sheet = page.getByRole("dialog",{ name: "Journey stage for Jordan Sample", exact: true }); await expect(sheet).toBeVisible();
+    await openDetails(sheet.getByText("Stage and automation",{ exact: true })); return sheet;
+  };
+  await page.goto(`/contacts/${contactId}`);
+  const lead = ordered.find(stage => stage.name === "Lead")!; let sheet = await stageSheet(); await sheet.getByLabel("Move to stage").selectOption(lead.id); await submit(page, sheet.getByRole("button",{ name: "Move stage", exact: true }));
+  await expect(page.getByRole("button",{ name: "Change journey stage: Lead", exact: true })).toBeVisible();
+  sheet = await stageSheet(); await expect(sheet.locator(".journey-current")).toContainText("Lead");
+  await submit(page, sheet.getByRole("button",{ name: "Pause transitions for this person" }));
+  sheet = await stageSheet(); await expect(sheet.locator(".contact-journey-panel")).toContainText("Automatic transitions are paused"); await expect(sheet.getByRole("button",{ name: "Record a sale", exact: true })).toHaveCount(0);
+  await submit(page, sheet.getByRole("button",{ name: "Resume transitions for this person" }));
+  await page.goto("/journey");
+  // Below 1200 px the Journey workspace opens on its Map pane; the people are listed under People.
+  if ((page.viewportSize()?.width ?? 1200) < 1200) { await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", ""); await page.getByRole("navigation",{ name: "Journey workspace panels", exact: true }).getByRole("button",{ name: "People", exact: true }).click(); }
+  await expect(page.getByRole("link",{ name: /Jordan Sample/ })).toBeVisible();
 });
 
 test("meeting booking advances the journey, retains invalid form input and exports a calendar", async ({ page }) => {
   await page.goto(`/calendar?contact=${contactId}&date=2026-09-10`);
   const form = page.locator("#schedule-event form").filter({ has: page.locator('input[name="title"]') });
-  await form.getByLabel("Title",{ exact: true }).fill("Discovery with Jordan"); await form.getByLabel("Starts",{ exact: true }).fill("2026-09-10T09:00"); await form.getByLabel("Ends",{ exact: true }).fill("2026-09-10T09:30");
+  const pickStart = async (time: string) => { await form.locator(".when-trigger.time").click(); const sheet = page.getByRole("dialog", { name: "Starts", exact: true }); await sheet.getByRole("button", { name: time, exact: true }).click(); await expect(sheet).toBeHidden(); };
+  await form.getByLabel("Title",{ exact: true }).fill("Discovery with Jordan"); await pickStart("9:00 AM"); await form.getByRole("button", { name: "30 min", exact: true }).click();
+  await expect(form.locator('input[name="startsAt"]')).toHaveValue("2026-09-10T09:00"); await expect(form.locator('input[name="endsAt"]')).toHaveValue("2026-09-10T09:30");
   await submit(page, form.getByRole("button",{ name: "Save event", exact: true })); await expect(page.getByText("Calendar updated.",{ exact: true })).toBeVisible();
   await expect(page.locator(".calendar-event")).toContainText("Discovery with Jordan");
   expect((await prisma.contactJourney.findUniqueOrThrow({ where: { contactId }, include: { stage: true } })).stage.name).toBe("Prospect");
+  // After a save the editor shows the saved event; a second event starts from New event.
+  await page.getByRole("link",{ name: "New event", exact: true }).click(); await expect(form.getByRole("button",{ name: "Save event", exact: true })).toBeVisible();
   await form.getByLabel("Title",{ exact: true }).fill("Conflicting block"); await form.getByLabel("Event type").selectOption("BLOCK"); await submit(page, form.getByRole("button",{ name: "Save event", exact: true }));
   await expect(form.getByRole("alert")).toContainText("overlaps"); await expect(form.getByLabel("Title",{ exact: true })).toHaveValue("Conflicting block");
-  await form.getByLabel("Starts",{ exact: true }).fill("2026-09-10T09:30"); await form.getByLabel("Ends",{ exact: true }).fill("2026-09-10T10:00"); await submit(page, form.getByRole("button",{ name: "Save event", exact: true }));
+  await form.locator(".when-trigger.time").click(); await expect(page.getByRole("dialog", { name: "Starts", exact: true }).getByRole("button", { name: /^9:00 AM, taken by Discovery with Jordan/ })).toBeDisabled(); await page.getByRole("dialog", { name: "Starts", exact: true }).getByRole("button", { name: "9:30 AM", exact: true }).click();
+  await expect(form.locator('input[name="endsAt"]')).toHaveValue("2026-09-10T10:00"); await submit(page, form.getByRole("button",{ name: "Save event", exact: true }));
   await expect(page.locator(".calendar-event")).toHaveCount(2);
   // Exercise the browser's authenticated download. Its loopback secure-cookie
   // behavior differs from Playwright's separate API client when CI uses HTTP.
@@ -65,13 +81,17 @@ test("meeting booking advances the journey, retains invalid form input and expor
   expect(download.suggestedFilename()).toMatch(/\.ics$/);
   const calendar = await readFile((await download.path())!, "utf8");
   expect(calendar).toContain("BEGIN:VCALENDAR"); expect(calendar).toContain("Discovery with Jordan");
+  // Sharing sits inside the "Calendar connections and sharing" panel.
+  await openDetails(page.getByText("Calendar connections and sharing",{ exact: true }));
   await openDetails(page.getByText("Show Jump in the Mix in another calendar",{ exact: true })); await submit(page, page.getByRole("button",{ name: "Create private subscription link" }));
+  await openDetails(page.getByText("Calendar connections and sharing",{ exact: true }));
   await openDetails(page.getByText("Show Jump in the Mix in another calendar",{ exact: true })); const url = await page.getByLabel("Subscription URL",{ exact: true }).inputValue();
-  expect((await page.request.get(url)).status()).toBe(200); await submit(page, page.getByRole("button",{ name: "Disable subscription", exact: true })); expect((await page.request.get(url)).status()).toBe(404);
+  expect((await page.request.get(url)).status()).toBe(200); await page.getByRole("button",{ name: "Disable subscription…", exact: true }).click(); await submit(page, page.getByRole("dialog").getByRole("button",{ name: "Disable subscription", exact: true })); expect((await page.request.get(url)).status()).toBe(404);
 });
 
 test("connection setup supports authenticated retries, ambiguous review, rotation and pause", async ({ page }) => {
-  await page.goto("/settings/connections"); await page.getByLabel("Connection name",{ exact: true }).fill("Sample CRM"); await page.getByRole("combobox",{ name: "Source", exact: true }).selectOption("CRM"); await submit(page, page.getByRole("button",{ name: "Create connection", exact: true }));
+  // Source connectors sit under the "Technical connectors" disclosure below the hosted-form card.
+  await page.goto("/settings/connections"); await openDetails(page.getByText("Technical connectors: existing forms and automation tools",{ exact: true })); await page.getByLabel("Connection name",{ exact: true }).fill("Sample CRM"); await page.getByRole("combobox",{ name: "Source", exact: true }).selectOption("CRM"); await submit(page, page.getByRole("button",{ name: "Create connection", exact: true }));
   const setup = page.locator(".connection-setup[open]"); await expect(setup).toContainText("Sample CRM");
   const endpoint = await setup.getByLabel("Endpoint",{ exact: true }).inputValue(); const key = await setup.getByLabel("Private key",{ exact: true }).inputValue();
   const data = { eventId: "browser-inquiry", externalId: "jordan-crm", email: "jordan@example.com", eventType: "SALE_CONFIRMED" };
@@ -96,7 +116,8 @@ test("connection setup supports authenticated retries, ambiguous review, rotatio
 });
 
 test("a public form accepts a request without exposing contact matches or signing in", async ({ page, browser }) => {
-  await page.goto("/settings/connections"); await page.getByLabel("Connection name",{ exact: true }).fill("Website form"); await submit(page, page.getByRole("button",{ name: "Create connection", exact: true }));
+  // A hosted form is created from the page's "Create a hosted form" card.
+  await page.goto("/settings/connections"); await page.getByLabel("Form name",{ exact: true }).fill("Website form"); await submit(page, page.getByRole("button",{ name: "Create shareable form", exact: true }));
   const url = await page.getByLabel("Form link",{ exact: true }).inputValue(); hostedId = new URL(url).pathname.split("/").at(-1)!;
   const publicPage = await browser.newPage(); await publicPage.goto(url); await expect(publicPage.getByRole("heading",{ name: "Let’s get in touch" })).toBeVisible();
   await publicPage.getByLabel("Your name",{ exact: true }).fill("Public sample"); await publicPage.getByLabel("Email",{ exact: true }).fill("public-sample@example.com"); await publicPage.getByLabel("How can we help?",{ exact: true }).fill("This is an isolated test inquiry."); await publicPage.getByRole("checkbox").check();

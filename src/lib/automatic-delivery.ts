@@ -1,9 +1,15 @@
+import { readJourneyPreferences } from "@/lib/journey-preferences";
 import { createHash } from "node:crypto";
 import type { Channel } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
-import { isQuietTime, notificationClock } from "@/lib/notification-delivery";
+import { automaticSendingOpensAt, automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
+// The review-window rule moved with the rest of the sending rule; existing callers keep importing it from here.
+export { automaticDeliveryEligibleAt } from "@/lib/automatic-delivery-window";
 import { isValidTimezone } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
+import { processWorkflowInstance, queueWorkflowForJump } from "@/lib/mix-workflow";
+import { preparationFamilyForChannel } from "@/lib/preparation-family";
+import { phoneRegionOrDefault, storedPhoneDialTarget } from "@/lib/phone-number";
 import { escapeHtml, sendTransactionalEmail, transactionalEmailConfigured } from "@/lib/transactional-email";
 
 const uncertainLeaseMs = 20 * 60_000;
@@ -11,16 +17,19 @@ const candidateLimitPerWorkspace = 25;
 
 type PreparedDelivery = { subject: string | null; body: string };
 
+// Automatic customer email is off unless the deployment turns it on. It still sends as the platform
+// with the platform's reply address, so a customer's reply would not reach the business; until it
+// sends as the business it stays off (MSG-01).
+export function automaticCustomerEmailEnabled(): boolean {
+  return process.env.AUTOMATIC_CUSTOMER_EMAIL?.trim().toLowerCase() === "true";
+}
+
 export function automaticEmailConfigured(): boolean {
-  return transactionalEmailConfigured();
+  return automaticCustomerEmailEnabled() && transactionalEmailConfigured();
 }
 
 export function automaticSmsConfigured(configuration: Pick<typeof env, "twilioAccountSid" | "twilioAuthToken" | "twilioFromNumber"> = env): boolean {
   return Boolean(configuration.twilioAccountSid.trim() && configuration.twilioAuthToken.trim() && configuration.twilioFromNumber.trim());
-}
-
-export function automaticDeliveryEligibleAt(scheduledAt: Date, createdAt: Date, reviewWindowMinutes: number): Date {
-  return new Date(Math.max(scheduledAt.getTime(), createdAt.getTime()) + reviewWindowMinutes * 60_000);
 }
 
 export function preparedDelivery(snapshot: unknown, channel: Channel): PreparedDelivery | null {
@@ -64,8 +73,16 @@ async function sendTwilioSms(to: string, body: string): Promise<string> {
   return payload.sid;
 }
 
-async function deliver(channel: Channel, recipient: string, prepared: PreparedDelivery, jumpId: string, company: string): Promise<string | null> {
-  if (channel === "SMS") return sendTwilioSms(recipient, prepared.body);
+/** The error when a saved number has no full international form: nothing is texted on a guess. */
+export const UNDIALABLE_PHONE_ERROR = "The saved phone number could not be read with its country code, so it was not texted automatically.";
+
+async function deliver(channel: Channel, recipient: string, textTo: string | null, prepared: PreparedDelivery, jumpId: string, company: string): Promise<string | null> {
+  // Twilio gets the E.164 number from the stored canonical key (see phone-number.ts); the stored
+  // display value stays the recorded recipient. A number without one is never sent as typed.
+  if (channel === "SMS") {
+    if (!textTo) throw new Error(UNDIALABLE_PHONE_ERROR);
+    return sendTwilioSms(textTo, prepared.body);
+  }
   if (channel !== "EMAIL") throw new Error("Only email and text follow-ups can be sent automatically.");
   if (!automaticEmailConfigured()) throw new Error("Automatic email delivery is not configured.");
   const result = await sendTransactionalEmail({
@@ -121,11 +138,19 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
       prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })
     ]);
     const timeZone = isValidTimezone(display?.timezone ?? "") ? display!.timezone : "UTC";
-    const clock = notificationClock(now, timeZone);
-    if (scheduling && isQuietTime(clock.hour * 60 + clock.minute, scheduling.quietHoursStart, scheduling.quietHoursEnd)) continue;
+    const phoneRegion = phoneRegionOrDefault(scheduling?.phoneRegion);
+    // One sending rule, shared with Today's review line and the settings preview. Quiet hours close
+    // the workspace for this pass before anything else is read; working hours and appointments next.
+    const quietHours = scheduling ? { start: scheduling.quietHoursStart, end: scheduling.quietHoursEnd } : null;
+    if (automaticSendingOpensAt(now, { timezone: timeZone, quietHours }).getTime() > now.getTime()) continue;
+    const appointmentGaps = scheduling && readJourneyPreferences(scheduling.journeyPreferences)?.avoidAppointments ? await prisma.calendarEntry.findMany({ where: { workspaceId: workspace.id, canceledAt: null, startsAt: { lte: new Date(now.getTime() + 240 * 60_000) }, endsAt: { gte: new Date(now.getTime() - 240 * 60_000) } }, select: { startsAt: true, endsAt: true, kind: true } }) : [];
+    const rule: AutomaticSendingRule = { timezone: timeZone, quietHours, workingHours: scheduling, appointmentGaps };
+    if (automaticSendingOpensAt(now, rule).getTime() > now.getTime()) continue;
 
     const channels: Channel[] = [
-      ...(preference.emailEnabled ? ["EMAIL" as const] : []),
+      // Automatic email the deployment does not offer is not picked up at all, so an earlier opt-in
+      // never turns into failed attempts.
+      ...(preference.emailEnabled && automaticEmailConfigured() ? ["EMAIL" as const] : []),
       ...(preference.smsEnabled ? ["SMS" as const] : [])
     ];
     const threshold = new Date(now.getTime() - preference.reviewWindowMinutes * 60_000);
@@ -133,8 +158,19 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
       where: {
         workspaceId: workspace.id,
         status: "PENDING",
+        mix: { status: "ACTIVE" },
+        manualOnly: false, // Quick Add captures wait for an explicit owner action.
+        accessInviteId: null, // Personal invitations are always sent by the member.
         scheduledAt: { lte: threshold },
-        stepVersion: { stepTemplate: { channel: { in: channels } } }
+        stepVersion: { stepTemplate: { channel: { in: channels } } },
+        // An owner's draft is never replaced by the plan's text. A drafted follow-up waits on Today
+        // for the owner to send it; the card says so while delivery is switched on.
+        drafts: { none: {} },
+        // A follow-up bound to an appointment is never sent automatically unless that binding says so.
+        OR: [{ appointmentBindingId: null }, { appointmentBinding: { automaticDelivery: true } }],
+        // A follow-up the owner switched to another channel family waits on Today: the plan's
+        // wording is not what they chose, so the delivery claim for the plan's channel does not apply.
+        AND: [{ OR: [{ selectedFamily: null }, { selectedFamily: "EMAIL", stepVersion: { stepTemplate: { channel: "EMAIL" } } }, { selectedFamily: "TEXT", stepVersion: { stepTemplate: { channel: "SMS" } } }] }]
       },
       include: {
         contact: { include: { emails: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, phones: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, relationshipState: true } },
@@ -145,16 +181,30 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
     });
 
     for (const jump of candidates) {
-      const eligibleAt = automaticDeliveryEligibleAt(jump.scheduledAt, jump.createdAt, preference.reviewWindowMinutes);
-      if (eligibleAt > now || jump.contact.relationshipState?.doNotContact) continue;
+      if (jump.workflowInstanceId) await processWorkflowInstance(workspace.id, jump.workflowInstanceId, now);
+      const window = automaticSendWindow({ ...rule, scheduledAt: jump.scheduledAt, createdAt: jump.createdAt, reviewWindowMinutes: preference.reviewWindowMinutes, now });
+      if (!window.open || jump.contact.relationshipState?.doNotContact) continue;
+      const eligibleAt = window.eligibleAt;
       const channel = jump.stepVersion.stepTemplate.channel;
-      const recipient = channel === "EMAIL"
-        ? primaryValue(jump.contact.emails)?.email
-        : channel === "SMS" ? primaryValue(jump.contact.phones)?.phone : undefined;
+      if (jump.selectedFamily && jump.selectedFamily !== preparationFamilyForChannel(channel)) continue;
+      const phoneRow = channel === "SMS" ? primaryValue(jump.contact.phones) : undefined;
+      const recipient = channel === "EMAIL" ? primaryValue(jump.contact.emails)?.email : phoneRow?.phone;
+      const textTo = phoneRow ? storedPhoneDialTarget(phoneRow, phoneRegion) : null;
       const prepared = preparedDelivery(jump.renderedSnapshot, channel);
       let deliveryId: string;
       try {
-        const claimed = await prisma.automatedDelivery.create({
+        const claimed = await prisma.$transaction(async tx => {
+          await tx.$queryRaw`SELECT id FROM "Contact" WHERE id = ${jump.contactId} AND "workspaceId" = ${workspace.id} FOR UPDATE`;
+          const busy = await tx.$queryRaw<Array<{ id: string }>>`SELECT d.id FROM "AutomatedDelivery" d JOIN "Jump" j ON j.id = d."jumpId" WHERE j."workspaceId" = ${workspace.id} AND j."contactId" = ${jump.contactId} AND d.status = 'PROCESSING' LIMIT 1`;
+          if (busy.length) return null;
+          const eligibleJump = await tx.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING" }, select: { workflowInstance: { select: { state: true, status: true } } } });
+          if (!eligibleJump || eligibleJump.workflowInstance && (eligibleJump.workflowInstance.status !== "ACTIVE" || (eligibleJump.workflowInstance.state as { pendingBusinessUpdate?: unknown }).pendingBusinessUpdate)) return null;
+          const previous = await tx.automatedDelivery.findUnique({ where: { jumpId: jump.id } });
+          if (previous) {
+            if (previous.status !== "CANCELED" || previous.providerId) return null;
+            return tx.automatedDelivery.update({ where: { id: previous.id }, data: { status: "PROCESSING", lockedAt: now, lockedBy: workerId, reviewEligibleAt: eligibleAt }, select: { id: true } });
+          }
+          return tx.automatedDelivery.create({
           data: {
             workspaceId: workspace.id,
             jumpId: jump.id,
@@ -165,7 +215,9 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
             lockedBy: workerId
           },
           select: { id: true }
+          });
         });
+        if (!claimed) continue;
         deliveryId = claimed.id;
       } catch (error) {
         if (errorCode(error) === "P2002") continue;
@@ -178,13 +230,19 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
         if (!prepared) throw new Error("The prepared message is empty or cannot be sent automatically.");
         const currentPreference = await prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id } });
         const channelStillEnabled = channel === "EMAIL" ? currentPreference?.emailEnabled : currentPreference?.smsEnabled;
-        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", workspace: { owner: { suspendedAt: null } } }, select: { id: true } });
-        if (!currentPreference?.enabled || !channelStillEnabled || !currentJump) {
+        // A draft saved since the candidate read also holds the follow-up: the claim is released, not sent.
+        // A switch to another family since the candidate read also holds it: the claim is released, not sent.
+        const currentThreshold = new Date(now.getTime() - (currentPreference?.reviewWindowMinutes ?? preference.reviewWindowMinutes) * 60_000);
+        const currentJump = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: workspace.id, status: "PENDING", scheduledAt: { lte: currentThreshold }, createdAt: { lte: currentThreshold }, mix: { status: "ACTIVE" }, contact: { archivedAt: null, OR: [{ relationshipState: null }, { relationshipState: { doNotContact: false } }] }, manualOnly: false, drafts: { none: {} }, OR: [{ appointmentBindingId: null }, { appointmentBinding: { automaticDelivery: true } }], AND: [{ OR: [{ selectedFamily: null }, { selectedFamily: preparationFamilyForChannel(channel) }] }, { OR: [{ workflowInstanceId: null }, { workflowInstance: { status: "ACTIVE" } }] }], workspace: { owner: { suspendedAt: null } } }, select: { id: true, renderedSnapshot: true } });
+        const stop = await prisma.mixStop.findUnique({ where: { workspaceId_mixId_contactId: { workspaceId: workspace.id, mixId: jump.mixId, contactId: jump.contactId } } });
+        if (!currentPreference?.enabled || !channelStillEnabled || !currentJump || (stop && !(jump.appointmentBindingId && stop.reason === "journey.stage.exit"))) {
           await prisma.automatedDelivery.updateMany({ where: { id: deliveryId, lockedBy: workerId, status: "PROCESSING" }, data: { status: "CANCELED", lockedAt: null, lockedBy: null } });
           continue;
         }
 
-        const providerId = await deliver(channel, recipient, prepared, jump.id, workspace.profile?.company || workspace.name);
+        const currentPrepared = preparedDelivery(currentJump.renderedSnapshot, channel);
+        if (!currentPrepared) throw new Error("The prepared message is empty or cannot be sent automatically.");
+        const providerId = await deliver(channel, recipient, textTo, currentPrepared, jump.id, workspace.profile?.company || workspace.name);
         await prisma.automatedDelivery.updateMany({
           where: { id: deliveryId, lockedBy: workerId, status: "PROCESSING" },
           data: { providerId }
@@ -199,6 +257,7 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
             data: { status: "DELIVERED", deliveredAt: now, lockedAt: null, lockedBy: null, error: null }
           });
           if (settled.count !== 1) throw new Error("The automatic-delivery lease was lost before completion.");
+          if (completed.count) await queueWorkflowForJump(tx, workspace.id, jump.id);
           await tx.contactActivity.create({
             data: {
               workspaceId: workspace.id,

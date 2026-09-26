@@ -1,0 +1,19 @@
+--- system mix (invitations) /mixes/system (Your three invitations | Jump in the Mix) scrollWidth=412 innerWidth=412
+  headings: H1: Jump in the Mix System Mix | H2: 3 of 3 invitations remaining
+  notices: 1 matches. Your invitation entries stay below.
+  fields: input[search] "Find a saved recipient" name= | select[select-one] "Choose a saved contact (optional) Enter someone’s details Chris Parker · (303) 555-0199" name= | input[text] "Name (optional)" name=name | select[select-one] "Invitation channel Email Text message" name= = "email" | input[email] "Email address or text number" name=address required ac=off im=email
+  buttons: Add another person | Add invitations to Today | Quick Add
+  links: Skip to content -> #workspace-main | Go to Today -> /jumps | Add someone to your circle -> /contacts/new | Today -> /jumps | Contacts -> /contacts | Mixes -> /mixes | More -> /more
+  [capture] docs/beta-audit-2026-09-26/captures/e8-invitations-412-light.png
+  Review button box: {"x":350,"y":274,"width":52,"height":44} viewport width 412
+  after 1st tap: dialogs=1 message fields visible=1
+  [capture] docs/beta-audit-2026-09-26/captures/e8-after-review-tap-412-light.png
+--- final /jumps?invitations=1 (Today | Jump in the Mix) scrollWidth=412 innerWidth=412
+  headings: H1: Today | H2: Today | H3: Invite Tester | H2: Invite Tester
+  notices: Your invitations are ready in Today. Review each message and send it from your own text or | Showing 2 of 2 follow-ups in this view.
+  fields: input[text] "Subject" name= = "Maya Bennett invited you to Jump in the " | textarea[textarea] "Your message" name= = "Hi Invite Tester,
+
+I’m using Jump in the"
+  buttons: Search Today | Filter | Review message for Invite Tester | Close Follow up with Invite Tester | Text | Email Recommended | Call | Copy | Mark sent for Invite Tester | Snooze | Skip beat | More options for Invite Tester | Completed Sep 26, 10:57 AM. Change the time | Reopen follow-up with Chris Parker | Quick Add
+  links: Skip to content -> #workspace-main | Sep 26 -> /jumps?jump=cmuipdzzp02tce3l3mmbb824t&range=all | Add a phone number -> /contacts/cmuipdzyv02t5e3l30r1ddj1j/edit?returnTo=%2Fjumps%3Fjump%3Dcmuipdzzp02tce3l3mmbb824t%26range%3Dall | Open email for Invite Tester -> mailto:invite-tester@example.test?subject=Maya%20Bennett%20invited%20you%20to%20Jump%20in%20the%20Mix&body=Hi%20Invite%20Tester%2C%0A%0AI%E2%80%99m%20using%20Jump%20in%20the%20Mix%20to%20stay%20in%20touch%20with%20the%20people%20in%20my%20circle.%20It%E2%80%99s%20free%20and%20invitation-only%2C%20and%20I%E2%80%99d%20like%20to%20share%20one%20of%20my%20three%20personal%20invitations%20with%20you.%0A%0AMaya%20Bennett%0A%0ACreate%20your%20free%20account%3A%20http%3A%2F%2F127.0.0.1%3A3111%2Fregister%3Finvite%3Dpqr65NwOe1Hf_JOF0ayWKDg_E3wr9Tg2SV0lvgVVJYs%0A%0AUse%20invite-tester%40example.test%20to%20sign%20up.%20This%20personal%20link%20can%20create%20one%20account.%20Please%20keep%20it%20for%20yourself. | Today -> /jumps | Contacts -> /contacts | Mixes -> /mixes | More -> /more
+(elapsed 5 s)

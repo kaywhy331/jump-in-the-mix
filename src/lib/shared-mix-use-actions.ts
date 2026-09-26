@@ -2,7 +2,11 @@
 
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
+import { type ErrorViewer, withViewerError } from "@/lib/form-errors";
+import { LibraryError } from "@/lib/library-content";
+import { SharedMixContentError } from "@/lib/shared-mix";
 import { useSharedMixTemplate } from "@/lib/shared-mix-use-service";
+import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
 
 function value(formData: FormData, key: string, maximum = 4000): string {
@@ -13,16 +17,41 @@ function values(formData: FormData, key: string): string[] {
   return formData.getAll(key).map((item) => String(item).trim()).filter(Boolean);
 }
 
-function fail(sharedMixId: string, message: string): never {
-  redirect(`/templates/${encodeURIComponent(sharedMixId)}/use?error=${encodeURIComponent(message)}`);
+function fail(sharedMixId: string, message: string, viewer: ErrorViewer): never {
+  redirect(withViewerError(`/templates/${encodeURIComponent(sharedMixId)}/use`, message, viewer));
+}
+
+/**
+ * Sentences useSharedMixTemplate (shared-mix-use-service.ts, with parseBroadcastScheduleInput) throws as plain errors.
+ * Matched exactly, so a database or network error's text never reaches the page; it gets the fixed sentence.
+ */
+const SETUP_REFUSALS = new Set([
+  "The template setup request is invalid. Reload and try again.",
+  "This workspace is unavailable.",
+  "Choose everyone or at least one tag.",
+  "Choose only active tags.",
+  "This mix does not identify its saved date type.",
+  "Choose a valid mix start date.",
+  "Choose a valid mix start time.",
+  "Choose a valid mix timezone."
+]);
+const INACTIVE_DATE_TYPE = /^Turn on the [^\n]+ date type before using this mix\.$/;
+
+function setupRefusal(error: unknown): string {
+  if (error instanceof LibraryError || error instanceof SharedMixContentError) return error.message;
+  return error instanceof Error && (SETUP_REFUSALS.has(error.message) || INACTIVE_DATE_TYPE.test(error.message)) ? error.message : "The ready-made mix could not be used.";
 }
 
 export async function useSharedMixTemplateAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { session, workspace, user, impersonation } = await requireWorkspace();
   const sharedMixId = value(formData, "sharedMixId", 100);
-  if (!sharedMixId) redirect("/templates?error=Choose%20a%20ready-made%20mix.");
-  if (impersonation) fail(sharedMixId, "Administrator support sessions are view-only.");
+  if (!sharedMixId) redirect(withViewerError("/templates", "Choose a ready-made mix.", session));
+  if (impersonation) fail(sharedMixId, "Administrator support sessions are view-only.", session);
   const status = value(formData, "status", 20) === "ACTIVE" ? "ACTIVE" : "DRAFT";
+  if (status === "ACTIVE" && value(formData, "activationConfirmed", 4) !== "1") {
+    const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
+    if (preference?.reviewMixActivation !== false) fail(sharedMixId, "Review who gets the mix before turning it on.", session);
+  }
   const workspaceTimezone = await timezoneForUser(user.id);
   let result: Awaited<ReturnType<typeof useSharedMixTemplate>>;
   try {
@@ -41,7 +70,7 @@ export async function useSharedMixTemplateAction(formData: FormData): Promise<vo
       broadcastTimezone: value(formData, "broadcastTimezone", 120) || workspaceTimezone
     });
   } catch (error) {
-    fail(sharedMixId, error instanceof Error ? error.message : "The ready-made mix could not be used.");
+    fail(sharedMixId, setupRefusal(error), session);
   }
   redirect(`/mixes/${result.mixId}/edit?imported=1${status === "ACTIVE" ? "&activated=1" : ""}`);
 }

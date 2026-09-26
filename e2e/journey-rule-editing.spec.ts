@@ -147,17 +147,20 @@ test("a lost save response preserves the draft and checks the committed rule bef
 });
 
 test("contact rules distinguish business pauses, individual pauses and milestone destinations", async ({ page }) => {
-  await visit(page, `/contacts/${contactId}`);
-  const panel = page.locator(".contact-journey-panel");
+  // The journey panel opens from the contact's stage chip (Contacts redesign, b4efcfc).
+  const openPanel = async () => { await visit(page, `/contacts/${contactId}`); await page.getByRole("button", { name: /^Change journey stage:/ }).first().click(); };
+  const panel = page.locator("dialog[open] .contact-journey-panel");
+  await openPanel();
   await expect(panel.getByRole("list", { name: "Automatic transition rules" })).toContainText("A sale is confirmed → Customer");
   await expect(panel.getByRole("button", { name: "Record a sale", exact: true })).toHaveAccessibleDescription("Moves to Customer");
-  await prisma.journeyPreference.update({ where: { workspaceId }, data: { enabled: false } }); await visit(page, `/contacts/${contactId}`);
+  await prisma.journeyPreference.update({ where: { workspaceId }, data: { enabled: false } }); await openPanel();
   await expect(panel).toContainText("paused for your business");
   await expect(panel.getByRole("link", { name: "Review journey settings" })).toBeVisible();
   await prisma.journeyPreference.update({ where: { workspaceId }, data: { enabled: true } });
-  await prisma.contactJourney.update({ where: { contactId }, data: { automatic: false } }); await visit(page, `/contacts/${contactId}`);
+  await prisma.contactJourney.update({ where: { contactId }, data: { automatic: false } }); await openPanel();
   await expect(panel).toContainText("paused for this person");
-  await open(panel.getByText("Stage and automation", { exact: true }));
+  await open(panel.locator("details > summary").filter({ hasText: "Stage and automation" }));
+  await expect(panel.locator("details")).toHaveAttribute("open", "");
   await expect(panel.getByRole("button", { name: "Resume transitions for this person", exact: true })).toBeVisible();
   await expect(panel).toContainText("keeps this person’s current mixes running");
 });

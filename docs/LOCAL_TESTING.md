@@ -42,6 +42,14 @@ Run database tests serially when a local Prisma Postgres development server cann
 npx vitest run --no-file-parallelism --maxWorkers=1
 ```
 
+A shared local database that has been seeded (the demo data, the browser-test administrator) contaminates suites that expect an empty catalog: the first-owner bootstrap cases in `tests/staff-access.integration.test.ts` fail against a database that already holds an active owner. Run such suites, or the whole unit run, against a database created for that run alone:
+
+```bash
+DATABASE_URL=postgresql://jitm:jitm@localhost:5432/jitm_design_local npm run test:isolated -- tests/staff-access.integration.test.ts
+```
+
+The script creates a sibling `jitm_design_isolated_*` database from `template0`, applies the migrations, runs vitest with `DATABASE_URL` pointed at it, and drops it afterwards whatever the result. It refuses any `DATABASE_URL` that is not a loopback `jitm_design_` database. CI needs none of this because its database is empty when the unit stage runs.
+
 ## Manual journey
 
 Verify both desktop and phone viewports:

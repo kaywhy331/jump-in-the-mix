@@ -1,0 +1,10 @@
+
+Running 6 tests using 1 worker
+
+[1/6] [desktop-chromium] › e2e/staff-permissions.spec.ts:31:1 › growth staff need no customer workspace and cannot open user or team data
+[2/6] [desktop-chromium] › e2e/staff-permissions.spec.ts:48:1 › owner edits individual staff permissions and revokes the target session
+[3/6] [desktop-chromium] › e2e/staff-permissions.spec.ts:64:1 › an ended support cookie can be cleared after the staff session is revoked
+[4/6] [desktop-chromium] › e2e/staff-permissions.spec.ts:83:1 › invitation revocation checks current permission and cancels the durable email
+[5/6] [desktop-chromium] › e2e/staff-permissions.spec.ts:111:1 › operators can retry the same review item only inside its safe delivery window
+[6/6] [desktop-chromium] › e2e/staff-permissions.spec.ts:132:1 › staff console navigation and team controls fit both themes at phone and desktop widths
+  6 passed (27.0s)

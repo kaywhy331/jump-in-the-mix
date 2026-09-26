@@ -3,7 +3,7 @@ const mocks = vi.hoisted(() => ({ admin: vi.fn(), selected: vi.fn(), ready: vi.f
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`REDIRECT ${url}`); } }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requirePlatformAdmin: mocks.admin }));
-vi.mock("@/lib/env", () => ({ env: { pilotMode: false, appUrl: "https://example.test" } }));
+vi.mock("@/lib/env", () => ({ env: { pilotMode: false, appUrl: "https://example.test", authRateLimitSecret: "test-rate-limit-secret" } }));
 vi.mock("@/lib/auth-tokens", () => ({ hashAuthToken: () => "token-hash" }));
 vi.mock("@/lib/prisma", () => ({ prisma: { $transaction: mocks.transaction } }));
 vi.mock("@/lib/request-context", () => ({ getRequestMetadata: async () => ({ ipAddress: "127.0.0.1" }) }));
@@ -15,7 +15,14 @@ vi.mock("@/lib/waitlist", () => ({
 }));
 vi.mock("@/lib/transactional-email", () => ({ transactionalEmailConfigured: mocks.configured, sendTransactionalEmail: mocks.send, escapeHtml: (v: string) => v }));
 import { inviteWaitlistSelectionAction, retryWaitlistDeliveryAction, setWaitlistScheduleAction } from "../src/lib/waitlist-admin-actions";
-import { confirmWaitlistAction, joinWaitlistAction } from "../src/lib/waitlist-actions";
+import { confirmWaitlistAction, joinWaitlistAction, joinWaitlistFormAction } from "../src/lib/waitlist-actions";
+import { viewerErrorMessage } from "../src/lib/form-errors";
+const admin = { id: "admin-session", authUser: { id: "admin" } };
+/** A waitlist refusal, as the staff member who caused it sees it on the page. */
+async function refusal(action: Promise<unknown>): Promise<string | null> {
+  try { await action; } catch (error) { const location = (error as Error).message.replace(/^REDIRECT /, ""); expect(location.startsWith("/admin/waitlist?")).toBe(true); return viewerErrorMessage(Object.fromEntries(new URL(location, "https://example.test").searchParams), admin); }
+  throw new Error("Expected a redirect");
+}
 function form(values: Record<string, string | string[]>) {
   const data = new FormData();
   for (const [key, value] of Object.entries(values)) for (const item of Array.isArray(value) ? value : [value]) data.append(key, item);
@@ -23,7 +30,7 @@ function form(values: Record<string, string | string[]>) {
 }
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.admin.mockResolvedValue({ user: { id: "admin" } }); mocks.ready.mockReturnValue(true); mocks.configured.mockReturnValue(true);
+  mocks.admin.mockResolvedValue({ user: { id: "admin" }, session: admin }); mocks.ready.mockReturnValue(true); mocks.configured.mockReturnValue(true);
   mocks.selected.mockResolvedValue({ queued: 1, skipped: 0 }); mocks.rate.mockResolvedValue({ allowed: true }); mocks.send.mockResolvedValue({ delivered: true });
 });
 describe("waitlist server action boundaries", () => {
@@ -34,16 +41,16 @@ describe("waitlist server action boundaries", () => {
   });
   it("deduplicates manual selection and records the authenticated actor", async () => {
     await expect(inviteWaitlistSelectionAction(form({ entryId: ["entry", "entry"], reason: "Launch" }))).rejects.toThrow("queued=1&skipped=0");
-    expect(mocks.selected).toHaveBeenCalledWith(["entry"], "admin", "Launch");
+    expect(mocks.selected).toHaveBeenCalledWith(["entry"], { userId: "admin", sessionId: "admin-session" }, "Launch");
   });
   it.each([{ entryId: [] }, { entryId: Array.from({ length: 51 }, (_, i) => String(i)) }])("rejects empty or oversized selections", async ({ entryId }) => {
-    await expect(inviteWaitlistSelectionAction(form({ entryId, reason: "Launch" }))).rejects.toThrow("Select%20between");
+    expect(await refusal(inviteWaitlistSelectionAction(form({ entryId, reason: "Launch" })))).toBe("Select between 1 and 50 people.");
     expect(mocks.selected).not.toHaveBeenCalled();
   });
   it("requires a reason and configured email before reserving access", async () => {
-    await expect(inviteWaitlistSelectionAction(form({ entryId: "entry" }))).rejects.toThrow("reason");
+    expect(await refusal(inviteWaitlistSelectionAction(form({ entryId: "entry" })))).toBe("Enter a reason of 1–500 characters.");
     mocks.ready.mockReturnValue(false);
-    await expect(inviteWaitlistSelectionAction(form({ entryId: "entry", reason: "Launch" }))).rejects.toThrow("Configure");
+    expect(await refusal(inviteWaitlistSelectionAction(form({ entryId: "entry", reason: "Launch" })))).toBe("Configure transactional email and encryption before sending invitations.");
     expect(mocks.selected).not.toHaveBeenCalled();
   });
   it("normalizes public input and sends confirmation rather than an access link", async () => {
@@ -53,6 +60,20 @@ describe("waitlist server action boundaries", () => {
     expect(mocks.send.mock.calls[0][0]).toMatchObject({ to: "person@example.test", text: expect.stringContaining("/waitlist/confirm?token=") });
     expect(mocks.send.mock.calls[0][0].text).not.toContain("/register");
   });
+  it("passes only an allowlisted scenario into a new request", async () => {
+    mocks.request.mockResolvedValue(null);
+    await expect(joinWaitlistAction(form({ email: "person@example.test", scenario: "painting" }))).rejects.toThrow("submitted=1");
+    expect(mocks.request).toHaveBeenCalledWith("person@example.test", "painting");
+    mocks.request.mockClear();
+    await expect(joinWaitlistAction(form({ email: "person@example.test", scenario: "painting?draft=private" }))).rejects.toThrow("submitted=1");
+    expect(mocks.request).toHaveBeenCalledWith("person@example.test");
+  });
+  it("returns an inline generic receipt and preserves entered email on a recoverable failure", async () => {
+    mocks.request.mockResolvedValue(null);
+    await expect(joinWaitlistFormAction({ status: "idle" }, form({ email: " PERSON@Example.test " }))).resolves.toMatchObject({ status: "submitted", email: "person@example.test" });
+    mocks.request.mockRejectedValueOnce(new Error("provider details must stay private"));
+    await expect(joinWaitlistFormAction({ status: "idle" }, form({ email: "person@example.test" }))).resolves.toEqual({ status: "error", email: "person@example.test", message: "We couldn’t submit that. Your email is still here—please try again." });
+  });
   it("uses a generic receipt for an existing account or waitlist entry", async () => {
     mocks.request.mockResolvedValue(null);
     await expect(joinWaitlistAction(form({ email: "person@example.test" }))).rejects.toThrow("submitted=1");
@@ -60,7 +81,7 @@ describe("waitlist server action boundaries", () => {
   });
   it("blocks IP abuse and does not leak email quota state", async () => {
     mocks.rate.mockResolvedValueOnce({ allowed: false });
-    await expect(joinWaitlistAction(form({ email: "person@example.test" }))).rejects.toThrow("Too%20many");
+    await expect(joinWaitlistAction(form({ email: "person@example.test" }))).rejects.toThrow(/Too(?:%20|\+)many/);
     mocks.rate.mockResolvedValueOnce({ allowed: true }).mockResolvedValueOnce({ allowed: false });
     await expect(joinWaitlistAction(form({ email: "person@example.test" }))).rejects.toThrow("submitted=1");
     expect(mocks.request).not.toHaveBeenCalled();
@@ -72,6 +93,6 @@ describe("waitlist server action boundaries", () => {
   it("only confirms through the explicit action and rejects used links", async () => {
     mocks.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     await expect(confirmWaitlistAction(form({ token: "token" }))).rejects.toThrow("confirmed=1");
-    await expect(confirmWaitlistAction(form({ token: "token" }))).rejects.toThrow("expired%20or%20was%20already%20used");
+    await expect(confirmWaitlistAction(form({ token: "token" }))).rejects.toThrow(/expired(?:%20|\+)or(?:%20|\+)was(?:%20|\+)already(?:%20|\+)used/);
   });
 });

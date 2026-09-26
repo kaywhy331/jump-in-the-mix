@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DeviceContactQuickAdd } from "@/components/DeviceContactQuickAdd";
 import { EmptyState } from "@/components/EmptyState";
 import { Sheet } from "@/components/Sheet";
-import { archiveContactAction } from "@/lib/actions";
 import { applyJumpToContactsAction, bulkArchiveContactsAction, bulkRemoveGroupAction } from "@/lib/bulk-contact-actions";
 import { createContactsCsv, type ExportContact } from "@/lib/contact-export";
 import { restoreContactListScroll, saveContactListState as rememberContactList } from "@/lib/contact-list-state";
@@ -17,6 +17,7 @@ import { assignSelectedContactsToActiveGroupAction, createContactGroupAction, de
 export type ContactBulkDto = ExportContact & {
   id: string;
   displayName: string;
+  stageName?: string | null;
   jumpDateCount: number;
   groupDetails: { id: string; name: string; color: string | null; isActive: boolean }[];
   lastInteraction: string | null;
@@ -28,7 +29,13 @@ export type ContactBulkDto = ExportContact & {
   doNotContact: boolean;
 };
 
-export type ContactBulkGroup = { id: string; name: string; description: string | null; color: string | null; contactCount: number; isActive: boolean };
+export type ContactBulkGroup = { id: string; name: string; description: string | null; color: string | null; contactCount: number; mixCount: number; isActive: boolean };
+
+/** Deleting a tag ends the Mixes that run for its people; say so before the owner confirms. */
+function tagDeleteDescription(mixCount: number): string {
+  const warning = mixCount > 0 ? `${mixCount === 1 ? "1 Mix runs" : `${mixCount} Mixes run`} for this tag's people and will stop for them. ` : "";
+  return `${warning}People and completed history will stay in your account.`;
+}
 
 function initials(name: string): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("");
@@ -40,22 +47,36 @@ function contactIdsInputs(contactIds: string[]) {
 
 export function ContactsBulkWorkspace({
   contacts,
+  totalCount,
+  initialSelected = [],
+  selectedContactId,
+  sort = "last-name",
   groups,
   query,
   groupFilter,
   priorityFilter,
   permissionFilter,
+  savedViews,
   intent
 }: {
   contacts: ContactBulkDto[];
+  totalCount?: number;
+  initialSelected?: string[];
+  selectedContactId?: string;
+  sort?: string;
   groups: ContactBulkGroup[];
   query: string;
   groupFilter: string;
   priorityFilter: string;
   permissionFilter: string;
+  savedViews?: ReactNode;
   intent?: "important-date" | "one-time-jump" | "log-note";
 }) {
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const router = useRouter();
+  const [docked, setDocked] = useState(false);
+  useEffect(() => { const media = window.matchMedia("(min-width: 1200px)"); const update = () => setDocked(media.matches); update(); media.addEventListener("change", update); return () => media.removeEventListener("change", update); }, []);
+  const searchParams = useSearchParams();
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(initialSelected.filter(id => contacts.some(contact => contact.id === id))));
   const scope = useBrowserScope();
   const saveContactListState = () => { if (scope) rememberContactList(scope); };
   const [selectionMode, setSelectionMode] = useState(intent === "one-time-jump");
@@ -68,8 +89,23 @@ export function ContactsBulkWorkspace({
   const inactiveTagCount = groups.length - activeTags.length;
   const allSelected = contacts.length > 0 && selected.size === contacts.length;
   const activeFilterCount = [groupFilter, priorityFilter, permissionFilter].filter(Boolean).length;
+  const initialSelectionKey = initialSelected.join(",");
+
+  useEffect(() => {
+    setSelectionMode(intent === "one-time-jump");
+    setSelected(new Set(intent === "one-time-jump" ? initialSelected.filter(id => contacts.some(contact => contact.id === id)) : []));
+  }, [intent, initialSelectionKey]);
 
   useEffect(() => { if (scope) restoreContactListScroll(scope); }, [scope, groupFilter, intent, permissionFilter, priorityFilter, query]);
+
+  // Only a row chosen in the docked layout moves focus into the profile, once it has rendered;
+  // first loads and Back/Forward leave focus where the browser puts it.
+  const pendingProfileFocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pendingProfileFocus.current || pendingProfileFocus.current !== selectedContactId) return;
+    pendingProfileFocus.current = null;
+    document.getElementById("contact-profile-heading")?.focus();
+  }, [selectedContactId]);
 
   const toggleContact = (contactId: string) => setSelected((current) => {
     const next = new Set(current);
@@ -94,45 +130,57 @@ export function ContactsBulkWorkspace({
     URL.revokeObjectURL(url);
   };
 
+  const directoryContext = ["person", "view", "intent", "importBatch", "people"].map(name => {
+    const value = name === "person" ? selectedContactId : searchParams.get(name);
+    return value ? <input key={name} name={name} type="hidden" value={value} /> : null;
+  });
+  const filterControl = <Sheet trigger={<button className="contact-filter-button" type="button" aria-label={activeFilterCount ? `Filter contacts, ${activeFilterCount} active` : "Filter contacts"}><AppIcon name="filter" />{activeFilterCount > 0 && <span>{activeFilterCount}</span>}</button>} title="Filter contacts" description="Changes apply right away.">
+          <form className="filter-bar form-stack" action="/contacts" method="get">
+            <input type="hidden" name="q" value={query} />{directoryContext}
+            <label className="field"><span>Sort contacts</span><select name="sort" defaultValue={sort}><option value="name">Name</option><option value="last-name">Last name</option><option value="updated">Recently updated</option><option value="newest">Recently added</option></select></label>
+            <label className="field"><span>Tag</span><select name="group" defaultValue={groupFilter}><option value="">All tags</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.isActive ? group.name : `Hidden · ${group.name}`}</option>)}</select></label>
+            <label className="field"><span>Priority</span><select name="priority" defaultValue={priorityFilter}><option value="">All priorities</option><option value="URGENT">Urgent</option><option value="HIGH">High</option><option value="NORMAL">Normal</option><option value="LOW">Low</option></select></label>
+            <label className="field"><span>Contact permission</span><select name="permission" defaultValue={permissionFilter}><option value="">Everyone</option><option value="contactable">Can contact</option><option value="do-not-contact">Do not contact</option></select></label>
+          </form>
+          {(query || activeFilterCount) && <Link className="button" href="/contacts">Clear filters</Link>}
+          {savedViews}
+        </Sheet>;
+  useEffect(() => { setSelected(current => new Set([...current].filter(id => contacts.some(contact => contact.id === id)))); }, [contacts]);
+
   return (
     <>
-      <header className="page-header contacts-page-header">
-        <div className="contacts-title-search">
-          <h1>Contacts</h1>
-          <form className="contact-header-search live-search-form" action="/contacts" method="get">
-            <input name="q" type="search" defaultValue={query} placeholder="Search contacts" aria-label="Search contacts" autoComplete="off" />
-            {groupFilter && <input type="hidden" name="group" value={groupFilter} />}
-            {priorityFilter && <input type="hidden" name="priority" value={priorityFilter} />}
-            {permissionFilter && <input type="hidden" name="permission" value={permissionFilter} />}
-          </form>
-        </div>
-        <div className="page-actions contacts-page-actions">
-          <Link className="button primary mobile-header-action" href="/contacts/new"><AppIcon name="add" /><span className="mobile-action-label">Add</span></Link>
-          <Sheet trigger={<button className="button mobile-header-action" type="button" aria-label="More contact tools"><AppIcon name="more" /><span className="mobile-action-label">More</span></button>} title="Contact tools">
+      <header className="contacts-page-header">
+        <h1>Contacts</h1>
+        <div className="contacts-page-actions">
+          <Link className="button contact-import-action" href="/contacts/import" onClick={saveContactListState}><AppIcon name="import" />Import</Link>
+          <Link className="button mobile-header-action contact-add-action" href="/contacts/new" aria-label="Add contact" title="Add contact" onClick={saveContactListState}><AppIcon name="userPlus" /></Link>
+          <Sheet trigger={<button className="button mobile-header-action" type="button" aria-label="More contact tools"><AppIcon name="more" /></button>} title="Contact tools">
             <nav className="contact-tools-links">
-              <Link href="/journey">Customer journey</Link>
-              <Link href="/settings/connections">Lead connections</Link>
-              <Link href="/contacts/import" onClick={saveContactListState}>Import contacts</Link>
-              <Link href="/contacts/custom-fields" onClick={saveContactListState}>Custom fields</Link>
-              <Link href="/contacts/duplicates">Find duplicates</Link>
-              <Link href="/contacts/archived">Archived contacts</Link>
+              <Link href="/contacts/new"><AppIcon name="userPlus" />Add a contact</Link>
+              {contacts.length > 0 && <button type="button" className="text-button" onClick={event => { toggleSelectionMode(); event.currentTarget.closest("dialog")?.close(); }}><AppIcon name="check" />{selectionMode ? "Finish selecting contacts" : "Select contacts"}</button>}
+              <Link href="/journey"><AppIcon name="journey" />Customer journey</Link>
+              <Link href="/settings/connections"><AppIcon name="link" />Lead connections</Link>
+              <Link href="/contacts/import" onClick={saveContactListState}><AppIcon name="import" />Import contacts</Link>
+              <Link href="/contacts/custom-fields" onClick={saveContactListState}><AppIcon name="edit" />Custom fields</Link>
+              <Link href="/contacts/duplicates"><AppIcon name="copy" />Find duplicates</Link>
+              <Link href="/contacts/archived"><AppIcon name="archive" />Archived contacts</Link>
             </nav>
             <DeviceContactQuickAdd />
             <section className="tag-manager">
               <div className="section-label"><h2>Tags</h2><span>{activeTags.length}</span></div>
               <form action={createContactGroupAction} className="group-create-form">
-                <input name="name" placeholder="Tag name" aria-label="Tag name" required />
-                <input name="description" placeholder="Optional note" aria-label="Tag note" />
+                <label className="field"><span>Tag name</span><input name="name" placeholder="For example, Kitchen remodels" required /></label>
+                <label className="field"><span>Note (optional)</span><input name="description" /></label>
                 <label className="color-input"><span>Color</span><input name="color" type="color" defaultValue="#5d4cf2" /></label>
                 <button className="button primary" type="submit">Add tag</button>
               </form>
               {groups.length > 0 && <>
                 <form id="tag-activation-form" action={saveActiveGroupsAction} />
                 <div className="group-manage-list">{groups.map((group) => <div className={`group-manage-row ${group.isActive ? "" : "inactive"}`} key={group.id}>
-                  <label className="date-type-active-choice"><input form="tag-activation-form" type="checkbox" name="activeGroupIds" value={group.id} defaultChecked={group.isActive} /><span>{group.isActive ? "On" : "Off"}</span></label>
+                  <label className="date-type-active-choice"><input form="tag-activation-form" type="checkbox" name="activeGroupIds" value={group.id} defaultChecked={group.isActive} /><span>Show<span className="sr-only"> the {group.name} tag</span></span></label>
                   <span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />
                   <span><strong>{group.name}</strong><small>{group.contactCount} contact{group.contactCount === 1 ? "" : "s"}</small></span>
-                  <ConfirmDialog trigger="Delete…" title={`Delete ${group.name}?`} description="People and completed history will stay in your account." danger><form action={deleteContactGroupAction}><input type="hidden" name="groupId" value={group.id} /><button className="button small danger" type="submit">Delete tag</button></form></ConfirmDialog>
+                  <ConfirmDialog trigger="Delete…" triggerAriaLabel={`Delete the ${group.name} tag`} title={`Delete ${group.name}?`} description={tagDeleteDescription(group.mixCount)} danger><form action={deleteContactGroupAction}><input type="hidden" name="groupId" value={group.id} /><button className="button small danger" type="submit">Delete tag</button></form></ConfirmDialog>
                 </div>)}</div>
                 <button className="button" form="tag-activation-form" type="submit">Save tags</button>
               </>}
@@ -141,46 +189,38 @@ export function ContactsBulkWorkspace({
           </Sheet>
         </div>
       </header>
+      <div className="contact-search-row">
+        <form className="contact-header-search live-search-form" action="/contacts" method="get">
+          <AppIcon name="search" /><input name="q" type="search" defaultValue={query} placeholder="Search" aria-label="Search contacts" autoComplete="off" />
+          <input name="sort" type="hidden" value={sort} />{directoryContext}
+          {groupFilter && <input name="group" type="hidden" value={groupFilter} />}{priorityFilter && <input name="priority" type="hidden" value={priorityFilter} />}{permissionFilter && <input name="permission" type="hidden" value={permissionFilter} />}
+        </form>{filterControl}
+      </div>
+
 
       {intent === "important-date" && <div className="notice info" role="status"><strong>Choose a person.</strong> Then add the date you want to remember.</div>}
       {intent === "one-time-jump" && <div className="notice info" role="status"><strong>Choose one or more people.</strong></div>}
       {intent === "log-note" && <div className="notice info" role="status"><strong>Choose a person.</strong> Then add what happened to their notes.</div>}
 
-      <div className="contact-list-controls">
-        <Sheet trigger={<button className={activeFilterCount ? "button filter-trigger active" : "button filter-trigger"} type="button"><AppIcon name="settings" />Filter{activeFilterCount ? ` ${activeFilterCount}` : ""}</button>} title="Filter contacts" description="Changes apply right away.">
-          <form className="filter-bar form-stack" action="/contacts" method="get">
-            <input type="hidden" name="q" value={query} />
-            <label className="field"><span>Tag</span><select name="group" defaultValue={groupFilter}><option value="">All tags</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.isActive ? group.name : `Hidden · ${group.name}`}</option>)}</select></label>
-            <label className="field"><span>Priority</span><select name="priority" defaultValue={priorityFilter}><option value="">All priorities</option><option value="URGENT">Urgent</option><option value="HIGH">High</option><option value="NORMAL">Normal</option><option value="LOW">Low</option></select></label>
-            <label className="field"><span>Contact permission</span><select name="permission" defaultValue={permissionFilter}><option value="">Everyone</option><option value="contactable">Can contact</option><option value="do-not-contact">Do not contact</option></select></label>
-          </form>
-          {(query || activeFilterCount) && <Link className="button" href="/contacts">Clear filters</Link>}
-        </Sheet>
-        {contacts.length > 0 && <button className="button contact-select-toggle" type="button" onClick={toggleSelectionMode}>{selectionMode ? "Done" : "Select"}</button>}
-      </div>
-
+      <div className="contact-list-summary"><span>{selectionMode ? `${selectedIds.length} selected` : `${(totalCount ?? contacts.length).toLocaleString()} people`}</span><form action="/contacts">{directoryContext}<input name="q" type="hidden" value={query} />{groupFilter && <input name="group" type="hidden" value={groupFilter} />}{priorityFilter && <input name="priority" type="hidden" value={priorityFilter} />}{permissionFilter && <input name="permission" type="hidden" value={permissionFilter} />}<select name="sort" aria-label="Sort contacts" defaultValue={sort} onChange={event => event.currentTarget.form?.requestSubmit()}><option value="name">Name</option><option value="last-name">Last name</option><option value="updated">Recently updated</option><option value="newest">Recently added</option></select></form>{selectionMode && <button type="button" className="contact-inline-action" onClick={toggleSelectionMode}>Done</button>}</div>
       {contacts.length ? <div className="contact-list selectable-contact-list">{contacts.map((contact) => {
         const isSelected = selected.has(contact.id);
         const primaryEmail = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email;
         const primaryPhone = contact.phones.find((item) => item.isPrimary)?.phone ?? contact.phones[0]?.phone;
-        return <article className={`contact-row contact-select-row ${selectionMode ? "selection-mode" : ""} ${isSelected ? "selected" : ""} ${contact.doNotContact ? "do-not-contact" : ""}`} key={contact.id}>
+        return <article className={`contact-row contact-select-row ${selectionMode ? "selection-mode" : ""} ${isSelected ? "selected" : ""} ${selectedContactId === contact.id ? "contact-current" : ""} ${contact.doNotContact ? "do-not-contact" : ""}`} key={contact.id}>
           <label className="contact-select-control" title={isSelected ? "Deselect contact" : "Select contact"}><input type="checkbox" checked={isSelected} onChange={() => toggleContact(contact.id)} aria-label={`${isSelected ? "Deselect" : "Select"} ${contact.displayName}`} /><span>{isSelected ? <AppIcon name="check" /> : null}</span></label>
-          <Link href={`/contacts/${contact.id}`} className="contact-main" onClick={saveContactListState}>
+          <div className="contact-main">
             <div className="avatar">{initials(contact.displayName) || "?"}</div>
-            <div>
-              <h3>{contact.displayName}</h3>
-              <div className="contact-relationship-state"><span><small>Last follow-up</small><strong>{contact.lastInteraction ?? "No activity yet"}</strong></span><span><small>Next follow-up</small><strong className={contact.nextJumpOverdue ? "overdue-text" : ""}>{contact.doNotContact ? "Do not contact" : contact.nextJump ?? "Nothing scheduled"}</strong></span></div>
-              <div className="contact-visible-details"><div className="contact-method-preview">{primaryPhone && <span><AppIcon name="phone" />{primaryPhone}</span>}{primaryEmail && <span><AppIcon name="email" />{primaryEmail}</span>}{!primaryPhone && !primaryEmail && <span>Add phone or email</span>}</div>{contact.publicNotes && <p className="contact-customer-note"><strong>Note:</strong> {contact.publicNotes}</p>}</div>
-              <div className="contact-meta">{contact.doNotContact && <span className="status-pill overdue">Do not contact</span>}{contact.relationshipType && <span>{contact.relationshipType}</span>}{contact.preferredChannel && <span>Prefers {contact.preferredChannel.replaceAll("_", " ").toLowerCase()}</span>}{contact.priority && <span>{contact.priority.toLowerCase()} priority</span>}<span>{contact.jumpDateCount} saved date{contact.jumpDateCount === 1 ? "" : "s"}</span></div>
-              {contact.groupDetails.length > 0 && <div className="contact-group-list">{contact.groupDetails.slice(0, 3).map((group) => <span className={`group-chip ${group.isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}</span>)}{contact.groupDetails.length > 3 && <span className="group-chip">+{contact.groupDetails.length - 3}</span>}</div>}
+            <div><h3><Link href={`/contacts/${contact.id}`} className="contact-open" aria-current={docked && selectedContactId === contact.id ? "true" : undefined} onClick={event => { saveContactListState(); if (!intent && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && window.matchMedia("(min-width: 1200px)").matches) { event.preventDefault(); const params = new URLSearchParams(searchParams); params.set("person", contact.id); if (contact.id === selectedContactId) document.getElementById("contact-profile-heading")?.focus(); else pendingProfileFocus.current = contact.id; router.push(`/contacts?${params}`, { scroll: false }); } }}>{contact.displayName}</Link></h3>
+              <p className="contact-row-summary"><span>{contact.stageName ?? "No stage"}</span><span className="contact-summary-separator" aria-hidden="true"> · </span>{!primaryEmail && !primaryPhone && !contact.doNotContact ? <Link className="contact-missing-method" href={`/contacts/${contact.id}/edit`}>Add phone or email</Link> : <span className={contact.nextJumpOverdue ? "overdue-text" : ""}>{contact.doNotContact ? "Do not contact" : contact.nextJump ?? "Nothing scheduled"}</span>}</p>
             </div>
-          </Link>
-          <div className="table-actions">{intent === "important-date" ? <Link className="button small primary" href={`/contacts/${contact.id}#add-date`} onClick={saveContactListState}>Add date</Link> : intent === "log-note" ? <Link className="button small primary" href={`/contacts/${contact.id}#add-note`} onClick={saveContactListState}>Add note</Link> : <Sheet trigger={<button className="button small" type="button" aria-label={`More options for ${contact.displayName}`}>More</button>} title={contact.displayName}><Link className="button" href={`/contacts/${contact.id}/edit`} onClick={saveContactListState}>Edit contact</Link><ConfirmDialog trigger="Archive…" title={`Archive ${contact.displayName}?`} description="Future follow-ups will be removed. Completed history stays available." danger><form action={archiveContactAction}><input type="hidden" name="contactId" value={contact.id} /><button className="button danger" type="submit">Archive contact</button></form></ConfirmDialog></Sheet>}</div>
+          </div>
+          <div className="table-actions">{intent === "important-date" ? <Link className="button small primary" href={`/contacts/${contact.id}#add-date`} onClick={saveContactListState}>Add date</Link> : intent === "log-note" ? <Link className="button small primary" href={`/contacts/${contact.id}#add-note`} onClick={saveContactListState}>Add note</Link> : null}</div>
         </article>;
       })}</div> : query || activeFilterCount ? <EmptyState title="No contacts matched" description="Try a different search or filter." actionHref="/contacts" actionLabel="Clear filters" /> : <EmptyState title="Start with one person" description="Make time for your circle. Add a customer, a friend, or someone you would like to know better." actionHref="/contacts/new" actionLabel="Add a person" />}
 
       {selectedIds.length > 0 && <aside className="bulk-contact-bar" aria-label="Actions for selected contacts">
-        <div className="bulk-selection-count"><strong>{selectedIds.length}</strong><span>selected</span><button type="button" className="text-button" onClick={() => setSelected(new Set())}>Clear</button>{contacts.length > 1 && <button type="button" className="text-button" onClick={toggleAll}>{allSelected ? "Deselect all" : "Select all"}</button>}</div>
+        <div className="bulk-selection-count"><strong>{selectedIds.length}</strong><span>selected</span><button type="button" className="text-button" onClick={() => setSelected(new Set())}>Clear</button>{contacts.length > 1 && <button type="button" className="text-button" onClick={toggleAll}>{allSelected ? "Deselect this page" : "Select this page"}</button>}</div>
         <Sheet trigger={<button className="button bulk-action-button" type="button" aria-label="Tags"><AppIcon name="people" /><span className="bulk-action-label">Tags</span></button>} title="Update tags">
           {groups.length ? <>
             {activeTags.length ? <form action={assignSelectedContactsToActiveGroupAction} className="form-stack">{contactIdsInputs(selectedIds)}<label className="field"><span>Add tag</span><select name="groupId" required>{activeTags.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><button className="button primary" type="submit">Add tag</button></form> : <p>No tags are available.</p>}
@@ -201,7 +241,7 @@ export function ContactsBulkWorkspace({
             <button className="button primary" type="submit" disabled={selectedDoNotContact.length > 0}>Schedule message</button>
           </form>
         </Sheet>
-        <button className="button bulk-action-button" type="button" aria-label="Export CSV" onClick={exportSelected}><AppIcon name="import" className="export-icon" /><span className="bulk-action-label">Export CSV</span></button>
+        <button className="button bulk-action-button" type="button" aria-label="Export CSV" onClick={exportSelected}><AppIcon name="export" className="export-icon" /><span className="bulk-action-label">Export CSV</span></button>
         <ConfirmDialog trigger={`Archive ${selectedIds.length}…`} title={`Archive ${selectedIds.length} selected contact${selectedIds.length === 1 ? "" : "s"}?`} description="Future follow-ups will be removed. Completed history stays available." danger><form action={bulkArchiveContactsAction}>{contactIdsInputs(selectedIds)}<button className="button danger" type="submit"><AppIcon name="archive" />Archive</button></form></ConfirmDialog>
       </aside>}
     </>

@@ -6,8 +6,8 @@ const userPassword = process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!";
 
 async function signIn(page: Page) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(userEmail);
-  await page.getByLabel("Password").fill(userPassword);
+  await page.getByLabel("Email", { exact: true }).fill(userEmail);
+  await page.getByLabel("Password", { exact: true }).fill(userPassword);
   await Promise.all([
     page.waitForURL(/\/(jumps|onboarding)(\?|$)/),
     page.getByRole("button", { name: "Sign in" }).click()
@@ -26,7 +26,8 @@ test("Contact search is bounded, announced, and paginated", async ({ page }, tes
   try {
     await signIn(page);
     await page.goto(`/contacts?q=${encodeURIComponent(prefix)}`);
-    await expect(page.getByRole("status")).toContainText("55 Contacts found");
+    // From 1200 px the list docks the first person's profile, which has status messages of its own.
+    await expect(page.getByRole("status").filter({ hasText: "Contacts found" })).toHaveText("55 Contacts found. Showing 1 through 50.");
     await expect(page.locator(".contact-row")).toHaveCount(50);
     await page.getByRole("link", { name: "Next", exact: true }).click();
     await expect(page).toHaveURL(/page=2/);
@@ -108,4 +109,39 @@ test("queued imports remain visible after navigation and expose their terminal o
     await prisma.job.deleteMany({ where: { workspaceId: "demo_workspace", task: "contact-import", payload: { path: ["batchId"], equals: batch.id } } });
     await prisma.contactImportBatch.delete({ where: { id: batch.id } });
   }
+});
+
+test("import review counts the rows with no phone or email and asks before queueing them", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The import review is exercised once.");
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const csv = [
+    "First Name,Last Name,Cell Phone",
+    `Missing,One ${suffix},`,
+    `Missing,Two ${suffix},`,
+    `Reachable,Person ${suffix},(555) 234-5678`
+  ].join("\n");
+
+  await signIn(page);
+  await page.goto("/contacts/import");
+  await page.locator('input[type="file"]').setInputFiles({ name: `no-methods-${suffix}.csv`, mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await expect(page.getByRole("heading", { name: "Review issues" })).toBeVisible();
+
+  // The warning is on screen before anything is queued, and its control opens the mapping editor.
+  const warning = page.getByRole("status").filter({ hasText: "2 of 3 rows have no phone or email" });
+  await expect(warning).toBeVisible();
+  const cellPhoneMapping = page.locator(".import-mapping-row").filter({ hasText: "Cell Phone" }).getByRole("combobox");
+  await expect(cellPhoneMapping).toBeHidden();
+  await warning.getByRole("button", { name: "Check field mapping" }).click();
+  await expect(cellPhoneMapping).toBeVisible();
+  await expect(cellPhoneMapping).toHaveValue("field:phone");
+
+  // More than half the rows lack a contact method, so Queue asks first; Go back queues nothing.
+  await page.getByRole("button", { name: "Queue 3 valid rows", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Most rows have no phone or email" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("2 of 3 rows have no phone or email");
+  await dialog.getByRole("button", { name: "Go back" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Review issues" })).toBeVisible();
+  expect(await prisma.contact.count({ where: { workspaceId: "demo_workspace", lastName: { contains: suffix } } })).toBe(0);
 });

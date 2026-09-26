@@ -33,6 +33,16 @@ enum Channel {
   WHATSAPP
 }
 
+// How a beat of a plan bound to an appointment is timed: a calendar-day rule (the default: a day
+// offset and a time of day), an elapsed number of minutes from the appointment's start or end,
+// or an elapsed number of minutes after the visit is marked completed.
+enum StepAnchor {
+  CALENDAR_DAY
+  APPOINTMENT_START
+  APPOINTMENT_END
+  VISIT_COMPLETED
+}
+
 enum MixStatus {
   DRAFT
   ACTIVE
@@ -75,6 +85,8 @@ enum AuthProvider {
 }
 
 model User {
+  marketplaceFavorites MarketplaceFavorite[]
+  favorites MixFavorite[]
   assignedSupportTickets SupportTicket[] @relation("SupportAssignee")
   reportExports ReportExport[]
   staffMembership StaffMembership?
@@ -96,6 +108,14 @@ model User {
   auditLogs       AuditLog[]        @relation("AuditActor")
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
+  contactActivities       ContactActivity[]
+  contactImportBatches    ContactImportBatch[]
+  contactMergeRecords     ContactMergeRecord[]
+  contactSavedViews       ContactSavedView[]
+  notificationDeliveries  NotificationDelivery[]
+  notificationPreferences NotificationPreference[]
+  pushSubscriptions       PushSubscription[]
+  userPreference          UserPreference?
 }
 
 model Session {
@@ -129,6 +149,15 @@ model VerificationToken {
 }
 
 model Workspace {
+  favorites MixFavorite[]
+  mixWorkflow MixWorkflow?
+  megaMixInstallations MegaMixInstallation[]
+  megaMixPipelines MegaMixPipeline[]
+  marketplaceAuthor MarketplaceAuthor?
+  marketplaceListings MarketplaceListing[]
+  marketplaceFavorites MarketplaceFavorite[]
+  marketplaceImports MarketplaceImport[]
+  mixWorkflowInstances MixWorkflowInstance[]
   accessInvites ReferralAccessInvite[]
   journeyPreference      JourneyPreference?
   journeyStages          JourneyStage[]
@@ -146,6 +175,7 @@ model Workspace {
   owner                  User                           @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Restrict)
   members                WorkspaceMember[]
   profile                WorkspaceProfile?
+  marketingPreference    WorkspaceMarketingPreference?
   contacts               Contact[]
   groups                 Group[]
   dateTypes              DateType[]
@@ -154,6 +184,9 @@ model Workspace {
   mixes                  Mix[]
   mixAssignments         MixAssignment[]
   jumps                  Jump[]
+  jumpDrafts             JumpDraft[]
+  jumpAttempts           JumpAttempt[]
+  appointmentBindings    AppointmentBinding[]
   importedSharedMixes    SharedMixImport[]
   idempotencyKeys        IdempotencyKey[]
   jobs                   Job[]
@@ -161,6 +194,23 @@ model Workspace {
   customFieldDefinitions ContactCustomFieldDefinition[]
   createdAt              DateTime                       @default(now())
   updatedAt              DateTime                       @updatedAt
+  // Relations for foreign keys that migrations created by hand (Release B makes the schema match production).
+  automatedDeliveries       AutomatedDelivery[]
+  automationPreference      AutomationPreference?
+  contactActivities         ContactActivity[]
+  contactGroupStates        ContactGroupState[]
+  contactImportBatches      ContactImportBatch[]
+  contactMergeRecords       ContactMergeRecord[]
+  contactRelationshipStates ContactRelationshipState[]
+  contactSavedViews         ContactSavedView[]
+  jumpActionEvents          JumpActionEvent[]
+  mixBroadcastSchedules     MixBroadcastSchedule[]
+  mixStops                  MixStop[]
+  notificationDeliveries    NotificationDelivery[]
+  notificationPreference    NotificationPreference?
+  pushSubscriptions         PushSubscription[]
+  reviewRequests            ReviewRequest[]
+  workspacePreference       WorkspacePreference?
 }
 
 model WorkspaceMember {
@@ -178,6 +228,7 @@ model WorkspaceMember {
 
 model WorkspaceProfile {
   workspaceId    String    @id
+  useCases       String[]  @default([])
   industry       String?
   primaryGoal    String?
   company        String?
@@ -208,7 +259,17 @@ model WorkspaceProfile {
   updatedAt      DateTime  @updatedAt
 }
 
+model WorkspaceMarketingPreference {
+  workspaceId String @id
+  scenario String
+  version Int
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Contact {
+  mixWorkflowInstances MixWorkflowInstance[]
   accessInvites ReferralAccessInvite[]
   journey             ContactJourney?
   journeyEvents       JourneyEvent[]
@@ -236,10 +297,16 @@ model Contact {
   jumpDates           JumpDate[]
   mixAssignments      MixAssignment[]
   jumps               Jump[]
+  appointmentBindings AppointmentBinding[]
   customFieldValues   ContactCustomFieldValue[]
   relationshipState   ContactRelationshipState?
   createdAt           DateTime                  @default(now())
   updatedAt           DateTime                  @updatedAt
+  activities       ContactActivity[]
+  mergesAsSurvivor ContactMergeRecord[] @relation("ContactMergeSurvivor")
+  mergesAsMerged   ContactMergeRecord[] @relation("ContactMergeMerged")
+  reviewRequests   ReviewRequest[]
+
 
   @@index([workspaceId, displayName])
   @@index([workspaceId, company])
@@ -414,12 +481,17 @@ model StepVersion {
   stepTemplate   StepTemplate @relation(fields: [stepTemplateId], references: [id], onDelete: Cascade)
   mixSteps       MixStep[]
   jumps          Jump[]
+  // Authored wording for the other channel families of this version (Slice 3).
+  variants       StepVersionVariant[]
   createdAt      DateTime     @default(now())
 
   @@unique([stepTemplateId, version])
 }
 
 model Mix {
+  favorites MixFavorite[]
+  megaMixMembership MegaMixPipelineMix?
+  marketplaceListing MarketplaceListing?
   journeyStages             JourneyStage[]
   id                        String          @id @default(cuid())
   workspaceId               String
@@ -439,6 +511,7 @@ model Mix {
   steps                     MixStep[]
   assignments               MixAssignment[]
   jumps                     Jump[]
+  appointmentBindings AppointmentBinding[]
   createdAt                 DateTime        @default(now())
   updatedAt                 DateTime        @updatedAt
 
@@ -453,6 +526,11 @@ model MixStep {
   dayOffset       Int
   sortOrder       Int
   sendTimeMinutes Int?
+  // A planned beat goes out at one instant instead of a day offset from the trigger.
+  plannedAt       DateTime?
+  // Elapsed-minute timing for a bound plan; a calendar-day beat keeps offsetMinutes null.
+  anchor          StepAnchor  @default(CALENDAR_DAY)
+  offsetMinutes   Int?
   isActive        Boolean     @default(true)
   mix             Mix         @relation(fields: [mixId], references: [id], onDelete: Cascade)
   stepVersion     StepVersion @relation(fields: [stepVersionId], references: [id], onDelete: Restrict)
@@ -478,6 +556,7 @@ model MixAssignment {
   mix           Mix            @relation(fields: [mixId], references: [id], onDelete: Cascade)
   contact       Contact?       @relation(fields: [contactId], references: [id], onDelete: Cascade)
   group         Group?         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  appointmentBinding AppointmentBinding?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -487,7 +566,15 @@ model MixAssignment {
 }
 
 model Jump {
+  workflowInstanceId String?
+  workflowVisitId String?
+  workflowManaged Boolean @default(false)
+  workflowInstance MixWorkflowInstance? @relation(fields: [workflowInstanceId], references: [id], onDelete: SetNull)
   id               String                 @id @default(cuid())
+  // Explicit review-only captures never enter automatic delivery.
+  manualOnly       Boolean                @default(false)
+  accessInviteId   String?                @unique
+  accessInvite     ReferralAccessInvite?  @relation(fields: [accessInviteId], references: [id], onDelete: SetNull)
   workspaceId      String
   contactId        String
   jumpDateId       String?
@@ -501,7 +588,18 @@ model Jump {
   renderedSnapshot Json
   completedAt      DateTime?
   completionMethod String?
+  // User-owned not-before time. Reconciliation never moves a follow-up earlier than it.
+  snoozedUntil     DateTime?
+  // Scheduler-owned base instant. scheduledAt is the later of this and snoozedUntil.
+  baseScheduledAt  DateTime?
   uniquenessKey    String                 @unique
+  // The channel family the owner chose on Today for this one follow-up; null means the plan's own
+  // channel. It never creates another scheduled action, and a family that is no longer authored or
+  // has no recipient method falls back to the plan's channel when the card is read.
+  selectedFamily   PreparationFamily?
+  // The appointment binding this follow-up belongs to, when it is anchored to a visit.
+  appointmentBindingId String?
+  appointmentBinding   AppointmentBinding? @relation(fields: [appointmentBindingId], references: [id], onDelete: SetNull)
   workspace        Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   contact          Contact                @relation(fields: [contactId], references: [id], onDelete: Cascade)
   jumpDate         JumpDate?              @relation(fields: [jumpDateId], references: [id], onDelete: SetNull)
@@ -511,6 +609,11 @@ model Jump {
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
   pushDeliveries   FollowUpPushDelivery[]
+  drafts           JumpDraft[]
+  attempts         JumpAttempt[]
+  activities        ContactActivity[]
+  automatedDelivery AutomatedDelivery?
+
 
   @@index([workspaceId, scheduledAt, status])
   @@index([workspaceId, status, completedAt])
@@ -518,9 +621,12 @@ model Jump {
   @@index([mixId])
   @@index([mixStepId])
   @@index([stepVersionId])
+  @@index([appointmentBindingId])
+  @@index([workflowInstanceId, workflowVisitId])
 }
 
 model SharedMix {
+  favorites MixFavorite[]
   revisions    SharedMixRevision[]
   releases     SharedMixRelease[]
   id           String            @id @default(cuid())
@@ -629,7 +735,10 @@ model ReferralAccessInvite {
   inviterUserId   String?
   workspaceId     String?
   contactId       String?
-  recipientEmail  String
+  recipientEmail  String?
+  recipientPhone  String?
+  manualDelivery  Boolean   @default(false)
+  reminder        Jump?
   lastSentAt      DateTime?
   tokenHash       String    @unique
   tokenCiphertext String
@@ -640,6 +749,8 @@ model ReferralAccessInvite {
   createdAt       DateTime  @default(now())
   source          AccessInviteSource @default(REFERRAL)
   systemMixVersion Int?
+  marketingScenario String?
+  marketingScenarioVersion Int?
   waveId          String?
   wave            WaitlistWave? @relation(fields: [waveId], references: [id], onDelete: SetNull)
   delivery        WaitlistDelivery?
@@ -677,6 +788,8 @@ model WaitlistEntry {
   accessGrantedAt DateTime?
   joinedAt        DateTime?
   withdrawnAt     DateTime?
+  marketingScenario String?
+  marketingScenarioVersion Int?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

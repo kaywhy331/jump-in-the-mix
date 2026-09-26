@@ -1,0 +1,59 @@
+{
+  "siteId": "8fd20ccd-5c35-47e5-99ce-98e5670d52fe",
+  "url": "https://jump-in-the-mix-test.netlify.app",
+  "checkedHead": "b316ee3bf7bcf81199b9e747e82cbd68f39a5766",
+  "mergeCommit": "e1ec120d93cbb198d1786d35e0fb29658e97813b",
+  "deployId": "6aac226885ac27ab196bd257",
+  "rollback": "6aab1cebfdb7da946d82c417",
+  "publishedAt": "2026-09-17T17:25:32.319Z",
+  "ci": "https://github.com/kaywhy331/jump-in-the-mix/actions/runs/35246447860",
+  "liveRoutes": 29,
+  "matchedAssets": 15,
+  "primaryMetricsVisible": true,
+  "syntheticAccountRemoved": true,
+  "health": [
+    {
+      "path": "/api/health/worker",
+      "status": 200
+    },
+    {
+      "path": "/api/health/ready",
+      "status": 200
+    },
+    {
+      "path": "/api/health/live",
+      "status": 200
+    },
+    {
+      "path": "/.netlify/functions/recovery-boundary",
+      "status": 200
+    },
+    {
+      "path": "/api/health/worker",
+      "status": 200
+    }
+  ],
+  "worker": {
+    "samples": 5,
+    "distinctHeartbeats": 4,
+    "maxAgeSeconds": 56
+  },
+  "ciResults": {
+    "unitIntegrationPassed": 1259,
+    "unitIntegrationSkipped": 9,
+    "browserPassed": [
+      228,
+      57,
+      12
+    ],
+    "mainBrowserSkipped": 186
+  },
+  "publicationCorrection": {
+    "failedDeployId": "6aac1f56f3c732c3056053b5",
+    "restoredDeployId": "6aab1cebfdb7da946d82c417",
+    "failedDeployRemoved": true,
+    "finalDeployId": "6aac226885ac27ab196bd257",
+    "buildUnchanged": true,
+    "publishDirectory": ".netlify/static"
+  }
+}

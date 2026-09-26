@@ -1,63 +1,35 @@
 import { NextResponse } from "next/server";
 import { strToU8, zipSync } from "fflate";
+import { openAccountExport } from "@/lib/account-export-stream";
 import { requireWorkspace } from "@/lib/auth";
 import { createContactsCsv, createFollowUpsCsv, createTimelineCsv } from "@/lib/contact-export";
 import { prisma } from "@/lib/prisma";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
+
+const EXPORTS_PER_HOUR = 6;
 
 export async function GET(request: Request) {
   const { user, workspace, impersonation } = await requireWorkspace();
   if (impersonation) return NextResponse.json({ error: "Personal data export is unavailable during a support session." }, { status: 403 });
+  const exportLimit = await consumeRateLimit({ scope: "account.export", identifiers: [user.id], limit: EXPORTS_PER_HOUR, windowMs: 60 * 60 * 1000 });
+  if (!exportLimit.allowed) {
+    const minutes = Math.max(1, Math.ceil(exportLimit.retryAfterSeconds / 60));
+    return NextResponse.json(
+      { error: `Exports are limited to six per hour. Try again in about ${minutes} minute${minutes === 1 ? "" : "s"}.` },
+      { status: 429, headers: { "Retry-After": String(exportLimit.retryAfterSeconds), "Cache-Control": "no-store" } }
+    );
+  }
   const workspaceId = workspace.id;
-  const [
-    profile,
-    userPreference,
-    schedulingPreference,
-    contacts,
-    activities,
-    groups,
-    dateTypes,
-    templates,
-    mixes,
-    jumps,
-    imports,
-    notificationPreference,
-    automationPreference,
-    reviewRequests,
-    automatedDeliveries,
-    authIdentities,
-    journeyPreference, journeyStages, journeys, journeyEvents,
-    calendarEntries, calendarConnections, intakeConnections, intakeReceipts, intakeIdentities
-  ] = await Promise.all([
-    prisma.workspaceProfile.findUnique({ where: { workspaceId } }),
-    prisma.userPreference.findUnique({ where: { userId: user.id } }),
-    prisma.workspacePreference.findUnique({ where: { workspaceId } }),
-    prisma.contact.findMany({ where: { workspaceId }, include: { emails: true, phones: true, addresses: true, jumpDates: { include: { dateType: true } }, customFieldValues: { include: { definition: true } }, groupMemberships: { include: { group: true } } }, orderBy: { createdAt: "asc" } }),
-    prisma.contactActivity.findMany({ where: { workspaceId }, orderBy: { occurredAt: "asc" } }),
-    prisma.group.findMany({ where: { workspaceId }, include: { memberships: true }, orderBy: { createdAt: "asc" } }),
-    prisma.dateType.findMany({ where: { OR: [{ workspaceId }, { workspaceId: null, isSystem: true }] }, orderBy: { createdAt: "asc" } }),
-    prisma.stepTemplate.findMany({ where: { workspaceId }, include: { versions: { orderBy: { version: "asc" } } }, orderBy: { createdAt: "asc" } }),
-    prisma.mix.findMany({ where: { workspaceId }, include: { steps: true, assignments: true }, orderBy: { createdAt: "asc" } }),
-    prisma.jump.findMany({ where: { workspaceId }, include: { contact: { select: { displayName: true } }, mix: { select: { name: true } }, stepVersion: { include: { stepTemplate: { select: { channel: true } } } } }, orderBy: { scheduledAt: "asc" } }),
-    prisma.contactImportBatch.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
-    prisma.notificationPreference.findUnique({ where: { workspaceId } }),
-    prisma.automationPreference.findUnique({ where: { workspaceId } }),
-    prisma.reviewRequest.findMany({ where: { workspaceId }, select: { id: true, contactId: true, status: true, rating: true, feedback: true, openedAt: true, respondedAt: true, reviewClickedAt: true, referralClickedAt: true, expiresAt: true, createdAt: true, updatedAt: true }, orderBy: { createdAt: "asc" } }),
-    prisma.automatedDelivery.findMany({ where: { workspaceId }, orderBy: { createdAt: "asc" } }),
-    prisma.authIdentity.findMany({ where: { userId: user.id }, select: { provider: true, email: true, createdAt: true, updatedAt: true } }),
-    prisma.journeyPreference.findUnique({ where: { workspaceId } }),
-    prisma.journeyStage.findMany({ where: { workspaceId }, include: { outgoingRules: true }, orderBy: { position: "asc" } }),
-    prisma.contactJourney.findMany({ where: { workspaceId } }),
-    prisma.journeyEvent.findMany({ where: { workspaceId }, orderBy: { occurredAt: "asc" } }),
-    prisma.calendarEntry.findMany({ where: { workspaceId }, orderBy: { startsAt: "asc" } }),
-    prisma.calendarConnection.findMany({ where: { workspaceId }, select: { id: true, name: true, enabled: true, lastSyncedAt: true, lastAttemptAt: true, lastError: true, createdAt: true } }),
-    prisma.intakeConnection.findMany({ where: { workspaceId }, select: { id: true, name: true, kind: true, enabled: true, createdAt: true } }),
-    prisma.intakeReceipt.findMany({ where: { connection: { workspaceId } }, orderBy: { createdAt: "asc" } }),
-    prisma.intakeIdentity.findMany({ where: { connection: { workspaceId } } })
-  ]);
-  const exportedAt = new Date();
   if (new URL(request.url).searchParams.get("format") === "csv") {
+    // The spreadsheet bundle is still built in memory; only the JSON export is streamed.
+    const [contacts, activities, jumps] = await Promise.all([
+      prisma.contact.findMany({ where: { workspaceId }, include: { relationshipState: true, emails: true, phones: true, addresses: true, jumpDates: { include: { dateType: true } }, customFieldValues: { include: { definition: true } }, groupMemberships: { include: { group: true } } }, orderBy: { createdAt: "asc" } }),
+      prisma.contactActivity.findMany({ where: { workspaceId }, orderBy: { occurredAt: "asc" } }),
+      prisma.jump.findMany({ where: { workspaceId }, include: { contact: { select: { displayName: true } }, mix: { select: { name: true } }, stepVersion: { include: { stepTemplate: { select: { channel: true } } } } }, orderBy: { scheduledAt: "asc" } })
+    ]);
+    const exportedAt = new Date();
     const contactNames = new Map(contacts.map((contact) => [contact.id, contact.displayName]));
     const contactsCsv = createContactsCsv(contacts.map((contact) => ({
       firstName: contact.firstName,
@@ -75,7 +47,7 @@ export async function GET(request: Request) {
       "contacts.csv": strToU8(contactsCsv),
       "timeline.csv": strToU8(createTimelineCsv(activities, contactNames)),
       "follow-ups.csv": strToU8(createFollowUpsCsv(jumps)),
-      "README.txt": strToU8("Jump in the Mix spreadsheet export\n\ncontacts.csv contains people and customer-facing contact details.\ntimeline.csv contains notes and recorded outcomes, including entries marked private.\nfollow-ups.csv contains scheduled and completed follow-ups.\n\nThe complete JSON export contains every account field. Store either export securely.\n")
+      "README.txt": strToU8("Jump in the Mix spreadsheet export\n\ncontacts.csv contains people and customer-facing contact details.\ntimeline.csv contains notes and recorded outcomes, including entries marked private.\nfollow-ups.csv contains scheduled and completed follow-ups.\n\nThe JSON export also includes relationship preferences, stopped mixes, configuration and other account records. Security credentials and private connection URLs are excluded. Store either export securely.\n")
     }, { level: 6 });
     return new NextResponse(Buffer.from(archive), {
       headers: {
@@ -85,27 +57,10 @@ export async function GET(request: Request) {
       }
     });
   }
-  const document = {
-    format: "jump-in-the-mix-personal-export",
-    exportedAt: exportedAt.toISOString(),
-    account: { id: user.id, name: user.name, email: user.email, signInMethods: authIdentities, createdAt: user.createdAt, updatedAt: user.updatedAt },
-    preferences: { profile, userPreference, schedulingPreference, notificationPreference, automationPreference },
-    contacts,
-    activities,
-    groups,
-    dateTypes,
-    templates,
-    mixes,
-    jumps,
-    imports,
-    reviewRequests,
-    automatedDeliveries,
-    journey: { preference: journeyPreference, stages: journeyStages, contacts: journeys, events: journeyEvents },
-    calendar: { entries: calendarEntries, connections: calendarConnections },
-    leadIntake: { connections: intakeConnections, receipts: intakeReceipts, identities: intakeIdentities },
-    excludedSecurityMaterial: ["password hashes", "session tokens", "provider credentials", "provider webhook payloads", "connection keys and private calendar URLs"]
-  };
-  return new NextResponse(JSON.stringify(document, null, 2), {
+  // The JSON is written while it is read, a page at a time (src/lib/account-export-stream.ts).
+  const exportedAt = new Date();
+  const body = await openAccountExport({ user, workspaceId, exportedAt });
+  return new NextResponse(body, {
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Content-Disposition": `attachment; filename="jump-in-the-mix-personal-data-${exportedAt.toISOString().slice(0, 10)}.json"`,

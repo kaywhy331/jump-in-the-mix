@@ -1,0 +1,36 @@
+# GitHub CI state (read-only gh), 2026-09-26T17:16:47Z
+## gh pr checks 83
+secret-history	fail	32s	https://github.com/kaywhy331/jump-in-the-mix/actions/runs/36178561859/job/108215051456	
+backup-image	pass	50s	https://github.com/kaywhy331/jump-in-the-mix/actions/runs/36178561690/job/108215051151	
+validate	fail	1h0m24s	https://github.com/kaywhy331/jump-in-the-mix/actions/runs/36178561878/job/108215050992	
+dependency-audit	pass	33s	https://github.com/kaywhy331/jump-in-the-mix/actions/runs/36178561859/job/108215051039	
+monitor-image	pass	1m1s	https://github.com/kaywhy331/jump-in-the-mix/actions/runs/36178561690/job/108215051180	
+production-image	pass	2m12s	https://github.com/kaywhy331/jump-in-the-mix/actions/runs/36178561690/job/108215050920	
+## check-runs on production commit 4b5abd8
+0
+## recent workflow runs
+completed	cancelled	Bring main up to production (929f779 + release records)	CI	release/sync-main-20260925	pull_request	36178561878	1h0m28s	2026-09-25T19:15:28Z
+completed	failure	Bring main up to production (929f779 + release records)	Security	release/sync-main-20260925	pull_request	36178561859	37s	2026-09-25T19:15:28Z
+completed	success	Bring main up to production (929f779 + release records)	Docker build	release/sync-main-20260925	pull_request	36178561690	2m16s	2026-09-25T19:15:28Z
+completed	success	Full audit 2026-09-24: correctness, funnel and safety fixes (Release A)	Docker build	fix/full-audit-20260924	pull_request	36086712434	1m59s	2026-09-25T02:33:00Z
+completed	success	Full audit 2026-09-24: correctness, funnel and safety fixes (Release A)	Security	fix/full-audit-20260924	pull_request	36086712424	36s	2026-09-25T02:33:00Z
+completed	cancelled	Full audit 2026-09-24: correctness, funnel and safety fixes (Release A)	CI	fix/full-audit-20260924	pull_request	36086712407	1h0m39s	2026-09-25T02:33:00Z
+completed	cancelled	Full audit 2026-09-24: correctness, funnel and safety fixes (Release A)	CI	fix/full-audit-20260924	pull_request	36086052698	9m57s	2026-09-25T02:23:23Z
+completed	success	Full audit 2026-09-24: correctness, funnel and safety fixes (Release A)	Docker build	fix/full-audit-20260924	pull_request	36086052680	1m44s	2026-09-25T02:23:23Z
+completed	success	Full audit 2026-09-24: correctness, funnel and safety fixes (Release A)	Security	fix/full-audit-20260924	pull_request	36086052661	40s	2026-09-25T02:23:23Z
+completed	success	Full audit 2026-09-24: correctness, funnel and safety fixes (Release A)	Security	fix/full-audit-20260924	pull_request	36079462986	34s	2026-09-25T00:51:43Z
+completed	success	Full audit 2026-09-24: correctness, funnel and safety fixes (Release A)	Docker build	fix/full-audit-20260924	pull_request	36079462975	2m8s	2026-09-25T00:51:43Z
+completed	failure	Full audit 2026-09-24: correctness, funnel and safety fixes (Release A)	CI	fix/full-audit-20260924	pull_request	36079462968	16m21s	2026-09-25T00:51:43Z
+## prod tags on origin
+prod-2026-09-24-e26fdd4
+prod-2026-09-24-fad339d
+prod-2026-09-25-34ffdae
+prod-2026-09-25-7b2fa00
+prod-2026-09-25-929f779
+prod-2026-09-25-c17cc80
+prod-2026-09-25-f3a0a20
+prod-2026-09-25-f511984
+## branches containing 4b5abd8 (remote)
+  origin/fix/audit-leftovers-20260925
+## main vs production
+1	267

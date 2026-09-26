@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import webPush from "web-push";
-import type { NotificationDeliveryStatus, PushSubscription } from "@/generated/prisma/client";
+import { Prisma, type NotificationDeliveryStatus, type PushSubscription } from "@/generated/prisma/client";
 import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { browserScope } from "@/lib/browser-scope";
@@ -8,6 +8,10 @@ import { browserScope } from "@/lib/browser-scope";
 const leaseMs = 15 * 60_000;
 const maximumAttempts = 3;
 const batchSize = 100;
+// More than one batch due at once (a first-time backlog) is claimed in one statement pair,
+// up to this many rows per pass, and becomes one summary push.
+const backlogCap = 1_000;
+const recheckChunk = 500; // follow-up ids per recheck query
 
 export function pushConfigured(): boolean {
   return Boolean(env.vapidPublicKey && env.vapidPrivateKey);
@@ -66,40 +70,110 @@ function receiptId(subscriptionId: string, jumpId: string, scheduledAt: Date): s
   return createHash("sha256").update(`${subscriptionId}:${jumpId}:${scheduledAt.toISOString()}`).digest("hex");
 }
 
+type DueSubscription = Pick<PushSubscription, "id" | "workspaceId">;
+type DueRow = { id: string; scheduledAt: Date };
+type ClaimedRow = { id: string; jumpId: string; scheduledAt: Date };
+
+const reachableContact = { archivedAt: null, OR: [{ relationshipState: null }, { relationshipState: { doNotContact: false } }] } satisfies Prisma.ContactWhereInput;
+
+function utc(value: Date): Prisma.Sql {
+  return Prisma.sql`(${value.toISOString()}::timestamptz AT TIME ZONE 'UTC')`;
+}
+
+// needsPushReminder in SQL, over the rows the pass used to load: pending follow-ups of reachable people that are due,
+// whose receipt for this device and this scheduled time (unique, so one row at most) is missing, or is PENDING or FAILED
+// below the attempt limit without a live lease. A rescheduled occurrence has no receipt yet. The integration suite
+// compares this selection with needsPushReminder on a fixture; change both together.
+function dueRows(subscription: DueSubscription, now: Date): Prisma.Sql {
+  return Prisma.sql`
+    SELECT j.id, j."scheduledAt", receipt.id AS "receiptId"
+    FROM "Jump" j
+    JOIN "Contact" c ON c.id = j."contactId"
+    LEFT JOIN "ContactRelationshipState" r ON r."contactId" = c.id
+    LEFT JOIN "FollowUpPushDelivery" receipt
+      ON receipt."subscriptionId" = ${subscription.id} AND receipt."jumpId" = j.id AND receipt."scheduledAt" = j."scheduledAt"
+    WHERE j."workspaceId" = ${subscription.workspaceId} AND j.status = 'PENDING' AND j."scheduledAt" <= ${utc(now)}
+      AND c."archivedAt" IS NULL AND (r.id IS NULL OR r."doNotContact" = false)
+      AND (receipt.id IS NULL OR (receipt.status IN ('PENDING', 'FAILED') AND receipt.attempts < ${maximumAttempts}
+        AND (receipt."lockedAt" IS NULL OR receipt."lockedAt" < ${utc(new Date(now.getTime() - leaseMs))})))`;
+}
+
+/** How many reminders are due for one device, counted up to the backlog cap; with one batch or less, all of them oldest first. */
+export async function readDueReminders(subscription: DueSubscription, now: Date): Promise<{ due: number; rows: DueRow[] }> {
+  const rows = await prisma.$queryRaw<Array<DueRow & { due: number }>>(Prisma.sql`
+    SELECT due.id, due."scheduledAt", (count(*) OVER ())::int AS due
+    FROM (${dueRows(subscription, now)} LIMIT ${backlogCap}) due
+    ORDER BY due."scheduledAt", due.id
+    LIMIT ${batchSize}`);
+  return { due: rows[0]?.due ?? 0, rows: rows.map(row => ({ id: row.id, scheduledAt: row.scheduledAt })) };
+}
+
+// One batch or less: receipts per row with the deterministic id, then one conditional claim.
+async function claimRows(subscription: DueSubscription, candidates: DueRow[], now: Date, claim: string): Promise<ClaimedRow[]> {
+  const ids = candidates.map(jump => receiptId(subscription.id, jump.id, jump.scheduledAt));
+  return prisma.$transaction(async (tx) => {
+    await tx.followUpPushDelivery.createMany({ data: candidates.map((jump, index) => ({ id: ids[index], workspaceId: subscription.workspaceId, subscriptionId: subscription.id, jumpId: jump.id, scheduledAt: jump.scheduledAt })), skipDuplicates: true });
+    await tx.followUpPushDelivery.updateMany({
+      where: { id: { in: ids }, status: { in: ["PENDING", "FAILED"] }, attempts: { lt: maximumAttempts }, OR: [{ lockedAt: null }, { lockedAt: { lt: new Date(now.getTime() - leaseMs) } }] },
+      data: { status: "PENDING", lockedAt: now, lockedBy: claim, attempts: { increment: 1 }, error: null }
+    });
+    return tx.followUpPushDelivery.findMany({ where: { id: { in: ids }, lockedBy: claim }, select: { id: true, jumpId: true, scheduledAt: true } });
+  });
+}
+
+// A backlog: receipts for the oldest due rows up to the cap in one INSERT ... SELECT, then one claim of the same rows.
+// The id is receiptId's (sha256 of "subscription:jump:ISO time"), so either path can retry a receipt the other made.
+// The claim conditions sit on the updated row so a concurrent claimant's lease is rechecked after its lock.
+async function claimBacklog(subscription: DueSubscription, now: Date, claim: string): Promise<ClaimedRow[]> {
+  const backlog = Prisma.sql`${dueRows(subscription, now)} ORDER BY j."scheduledAt", j.id LIMIT ${backlogCap}`;
+  const written = new Date();
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO "FollowUpPushDelivery" (id, "workspaceId", "subscriptionId", "jumpId", "scheduledAt", "createdAt", "updatedAt")
+      SELECT encode(sha256(convert_to(${subscription.id}::text || ':' || due.id || ':' || to_char(due."scheduledAt", 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'), 'UTF8')), 'hex'),
+        ${subscription.workspaceId}, ${subscription.id}, due.id, due."scheduledAt", ${utc(written)}, ${utc(written)}
+      FROM (${backlog}) due
+      WHERE due."receiptId" IS NULL
+      ON CONFLICT DO NOTHING`);
+    return tx.$queryRaw<ClaimedRow[]>(Prisma.sql`
+      UPDATE "FollowUpPushDelivery" d
+      SET status = 'PENDING', "lockedAt" = ${utc(now)}, "lockedBy" = ${claim}, attempts = d.attempts + 1, error = NULL, "updatedAt" = ${utc(written)}
+      FROM (${backlog}) due
+      WHERE d.id = due."receiptId" AND d.status IN ('PENDING', 'FAILED') AND d.attempts < ${maximumAttempts}
+        AND (d."lockedAt" IS NULL OR d."lockedAt" < ${utc(new Date(now.getTime() - leaseMs))})
+      RETURNING d.id, d."jumpId", d."scheduledAt"`);
+  });
+}
+
+// Recheck after claiming: completed, canceled, rescheduled and newly unreachable items must not produce a
+// notification from an earlier worker snapshot. Ids are read in chunks and the scheduled time compared here.
+async function stillDue(workspaceId: string, claimed: ClaimedRow[]): Promise<ClaimedRow[]> {
+  const current = new Map<string, number>();
+  for (let start = 0; start < claimed.length; start += recheckChunk) {
+    const jumps = await prisma.jump.findMany({
+      where: { workspaceId, status: "PENDING", id: { in: claimed.slice(start, start + recheckChunk).map(row => row.jumpId) }, contact: reachableContact },
+      select: { id: true, scheduledAt: true }
+    });
+    for (const jump of jumps) current.set(jump.id, jump.scheduledAt.getTime());
+  }
+  return claimed.filter(row => current.get(row.jumpId) === row.scheduledAt.getTime());
+}
+
 export async function sendFollowUpPush(input: { workspaceId: string; userId: string; now: Date }): Promise<number> {
   if (!pushConfigured()) return 0;
   const subscriptions = await prisma.pushSubscription.findMany({ where: { workspaceId: input.workspaceId, userId: input.userId, session: { userId: input.userId, expiresAt: { gt: input.now } } } });
   let sent = 0;
   for (const subscription of subscriptions) {
     if (!validPushEndpoint(subscription.endpoint)) continue;
-    const due = await prisma.jump.findMany({
-      where: { workspaceId: input.workspaceId, status: "PENDING", scheduledAt: { lte: input.now }, contact: { archivedAt: null, OR: [{ relationshipState: null }, { relationshipState: { doNotContact: false } }] } },
-      orderBy: [{ scheduledAt: "asc" }, { id: "asc" }],
-      select: { id: true, scheduledAt: true, pushDeliveries: { where: { subscriptionId: subscription.id }, select: { scheduledAt: true, status: true, attempts: true, lockedAt: true } } }
-    });
-    const candidates = due.filter(jump => needsPushReminder(jump.scheduledAt, jump.pushDeliveries, input.now)).slice(0, batchSize);
-    if (!candidates.length) continue;
+    const { due, rows } = await readDueReminders(subscription, input.now);
+    if (!due) continue;
     const claim = randomUUID();
-    const ids = candidates.map(jump => receiptId(subscription.id, jump.id, jump.scheduledAt));
-    const claimed = await prisma.$transaction(async (tx) => {
-      await tx.followUpPushDelivery.createMany({ data: candidates.map((jump, index) => ({ id: ids[index], workspaceId: input.workspaceId, subscriptionId: subscription.id, jumpId: jump.id, scheduledAt: jump.scheduledAt })), skipDuplicates: true });
-      await tx.followUpPushDelivery.updateMany({
-        where: { id: { in: ids }, status: { in: ["PENDING", "FAILED"] }, attempts: { lt: maximumAttempts }, OR: [{ lockedAt: null }, { lockedAt: { lt: new Date(input.now.getTime() - leaseMs) } }] },
-        data: { status: "PENDING", lockedAt: input.now, lockedBy: claim, attempts: { increment: 1 }, error: null }
-      });
-      return tx.followUpPushDelivery.findMany({ where: { id: { in: ids }, lockedBy: claim }, select: { id: true, jumpId: true, scheduledAt: true } });
-    });
+    const claimed = due > batchSize ? await claimBacklog(subscription, input.now, claim) : await claimRows(subscription, rows, input.now, claim);
     if (!claimed.length) continue;
     try {
-      // Recheck after claiming: completed, canceled, and rescheduled items must
-      // not produce a notification from an earlier worker snapshot.
-      const pending = await prisma.jump.findMany({
-        where: { workspaceId: input.workspaceId, status: "PENDING", OR: claimed.map(row => ({ id: row.jumpId, scheduledAt: row.scheduledAt })), contact: { archivedAt: null, OR: [{ relationshipState: null }, { relationshipState: { doNotContact: false } }] } },
-        select: { id: true }
-      });
-      const pendingIds = new Set(pending.map(jump => jump.id));
-      const active = claimed.filter(row => pendingIds.has(row.jumpId));
-      await prisma.followUpPushDelivery.updateMany({ where: { lockedBy: claim, id: { in: claimed.filter(row => !pendingIds.has(row.jumpId)).map(row => row.id) } }, data: { status: "SKIPPED", lockedAt: null, lockedBy: null } });
+      const active = await stillDue(input.workspaceId, claimed);
+      const activeIds = new Set(active.map(row => row.id));
+      await prisma.followUpPushDelivery.updateMany({ where: { lockedBy: claim, id: { in: claimed.filter(row => !activeIds.has(row.id)).map(row => row.id) } }, data: { status: "SKIPPED", lockedAt: null, lockedBy: null } });
       if (!active.length) continue;
       const stillSubscribed = await prisma.pushSubscription.count({ where: { id: subscription.id, workspaceId: input.workspaceId, userId: input.userId } });
       const preference = await prisma.notificationPreference.findUnique({ where: { workspaceId: input.workspaceId } });

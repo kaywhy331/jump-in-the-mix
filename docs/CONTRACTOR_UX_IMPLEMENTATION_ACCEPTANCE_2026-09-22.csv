@@ -1,0 +1,21 @@
+scenario,findings,local_verification,evidence_summary,limits
+U01,F01;F10,Browser + integration passed,Chosen Mix/label -> add person -> actual dates -> explicit start -> exact first follow-up; no setup enrollment,Import return path reviewed in source; not a bulk-import browser scenario
+U02,F09,Source + route tests passed,Email sign-in form retains next; safe destination and unsafe-target route tests passed,Live email sign-in delivery not exercised
+U03,F04,Desktop/phone browser passed,Exact future follow-up opens despite due/status/search filters,Hosted account check blocked by existing database quota
+U04,F06,Existing browser regression passed,Exact opened draft remains an attempt until completion is explicitly recorded,Real native phone app handoff requires device qualification
+U05,F02,Browser + integration passed,Decision-only account remains actionable in Today and shared digest source,Live reminder-provider delivery not exercised
+U06,F03,Desktop/phone browser + engine passed,Early configured acceptance preserves completed Beat; cancels unsent remainder; starts saved next path,No generic acceptance inferred for unconfigured work
+U07,F03,Desktop/phone browser + engine/integration passed,Customer callback remains future then yields one owner action; source and timezone retained,Expiry does not send or infer acceptance
+U08,F02;F03,Desktop/phone browser + engine passed,Owner check-back is distinct; corrected date replaces open commitment,Real background hosted timing blocked by quota
+U09,F03,Desktop/phone browser + engine passed,Independent pending work survives early acceptance,Saved workflow configuration defines affected scope
+U10,F05,Integration passed,Stopped Mix and DNC/foreign-person starts rejected without clearing restriction or creating a run,UI reasons and both start entry points checked in source
+U11,F02;F06,Desktop/phone browser passed,503 decision lookup -> explicit completion only -> required decision remains Today,Synthetic response fault; no external message sent
+U12,F01;F03;F06,Integration + existing recovery browser passed,Start receipt survives retry and later stop; callback request replay does not duplicate; saved-result reconciliation,"New start/update loss-of-response logic reviewed in source, not a dedicated packet-loss device test"
+U13,F03,Engine + integration passed,Safe Undo retains reversed event; later correction preserves performed dependent work; in-flight delivery settles truthfully,No real provider withdrawal attempted or promised
+U14,F08,Source + workflow regression passed,Edit wording identifies running Journey saved-version scope,Legacy unconnected execution is not claimed to use identical snapshot semantics
+U15,F11,Browser start handoff + source passed,Optional owner-reminder link after start; existing settings remain reachable,Live permission grant/test notification requires enabled provider and device
+U16,F12,Source + layout/accessibility passed,Help includes current connected-work and recovery answers/links,No participant search-usability study performed
+U17,F13,Desktop/phone browser passed,Completed record shows neutral Originally due label,Hosted state check blocked by quota
+U18,F07,Integration passed,JSON includes relationship state and explicit attributable Mix stop; inventory reviewed,CSV intentionally narrower; secrets excluded
+U19,F10,Desktop/phone browser passed,Other uses visible; finish later saves selected answers; re-entry retains them; no Mix/contact installation,No unrelated profession automatically selected for installation
+U20,F01;F02,Desktop/phone browser passed,Missing appointment -> correct person in Calendar -> save -> same work -> explicit appointment link -> scheduled Beats,No appointment inferred from setup preferences

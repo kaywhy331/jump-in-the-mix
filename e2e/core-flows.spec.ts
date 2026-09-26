@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
 import { formatDateTime } from "../src/lib/format";
 import { logicalDateInTimezone, logicalDateKey } from "../src/lib/jump-schedule";
+import { dateInputInTimezone } from "../src/lib/date-input";
 import { createPendingJumpFixture, removePendingJumpFixture } from "./pending-jump-fixture";
 
 const userEmail = process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local";
@@ -13,8 +14,8 @@ const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? "AdminJumpInTheMix123!";
 
 async function signIn(page: Page, email: string, password: string) {
   await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
+  await page.getByLabel("Email", { exact: true }).fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
   await Promise.all([
     page.waitForURL(/\/(jumps|onboarding)(\?|$)/),
     page.getByRole("button", { name: "Sign in" }).click()
@@ -30,7 +31,8 @@ test("single user can complete the primary discovery and support journey", async
   await expect(page.getByRole("heading", { name: "Today", exact: true }).first()).toBeVisible();
   await expect(page.locator(`[data-jump-workflow="${pendingJumpId}"]:visible`)).toBeVisible();
   await expect(page.getByRole("button", { name: /^Filter/ })).toBeVisible();
-  await expect(page.getByRole("link", { name: /This week:/ })).toBeVisible();
+  // The range links became the "Next 7 days" queue group and the Dates filter.
+  await expect(page.locator(".today-queue-group summary").filter({ hasText: /Next 7 days|Upcoming/ })).toBeVisible();
 
   await page.goto("/contacts");
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
@@ -45,14 +47,15 @@ test("single user can complete the primary discovery and support journey", async
   const contactFilters = page.getByRole("dialog", { name: "Filter contacts" });
   await expect(contactFilters.getByLabel("Tag")).toBeVisible();
   await page.getByLabel("Close Filter contacts").click();
-  await page.getByRole("link", { name: "Add", exact: true }).click();
+  await page.getByRole("link", { name: "Add contact", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Add a contact" })).toBeVisible();
 
   await page.goto("/templates");
-  await expect(page.getByRole("heading", { name: "Ready-made mixes" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Mixes", exact: true })).toBeVisible();
   await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill("Estimate sent");
-  await expect(page.getByText("Estimate sent: gentle follow-up", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Create a mix" })).toHaveAttribute("href", "/mixes/new?custom=1");
+  await page.getByRole("button", { name: "Search ready-made mixes", exact: true }).click();
+  await expect(page.locator(".mix-library-row").filter({ hasText: "Estimate sent: gentle follow-up" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Create your own" })).toHaveAttribute("href", "/mixes/new?custom=1");
 
   await page.goto("/mixes/new?custom=1");
   await expect(page.getByRole("heading", { name: "Create a mix" })).toBeVisible();
@@ -108,9 +111,13 @@ test("supported mobile browsers can Quick Add a selected device Contact", async 
   await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "More contact tools" }).click();
   const tools = page.getByRole("dialog", { name: "Contact tools" });
-  await tools.getByRole("button", { name: /Pick from device/ }).click();
+  await tools.getByRole("button", { name: /Add from phone contacts/ }).click();
   await expect(tools.getByText(/\d+ added · \d+ merged/)).toBeVisible();
 });
+
+test.describe("onboarding in the device timezone", () => {
+  // New accounts start in UTC; the browser reports Denver and onboarding must adopt it on its own.
+  test.use({ timezoneId: "America/Denver" });
 
 test("new customer reaches a prepared first Jump through onboarding", async ({ page }) => {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -139,18 +146,28 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
 
   await signIn(page, email, password);
   await expect(page).toHaveURL(/\/onboarding/);
+  await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
+  await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await expect(page.getByRole("heading", { name: "Jump in the mix." })).toBeVisible();
-  await page.getByLabel("Business name").fill("Browser Test Plumbing");
+  // The business name sits in a closed disclosure on the one-person form (the Mega-Mix setup has its own field).
+  await page.getByText("Optional business details and signature").click();
+  await page.getByPlaceholder("Lee Plumbing").fill("Browser Test Plumbing");
   await page.getByLabel("Name", { exact: true }).fill("Jordan First Win");
-  await page.getByLabel("Email optional").fill("jordan-first-win@example.com");
+  await page.getByLabel("Email recommended").fill("jordan-first-win@example.com");
   await page.getByLabel("Phone recommended").fill("+1 (555) 010-0123");
-  await page.getByLabel("What should you remember?").selectOption("Follow up about an estimate");
-  await page.getByRole("button", { name: "Change", exact: true }).click();
-  const timezonePicker = page.getByRole("dialog", { name: "Choose your city" });
-  await timezonePicker.getByLabel("Search cities").fill("Chicago");
-  await timezonePicker.getByRole("button", { name: /Chicago.*America\/Chicago/ }).click();
-  const followUpDate = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10);
-  await page.getByLabel("Follow up on").fill(followUpDate);
+  // Onboarding asks for free text about the conversation rather than a fixed reason.
+  await page.getByLabel("What should you remember?").fill("Follow up about an estimate");
+  // Detected from the device, with no manual pick: the visible picker and its hidden field both say Denver.
+  await expect(page.locator(".timezone-current:visible strong")).toHaveText("Denver");
+  await expect(page.locator("#timezone")).toHaveValue("America/Denver");
+  // Exact, because the reason select's label text also contains "Follow up on a quote".
+  const followUpInput = page.getByLabel("Follow up on", { exact: true });
+  // The default date is today in Denver, not the UTC day.
+  await expect(followUpInput).toHaveValue(dateInputInTimezone(new Date(), "America/Denver"));
+  const followUpDate = dateInputInTimezone(new Date(Date.now() + 3 * 86_400_000), "America/Denver");
+  await followUpInput.fill(followUpDate);
+  // The starter must be reviewed before it can be prepared.
+  await page.locator('input[name="starterReviewed"]').check();
   await Promise.all([
     page.waitForURL(/\/jumps\?.*welcome=1/),
     page.getByRole("button", { name: "Prepare my first follow-up" }).click()
@@ -159,7 +176,7 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   const firstFollowUp = page.locator(".jump-task-card:visible").filter({ hasText: "Jordan First Win" }).first();
   await expect(firstFollowUp).toBeVisible();
   await firstFollowUp.getByRole("button", { name: "Review message for Jordan First Win" }).click();
-  const preparedMessage = firstFollowUp.getByLabel("Fine-tune before sending");
+  const preparedMessage = firstFollowUp.getByLabel("Your message");
   await expect(preparedMessage).toBeVisible();
   const renderedBody = await preparedMessage.inputValue();
   expect(renderedBody).not.toContain("{{");
@@ -169,11 +186,14 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   expect(renderedBody).not.toContain("working the way you expected");
   await expect(firstFollowUp.getByRole("link", { name: "Open text for Jordan First Win" })).toHaveAttribute("href", /^sms:\+1.*body=/);
   const firstJump = await prisma.jump.findFirstOrThrow({ where: { workspaceId }, orderBy: { scheduledAt: "asc" } });
-  expect(logicalDateKey(logicalDateInTimezone(firstJump.scheduledAt, "America/Chicago"))).toBe(followUpDate);
-  await expect(firstFollowUp).toContainText(formatDateTime(firstJump.scheduledAt, { timeZone: "America/Chicago", locale: "en-US" }));
+  // The welcome follow-up lands on the chosen Denver day and the account keeps the detected zone.
+  expect(logicalDateKey(logicalDateInTimezone(firstJump.scheduledAt, "America/Denver"))).toBe(followUpDate);
+  await expect(firstFollowUp).toContainText(formatDateTime(firstJump.scheduledAt, { timeZone: "America/Denver", locale: "en-US" }));
+  await expect(prisma.userPreference.findUnique({ where: { userId } })).resolves.toMatchObject({ timezone: "America/Denver" });
   await expect(prisma.contactPhone.findFirst({ where: { contact: { workspaceId } } })).resolves.toMatchObject({ normalized: "+15550100123" });
   await expect(prisma.contact.count({ where: { workspaceId, displayName: "Jordan First Win" } })).resolves.toBe(1);
   await expect(prisma.jump.count({ where: { workspaceId, contact: { displayName: "Jordan First Win" } } })).resolves.toBeGreaterThan(0);
+});
 });
 
 test("personal account holder must reauthenticate and explicitly confirm permanent deletion", async ({ page }, testInfo) => {
@@ -210,7 +230,7 @@ test("personal account holder must reauthenticate and explicitly confirm permane
   await signIn(page, email, password);
   await page.goto("/account?section=privacy");
   const dangerZone = page.getByRole("region", { name: "Permanently delete account" });
-  await expect(dangerZone.getByText("Danger Zone")).toBeVisible();
+  await expect(dangerZone.getByRole("heading", { name: "Permanently delete account" })).toBeVisible();
 
   await dangerZone.getByLabel("Current password").fill("wrong-password");
   await dangerZone.getByLabel(/Type DELETE MY ACCOUNT/).fill("DELETE MY ACCOUNT");
@@ -266,8 +286,9 @@ test.describe("stateful administrator security journey", () => {
     const firstRecoveryCode = (await recoveryCodes.first().textContent())?.trim();
     expect(firstRecoveryCode).toBeTruthy();
 
-    await page.getByRole("link", { name: "Continue to Admin" }).click();
-    await expect(page.getByRole("heading", { name: "Admin · Overview" })).toBeVisible();
+    await page.getByRole("checkbox", { name: "I stored my one-time recovery codes securely." }).check();
+    await page.getByRole("button", { name: "Continue to Admin" }).click();
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
     await page.context().clearCookies();
     await signIn(page, adminEmail, adminPassword);
@@ -277,16 +298,17 @@ test.describe("stateful administrator security journey", () => {
     await page.getByLabel("Verification code").fill(firstRecoveryCode!);
     await page.getByRole("button", { name: "Verify and continue" }).click();
     await page.waitForURL(/\/admin$/);
-    await expect(page.getByRole("heading", { name: "Admin · Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 
     await page.getByRole("link", { name: "Support", exact: true }).first().click();
-    await expect(page.getByRole("heading", { name: "Admin · Support" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Support", level: 1, exact: true })).toBeVisible();
 
     const customer = await prisma.user.findUniqueOrThrow({ where: { email: userEmail } });
     const handler = await prisma.user.findUniqueOrThrow({ where: { email: adminEmail } });
     const membership = await prisma.workspaceMember.findFirstOrThrow({ where: { userId: customer.id } });
     const ticket = await prisma.supportTicket.create({ data: { reference: `CORE-${Date.now()}`, title: "Investigate follow-up queue", category: "JUMPS", workspaceId: membership.workspaceId, requesterUserId: customer.id, assignedToUserId: handler.id } });
     await page.goto(`/admin/support/${ticket.id}`);
+    await page.getByText("Customer support view", { exact: true }).click();
     await page.getByRole("textbox", { name: "Support reason", exact: true }).fill("E2E verification of the centrally enforced view-only mutation boundary.");
     await page.getByRole("button", { name: "Start view-only session" }).click();
     await expect(page.locator(".impersonation-banner")).toContainText("view-only");
@@ -301,6 +323,12 @@ test.describe("stateful administrator security journey", () => {
     });
     expect(blockedMutation.status).toBe(403);
     expect(blockedMutation.body).toContain("view-only");
+
+    // Like the settings pages, the calendar can be read but offers no save during the view.
+    await page.goto("/calendar?new=1#schedule-event");
+    await expect(page.getByText("The calendar can be read but not changed.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save event" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Import availability", includeHidden: true })).toBeDisabled();
 
     await Promise.all([
       page.waitForURL(/\/admin\/support\?impersonationEnded=1/),

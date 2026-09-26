@@ -1,7 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/auth";
+import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
+import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { prisma } from "@/lib/prisma";
 
 function value(formData: FormData, key: string): string {
@@ -18,8 +19,16 @@ function withFlag(path: string, flag: string): string {
   return `${path}${path.includes("?") ? "&" : "?"}${flag}=1`;
 }
 
+/** During a view-only support session the person goes back to the page they came from, with the reason. */
+function refuseTo(formData: FormData) {
+  return (message: string, viewer: ErrorViewer): never => {
+    const path = safeReturnTo(value(formData, "returnTo"), value(formData, "contactId"));
+    redirect(withViewerError(path, message, viewer));
+  };
+}
+
 export async function stopMixForContactAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace(refuseTo(formData));
   const contactId = value(formData, "contactId");
   const mixId = value(formData, "mixId");
   const reason = value(formData, "reason");
@@ -57,7 +66,7 @@ export async function stopMixForContactAction(formData: FormData): Promise<void>
 }
 
 export async function resumeMixForContactAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user } = await requireWritableWorkspace(refuseTo(formData));
   const contactId = value(formData, "contactId");
   const mixId = value(formData, "mixId");
   const returnTo = safeReturnTo(value(formData, "returnTo"), contactId);

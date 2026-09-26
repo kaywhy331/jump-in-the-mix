@@ -1,10 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/auth";
+import { withViewerError } from "@/lib/form-errors";
+import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { prisma } from "@/lib/prisma";
-import { timezoneForUser } from "@/lib/display-preferences";
-import { calculateSnoozeAt, type SnoozePreset } from "@/lib/snooze-schedule";
+import { displayPreferencesForUser } from "@/lib/display-preferences";
+import { formatDateTime } from "@/lib/format";
+import { calculateSnoozeAt, resolveSnooze, type SnoozePreset } from "@/lib/snooze-schedule";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -20,22 +23,22 @@ function withParam(path: string, key: string, parameterValue: string): string {
 }
 
 export async function snoozeJumpAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, session } = await requireWritableWorkspace((message, viewer) => redirect(withViewerError(safeReturnTo(value(formData, "returnTo")), message, viewer)));
   const jumpId = value(formData, "jumpId");
   const returnTo = safeReturnTo(value(formData, "returnTo"));
   const presetRaw = value(formData, "preset") || "custom";
   const allowed: SnoozePreset[] = ["later-today", "tomorrow", "next-monday", "next-week", "custom"];
   const preset = allowed.includes(presetRaw as SnoozePreset) ? presetRaw as SnoozePreset : "custom";
 
-  const [scheduling, timezone] = await Promise.all([
+  const [scheduling, preferences] = await Promise.all([
     prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } }),
-    timezoneForUser(user.id)
+    displayPreferencesForUser(user.id)
   ]);
   let scheduledAt: Date;
   try {
     scheduledAt = calculateSnoozeAt({
       now: new Date(),
-      timezone,
+      timezone: preferences.timeZone,
       preset,
       customDate: value(formData, "customDate"),
       preferredMinutes: scheduling?.defaultFollowUpMinutes,
@@ -43,13 +46,30 @@ export async function snoozeJumpAction(formData: FormData): Promise<void> {
       quietHoursEnd: scheduling?.quietHoursEnd
     });
   } catch (error) {
-    redirect(withParam(returnTo, "error", error instanceof Error ? error.message : "Choose a future date and time."));
+    redirect(withViewerError(returnTo, error instanceof UserFacingError ? error.message : "Choose a future date and time.", session));
   }
 
-  const result = await prisma.jump.updateMany({
+  const jump = await prisma.jump.findFirst({
     where: { id: jumpId, workspaceId: workspace.id, status: "PENDING" },
-    data: { scheduledAt }
+    select: { scheduledAt: true, snoozedUntil: true, baseScheduledAt: true }
   });
-  if (!result.count) redirect(withParam(returnTo, "error", "This follow-up is no longer available to snooze."));
+  if (!jump) redirect(withViewerError(returnTo, "This follow-up is no longer available to snooze.", session));
+
+  // A snooze is a not-before time: it may hold a follow-up later but never pull it ahead of the
+  // scheduler's base instant. A row written before the base was stored has no snooze yet, so its
+  // current time is its base.
+  const baseScheduledAt = jump.baseScheduledAt ?? (jump.snoozedUntil ? null : jump.scheduledAt);
+  const resolution = resolveSnooze({ chosen: scheduledAt, baseScheduledAt });
+  if (!resolution.ok) {
+    redirect(withViewerError(returnTo, `This follow-up is due ${formatDateTime(resolution.dueAt, preferences)}. Snooze can't move it earlier than that.`, session));
+  }
+
+  // Guarded on the snooze just read, so a second tab or device that snoozed in the meantime is not
+  // overwritten. The worker guards its own writes on the row as it read it.
+  const result = await prisma.jump.updateMany({
+    where: { id: jumpId, workspaceId: workspace.id, status: "PENDING", snoozedUntil: jump.snoozedUntil },
+    data: { scheduledAt: resolution.scheduledAt, snoozedUntil: resolution.scheduledAt }
+  });
+  if (!result.count) redirect(withViewerError(returnTo, "This follow-up changed a moment ago. Check it and snooze again.", session));
   redirect(withParam(returnTo, "snoozed", "1"));
 }

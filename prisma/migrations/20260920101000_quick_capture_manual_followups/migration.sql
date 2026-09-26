@@ -1,0 +1,1 @@
+ALTER TABLE "Jump" ADD COLUMN "manualOnly" BOOLEAN NOT NULL DEFAULT false;

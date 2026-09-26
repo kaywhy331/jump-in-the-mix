@@ -58,10 +58,19 @@ The worker groups newly due follow-ups into a notification for each subscribed d
 2. Build one immutable revision from the intended commit.
 3. Apply and verify migrations in the isolated owner job described in [runtime credentials](RUNTIME_DATABASE_CREDENTIALS.md). The web pre-deploy command checks the actual runtime role, runs `npm run db:verify-release`, then `npm run db:seed:catalog` with the restricted credential. It does not run owner migrations. The catalog command checks the installed release and recovery hold, then installs missing built-in date types and reviewed ready-made plans. It creates no accounts or customer data, even if demo mode is accidentally enabled. Repeat deployment preserves existing date-type settings, library drafts, withdrawn publications and System Mix revisions. Use `admin:bootstrap` for the actual first Owner as described in [Staff access](STAFF_ACCESS.md).
 4. Start the prepared web package with `node --max-semi-space-size=8 .next/standalone/server.js` and the configured listener environment.
-5. Start exactly one worker with `npm run worker`; scale only after validating lease behavior under load.
+5. Start exactly one worker with `node --import tsx src/worker/index.ts` (the Blueprint's start command; `npm run worker` runs the same program for local use); scale only after validating lease behavior under load.
 6. Require `/api/health/live`, `/api/health/ready`, and `/api/health/worker` to return HTTP 200.
 
 The migration `20260904200000_retire_dormant_features` deliberately removes old billing, contact-sync, AI-draft, community-submission, and signup-reward data. Preserve an encrypted pre-migration backup until the release has been qualified. That backup may contain data the current application no longer reads and must receive the same protection as the production database.
+
+## Worker shutdown
+
+A deploy, restart or scale-down sends the worker SIGTERM. The worker then takes no new job, skips its remaining maintenance passes, and lets the job in hand finish, except that a contact import stops between its 25-row chunks and a phone-number sweep stops between contacts. A stopped job goes back to the queue due immediately, with the attempt it used returned. The next worker resumes an import from its saved rows and repeats a sweep from the start, skipping numbers that are already current. The worker then records a `STOPPED` heartbeat and exits.
+
+- The start command runs Node directly (`node --import tsx src/worker/index.ts`). With `npm run worker`, npm and the tsx command-line wrapper stand between the platform's signal and the worker.
+- Render waits `maxShutdownDelaySeconds` (300 in the Blueprint; Render's default is 30) before it kills the process. A worker killed in the middle of a job keeps that job's lease until it expires after 10 minutes; the next worker then resumes it the same way. A slow job can therefore make a worker deploy take up to five minutes longer.
+- An existing Render service keeps its current start command and shutdown delay until they are changed in its settings or through the Render API; either takes effect at the next deploy. Record the previous values with the release.
+- Docker stops a container after 10 seconds by default. Give the worker container a longer grace period, for example `stop_grace_period: 5m` in Compose.
 
 ## Provider callbacks
 

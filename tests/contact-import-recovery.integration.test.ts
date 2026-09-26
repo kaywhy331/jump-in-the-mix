@@ -137,7 +137,8 @@ describe.skipIf(!local).sequential("import crash recovery on PostgreSQL", () => 
     await until(async () => (await sql.query("SELECT 1 FROM pg_locks WHERE locktype='advisory' AND objid=$1 AND NOT granted", [key])).rowCount === 1);
     const nextLease = { jobId: f.job.id, leaseId: "replacement-worker" };
     const change = operation === "cancel" ? jobs.cancelContactImportBatch(f.workspace.id, f.batch.id) : sql.query('UPDATE "Job" SET "lockedBy"=$2, "lockedAt"=($3::timestamptz AT TIME ZONE \'UTC\'), attempts=2 WHERE id=$1', [f.job.id, nextLease.leaseId, new Date().toISOString()]);
-    if (operation === "cancel") await until(async () => (await sql.query("SELECT 1 FROM pg_locks WHERE locktype='advisory' AND classid=814733 AND objid=1 AND NOT granted")).rowCount! > 0);
+    // The row in progress holds its workspace's import key (not the access lock); the cancel queues on that key.
+    if (operation === "cancel") await until(async () => (await sql.query("SELECT 1 FROM pg_locks WHERE locktype='advisory' AND classid=814734 AND objid=hashtext($1)::oid AND NOT granted", [f.workspace.id])).rowCount! > 0);
     else await until(async () => (await gate.query("SELECT wait_event_type FROM pg_stat_activity WHERE pid=$1", [sqlPid])).rows[0]?.wait_event_type === "Lock");
     await gate.query("SELECT pg_advisory_unlock($1)", [key]); await change;
     expect(await oldRun).toBeInstanceOf(Error);

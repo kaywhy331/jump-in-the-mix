@@ -3,38 +3,42 @@
 import { redirect } from "next/navigation";
 import type { Channel, ContactPriority } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
+import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { isValidEmail, normalizeEmail, normalizePhone } from "@/lib/contact-input";
+import { canonicalPhoneKey, phoneLookupKeys, phoneRowKeys, workspacePhoneRegion } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
 
 function value(formData: FormData, key: string, maximum = 20_000): string {
   return String(formData.get(key) ?? "").trim().slice(0, maximum);
 }
 
-function fail(contactId: string, message: string): never {
-  redirect(`/contacts/${contactId}?error=${encodeURIComponent(message)}`);
+function fail(contactId: string, message: string, viewer: ErrorViewer): never {
+  redirect(withViewerError(`/contacts/${contactId}`, message, viewer));
 }
 
 export async function updateContactBasicsInlineAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { workspace, user, session, impersonation } = await requireWorkspace();
   const contactId = value(formData, "contactId", 120);
-  if (impersonation) fail(contactId, "View-only support sessions cannot change Contact details.");
+  if (impersonation) fail(contactId, "View-only support sessions cannot change Contact details.", session);
   const contact = await prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, include: { emails: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] }, phones: { orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }] } } });
-  if (!contact) fail(contactId, "Contact not found.");
+  if (!contact) fail(contactId, "Contact not found.", session);
   const company = value(formData, "company", 240) || null;
   const publicNotes = value(formData, "publicNotes", 20_000) || null;
   const email = value(formData, "primaryEmail", 254);
   const phone = value(formData, "primaryPhone", 80);
-  if (email && !isValidEmail(email)) fail(contactId, "Enter a valid primary email address.");
-  const normalizedPhone = phone ? normalizePhone(phone) : null;
-  if (phone && !normalizedPhone) fail(contactId, "Enter a valid primary phone number.");
+  if (email && !isValidEmail(email)) fail(contactId, "Enter a valid primary email address.", session);
+  if (phone && !normalizePhone(phone)) fail(contactId, "Enter a valid primary phone number.", session);
+  const region = phone ? await workspacePhoneRegion(prisma, workspace.id) : null;
+  const normalizedPhone = phone && region ? canonicalPhoneKey(phone, region) : null;
   const normalizedEmail = email ? normalizeEmail(email) : null;
   if (normalizedEmail) {
     const conflict = await prisma.contactEmail.findFirst({ where: { normalized: normalizedEmail, contactId: { not: contactId }, contact: { workspaceId: workspace.id, archivedAt: null } }, select: { contact: { select: { displayName: true } } } });
-    if (conflict) fail(contactId, `That email already belongs to ${conflict.contact.displayName}. Use the duplicate center if these are the same person.`);
+    if (conflict) fail(contactId, `That email already belongs to ${conflict.contact.displayName}. Use the duplicate center if these are the same person.`, session);
   }
-  if (normalizedPhone) {
-    const conflict = await prisma.contactPhone.findFirst({ where: { normalized: normalizedPhone, contactId: { not: contactId }, contact: { workspaceId: workspace.id, archivedAt: null } }, select: { contact: { select: { displayName: true } } } });
-    if (conflict) fail(contactId, `That phone already belongs to ${conflict.contact.displayName}. Use the duplicate center if these are the same person.`);
+  if (normalizedPhone && region) {
+    // Both keys: a number saved before this release may still hold its format-based key.
+    const conflict = await prisma.contactPhone.findFirst({ where: { normalized: { in: phoneLookupKeys(phone, region) }, contactId: { not: contactId }, contact: { workspaceId: workspace.id, archivedAt: null } }, select: { contact: { select: { displayName: true } } } });
+    if (conflict) fail(contactId, `That phone already belongs to ${conflict.contact.displayName}. Use the duplicate center if these are the same person.`, session);
   }
   await prisma.$transaction(async (tx) => {
     await tx.contact.update({ where: { id: contactId }, data: { company, publicNotes } });
@@ -46,7 +50,8 @@ export async function updateContactBasicsInlineAction(formData: FormData): Promi
     }
     if (phone) {
       await tx.contactPhone.updateMany({ where: { contactId }, data: { isPrimary: false } });
-      const existing = contact.phones.find((item) => item.normalized === normalizedPhone);
+      // The same number already on this person, under its canonical key or (saved before this release) its old key, which is rewritten.
+      const existing = contact.phones.find((item) => item.normalized === normalizedPhone) ?? contact.phones.find((item) => phoneRowKeys(item, region!).includes(normalizedPhone!));
       if (existing) await tx.contactPhone.update({ where: { id: existing.id }, data: { phone, normalized: normalizedPhone!, isPrimary: true } });
       else await tx.contactPhone.create({ data: { contactId, phone, normalized: normalizedPhone!, label: "Primary", isPrimary: true } });
     }
@@ -56,11 +61,11 @@ export async function updateContactBasicsInlineAction(formData: FormData): Promi
 }
 
 export async function updateContactRelationshipStateAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { workspace, user, session, impersonation } = await requireWorkspace();
   const contactId = value(formData, "contactId", 120);
-  if (impersonation) fail(contactId, "View-only support sessions cannot change relationship details.");
+  if (impersonation) fail(contactId, "View-only support sessions cannot change relationship details.", session);
   const contact = await prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, select: { id: true } });
-  if (!contact) fail(contactId, "Contact not found.");
+  if (!contact) fail(contactId, "Contact not found.", session);
   const submittedVersion = Number.parseInt(value(formData, "version", 20) || "0", 10);
   const preferredRaw = value(formData, "preferredChannel", 40);
   const preferredChannel = preferredRaw && ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"].includes(preferredRaw) ? preferredRaw as Channel : null;
@@ -69,9 +74,9 @@ export async function updateContactRelationshipStateAction(formData: FormData): 
   const relationshipStatus = value(formData, "relationshipStatus", 160) || null;
   const nextCommitmentRaw = value(formData, "nextCommitmentAt", 40);
   const nextCommitmentAt = nextCommitmentRaw ? new Date(nextCommitmentRaw) : null;
-  if (nextCommitmentRaw && (!nextCommitmentAt || Number.isNaN(nextCommitmentAt.getTime()))) fail(contactId, "Choose a valid next commitment date and time.");
+  if (nextCommitmentRaw && (!nextCommitmentAt || Number.isNaN(nextCommitmentAt.getTime()))) fail(contactId, "Choose a valid next commitment date and time.", session);
   const existing = await prisma.contactRelationshipState.findUnique({ where: { contactId } });
-  if (existing && submittedVersion !== existing.version) fail(contactId, "This relationship state changed in another tab. Reload before saving again.");
+  if (existing && submittedVersion !== existing.version) fail(contactId, "This relationship state changed in another tab. Reload before saving again.", session);
   const doNotContact = formData.get("doNotContact") === "on";
   await prisma.$transaction(async (tx) => {
     if (existing) {

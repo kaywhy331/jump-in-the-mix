@@ -1,3 +1,4 @@
+import { trustedProxyCidrIssues } from "@/lib/client-ip";
 import { privateTestConfigurationIssues, privateTestEnabled } from "@/lib/private-test";
 import { publicTrustConfigurationIssues } from "@/lib/public-trust";
 
@@ -56,6 +57,8 @@ export const env = {
   cookieName: process.env.AUTH_COOKIE_NAME ?? DEFAULT_COOKIE,
   impersonationCookieName: process.env.AUTH_IMPERSONATION_COOKIE_NAME ?? DEFAULT_IMPERSONATION_COOKIE,
   sessionDays: positiveNumber(process.env.AUTH_SESSION_DAYS, 14),
+  // Absolute cap for a sliding session, counted from sign-in. Browsers cap cookie expiry at 400 days.
+  sessionMaxDays: positiveNumber(process.env.AUTH_SESSION_MAX_DAYS, 90),
   sessionTouchMinutes: positiveNumber(process.env.AUTH_SESSION_TOUCH_MINUTES, 5),
   maxSessionsPerUser: positiveNumber(process.env.AUTH_MAX_SESSIONS_PER_USER, 10),
   impersonationMinutes: positiveNumber(process.env.AUTH_IMPERSONATION_MINUTES, 30),
@@ -70,6 +73,7 @@ export const env = {
   secureSessionCookie: sessionCookieSecure(),
   dataEncryptionKey: process.env.DATA_ENCRYPTION_KEY ?? "",
   allowedOrigins: commaSeparated(process.env.AUTH_ALLOWED_ORIGINS),
+  trustedProxyCidrs: commaSeparated(process.env.TRUSTED_PROXY_CIDRS),
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   resendRecoveryApiKey: process.env.RESEND_RECOVERY_API_KEY ?? "",
   resendWebhookSecret: process.env.RESEND_WEBHOOK_SECRET ?? "",
@@ -144,10 +148,13 @@ export function productionConfigurationIssues(source: NodeJS.ProcessEnv = proces
       if (!source.AUTH_APPLE_CLIENT_ID?.trim() || !source.AUTH_APPLE_TEAM_ID?.trim() || !source.AUTH_APPLE_KEY_ID?.trim() || !source.AUTH_APPLE_PRIVATE_KEY?.trim()) issues.push("Apple sign-in credentials are required for hosted production");
     }
   }
+  issues.push(...trustedProxyCidrIssues(commaSeparated(source.TRUSTED_PROXY_CIDRS)));
   for (const name of ["EMAIL_DAILY_LIMIT", "EMAIL_MONTHLY_LIMIT", "EMAIL_DAILY_AUTH_RESERVE", "EMAIL_MONTHLY_AUTH_RESERVE"] as const) {
     if (source[name] !== undefined && (!Number.isSafeInteger(Number(source[name])) || Number(source[name]) < 1 || Number(source[name]) > 1_000_000)) issues.push(`${name} must be an integer from 1 to 1000000`);
   }
   if (Number(source.EMAIL_DAILY_AUTH_RESERVE ?? 20) >= Number(source.EMAIL_DAILY_LIMIT ?? 90)) issues.push("EMAIL_DAILY_AUTH_RESERVE must be smaller than EMAIL_DAILY_LIMIT");
   if (Number(source.EMAIL_MONTHLY_AUTH_RESERVE ?? 300) >= Number(source.EMAIL_MONTHLY_LIMIT ?? 2700)) issues.push("EMAIL_MONTHLY_AUTH_RESERVE must be smaller than EMAIL_MONTHLY_LIMIT");
+  const sessionMaxDays = positiveNumber(source.AUTH_SESSION_MAX_DAYS, 90);
+  if (sessionMaxDays < positiveNumber(source.AUTH_SESSION_DAYS, 14) || sessionMaxDays > 400) issues.push("AUTH_SESSION_MAX_DAYS must be at least AUTH_SESSION_DAYS and at most 400");
   return issues;
 }

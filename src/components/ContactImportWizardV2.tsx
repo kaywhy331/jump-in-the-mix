@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { Notice } from "@/components/Notice";
+import { useConfirmDialog } from "@/components/useConfirmDialog";
 import {
   buildImportRows,
   contactNameForImport,
+  countRowsWithoutContactMethod,
   createImportErrorCsv,
   createSampleImportCsv,
   decodeMappingTarget,
@@ -174,7 +176,13 @@ export function ContactImportWizardV2({
   const [batch, setBatch] = useState<ImportBatch | null>(null);
   const [recentBatches, setRecentBatches] = useState<ImportBatch[]>([]);
   const [busy, setBusy] = useState(false);
+  const [pollError, setPollError] = useState<string | null>(null);
+  const [pollVersion, setPollVersion] = useState(0);
+  const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mappingOpen, setMappingOpen] = useState(false);
+  const mappingRef = useRef<HTMLDetailsElement>(null);
+  const [confirm, confirmDialog] = useConfirmDialog();
 
   const validRows = useMemo(() => preparedRows.filter((row) => row.errors.length === 0), [preparedRows]);
   const invalidRows = useMemo(() => preparedRows.filter((row) => row.errors.length > 0), [preparedRows]);
@@ -190,33 +198,56 @@ export function ContactImportWizardV2({
       skip: values.filter((item) => item.action === "SKIP").length + invalidRows.length
     };
   }, [resolutions, invalidRows.length]);
+  // Rows with no phone or email import as names only; Today cannot prepare anything for them.
+  // Usually the file's phone or email columns were not recognised, so the fix is the mapping.
+  const rowsWithoutContactMethod = useMemo(() => countRowsWithoutContactMethod(preparedRows), [preparedRows]);
+  const mostRowsLackContactMethod = rowsWithoutContactMethod * 2 > preparedRows.length;
+  const contactMethodSummary = `${rowsWithoutContactMethod.toLocaleString()} of ${preparedRows.length.toLocaleString()} ${preparedRows.length === 1 ? "row" : "rows"} ${rowsWithoutContactMethod === 1 ? "has" : "have"} no phone or email`;
+  const openMappingEditor = () => {
+    setMappingOpen(true);
+    requestAnimationFrame(() => {
+      mappingRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+      mappingRef.current?.querySelector("select")?.focus({ preventScroll: true });
+    });
+  };
 
   const loadRecent = async () => {
-    const response = await fetch("/api/contacts/import", { cache: "no-store" });
-    const payload = await response.json().catch(() => ({})) as { batches?: ImportBatch[] };
-    if (!response.ok) return;
-    const batches = payload.batches ?? [];
-    setRecentBatches(batches);
-    const active = batches.find((item) => !terminal(item.status));
-    if (active && !batch) {
-      setBatch(active);
-      setStage("RESULTS");
-    }
+    try {
+      const response = await fetch("/api/contacts/import", { cache: "no-store" });
+      const payload = await response.json() as { batches?: ImportBatch[] };
+      if (!response.ok) throw new Error("Recent imports are unavailable. Reload to try again.");
+      const batches = payload.batches ?? [];
+      setRecentBatches(batches);
+      const active = batches.find((item) => !terminal(item.status));
+      if (active && !batch) { setBatch(active); setStage("RESULTS"); }
+    } catch { setError("Recent imports could not be checked. Your saved imports are unchanged; reload to retry."); }
   };
 
   useEffect(() => { void loadRecent(); }, []);
 
   useEffect(() => {
     if (!batch || terminal(batch.status)) return;
-    const timer = window.setInterval(async () => {
-      const response = await fetch(`/api/contacts/import?batchId=${encodeURIComponent(batch.id)}`, { cache: "no-store" });
-      const payload = await response.json().catch(() => ({})) as { batch?: ImportBatch };
-      if (!response.ok || !payload.batch) return;
-      setBatch(payload.batch);
-      if (terminal(payload.batch.status)) void loadRecent();
-    }, 1500);
-    return () => window.clearInterval(timer);
-  }, [batch?.id, batch?.status]);
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const controller = new AbortController();
+    setPollError(null);
+    const check = async () => {
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      try {
+        const response = await fetch(`/api/contacts/import?batchId=${encodeURIComponent(batch.id)}`, { cache: "no-store", signal: controller.signal });
+        const payload = await response.json() as { batch?: ImportBatch };
+        if (!response.ok || !payload.batch) throw new Error("Status unavailable");
+        if (!alive) return;
+        setLastChecked(new Date().toISOString()); setBatch(payload.batch); setPollError(null);
+        if (terminal(payload.batch.status)) void loadRecent();
+        else timer = setTimeout(check, 1500);
+      } catch {
+        if (alive) setPollError("Import status could not be checked. These are the last known results; the import may still be running. Check your connection and retry.");
+      } finally { clearTimeout(timeout); }
+    };
+    void check();
+    return () => { alive = false; controller.abort(); clearTimeout(timer); };
+  }, [batch?.id, batch?.status, pollVersion]);
 
   const analyze = async (sourceTable: ParsedImportTable, sourceMapping: ImportColumnMapping, sourceGroups: string[]) => {
     setBusy(true);
@@ -270,6 +301,15 @@ export function ContactImportWizardV2({
 
   const queueImport = async (onlyFailed = false) => {
     if (!table) return;
+    if (!onlyFailed && mostRowsLackContactMethod) {
+      const proceed = await confirm({
+        title: "Most rows have no phone or email",
+        description: `${contactMethodSummary}. Those people will be saved with names only, and Today cannot prepare a call or message for them. If the file has phone or email columns, go back and check the field mapping first.`,
+        confirmLabel: "Queue anyway",
+        cancelLabel: "Go back"
+      });
+      if (!proceed) return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -308,18 +348,22 @@ export function ContactImportWizardV2({
   };
 
   const cancelBatch = async () => {
-    if (!batch) return;
-    const response = await fetch(`/api/contacts/import?batchId=${encodeURIComponent(batch.id)}`, { method: "DELETE" });
-    if (response.ok) {
+    if (!batch || busy) return;
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch(`/api/contacts/import?batchId=${encodeURIComponent(batch.id)}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Cancellation could not be confirmed. Retry or check the import status; it may still be running.");
       setBatch({ ...batch, status: "CANCELED", errorSummary: "Canceled by user.", completedAt: new Date().toISOString() });
-      void loadRecent();
-    }
+      setPollError(null); void loadRecent();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Cancellation could not be confirmed. Check your connection and retry."); }
+    finally { setBusy(false); }
   };
 
   const reset = () => {
     setStage("CHOOSE");
     setTable(null);
     setMapping({});
+    setMappingOpen(false);
     setPreparedRows([]);
     setMatches([]);
     setResolutions({});
@@ -369,7 +413,13 @@ export function ContactImportWizardV2({
             <button className="button" type="button" onClick={reset}>Choose another file</button>
           </div>
 
-          <details>
+          {rowsWithoutContactMethod > 0 && (
+            <Notice type="info">
+              <strong>{contactMethodSummary}.</strong> Those people will be saved with names only, so Today cannot prepare a call or message for them. If the file has phone or email columns, check that they are mapped. <button className="button small" type="button" onClick={openMappingEditor}>Check field mapping</button>
+            </Notice>
+          )}
+
+          <details ref={mappingRef} open={mappingOpen} onToggle={(event) => setMappingOpen(event.currentTarget.open)}>
             <summary>Review or adjust field mapping</summary>
             <div className="import-mapping-list">
               {table.headers.map((header) => {
@@ -388,6 +438,10 @@ export function ContactImportWizardV2({
             <div><strong>{planned.skip}</strong><span>Skip / invalid</span></div>
           </div>
 
+          {(() => {
+            const dropped = validRows.flatMap((row) => row.warnings.filter((warning) => warning.includes("unreadable date")).map((warning) => `Row ${row.record.sourceRow}: ${warning}`));
+            return dropped.length ? <Notice type="info">{dropped.length === 1 ? "1 date could not be read and will be left out; the person still imports." : `${dropped.length} dates could not be read and will be left out; the people still import.`}<ul>{dropped.slice(0, 10).map((item) => <li key={item}>{item}</li>)}</ul>{dropped.length > 10 && <p>And {dropped.length - 10} more.</p>}</Notice> : null;
+          })()}
           {issueRows.length ? <div className="import-dedupe-list">{issueRows.map((row) => {
             if (row.errors.length) return <article className="import-dedupe-card invalid" key={row.record.rowId}><div><span className="status-pill">Row {row.record.sourceRow}</span><h3>{contactNameForImport(row.record)}</h3><p>{row.errors.join(" · ")}</p></div><strong>Will be reported as failed</strong></article>;
             const match = matchByRow.get(row.record.rowId);
@@ -397,20 +451,23 @@ export function ContactImportWizardV2({
             return <article className="import-dedupe-card" key={row.record.rowId}><div className="import-dedupe-source"><span className="status-pill">Row {row.record.sourceRow}</span><h3>{contactNameForImport(row.record)}</h3><p>{row.record.company || row.record.emails[0]?.value || row.record.phones[0]?.value || "No Contact method"}</p></div><div className="import-match-detail"><strong>{match.kind === "EXACT" ? "Exact duplicate" : match.kind === "AMBIGUOUS" ? "Multiple exact matches" : "Possible duplicate"}</strong>{match.candidates.length > 0 && <><select aria-label={`Existing Contact for row ${row.record.sourceRow}`} value={resolution.targetContactId ?? match.candidates[0]?.contactId ?? ""} onChange={(event) => updateResolution(row.record.rowId, { targetContactId: event.target.value })}>{match.candidates.map((candidate) => <option key={candidate.contactId} value={candidate.contactId}>{candidate.displayName}{candidate.company ? ` · ${candidate.company}` : ""}</option>)}</select><small>{match.candidates.find((candidate) => candidate.contactId === (resolution.targetContactId ?? match.candidates[0]?.contactId))?.matchReasons.join(" · ")}</small></>}</div><label className="field"><span>Decision</span><select value={resolution.action} onChange={(event) => updateResolution(row.record.rowId, { action: event.target.value as ImportResolutionAction })}>{actions.map((action) => <option key={action} value={action}>{actionLabel(action)}</option>)}</select></label></article>;
           })}</div> : <div className="empty-state compact"><h3>No issues need review</h3><p>Every row is ready to create.</p></div>}
 
+          <details><summary>Preview mapped contacts ({Math.min(5, validRows.length)} of {validRows.length})</summary>{validRows.slice(0, 5).map(row => <article className="card" key={row.record.rowId}><strong>{contactNameForImport(row.record)}</strong><p>{row.record.company || "No company"}</p><p>Email: {row.record.emails.map(item => item.value).join(", ") || "None"}</p><p>Phone: {row.record.phones.map(item => item.value).join(", ") || "None"}</p></article>)}</details>
           <div className="import-stage-actions"><button className="button" type="button" onClick={reset}>Back</button><button className="button primary" type="button" disabled={busy || !validRows.length} onClick={() => void queueImport()}>{busy ? "Queueing…" : `Queue ${validRows.length} valid row${validRows.length === 1 ? "" : "s"}`}</button></div>
         </section>
       )}
 
       {stage === "RESULTS" && batch && (
         <section className="card import-stage" aria-live="polite">
-          <div className="import-stage-heading"><div><h2>{terminal(batch.status) ? "Import results" : "Import is running"}</h2><p>{batch.sourceFileName || "Contact import"} · created {batchDate(batch.createdAt)}.{!terminal(batch.status) && " You may close this page; the import will continue."}</p></div><span className={`status-pill ${batch.status === "COMPLETED" ? "done" : ""}`}>{batch.status.toLowerCase()}</span></div>
-          <progress max={100} value={batch.progress} />
+          <div className="import-stage-heading"><div><h2>{terminal(batch.status) ? "Import results" : pollError ? "Import status unavailable" : "Import is running"}</h2><p>{batch.sourceFileName || "Contact import"} · created {batchDate(batch.createdAt)}.{!terminal(batch.status) && " You may close this page; the import will continue."}</p></div><span className={`status-pill ${batch.status === "COMPLETED" ? "done" : ""}`}>{batch.status.toLowerCase()}</span></div>
+          {pollError && <Notice type="error">{pollError} {lastChecked && <span>Last checked: {batchDate(lastChecked)}.</span>} <button type="button" className="button" onClick={() => setPollVersion(value => value + 1)}>Retry status check</button></Notice>}
+          <progress aria-label="Contact import completion" max={100} value={batch.progress} />
           <p><strong>{batch.processedRows.toLocaleString()} of {batch.totalRows.toLocaleString()}</strong> rows processed · {batch.progress}%</p>
           <div className="import-summary-grid result"><div><strong>{batch.createdCount}</strong><span>Created</span></div><div><strong>{batch.mergedCount + batch.replacedCount}</strong><span>Updated</span></div><div><strong>{batch.skippedCount}</strong><span>Skipped</span></div><div className={batch.failedCount ? "failed" : ""}><strong>{batch.failedCount}</strong><span>Failed</span></div></div>
           {batch.errorSummary && <Notice type={batch.status === "FAILED" ? "error" : "info"}>{batch.errorSummary}</Notice>}
           {batch.failedCount > 0 && <div className="import-error-actions"><button className="button" type="button" onClick={downloadErrors}>Download error CSV</button>{table && terminal(batch.status) && <button className="button" type="button" disabled={busy} onClick={() => void queueImport(true)}>Retry failed rows</button>}</div>}
+          {!table && batch.failedCount > 0 && <p className="notice info">To retry after reopening this page, download the error CSV, use its row numbers to make a file containing only failed rows from your original file, then choose Import another file. Review the duplicate decisions before importing again.</p>}
           <div className="import-result-list">{batch.results.filter((result) => result.status === "FAILED").slice(0, 20).map((result) => <div key={result.rowId}><strong>Row {result.sourceRow}</strong><span>{result.message}</span></div>)}</div>
-          <div className="import-stage-actions">{!terminal(batch.status) && <button className="button danger" type="button" onClick={() => void cancelBatch()}>Cancel import</button>}<button className="button" type="button" onClick={reset}>Import another file</button><Link className="button primary" href={`/contacts?importBatch=${encodeURIComponent(batch.id)}`}>View imported Contacts</Link></div>
+          <div className="import-stage-actions">{!terminal(batch.status) && <button className="button danger" type="button" disabled={busy} onClick={() => void cancelBatch()}>{busy ? "Canceling…" : "Cancel import"}</button>}<button className="button" type="button" onClick={reset}>Import another file</button><Link className="button primary" href={`/contacts?importBatch=${encodeURIComponent(batch.id)}`}>View imported Contacts</Link></div>
         </section>
       )}
 
@@ -420,6 +477,7 @@ export function ContactImportWizardV2({
           <div className="import-result-list">{recentBatches.map((item) => <button type="button" className="contact-method-row" key={item.id} onClick={() => { setBatch(item); setStage("RESULTS"); }}><span><strong>{item.sourceFileName || "Contact import"}</strong><small>{batchDate(item.createdAt)} · {item.processedRows}/{item.totalRows} rows</small></span><span className="status-pill">{item.status.toLowerCase()}</span></button>)}</div>
         </section>
       )}
+      {confirmDialog}
     </div>
   );
 }

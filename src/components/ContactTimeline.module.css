@@ -1,0 +1,21 @@
+.timeline { min-width: 0; }
+.timelineList { list-style: none; margin: 0; padding: 0; }
+.timelineItem { position: relative; display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.timelineItem:last-child { border-bottom: 0; }
+.timelineDate { font-size: .8125rem; color: var(--text-3); padding-top: 3px; }
+.timelineBody { min-width: 0; }
+.timelineBody p { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; font-size: .9375rem; line-height: 1.55; }
+.timelineBody p.personalWords { font-family: var(--font-voice); font-size: 1.125rem; line-height: 1.5; }
+.timelineMeta { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: .8125rem; color: var(--text-2); }
+.timelineMeta:empty { display: none; }
+.timelineMeta strong { font-weight: 500; }
+.privateBadge { color: var(--text-2); }
+.noteComposer { display: grid; gap: 12px; padding-block: 12px 20px; }
+.noteComposer > label { display: grid; gap: 8px; }
+.noteComposer textarea { min-height: 120px; }
+.noteComposer > div { display: grid; gap: 12px; justify-items: start; }
+.noteActions { margin-top: 6px; font-size: .75rem; }
+.noteActions > div { display: flex; gap: 16px; }
+.error { color: var(--late); }
+.loading { font-size: .875rem; color: var(--text-2); padding-block: 12px; }
+@media (max-width: 600px) { .timelineItem { grid-template-columns: 48px minmax(0, 1fr); gap: 14px; padding-block: 14px; } }

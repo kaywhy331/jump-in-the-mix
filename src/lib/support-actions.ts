@@ -1,10 +1,12 @@
 "use server";
 
+import { captureFormFailure, recoverableFormAction, withViewerError, type ErrorViewer, type FormResult } from "@/lib/form-errors";
 import type { SupportTicketCategory } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
+import { SupportAccessError } from "@/lib/support-case-access";
 import { isSupportCategory } from "@/lib/support-content";
 import {
   createSupportTicketRecord,
@@ -17,24 +19,28 @@ function value(formData: FormData, key: string, maxLength: number): string {
   return String(formData.get(key) ?? "").trim().slice(0, maxLength);
 }
 
-function helpError(message: string): never {
-  redirect(`/help?error=${encodeURIComponent(message)}#contact-support`);
+function helpError(message: string, viewer: ErrorViewer): never {
+  captureFormFailure(message);
+  redirect(`${withViewerError("/help", message, viewer)}#contact-support`);
 }
 
-function ticketError(ticketId: string, message: string): never {
-  redirect(`/account/tickets/${encodeURIComponent(ticketId)}?error=${encodeURIComponent(message)}`);
+function ticketError(ticketId: string, message: string, viewer: ErrorViewer): never {
+  captureFormFailure(message);
+  redirect(withViewerError(`/account/tickets/${encodeURIComponent(ticketId)}`, message, viewer));
 }
 
 export async function createSupportTicketAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
-  if (impersonation) helpError("Administrator support sessions are view-only.");
+  const { workspace, user, session, impersonation } = await requireWorkspace();
+  if (impersonation) helpError("Administrator support sessions are view-only.", session);
 
   const title = value(formData, "title", 160);
-  const body = value(formData, "body", 5000);
+  const context = value(formData, "supportContext", 100);
+  const safeContext = /^(Today|Contacts|Mixes|Calendar|Journey|Settings|Account|Help); (phone|desktop\/tablet) layout$/.test(context) ? context : "";
+  const body = value(formData, "body", safeContext ? 4800 : 5000) + (safeContext ? `\n\nIncluded context: ${safeContext}` : "");
   const categoryValue = value(formData, "category", 40);
-  if (title.length < 5) helpError("Give the ticket a clear title of at least 5 characters.");
-  if (body.length < 10) helpError("Add at least 10 characters describing what happened and what you expected.");
-  if (!isSupportCategory(categoryValue)) helpError("Choose a valid support category.");
+  if (title.length < 5) helpError("Give the ticket a clear title of at least 5 characters.", session);
+  if (body.length < 10) helpError("Add at least 10 characters describing what happened and what you expected.", session);
+  if (!isSupportCategory(categoryValue)) helpError("Choose a valid support category.", session);
 
   const metadata = await getRequestMetadata();
   const decision = await consumeRateLimit({
@@ -45,7 +51,7 @@ export async function createSupportTicketAction(formData: FormData): Promise<voi
     blockMs: 60 * 60 * 1000
   });
   if (!decision.allowed) {
-    helpError(`Too many support tickets were opened recently. Try again in about ${Math.ceil(decision.retryAfterSeconds / 60)} minute(s).`);
+    helpError(`Too many support tickets were opened recently. Try again in about ${Math.ceil(decision.retryAfterSeconds / 60)} minute(s).`, session);
   }
 
   let ticketId = "";
@@ -59,19 +65,19 @@ export async function createSupportTicketAction(formData: FormData): Promise<voi
     });
     ticketId = ticket.id;
   } catch (error) {
-    helpError(error instanceof Error ? error.message : "The support ticket could not be created.");
+    helpError(error instanceof SupportTicketError ? error.message : "The support ticket could not be created.", session);
   }
-  if (!ticketId) helpError("The support ticket could not be created.");
+  if (!ticketId) helpError("The support ticket could not be created.", session);
   redirect(`/account/tickets/${ticketId}?created=1`);
 }
 
 export async function replyToSupportTicketAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { workspace, user, session, impersonation } = await requireWorkspace();
   const ticketId = value(formData, "ticketId", 100);
-  if (!ticketId) ticketError("unknown", "Support ticket not found.");
-  if (impersonation) ticketError(ticketId, "Administrator support sessions are view-only.");
+  if (!ticketId) ticketError("unknown", "Support ticket not found.", session);
+  if (impersonation) ticketError(ticketId, "Administrator support sessions are view-only.", session);
   const body = value(formData, "body", 5000);
-  if (body.length < 2) ticketError(ticketId, "Write a reply before sending it.");
+  if (body.length < 2) ticketError(ticketId, "Write a reply before sending it.", session);
 
   const metadata = await getRequestMetadata();
   const decision = await consumeRateLimit({
@@ -81,7 +87,7 @@ export async function replyToSupportTicketAction(formData: FormData): Promise<vo
     windowMs: 60 * 60 * 1000,
     blockMs: 30 * 60 * 1000
   });
-  if (!decision.allowed) ticketError(ticketId, "Too many support replies were submitted. Try again later.");
+  if (!decision.allowed) ticketError(ticketId, "Too many support replies were submitted. Try again later.", session);
 
   try {
     await replyToSupportTicketRecord({
@@ -91,17 +97,17 @@ export async function replyToSupportTicketAction(formData: FormData): Promise<vo
       body
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "The reply could not be added.";
-    ticketError(ticketId, message);
+    const message = error instanceof SupportTicketError || error instanceof SupportAccessError ? error.message : "The reply could not be added.";
+    ticketError(ticketId, message, session);
   }
   redirect(`/account/tickets/${ticketId}?replied=1`);
 }
 
 export async function reopenSupportTicketAction(formData: FormData): Promise<void> {
-  const { workspace, user, impersonation } = await requireWorkspace();
+  const { workspace, user, session, impersonation } = await requireWorkspace();
   const ticketId = value(formData, "ticketId", 100);
-  if (!ticketId) ticketError("unknown", "Support ticket not found.");
-  if (impersonation) ticketError(ticketId, "Administrator support sessions are view-only.");
+  if (!ticketId) ticketError("unknown", "Support ticket not found.", session);
+  if (impersonation) ticketError(ticketId, "Administrator support sessions are view-only.", session);
 
   try {
     await reopenSupportTicketRecord({
@@ -110,10 +116,13 @@ export async function reopenSupportTicketAction(formData: FormData): Promise<voi
       requesterUserId: user.id
     });
   } catch (error) {
-    const message = error instanceof SupportTicketError || error instanceof Error
+    const message = error instanceof SupportTicketError || error instanceof SupportAccessError
       ? error.message
       : "The ticket could not be reopened.";
-    ticketError(ticketId, message);
+    ticketError(ticketId, message, session);
   }
   redirect(`/account/tickets/${ticketId}?reopened=1`);
 }
+
+export async function createSupportTicketFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => createSupportTicketAction(data)); }
+export async function replyToSupportTicketFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => replyToSupportTicketAction(data)); }

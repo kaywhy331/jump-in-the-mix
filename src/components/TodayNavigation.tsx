@@ -4,12 +4,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTodayUpdates } from "@/components/useTodayUpdates";
+import { openSheet } from "@/lib/sheet-layout";
+import { AppIcon } from "@/components/AppIcon";
 
 const DraftGuard = createContext<(href: string) => boolean>(() => false);
+// A route transition can mount a new page instance. Keep this data-free focus
+// intent outside that instance so its first effect can honor keyboard navigation.
+let focusNextTodayPage = false;
 
-export function TodayLink({ href, children, className }: { href: string; children: ReactNode; className?: string }) {
+export function TodayLink({ href, children, className, title, "aria-current": current }: { href: string; children: ReactNode; className?: string; title?: string; "aria-current"?: "page" }) {
   const blocked = useContext(DraftGuard);
-  return <Link href={href} className={className} prefetch={false} onNavigate={event => { if (blocked(href)) event.preventDefault(); }}>{children}</Link>;
+  return <Link href={href} className={className} title={title} aria-current={current} prefetch={false} onNavigate={event => {
+    if (blocked(href)) event.preventDefault();
+    else focusNextTodayPage = true;
+  }}>{children}</Link>;
 }
 
 export function TodayNavigation({ children, viewKey }: { children: ReactNode; viewKey: string }) {
@@ -33,7 +41,7 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     root.current?.querySelectorAll<HTMLDialogElement>("dialog.sheet[open]").forEach(open => { if (open !== sheet) open.close(); });
     requestAnimationFrame(() => {
       if (!draft || !root.current?.contains(draft)) return;
-      if (sheet && !sheet.open) sheet.showModal();
+      if (sheet) openSheet(sheet);
       draft.querySelector<HTMLElement>("textarea, input")?.focus();
     });
   };
@@ -43,23 +51,42 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     // Each editor owns its state. Discard only drafts in this Today view.
     root.current?.querySelectorAll<HTMLButtonElement>('[data-follow-up-draft="true"] [data-discard-follow-up-draft]').forEach(button => button.click());
     dialog.current?.close();
+    focusNextTodayPage = true;
     router.push(href);
   };
   useEffect(() => {
-    if (previousKey.current === viewKey) return;
+    if (previousKey.current === viewKey && !focusNextTodayPage) return;
+    focusNextTodayPage = false;
     previousKey.current = viewKey;
-    const heading = root.current?.querySelector<HTMLElement>("h1");
-    const focusHeading = () => { if (previousKey.current === viewKey && heading?.isConnected) heading.focus(); };
+    let cancelled = false;
+    const focusHeading = () => {
+      if (cancelled) return;
+      // Suspense can hide this page and detach its ref while committing the
+      // destination. Wait for the visible destination instead of focusing the
+      // hidden heading, which browsers silently ignore.
+      const page = [...document.querySelectorAll<HTMLElement>("[data-today-view]")]
+        .find(element => element.dataset.todayView === viewKey && element.getClientRects().length > 0 && !element.closest("[inert]"));
+      const heading = page?.querySelector<HTMLElement>("h1");
+      heading?.focus();
+      if (heading && document.activeElement === heading) {
+        observer.disconnect();
+      }
+    };
+    const observer = new MutationObserver(focusHeading);
+    observer.observe(document.documentElement, { subtree: true, childList: true,
+      attributes: true, attributeFilter: ["style", "hidden", "inert"] });
     root.current?.querySelectorAll<HTMLDialogElement>("dialog[open]").forEach(open => {
       // Sheet restores its trigger in the queued close event. Navigation owns
       // the new focus destination, after those close handlers have finished.
       open.addEventListener("close", () => queueMicrotask(focusHeading), { once: true });
       open.close();
     });
-    focusHeading();
+    // Handle an already visible page as well as a later Suspense reveal.
+    const frame = requestAnimationFrame(focusHeading);
+    return () => { cancelled = true; observer.disconnect(); cancelAnimationFrame(frame); };
   }, [viewKey]);
 
-  return <DraftGuard.Provider value={blocked}><div ref={root} className="page today-page" onSubmitCapture={event => {
+  return <DraftGuard.Provider value={blocked}><div ref={root} className="page today-page" data-today-view={viewKey} onSubmitCapture={event => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement) || form.method.toLowerCase() !== "get" || form.target === "_blank") return;
     const target = new URL(form.action, location.href);
@@ -69,8 +96,9 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     for (const [key, value] of new FormData(form)) if (typeof value === "string") params.append(key, value);
     const href = `/jumps?${params}`;
     if (blocked(href)) form.reset();
-    else router.push(href);
+    else { focusNextTodayPage = true; router.push(href); }
   }}>
+    <div id="follow-up-confirmations" className="follow-up-confirmations" aria-label="Recent follow-up results" />
     {updateState && updateState !== "undo" && <aside className="notice info" aria-label="Today updates">
       <p role="status">{updateState === "draft" ? "There are updates for this list. Finish or discard your message edits to show them."
         : updateState === "offline" ? "Your progress is saved. Reconnect to update this list."
@@ -80,10 +108,11 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
       {updateState === "retry" && <button className="button" type="button" onClick={retry}>Update list</button>}
     </aside>}
     {content}
+    <div className="today-review-placeholder"><h2>One conversation at a time.</h2><p>Choose a follow-up to review its message and next step.</p></div>
     <dialog ref={dialog} className="confirm-dialog" aria-labelledby={titleId} aria-describedby={descriptionId} onClose={() => setDestination(null)}>
-      <div className="confirm-dialog-header"><div><h2 id={titleId}>Keep your message edits?</h2><p id={descriptionId}>Changing this list would close your unsent message edits. Keep editing, or discard them and continue.</p></div></div>
+      <div className="confirm-dialog-header"><div><h2 id={titleId}>Keep your message edits?</h2><p id={descriptionId}>Your newest message edits haven’t finished saving. Keep editing, or discard those edits and continue.</p></div><button className="icon-button" type="button" onClick={keepEditing} aria-label="Close and keep editing"><AppIcon name="close" /></button></div>
       <div className="confirm-dialog-actions">
-        <button type="button" className="button primary" onClick={keepEditing}>Keep editing</button>
+        <button type="button" className="button" autoFocus onClick={keepEditing}>Keep editing</button>
         <button type="button" className="button danger" onClick={discardAndContinue}>Discard edits and continue</button>
       </div>
     </dialog>

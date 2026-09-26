@@ -10,6 +10,7 @@ import { lockStaff } from "@/lib/staff-access";
 import { assertSupportActor, lockSupportTicket } from "@/lib/support-case-access";
 
 import { queueSupportReplyEmail } from "@/lib/support-email-delivery";
+import { queueSupportOperatorAlert } from "@/lib/support-operator-alert";
 
 export class SupportTicketError extends Error {
   constructor(message: string) {
@@ -61,7 +62,7 @@ export async function createSupportTicketRecord(input: {
         lastActivityAt: now
       }
     });
-    await tx.supportTicketMessage.create({
+    const message = await tx.supportTicketMessage.create({
       data: {
         ticketId: ticket.id,
         authorUserId: input.requesterUserId,
@@ -69,6 +70,7 @@ export async function createSupportTicketRecord(input: {
         body: input.body
       }
     });
+    await queueSupportOperatorAlert(tx, { workspaceId: input.workspaceId, ticketId: ticket.id, messageId: message.id, kind: "new" });
     await tx.auditLog.create({
       data: {
         workspaceId: input.workspaceId,
@@ -120,6 +122,7 @@ export async function replyToSupportTicketRecord(input: {
         body: input.body
       }
     });
+    await queueSupportOperatorAlert(tx, { workspaceId: input.workspaceId, ticketId: ticket.id, messageId: message.id, kind: "reply" });
     await tx.supportTicket.update({
       where: { id: ticket.id },
       data: {
@@ -158,7 +161,7 @@ export async function reopenSupportTicketRecord(input: {
       throw new SupportTicketError("This ticket is closed. Open a new ticket for additional help.");
     }
     if (ticket.status !== "RESOLVED") return ticket;
-    await tx.supportTicketMessage.create({
+    const message = await tx.supportTicketMessage.create({
       data: {
         ticketId: ticket.id,
         authorUserId: input.requesterUserId,
@@ -166,6 +169,7 @@ export async function reopenSupportTicketRecord(input: {
         body: "I still need help with this issue and reopened the ticket."
       }
     });
+    await queueSupportOperatorAlert(tx, { workspaceId: input.workspaceId, ticketId: ticket.id, messageId: message.id, kind: "reopen" });
     const reopened = await tx.supportTicket.update({
       where: { id: ticket.id },
       data: {
@@ -198,6 +202,7 @@ export async function adminReplyToSupportTicketRecord(input: {
   actorSessionId: string;
   requestKey: string;
   body: string;
+  resolve?: boolean;
 }) {
   if (!/^[a-f0-9-]{36}$/i.test(input.requestKey) || input.body.trim().length < 2 || input.body.length > 5000) throw new SupportTicketError("Reload the reply form and write a response of 2–5000 characters.");
   const requestKey = createHash("sha256").update(JSON.stringify([input.adminUserId, input.ticketId, input.requestKey])).digest("hex");
@@ -229,13 +234,17 @@ export async function adminReplyToSupportTicketRecord(input: {
     const updatedTicket = await tx.supportTicket.update({
       where: { id: ticket.id },
       data: {
-        status: "WAITING_ON_USER",
+        status: input.resolve ? "RESOLVED" : "WAITING_ON_USER",
         lastActivityAt: now,
-        resolvedAt: null,
-        resolvedByUserId: null,
+        resolvedAt: input.resolve ? now : null,
+        resolvedByUserId: input.resolve ? input.adminUserId : null,
         closedAt: null
       }
     });
+    if (input.resolve) {
+      const ended = await tx.adminImpersonation.updateMany({ where: { ticketId: ticket.id, endedAt: null }, data: { endedAt: now } });
+      await tx.platformAuditEvent.create({ data: { actorUserId: input.adminUserId, action: "support.case.status", entityType: "SupportTicket", entityId: ticket.id, beforeData: { status: ticket.status }, afterData: { status: "RESOLVED", endedViews: ended.count } } });
+    }
     await tx.auditLog.create({
       data: {
         workspaceId: ticket.workspaceId,

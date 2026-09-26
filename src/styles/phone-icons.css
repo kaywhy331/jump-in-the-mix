@@ -1,0 +1,85 @@
+/* Phone-familiar icon affordances (UI/UX workflow and icon audit, 2026-09-22).
+   Loaded last; :where() keeps the defaults at zero class specificity so any
+   existing, more specific icon sizing still wins. */
+:where(.button, .icon-button, .inline-action, .text-button, .contact-inline-action) > svg { width: 18px; height: 18px; flex: 0 0 auto; }
+:where(.button, .icon-button) { gap: 6px; }
+.inline-action-icon { width: 16px; height: 16px; margin-left: 2px; vertical-align: -3px; }
+.sheet-heading-icon { width: 18px; height: 18px; margin-right: 6px; vertical-align: -3px; }
+
+/* Today header: search magnifier beside Filter. */
+.today-header-tools { display: flex; align-items: flex-start; gap: 8px; }
+.today-search-trigger { display: grid; place-items: center; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 12px; }
+.today-search-trigger svg { width: 20px; height: 20px; }
+.today-search-trigger.active { border-color: var(--violet-mark); background: var(--violet-wash); color: var(--violet-text); }
+
+/* Today queue: the channel icon carries a "Review" caption so it reads as
+   "open this follow-up", not as a Call/Text button. */
+.today-page .jump-primary-action > .sheet-trigger > .jump-channel-action { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 52px; min-width: 52px; min-height: 44px; padding: 4px 2px; }
+.today-page .jump-primary-action > .sheet-trigger > .jump-channel-action > svg { width: 20px; height: 20px; }
+.today-page .jump-primary-action > .sheet-trigger > .jump-channel-action > span { display: block; font-size: .75rem; font-weight: 600; line-height: 1; }
+.today-page .jump-completion-actions > .sheet-trigger > .button { display: grid; place-items: center; width: 44px; min-height: 36px; padding: 0; color: var(--text-2); }
+.today-page .jump-completion-actions > .sheet-trigger > .button svg { width: 20px; height: 20px; }
+
+/* Contacts: person-plus add beside the tools menu; icons lead each tools row. */
+.contacts-page-actions { display: flex; align-items: center; gap: 4px; }
+.contact-add-action svg { width: 22px; height: 22px; }
+.contact-tools-links > :is(a, button) { gap: 12px; }
+.contact-tools-links > :is(a, button) > svg { width: 20px; height: 20px; flex: 0 0 auto; color: var(--text-2); }
+.contacts-page-actions .mobile-header-action { width: 44px; min-width: 44px; min-height: 44px; align-items: center; justify-content: center; }
+
+/* Inline undo inside a success notice. */
+.notice-with-action { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; width: 100%; }
+.notice-with-action form { margin: 0; }
+
+/* Contact profile: say why Text/Email/Call are off (touch has no hover titles). */
+.contact-quick-action-hint { grid-column: 1 / -1; margin: 4px 0 0; color: var(--text-2); font-size: .8125rem; text-align: center; }
+.contact-inline-action > svg { width: 16px; height: 16px; }
+
+/* Plain-language glossary for the product's brand names. */
+.brand-terms { display: grid; gap: 0; margin: 0; }
+.brand-terms > div { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.brand-terms > div:last-child { border-bottom: 0; }
+.brand-terms dt { font-weight: 700; }
+.brand-terms dd { margin: 2px 0 0; color: var(--text-2); }
+
+/* Merge fields in previews read as filled-in values, not template code. */
+.merge-field-chip { display: inline; padding: 0 6px; border-radius: 6px; background: var(--violet-wash); color: var(--violet-text); font-family: var(--font-sans, inherit); font-size: .85em; font-weight: 600; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+
+/* Journey waits: amount + unit side by side. */
+.duration-inputs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.connection-enabled-toggle { font-weight: 700; }
+
+/* Icon links center their glyph the way icon buttons already do. */
+:where(a.icon-button) { display: inline-grid; place-items: center; }
+
+/* Phone touch targets (deep gap audit 2026-09-23, item 8): later compact rules shrank several
+   controls below 44px on phones. Restore a 44px minimum with at least 8px between neighbours;
+   desktop sizing is untouched. */
+@media (max-width: 900px) {
+  .today-page .jump-primary-action > .button,
+  .today-page .jump-completion-actions > .button,
+  .today-page .jump-completion-actions > .sheet-trigger > .button,
+  .today-queue-group > summary,
+  .calendar-event-options > summary,
+  .calendar-page .calendar-event > .form-actions .button,
+  .contact-detail-page .contact-inline-action,
+  .contact-priority-card .contact-section-heading .contact-inline-action,
+  .contact-inline-action,
+  .contact-stage-chip { min-height: 44px; }
+  .today-page .jump-completion-actions > .sheet-trigger > .button,
+  .contact-icon-button,
+  .icon-button.compact { min-width: 44px; min-height: 44px; }
+  .icon-button.compact { width: 44px; height: 44px; }
+  .calendar-page .calendar-event > .form-actions { gap: 8px; }
+  .calendar-page .calendar-event > .form-actions .button { font-size: .8125rem; padding: 8px 12px; }
+}
+
+/* A signed-out draft is a warning the owner must act on, not quiet status text. */
+.draft-status-warning { color: var(--warning); font-weight: 600; }
+.draft-status-warning .text-button { font-size: inherit; }
+
+/* Channel choice: every version visible; the default carries a Recommended tag, unavailable ones are greyed. */
+.follow-up-channel-choice .when-chip { position: relative; flex-wrap: wrap; }
+.channel-recommended { flex-basis: 100%; margin-top: -2px; color: var(--violet-text); font-size: .6875rem; font-weight: 700; line-height: 1.1; text-transform: none; }
+.follow-up-channel-choice .when-chip:disabled { opacity: .45; cursor: not-allowed; }
+.channel-missing { margin: 6px 0 0; font-size: .8125rem; }

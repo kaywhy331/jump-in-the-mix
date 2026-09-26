@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { productionConfigurationIssues, resolveAuthRateLimitSecret } from "../src/lib/env";
+import { env, productionConfigurationIssues, resolveAuthRateLimitSecret } from "../src/lib/env";
 
 describe("environment fallbacks", () => {
   it("does not bypass production configuration checks when CI is set", () => {
@@ -62,5 +62,30 @@ describe("environment fallbacks", () => {
     });
     expect(issues).not.toContain("DATABASE_URL is required");
     expect(issues).toContain("RESEND_API_KEY is required for hosted production");
+  });
+});
+
+describe("session lifetime configuration", () => {
+  const hosted: NodeJS.ProcessEnv = {
+    NODE_ENV: "production",
+    APP_URL: "https://app.example.com",
+    PILOT_MODE: "false",
+    DATABASE_URL: "postgresql://example.invalid/app",
+    AUTH_RATE_LIMIT_SECRET: "r".repeat(32),
+    DATA_ENCRYPTION_KEY: "e".repeat(32),
+    DEMO_MODE: "false"
+  };
+  const capIssue = "AUTH_SESSION_MAX_DAYS must be at least AUTH_SESSION_DAYS and at most 400";
+
+  it("defaults the sliding cap to 90 days", () => {
+    expect(env.sessionMaxDays).toBe(90);
+    expect(productionConfigurationIssues(hosted)).not.toContain(capIssue);
+  });
+
+  it("keeps the cap between the idle lifetime and the browser cookie limit", () => {
+    expect(productionConfigurationIssues({ ...hosted, AUTH_SESSION_DAYS: "30", AUTH_SESSION_MAX_DAYS: "14" })).toContain(capIssue);
+    expect(productionConfigurationIssues({ ...hosted, AUTH_SESSION_MAX_DAYS: "401" })).toContain(capIssue);
+    expect(productionConfigurationIssues({ ...hosted, AUTH_SESSION_DAYS: "30", AUTH_SESSION_MAX_DAYS: "30" })).not.toContain(capIssue);
+    expect(productionConfigurationIssues({ ...hosted, AUTH_SESSION_MAX_DAYS: "400" })).not.toContain(capIssue);
   });
 });

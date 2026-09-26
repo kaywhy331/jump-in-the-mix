@@ -1,29 +1,60 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { applyJourneyEvent } from "@/lib/journey";
 import { calendarRange } from "@/lib/calendar-time";
+import { conflictMessage, findConflict, normalizeBufferMinutes } from "@/lib/calendar-availability";
 import { parseCalendarFile } from "@/lib/calendar-ical";
 import { fetchCalendarFeed } from "@/lib/calendar-feed-fetch";
 import { decryptIntegrationCredentials } from "@/lib/integration-crypto";
+import { APPOINTMENT_DETAIL_LIMITS, normalizeAppointmentLink } from "@/lib/appointment-context";
+import { UserFacingError } from "@/lib/user-facing-error";
 
-export async function saveCalendarEntry(input: { workspaceId: string; actorUserId?: string; id?: string; version?: number; title: string; kind: string; contactId?: string; startsAt: Date; endsAt: Date; timezone: string; allowOverlap?: boolean }) {
+function detailText(value: string | null | undefined, maximum: number, name: string): string | null {
+  const trimmed = value?.trim() ?? "";
+  if (trimmed.length > maximum) throw new UserFacingError(`Keep the appointment ${name} under ${maximum} characters.`);
+  return trimmed || null;
+}
+
+export type CalendarEntryInput = { workspaceId: string; actorUserId?: string; id?: string; version?: number; title: string; kind: string; contactId?: string; startsAt: Date; endsAt: Date; timezone: string; location?: string | null; link?: string | null; details?: string | null; allowOverlap?: boolean };
+
+/** Validates and writes one entry inside the caller's transaction. */
+export async function saveCalendarEntryIn(tx: Prisma.TransactionClient, input: CalendarEntryInput) {
   calendarRange(input.startsAt, input.endsAt);
-  if (!input.title.trim() || input.title.trim().length > 160) throw new Error("Give this event a title of up to 160 characters.");
-  if (!["MEETING", "BLOCK"].includes(input.kind)) throw new Error("Choose a meeting or time block.");
-  return prisma.$transaction(async tx => {
+  if (!input.title.trim() || input.title.trim().length > 160) throw new UserFacingError("Give this event a title of up to 160 characters.");
+  if (!["MEETING", "BLOCK"].includes(input.kind)) throw new UserFacingError("Choose a meeting or time block.");
+  const details = { location: detailText(input.location, APPOINTMENT_DETAIL_LIMITS.location, "location"), link: normalizeAppointmentLink(input.link), details: detailText(input.details, APPOINTMENT_DETAIL_LIMITS.details, "details") };
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${input.workspaceId} FOR NO KEY UPDATE`;
     const existing = input.id ? await tx.calendarEntry.findFirst({ where: { id: input.id, workspaceId: input.workspaceId, connectionId: null, canceledAt: null } }) : null;
-    if (input.id && (!existing || existing.version !== input.version)) throw new Error("This event changed. Refresh the calendar before editing it.");
-    if (input.contactId && !await tx.contact.findFirst({ where: { id: input.contactId, workspaceId: input.workspaceId, archivedAt: null } })) throw new Error("Choose a contact in this business.");
-    const conflict = await tx.calendarEntry.findFirst({ where: { workspaceId: input.workspaceId, canceledAt: null, ...(existing ? { id: { not: existing.id } } : {}), startsAt: { lt: input.endsAt }, endsAt: { gt: input.startsAt } }, orderBy: { startsAt: "asc" } });
-    if (conflict && !input.allowOverlap) throw new Error(`This overlaps “${conflict.title}”. Choose another time, or allow an overlap if it is intentional.`);
-    const data = { title: input.title.trim(), kind: input.kind, contactId: input.contactId || null, startsAt: input.startsAt, endsAt: input.endsAt, timezone: input.timezone };
+    if (input.id && (!existing || existing.version !== input.version)) throw new UserFacingError("This event changed. Refresh the calendar before editing it.");
+    if (input.contactId && !await tx.contact.findFirst({ where: { id: input.contactId, workspaceId: input.workspaceId, archivedAt: null } })) throw new UserFacingError("Choose a contact in this business.");
+    // The buffer from Scheduling defaults keeps travel or prep room around appointments;
+    // time blocks stay back to back. The same rule grays out slots in the picker.
+    const preference = await tx.workspacePreference.findUnique({ where: { workspaceId: input.workspaceId }, select: { appointmentBufferMinutes: true } });
+    const bufferMinutes = input.kind === "BLOCK" ? 0 : normalizeBufferMinutes(preference?.appointmentBufferMinutes);
+    const pad = bufferMinutes * 60_000;
+    const nearby = await tx.calendarEntry.findMany({ where: { workspaceId: input.workspaceId, canceledAt: null, ...(existing ? { id: { not: existing.id } } : {}), startsAt: { lt: new Date(input.endsAt.getTime() + pad) }, endsAt: { gt: new Date(input.startsAt.getTime() - pad) } }, select: { id: true, title: true, kind: true, startsAt: true, endsAt: true }, orderBy: { startsAt: "asc" }, take: 200 });
+    const conflict = findConflict({ kind: input.kind, start: input.startsAt.getTime(), end: input.endsAt.getTime() }, nearby.map(entry => ({ id: entry.id, title: entry.title, kind: entry.kind, start: entry.startsAt.getTime(), end: entry.endsAt.getTime() })), pad);
+    if (conflict && !input.allowOverlap) throw new UserFacingError(conflictMessage(conflict, bufferMinutes));
+    const data = { title: input.title.trim(), kind: input.kind, contactId: input.contactId || null, startsAt: input.startsAt, endsAt: input.endsAt, timezone: input.timezone, ...details };
     const entry = existing ? await tx.calendarEntry.update({ where: { id: existing.id }, data: { ...data, version: { increment: 1 } } }) : await tx.calendarEntry.create({ data: { ...data, workspaceId: input.workspaceId } });
     if (entry.contactId) {
       await tx.contactActivity.create({ data: { workspaceId: input.workspaceId, contactId: entry.contactId, actorUserId: input.actorUserId, kind: "SYSTEM", visibility: "WORKSPACE", summary: `${existing ? "Updated" : "Scheduled"} ${entry.kind === "MEETING" ? "meeting" : "time block"}: ${entry.title}.`, metadata: { calendarEntryId: entry.id, startsAt: entry.startsAt.toISOString(), endsAt: entry.endsAt.toISOString(), timezone: entry.timezone } } });
       if (entry.kind === "MEETING" && (!existing || existing.contactId !== entry.contactId || existing.kind !== "MEETING")) await applyJourneyEvent(tx, { workspaceId: input.workspaceId, contactId: entry.contactId, actorUserId: input.actorUserId, eventType: "MEETING_SCHEDULED", eventKey: `calendar:${entry.id}:${entry.version}`, source: "Calendar" });
     }
+    // Follow-ups bound to this appointment re-anchor to its new time and details on the next pass.
+    if (existing) await queueBoundReconciliation(tx, input.workspaceId, entry.id);
     return entry;
-  }, { timeout: 15_000 });
+}
+
+export async function saveCalendarEntry(input: CalendarEntryInput) {
+  return prisma.$transaction(async tx => saveCalendarEntryIn(tx, input), { timeout: 15_000 });
+}
+
+/** Enqueues a contact-scoped pass for every plan bound to an appointment, so its follow-ups follow the change. */
+export async function queueBoundReconciliation(tx: Pick<typeof prisma, "appointmentBinding" | "job">, workspaceId: string, calendarEntryId: string): Promise<number> {
+  const bindings = await tx.appointmentBinding.findMany({ where: { workspaceId, calendarEntryId }, select: { contactId: true, mixId: true } });
+  for (const binding of bindings) await tx.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId: binding.contactId, mixId: binding.mixId } } });
+  return bindings.length;
 }
 
 export async function importCalendar(workspaceId: string, connectionId: string, body: string, timezone: string, now = new Date()) {
@@ -31,7 +62,7 @@ export async function importCalendar(workspaceId: string, connectionId: string, 
   return prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR NO KEY UPDATE`;
     const connection = await tx.calendarConnection.findFirst({ where: { id: connectionId, workspaceId, enabled: true } });
-    if (!connection) throw new Error("This calendar connection is unavailable.");
+    if (!connection) throw new UserFacingError("This calendar connection is unavailable.");
     await tx.calendarEntry.deleteMany({ where: { workspaceId, connectionId } });
     // Incoming calendars only mark availability. They never create customers or
     // trigger a sale/meeting milestone from an unverified attendee address.
@@ -43,17 +74,17 @@ export async function importCalendar(workspaceId: string, connectionId: string, 
 
 export async function syncCalendarConnection(workspaceId: string, id: string, now = new Date()) {
   const connection = await prisma.calendarConnection.findFirst({ where: { workspaceId, id, enabled: true, urlEncrypted: { not: null } } });
-  if (!connection?.urlEncrypted) throw new Error("This calendar has no subscription URL.");
+  if (!connection?.urlEncrypted) throw new UserFacingError("This calendar has no subscription URL.");
   // Claim before fetching, so concurrent workers do not repeatedly fetch a feed.
   const claimed = await prisma.calendarConnection.updateMany({ where: { id, enabled: true, OR: [{ lastAttemptAt: null }, { lastAttemptAt: { lt: new Date(now.getTime() - 60_000) } }] }, data: { lastAttemptAt: now } });
-  if (!claimed.count) throw new Error("This calendar was just refreshed. Try again in a minute.");
+  if (!claimed.count) throw new UserFacingError("This calendar was just refreshed. Try again in a minute.");
   try {
     const { url, timezone } = decryptIntegrationCredentials<{ url: string; timezone: string }>(connection.urlEncrypted);
     return await importCalendar(workspaceId, id, await fetchCalendarFeed(url), timezone, now);
   } catch {
     const message = "Could not refresh this calendar. Previous availability is kept. Check the provider’s sharing URL or reconnect.";
     await prisma.calendarConnection.updateMany({ where: { id, workspaceId }, data: { lastError: message } });
-    throw new Error(message);
+    throw new UserFacingError(message);
   }
 }
 

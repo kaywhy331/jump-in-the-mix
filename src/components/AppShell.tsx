@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
-import { Nav } from "@/components/Nav";
+import { AccountNav, Nav } from "@/components/Nav";
+import { AppearanceControl } from "@/components/Appearance";
 import { logoutAction } from "@/lib/auth-actions";
 import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
 import { Sheet } from "@/components/Sheet";
+import { AppIcon } from "@/components/AppIcon";
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 
 export function AppShell({
@@ -35,27 +37,30 @@ export function AppShell({
 
   return (
     <div className={impersonation ? "app-shell impersonating" : "app-shell"}>
+      <a className="public-skip-link" href="#workspace-main">Skip to content</a>
       <aside className="sidebar">
         <Logo />
-        <Nav />
         {!impersonation && <QuickAddButton />}
+        <Nav />
         <div className="sidebar-footer account-sidebar-footer">
+          <AccountNav />
+          <AppearanceControl compact />
           <span className="user-label">{impersonation ? `Viewing as ${userName}` : `Signed in as ${userName}`}</span>
           <div className="account-sidebar-actions">
             {impersonation ? endImpersonationForm : (
               <Sheet
-                trigger={<button className="button small" type="button">Profile</button>}
+                trigger={<button className="button small" type="button"><AppIcon name="profile" />Profile</button>}
                 title="Profile and settings"
                 description={`Signed in as ${userName}`}
                 className="profile-sheet"
               >
-                <nav className="sheet-link-list" aria-label="Profile and settings">
-                  <Link className="button" href="/account">My Account</Link>
-                  <Link className="button" href="/settings">Settings</Link>
-                  <Link className="button" href="/templates">Ready-made mixes</Link>
-                  <Link className="button" href="/help">Help</Link>
+                <nav className="contact-tools-links" aria-label="Profile and settings">
+                  <Link href="/account"><AppIcon name="profile" />My Account</Link>
+                  <Link href="/settings"><AppIcon name="settings" />Settings</Link>
+                  <Link href="/templates"><AppIcon name="import" />Ready-made mixes</Link>
+                  <Link href="/help"><AppIcon name="help" />Help</Link>
                 </nav>
-                <form action={logoutAction}><button className="button danger" type="submit">Sign out</button></form>
+                <form action={logoutAction} className="contact-tools-links"><button type="submit"><AppIcon name="arrowLeft" />Sign out</button></form>
               </Sheet>
             )}
           </div>
@@ -64,7 +69,7 @@ export function AppShell({
       <header className="mobile-app-header">
         <Logo />
         {impersonation ? endImpersonationForm : (
-          <Link className="button small mobile-profile-link" href="/more" aria-label={`Open profile menu for ${userName}`}>{userName.slice(0, 1).toUpperCase()}</Link>
+          <Link className="button small mobile-profile-link" href="/more" aria-label="More">{userName.slice(0, 1).toUpperCase()}</Link>
         )}
       </header>
       {impersonation && (
@@ -77,7 +82,7 @@ export function AppShell({
           {endImpersonationForm}
         </section>
       )}
-      <main className="app-main">{children}</main>
+      <main id="workspace-main" tabIndex={-1} className="app-main">{children}</main>
       <div className="mobile-nav"><Nav /></div>
       {!impersonation && <QuickAddDialog timezone={displayPreferences.timeZone} />}
     </div>

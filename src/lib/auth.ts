@@ -1,4 +1,6 @@
+import { customerReturnPath } from "@/lib/customer-return-path";
 import { createHash, randomBytes } from "node:crypto";
+import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { supportReadContext } from "@/lib/support-read-audit";
 import { redirect } from "next/navigation";
@@ -9,14 +11,28 @@ import {
 } from "@/lib/admin-mfa";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
+import { withSignedError } from "@/lib/form-errors";
 import { endAdminImpersonationGrant, resolveAdminImpersonationGrant } from "@/lib/impersonation";
 import { getRequestMetadata } from "@/lib/request-context";
 import { wakeWorkerAfterResponse } from "@/lib/worker-dispatch-after";
 import { effectiveAdminPermissions, hasAdminPermission, type AdminPermission } from "@/lib/admin-permissions";
+import { firstAdminDestination, safeAdminReturnTo } from "@/lib/admin-navigation";
 import { lockAccess } from "@/lib/access-lock";
 
 export function hashSessionToken(token: string): string {
   return createHash("sha256").update(token, "utf8").digest("hex");
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Sliding expiry for the Session row: activity keeps a session alive for another idle period, but no
+ * session outlives the absolute cap counted from its creation. The result is never earlier than the
+ * current expiry, so a touch can only extend a session or leave it unchanged.
+ */
+export function nextSessionExpiry({ current, now, createdAt, idleDays, maxDays }: { current: Date; now: Date; createdAt: Date; idleDays: number; maxDays: number }): Date {
+  const candidate = Math.min(now.getTime() + idleDays * DAY_MS, createdAt.getTime() + maxDays * DAY_MS);
+  return candidate > current.getTime() ? new Date(candidate) : current;
 }
 
 function verificationPath(email: string): string {
@@ -25,7 +41,8 @@ function verificationPath(email: string): string {
 
 export async function createSession(userId: string): Promise<string> {
   const token = randomBytes(32).toString("base64url");
-  const expiresAt = new Date(Date.now() + env.sessionDays * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + env.sessionDays * DAY_MS);
   const metadata = await getRequestMetadata();
   const store = await cookies();
   const previousToken = store.get(env.cookieName)?.value;
@@ -33,7 +50,7 @@ export async function createSession(userId: string): Promise<string> {
   const session = await prisma.$transaction(async tx => {
     await lockAccess(tx);
     const account = await tx.user.findUnique({ where: { id: userId }, select: { suspendedAt: true } });
-    if (!account || account.suspendedAt) redirect("/login?error=Account+access+is+unavailable.+Contact+support+for+help.");
+    if (!account || account.suspendedAt) redirect(withSignedError("/login", "Account access is unavailable. Contact support for help."));
     // Replace only this browser's previous session. The lock also orders a
     // concurrent device opt-in against account replacement.
     const previousHash = previousToken ? hashSessionToken(previousToken) : null;
@@ -77,10 +94,15 @@ export async function createSession(userId: string): Promise<string> {
   store.delete(env.impersonationCookieName);
   store.set(env.cookieName, token, {
     httpOnly: true,
-    sameSite: "strict",
+    // Lax: sign-in finishes on GET links opened from email and on OAuth callbacks, and a Strict cookie
+    // is withheld on the redirect hops of such a cross-site navigation. Every state change is a POST
+    // behind the origin check in src/proxy.ts, which Lax still protects.
+    sameSite: "lax",
     secure: env.secureSessionCookie,
     path: "/",
-    expires: expiresAt
+    // The browser keeps the cookie for the absolute cap; the Session row (which slides on activity in
+    // getCurrentSession) decides whether it is still valid.
+    expires: new Date(now.getTime() + env.sessionMaxDays * DAY_MS)
   });
 
   return session.id;
@@ -136,7 +158,14 @@ export async function destroyAllSessionsForUser(userId: string): Promise<number>
   return result.count;
 }
 
-export async function getCurrentSession() {
+/**
+ * The signed-in session, read once per server render: React's cache() gives the layout, the page and
+ * their components one shared result, so the Session row is read (and touched, or a stale one removed)
+ * once per render. Outside a render (Server Actions, route handlers) cache() keeps nothing between
+ * calls, so an action always reads its own writes. Callers share the returned object: read it, never
+ * mutate it (guarded by tests/request-cache.test.ts).
+ */
+export const getCurrentSession = cache(async function getCurrentSession() {
   const store = await cookies();
   const token = store.get(env.cookieName)?.value;
   if (!token) return null;
@@ -169,8 +198,11 @@ export async function getCurrentSession() {
   }
 
   const touchAfterMs = env.sessionTouchMinutes * 60 * 1000;
-  if (Date.now() - session.lastSeenAt.getTime() >= touchAfterMs) {
-    await prisma.session.updateMany({ where: { id: session.id }, data: { lastSeenAt: new Date() } });
+  const now = new Date();
+  if (now.getTime() - session.lastSeenAt.getTime() >= touchAfterMs) {
+    const expiresAt = nextSessionExpiry({ current: session.expiresAt, now, createdAt: session.createdAt, idleDays: env.sessionDays, maxDays: env.sessionMaxDays });
+    await prisma.session.updateMany({ where: { id: session.id }, data: { lastSeenAt: now, expiresAt } });
+    session.expiresAt = expiresAt;
   }
 
   const authUser = session.user;
@@ -197,11 +229,14 @@ export async function getCurrentSession() {
   }
 
   return { ...session, authUser, impersonation: null };
-}
+});
 
 export async function requireSession() {
   const session = await getCurrentSession();
-  if (!session) redirect("/login");
+  if (!session) {
+    const destination = customerReturnPath((await headers()).get("x-jitm-admin-return"));
+    redirect(destination ? `/login?next=${encodeURIComponent(destination)}` : "/login");
+  }
   return session;
 }
 
@@ -238,14 +273,15 @@ export async function requirePlatformAdmin(permission?: AdminPermission | AdminP
       adminMfaCredentialStatus(identity.user.id),
       adminMfaSessionIsVerified(identity.session.id, identity.user.id)
     ]);
-    if (!credential.enabledAt) redirect("/account/admin-mfa?setup=1&returnTo=%2Fadmin");
-    if (!verified) redirect("/account/admin-mfa?verify=1&returnTo=%2Fadmin");
+    const returnTo = safeAdminReturnTo((await headers()).get("x-jitm-admin-return"), firstAdminDestination(identity.permissions));
+    if (!credential.enabledAt) redirect(`/account/admin-mfa?setup=1&returnTo=${encodeURIComponent(returnTo)}`);
+    if (!verified) redirect(`/account/admin-mfa?verify=1&returnTo=${encodeURIComponent(returnTo)}`);
   }
   const required = permission ? (Array.isArray(permission) ? permission : [permission]) : [];
   const denied = required.find(p => !hasAdminPermission(identity.staff, p));
   if (denied) {
     await prisma.platformAuditEvent.create({ data: { actorUserId: identity.user.id, action: "permission.denied", entityType: "AdminPermission", entityId: denied, outcome: "DENIED" } });
-    redirect("/admin/access-denied");
+    redirect(`/admin/access-denied?capability=${encodeURIComponent(denied)}`);
   }
   return identity;
 }

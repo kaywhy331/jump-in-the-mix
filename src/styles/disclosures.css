@@ -1,0 +1,50 @@
+/* One disclosure pattern for every expandable section (design-consistency audit, 2026-09-23).
+   The export draws a single expand affordance: a 16px chevron at the end of the row. Summaries
+   that draw their own chevron or overflow icon (AppIcon chevronDown / more) keep it; every other
+   summary gets the same trailing chevron, a 44px target and the shared label typography. */
+details > summary { cursor: pointer; list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::marker { content: ""; }
+
+/* Zero specificity: page rules that deliberately size a summary still apply. */
+:where(details) > :where(summary) { min-height: 44px; padding-block: 10px; font-size: .875rem; font-weight: 600; line-height: 1.5; color: var(--text); }
+
+details:not(.public-mobile-menu, .mix-beat-options) > summary:not(:has(> svg[data-icon="chevronDown"], > svg[data-icon="more"])) {
+  position: relative;
+  padding-inline-end: 28px;
+}
+details:not(.public-mobile-menu, .mix-beat-options) > summary:not(:has(> svg[data-icon="chevronDown"], > svg[data-icon="more"]))::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: 4px;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  margin-top: -8px;
+  background-color: var(--text-3);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / 16px no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / 16px no-repeat;
+  transition: transform .15s ease;
+}
+details[open]:not(.public-mobile-menu, .mix-beat-options) > summary:not(:has(> svg[data-icon="chevronDown"], > svg[data-icon="more"]))::after { transform: rotate(180deg); }
+details > summary > svg[data-icon="chevronDown"] { flex: none; width: 16px; height: 16px; margin-inline-start: auto; color: var(--text-3); transition: transform .15s ease; }
+details[open] > summary > svg[data-icon="chevronDown"] { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  details > summary::after, details > summary > svg[data-icon="chevronDown"] { transition: none; }
+}
+
+/* A hint under a summary label stays secondary. */
+details > summary small { font-weight: 400; color: var(--text-3); }
+
+/* Keyboard focus stays visible on summaries inside clipped containers. */
+details > summary:focus-visible { outline-offset: -3px; }
+
+/* Per-item overflow menus share the 44px round "•••" control (export More control). */
+.disclosure-menu > summary { display: grid; place-items: center; width: 44px; min-height: 44px; padding: 0; border-radius: 50%; color: var(--text-2); }
+.disclosure-menu > summary:hover, .disclosure-menu[open] > summary { background: var(--surface); }
+.disclosure-menu > summary > svg { width: 20px; height: 20px; }
+
+/* Staff keep their compact desktop density; touch layouts restore 44px rows. */
+@media (max-width: 760px) {
+  .staff-shell details > summary, .staff-shell .admin-report-domain details > summary, .staff-shell .admin-audit-details > summary { min-height: 44px; padding-block: 10px; }
+}

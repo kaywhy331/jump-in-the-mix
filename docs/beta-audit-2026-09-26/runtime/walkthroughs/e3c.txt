@@ -1,0 +1,6 @@
+  invalid fields before Save all: ["input[time] name= label=\"Follow-up time\" top=977 visible=false","select[select-one] name= label=\"How to follow up Choose a method Call Text Email WhatsApp Voicemail\" top=1073 visible=false","textarea[textarea] name= label=\"Draft message\" top=1165 visible=false"]
+  still-invalid textareas after choosing Call: 0
+  Sam Ortiz after Quick Add: [["PENDING","9/26/2026, 2:00:00 PM","the kitchen quote"]]
+  RESCHEDULED (next 2026-09-29 09:00) response: 200 {"status":"DONE","activityId":"cmuipovei000movl3je2jfw29","nextCommitmentAt":"2026-09-29T15:00:00.000Z","jumpDateId":"cmuipovec000kovl38ls6bv7s"}
+  Sam Ortiz 15 s later: [["DONE","9/26/2026, 2:00:00 PM","the kitchen quote","outcome:rescheduled"]]
+(elapsed 21 s)

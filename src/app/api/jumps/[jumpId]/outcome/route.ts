@@ -1,11 +1,16 @@
 import { applyJourneyEvent } from "@/lib/journey";
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { NextResponse } from "next/server";
 import { timezoneForUser } from "@/lib/display-preferences";
-import type { ContactActivityVisibility, JumpOutcome, Prisma } from "@/generated/prisma/client";
+import type { Channel, ContactActivityVisibility, JumpOutcome, Prisma } from "@/generated/prisma/client";
 import { getCurrentSession } from "@/lib/auth";
+import { attachAttemptOutcome, parseAttemptPayload, recordJumpAttempt } from "@/lib/jump-attempts";
 import { logicalDateKey, zonedDateTimeToUtc } from "@/lib/jump-schedule";
+import { createOneTimeFollowUp } from "@/lib/one-time-follow-up";
 import { prisma } from "@/lib/prisma";
+import { queueWorkflowForJump, workflowDefinition, workflowState } from "@/lib/mix-workflow";
+import { workflowDecisionRulesForVisit } from "@/lib/mix-workflow-engine";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 
@@ -20,6 +25,8 @@ const OUTCOMES: JumpOutcome[] = [
   "SKIPPED",
   "REOPENED"
 ];
+
+const CHANNELS: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
 
 const COMPLETE_OUTCOMES: JumpOutcome[] = [
   "COMPLETED",
@@ -37,13 +44,25 @@ type OutcomePayload = {
   nextDate?: string;
   nextTime?: string;
   requestId?: string;
+  attemptId?: unknown;
+  attempt?: unknown;
+  workflowDecisions?: Array<{ ruleId: string; outcome: string }>;
 };
+
+// What the recorded outcome can say about the preparation behind it. "attempt" links the exact
+// content that was opened; "unavailable" means nothing was recorded or recoverable; "mismatch"
+// means the device held a different payload than the stored attempt, which is left untouched.
+type PreparationEvidence = "attempt" | "unavailable" | "mismatch";
+const EVIDENCE: PreparationEvidence[] = ["attempt", "unavailable", "mismatch"];
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type StoredResponse = {
   status: "PENDING" | "DONE" | "SKIPPED";
   activityId: string;
   nextCommitmentAt: string | null;
   jumpDateId: string | null;
+  nextJumpId?: string | null;
+  attempt?: { id: string; evidence: PreparationEvidence };
 };
 
 function clean(value: unknown, maximum: number): string {
@@ -69,11 +88,16 @@ function jsonResponse(value: Prisma.JsonValue | null): StoredResponse | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const object = value as Record<string, unknown>;
   if (!["PENDING", "DONE", "SKIPPED"].includes(String(object.status))) return null;
+  const attempt = object.attempt && typeof object.attempt === "object" && !Array.isArray(object.attempt) ? object.attempt as Record<string, unknown> : null;
   return {
     status: object.status as StoredResponse["status"],
     activityId: String(object.activityId ?? ""),
     nextCommitmentAt: typeof object.nextCommitmentAt === "string" ? object.nextCommitmentAt : null,
-    jumpDateId: typeof object.jumpDateId === "string" ? object.jumpDateId : null
+    jumpDateId: typeof object.jumpDateId === "string" ? object.jumpDateId : null,
+    nextJumpId: typeof object.nextJumpId === "string" ? object.nextJumpId : null,
+    ...(attempt && typeof attempt.id === "string" && EVIDENCE.includes(attempt.evidence as PreparationEvidence)
+      ? { attempt: { id: attempt.id, evidence: attempt.evidence as PreparationEvidence } }
+      : {})
   };
 }
 
@@ -128,7 +152,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
     }
   });
   if (!jump) return NextResponse.json({ error: "Follow-up not found." }, { status: 404 });
-  if (jump.status === "CANCELED") return NextResponse.json({ error: "This follow-up is no longer active." }, { status: 409 });
+  // A refusal carries the follow-up's current status so a retry after a lost response can tell
+  // "already recorded" apart from a real conflict.
+  if (jump.status === "CANCELED") return NextResponse.json({ error: "This follow-up is no longer active.", status: jump.status }, { status: 409 });
+  const decisionInput = z.array(z.object({ ruleId: z.string().min(1).max(160), outcome: z.string().min(1).max(160) }).strict()).max(50).safeParse(payload?.workflowDecisions ?? []);
+  if (!decisionInput.success) return NextResponse.json({ error: "Choose valid journey outcomes." }, { status: 400 });
+  const decisions = decisionInput.data;
+  if (decisions.length) {
+    const instance = jump.workflowInstanceId ? await prisma.mixWorkflowInstance.findFirst({ where: { id: jump.workflowInstanceId, workspaceId: membership.workspaceId } }) : null;
+    const state = instance ? workflowState(instance.state) : null, definition = instance ? workflowDefinition(instance.definition) : null;
+    const rules = definition && state ? workflowDecisionRulesForVisit(definition, state, jump.workflowVisitId) : [];
+    if (!instance || instance.status !== "ACTIVE" || new Set(decisions.map(item => item.ruleId)).size !== decisions.length || decisions.some(choice => !rules.some(rule => rule.id === choice.ruleId && rule.routes.some(route => route.when === "OUTCOME" && route.outcome === choice.outcome)))) return NextResponse.json({ error: "These outcomes do not belong to this active Beat. Refresh its journey choices." }, { status: 400 });
+  }
 
   const timezone = await timezoneForUser(session.user.id);
   const rawNextDate = clean(payload?.nextDate, 10);
@@ -148,6 +183,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
     return NextResponse.json({ error: "The next follow-up must be in the future." }, { status: 400 });
   }
 
+  // The tray records against the attempt it opened. When that attempt was never acknowledged the
+  // same payload travels again and is created or acknowledged under the create-once rule; a
+  // refused mismatch still records the owner's outcome, marked, with the stored row untouched.
+  const attemptId = typeof payload?.attemptId === "string" && UUID_V4.test(payload.attemptId) ? payload.attemptId.toLowerCase() : null;
+  let evidence: PreparationEvidence = "unavailable";
+  if (attemptId) {
+    if (payload?.attempt !== undefined && payload?.attempt !== null) {
+      try {
+        const attemptPayload = parseAttemptPayload(payload.attempt);
+        if (attemptPayload.id !== attemptId) throw new RangeError("The attempt does not match its id.");
+        const recorded = await recordJumpAttempt({ workspaceId: membership.workspaceId, jumpId: jump.id, payload: attemptPayload });
+        evidence = recorded.ok ? "attempt" : recorded.reason === "mismatch" ? "mismatch" : "unavailable";
+      } catch {
+        evidence = "unavailable";
+      }
+    } else {
+      const known = await prisma.jumpAttempt.findFirst({ where: { id: attemptId, workspaceId: membership.workspaceId, jumpId: jump.id }, select: { id: true } });
+      evidence = known ? "attempt" : "unavailable";
+    }
+  }
+
   try {
     const result = await prisma.$transaction(async (tx): Promise<StoredResponse> => {
       const already = await tx.idempotencyKey.findUnique({
@@ -164,6 +220,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
           data: { status: "PENDING", completedAt: null, completionMethod: null }
         });
         if (updated.count !== 1) throw new Error("This follow-up is not available to reopen.");
+        nextStatus = "PENDING";
+      } else if (outcome === "RESCHEDULED" && jump.workflowInstanceId && nextCommitmentAt) {
+        const updated = await tx.jump.updateMany({ where: { id: jump.id, workspaceId: membership.workspaceId, status: "PENDING" }, data: { scheduledAt: nextCommitmentAt, snoozedUntil: nextCommitmentAt, completedAt: null, completionMethod: null } });
+        if (updated.count !== 1) throw new Error("This follow-up is no longer pending.");
         nextStatus = "PENDING";
       } else if (outcome === "NOT_SENT") {
         if (jump.status !== "PENDING") throw new Error("This follow-up is no longer pending.");
@@ -185,31 +245,28 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
       }
 
       if (outcome === "CONNECTED") await applyJourneyEvent(tx, { workspaceId: membership.workspaceId, contactId: jump.contactId, eventKey: `call:${jump.id}:${requestId}`, eventType: "CONVERSATION_STARTED", source: "Connected call", actorUserId: session.user.id });
+      await queueWorkflowForJump(tx, membership.workspaceId, jump.id, nextStatus === "DONE" || nextStatus === "SKIPPED" ? decisions : undefined, requestId);
 
-      let jumpDateId: string | null = null;
-      if (nextLogicalDate && nextCommitmentAt && nextMinutes !== null) {
-        const followUpType = await tx.dateType.findFirst({
-          where: { scopeKey: "system", slug: "follow-up", isActive: true },
-          select: { id: true }
-        });
-        if (!followUpType) throw new Error("The follow-up date type is unavailable.");
-        const jumpDate = await tx.jumpDate.create({
-          data: {
-            workspaceId: membership.workspaceId,
-            contactId: jump.contactId,
-            dateTypeId: followUpType.id,
-            dateValue: new Date(Date.UTC(nextLogicalDate.year, nextLogicalDate.month - 1, nextLogicalDate.day, 12)),
-            month: nextLogicalDate.month,
-            day: nextLogicalDate.day,
-            timeMinutes: nextMinutes,
-            recurrence: "NONE",
-            timezone,
-            label: note ? `Next commitment · ${note.slice(0, 180)}` : "Next follow-up"
-          }
-        });
-        jumpDateId = jumpDate.id;
-        await tx.job.create({
-          data: { workspaceId: membership.workspaceId, task: "generate-jumps", payload: { contactId: jump.contactId } }
+      // The next promise is one follow-up at exactly the chosen time, whatever plan the person is on.
+      // It carries the same channel and wording forward; the owner can change the draft on Today.
+      let nextJumpId: string | null = null;
+      if (nextCommitmentAt && !(outcome === "RESCHEDULED" && jump.workflowInstanceId)) {
+        const snapshot = (jump.templateSnapshot && typeof jump.templateSnapshot === "object" && !Array.isArray(jump.templateSnapshot) ? jump.templateSnapshot : {}) as Record<string, unknown>;
+        const text = (value: unknown) => typeof value === "string" ? value : null;
+        const channel = CHANNELS.includes(snapshot.channel as Channel) ? snapshot.channel as Channel : jump.stepVersion.stepTemplate.channel;
+        const content = text(snapshot.subject) !== null || text(snapshot.body) !== null || text(snapshot.script) !== null
+          ? { subject: text(snapshot.subject), body: text(snapshot.body), script: text(snapshot.script) }
+          : { subject: jump.stepVersion.subject, body: jump.stepVersion.body, script: jump.stepVersion.script };
+        const reason = outcome === "RESCHEDULED" ? jump.reason : note ? `Next follow-up · ${note.slice(0, 180)}` : "Next follow-up";
+        nextJumpId = await createOneTimeFollowUp(tx, {
+          workspaceId: membership.workspaceId,
+          contactId: jump.contactId,
+          actorUserId: session.user.id,
+          scheduledAt: nextCommitmentAt,
+          reason,
+          channel,
+          content,
+          key: `jump-outcome-next:${jump.id}:${requestId}`
         });
       }
 
@@ -227,13 +284,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
           nextCommitmentAt,
           metadata: {
             jumpReason: jump.reason,
+            ...(decisions.length && ["DONE", "SKIPPED"].includes(nextStatus) ? { workflowDecisions: decisions } : {}),
             contactName: jump.contact.displayName,
             previousStatus: jump.status,
             nextStatus,
-            userAgent: requestMetadata.userAgent
+            userAgent: requestMetadata.userAgent,
+            ...(attemptId ? { attemptId, preparationEvidence: evidence } : {})
           }
         }
       });
+      if (attemptId && evidence === "attempt") {
+        await attachAttemptOutcome(tx, { workspaceId: membership.workspaceId, jumpId: jump.id, attemptId, outcomeActivityId: activity.id, recordedAt: new Date() });
+      }
 
       await tx.auditLog.create({
         data: {
@@ -244,7 +306,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
           entityType: "Jump",
           entityId: jump.id,
           source: "today.outcome",
-          metadata: { outcome, nextStatus, activityId: activity.id, jumpDateId, logicalDate: nextLogicalDate ? logicalDateKey(nextLogicalDate) : null }
+          metadata: { outcome, nextStatus, activityId: activity.id, nextJumpId, logicalDate: nextLogicalDate ? logicalDateKey(nextLogicalDate) : null }
         }
       });
 
@@ -252,7 +314,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
         status: nextStatus,
         activityId: activity.id,
         nextCommitmentAt: nextCommitmentAt?.toISOString() ?? null,
-        jumpDateId
+        jumpDateId: null,
+        nextJumpId,
+        ...(attemptId ? { attempt: { id: attemptId, evidence } } : {})
       };
       await tx.idempotencyKey.create({
         data: {
@@ -273,8 +337,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
     });
     const replayAfterRace = jsonResponse(duplicate?.response ?? null);
     if (replayAfterRace) return NextResponse.json({ ...replayAfterRace, duplicate: true });
+    // The status read before the transaction can be stale when another request finished first; the
+    // refusal reports what the follow-up is now, falling back to that read if the lookup fails.
+    const current = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: membership.workspaceId }, select: { status: true } }).catch(() => null);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "The follow-up outcome could not be saved." },
+      { error: error instanceof Error ? error.message : "The follow-up outcome could not be saved.", status: current?.status ?? jump.status },
       { status: 409 }
     );
   }

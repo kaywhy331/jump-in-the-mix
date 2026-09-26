@@ -14,7 +14,7 @@ export default async function CustomerReviewPage({ params }: { params: Promise<{
   }
   const [contact, workspace] = await Promise.all([
     prisma.contact.findFirst({ where: { id: request.contactId, workspaceId: request.workspaceId }, select: { firstName: true, displayName: true } }),
-    prisma.workspace.findUnique({ where: { id: request.workspaceId }, select: { name: true, profile: { select: { company: true, reviewUrl: true } } } })
+    prisma.workspace.findUnique({ where: { id: request.workspaceId }, select: { name: true, profile: { select: { company: true, reviewUrl: true, website: true, phone: true } } } })
   ]);
   if (!contact || !workspace) {
     return <main className="review-page"><section className="review-card"><h1>This feedback link is unavailable</h1></section></main>;
@@ -27,5 +27,5 @@ export default async function CustomerReviewPage({ params }: { params: Promise<{
   }
   const company = workspace.profile?.company || workspace.name;
   const firstName = contact.firstName?.trim() || contact.displayName.split(/\s+/)[0] || "there";
-  return <main className="review-page"><section className="review-card"><p className="eyebrow">A private check-in from {company}</p><h1>Hi {firstName}, how did we do?</h1><p>Your answer goes directly to {company}. It is not posted publicly.</p><ReviewFeedbackForm token={token} initialStatus={request.status === "READY" ? "OPENED" : request.status} initialRating={request.rating} reviewAvailable={Boolean(workspace.profile?.reviewUrl)} /></section></main>;
+  return <main className="review-page"><section className="review-card"><h1>Hi {firstName}, how did we do?</h1><p>Your answer goes directly to {company}. It is not posted publicly.</p><ReviewFeedbackForm token={token} initialStatus={request.status === "READY" ? "OPENED" : request.status} initialRating={request.rating} businessContact={workspace.profile?.website?.startsWith("https://") ? workspace.profile.website : workspace.profile?.phone && /^[+\d ()-]+$/.test(workspace.profile.phone) ? `tel:${workspace.profile.phone.replace(/[^+\d]/g, "")}` : null} reviewAvailable={Boolean(workspace.profile?.reviewUrl)} /></section></main>;
 }

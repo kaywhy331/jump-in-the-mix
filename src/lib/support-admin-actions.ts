@@ -1,5 +1,7 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
+import { safeAdminReturnTo } from "@/lib/admin-navigation";
 import type {
   SupportTicketCategory,
   SupportTicketPriority,
@@ -7,6 +9,7 @@ import type {
 } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requirePlatformAdmin } from "@/lib/auth";
+import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { revalidatePath } from "next/cache";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { assignSupportTicket, SupportAccessError } from "@/lib/support-case-access";
@@ -28,46 +31,48 @@ function value(formData: FormData, key: string, maxLength: number): string {
   return String(formData.get(key) ?? "").trim().slice(0, maxLength);
 }
 
-function adminTicketError(ticketId: string, message: string): never {
-  redirect(`/admin/support/${encodeURIComponent(ticketId)}?error=${encodeURIComponent(message)}`);
+function ticketPath(ticketId: string, data: FormData, state?: string) {
+  return `/admin/support/${encodeURIComponent(ticketId)}?${state ? `${state}&` : ""}returnTo=${encodeURIComponent(safeAdminReturnTo(value(data, "returnTo", 2000), "/admin/support"))}`;
+}
+/** The ticket page with `message`, signed for the staff member (`viewer`) who will see it. */
+function adminTicketError(ticketId: string, message: string, viewer: ErrorViewer, data = new FormData()): never {
+  redirect(withViewerError(ticketPath(ticketId, data), message, viewer));
+}
+
+export async function adminReplyToSupportTicketFormAction(_previous: { error?: string; saved?: string }, formData: FormData): Promise<{ error?: string; saved?: string; nextKey?: string }> {
+  const { user, session } = await requirePlatformAdmin("support.manage");
+  await limitSupportAction(user.id, session);
+  const ticketId = value(formData, "ticketId", 100);
+  const body = value(formData, "body", 5000);
+  if (!ticketId || body.length < 2) return { error: "Write a response of 2–5000 characters before sending it." };
+  try {
+    await adminReplyToSupportTicketRecord({ ticketId, adminUserId: user.id, actorSessionId: session.id, requestKey: value(formData, "requestKey", 100), body, resolve: formData.get("resolve") === "true" });
+  } catch (error) {
+    return { error: error instanceof SupportAccessError || error instanceof SupportTicketError ? error.message : "The response could not be saved. Your draft is still here." };
+  }
+  revalidatePath(`/account/tickets/${ticketId}`);
+  revalidatePath(`/admin/support/${ticketId}`);
+  revalidatePath("/admin/support");
+  return { saved: formData.get("resolve") === "true" ? "Reply saved and ticket resolved. The email notification is queued separately." : "Reply saved. Waiting on the customer; email notification is queued separately.", nextKey: randomUUID() };
 }
 
 export async function adminReplyToSupportTicketAction(formData: FormData): Promise<void> {
-  const { user: adminUser, session } = await requirePlatformAdmin("support.manage");
-  await limitSupportAction(adminUser.id);
+  const { session } = await requirePlatformAdmin("support.manage");
+  const result = await adminReplyToSupportTicketFormAction({}, formData);
   const ticketId = value(formData, "ticketId", 100);
-  const body = value(formData, "body", 5000);
-  if (!ticketId) adminTicketError("unknown", "Support ticket not found.");
-  if (body.length < 2) adminTicketError(ticketId, "Write a response before sending it.");
-
-  let result: Awaited<ReturnType<typeof adminReplyToSupportTicketRecord>> | null = null;
-  try {
-    result = await adminReplyToSupportTicketRecord({
-      ticketId,
-      adminUserId: adminUser.id,
-      actorSessionId: session.id,
-      requestKey: value(formData, "requestKey", 100),
-      body
-    });
-  } catch (error) {
-    const message = (error instanceof SupportAccessError || error instanceof SupportTicketError) ? error.message : "The response could not be saved.";
-    adminTicketError(ticketId, message);
-  }
-  if (!result) adminTicketError(ticketId, "The response could not be saved.");
-
-  revalidatePath(`/account/tickets/${ticketId}`);
-  redirect(`/admin/support/${ticketId}?replied=1`);
+  if (result.error) adminTicketError(ticketId, result.error, session, formData);
+  redirect(ticketPath(ticketId, formData, "replied=1"));
 }
 
 export async function adminUpdateSupportTicketTriageAction(formData: FormData): Promise<void> {
   const { user: adminUser, session } = await requirePlatformAdmin("support.manage");
-  await limitSupportAction(adminUser.id);
+  await limitSupportAction(adminUser.id, session);
   const ticketId = value(formData, "ticketId", 100);
   const categoryValue = value(formData, "category", 40);
   const priorityValue = value(formData, "priority", 40);
-  if (!ticketId) adminTicketError("unknown", "Support ticket not found.");
-  if (!isSupportCategory(categoryValue)) adminTicketError(ticketId, "Choose a valid support category.");
-  if (!isSupportPriority(priorityValue)) adminTicketError(ticketId, "Choose a valid support priority.");
+  if (!ticketId) adminTicketError("unknown", "Support ticket not found.", session);
+  if (!isSupportCategory(categoryValue)) adminTicketError(ticketId, "Choose a valid support category.", session, formData);
+  if (!isSupportPriority(priorityValue)) adminTicketError(ticketId, "Choose a valid support priority.", session, formData);
 
   try {
     await updateSupportTicketTriage({
@@ -78,18 +83,18 @@ export async function adminUpdateSupportTicketTriageAction(formData: FormData): 
       priority: priorityValue as SupportTicketPriority
     });
   } catch (error) {
-    adminTicketError(ticketId, (error instanceof SupportAccessError || error instanceof SupportTicketError) ? error.message : "Ticket triage could not be saved.");
+    adminTicketError(ticketId, (error instanceof SupportAccessError || error instanceof SupportTicketError) ? error.message : "Ticket triage could not be saved.", session, formData);
   }
-  redirect(`/admin/support/${ticketId}?triageSaved=1`);
+  redirect(ticketPath(ticketId, formData, "triageSaved=1"));
 }
 
 export async function adminUpdateSupportTicketStatusAction(formData: FormData): Promise<void> {
   const { user: adminUser, session } = await requirePlatformAdmin("support.manage");
-  await limitSupportAction(adminUser.id);
+  await limitSupportAction(adminUser.id, session);
   const ticketId = value(formData, "ticketId", 100);
   const statusValue = value(formData, "status", 40);
-  if (!ticketId) adminTicketError("unknown", "Support ticket not found.");
-  if (!isSupportStatus(statusValue)) adminTicketError(ticketId, "Choose a valid support status.");
+  if (!ticketId) adminTicketError("unknown", "Support ticket not found.", session);
+  if (!isSupportStatus(statusValue)) adminTicketError(ticketId, "Choose a valid support status.", session, formData);
 
   try {
     await updateSupportTicketStatus({
@@ -99,9 +104,9 @@ export async function adminUpdateSupportTicketStatusAction(formData: FormData): 
       status: statusValue as SupportTicketStatus
     });
   } catch (error) {
-    adminTicketError(ticketId, (error instanceof SupportAccessError || error instanceof SupportTicketError) ? error.message : "Ticket status could not be updated.");
+    adminTicketError(ticketId, (error instanceof SupportAccessError || error instanceof SupportTicketError) ? error.message : "Ticket status could not be updated.", session, formData);
   }
-  redirect(`/admin/support/${ticketId}?statusSaved=1`);
+  redirect(ticketPath(ticketId, formData, "statusSaved=1"));
 }
 
 export async function adminRetrySupportEmailAction(formData: FormData): Promise<void> {
@@ -118,7 +123,7 @@ export async function adminCancelSupportEmailAction(formData: FormData): Promise
 }
 async function reviewEmailAction(formData: FormData, operation: "retry" | "recover" | "repeat" | "cancel") {
   const { user, session } = await requirePlatformAdmin("support.manage");
-  await limitSupportAction(user.id);
+  await limitSupportAction(user.id, session);
   const ticketId = value(formData, "ticketId", 100);
   const input = { actorUserId: user.id, actorSessionId: session.id, ticketId, deliveryId: value(formData, "deliveryId", 100), expectedUpdatedAt: value(formData, "expectedUpdatedAt", 40), reason: String(formData.get("reason") ?? "") };
   try {
@@ -127,23 +132,24 @@ async function reviewEmailAction(formData: FormData, operation: "retry" | "recov
     else if (operation === "cancel") await cancelSupportEmail(input);
     else await repeatSupportEmail({ ...input, password: String(formData.get("password") ?? ""), providerReference: String(formData.get("providerReference") ?? ""), requestReference: String(formData.get("requestReference") ?? ""), providerReviewed: formData.get("providerReviewed") === "on", recipientRequested: formData.get("recipientRequested") === "on", duplicateRiskAccepted: formData.get("duplicateRiskAccepted") === "on" });
   } catch (error) {
-    adminTicketError(ticketId, error instanceof SupportAccessError || error instanceof EmailReviewError ? error.message : "The notification review could not be saved. Reload the ticket.");
+    if (error instanceof EmailReviewError && error.needsMfa) redirect(`/account/admin-mfa?verify=1&returnTo=${encodeURIComponent(ticketPath(ticketId, formData, "verification=1"))}`);
+    adminTicketError(ticketId, error instanceof SupportAccessError || error instanceof EmailReviewError ? error.message : "The notification review could not be saved. Reload the ticket.", session, formData);
   }
   revalidatePath(`/admin/support/${ticketId}`);
-  redirect(`/admin/support/${encodeURIComponent(ticketId)}?emailReviewed=1`);
+  redirect(ticketPath(ticketId, formData, "emailReviewed=1"));
 }
 
-async function limitSupportAction(actorUserId: string) {
-  if (!(await consumeRateLimit({ scope: "admin.support-action", identifiers: [actorUserId], limit: 40, windowMs: 5 * 60_000 })).allowed) redirect("/admin/support?error=Too+many+support+actions.+Please+wait+five+minutes.");
+async function limitSupportAction(actorUserId: string, viewer: ErrorViewer) {
+  if (!(await consumeRateLimit({ scope: "admin.support-action", identifiers: [actorUserId], limit: 40, windowMs: 5 * 60_000 })).allowed) redirect(withViewerError("/admin/support", "Too many support actions. Please wait five minutes.", viewer));
 }
 
 export async function adminAssignSupportTicketAction(formData: FormData): Promise<void> {
   const { user, session } = await requirePlatformAdmin("support.manage");
-  await limitSupportAction(user.id);
+  await limitSupportAction(user.id, session);
   const ticketId = value(formData, "ticketId", 100);
   try {
     await assignSupportTicket({ actorUserId: user.id, actorSessionId: session.id, ticketId, assignedToUserId: value(formData, "assignedToUserId", 100) || null, expectedRevision: Number(formData.get("assignmentRevision") ?? NaN), reason: String(formData.get("reason") ?? "") });
-  } catch (error) { adminTicketError(ticketId, error instanceof SupportAccessError ? error.message : "The assignment could not be saved."); }
+  } catch (error) { adminTicketError(ticketId, error instanceof SupportAccessError ? error.message : "The assignment could not be saved.", session, formData); }
   revalidatePath("/admin/support");
-  redirect(`/admin/support/${encodeURIComponent(ticketId)}?assignmentSaved=1`);
+  redirect(ticketPath(ticketId, formData, "assignmentSaved=1"));
 }

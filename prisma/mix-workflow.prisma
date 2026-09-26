@@ -1,0 +1,32 @@
+// Saved account rules and durable, versioned executions. JSON snapshots preserve the
+// exact graph followed by an instance when reusable Mix definitions change.
+model MixWorkflow {
+  workspaceId String @id
+  revision Int @default(1)
+  configuration Json
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MixWorkflowInstance {
+  id String @id @default(cuid())
+  workspaceId String
+  contactId String
+  admissionKey String
+  label String
+  status String @default("ACTIVE")
+  revision Int @default(1)
+  definition Json
+  state Json
+  nextCheckAt DateTime @default(now())
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  jumps Jump[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workspaceId, admissionKey])
+  @@index([workspaceId, contactId, status])
+  @@index([status, nextCheckAt])
+}

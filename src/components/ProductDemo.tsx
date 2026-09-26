@@ -1,130 +1,100 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { AppIcon, type AppIconName } from "@/components/AppIcon";
-import { DEMO_CONTACT_DEFAULTS, DEMO_MARKER, DEMO_SCENARIOS, demoActionUrl, personalizeDemoText, resolveDemoContact, type DemoContactDetails, type DemoStep } from "@/lib/product-demo";
+import { AppIcon } from "@/components/AppIcon";
+import { DEMO_BEATS, demoContact, demoDrafts, demoSituations } from "@/lib/demo-workspace";
+import { MARKETING_SCENARIOS } from "@/lib/marketing-scenarios";
+import styles from "./ProductDemo.module.css";
 
-const channels: Record<DemoStep["channel"], { label: string; action: string; icon: AppIconName }> = {
-  text: { label: "Text", action: "Open text app", icon: "message" },
-  email: { label: "Email", action: "Open email app", icon: "email" },
-  phone: { label: "Phone", action: "Open phone app", icon: "phone" }
-};
+type Practice = { drafts: ReturnType<typeof demoDrafts>; beat: number; view: "edit" | "preview" | "recorded"; done: number[] };
 
-function DemoDraft({ step, ready, appleMobile, contact }: { step: DemoStep; ready: boolean; appleMobile: boolean; contact: DemoContactDetails }) {
-  const [messageDraft, setMessage] = useState<string | null>(null);
-  const [subjectDraft, setSubject] = useState<string | null>(null);
-  const message = messageDraft ?? personalizeDemoText(step.message, contact);
-  const subject = subjectDraft ?? personalizeDemoText(step.subject ?? "", contact);
-  const [status, setStatus] = useState("");
-  const messageField = useRef<HTMLTextAreaElement>(null);
-  const notesEditor = useRef<HTMLDetailsElement>(null);
-  const channel = channels[step.channel];
-  const actionUrl = demoActionUrl(step.channel, subject, message, appleMobile, contact);
-  const resetDraft = <button className="button demo-reset-draft" type="button" onClick={() => { setMessage(null); setSubject(null); setStatus(""); }}>Use prepared {step.channel === "phone" ? "reminders" : "message"}</button>;
-
-  async function copyDraft() {
-    try {
-      await navigator.clipboard.writeText(`${DEMO_MARKER}\n\n${subject ? `${subject}\n\n` : ""}${message}`);
-      setStatus("Demo copied. You can paste it into your app.");
-    } catch {
-      if (notesEditor.current) notesEditor.current.open = true;
-      messageField.current?.focus();
-      messageField.current?.select();
-      setStatus("Copy is unavailable here. The draft is selected so you can copy it manually.");
-    }
-  }
-
-  return <div className="demo-draft">
-    <div className="demo-step-heading" aria-live="polite" aria-atomic="true">
-      <span><AppIcon name={channel.icon} />{channel.label} · {step.timing}</span>
-      <h3>{step.title}</h3>
-    </div>
-    {step.channel === "phone" ? <>
-      <div className="demo-call-notes conversation-note"><p>Call reminders</p><ul aria-label="Call reminders">{message.split("\n").map(line => line.trim().replace(/^[•*-]\s+/, "")).filter(Boolean).map((note, index) => <li key={index}>{note}</li>)}</ul></div>
-      <details className="demo-contact-note-preview"><summary>Contact notes</summary><p>{contact.notes}</p></details>
-      <details className="demo-notes-editor" ref={notesEditor}><summary>Edit reminders</summary><label className="field"><span>One reminder per line</span><textarea className="demo-message" ref={messageField} disabled={!ready} value={message} maxLength={1500} rows={4} onChange={event => { setMessage(event.target.value); setStatus(""); }} /></label>{messageDraft !== null && resetDraft}</details>
-    </> : <>
-      <div className="demo-message-preview speech-bubble speech-bubble--soft">{step.channel === "email" && <p className="demo-subject"><strong>Subject:</strong> {subject}</p>}<p>{message}</p></div>
-      <details className="demo-notes-editor" ref={notesEditor}><summary>Fine-tune this message</summary>
-        {step.channel === "email" && <label className="field"><span>Sample subject</span><input disabled={!ready} value={subject} maxLength={160} onChange={event => { setSubject(event.target.value); setStatus(""); }} /></label>}
-        <label className="field"><span>Make it sound like you</span><textarea className="demo-message" ref={messageField} disabled={!ready} value={message} maxLength={1500} rows={step.channel === "email" ? 6 : 4} onChange={event => { setMessage(event.target.value); setStatus(""); }} /></label>
-        {(messageDraft !== null || subjectDraft !== null) && <><p className="demo-draft-help">Your edits stay as written. Use the prepared message to refresh the names.</p>{resetDraft}</>}
-      </details>
-    </>}
-    <div className="demo-actions">
-      <a className="button primary" href={ready && actionUrl ? actionUrl : undefined} aria-disabled={!ready || !actionUrl} tabIndex={ready && actionUrl ? undefined : -1} aria-describedby={`demo-handoff-help${actionUrl ? "" : " demo-contact-action-help"}`} onClick={() => { if (ready && actionUrl) setStatus("Your device handles opening the app. You can return here to try another beat."); }}><AppIcon name={channel.icon} />{channel.action}</a>
-      <button className="button" type="button" disabled={!ready} onClick={copyDraft}>{step.channel === "phone" ? "Copy notes" : "Copy message"}</button>
-    </div>
-    {!actionUrl && <p className="demo-draft-help" id="demo-contact-action-help">Enter a valid {step.channel === "email" ? "email address" : "phone number"} in Edit contact, or leave it blank to use the sample.</p>}
-    <p className="demo-status" role="status">{status}</p>
-  </div>;
-}
-
-export function ProductDemo() {
+// In-memory simulation: no account actions, native URLs, or delivery claims.
+export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scenarioId?: string; heading?: string } = {}) {
+  const choices = demoSituations(scenarioId);
+  const [selected, setSelected] = useState(choices[0].id);
+  const [practices, setPractices] = useState<Record<string, Practice>>({});
   const [ready, setReady] = useState(false);
-  const [appleMobile, setAppleMobile] = useState(false);
-  const [selected, setSelected] = useState(0);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [contactValues, setContactValues] = useState<DemoContactDetails>({ ...DEMO_CONTACT_DEFAULTS });
-  const [highlighted, setHighlighted] = useState(false);
-  const demoWindow = useRef<HTMLElement>(null);
-  const contactEditor = useRef<HTMLDetailsElement>(null);
-  const draftPreview = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    setAppleMobile(/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
-    setReady(true);
-    let highlightTimeout: number | undefined;
-    const highlight = () => {
-      window.clearTimeout(highlightTimeout);
-      setHighlighted(true);
-      demoWindow.current?.focus({ preventScroll: true });
-      highlightTimeout = window.setTimeout(() => setHighlighted(false), 3000);
-    };
-    const handleTrigger = (event: MouseEvent) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
-      if (event.target instanceof Element && event.target.closest('[data-demo-trigger][href="#sample"]')) highlight();
-    };
-    document.addEventListener("click", handleTrigger);
-    if (window.location.hash === "#sample") highlight();
-    return () => { document.removeEventListener("click", handleTrigger); window.clearTimeout(highlightTimeout); };
-  }, []);
-  const scenario = DEMO_SCENARIOS[selected];
-  const step = scenario.steps[stepIndex];
-  const contact = resolveDemoContact(contactValues);
-  const sampleContact = contact.name === DEMO_CONTACT_DEFAULTS.name && contact.phone === DEMO_CONTACT_DEFAULTS.phone && contact.email === DEMO_CONTACT_DEFAULTS.email;
-  const initials = contact.name.split(/\s+/).slice(0, 2).map(part => Array.from(part)[0]).join("").toLocaleUpperCase();
-  const updateContact = (field: keyof DemoContactDetails, value: string) => setContactValues(current => ({ ...current, [field]: value }));
+  const example = choices.find(item => item.id === selected) ?? choices[0];
+  const key = `${scenarioId ?? "home"}~${example.id}`;
+  const initial: Practice = { drafts: demoDrafts(example), beat: 0, view: "edit", done: [] };
+  const practice = practices[key] ?? initial;
+  const beat = DEMO_BEATS[practice.beat];
+  const draft = practice.drafts[practice.beat];
+  const contact = demoContact(example);
+  const update = (patch: Partial<Practice>) => setPractices(current => ({ ...current, [key]: { ...(current[key] ?? initial), ...patch } }));
+  const edit = (patch: Partial<typeof draft>) => update({ drafts: practice.drafts.map((value, index) => index === practice.beat ? { ...value, ...patch } : value) });
+  const field = useRef<HTMLTextAreaElement>(null);
+  const stepHeading = useRef<HTMLHeadingElement>(null);
+  const focusStep = useRef(false);
+  const uid = useId();
+  const selection = MARKETING_SCENARIOS.some(item => item.id === scenarioId) ? key : undefined;
+  const recorded = practice.done.includes(practice.beat);
+  const nextBeat = DEMO_BEATS.findIndex((_, index) => !practice.done.includes(index));
 
-  return <section ref={demoWindow} className={`product-demo conversation-panel speech-bubble${highlighted ? " demo-highlighted" : ""}`} id="sample" tabIndex={-1} aria-label="Try a demo mix" aria-busy={!ready}>
-    <div className="product-demo-heading"><h2>Try a demo mix</h2></div>
-    <div className="demo-contact">
-      <div className="demo-person"><span className="demo-avatar" aria-hidden="true">{initials}</span><div><strong>{contact.name}</strong><p>{sampleContact ? "Fictional demo contact" : "Your test contact"}</p></div></div>
-      <div className="demo-contact-details"><span>{contact.phone}</span><span>{contact.email}</span></div>
-      <details className="demo-contact-editor" ref={contactEditor}>
-        <summary>Edit contact</summary>
-        <p className="demo-contact-help">Try your own details. Names update the prepared messages below as you type. Leave any field blank to use the sample.</p>
-        <div className="demo-contact-fields">
-          <label className="field"><span>Contact name</span><input autoComplete="off" name="demo-contact-name" disabled={!ready} value={contactValues.name} maxLength={120} onChange={event => updateContact("name", event.target.value)} /></label>
-          <label className="field"><span>Your name</span><input autoComplete="off" name="demo-sender-name" disabled={!ready} value={contactValues.senderName} maxLength={120} onChange={event => updateContact("senderName", event.target.value)} /></label>
-          <label className="field"><span>Phone</span><input type="tel" autoComplete="off" name="demo-contact-phone" disabled={!ready} value={contactValues.phone} maxLength={40} onChange={event => updateContact("phone", event.target.value)} /></label>
-          <label className="field"><span>Email</span><input type="email" autoComplete="off" name="demo-contact-email" disabled={!ready} value={contactValues.email} maxLength={254} onChange={event => updateContact("email", event.target.value)} /></label>
-          <div className="field demo-contact-notes"><label htmlFor="demo-contact-notes">Notes</label><textarea id="demo-contact-notes" autoComplete="off" name="demo-contact-notes" disabled={!ready} value={contactValues.notes} maxLength={1000} rows={3} aria-describedby="demo-contact-notes-help" onChange={event => updateContact("notes", event.target.value)} /><small id="demo-contact-notes-help">For your reference. Notes aren’t included in messages.</small></div>
-        </div>
-        <div className="demo-contact-editor-actions"><button className="button" type="button" disabled={!ready} onClick={() => setContactValues({ ...DEMO_CONTACT_DEFAULTS })}>Use sample contact</button><button className="button" type="button" onClick={() => { if (contactEditor.current) { contactEditor.current.open = false; contactEditor.current.querySelector("summary")?.focus(); } }}>Done editing</button></div>
-        <p className="demo-contact-help">These details stay in this demo and reset when you refresh.</p>
-      </details>
+  useEffect(() => { setReady(true); }, []);
+  useEffect(() => { if (selection) window.dispatchEvent(new CustomEvent("jitm:scenario", { detail: { scenario: selection } })); }, [selection]);
+  useEffect(() => { if (focusStep.current) { stepHeading.current?.focus(); focusStep.current = false; } }, [practice.view, practice.beat, key]);
+  useEffect(() => {
+    const trigger = (event: MouseEvent) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return;
+      if (event.target instanceof Element && event.target.closest('[data-demo-trigger][href="#sample"]')) {
+        event.preventDefault();
+        setPractices(current => ({ ...current, [key]: { ...(current[key] ?? initial), beat: 0, view: "edit" } }));
+        requestAnimationFrame(() => { (field.current?.disabled ? stepHeading.current : field.current)?.focus(); field.current?.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth" }); });
+      }
+    };
+    document.addEventListener("click", trigger, true);
+    return () => document.removeEventListener("click", trigger, true);
+  }, [key]);
+  const go = (view: Practice["view"], index = practice.beat) => { focusStep.current = true; update({ view, beat: index }); };
+  const record = () => { focusStep.current = true; update({ view: "recorded", done: [...new Set([...practice.done, practice.beat])] }); };
+  const undo = () => { focusStep.current = true; update({ view: "edit", done: practice.done.filter(index => index !== practice.beat) }); };
+  const title = practice.view === "recorded" ? "Recorded in this demo" : practice.view === "preview" ? `${beat.label === "Text" ? "SMS" : beat.label} preview` : `${beat.label === "Call" ? "Prepare a call" : `Review your ${beat.label.toLowerCase()}`} · ${beat.due.toLowerCase()}`;
+
+  return <section className={`product-demo ${styles.demo}`} id="sample" aria-label={heading} data-marketing-scenario={selection} aria-busy={!ready}>
+    <header className={styles.header}><h2>{heading}</h2><p>Fictional contact. Nothing is sent or scheduled.</p></header>
+    <label className={`field ${styles.situation}`}><span>Situation</span><select value={example.id} disabled={!ready} onChange={event => { focusStep.current = true; setSelected(event.target.value); }}>{choices.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
+    <div className={styles.workspace}>
+      <div className={styles.today}><span><AppIcon name="today" />Today</span><span>{practice.done.includes(0) ? "Today’s Beat done" : "1 Beat due"}</span></div>
+      <div className={styles.person}><span className={styles.avatar} aria-hidden="true">{contact.initials}</span><div><strong>{example.person}</strong><p>{example.context}</p></div></div>
+      <div className={styles.mix}><AppIcon name="mixes" /><span>3 Beats · a reusable follow-up plan</span></div>
+      <ol className={styles.rhythm} aria-label="Mix schedule">
+        {DEMO_BEATS.map((item, index) => <li key={item.channel}><button type="button" disabled={!ready} aria-current={practice.beat === index ? "step" : undefined} onClick={() => go(practice.done.includes(index) ? "recorded" : "edit", index)} data-demo-beat={item.channel} data-due-day={item.day}>
+          <span className={styles.node}><AppIcon name={practice.done.includes(index) ? "check" : item.icon} /></span><strong>{item.label}</strong><span>{item.due}</span>{practice.done.includes(index) && <small>Done in demo</small>}
+        </button></li>)}
+      </ol>
+      <div className={styles.review} aria-labelledby={`${uid}-step`}>
+        <p className={styles.beat}>Beat {practice.beat + 1} of 3{practice.beat > 0 && " · Upcoming"}</p>
+        <h3 id={`${uid}-step`} ref={stepHeading} tabIndex={-1}>{title}</h3>
+        {practice.view === "edit" && <>
+          <p className={styles.recipient}>{beat.channel === "email" ? `To ${contact.email}` : `${beat.channel === "phone" ? "Call" : "SMS to"} ${contact.phone}`}</p>
+          {beat.channel === "email" && <label className="field"><span>Subject</span><input value={draft.subject} maxLength={200} disabled={!ready || recorded} onChange={event => edit({ subject: event.target.value })} /></label>}
+          <label className={styles.draft}><span className="sr-only">{beat.channel === "phone" ? "Call notes" : "Message"} to {example.person}</span><textarea ref={field} value={draft.message} onChange={event => edit({ message: event.target.value })} maxLength={1500} rows={beat.channel === "email" ? 7 : 4} disabled={!ready || recorded} /></label>
+          {recorded ? <><p>This Beat is already recorded in the demo.</p><button className="button" type="button" onClick={undo}>Undo recorded outcome</button></> : <button className={`button primary ${styles.primary}`} type="button" disabled={!ready || !draft.message.trim() || (beat.channel === "email" && !draft.subject.trim())} onClick={() => go("preview")}><AppIcon name={beat.icon} />{beat.preview}</button>}
+          <p className={styles.hint}>{practice.beat === 0 ? "Make the draft your own, then preview it." : "Preview this upcoming Beat now. Its due date stays the same."}</p>
+        </>}
+        {practice.view === "preview" && <>
+          <div className={`${styles.preview} ${beat.channel === "text" ? styles.sms : beat.channel === "phone" ? styles.call : ""}`} data-demo-preview={beat.channel}>
+            <div className={styles.previewHeader}><AppIcon name={beat.icon} /><strong>{beat.channel === "text" ? "Messages" : beat.channel === "email" ? "Email" : "Phone"}</strong><span>Preview only</span></div>
+            {beat.channel === "phone" && <span className={styles.avatar} aria-hidden="true">{contact.initials}</span>}
+            <p className={styles.previewTo}>{example.person}<span>{beat.channel === "email" ? contact.email : contact.phone}</span></p>
+            {beat.channel === "email" && <p className={styles.subject}><strong>Subject:</strong> {draft.subject}</p>}
+            {beat.channel === "phone" && <p className={styles.callLabel}>Your call notes · no call is placed</p>}
+            <blockquote>{draft.message}</blockquote>
+          </div>
+          <p className={styles.hint}>In your account, {beat.channel === "phone" ? "you place the call" : `you send through your own ${beat.channel === "email" ? "email" : "messaging"} app`}, then record what happened. Try recording an outcome below.</p>
+          <div className={styles.actions}><button className="button" type="button" onClick={() => go("edit")}>Back to edit</button><button className="button primary" type="button" onClick={record}>{beat.channel === "phone" ? "Mark called (demo)" : "Mark sent (demo)"}</button></div>
+          <button className="text-button" type="button" onClick={() => go("edit")}>Not yet</button>
+        </>}
+        {practice.view === "recorded" && <>
+          <p className={styles.outcome} role="status"><AppIcon name="check" />{beat.label} marked {beat.channel === "phone" ? "called" : "sent"} in the demo. {beat.channel === "phone" ? "No call was placed." : "Nothing was sent."}</p>
+          <button className="text-button" type="button" onClick={undo}>Undo recorded outcome</button>
+          {nextBeat >= 0 ? <><p className={styles.hint}>Still on the plan: {DEMO_BEATS[nextBeat].label.toLowerCase()} {DEMO_BEATS[nextBeat].due.toLowerCase()}. You can preview it now.</p><button className={`button primary ${styles.primary}`} type="button" onClick={() => go("edit", nextBeat)}>Review {DEMO_BEATS[nextBeat].label.toLowerCase()} · {DEMO_BEATS[nextBeat].due.toLowerCase()}</button></> : <><p>You tried all three Beats: text today, email tomorrow, and a call in one week.</p><Link className={`button primary ${styles.primary}`} href={selection ? `/waitlist?scenario=${encodeURIComponent(selection)}` : "/waitlist"}>Join the waitlist</Link><p className={styles.hint}>Confirm your email, then wait for an invitation. Free account; no card.</p></>}
+        </>}
+      </div>
     </div>
-    <fieldset className="demo-scenarios" disabled={!ready}><legend>Choose a demo mix</legend>{DEMO_SCENARIOS.map((item, index) => <label key={item.id}><input type="radio" name="demo-scenario" checked={selected === index} onChange={() => { setSelected(index); setStepIndex(0); }} /><span>{item.label}</span></label>)}</fieldset>
-    <div ref={draftPreview} tabIndex={-1} role="group" aria-label="Selected sample beat"><DemoDraft key={`${scenario.id}-${stepIndex}`} step={step} ready={ready} appleMobile={appleMobile} contact={contact} /></div>
-    <p className="demo-help" id="demo-handoff-help">Opens your own app using the contact above. No app? Copy the demo. Call notes stay here.</p>
-    <details className="demo-plan-overview" key={scenario.id}><summary>Preview the rhythm · {scenario.steps.length} beats</summary>
-      <p className="demo-scenario-description">{scenario.description} Each beat is a message or call reminder; the tempo is when it happens.</p>
-      <label className="field demo-step-picker"><span>Explore a beat</span><select disabled={!ready} value={stepIndex} onChange={event => setStepIndex(Number(event.target.value))}>{scenario.steps.map((item, index) => <option key={index} value={index}>{index + 1}. {item.timing} · {item.title}</option>)}</select></label>
-      <div className="demo-step-navigation"><button className="button" type="button" disabled={!ready || stepIndex === 0} onClick={() => setStepIndex(index => index - 1)}>Previous</button><span aria-live="polite">Beat {stepIndex + 1} of {scenario.steps.length}</span><button className="button" type="button" disabled={!ready || stepIndex === scenario.steps.length - 1} onClick={() => setStepIndex(index => index + 1)}>Next</button></div>
-      <ol>{scenario.steps.map((item, index) => <li key={index}><button type="button" disabled={!ready} aria-pressed={stepIndex === index} onClick={() => { setStepIndex(index); draftPreview.current?.focus(); }}><AppIcon name={channels[item.channel].icon} /><span><strong>{item.title}</strong><small>{channels[item.channel].label} · {item.timing}</small></span></button></li>)}</ol>
-    </details>
-    <small>Nothing sends or schedules automatically.</small>
-    <Link className="demo-start" href="/waitlist">Join the waitlist <span aria-hidden="true">→</span></Link>
+    <button className={`text-button ${styles.reset}`} type="button" disabled={!ready} onClick={() => { setPractices(current => ({ ...current, [key]: initial })); requestAnimationFrame(() => field.current?.focus()); }}>Reset example</button>
+    <noscript><p>This example needs JavaScript to edit and preview. The Mix is text today, email tomorrow, and a call in one week. You can still <Link href="/waitlist">join the waitlist</Link>.</p></noscript>
   </section>;
 }

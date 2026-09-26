@@ -114,7 +114,7 @@ describe("Netlify background worker", () => {
     mocks.importBatch.mockRejectedValueOnce(new Error("Import database interrupted"));
     await runWorkerPass({ maxJobs: 1 });
     const leaseId = mocks.updateJob.mock.calls[0][0].data.lockedBy;
-    expect(mocks.importBatch).toHaveBeenCalledWith("batch", { jobId: "import-job", leaseId });
+    expect(mocks.importBatch).toHaveBeenCalledWith("batch", { jobId: "import-job", leaseId, shouldStop: expect.any(Function) });
     expect(mocks.importFailure).toHaveBeenCalledExactlyOnceWith({
       where: { id: "batch", workspaceId: "workspace", canceledAt: null, status: { in: ["QUEUED", "RUNNING", "FAILED"] } },
       data: { status: "FAILED", completedAt: expect.any(Date), errorSummary: "Import processing was interrupted. Saved rows will be reused on retry." }

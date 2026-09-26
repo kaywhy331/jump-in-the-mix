@@ -5,7 +5,7 @@ import { prisma } from "../src/lib/prisma";
 import { openTestAdmission } from "./helpers/admission-fixture";
 import { preserveSystemMixFixture } from "./helpers/system-mix-fixture";
 vi.mock("@/lib/env", async original => { const mod = await original<typeof import("../src/lib/env")>(); return { ...mod, env: { ...mod.env, requireAdminMfa: true, dataEncryptionKey: "system-mix-releases-test-key" } }; });
-import { DEFAULT_SYSTEM_MIX } from "../src/lib/system-mix";
+import { DEFAULT_SYSTEM_MIX, renderSystemMix } from "../src/lib/system-mix";
 import { getSystemMixState, installSystemMixBaseline } from "../src/lib/system-mix-store";
 import { saveSystemMixDraft, releaseSystemMix } from "../src/lib/system-mix-admin";
 import { allocateAccessInvite } from "../src/lib/referral-access";
@@ -49,10 +49,10 @@ describe.skipIf(!local)("System Mix revisions and frozen referrals on PostgreSQL
     await restoreContent?.(); await restoreAdmission?.(); users.length = 0; emails.length = 0;
   }, 30_000);
   it("preserves the migration baseline and permits staff-only drafts without publication rights", async () => {
-    const baseline = await getSystemMixState(); expect(baseline.published).toMatchObject(DEFAULT_SYSTEM_MIX);
+    const baseline = await getSystemMixState(); expect(renderSystemMix(baseline.published, "Owner", "Contact")).toEqual(renderSystemMix(DEFAULT_SYSTEM_MIX, "Owner", "Contact"));
     const a = await actor(false); await draft(a);
     expect(await prisma.workspace.count({ where: { ownerId: a.actorUserId } })).toBe(0);
-    expect((await getSystemMixState()).published).toMatchObject(DEFAULT_SYSTEM_MIX);
+    expect(renderSystemMix((await getSystemMixState()).published, "Owner", "Contact")).toEqual(renderSystemMix(DEFAULT_SYSTEM_MIX, "Owner", "Contact"));
     await expect(release(a, 2)).rejects.toThrow("staff access");
   });
   it("rejects concurrent stale edits, stale publication, expired MFA, missing sessions and removed permissions", async () => {
@@ -68,24 +68,24 @@ describe.skipIf(!local)("System Mix revisions and frozen referrals on PostgreSQL
     await expect(release(a, 2)).rejects.toThrow("staff access");
     expect((await getSystemMixState()).config.publishedVersion).toBe(1);
   });
-  it("publishes and rolls back future invitations while queued payloads and duplicate requests stay unchanged", async () => {
+  it("publishes and rolls back future invitations while prepared reminders and duplicate requests stay unchanged", async () => {
     const a = await actor(), m = await member();
     const first = await prisma.$transaction(tx => allocateAccessInvite(tx, m.inputs[0]));
-    const original = await prisma.waitlistDelivery.findUniqueOrThrow({ where: { inviteId: first.id } });
+    const original = await prisma.jump.findUniqueOrThrow({ where: { accessInviteId: first.id } });
     expect(first.systemMixVersion).toBe(1); await draft(a); await release(a, 2);
     await expect(prisma.$transaction(tx => allocateAccessInvite(tx, m.inputs[1]))).rejects.toThrow("preview changed");
     expect((await prisma.user.findUniqueOrThrow({ where: { id: m.user.id } })).referralInvitesIssued).toBe(1);
     const second = await prisma.$transaction(tx => allocateAccessInvite(tx, { ...m.inputs[1], expectedVersion: 2 }));
-    const delivery = await prisma.waitlistDelivery.findUniqueOrThrow({ where: { inviteId: second.id } });
-    const message = decryptIntegrationCredentials<{ subject: string; text: string; html: string }>(delivery.messageCiphertext);
-    expect(message.subject).toBe("A personal invitation from Network Owner"); expect(message.text).toContain(m.inputs[1].recipientEmail);
-    expect(message.text).toContain("/register?invite="); expect(message.text).toContain("/waitlist/leave?token=");
+    const delivery = await prisma.jump.findUniqueOrThrow({ where: { accessInviteId: second.id } });
+    const message = delivery.renderedSnapshot as { subject: string; body: string };
+    expect(message.subject).toBe("A personal invitation from Network Owner"); expect(message.body).toContain(m.inputs[1].recipientEmail);
+    expect(message.body).toContain("/register?invite="); expect(await prisma.waitlistDelivery.count({ where: { inviteId: second.id } })).toBe(0);
     expect(second.systemMixVersion).toBe(2);
     await release(a, 1, "rollback");
     expect((await prisma.$transaction(tx => allocateAccessInvite(tx, { ...m.inputs[1], expectedVersion: 999 }))).id).toBe(second.id);
     const third = await prisma.$transaction(tx => allocateAccessInvite(tx, m.inputs[2])); expect(third.systemMixVersion).toBe(1);
-    expect((await prisma.waitlistDelivery.findUniqueOrThrow({ where: { inviteId: first.id } })).messageCiphertext).toBe(original.messageCiphertext);
-    expect((await prisma.waitlistDelivery.findUniqueOrThrow({ where: { inviteId: second.id } })).messageCiphertext).toBe(delivery.messageCiphertext);
+    expect((await prisma.jump.findUniqueOrThrow({ where: { accessInviteId: first.id } })).renderedSnapshot).toEqual(original.renderedSnapshot);
+    expect((await prisma.jump.findUniqueOrThrow({ where: { accessInviteId: second.id } })).renderedSnapshot).toEqual(delivery.renderedSnapshot);
     expect((await prisma.platformAuditEvent.findFirstOrThrow({ where: { actorUserId: a.actorUserId, action: "system_mix.rollback" } })).afterData).toMatchObject({ version: 1 });
   });
   it("serializes publication with invitation allocation and never sends unseen new wording", async () => {
@@ -103,7 +103,7 @@ describe.skipIf(!local)("System Mix revisions and frozen referrals on PostgreSQL
     await expect(prisma.systemMixRevision.deleteMany()).rejects.toThrow("immutable");
     await expect(prisma.systemMixRelease.updateMany({ data: { version: 2 } })).rejects.toThrow("immutable");
     await expect(prisma.systemMixRelease.deleteMany()).rejects.toThrow("immutable");
-    expect((await getSystemMixState()).published).toMatchObject(DEFAULT_SYSTEM_MIX);
+    expect(renderSystemMix((await getSystemMixState()).published, "Owner", "Contact")).toEqual(renderSystemMix(DEFAULT_SYSTEM_MIX, "Owner", "Contact"));
   });
   it("rechecks preview names and workspace ownership before spending an invitation", async () => {
     const m = await member(), foreign = await member();

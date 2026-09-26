@@ -42,6 +42,7 @@ export async function stopInvitationEmails(token: string, now = new Date()): Pro
     await tx.verificationToken.updateMany({ where: { email, purpose: { in: [AUTH_TOKEN_PURPOSES.invitationOptout, AUTH_TOKEN_PURPOSES.waitlist] }, usedAt: null }, data: { usedAt: now } });
     await tx.emailSuppression.upsert({ where: { email_reason: { email, reason: "INVITATION_OPTOUT" } }, create: { email, reason: "INVITATION_OPTOUT" }, update: {} });
     await tx.waitlistEntry.updateMany({ where: { email, status: { in: ["WAITING", "ACCESS_GRANTED"] } }, data: { status: "WITHDRAWN", withdrawnAt: now } });
+    await tx.jump.updateMany({ where: { accessInvite: { recipientEmail: email, acceptedAt: null }, status: "PENDING" }, data: { status: "CANCELED", completionMethod: "invitation_revoked" } });
     await tx.referralAccessInvite.updateMany({ where: { recipientEmail: email, acceptedAt: null, revokedAt: null }, data: { revokedAt: now } });
     await revokeStaffInvitations(tx, { email }, now);
     await tx.waitlistDelivery.updateMany({ where: { invite: { recipientEmail: email, acceptedAt: null }, status: { in: ["QUEUED", "SENDING", "REVIEW"] } }, data: { status: "CANCELED", leaseId: null, lockedAt: null, lastError: null } });

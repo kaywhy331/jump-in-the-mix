@@ -1,7 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/auth";
+import { requireWritableWorkspace } from "@/lib/writable-workspace";
+import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { normalizeCustomFieldKey } from "@/lib/contact-custom-fields";
 import { prisma } from "@/lib/prisma";
 
@@ -9,20 +10,20 @@ function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
 }
 
-function fail(message: string): never {
-  redirect(`/contacts/custom-fields?error=${encodeURIComponent(message)}`);
+function fail(message: string, viewer: ErrorViewer): never {
+  redirect(withViewerError("/contacts/custom-fields", message, viewer));
 }
 
 export async function createContactCustomFieldAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, session } = await requireWritableWorkspace(fail);
   const name = value(formData, "name");
   const key = normalizeCustomFieldKey(name);
-  if (!name || !key) fail("Give the custom field a clear name.");
+  if (!name || !key) fail("Give the custom field a clear name.", session);
   const duplicate = await prisma.contactCustomFieldDefinition.findFirst({
     where: { workspaceId: workspace.id, OR: [{ key }, { name: { equals: name, mode: "insensitive" } }] },
     select: { id: true }
   });
-  if (duplicate) fail("A custom Contact field already uses that name or placeholder key.");
+  if (duplicate) fail("A custom Contact field already uses that name or placeholder key.", session);
   const field = await prisma.contactCustomFieldDefinition.create({ data: { workspaceId: workspace.id, name, key } });
   await prisma.auditLog.create({
     data: {
@@ -40,20 +41,20 @@ export async function createContactCustomFieldAction(formData: FormData): Promis
 }
 
 export async function renameContactCustomFieldAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, session } = await requireWritableWorkspace(fail);
   const definitionId = value(formData, "definitionId");
   const name = value(formData, "name");
-  if (!name) fail("Give the custom field a clear name.");
+  if (!name) fail("Give the custom field a clear name.", session);
   const existing = await prisma.contactCustomFieldDefinition.findFirst({
     where: { id: definitionId, workspaceId: workspace.id },
     select: { id: true, name: true, key: true }
   });
-  if (!existing) fail("Custom Contact field not found.");
+  if (!existing) fail("Custom Contact field not found.", session);
   const duplicate = await prisma.contactCustomFieldDefinition.findFirst({
     where: { workspaceId: workspace.id, id: { not: existing.id }, name: { equals: name, mode: "insensitive" } },
     select: { id: true }
   });
-  if (duplicate) fail("Another custom Contact field already uses that name.");
+  if (duplicate) fail("Another custom Contact field already uses that name.", session);
   await prisma.$transaction([
     prisma.contactCustomFieldDefinition.update({ where: { id: existing.id }, data: { name } }),
     prisma.auditLog.create({
@@ -74,13 +75,13 @@ export async function renameContactCustomFieldAction(formData: FormData): Promis
 }
 
 export async function deleteContactCustomFieldAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWorkspace();
+  const { workspace, user, session } = await requireWritableWorkspace(fail);
   const definitionId = value(formData, "definitionId");
   const existing = await prisma.contactCustomFieldDefinition.findFirst({
     where: { id: definitionId, workspaceId: workspace.id },
     include: { _count: { select: { values: true } } }
   });
-  if (!existing) fail("Custom Contact field not found.");
+  if (!existing) fail("Custom Contact field not found.", session);
   await prisma.$transaction([
     prisma.contactCustomFieldDefinition.delete({ where: { id: existing.id } }),
     prisma.auditLog.create({

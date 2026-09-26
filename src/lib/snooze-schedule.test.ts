@@ -1,68 +1,37 @@
 import { describe, expect, it } from "vitest";
-import { calculateSnoozeAt } from "@/lib/snooze-schedule";
+import { resolveSnooze, snoozeChoices } from "@/lib/snooze-schedule";
 
-describe("calculateSnoozeAt", () => {
-  it("uses the workspace local day across daylight-saving changes", () => {
-    const scheduledAt = calculateSnoozeAt({
-      now: new Date("2026-03-07T15:00:00.000Z"),
-      timezone: "America/New_York",
-      preset: "tomorrow"
-    });
+describe("resolveSnooze", () => {
+  it("never pulls a follow-up ahead of its base instant", () => {
+    const base = new Date("2026-09-20T17:00:00.000Z");
+    const earlier = new Date("2026-09-18T17:00:00.000Z");
+    const later = new Date("2026-09-22T17:00:00.000Z");
+    expect(resolveSnooze({ chosen: earlier, baseScheduledAt: base })).toEqual({ ok: false, dueAt: base });
+    expect(resolveSnooze({ chosen: later, baseScheduledAt: base })).toEqual({ ok: true, scheduledAt: later });
+    expect(resolveSnooze({ chosen: earlier, baseScheduledAt: null })).toEqual({ ok: true, scheduledAt: earlier });
+  });
+});
 
-    expect(scheduledAt.toISOString()).toBe("2026-03-08T14:00:00.000Z");
+describe("snoozeChoices", () => {
+  const timezone = "America/Los_Angeles";
+  const now = new Date("2026-09-14T16:00:00.000Z"); // Monday 09:00 Pacific
+
+  it("offers every preset for an overdue follow-up", () => {
+    const choices = snoozeChoices({ now, timezone, floor: new Date("2026-09-10T17:00:00.000Z") });
+    expect(choices.presets.map(([preset]) => preset)).toEqual(["later-today", "tomorrow", "next-monday", "next-week"]);
+    expect(choices.minDate).toBe("2026-09-14");
+    expect(choices.defaultDate).toBe("2026-09-15");
   });
 
-  it("moves a later-today preset beyond quiet hours to the next allowed local time", () => {
-    const scheduledAt = calculateSnoozeAt({
-      now: new Date("2026-07-22T00:30:00.000Z"),
-      timezone: "America/Los_Angeles",
-      preset: "later-today",
-      quietHoursStart: 20 * 60,
-      quietHoursEnd: 8 * 60
-    });
-
-    expect(scheduledAt.toISOString()).toBe("2026-07-22T15:00:00.000Z");
+  it("hides presets that land before a follow-up due later today", () => {
+    const choices = snoozeChoices({ now, timezone, floor: new Date("2026-09-14T22:00:00.000Z") }); // 15:00 Pacific today
+    expect(choices.presets.map(([preset]) => preset)).toEqual(["tomorrow", "next-monday", "next-week"]);
   });
 
-  it("calculates next Monday from the workspace logical date", () => {
-    const scheduledAt = calculateSnoozeAt({
-      now: new Date("2026-07-18T01:00:00.000Z"),
-      timezone: "America/Los_Angeles",
-      preset: "next-monday"
-    });
-
-    expect(scheduledAt.toISOString()).toBe("2026-07-20T17:00:00.000Z");
-  });
-
-  it("interprets custom date-time input in the workspace timezone", () => {
-    const scheduledAt = calculateSnoozeAt({
-      now: new Date("2026-07-21T12:00:00.000Z"),
-      timezone: "America/Los_Angeles",
-      preset: "custom",
-      customDate: "2026-07-21T10:30"
-    });
-
-    expect(scheduledAt.toISOString()).toBe("2026-07-21T17:30:00.000Z");
-  });
-
-  it("uses the preferred follow-up time for a date-only custom snooze", () => {
-    const scheduledAt = calculateSnoozeAt({
-      now: new Date("2026-07-20T12:00:00.000Z"),
-      timezone: "America/Chicago",
-      preset: "custom",
-      customDate: "2026-07-22",
-      preferredMinutes: 9 * 60
-    });
-
-    expect(scheduledAt.toISOString()).toBe("2026-07-22T14:00:00.000Z");
-  });
-
-  it("rejects past custom times", () => {
-    expect(() => calculateSnoozeAt({
-      now: new Date("2026-07-21T18:00:00.000Z"),
-      timezone: "America/Los_Angeles",
-      preset: "custom",
-      customDate: "2026-07-21T10:30"
-    })).toThrow("Choose a future date and time.");
+  it("starts the custom picker at the day a future follow-up is due", () => {
+    const choices = snoozeChoices({ now, timezone, floor: new Date("2026-09-24T17:00:00.000Z") });
+    expect(choices.presets).toEqual([]);
+    expect(choices.minDate).toBe("2026-09-24");
+    expect(choices.defaultDate).toBe("2026-09-24");
   });
 });
