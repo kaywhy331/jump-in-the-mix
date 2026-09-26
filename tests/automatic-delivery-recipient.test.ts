@@ -21,7 +21,8 @@ type Case = { fixture: BroadcastFixture; jumpId: string };
 async function textCase(prefix: string, phone: { phone: string; normalized: string }, phoneRegion?: string): Promise<Case> {
   const fixture = await createBroadcastFixture(prefix);
   await prisma.contactPhone.create({ data: { contactId: fixture.contactId, ...phone, isPrimary: true } });
-  if (phoneRegion) await prisma.workspacePreference.create({ data: { workspaceId: fixture.workspaceId, phoneRegion } });
+  // No quiet hours, so the case does not depend on the time of day the suite runs.
+  if (phoneRegion) await prisma.workspacePreference.create({ data: { workspaceId: fixture.workspaceId, phoneRegion, quietHoursStart: 0, quietHoursEnd: 0 } });
   await prisma.automationPreference.create({ data: { workspaceId: fixture.workspaceId, enabled: true, smsEnabled: true, reviewWindowMinutes: 15 } });
   const mixId = await fixture.addBroadcast(`${prefix} broadcast`, -2);
   await reconcileJumps({ workspaceId: fixture.workspaceId });
