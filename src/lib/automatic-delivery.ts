@@ -17,8 +17,15 @@ const candidateLimitPerWorkspace = 25;
 
 type PreparedDelivery = { subject: string | null; body: string };
 
+// Automatic customer email is off unless the deployment turns it on. It still sends as the platform
+// with the platform's reply address, so a customer's reply would not reach the business; until it
+// sends as the business it stays off (MSG-01).
+export function automaticCustomerEmailEnabled(): boolean {
+  return process.env.AUTOMATIC_CUSTOMER_EMAIL?.trim().toLowerCase() === "true";
+}
+
 export function automaticEmailConfigured(): boolean {
-  return transactionalEmailConfigured();
+  return automaticCustomerEmailEnabled() && transactionalEmailConfigured();
 }
 
 export function automaticSmsConfigured(configuration: Pick<typeof env, "twilioAccountSid" | "twilioAuthToken" | "twilioFromNumber"> = env): boolean {
@@ -141,7 +148,9 @@ export async function runAutomaticDeliveries(workerId: string, now = new Date())
     if (automaticSendingOpensAt(now, rule).getTime() > now.getTime()) continue;
 
     const channels: Channel[] = [
-      ...(preference.emailEnabled ? ["EMAIL" as const] : []),
+      // Automatic email the deployment does not offer is not picked up at all, so an earlier opt-in
+      // never turns into failed attempts.
+      ...(preference.emailEnabled && automaticEmailConfigured() ? ["EMAIL" as const] : []),
       ...(preference.smsEnabled ? ["SMS" as const] : [])
     ];
     const threshold = new Date(now.getTime() - preference.reviewWindowMinutes * 60_000);

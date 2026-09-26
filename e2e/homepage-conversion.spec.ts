@@ -53,7 +53,7 @@ test("sample link, signup paths, FAQ, and public accessibility work in both them
     await expect(page).toHaveURL(/\/faq$/);
     await expect(page.getByRole("heading", { level: 1, name: "A little clarity before you start." })).toBeVisible();
     await page.getByText("Will Jump in the Mix be sending messages for me?", { exact: true }).click();
-    await expect(page.locator(".public-faq details[open] p")).toHaveText("You review your follow-ups and send them through your own messaging app by default. Automatic sending is optional and needs a connected provider. Personal invitations appear in Today for you to review and send through your own text or email app.");
+    await expect(page.locator(".public-faq details[open] p")).toHaveText("You review your follow-ups and send them through your own messaging app. Automatic sending is off during the beta. Personal invitations appear in Today for you to review and send through your own text or email app.");
     await page.getByRole("link", { name: "Your data", exact: true }).click();
     await expect(page).toHaveURL(/\/faq#your-data$/);
     await page.getByText("How can I control my data?", { exact: true }).click();

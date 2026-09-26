@@ -31,6 +31,8 @@ jobs:
       AUTH_ADMIN_MFA_MAX_AGE_MINUTES: "720"
       WORKER_HEARTBEAT_STALE_SECONDS: "90"
       DEMO_MODE: "false"
+      # The suites exercise automatic customer email; production keeps it off for the beta.
+      AUTOMATIC_CUSTOMER_EMAIL: "true"
       PUBLIC_OPERATOR_NAME: Synthetic CI operator
       PUBLIC_SUPPORT_EMAIL: support@example.test
       PUBLIC_BACKUP_RETENTION_NOTICE: Synthetic fixture backups expire after 30 days. This is test configuration and does not describe a live customer service.
