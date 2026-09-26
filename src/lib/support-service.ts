@@ -10,6 +10,7 @@ import { lockStaff } from "@/lib/staff-access";
 import { assertSupportActor, lockSupportTicket } from "@/lib/support-case-access";
 
 import { queueSupportReplyEmail } from "@/lib/support-email-delivery";
+import { queueSupportOperatorAlert } from "@/lib/support-operator-alert";
 
 export class SupportTicketError extends Error {
   constructor(message: string) {
@@ -61,7 +62,7 @@ export async function createSupportTicketRecord(input: {
         lastActivityAt: now
       }
     });
-    await tx.supportTicketMessage.create({
+    const message = await tx.supportTicketMessage.create({
       data: {
         ticketId: ticket.id,
         authorUserId: input.requesterUserId,
@@ -69,6 +70,7 @@ export async function createSupportTicketRecord(input: {
         body: input.body
       }
     });
+    await queueSupportOperatorAlert(tx, { workspaceId: input.workspaceId, ticketId: ticket.id, messageId: message.id, kind: "new" });
     await tx.auditLog.create({
       data: {
         workspaceId: input.workspaceId,
@@ -120,6 +122,7 @@ export async function replyToSupportTicketRecord(input: {
         body: input.body
       }
     });
+    await queueSupportOperatorAlert(tx, { workspaceId: input.workspaceId, ticketId: ticket.id, messageId: message.id, kind: "reply" });
     await tx.supportTicket.update({
       where: { id: ticket.id },
       data: {
@@ -158,7 +161,7 @@ export async function reopenSupportTicketRecord(input: {
       throw new SupportTicketError("This ticket is closed. Open a new ticket for additional help.");
     }
     if (ticket.status !== "RESOLVED") return ticket;
-    await tx.supportTicketMessage.create({
+    const message = await tx.supportTicketMessage.create({
       data: {
         ticketId: ticket.id,
         authorUserId: input.requesterUserId,
@@ -166,6 +169,7 @@ export async function reopenSupportTicketRecord(input: {
         body: "I still need help with this issue and reopened the ticket."
       }
     });
+    await queueSupportOperatorAlert(tx, { workspaceId: input.workspaceId, ticketId: ticket.id, messageId: message.id, kind: "reopen" });
     const reopened = await tx.supportTicket.update({
       where: { id: ticket.id },
       data: {

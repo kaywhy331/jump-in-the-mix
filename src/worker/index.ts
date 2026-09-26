@@ -19,6 +19,7 @@ import { queueDailyReports, runReportSnapshot, markReportJobFailed } from "@/lib
 import { REPORT_EXPORT_TASK, REPORT_SNAPSHOT_TASK } from "@/lib/report-storage-policy";
 import { PHONE_KEYS_TASK, runPhoneKeySweep } from "@/lib/phone-canonicalization";
 import { MARKETPLACE_REFRESH_INTERVAL_MS, refreshStaleListings, type ListingRefreshCursor } from "@/lib/marketplace-service";
+import { SUPPORT_OPERATOR_ALERT_TASK, sendSupportOperatorAlert } from "@/lib/support-operator-alert";
 
 const workerId = `worker-${randomUUID().slice(0, 8)}`;
 const workerStartedAt = new Date();
@@ -169,6 +170,10 @@ async function executeJob(job: ClaimedJob, lease: JobLease): Promise<void> {
     const lease = { jobId: job.id, leaseId: job.lockedBy };
     if (job.task === REPORT_EXPORT_TASK) await runReportExport(id, lease);
     else await runReportSnapshot(id, lease);
+    return;
+  }
+  if (job.task === SUPPORT_OPERATOR_ALERT_TASK) {
+    await sendSupportOperatorAlert(job.payload);
     return;
   }
   if (job.task === "generate-jumps") {
