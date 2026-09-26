@@ -95,16 +95,15 @@ describe.sequential("drafts follow the same occurrence through reconciliation", 
     expect((await prisma.jump.findUniqueOrThrow({ where: { id: jumpId } })).status).toBe("CANCELED");
   });
 
-  it("leaves a draft on a row the owner completed after the pass read it", async () => {
-    // Give the fresh row a draft, then complete it just before a time edit regenerates the occurrence.
+  it("never brings a completed occurrence back when a time edit changes its key, and leaves its draft", async () => {
     const fresh = await pendingJump();
     await saveJumpDraft({ workspaceId: fixture.workspaceId, jumpId: fresh.id, family: "TEXT", body: "Completed edit", revision: null });
     await prisma.jump.update({ where: { id: fresh.id }, data: { status: "DONE", completedAt: new Date(), completionMethod: "outcome:completed" } });
     await prisma.mixBroadcastSchedule.update({ where: { mixId }, data: { timeMinutes: 750 } });
     const result = await reconcileJumps({ workspaceId: fixture.workspaceId, mixId });
-    expect(result.created).toBe(1);
-    const regenerated = await pendingJump();
-    expect(await draftsOf(regenerated.id)).toEqual([]);
+    expect(result.created).toBe(0);
+    expect(await prisma.jump.count({ where: { workspaceId: fixture.workspaceId, mixId, status: "PENDING" } })).toBe(0);
+    expect((await prisma.jump.findUniqueOrThrow({ where: { id: fresh.id } })).status).toBe("DONE");
     expect(await draftsOf(fresh.id)).toMatchObject([{ body: "Completed edit" }]);
   });
 });

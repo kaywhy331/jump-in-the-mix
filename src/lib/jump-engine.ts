@@ -120,6 +120,24 @@ export function originalLocalDateOf(snapshot: Prisma.JsonValue | Prisma.InputJso
   return typeof value === "string" ? value : null;
 }
 
+function occurrenceKeyOf(snapshot: Prisma.JsonValue | Prisma.InputJsonValue): string | null {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
+  const value = (snapshot as { occurrenceKey?: unknown }).occurrenceKey;
+  return typeof value === "string" ? value : null;
+}
+
+function settledOccurrenceKey(contactId: string, mixId: string, mixStepId: string, occurrenceKey: string): string {
+  return `${contactId}:${mixId}:${mixStepId}:${occurrenceKey}`;
+}
+
+// The recorded occurrence is identity, not content: a pending row written before it was recorded is
+// not rewritten just to add it.
+function withoutOccurrence(snapshot: Prisma.JsonValue | Prisma.InputJsonValue): Prisma.JsonValue | Prisma.InputJsonValue {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot) || !("occurrenceKey" in snapshot)) return snapshot;
+  const { occurrenceKey: _occurrenceKey, ...rest } = snapshot as Record<string, unknown>;
+  return rest as Prisma.InputJsonValue;
+}
+
 function occurrenceCarryKey(contactId: string, mixStepId: string, jumpDateId: string | null, originalLocalDate: string): string {
   return `${contactId}:${mixStepId}:${jumpDateId ?? ""}:${originalLocalDate}`;
 }
@@ -161,7 +179,7 @@ function sameDesired(existing: ExistingJump, desired: DesiredJump): boolean {
     && existing.baseScheduledAt?.getTime() === desired.baseScheduledAt.getTime()
     && existing.appointmentBindingId === desired.appointmentBindingId
     && existing.reason === desired.reason
-    && jsonEqual(existing.templateSnapshot, desired.templateSnapshot)
+    && jsonEqual(withoutOccurrence(existing.templateSnapshot), withoutOccurrence(desired.templateSnapshot))
     && jsonEqual(existing.renderedSnapshot, desired.renderedSnapshot);
 }
 
@@ -308,6 +326,21 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
     : defaultEnd;
   const occurrenceStart = addUtcDays(horizonStart, -Math.max(maximumOffset, 0) - 7);
   const occurrenceEnd = addUtcDays(horizonEnd, -Math.min(minimumOffset, 0) + 7);
+  // An occurrence the owner already finished or skipped is settled. A time setting (weekend rule,
+  // time zone, quiet or working hours) or a Beat's day or time changes its key, and the regenerated
+  // row would otherwise bring the finished follow-up back as pending. Rows written before the
+  // occurrence was recorded on the snapshot are matched by their original local date instead.
+  const settledRows = await prisma.jump.findMany({
+    where: { ...baseJumpWhere(filters), status: { in: ["DONE", "SKIPPED"] }, baseScheduledAt: { gte: addUtcDays(occurrenceStart, -400) } },
+    select: { contactId: true, mixId: true, mixStepId: true, jumpDateId: true, templateSnapshot: true }
+  });
+  const settled = new Set<string>();
+  for (const row of settledRows) {
+    const occurrence = occurrenceKeyOf(row.templateSnapshot);
+    if (occurrence) settled.add(settledOccurrenceKey(row.contactId, row.mixId, row.mixStepId, occurrence));
+    const originalLocalDate = originalLocalDateOf(row.templateSnapshot);
+    if (originalLocalDate) settled.add(occurrenceCarryKey(row.contactId, row.mixStepId, row.jumpDateId, originalLocalDate));
+  }
 
   const workspaceIds = [...new Set(assignments.map((assignment) => assignment.workspaceId))];
   const ownerIds = [...new Set(assignments.map((assignment) => assignment.workspace.ownerId))];
@@ -574,6 +607,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
               localDateTime,
               timezone: trigger.timezone,
               originalLocalDate: logicalDateKey(originalLogicalDate),
+              occurrenceKey: anchored ? `appointment:${binding!.id}` : occurrenceKey,
               weekendRule: personalRule.weekendScheduling
             },
             renderedSnapshot,
@@ -625,6 +659,9 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
     const existing = existingByKey.get(desiredJump.uniquenessKey);
     if (!existing) {
       const originalLocalDate = originalLocalDateOf(desiredJump.templateSnapshot);
+      const occurrence = occurrenceKeyOf(desiredJump.templateSnapshot);
+      if ((occurrence && settled.has(settledOccurrenceKey(desiredJump.contactId, desiredJump.mixId, desiredJump.mixStepId, occurrence)))
+        || (originalLocalDate && settled.has(occurrenceCarryKey(desiredJump.contactId, desiredJump.mixStepId, desiredJump.jumpDateId, originalLocalDate)))) continue;
       const carried = originalLocalDate ? ownedByOccurrence.get(occurrenceCarryKey(desiredJump.contactId, desiredJump.mixStepId, desiredJump.jumpDateId, originalLocalDate)) : undefined;
       if (carried && !desired.has(carried.uniquenessKey)) {
         if (carried.snoozedUntil && carried.snoozedUntil > desiredJump.scheduledAt) desiredJump.scheduledAt = carried.snoozedUntil;
