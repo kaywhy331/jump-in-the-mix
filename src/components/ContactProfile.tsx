@@ -1,7 +1,7 @@
 import { ContactAnchorReveal } from "@/components/ContactAnchorReveal";
 import { contactDueLabel, recordedStageChanges, sameContactSequence } from "@/lib/contact-profile-view";
 import { ContactWorkflowProgress } from "@/components/WorkflowProgress";
-import { getJumpDateOccurrences, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
+import { getJumpDateOccurrences, logicalDateInTimezone, logicalDateKey, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { ContactJourneyPanel } from "@/components/ContactJourneyPanel";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -34,7 +34,7 @@ import { readPreparationStatus } from "@/lib/preparation";
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
 
 export type ContactProfileSearchParams = {
-  created?: string; dateCreated?: string; dateUpdated?: string; dateDeleted?: string; mixAssigned?: string; mixRemoved?: string;
+  created?: string; followUpScheduled?: string; dateCreated?: string; dateUpdated?: string; dateDeleted?: string; mixAssigned?: string; mixStart?: string; mixRemoved?: string;
   mixStopped?: string; mixResumed?: string; mixStopError?: string; mixResumeError?: string; updated?: string; inlineUpdated?: string;
   stateUpdated?: string; merged?: string; restored?: string; error?: string; at?: string; sig?: string;
 };
@@ -75,6 +75,9 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
   if (!contact) notFound();
 
   const displayPreferences = await displayPreferencesForUser(user.id);
+  const todayKey = logicalDateKey(logicalDateInTimezone(new Date(), displayPreferences.timeZone));
+  // Where a started plan counts from; a plan that follows a saved date uses the person's own date when they have one.
+  const startDateField = <label className="field"><span>Start on</span><input type="date" name="startDate" required min={todayKey} defaultValue={todayKey} /></label>;
   const initials = contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("");
   // In the docked Contacts layout a chosen row moves focus here (ContactsBulkWorkspace).
   const heading = embedded ? <h2 id="contact-profile-heading" tabIndex={-1}>{contact.displayName}</h2> : <h1>{contact.displayName}</h1>;
@@ -141,7 +144,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
   const futureStages = journeyStages.filter(stage => stage.isActive && contact.journey && stage.position > contact.journey.stage.position).slice(0, 3);
   const touchpoint = <Sheet trigger={<button type="button" className="contact-inline-action"><AppIcon name="mixes" />Start a touchpoint</button>} title={`Start a touchpoint for ${contact.displayName}`}>
     <p>Choose an existing mix or schedule a one-time follow-up.</p>
-    {plans.length > 0 && <form action={assignMixToContactAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>Choose a mix</span><select name="mixId" required>{plans.map(plan => <option value={plan.id} key={plan.id}>{plan.name}</option>)}</select></label><button className="button primary" disabled={state.doNotContact || Boolean(impersonation)} type="submit">Start mix</button></form>}
+    {plans.length > 0 && <form action={assignMixToContactAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>Choose a mix</span><select name="mixId" required>{plans.map(plan => <option value={plan.id} key={plan.id}>{plan.name}</option>)}</select></label>{startDateField}<button className="button primary" disabled={state.doNotContact || Boolean(impersonation)} type="submit">Start mix</button></form>}
     {!state.doNotContact && <Link className="button" href={`/contacts?intent=one-time-jump&people=${encodeURIComponent(contact.id)}&q=${encodeURIComponent(contact.displayName)}`}>Schedule a one-time follow-up</Link>}
     {state.doNotContact && <p>Do not contact is on. Update this person’s preferences before starting a follow-up.</p>}
   </Sheet>;
@@ -162,7 +165,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
   return (
     <div className={`page contact-detail-page${embedded ? " contact-profile-embedded" : ""}`}>
       <ContactAnchorReveal contactId={contact.id} />
-      {query.created && <Notice type="success">Contact added.</Notice>}
+      {query.created && <Notice type="success">Contact added.{query.followUpScheduled && nextFollowUp && <> Their first follow-up is on Today for {formatDateTime(nextFollowUp.scheduledAt, displayPreferences)}.</>}</Notice>}
       {query.updated && <Notice type="success">Contact updated.</Notice>}
       {query.inlineUpdated && <Notice type="success">Contact saved.</Notice>}
       {query.stateUpdated && <Notice type="success">Saved.</Notice>}
@@ -171,7 +174,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
       {!query.created && query.dateCreated && <Notice type="success">Date added.</Notice>}
       {query.dateUpdated && <Notice type="success">Date updated.</Notice>}
       {query.dateDeleted && <Notice type="success">Date removed.</Notice>}
-      {!query.created && query.mixAssigned && <Notice type="success">Start saved. Follow-ups are being prepared. <Link href="/settings/notifications">Set up reminders for me (optional)</Link>.{query.mixAssigned === "visit" && <> Its beats timed from an appointment wait until you <Link href={`/calendar?contact=${contact.id}`}>line it up with a visit</Link> from the calendar.</>}</Notice>}
+      {!query.created && query.mixAssigned && <Notice type="success">{query.mixStart === "saved" ? "Start saved. It follows this person’s saved date." : /^\d{4}-\d{2}-\d{2}$/.test(query.mixStart ?? "") ? `Start saved for ${formatDate(new Date(`${query.mixStart}T12:00:00Z`), { ...displayPreferences, timeZone: "UTC" })}.` : "Start saved."} Follow-ups are being prepared. <Link href="/settings/notifications">Set up reminders for me (optional)</Link>.{query.mixAssigned === "visit" && <> Its beats timed from an appointment wait until you <Link href={`/calendar?contact=${contact.id}`}>line it up with a visit</Link> from the calendar.</>}</Notice>}
       {query.mixRemoved && <Notice type="success">Mix removed.</Notice>}
       {query.mixStopped && <Notice type="success">Mix stopped.</Notice>}
       {query.mixResumed && <Notice type="success">Mix resumed.</Notice>}
@@ -255,7 +258,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
 
           <section id="contact-mixes">
             <div className="card-header"><div><h2>Mixes</h2><p>Keep this connection in the mix with a series of thoughtful beats.</p></div></div>
-            {plans.length ? <form action={assignMixToContactAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>Choose a mix</span><select name="mixId">{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label><button className="button primary" type="submit" disabled={state.doNotContact}>Add to a mix</button></form> : <p className="muted-copy">Create a mix first.</p>}
+            {plans.length ? <form action={assignMixToContactAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>Choose a mix</span><select name="mixId">{plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select></label>{startDateField}<button className="button primary" type="submit" disabled={state.doNotContact}>Add to a mix</button></form> : <p className="muted-copy">Create a mix first.</p>}
             {contact.mixAssignments.length > 0 && <div className="assigned-mix-list">{contact.mixAssignments.map((assignment) => {
               const stop = stopByMixId.get(assignment.mix.id);
               return <div className="assigned-mix-row" key={assignment.id}><div><Link href={`/mixes/${assignment.mix.id}/edit`}>{assignment.mix.name}</Link>{stop && <small className="stopped-mix-label">Stopped</small>}</div><div className="assigned-mix-actions">{stop ? <form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small primary" type="submit">Resume</button></form> : <ConfirmDialog trigger="Stop…" triggerAriaLabel={`Stop the ${assignment.mix.name} mix`} title={`Stop ${assignment.mix.name}?`} description="Future follow-ups from this mix will be removed."><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small danger" type="submit">Stop mix</button></form></ConfirmDialog>}<ConfirmDialog trigger="Remove…" triggerAriaLabel={`Remove the ${assignment.mix.name} mix`} title={`Remove ${assignment.mix.name}?`} description="Completed history stays available." danger><form action={removeMixAssignmentAction}><input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Remove</button></form></ConfirmDialog></div></div>;

@@ -22,7 +22,8 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   calendarConnection: { count: mocks.calendarCount, create: mocks.calendarCreate, delete: mocks.calendarDelete },
   contact: { findMany: mocks.contactFindMany, findFirst: mocks.contactFindFirst },
   contactRelationshipState: { findMany: mocks.relationshipStates },
-  mix: { findFirst: mocks.mixFindFirst }
+  mix: { findFirst: mocks.mixFindFirst },
+  userPreference: { findUnique: async () => null }
 } }));
 vi.mock("@/lib/calendar", () => ({ importCalendar: mocks.importCalendar, syncCalendarConnection: mocks.syncCalendar, queueBoundReconciliation: vi.fn() }));
 vi.mock("@/lib/appointment-bindings", () => ({ ContactChoiceRequiredError: class ContactChoiceRequiredError extends Error {}, recordAppointmentOutcome: mocks.recordOutcome, scheduleVisit: vi.fn(), setAppointmentBindingDelivery: vi.fn(), setAppointmentBindingHold: vi.fn() }));

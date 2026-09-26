@@ -29,6 +29,7 @@ type OutcomeResponse = {
   activityId: string;
   nextCommitmentAt: string | null;
   jumpDateId: string | null;
+  nextJumpId?: string | null;
   attempt?: { id: string; evidence: "attempt" | "unavailable" | "mismatch" };
   duplicate?: boolean;
   error?: string;
@@ -55,6 +56,8 @@ type JumpStateDetail = {
   status: OutcomeResponse["status"];
   /** Shown in the card's confirmation when a retry found the outcome already recorded. */
   notice?: string;
+  /** The follow-up this outcome scheduled, named in the confirmation instead of the plan's next step. */
+  nextFollowUpAt?: string | null;
 };
 
 type SaveResult =
@@ -129,6 +132,10 @@ function useOutcomeRequestIds(): OutcomeRequestIds {
   }), []);
 }
 
+function formatNextFollowUp(value: string): string {
+  return new Date(value).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
 function dispatchJumpState(detail: JumpStateDetail): void {
   // Refresh observers must see the committed Undo control before their queued
   // checks run. An async outcome event otherwise leaves a gap before React
@@ -158,7 +165,7 @@ async function saveOutcome(
   if (response.status === 409 && FINISHING_OUTCOMES.has(outcome) && (payload.status === "DONE" || payload.status === "SKIPPED")) return { recorded: false, status: payload.status };
   if (!response.ok) throw new Error(payload.error || "The follow-up outcome could not be saved.");
   const stored = payload as OutcomeResponse;
-  dispatchJumpState({ jumpId, status: stored.status });
+  dispatchJumpState({ jumpId, status: stored.status, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null });
   return { recorded: true, response: stored };
 }
 
@@ -177,6 +184,7 @@ export function JumpWorkflowCard({
 }) {
   const [state, setState] = useState<"ACTIVE" | "DONE" | "SKIPPED" | "HIDDEN">("ACTIVE");
   const [notice, setNotice] = useState("");
+  const [nextFollowUpAt, setNextFollowUpAt] = useState<string | null>(null);
   const [undoing, setUndoing] = useState(false);
   const [error, setError] = useState("");
   const ids = useOutcomeRequestIds();
@@ -201,6 +209,7 @@ export function JumpWorkflowCard({
       }
       outcomeRevision.current = latestRevision.current;
       setNotice(detail.notice ?? "");
+      setNextFollowUpAt(detail.nextFollowUpAt ?? null);
       setState(detail.status);
       hideTimer.current = window.setTimeout(() => setState("HIDDEN"), 10_000);
     };
@@ -236,7 +245,7 @@ export function JumpWorkflowCard({
             <strong>{state === "SKIPPED" ? "Follow-up skipped" : "Follow-up completed"}</strong>
             {notice && <small>{notice}</small>}
             <small>{contactName} · you can undo this for a moment</small>
-            {nextScheduledLabel && <small>Next scheduled: {nextScheduledLabel}</small>}
+            {nextFollowUpAt ? <small>Next follow-up: {formatNextFollowUp(nextFollowUpAt)}</small> : nextScheduledLabel && <small>Next scheduled: {nextScheduledLabel}</small>}
           </span>
           <button className="button small" type="button" onClick={undo} disabled={undoing}>{undoing ? "Restoring…" : "Undo"}</button>
         </div>

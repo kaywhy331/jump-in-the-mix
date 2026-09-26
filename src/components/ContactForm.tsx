@@ -201,13 +201,13 @@ export function ContactForm({
         <div className="card-header"><div><h2>First follow-up</h2><p>Choose when you want this person to appear on Today.</p></div></div>
         <label className="checkbox-card onboarding-default">
           <input type="checkbox" name="scheduleFollowUp" checked={scheduleFollowUp} onChange={(event) => setScheduleFollowUp(event.target.checked)} />
-          <span><strong>Schedule a follow-up now</strong><small>Start a matching mix if one is available.</small></span>
+          <span><strong>Schedule a follow-up now</strong><small>Start a matching mix, or just this one follow-up.</small></span>
         </label>
         {scheduleFollowUp && <div className="form-grid contact-first-follow-up-fields">
           <input type="hidden" name="followUpDateTypeId" value={followUp.dateTypeId} />
           <div className="field"><span className="field-label">Follow-up date</span><WhenField label="Follow-up date" dateName="followUpDate" defaultDate={followUp.defaultDate ?? ""} noPast /></div>
           <div className="field"><label htmlFor="followUpReason">Reason <small>optional</small></label><input id="followUpReason" name="followUpReason" defaultValue={followUp.defaultReason ?? "Follow up"} placeholder="Proposal follow-up" /></div>
-          <div className="field full"><label htmlFor="followUpMixId">Mix</label>{followUp.mixes.length ? <select id="followUpMixId" name="followUpMixId" defaultValue={followUp.mixes[0]?.id ?? ""}><option value="">Just save the date</option>{followUp.mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select> : <><input id="followUpMixId" name="followUpMixId" type="hidden" value="" /><small>You can add a mix later.</small></>}</div>
+          <div className="field full"><label htmlFor="followUpMixId">Mix</label>{followUp.mixes.length ? <select id="followUpMixId" name="followUpMixId" defaultValue={followUp.mixes[0]?.id ?? ""}><option value="">No mix: just this follow-up</option>{followUp.mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select> : <><input id="followUpMixId" name="followUpMixId" type="hidden" value="" /><small>You can add a mix later.</small></>}</div>
         </div>}
       </section>}
 

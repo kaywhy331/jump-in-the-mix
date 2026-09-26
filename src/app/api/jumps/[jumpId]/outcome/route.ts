@@ -3,10 +3,11 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { NextResponse } from "next/server";
 import { timezoneForUser } from "@/lib/display-preferences";
-import type { ContactActivityVisibility, JumpOutcome, Prisma } from "@/generated/prisma/client";
+import type { Channel, ContactActivityVisibility, JumpOutcome, Prisma } from "@/generated/prisma/client";
 import { getCurrentSession } from "@/lib/auth";
 import { attachAttemptOutcome, parseAttemptPayload, recordJumpAttempt } from "@/lib/jump-attempts";
 import { logicalDateKey, zonedDateTimeToUtc } from "@/lib/jump-schedule";
+import { createOneTimeFollowUp } from "@/lib/one-time-follow-up";
 import { prisma } from "@/lib/prisma";
 import { queueWorkflowForJump, workflowDefinition, workflowState } from "@/lib/mix-workflow";
 import { workflowDecisionRulesForVisit } from "@/lib/mix-workflow-engine";
@@ -24,6 +25,8 @@ const OUTCOMES: JumpOutcome[] = [
   "SKIPPED",
   "REOPENED"
 ];
+
+const CHANNELS: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
 
 const COMPLETE_OUTCOMES: JumpOutcome[] = [
   "COMPLETED",
@@ -58,6 +61,7 @@ type StoredResponse = {
   activityId: string;
   nextCommitmentAt: string | null;
   jumpDateId: string | null;
+  nextJumpId?: string | null;
   attempt?: { id: string; evidence: PreparationEvidence };
 };
 
@@ -90,6 +94,7 @@ function jsonResponse(value: Prisma.JsonValue | null): StoredResponse | null {
     activityId: String(object.activityId ?? ""),
     nextCommitmentAt: typeof object.nextCommitmentAt === "string" ? object.nextCommitmentAt : null,
     jumpDateId: typeof object.jumpDateId === "string" ? object.jumpDateId : null,
+    nextJumpId: typeof object.nextJumpId === "string" ? object.nextJumpId : null,
     ...(attempt && typeof attempt.id === "string" && EVIDENCE.includes(attempt.evidence as PreparationEvidence)
       ? { attempt: { id: attempt.id, evidence: attempt.evidence as PreparationEvidence } }
       : {})
@@ -242,30 +247,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
       if (outcome === "CONNECTED") await applyJourneyEvent(tx, { workspaceId: membership.workspaceId, contactId: jump.contactId, eventKey: `call:${jump.id}:${requestId}`, eventType: "CONVERSATION_STARTED", source: "Connected call", actorUserId: session.user.id });
       await queueWorkflowForJump(tx, membership.workspaceId, jump.id, nextStatus === "DONE" || nextStatus === "SKIPPED" ? decisions : undefined, requestId);
 
-      let jumpDateId: string | null = null;
-      if (nextLogicalDate && nextCommitmentAt && nextMinutes !== null && !(outcome === "RESCHEDULED" && jump.workflowInstanceId)) {
-        const followUpType = await tx.dateType.findFirst({
-          where: { scopeKey: "system", slug: "follow-up", isActive: true },
-          select: { id: true }
-        });
-        if (!followUpType) throw new Error("The follow-up date type is unavailable.");
-        const jumpDate = await tx.jumpDate.create({
-          data: {
-            workspaceId: membership.workspaceId,
-            contactId: jump.contactId,
-            dateTypeId: followUpType.id,
-            dateValue: new Date(Date.UTC(nextLogicalDate.year, nextLogicalDate.month - 1, nextLogicalDate.day, 12)),
-            month: nextLogicalDate.month,
-            day: nextLogicalDate.day,
-            timeMinutes: nextMinutes,
-            recurrence: "NONE",
-            timezone,
-            label: note ? `Next commitment · ${note.slice(0, 180)}` : "Next follow-up"
-          }
-        });
-        jumpDateId = jumpDate.id;
-        await tx.job.create({
-          data: { workspaceId: membership.workspaceId, task: "generate-jumps", payload: { contactId: jump.contactId } }
+      // The next promise is one follow-up at exactly the chosen time, whatever plan the person is on.
+      // It carries the same channel and wording forward; the owner can change the draft on Today.
+      let nextJumpId: string | null = null;
+      if (nextCommitmentAt && !(outcome === "RESCHEDULED" && jump.workflowInstanceId)) {
+        const snapshot = (jump.templateSnapshot && typeof jump.templateSnapshot === "object" && !Array.isArray(jump.templateSnapshot) ? jump.templateSnapshot : {}) as Record<string, unknown>;
+        const text = (value: unknown) => typeof value === "string" ? value : null;
+        const channel = CHANNELS.includes(snapshot.channel as Channel) ? snapshot.channel as Channel : jump.stepVersion.stepTemplate.channel;
+        const content = text(snapshot.subject) !== null || text(snapshot.body) !== null || text(snapshot.script) !== null
+          ? { subject: text(snapshot.subject), body: text(snapshot.body), script: text(snapshot.script) }
+          : { subject: jump.stepVersion.subject, body: jump.stepVersion.body, script: jump.stepVersion.script };
+        const reason = outcome === "RESCHEDULED" ? jump.reason : note ? `Next follow-up · ${note.slice(0, 180)}` : "Next follow-up";
+        nextJumpId = await createOneTimeFollowUp(tx, {
+          workspaceId: membership.workspaceId,
+          contactId: jump.contactId,
+          actorUserId: session.user.id,
+          scheduledAt: nextCommitmentAt,
+          reason,
+          channel,
+          content,
+          key: `jump-outcome-next:${jump.id}:${requestId}`
         });
       }
 
@@ -305,7 +306,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
           entityType: "Jump",
           entityId: jump.id,
           source: "today.outcome",
-          metadata: { outcome, nextStatus, activityId: activity.id, jumpDateId, logicalDate: nextLogicalDate ? logicalDateKey(nextLogicalDate) : null }
+          metadata: { outcome, nextStatus, activityId: activity.id, nextJumpId, logicalDate: nextLogicalDate ? logicalDateKey(nextLogicalDate) : null }
         }
       });
 
@@ -313,7 +314,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
         status: nextStatus,
         activityId: activity.id,
         nextCommitmentAt: nextCommitmentAt?.toISOString() ?? null,
-        jumpDateId,
+        jumpDateId: null,
+        nextJumpId,
         ...(attemptId ? { attempt: { id: attemptId, evidence } } : {})
       };
       await tx.idempotencyKey.create({

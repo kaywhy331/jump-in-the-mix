@@ -15,6 +15,9 @@ import { buildAddressInputs, buildEmailInputs, buildPhoneInputs, normalizeEmail 
 import { CONTACT_REVISION_INCLUDE, STALE_CONTACT_SAVE, contactRevision } from "@/lib/contact-revision";
 import { listGroupStates, mergeGroupActivity } from "@/lib/group-activity";
 import { canonicalPhoneKey, phoneLookupKeys, phoneRowKeys, workspacePhoneRegion } from "@/lib/phone-number";
+import { createOneTimeFollowUp } from "@/lib/one-time-follow-up";
+import { DEFAULT_PERSONAL_SCHEDULING, outsideQuietHours } from "@/lib/personal-scheduling";
+import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { ViewOnlySupportSessionError, requireWritableWorkspace } from "@/lib/writable-workspace";
@@ -175,6 +178,14 @@ type InitialFollowUp = {
   mixId: string | null;
 };
 
+// Wording for the first follow-up of a person added without a plan, on the channel their details allow.
+function firstFollowUpContent(reason: string, hasPhone: boolean, hasEmail: boolean): { channel: "SMS" | "EMAIL" | "PHONE_CALL"; content: { subject: string | null; body: string | null; script: string | null } } {
+  const topic = reason.replace(/[{}]/g, "").trim() || "Follow up";
+  if (hasPhone) return { channel: "SMS", content: { subject: null, body: "Hi {{First Name}}, just checking in. Is there anything I can help with? {{SMS Signature}}", script: null } };
+  if (hasEmail) return { channel: "EMAIL", content: { subject: topic, body: "Hi {{First Name}},\n\nJust checking in. Is there anything I can help with?", script: null } };
+  return { channel: "PHONE_CALL", content: { subject: null, body: null, script: `Check in with {{First Name}}: ${topic}` } };
+}
+
 async function initialFollowUpPayload(workspaceId: string, formData: FormData): Promise<InitialFollowUp | null> {
   if (formData.get("scheduleFollowUp") !== "on") return null;
   const dateTypeId = value(formData, "followUpDateTypeId");
@@ -255,13 +266,13 @@ async function queueContactReconciliation(workspaceId: string, contactId: string
   await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId } } });
 }
 
-type CreatedContact = { contactId: string; dateCreated: boolean; mixAssigned: boolean };
+type CreatedContact = { contactId: string; dateCreated: boolean; mixAssigned: boolean; followUpScheduled?: boolean };
 
 function storedCreation(response: Prisma.JsonValue | null | undefined): CreatedContact | null {
   if (!response || typeof response !== "object" || Array.isArray(response)) return null;
   const saved = response as Record<string, unknown>;
   if (typeof saved.contactId !== "string" || !saved.contactId) return null;
-  return { contactId: saved.contactId, dateCreated: saved.dateCreated === true, mixAssigned: saved.mixAssigned === true };
+  return { contactId: saved.contactId, dateCreated: saved.dateCreated === true, mixAssigned: saved.mixAssigned === true, followUpScheduled: saved.followUpScheduled === true };
 }
 
 /** The contact an earlier submission of the same Add form already created, if any. */
@@ -275,6 +286,7 @@ function createdContactPath(returnTo: string, created: CreatedContact): string {
   const result = new URLSearchParams({ created: "1" });
   if (created.dateCreated) result.set("dateCreated", "1");
   if (created.mixAssigned) result.set("mixAssigned", "1");
+  if (created.followUpScheduled) result.set("followUpScheduled", "1");
   return workflowContinuation(returnTo, created.contactId) ?? `/contacts/${created.contactId}?${result.toString()}`;
 }
 
@@ -327,7 +339,24 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
         customFieldValues: payload.customFields.length ? { create: payload.customFields.map((item) => ({ definitionId: item.definitionId, value: item.value })) } : undefined
       }
     });
-    if (followUp) {
+    if (followUp && !followUp.mixId) {
+      // Without a plan the owner still asked to see this person on Today on that day: one
+      // follow-up at their default follow-up time, not a saved date that no plan reads.
+      const preference = await tx.workspacePreference.findUnique({ where: { workspaceId: workspace.id }, select: { defaultFollowUpMinutes: true, quietHoursStart: true, quietHoursEnd: true } });
+      const rule = preference ?? DEFAULT_PERSONAL_SCHEDULING;
+      const logicalDate = { year: followUp.dateValue.getUTCFullYear(), month: followUp.dateValue.getUTCMonth() + 1, day: followUp.dateValue.getUTCDate() };
+      const planned = zonedDateTimeToUtc(logicalDate, outsideQuietHours(rule.defaultFollowUpMinutes, rule.quietHoursStart, rule.quietHoursEnd), timezone);
+      const now = new Date();
+      await createOneTimeFollowUp(tx, {
+        workspaceId: workspace.id,
+        contactId: created.id,
+        actorUserId: user.id,
+        scheduledAt: planned > now ? planned : now,
+        reason: followUp.reason,
+        ...firstFollowUpContent(followUp.reason, payload.phones.length > 0, payload.emails.length > 0),
+        key: `contact-first-follow-up:${created.id}`
+      });
+    } else if (followUp) {
       await tx.jumpDate.create({
         data: {
           workspaceId: workspace.id,
@@ -371,7 +400,7 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
       }
     });
     await applyJourneyEvent(tx, { workspaceId: workspace.id, contactId: created.id, eventKey: `contact-created:${created.id}`, eventType: "CONTACT_RECEIVED", source: "Contact added", actorUserId: user.id });
-    const receipt: CreatedContact = { contactId: created.id, dateCreated: Boolean(followUp), mixAssigned: Boolean(followUp?.mixId) };
+    const receipt: CreatedContact = { contactId: created.id, dateCreated: Boolean(followUp?.mixId), mixAssigned: Boolean(followUp?.mixId), followUpScheduled: Boolean(followUp && !followUp.mixId) };
     if (idempotencyKey) {
       await tx.idempotencyKey.create({ data: { workspaceId: workspace.id, key: idempotencyKey, response: receipt, expiresAt: new Date(Date.now() + 7 * 86_400_000) } });
     }

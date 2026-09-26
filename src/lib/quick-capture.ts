@@ -6,7 +6,7 @@ import { parseCalendarTime } from "@/lib/calendar-time";
 import { isValidEmail, normalizeEmail, normalizePhone } from "@/lib/contact-input";
 import { canonicalPhoneKey, phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
 import { applyJourneyEvent } from "@/lib/journey";
-import { renderJumpSnapshot } from "@/lib/jump-render";
+import { createOneTimeFollowUp } from "@/lib/one-time-follow-up";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
 import { quickCaptureSchema, type QuickCaptureContact, type QuickCaptureReceipt } from "@/lib/quick-capture-input";
 import { splitContactName } from "@/lib/quick-add-capture";
@@ -42,8 +42,6 @@ export async function saveQuickCapture(context: { workspaceId: string; actorUser
       if (saved.hash !== hash) throw new QuickCaptureError("Your earlier capture was saved. Later edits have not been applied.", [], saved.receipt);
       return saved.receipt;
     }
-    const user = await tx.user.findUniqueOrThrow({ where: { id: actorUserId } });
-    const workspace = await tx.workspace.findUniqueOrThrow({ where: { id: workspaceId }, include: { profile: true } });
     let contactId: string;
     const createdPerson = data.person.mode === "new";
     if (data.person.mode === "existing") {
@@ -85,13 +83,7 @@ export async function saveQuickCapture(context: { workspaceId: string; actorUser
       if (written && containsPrivateNotesPlaceholder(followUp.wording + followUp.subject)) throw new QuickCaptureError("Private notes can only be used in call notes.");
       let scheduledAt: Date;
       try { scheduledAt = parseCalendarTime(followUp.when, timezone); } catch (error) { throw new QuickCaptureError(error instanceof Error ? error.message : "Choose a follow-up date and time."); }
-      const mixId = `one_time_mix_${digest(workspaceId).slice(0, 28)}`;
-      await tx.mix.upsert({ where: { id: mixId }, create: { id: mixId, workspaceId, name: "One-time follow-ups", triggerMode: "MANUAL_START", status: "ARCHIVED", source: "ONE_TIME" }, update: {} });
-      const template = await tx.stepTemplate.create({ data: { workspaceId, name: followUp.reason, channel: followUp.channel, isActive: false, versions: { create: { version: 1, ...content, longSms: followUp.channel === "SMS" && followUp.wording.length > 160 } } }, include: { versions: true } });
-      const version = template.versions[0];
-      const step = await tx.mixStep.create({ data: { mixId, stepVersionId: version.id, dayOffset: 0, sortOrder: 1, isActive: false } });
-      const person = await tx.contact.findUniqueOrThrow({ where: { id: contactId }, include: { phones: true, emails: true, addresses: true, customFieldValues: { include: { definition: true } } } });
-      jumpId = (await tx.jump.create({ data: { workspaceId, contactId, mixId, mixStepId: step.id, stepVersionId: version.id, manualOnly: true, scheduledAt, baseScheduledAt: scheduledAt, status: "PENDING", reason: followUp.reason, templateSnapshot: { ...content, channel: followUp.channel, oneTime: true, batchId: data.requestId }, renderedSnapshot: renderJumpSnapshot(content, person, workspace.profile, user, followUp.channel), uniquenessKey: digest(key) } })).id;
+      jumpId = await createOneTimeFollowUp(tx, { workspaceId, contactId, actorUserId, scheduledAt, reason: followUp.reason, channel: followUp.channel, content, key, batchId: data.requestId });
     }
     const receipt = { contactId, createdPerson, eventId, jumpId, noteId };
     await tx.auditLog.create({ data: { workspaceId, actorType: "USER", actorUserId, action: "quick-capture.save", entityType: "Contact", entityId: contactId, source: "quick-add", metadata: receipt } });

@@ -94,8 +94,12 @@ test("follow-up outcomes complete in place and appear on the Contact timeline", 
     await expect(outcomeForm.getByRole("group", { name: "Next follow-up" })).toBeVisible();
     await outcomeForm.getByRole("button", { name: "Save outcome" }).click();
     await expect(workflow.getByText("Follow-up completed")).toBeVisible({ timeout: 30_000 });
+    // The confirmation names the follow-up that was just scheduled, not the plan's own next step.
+    await expect(page.getByText(/^Next follow-up: /)).toBeVisible();
     await expect.poll(async () => prisma.contactActivity.count({ where: { jumpId, outcome: "NO_ANSWER" } })).toBe(1);
-    await expect.poll(async () => prisma.jumpDate.count({ where: { contactId, isActive: true, label: { contains: "Next commitment" } } })).toBe(1);
+    // Exactly one follow-up at the chosen time, whatever plan the person is on.
+    await expect.poll(async () => prisma.jump.count({ where: { contactId, status: "PENDING", reason: { contains: "Next follow-up" }, mix: { source: "ONE_TIME" } } })).toBe(1);
+    expect(await prisma.jumpDate.count({ where: { contactId, label: { contains: "Next commitment" } } })).toBe(0);
 
     await page.goto(`/contacts/${contactId}`);
     const timeline = page.locator(".contact-timeline-card");

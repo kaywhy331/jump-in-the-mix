@@ -74,7 +74,7 @@ test("relationship mixes can be previewed, remixed, fine-tuned, and started with
     await page.getByRole("combobox", { name: "Choose a mix", exact: true }).selectOption(mixId);
     await page.getByRole("button", { name: "Add to a mix", exact: true }).click();
     // Starting a Mix for someone now confirms with the preparation notice (006d445).
-    await expect(page.getByText(/^Start saved\. Follow-ups are being prepared\./)).toBeVisible();
+    await expect(page.getByText(/^Start saved\b.*Follow-ups are being prepared\./)).toBeVisible();
   } finally {
     if (mixId) {
       const templates = await prisma.stepTemplate.findMany({ where: { workspaceId: "demo_workspace", versions: { some: { mixSteps: { some: { mixId } } } } }, select: { id: true } });
