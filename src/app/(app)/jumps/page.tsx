@@ -40,7 +40,7 @@ import { snoozeChoices } from "@/lib/snooze-schedule";
 import { followUpPhone, parseTodayCursor, readTodayPage } from "@/lib/today-list";
 import { calendarDaysOverdue, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
 import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
-import { automaticEmailConfigured, automaticSmsConfigured } from "@/lib/automatic-delivery";
+import { automaticEmailConfigured } from "@/lib/automatic-delivery";
 import { phoneRegionOrDefault } from "@/lib/phone-number";
 
 export const metadata: Metadata = { title: "Today" };
@@ -190,7 +190,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   ]);
   const failedDeliveries = new Map(failedDeliveryRows.map((row) => [row.jumpId, row] as const));
   // A drafted follow-up is held from automatic delivery; the card says so only where delivery would otherwise apply.
-  const automaticFor = (followUpChannel: Channel) => Boolean(automation?.enabled && ((followUpChannel === "EMAIL" && automation.emailEnabled && automaticEmailConfigured()) || (followUpChannel === "SMS" && automation.smsEnabled && automaticSmsConfigured())));
+  const automaticFor = (followUpChannel: Channel) => Boolean(automation?.enabled && ((followUpChannel === "EMAIL" && automation.emailEnabled && automaticEmailConfigured()) || (followUpChannel === "SMS" && automation.smsEnabled)));
   const profile = workspace.profile;
   const renderOwner = { name: owner?.name ?? user.name ?? "", email: owner?.email ?? user.email };
   const viewParams = new URLSearchParams({ range, status, channel, ...(query ? { q: query } : {}), ...(params.jump ? { jump: params.jump.slice(0, 120) } : {}), ...(priority !== "all" ? { priority } : {}), ...(compact ? { view: "compact" } : {}) });
