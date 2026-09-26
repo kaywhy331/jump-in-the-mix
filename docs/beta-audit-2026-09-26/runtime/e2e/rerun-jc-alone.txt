@@ -1,0 +1,5 @@
+
+Running 1 test using 1 worker
+
+[1/1] [desktop-chromium] › e2e/journey-connections.spec.ts:310:1 › delete an individual branch and a shared join while preserving other paths
+  1 passed (7.1s)

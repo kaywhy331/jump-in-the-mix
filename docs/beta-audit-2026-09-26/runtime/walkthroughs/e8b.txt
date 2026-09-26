@@ -1,0 +1,3 @@
+  Pixel 7 profile, after tap: dialogs=1 message visible=1 message inside card=1
+  [capture] docs/beta-audit-2026-09-26/captures/e8b-pixel7-after-review-tap.png
+(elapsed 4 s)

@@ -1,0 +1,18 @@
+# npm run security:audit (npm audit --omit=dev --audit-level=high) at 4b5abd8, 2026-09-26T17:27:29Z
+
+> jump-in-the-mix-mvp@0.1.0 security:audit
+> npm audit --omit=dev --audit-level=high
+
+# npm audit report
+
+baseline-browser-mapping  >=2.0.0 <2.11.0
+Severity: moderate
+baseline-browser-mapping process termination on invalid input causes denial of service - https://github.com/advisories/GHSA-w5vr-8v7q-w6rv
+fix available via `npm audit fix`
+node_modules/baseline-browser-mapping
+
+1 moderate severity vulnerability
+
+To address all issues, run:
+  npm audit fix
+exit=0

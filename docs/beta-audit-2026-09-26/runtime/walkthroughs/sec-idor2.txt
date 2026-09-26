@@ -1,0 +1,17 @@
+  signed in as realtor: http://127.0.0.1:3111/jumps
+  page 200 /contacts/cmuimqi21002zjil3gp3sx2ze -> /contacts/cmuimqi21002zjil3gp3sx2ze  no plumber data  text="Skip to content Jump in the Mix Quick Add N Today Contacts Mixes Journey Calendar Settings Help My account Appearance System Light Dark Sign"
+  page 200 /contacts/cmuimqi21002zjil3gp3sx2ze/edit -> /contacts/cmuimqi21002zjil3gp3sx2ze/edit  no plumber data  text="Skip to content Jump in the Mix Quick Add N Today Contacts Mixes Journey Calendar Settings Help My account Appearance System Light Dark Sign"
+  page 200 /mixes/cmuimpbyk000ijil332puzbub/edit -> /mixes?mix=cmuimpbyk000ijil332puzbub&view=edit  no plumber data  text="Skip to content Jump in the Mix Quick Add N Today Contacts Mixes Journey Calendar Settings Help My account Appearance System Light Dark Sign"
+  page 200 /mixes?mix=cmuimpbyk000ijil332puzbub -> /mixes?mix=cmuimpbyk000ijil332puzbub  no plumber data  text="Skip to content Jump in the Mix Quick Add N Today Contacts Mixes Journey Calendar Settings Help My account Appearance System Light Dark Sign"
+  page 200 /journey?mix=cmuimpbyk000ijil332puzbub&contactId=cmuimqi21002zjil3gp3sx2ze -> /journey?mix=cmuimpbyk000ijil332puzbub&contactId=cmuimqi21002zjil3gp3sx2ze  no plumber data  text="Skip to content Jump in the Mix Quick Add N Today Contacts Mixes Journey Calendar Settings Help My account Appearance System Light Dark Sign"
+  page 200 /jumps?jump=cmuimr9z50013m8l327s4n51h&range=all -> /jumps?jump=cmuimr9z50013m8l327s4n51h&range=all  no plumber data  text="Skip to content Jump in the Mix Quick Add N Today Contacts Mixes Journey Calendar Settings Help My account Appearance System Light Dark Sign"
+  page 200 /journey?contactId=cmuimqi21002zjil3gp3sx2ze&work=cmuimr8xk0037jil3g02mg1tf -> /journey?contactId=cmuimqi21002zjil3gp3sx2ze&work=cmuimr8xk0037jil3g02mg1tf  no plumber data  text="Skip to content Jump in the Mix Quick Add N Today Contacts Mixes Journey Calendar Settings Help My account Appearance System Light Dark Sign"
+  api 404 GET activity  no plumber data  {"error":"Contact not found."}
+  api 404 GET draft  no plumber data  {"error":"Follow-up not found."}
+  api 404 GET mix export  no plumber data  {"error":"Only an active or draft Mix with Beats and a manual or date start can be exported."}
+  api 404 POST outcome  no plumber data  {"error":"Follow-up not found."}
+  api 404 PUT draft  no plumber data  {"error":"This follow-up is no longer open, so its message can't be edited.","reason":"unavailable","draft":null}
+  api 400 POST mix-workflow start  no plumber data  {"error":"Check the connection's fields and try again."}
+  api 200 GET recipient-search  no plumber data  {"contacts":[],"more":false}
+  plumber's jump after probes: {"status":"PENDING","drafts":"0"}
+(elapsed 13 s)

@@ -1,0 +1,6 @@
+  follow-up block: Follow-up | the kitchen quote | 2026-09-26 · Edit | Reason | Follow-up date | Follow-up time | How to follow up | Choose a method | Call | Text | Email | WhatsApp | Voicemail | Draft message | Saved for you to review and complete. This follow-up is not sent automatically.
+  dialog after Save all: Quick Add | Follow up with Sam Ortiz today about the kitchen quote | Saving as | Check each item. Dates and times use America/Denver. | New person | Name or search for someone | Add phone or email (optional) | Private note | Keep the original capture · edit note | Event | Follow-up | the kitchen quote | 2026-09-26 · Edit | Reason | Follow-up date | Follow-up time | How to follow up | Choose a method | Call | Text | Email | WhatsApp | Voicemail | Draft message | Saved for you to review and complete. This follow-up is not sent automatically. | Edit capture | Save all 3
+  [capture] docs/beta-audit-2026-09-26/captures/e3b-quick-add-after-save-390-light.png
+  alerts: [""]
+  db Sam Ortiz: []
+(elapsed 6 s)

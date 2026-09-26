@@ -1,0 +1,21 @@
+## E6 keyboard only
+  Tab x2 -> input "email" [outline 3px solid]
+  Tab x1 -> input "password" [outline 3px solid]
+  after Enter: http://127.0.0.1:3111/jumps
+  first Tab on Today -> NOT REACHED
+  Tab x60 -> NOT REACHED
+  [capture] docs/beta-audit-2026-09-26/captures/e6-keyboard-review-focus-1440-light.png
+  after Enter on Review, focus: body "Skip to content Jump in the Mix Quick Add N Today " [NO VISIBLE RING]
+  Tab x40 -> NOT REACHED
+  [capture] docs/beta-audit-2026-09-26/captures/e6-keyboard-marksent-focus-1440-light.png
+  after Escape, focus: body "Skip to content Jump in the Mix Quick Add N Today " [NO VISIBLE RING]
+## E5 waitlist confirmation email
+  page after join: Jump in the Mix | Join the waitlist | Request access with your email. Accounts are free, with no card to enter. | Join with your email. | Open the confirmation link in your inbox. | We email invitations in small groups as space opens. We can’t promise a date. | If that address needs confirmation, we’ve sent a link — check your inbox. If you’re already confirmed or invited, your place is unchanged.
+  [capture] docs/beta-audit-2026-09-26/captures/e5-waitlist-joined-375-light.png
+  from=test@example.test reply_to=(none) subject="Confirm your Jump in the Mix waitlist request" headers={}
+    | Confirm your email to join the free-account waitlist: http://127.0.0.1:3111/waitlist/confirm?token=<redacted-local-test-token>
+    | 
+    | This confirmation link expires in 24 hours. Once you’ve confirmed, we’ll email your invitation as space opens. We can’t promise a date. If you didn’t request this, ignore this email.
+    | 
+    | Leave the waitlist or stop invitations: http://127.0.0.1:3111/waitlist/leave
+(elapsed 9 s)
