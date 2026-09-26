@@ -175,4 +175,14 @@ describe("buildImportRows with export files", () => {
     expect(countRowsWithoutContactMethod(rows)).toBe(2);
     expect(countRowsWithoutContactMethod([])).toBe(0);
   });
+
+  it("keeps a row whose date cannot be read, leaving the date out with a warning", () => {
+    const parsed = parseCsvText(["First Name,E-mail Address,Birthday,Anniversary", "Ana,ana@example.com,0/0/00,0/0/00", "Bob,bob@example.com,4/12/1980,0/0/00", "Dan,dan@example.com,,TBD"].join("\n"), "outlook.csv");
+    const rows = buildImportRows(parsed, mapped(parsed.headers));
+    expect(rows.map((row) => row.errors)).toEqual([[], [], []]);
+    expect(rows[0].warnings).toEqual([]);
+    expect(rows[0].record.jumpDates).toEqual([]);
+    expect(rows[1].record.jumpDates.map((item) => item.month)).toEqual([4]);
+    expect(rows[2].warnings).toEqual(["Column “Anniversary” has an unreadable date, so it was left out: TBD"]);
+  });
 });

@@ -438,6 +438,10 @@ export function ContactImportWizardV2({
             <div><strong>{planned.skip}</strong><span>Skip / invalid</span></div>
           </div>
 
+          {(() => {
+            const dropped = validRows.flatMap((row) => row.warnings.filter((warning) => warning.includes("unreadable date")).map((warning) => `Row ${row.record.sourceRow}: ${warning}`));
+            return dropped.length ? <Notice type="info">{dropped.length === 1 ? "1 date could not be read and will be left out; the person still imports." : `${dropped.length} dates could not be read and will be left out; the people still import.`}<ul>{dropped.slice(0, 10).map((item) => <li key={item}>{item}</li>)}</ul>{dropped.length > 10 && <p>And {dropped.length - 10} more.</p>}</Notice> : null;
+          })()}
           {issueRows.length ? <div className="import-dedupe-list">{issueRows.map((row) => {
             if (row.errors.length) return <article className="import-dedupe-card invalid" key={row.record.rowId}><div><span className="status-pill">Row {row.record.sourceRow}</span><h3>{contactNameForImport(row.record)}</h3><p>{row.errors.join(" · ")}</p></div><strong>Will be reported as failed</strong></article>;
             const match = matchByRow.get(row.record.rowId);

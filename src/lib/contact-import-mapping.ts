@@ -248,9 +248,12 @@ export function buildImportRows(table: ParsedImportTable, mapping: ImportColumnM
         else structured[target.field].push(cell);
       } else if (target.kind === "CUSTOM") customFields.set(target.definitionId, cell);
       else if (target.kind === "DATE") {
+        // Outlook writes 0/0/00 for an empty date. Any other unreadable date is left out with a
+        // warning; the person still imports.
+        if (/^0{1,2}[/.-]0{1,2}[/.-]0{2,4}$/.test(cell)) continue;
         const parsed = parseImportDate(cell);
         if (!parsed) {
-          errors.push(`Column “${header}” has an invalid date: ${cell}`);
+          warnings.push(`Column “${header}” has an unreadable date, so it was left out: ${cell}`);
           continue;
         }
         jumpDates.push({
