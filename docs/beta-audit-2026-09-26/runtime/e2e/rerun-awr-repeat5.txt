@@ -1,0 +1,39 @@
+
+Running 5 tests using 1 worker
+
+[1/5] [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:92:1 › a different staff session cannot recover the previous operator's in-memory draft
+[2/5] [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:92:1 › a different staff session cannot recover the previous operator's in-memory draft
+[3/5] [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:92:1 › a different staff session cannot recover the previous operator's in-memory draft
+  1) [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:92:1 › a different staff session cannot recover the previous operator's in-memory draft 
+
+    Error: expect(locator).toBeEnabled() failed
+
+    Locator: getByRole('button', { name: 'Retry session check' })
+    Expected: enabled
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeEnabled" with timeout 10000ms
+      - waiting for getByRole('button', { name: 'Retry session check' })
+        2 × locator resolved to <button disabled type="button">Retry session check</button>
+          - unexpected value "disabled"
+
+
+       98 |     await page.route("**/api/admin/browser-context", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ status: "unavailable" }) }));
+       99 |     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    > 100 |     await expect(page.getByRole("button", { name: "Retry session check" })).toBeEnabled();
+          |                                                                             ^
+      101 |     await expect(page.locator('textarea[name="body"]')).toBeHidden();
+      102 |     await page.unroute("**/api/admin/browser-context");
+      103 |     await page.getByRole("button", { name: "Retry session check" }).click();
+        at /tmp/jitm-beta-audit-20260926/e2e/admin-workflow-regressions.spec.ts:100:77
+
+    Error Context: test-results/admin-workflow-regressions-0d2dc--operator-s-in-memory-draft-desktop-chromium-repeat2/error-context.md
+
+
+[4/5] [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:92:1 › a different staff session cannot recover the previous operator's in-memory draft
+[5/5] [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:92:1 › a different staff session cannot recover the previous operator's in-memory draft
+  1 failed
+    [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:92:1 › a different staff session cannot recover the previous operator's in-memory draft 
+  4 passed (28.5s)

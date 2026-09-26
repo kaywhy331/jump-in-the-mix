@@ -1,0 +1,10 @@
+  [capture] docs/beta-audit-2026-09-26/captures/export-Main-390.png
+  [capture] docs/beta-audit-2026-09-26/captures/export-DarkMain-390.png
+  [capture] docs/beta-audit-2026-09-26/captures/export-Contacts-390.png
+  [capture] docs/beta-audit-2026-09-26/captures/export-Contact-390.png
+  [capture] docs/beta-audit-2026-09-26/captures/export-Mixes-390.png
+  [capture] docs/beta-audit-2026-09-26/captures/export-More-390.png
+  [capture] docs/beta-audit-2026-09-26/captures/export-Review-390.png
+  [capture] docs/beta-audit-2026-09-26/captures/export-DesktopToday-1440.png
+  [capture] docs/beta-audit-2026-09-26/captures/export-LandingPhone-390.png
+(elapsed 10 s)

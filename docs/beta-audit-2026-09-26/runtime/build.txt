@@ -1,0 +1,184 @@
+# npm run build at 4b5abd8 2026-09-26T16:45:11Z with CI env
+
+> jump-in-the-mix-mvp@0.1.0 prebuild
+> node scripts/generate-schema-release.mjs
+
+Schema release prepared: 71 migrations, 114 models.
+
+> jump-in-the-mix-mvp@0.1.0 build
+> next build
+
+▲ Next.js 16.3.4 (Turbopack)
+- Environments: .env
+✓ Running next.config.ts took 282ms
+- Experiments (use with caution):
+  · serverActions
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 55s
+  Running TypeScript ...
+✓ Finished writing to filesystem cache in 35.8s
+  Finished TypeScript in 93s ...
+  Collecting page data using 3 workers ...
+  Generating static pages using 3 workers (0/111) ...
+  Generating static pages using 3 workers (27/111) 
+  Generating static pages using 3 workers (55/111) 
+  Generating static pages using 3 workers (83/111) 
+✓ Generating static pages using 3 workers (111/111) in 1256ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /account
+├ ƒ /account/admin-mfa
+├ ƒ /account/deleted
+├ ƒ /account/preferences
+├ ƒ /account/tickets
+├ ƒ /account/tickets/[ticketId]
+├ ƒ /admin
+├ ƒ /admin/access
+├ ƒ /admin/access-denied
+├ ƒ /admin/access/[inviteId]
+├ ƒ /admin/admission
+├ ƒ /admin/audit
+├ ƒ /admin/email
+├ ƒ /admin/email/recovery
+├ ƒ /admin/email/recovery/[deliveryId]
+├ ƒ /admin/email/suppressions
+├ ƒ /admin/email/suppressions/[suppressionId]
+├ ƒ /admin/marketplace
+├ ƒ /admin/operations
+├ ƒ /admin/operations/alerts
+├ ƒ /admin/reports
+├ ƒ /admin/reports/exports
+├ ƒ /admin/reports/history
+├ ƒ /admin/reports/history/[snapshotId]
+├ ƒ /admin/settings
+├ ƒ /admin/support
+├ ƒ /admin/support/[ticketId]
+├ ƒ /admin/system-mix
+├ ƒ /admin/team
+├ ƒ /admin/templates
+├ ƒ /admin/templates/[sharedMixId]/edit
+├ ƒ /admin/templates/new
+├ ƒ /admin/users
+├ ƒ /admin/users/[userId]
+├ ƒ /admin/waitlist
+├ ƒ /api/account/export
+├ ƒ /api/admin/browser-context
+├ ƒ /api/admin/impersonation/end
+├ ƒ /api/admin/impersonation/start
+├ ƒ /api/admin/reports/exports/[exportId]
+├ ƒ /api/auth/browser-context
+├ ƒ /api/auth/magic
+├ ƒ /api/auth/oauth/apple/callback
+├ ƒ /api/auth/oauth/apple/start
+├ ƒ /api/auth/oauth/google/callback
+├ ƒ /api/auth/oauth/google/start
+├ ƒ /api/auth/verify-email
+├ ƒ /api/calendar/availability
+├ ƒ /api/calendar/export
+├ ƒ /api/calendar/feed/[token]
+├ ƒ /api/contacts/[contactId]/activity
+├ ƒ /api/contacts/[contactId]/review-request
+├ ƒ /api/contacts/audience
+├ ƒ /api/contacts/import
+├ ƒ /api/contacts/quick-add
+├ ƒ /api/contacts/recipient-search
+├ ƒ /api/follow-ups/preparation
+├ ƒ /api/health/live
+├ ƒ /api/health/monitor
+├ ƒ /api/health/ready
+├ ƒ /api/health/recovery-boundary
+├ ƒ /api/health/worker
+├ ƒ /api/jumps/[jumpId]/actions
+├ ƒ /api/jumps/[jumpId]/attempts
+├ ƒ /api/jumps/[jumpId]/completed-at
+├ ƒ /api/jumps/[jumpId]/draft
+├ ƒ /api/jumps/[jumpId]/outcome
+├ ƒ /api/jumps/[jumpId]/variant
+├ ƒ /api/marketplace/favorites
+├ ƒ /api/mega-mixes/[pipelineId]/export
+├ ƒ /api/mix-workflow
+├ ƒ /api/mixes/[mixId]/export
+├ ƒ /api/mixes/favorites
+├ ƒ /api/mixes/schedule-preview
+├ ƒ /api/notifications/subscribe
+├ ƒ /api/notifications/test
+├ ƒ /api/onboarding/preview
+├ ƒ /api/quick-capture
+├ ƒ /api/quiet-days
+├ ƒ /api/reviews/[token]
+├ ƒ /api/reviews/[token]/public-review
+├ ƒ /api/reviews/[token]/refer
+├ ƒ /api/settings/sending-preview
+├ ƒ /api/webhooks/intake/[connectionId]
+├ ƒ /api/webhooks/resend
+├ ƒ /auth/magic
+├ ƒ /calendar
+├ ƒ /contact
+├ ƒ /contacts
+├ ƒ /contacts/[contactId]
+├ ƒ /contacts/[contactId]/edit
+├ ƒ /contacts/archived
+├ ƒ /contacts/custom-fields
+├ ƒ /contacts/duplicates
+├ ƒ /contacts/import
+├ ƒ /contacts/new
+├ ƒ /faq
+├ ƒ /features/follow-up-reminders
+├ ƒ /follow-up-templates
+├ ƒ /follow-up-templates/estimate-follow-up
+├ ƒ /follow-up-templates/proposal-follow-up
+├ ƒ /for/[profession]
+├ ƒ /forgot-password
+├ ƒ /help
+├ ƒ /journey
+├ ƒ /jumps
+├ ƒ /lead/[connectionId]
+├ ƒ /login
+├ ○ /manifest.webmanifest
+├ ƒ /marketplace
+├ ƒ /mixes
+├ ƒ /mixes/[mixId]/edit
+├ ƒ /mixes/mega
+├ ƒ /mixes/new
+├ ƒ /mixes/system
+├ ƒ /more
+├ ƒ /offline
+├ ƒ /onboarding
+├ ƒ /privacy
+├ ƒ /register
+├ ƒ /reset-password
+├ ƒ /review/[token]
+├ ƒ /robots.txt
+├ ƒ /security
+├ ƒ /settings
+├ ƒ /settings/business
+├ ƒ /settings/connections
+├ ƒ /settings/journey
+├ ƒ /settings/jump-date-types
+├ ƒ /settings/notifications
+├ ƒ /settings/sending
+├ ƒ /signed-out
+├ ƒ /sitemap.xml
+├ ƒ /staff/accept
+├ ƒ /templates
+├ ƒ /templates/[sharedMixId]/use
+├ ƒ /templates/journeys
+├ ƒ /terms
+├ ƒ /verify-email/pending
+├ ƒ /waitlist
+├ ƒ /waitlist/confirm
+└ ƒ /waitlist/leave
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+	Command being timed: "npm run build"
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 2:42.43
+	Maximum resident set size (kbytes): 1714696

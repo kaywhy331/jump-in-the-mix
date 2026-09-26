@@ -1,0 +1,4 @@
+  1440px click: landed /jumps after 999 ms; "Checking your account" gone; console errors: []
+  1440px enter: landed /jumps after 1063 ms; "Checking your account" gone; console errors: []
+  390px enter: landed /jumps after 911 ms; "Checking your account" gone; console errors: []
+(elapsed 6 s)

@@ -1,0 +1,4 @@
+  completing Follow up about an estimate due 9/28/2026, 10:00:00 AM with next follow-up 2026-09-30 14:00 (America/Denver)
+  outcome response: 200 {"status":"DONE","activityId":"cmuippfyh000rovl316cfha1f","nextCommitmentAt":"2026-09-30T20:00:00.000Z","jumpDateId":"cmuippfyb000povl3xpgiggst"}
+  jumps now: [["DONE","9/26/2026, 10:00:00 AM","Follow up about an estimate"],["CANCELED","9/27/2026, 10:00:00 AM","Next follow-up"],["DONE","9/28/2026, 10:00:00 AM","Follow up about an estimate"],["PENDING","9/28/2026, 10:00:00 AM","Next follow-up"],["PENDING","9/30/2026, 10:00:00 AM","Next follow-up"],["PENDING","10/1/2026, 11:00:00 AM","Follow up about an estimate"],["PENDING","10/2/2026, 11:00:00 AM","Next follow-up"],["PENDING","10/5/2026, 11:00:00 AM","Next follow-up"]]
+(elapsed 16 s)

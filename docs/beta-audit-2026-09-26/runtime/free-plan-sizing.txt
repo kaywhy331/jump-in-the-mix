@@ -1,0 +1,20 @@
+# Free-plan sizing test: packaged 4b5abd8 server confined like Render's 0.5c-512mb web instance, 2026-09-26T18:28:56Z
+# systemd-run --user --scope -p MemoryMax=512M -p MemorySwapMax=0 -p CPUQuota=50% node --max-semi-space-size=8 .next/standalone/server.js (port 3112, CI env, local PostgreSQL 17 - production's 0.1-CPU database would be slower)
+# load: N concurrent signed-in readers (plumber account) cycling /jumps /contacts /mixes /journey /more /jumps?range=all /calendar with no think time
+
+## run 1 (server just started, 5 readers, 60 s)
+{"base":"http://127.0.0.1:3112","concurrency":5,"seconds":60,"requests":119,"errors":0,"codes":{"200":117,"503":2},"p50_ms":1778,"p95_ms":6085,"max_ms":17772}
+memory samples (cgroup memory.current / process RSS):
+18:25:52 mem_current_mb=73 rss_mb=116
+18:26:02 mem_current_mb=225 rss_mb=274
+18:26:12 mem_current_mb=202 rss_mb=252
+18:26:23 mem_current_mb=210 rss_mb=259
+18:26:33 mem_current_mb=234 rss_mb=282
+18:26:43 mem_current_mb=237 rss_mb=285
+18:26:53 mem_current_mb=238 rss_mb=286
+18:27:03 mem_current_mb=238 rss_mb=286
+memory.events after run 1: oom=0 oom_kill=0; memory.peak 238 MB
+
+## run 2 (warm, 6 readers, 45 s): 175 requests, 0 failures
+
+The two 503s are almost certainly (INFERRED: the response bodies were not captured in run 1; this is the only 503 source on these routes outside private-test mode) the proxy's fail-closed recovery-hold check (src/proxy.ts:132-141; src/lib/recovery-hold.ts:19-28: 2-connection pool, 1.5 s statement / 2 s query timeouts, 7 s deadline) timing out under CPU starvation right after start; the user sees a plain-text 'Jump in the Mix is temporarily unavailable. Please try again later.' (REL-05).

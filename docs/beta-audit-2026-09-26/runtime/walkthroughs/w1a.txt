@@ -1,0 +1,73 @@
+
+## cold visit / (+0 s)
+--- home / (Client Follow-Up App | Jump in the Mix) scrollWidth=375 innerWidth=375
+  headings: H1: You meant to follow up. Then work happened. | H2: Try a 3-step Mix | H3: Review your text · today | H2: Put client follow-up into a rhythm. | H3: Choose a Mix | H3: Set the rhythm | H3: Make it yours | H2: Keep the rhythm. Keep your own voice. | H2: Find a follow-up Mix for your work. | H2: Ready to put one follow-up in the mix?
+  fields: select[select-one] "Situation A client check-in A personal hello After meeting someone" name= disabled = "client" | textarea[textarea] "Message to Alex Morgan" name= disabled = "Hi Alex, you asked me to check back this" | input[email] "Email address" name=email required ac=email | select[select-one] "Appearance" name= = "system"
+  buttons: Text Today | Email Tomorrow | Call In 1 week | Preview SMS | Reset example | Join the waitlist
+  links: Skip to content -> #main-content | Jump in the Mix home -> / | Join the waitlist Join -> /waitlist | Try the demo -> #sample | Join the waitlist -> /waitlist | Real Estate Agents -> /for/real-estate-agents | Consultants -> /for/consultants | Photographers -> /for/photographers | Contractors -> /for/contractors | Recruiters -> /for/independent-recruiters | reminders -> /features/follow-up-reminders | Client follow-up templates -> /follow-up-templates | Questions before you jump in -> /faq | Real estate agents -> /for/real-estate-agents | Consultants -> /for/consultants | Contractors -> /for/contractors | Photographers -> /for/photographers | Recruiters -> /for/independent-recruiters | Jump in the Mix home -> / | How it works -> /#how-it-works | Follow-up templates -> /follow-up-templates | Follow-up reminders -> /features/follow-up-reminders | Questions -> /faq | Your data -> /faq#your-data | Sign in -> /login | Privacy -> /privacy | Terms -> /terms | Security -> /security | Contact & support -> /contact
+  [capture] docs/beta-audit-2026-09-26/captures/w1-01-home-375-light.png
+  [capture] docs/beta-audit-2026-09-26/captures/w1-01b-home-375-light-full.png
+
+## /for/contractors (+1 s)
+--- contractors /for/contractors (Contractor Follow-Up Software | Jump in the Mix) scrollWidth=375 innerWidth=375
+  headings: H1: The estimate went out. Don’t let the follow-up disappear. | H2: Try a 3-step Mix | H3: Review your text · today | H2: Put client follow-up into a rhythm. | H3: Choose a Mix | H3: Set the rhythm | H3: Make it yours | H2: Keep the rhythm. Keep your own voice. | H2: Find a follow-up Mix for your work. | H2: Ready to put one follow-up in the mix?
+  fields: select[select-one] "Situation Estimate sent Waiting on the flooring Job done" name= disabled = "estimate-sent" | textarea[textarea] "Message to Jordan Rivera" name= disabled = "Hi Jordan, just checking in about the tw" | input[email] "Email address" name=email required ac=email | select[select-one] "Appearance" name= = "system"
+  buttons: Text Today | Email Tomorrow | Call In 1 week | Preview SMS | Reset example | Join the waitlist
+  links: Skip to content -> #main-content | Jump in the Mix home -> / | Join the waitlist Join -> /waitlist?scenario=painting | Try an estimate follow-up -> #sample | Join the waitlist -> /waitlist?scenario=painting | Real Estate Agents -> /for/real-estate-agents | Consultants -> /for/consultants | Photographers -> /for/photographers | Contractors -> /for/contractors | Recruiters -> /for/independent-recruiters | reminders -> /features/follow-up-reminders | Estimate follow-up text templates -> /follow-up-templates/estimate-follow-up | Client follow-up templates -> /follow-up-templates | Questions before you jump in -> /faq | Real estate agents -> /for/real-estate-agents | Consultants -> /for/consultants | Contractors -> /for/contractors | Photographers -> /for/photographers | Recruiters -> /for/independent-recruiters | Jump in the Mix home -> / | How it works -> /#how-it-works | Follow-up templates -> /follow-up-templates | Follow-up reminders -> /features/follow-up-reminders | Questions -> /faq | Your data -> /faq#your-data | Sign in -> /login | Privacy -> /privacy | Terms -> /terms | Security -> /security | Contact & support -> /contact
+  [capture] docs/beta-audit-2026-09-26/captures/w1-02-for-contractors-375-light.png
+
+## /waitlist (+1 s)
+--- waitlist /waitlist (Join the waitlist | Jump in the Mix) scrollWidth=375 innerWidth=375
+  headings: H1: Join the waitlist
+  fields: input[email] "Email address" name=email required ac=email
+  buttons: Join the waitlist
+  links: Jump in the Mix home -> / | Sign in -> /login | Leave the waitlist or stop invitation emails -> /waitlist/leave | Back to home -> / | Privacy -> /privacy | Terms -> /terms | Security -> /security | Contact & support -> /contact
+  [capture] docs/beta-audit-2026-09-26/captures/w1-03-waitlist-375-light.png
+
+## /register without invitation (+2 s)
+--- register-no-invite /register (Your invitation | Jump in the Mix) scrollWidth=375 innerWidth=375
+  headings: H1: An invitation from someone you know
+  links: Jump in the Mix home -> / | Join the waitlist -> /waitlist | Sign in -> /login | Get help with an invitation or account -> /contact | Privacy -> /privacy | Terms -> /terms | Security -> /security | Contact & support -> /contact
+  [capture] docs/beta-audit-2026-09-26/captures/w1-04-register-noinvite-375-light.png
+
+## /register?invite=… for plumber-6b876006@example.test (+2 s)
+--- register-invited /register?invite=<redacted-local-test-token> (Your invitation | Jump in the Mix) scrollWidth=375 innerWidth=375
+  headings: H1: Create your free account
+  fields: input[text] "Your name" name=name required ac=name | input[email] "Email Invitation sent to plumber-6b876006@example.test" name=email required ac=email readonly = "plumber-6b876006@example.test" | input[password] "Password" name=password required ac=new-password
+  buttons: Show password | Create free account
+  links: Jump in the Mix home -> / | Sign in -> /login | Get help with an invitation or account -> /contact | Privacy -> /privacy | Terms -> /terms | Security -> /security | Contact & support -> /contact
+  [capture] docs/beta-audit-2026-09-26/captures/w1-05-register-invited-375-light.png
+  [capture] docs/beta-audit-2026-09-26/captures/w1-06-register-filled-375-light.png
+  submit button: "Create free account"
+
+## after register (+6 s)
+--- after-register /verify-email/pending?email=plumber-6b876006%40example.test&registered=1 (Verify email | Jump in the Mix) scrollWidth=375 innerWidth=375
+  headings: H1: Verify your email
+  notices: We sent a verification link to plumber-6b876006@example.test. Check your inbox and spam fo
+  fields: input[email] "Email" name=email required ac=email im=email = "plumber-6b876006@example.test" | input[email] "" name=email required ac=off im=email = "plumber-6b876006@example.test" | input[password] "" name=password required ac=current-password | input[email] "" name=newEmail required ac=email im=email | input[email] "" name=confirmNewEmail required ac=off im=email
+  buttons: Send another verification link | Show password
+  links: Jump in the Mix home -> / | Contact support -> /contact | Back to sign in -> /login
+  [capture] docs/beta-audit-2026-09-26/captures/w1-07-after-register-375-light.png
+  verification mail: from=test@example.test reply_to=(none) subject="Verify your Jump in the Mix email"
+  text:
+    | Jump in the Mix
+    | 
+    | Verify your email
+    | 
+    | Hi Sam Rivera, confirm this email address to finish securing your Jump in the Mix account.
+    | 
+    | Verify email: http://127.0.0.1:3111/api/auth/verify-email?token=<redacted-local-test-token>
+    | 
+    | This link expires in 24 hours and can be used once.
+  links: http://127.0.0.1:3111/api/auth/verify-email?token=<redacted-local-test-token>
+
+## open verification link (+6 s)
+--- after-verify-link /onboarding?verified=1 (Choose your starting point | Jump in the Mix) scrollWidth=375 innerWidth=375
+  headings: H1: Jump in the mix. | H2: Make this fit your day
+  notices: Your email is verified. | Unsaved changes. Save before leaving this page.
+  fields: input[radio] "A complete mega-mix · Recommended Your whole pipeline on day one: every follow-up from fir" name=setupMode [x] | input[radio] "Choose individual mixes Build your journey one Mix at a time. Preview and customize each o" name=setupMode [ ] | input[radio] "Other uses or one follow-up Personal connections, another kind of business, or a simple st" name=setupMode [ ] | select[select-one] "Your mega-mix" name= = "contractor" | select[select-one] "Preferred communication" name=communication = "RECOMMENDED" | select[select-one] "Space between follow-ups" name=pace = "RECOMMENDED" | input[checkbox] "Monday" name=workDay [x] | input[checkbox] "Tuesday" name=workDay [x] | input[checkbox] "Wednesday" name=workDay [x] | input[checkbox] "Thursday" name=workDay [x] | input[checkbox] "Friday" name=workDay [x] | input[checkbox] "Saturday" name=workDay [x] | input[checkbox] "Sunday" name=workDay [x] | input[time] "Open from" name=workStart required = "09:00" | input[time] "Close at" name=workEnd required = "17:00" | input[time] "Preferred follow-up time" name=defaultFollowUpTime required = "10:00" | input[time] "Quiet time starts" name=quietHoursStart required = "20:00" | input[time] "Quiet time ends" name=quietHoursEnd required = "08:00" | select[select-one] "Space around appointments No buffer 10 minutes before and after 15 minutes before and afte" name=appointmentBufferMinutes = "0" | input[checkbox] "Keep follow-up reminders clear of appointments on my calendar" name=avoidAppointments [x] | input[text] "" name=company ac=organization | input[text] "" name=smsSignature = "Sam Rivera"
+  buttons: Save answers and finish later | Change timezone | Review my setup
+  links: Jump in the Mix home -> /
+  [capture] docs/beta-audit-2026-09-26/captures/w1-08-verify-link-375-light.png
+  db: [{"id":"cmuimodwu0002jil3so8llgfc","email":"plumber-6b876006@example.test","verified":true,"workspace":"cmuimodxi0003jil3rqm3bah8","onboardingStep":0,"onboardingDone":false,"timezone":"UTC"}]
+(elapsed 8 s)

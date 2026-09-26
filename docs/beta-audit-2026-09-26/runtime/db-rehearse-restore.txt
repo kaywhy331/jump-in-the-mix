@@ -1,0 +1,42 @@
+# npm run db:rehearse-restore at 4b5abd8 2026-09-26T16:48:22Z (seeded jitm_design_beta0926, pg_dump/pg_restore 17.11 client on PATH)
+    },
+    {
+      "relation": "public.Workspace.Workspace_ownerId_fkey",
+      "skipped": false,
+      "count": 0
+    },
+    {
+      "relation": "public.WorkspaceMarketingPreference.WorkspaceMarketingPreference_workspaceId_fkey",
+      "skipped": false,
+      "count": 0
+    },
+    {
+      "relation": "public.WorkspaceMember.WorkspaceMember_userId_fkey",
+      "skipped": false,
+      "count": 0
+    },
+    {
+      "relation": "public.WorkspaceMember.WorkspaceMember_workspaceId_fkey",
+      "skipped": false,
+      "count": 0
+    },
+    {
+      "relation": "public.WorkspacePreference.WorkspacePreference_workspaceId_fkey",
+      "skipped": false,
+      "count": 0
+    },
+    {
+      "relation": "public.WorkspaceProfile.WorkspaceProfile_workspaceId_fkey",
+      "skipped": false,
+      "count": 0
+    }
+  ]
+}
+{
+  "status": "ok",
+  "sourceDatabase": "jitm_design_beta0926",
+  "restoredDatabase": "jitm_restore_02eb3586648b",
+  "archive": "/tmp/jitm-beta-audit-20260926/.artifacts/backup-restore/rehearsal-02eb3586648b.jitm-backup.enc",
+  "artifactsRetained": false
+}
+exit=0

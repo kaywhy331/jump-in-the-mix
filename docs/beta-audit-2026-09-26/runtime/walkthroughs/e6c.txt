@@ -1,0 +1,3 @@
+  Tab stops until Review: NOT REACHED in 80; "Checking your account" seen during tabbing: 48
+  first 14 stops: button "Close Follow up with Invite Tester" [outline 3px] → a "Sep 26" [outline 3px] → input "INPUT" [outline 3px] → textarea "TEXTAREA" [outline 2px] → button "Email Recommended" [outline 3px] → a "Add a phone number" [outline 3px] → a "Open email for Invite Tester" [outline 3px] → button "Copy" [outline 3px] → button "Mark sent for Invite Tester" [outline 3px] → button "Snooze" [outline 3px] → button "Skip beat" [outline 3px] → a "Open contact" [outline 3px] → button "More options for Invite Tester" [outline 3px] → summary "Next 7 days 4" [outline 3px]
+  stops without a visible focus ring: 0 []

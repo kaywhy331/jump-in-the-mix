@@ -1,0 +1,40 @@
+
+Running 6 tests using 1 worker
+
+[1/6] [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:21:1 › account change retains nonsecret fields through password failure and MFA, with explicit resubmission
+[2/6] [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:51:1 › support reply survives triage, requires template replacement confirmation and resolves atomically
+[3/6] [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:92:1 › a different staff session cannot recover the previous operator's in-memory draft
+  1) [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:92:1 › a different staff session cannot recover the previous operator's in-memory draft 
+
+    Error: expect(locator).toBeEnabled() failed
+
+    Locator: getByRole('button', { name: 'Retry session check' })
+    Expected: enabled
+    Timeout: 10000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeEnabled" with timeout 10000ms
+      - waiting for getByRole('button', { name: 'Retry session check' })
+        2 × locator resolved to <button disabled type="button">Retry session check</button>
+          - unexpected value "disabled"
+
+
+       98 |     await page.route("**/api/admin/browser-context", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ status: "unavailable" }) }));
+       99 |     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    > 100 |     await expect(page.getByRole("button", { name: "Retry session check" })).toBeEnabled();
+          |                                                                             ^
+      101 |     await expect(page.locator('textarea[name="body"]')).toBeHidden();
+      102 |     await page.unroute("**/api/admin/browser-context");
+      103 |     await page.getByRole("button", { name: "Retry session check" }).click();
+        at /tmp/jitm-beta-audit-20260926/e2e/admin-workflow-regressions.spec.ts:100:77
+
+    Error Context: test-results/admin-workflow-regressions-0d2dc--operator-s-in-memory-draft-desktop-chromium/error-context.md
+
+
+[4/6] [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:113:1 › an analyst without Overview gets a permitted denial return and fully expired MFA has no return loop
+[5/6] [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:131:1 › library options retain a stale selection for explicit review and provide a confirmed reset
+[6/6] [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:164:1 › export polling pauses while hidden and stops after eight automatic checks
+  1 failed
+    [desktop-chromium] › e2e/admin-workflow-regressions.spec.ts:92:1 › a different staff session cannot recover the previous operator's in-memory draft 
+  5 passed (25.2s)

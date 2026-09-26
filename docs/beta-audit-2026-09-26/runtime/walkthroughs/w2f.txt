@@ -1,0 +1,18 @@
+# W2f (DATA-01): weekend rule changed after a completed Saturday follow-up
+# Script: scratchpad walk/w2f-data01-weekend.mjs (390x844 dark, America/Denver, signed in as the realtor test account).
+# Times printed in America/Chicago (the realtor workspace is America/Denver: subtract one hour).
+
+BEFORE (queried 2026-09-26 ~17:0x UTC, before saving the preference):
+jumps: [["DONE","9/26/2026, 11:00:00 AM","Follow up about an estimate","outcome:completed"],["PENDING","9/27/2026, 11:00:00 AM","Next follow-up",null],["PENDING","10/1/2026, 12:00:00 PM","Follow up about an estimate",null],["PENDING","10/2/2026, 12:00:00 PM","Next follow-up",null]]
+
+ACTION: /account/preferences -> Weekend scheduling = 'Move to next Monday' -> Save scheduling defaults
+  notices: Scheduling defaults saved. Pending follow-ups are updating in the background.
+
+AFTER (30 s later, worker running):
+jumps: [["DONE","9/26/2026, 11:00:00 AM","Follow up about an estimate","outcome:completed"],["CANCELED","9/27/2026, 11:00:00 AM","Next follow-up","reconciled"],["PENDING","9/28/2026, 11:00:00 AM","Follow up about an estimate",null],["PENDING","9/28/2026, 11:00:00 AM","Next follow-up",null],["PENDING","10/1/2026, 12:00:00 PM","Follow up about an estimate",null],["PENDING","10/2/2026, 12:00:00 PM","Next follow-up",null]]
+
+=> the completed 9/26 'Follow up about an estimate' (Beat 1) was re-created as a NEW PENDING follow-up on Monday 9/28 10:00 Denver.
+
+RE-QUERY at 2026-09-26T17:21:22Z:
+jumps: [["DONE","9/26/2026, 11:00:00 AM","Follow up about an estimate","outcome:completed"],["CANCELED","9/27/2026, 11:00:00 AM","Next follow-up","reconciled"],["PENDING","9/28/2026, 11:00:00 AM","Follow up about an estimate",null],["PENDING","9/28/2026, 11:00:00 AM","Next follow-up",null],["PENDING","10/1/2026, 12:00:00 PM","Follow up about an estimate",null],["PENDING","10/2/2026, 12:00:00 PM","Next follow-up",null]]
+jumpDates: [{"label":"Follow up about an estimate","dateValue":"2026-09-26","timeMinutes":null,"timezone":"America/Denver","slug":"follow-up"},{"label":"Next follow-up","dateValue":"2026-09-27","timeMinutes":600,"timezone":"America/Denver","slug":"follow-up"}]

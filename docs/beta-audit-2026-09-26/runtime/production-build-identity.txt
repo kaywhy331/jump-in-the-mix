@@ -1,0 +1,16 @@
+# Does production serve the same client build output as a local build of 4b5abd8? (GET-only, public pages) 2026-09-26T17:24:21Z
+  missing locally: /_next/static/chunks/0mah3ch0hnjnu.js (from /)
+  missing locally: /_next/static/chunks/0mah3ch0hnjnu.js (from /for/contractors)
+  missing locally: /_next/static/chunks/33_0_ta_p2i6t.js (from /waitlist)
+chunk/css references on 7 production pages: 97; present byte-for-byte-named in the local 4b5abd8 build: 94
+1d36f2e3f57740f7
+1d36f2e3f57740f7
+(sha256 prefix of /_next/static/chunks/3s6nzrbk-8mnv.js: production vs local)
+0mah3ch0hnjnu (prod) vs 0t4pgv_wtozqc (local), same size 60999 bytes, differing bytes: 40
+< a.createServerReference)("6088a1a3097fb9a9b374a8292cc1aed5dfe54d12bd"
+> a.createServerReference)("604140965f230037afff7a65831e5b0a616b8f9605"
+33_0_ta_p2i6t (prod) vs 221_e2gzc4r4w (local), same size 2511 bytes: differs only in module-id order and the Server Action id passed to createServerReference.
+
+Conclusion: 94 of 97 client assets referenced by 7 public production pages are byte-identical (same content-hash names) to a local build of 4b5abd8.
+The other two chunks have the same size as their local counterparts and differ only in per-build Server Action ids (and module-id order),
+which Next.js generates anew for every build. Production's client code is consistent with 4b5abd8. (Server code cannot be compared with GET-only access.)

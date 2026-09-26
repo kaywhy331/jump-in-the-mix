@@ -1,0 +1,15 @@
+# CI-only suites run locally
+## RUN_RECOVERY_WEB_TESTS=true vitest tests/recovery-hold-runtime.integration.test.mjs
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Duration  64.24s (transform 82ms, setup 0ms, import 168ms, tests 63.87s, environment 0ms)
+## RUN_HOSTED_LOAD_WEB_TESTS=true vitest tests/hosted-load-fixture.integration.test.mjs
+     × cleans up after controller cancellation 105ms
+     × deletes a populated account within the application transaction while preserving another account 113ms
+Error: Fixture exited before ready:  Isolated hosted fixture failed. Inspect its private log and exact ownership receipt before retrying.
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+     × refuses source privileges inherited from PUBLIC and cleans up the unsuccessful fixture 107ms
+     × rejects a recovery-held source before creating fixtures 109ms
+     × serves isolated customer pages, restarts, processes queued imports and removes owned resources 119ms
+ Test Files  1 failed (1)
+=> environmental on TrixBot: the isolated fixture exits at start (~0.1 s per test). The same step passed in CI run 36178561878 (PR #83, a1f64aa): 'Rehearse hosted fixture isolation, restarts and background imports locally: success'.

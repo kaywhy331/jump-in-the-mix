@@ -1,0 +1,88 @@
+
+Running 3 tests using 1 worker
+
+[1/3] [desktop-chromium] › e2e/staff-permissions.spec.ts:64:1 › an ended support cookie can be cleared after the staff session is revoked
+  1) [desktop-chromium] › e2e/staff-permissions.spec.ts:64:1 › an ended support cookie can be cleared after the staff session is revoked 
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/account\/admin-mfa/
+    Received string:  "http://127.0.0.1:3111/admin"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "toHaveURL" with timeout 10000ms
+        3 × unexpected value "http://127.0.0.1:3111/login"
+        11 × unexpected value "http://127.0.0.1:3111/admin"
+
+
+      78 |   await page.getByLabel("Password", { exact: true }).fill(password);
+      79 |   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    > 80 |   await expect(page).toHaveURL(process.env.AUTH_REQUIRE_ADMIN_MFA === "true" ? /\/account\/admin-mfa/ : /\/admin$/);
+         |                      ^
+      81 | });
+      82 |
+      83 | test("invitation revocation checks current permission and cancels the durable email", async ({ page, context }, testInfo) => {
+        at /tmp/jitm-beta-audit-20260926/e2e/staff-permissions.spec.ts:80:22
+
+    Error Context: test-results/staff-permissions-an-ended-d3959-he-staff-session-is-revoked-desktop-chromium/error-context.md
+
+
+[2/3] [desktop-chromium] › e2e/staff-permissions.spec.ts:64:1 › an ended support cookie can be cleared after the staff session is revoked
+  2) [desktop-chromium] › e2e/staff-permissions.spec.ts:64:1 › an ended support cookie can be cleared after the staff session is revoked 
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/account\/admin-mfa/
+    Received string:  "http://127.0.0.1:3111/admin"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "toHaveURL" with timeout 10000ms
+        3 × unexpected value "http://127.0.0.1:3111/login"
+        11 × unexpected value "http://127.0.0.1:3111/admin"
+
+
+      78 |   await page.getByLabel("Password", { exact: true }).fill(password);
+      79 |   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    > 80 |   await expect(page).toHaveURL(process.env.AUTH_REQUIRE_ADMIN_MFA === "true" ? /\/account\/admin-mfa/ : /\/admin$/);
+         |                      ^
+      81 | });
+      82 |
+      83 | test("invitation revocation checks current permission and cancels the durable email", async ({ page, context }, testInfo) => {
+        at /tmp/jitm-beta-audit-20260926/e2e/staff-permissions.spec.ts:80:22
+
+    Error Context: test-results/staff-permissions-an-ended-d3959-he-staff-session-is-revoked-desktop-chromium-repeat1/error-context.md
+
+
+[3/3] [desktop-chromium] › e2e/staff-permissions.spec.ts:64:1 › an ended support cookie can be cleared after the staff session is revoked
+  3) [desktop-chromium] › e2e/staff-permissions.spec.ts:64:1 › an ended support cookie can be cleared after the staff session is revoked 
+
+    Error: expect(page).toHaveURL(expected) failed
+
+    Expected pattern: /\/account\/admin-mfa/
+    Received string:  "http://127.0.0.1:3111/admin"
+    Timeout: 10000ms
+
+    Call log:
+      - Expect "toHaveURL" with timeout 10000ms
+        3 × unexpected value "http://127.0.0.1:3111/login"
+        11 × unexpected value "http://127.0.0.1:3111/admin"
+
+
+      78 |   await page.getByLabel("Password", { exact: true }).fill(password);
+      79 |   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    > 80 |   await expect(page).toHaveURL(process.env.AUTH_REQUIRE_ADMIN_MFA === "true" ? /\/account\/admin-mfa/ : /\/admin$/);
+         |                      ^
+      81 | });
+      82 |
+      83 | test("invitation revocation checks current permission and cancels the durable email", async ({ page, context }, testInfo) => {
+        at /tmp/jitm-beta-audit-20260926/e2e/staff-permissions.spec.ts:80:22
+
+    Error Context: test-results/staff-permissions-an-ended-d3959-he-staff-session-is-revoked-desktop-chromium-repeat2/error-context.md
+
+
+  3 failed
+    [desktop-chromium] › e2e/staff-permissions.spec.ts:64:1 › an ended support cookie can be cleared after the staff session is revoked 
+    [desktop-chromium] › e2e/staff-permissions.spec.ts:64:1 › an ended support cookie can be cleared after the staff session is revoked 
+    [desktop-chromium] › e2e/staff-permissions.spec.ts:64:1 › an ended support cookie can be cleared after the staff session is revoked 

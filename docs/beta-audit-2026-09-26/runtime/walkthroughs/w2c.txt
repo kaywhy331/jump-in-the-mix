@@ -1,0 +1,23 @@
+  [capture] docs/beta-audit-2026-09-26/captures/w2-06-review-390-dark.png
+  href: sms:+13035550199?&body=Hi%20Chris%2C%20just%20checking%20that%20you%20received%20the%20estimate%20from%20my%20business.%20Any%20questions%20I%20can%20clear%20up%20for%20you%3F%20Maya%20Bennett
+  [capture] docs/beta-audit-2026-09-26/captures/w2-07-tray-next-390-dark.png
+--- after save /jumps (Today | Jump in the Mix) scrollWidth=390 innerWidth=390
+  headings: H1: Today | H2: Today
+  notices: Follow-up completed Chris Parker · you can undo this for a moment Next scheduled: Oct 1, 1 | Showing 1 of 1 follow-up in this view.
+  buttons: Undo | Search Today | Filter | Quick Add
+  links: Skip to content -> #workspace-main | Today -> /jumps | Contacts -> /contacts | Mixes -> /mixes | More -> /more
+  [capture] docs/beta-audit-2026-09-26/captures/w2-08-after-save-390-dark.png
+--- all pending /jumps?range=all&status=pending (Today | Jump in the Mix) scrollWidth=390 innerWidth=390
+  headings: H1: Today | H3: Chris Parker | H3: Chris Parker | H3: Chris Parker
+  notices: Showing 3 of 3 follow-ups in this view.
+  buttons: Search Today | Filter 2 | Review message for Chris Parker | More options for Chris Parker | Review call for Chris Parker | More options for Chris Parker | Review call for Chris Parker | More options for Chris Parker | Quick Add
+  links: Skip to content -> #workspace-main | Today -> /jumps | Contacts -> /contacts | Mixes -> /mixes | More -> /more
+  [capture] docs/beta-audit-2026-09-26/captures/w2-09-all-pending-390-dark-full.png
+--- contact page /contacts/93c8264e-88f8-4384-9960-10e6edb7c5a0 (Contact details | Jump in the Mix) scrollWidth=390 innerWidth=390
+  headings: H1: Chris Parker | H2: Next | H2: Details | H2: History | H2:  | H2:  | H2:  | H3:  | H3:  | H2: 
+  notices: Showing 1 events in this view.
+  fields: input[radio] "" name=priority [ ] | input[radio] "" name=priority [x] | input[radio] "" name=priority [ ] | input[radio] "" name=priority [ ] | input[radio] "" name=preferredChannel [x] | input[radio] "" name=preferredChannel [ ] | input[radio] "" name=preferredChannel [ ] | input[radio] "" name=preferredChannel [ ] | input[checkbox] "" name=doNotContact [ ] | select[select-one] "" name=dateTypeId required = "system_follow_up" | input[date] "" name=dateValue required | select[select-one] "" name=recurrence = "NONE" | input[text] "" name=label | input[checkbox] "" name=autoAssignRecommended [x] | select[select-one] "" name=mixId = "91c92a7a-959d-4098-aada-4cf327bce159"
+  buttons: Change journey stage: No stage | Email | History options | Remove Follow-up | Remove Follow-up | Stop the Estimate sent: gentle follow-up mix | Remove the Estimate sent: gentle follow-up mix | Quick Add
+  links: Skip to content -> #workspace-main | Back to contacts -> /contacts | Edit -> /contacts/93c8264e-88f8-4384-9960-10e6edb7c5a0/edit | Text -> sms:(303) 555-0199 | Call -> tel:(303) 555-0199 | Note -> #add-note | Review -> /jumps?jump=cmuimuwxr001im8l3gy1vig3p&range=all | Current beat, Sep 27, 2026 -> /jumps?jump=cmuimuwxr001im8l3gy1vig3p&range=all | Upcoming beat, Oct 2, 2026 -> /jumps?jump=cmuimuwxr001jm8l3rwx39o13&range=all | (303) 555-0199 -> tel:(303) 555-0199 | Add company, phone or email -> /contacts/93c8264e-88f8-4384-9960-10e6edb7c5a0/edit | Today -> /jumps | Contacts -> /contacts | Mixes -> /mixes | More -> /more
+  [capture] docs/beta-audit-2026-09-26/captures/w2-10-contact-390-dark-full.png
+(elapsed 23 s)

@@ -1,0 +1,11 @@
+# Lighthouse 12 (bundled with @lhci/cli 0.15.1), mobile preset, devtools throttling as in CI, one run per URL, Chromium from Playwright, run on TrixBot 2026-09-26T18:23:59Z
+## local packaged build of 4b5abd8 (http://127.0.0.1:3111, loopback APP_URL: SEO scores are not meaningful here)
+http://127.0.0.1:3111/  perf=79 a11y=100 bp=100 seo=66  LCP=3214ms CLS=0.000 TBT=341ms FCP=3090ms
+http://127.0.0.1:3111/faq  perf=86 a11y=100 bp=100 seo=66  LCP=2983ms CLS=0.000 TBT=198ms FCP=2983ms
+http://127.0.0.1:3111/waitlist  perf=87 a11y=100 bp=100 seo=63  LCP=2873ms CLS=0.000 TBT=185ms FCP=2873ms
+http://127.0.0.1:3111/login  perf=86 a11y=100 bp=100 seo=63  LCP=2916ms CLS=0.000 TBT=204ms FCP=2916ms
+http://127.0.0.1:3111/for/contractors  perf=86 a11y=100 bp=100 seo=66  LCP=2974ms CLS=0.000 TBT=203ms FCP=2974ms
+## production (GET only, public pages)
+https://jumpinthemix.com/  perf=89 a11y=100 bp=100 seo=100  LCP=2643ms CLS=0.000 TBT=205ms FCP=2643ms
+https://jumpinthemix.com/for/contractors  perf=90 a11y=100 bp=100 seo=100  LCP=2627ms CLS=0.000 TBT=196ms FCP=2627ms
+https://jumpinthemix.com/waitlist  perf=92 a11y=100 bp=100 seo=63  LCP=2431ms CLS=0.000 TBT=179ms FCP=2431ms

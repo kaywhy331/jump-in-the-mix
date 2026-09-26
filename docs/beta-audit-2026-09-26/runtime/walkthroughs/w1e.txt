@@ -1,0 +1,25 @@
+--- today after first customer /jumps (Today | Jump in the Mix) scrollWidth=375 innerWidth=375
+  headings: H1: Today | H2: Nothing due right now
+  buttons: Search Today | Filter | Quick Add
+  links: Skip to content -> #workspace-main | View completed follow-ups -> /jumps?range=due&status=done | Add a person -> /contacts/new | Review upcoming -> /jumps?range=month&status=pending | Schedule with an existing person -> /contacts | Today -> /jumps | Contacts -> /contacts | Mixes -> /mixes | More -> /more
+  [capture] docs/beta-audit-2026-09-26/captures/w1-15-today-after-first-customer-375-light.png
+--- today range=all /jumps?range=all (Today | Jump in the Mix) scrollWidth=375 innerWidth=375
+  headings: H1: Today | H2: No follow-ups match these filters
+  buttons: Search Today | Filter 1 | Quick Add
+  links: Skip to content -> #workspace-main | View completed follow-ups -> /jumps?range=due&status=done | Clear filters -> /jumps | Review upcoming -> /jumps?range=month&status=pending | Schedule with an existing person -> /contacts | Today -> /jumps | Contacts -> /contacts | Mixes -> /mixes | More -> /more
+  [capture] docs/beta-audit-2026-09-26/captures/w1-16-journey-start-375-light-full.png
+--- after Start this Mix /journey?contactId=cmuimqi21002zjil3gp3sx2ze&work=cmuimr8xk0037jil3g02mg1tf (Jump in the Mix) scrollWidth=375 innerWidth=375
+  headings: H2: Details | H2: New project inquiry | H2: Dana Whitfield | H2: 
+  notices: Start saved. Follow-ups are being prepared using your sending preferences. Set up reminder
+  fields: select[select-one] "" name= = "run1" | select[select-one] "" name= required
+  buttons: People | Map | Details | New project inquiry: next step Choose one path · on Site visit agreed → Site visit follow- | Agreed later follow-up: next step Choose one path · on Ready to discuss the project → New  | All people | Pause this work | Stop this work | Quick Add
+  links: Skip to content -> #workspace-main | Set up reminders for me (optional) -> /settings/notifications | Edit Mix -> /mixes/cmuimpbyk000ijil332puzbub/edit | Open contact -> /contacts/cmuimqi21002zjil3gp3sx2ze | Dana Whitfield -> /contacts/cmuimqi21002zjil3gp3sx2ze | Today -> /jumps | Contacts -> /contacts | Mixes -> /mixes | More -> /more
+  [capture] docs/beta-audit-2026-09-26/captures/w1-17-after-start-mix-375-light-full.png
+  jumps: [{"status":"PENDING","scheduledAt":"2026-09-26T23:54:54.164Z","reason":"New project inquiry · Understand the project","mix":"New project inquiry","sortOrder":1,"local":"9/26/2026, 6:54:54 PM"},{"status":"PENDING","scheduledAt":"2026-09-28T22:00:00.000Z","reason":"New project inquiry · Agree on the next step","mix":"New project inquiry","sortOrder":2,"local":"9/28/2026, 5:00:00 PM"}]
+--- today after start /jumps (Today | Jump in the Mix) scrollWidth=375 innerWidth=375
+  headings: H1: Today | H2: Today | H3: Dana Whitfield
+  notices: Showing 1 of 1 follow-up in this view.
+  buttons: Search Today | Filter | Review message for Dana Whitfield | More options for Dana Whitfield | Quick Add
+  links: Skip to content -> #workspace-main | Today -> /jumps | Contacts -> /contacts | Mixes -> /mixes | More -> /more
+  [capture] docs/beta-audit-2026-09-26/captures/w1-18-today-after-start-375-light.png
+(elapsed 17 s)
