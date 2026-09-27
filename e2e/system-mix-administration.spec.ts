@@ -55,6 +55,11 @@ test.afterEach(async () => {
   await restoreContent?.(); await restoreAdmission?.(); users.length = 0; emails.length = 0;
 });
 
+async function chooseContact(page: Page, contact: { displayName: string; emails: { email: string }[] }) {
+  await page.getByRole("combobox", { name: "Person 1: name, email, or phone" }).fill(contact.displayName);
+  await page.getByRole("option", { name: new RegExp(contact.emails[0].email) }).click();
+}
+
 test("staff publishes reviewed System Mix wording and rolls back without changing prepared member reminders", async ({ page, context, browser }, info) => {
   test.setTimeout(120_000);
   const staff = await identity(), member = await identity(false);
@@ -71,7 +76,7 @@ test("staff publishes reviewed System Mix wording and rolls back without changin
     const memberPage = await memberContext.newPage(); memberPage.setDefaultTimeout(20_000);
     memberPage.on("dialog", dialog => dialog.accept());
     await memberPage.goto("/mixes/system");
-    await memberPage.getByRole("combobox", { name: "Choose a saved contact (optional)" }).selectOption(JSON.stringify([contacts[0].id, contacts[0].emails[0].email]));
+    await chooseContact(memberPage, contacts[0]);
     await expect(memberPage.locator('input[name="systemMixVersion"]')).toHaveValue("1");
     await page.goto("/admin/system-mix"); await saveDraft(page, "Second edition");
     const preview = page.locator("#wording-review");
@@ -87,7 +92,7 @@ test("staff publishes reviewed System Mix wording and rolls back without changin
     await expect(memberPage.locator(".notice.error")).toContainText("preview changed");
     expect((await prisma.user.findUniqueOrThrow({ where: { id: member.user.id } })).referralInvitesIssued).toBe(0);
     await expect(memberPage.locator('input[name="systemMixVersion"]')).toHaveValue("2");
-    await memberPage.getByRole("combobox", { name: "Choose a saved contact (optional)" }).selectOption(JSON.stringify([contacts[0].id, contacts[0].emails[0].email]));
+    await chooseContact(memberPage, contacts[0]);
     await memberPage.getByText("Preview invitation", { exact: true }).click();
     await expect(memberPage.locator(".speech-bubble")).toContainText("Second edition: a personal invitation from Network Owner");
     await memberPage.getByRole("button", { name: "Add invitations to Today" }).click(); await memberPage.getByRole("dialog", { name: /^Prepare 1 invitation/ }).getByRole("button", { name: "Prepare invitations", exact: true }).click(); await expect(memberPage).toHaveURL(/\/jumps\?invitations=1$/);
@@ -106,7 +111,7 @@ test("staff publishes reviewed System Mix wording and rolls back without changin
     await page.locator("summary").filter({ hasText: /^Version 1 / }).click(); await release(page, "Roll back to version 1");
     expect((await prisma.jump.findUniqueOrThrow({ where: { id: invitation.reminder!.id } })).renderedSnapshot).toEqual(invitation.reminder!.renderedSnapshot);
     await memberPage.goto("/mixes/system");
-    await memberPage.getByRole("combobox", { name: "Choose a saved contact (optional)" }).selectOption(JSON.stringify([contacts[1].id, contacts[1].emails[0].email]));
+    await chooseContact(memberPage, contacts[1]);
     await memberPage.getByRole("button", { name: "Add invitations to Today" }).click(); await memberPage.getByRole("dialog", { name: /^Prepare 1 invitation/ }).getByRole("button", { name: "Prepare invitations", exact: true }).click(); await expect(memberPage).toHaveURL(/\/jumps\?invitations=1$/);
     expect((await prisma.referralAccessInvite.findUniqueOrThrow({ where: { inviterUserId_contactId: { inviterUserId: member.user.id, contactId: contacts[1].id } } })).systemMixVersion).toBe(1);
     await page.goto("/admin/access?systemMixVersion=2");

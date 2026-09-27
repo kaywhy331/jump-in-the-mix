@@ -65,17 +65,27 @@ test("three mixed-channel invitations become Today reminders with single-use lin
   const email = `guest-${suffix}@example.test`;
   await prisma.contact.create({ data: { workspaceId: workspace.id, displayName: "Email Guest", emails: { create: [{ email: `primary-${suffix}@example.test`, normalized: `primary-${suffix}@example.test`, isPrimary: true }, { email, normalized: email, isPrimary: false }] } } });
   const phone = "+1555" + String(Date.now()).slice(-7);
-  await page.getByLabel("Name (optional)").fill("Email Guest");
-  await page.getByLabel("Email address or text number").fill(email);
+  // A saved contact is found by name and chosen by the address to use; new people are typed as an address.
+  await page.getByRole("combobox", { name: "Person 1: name, email, or phone" }).fill("Email Guest");
+  await expect(page.getByRole("option", { name: new RegExp(email) })).toBeVisible();
+  await page.screenshot({ path: `.artifacts/invitations-suggestions-${test.info().project.name}.png` });
+  await page.getByRole("option", { name: new RegExp(email) }).click();
+  await expect(page.getByRole("button", { name: "Change person 1: Email Guest" })).toBeVisible();
   await page.getByRole("button", { name: "Add another person" }).click();
-  await page.getByLabel("Name (optional)").nth(1).fill("Text Guest");
-  await page.getByLabel("Invitation channel").nth(1).selectOption("tel");
-  await page.getByLabel("Email address or text number").nth(1).fill(phone);
+  await page.getByRole("combobox", { name: "Person 2: name, email, or phone" }).fill(phone);
+  await expect(page.getByText("New contact · invited by text message")).toBeVisible();
+  await page.getByRole("textbox", { name: "Person 2: their name (optional)" }).fill("Text Guest");
   await page.getByRole("button", { name: "Add another person" }).click();
-  await page.getByLabel("Name (optional)").nth(2).fill("Third Guest");
-  await page.getByLabel("Email address or text number").nth(2).fill(`third-${suffix}@example.test`);
+  await page.getByRole("combobox", { name: "Person 3: name, email, or phone" }).fill(`third-${suffix}@example.test`);
+  await page.getByRole("textbox", { name: "Person 3: their name (optional)" }).fill("Third Guest");
   await expect(page.getByRole("button", { name: "Add another person" })).toHaveCount(0);
-  await page.screenshot({ path: `.artifacts/invitations-${test.info().project.name}.png`, fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
+    const audit = await axeInPage(page).include(".invite-page").analyze();
+    expect(audit.violations.filter(item => ["serious", "critical"].includes(item.impact ?? "")), theme).toEqual([]);
+    await page.screenshot({ path: `.artifacts/invitations-${theme}-${test.info().project.name}.png`, fullPage: true });
+  }
   await page.getByRole("button", { name: "Add invitations to Today" }).click();
   const prepare = page.getByRole("dialog", { name: /^Prepare 3 invitations/ });
   await expect(prepare).toContainText("leaving 0");
@@ -90,7 +100,13 @@ test("three mixed-channel invitations become Today reminders with single-use lin
   for (const [name, protocol] of [["Email Guest", "mailto:"], ["Text Guest", "sms:"]] as const) {
     const card = page.locator(".jump-task-card:visible").filter({ hasText: name }).first();
     const review = card.getByRole("button", { name: `Review message for ${name}` });
-    if (await review.count()) await review.click();
+    // Phones show a Review button; wider screens show the message in the card. Wait for either.
+    await expect(review.or(card.getByLabel("Your message")).first()).toBeVisible();
+    if (await review.count()) {
+      // A tap before React attaches to the Review button is lost on phones; wait for hydration first.
+      await expect.poll(() => review.evaluate(element => Object.keys(element).some(key => key.startsWith("__reactProps")))).toBe(true);
+      await review.click();
+    }
     await expect(card.getByLabel("Your message")).toHaveValue(/\/register\?invite=[A-Za-z0-9_-]{43}/);
     await expect(card.getByRole("link", { name: new RegExp(`Open .* for ${name}`) })).toHaveAttribute("href", new RegExp(`^${protocol}${name === "Email Guest" ? email : ""}`));
     const dialog = page.getByRole("dialog");
@@ -111,5 +127,6 @@ test("three mixed-channel invitations become Today reminders with single-use lin
   await page.getByRole("button", { name: "Revoke invitation…" }).first().click();
   await page.getByRole("dialog").getByRole("button", { name: "Confirm revocation", exact: true }).click();
   await expect(page.getByText("The invitation can no longer be used.")).toBeVisible();
+  await page.screenshot({ path: `.artifacts/invitations-list-${test.info().project.name}.png`, fullPage: true });
   expect(await prisma.jump.count({ where: { workspaceId: workspace.id, status: "CANCELED", completionMethod: "invitation_revoked" } })).toBe(1);
 });

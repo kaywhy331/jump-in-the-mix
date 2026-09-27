@@ -1,0 +1,69 @@
+/* Invite people (/mixes/system): one field per person, sized to its content rather than the page. */
+.invite-page { --invite-width: 640px; }
+.invite-page > .page-header { margin-bottom: 8px; }
+.invite-compose, .invite-sent { padding-block: 24px; border-top: 1px solid var(--line); }
+.invite-compose h2, .invite-sent h2 { margin: 0; font-size: 1.125rem; }
+.invite-allowance { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.invite-slots { display: inline-flex; gap: 6px; }
+.invite-slots > span { width: 10px; height: 10px; border-radius: 999px; border: 1.5px solid var(--violet-mark); }
+.invite-slots > span.is-open { background: var(--violet-mark); }
+.invite-lede { max-width: var(--invite-width); margin: 8px 0 20px; color: var(--text-2); font-size: .9375rem; line-height: 1.5; }
+.invite-footnote { max-width: var(--invite-width); margin: 12px 0 0; color: var(--text-3); font-size: .8125rem; line-height: 1.5; }
+
+.invite-form { display: grid; gap: 12px; max-width: var(--invite-width); }
+.invite-rows { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.invite-row { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+.invite-row-number { display: inline-grid; place-items: center; width: 28px; height: 28px; margin-top: 10px; border-radius: 999px; background: var(--violet-wash); color: var(--violet-ink); font-size: .8125rem; font-weight: 600; }
+.invite-row-body { display: grid; gap: 8px; min-width: 0; }
+.invite-row input:not([type="hidden"]) { width: 100%; min-height: 48px; margin: 0; }
+.invite-row .icon-button { width: 44px; min-width: 44px; height: 44px; margin-top: 2px; border: 0; border-radius: var(--radius-control); background: transparent; }
+.invite-row .icon-button:hover { background: var(--surface); color: var(--text); }
+.invite-row .icon-button svg { width: 18px; height: 18px; }
+.invite-row-body .icon-button { margin: 0; }
+.invite-fields { display: grid; gap: 8px; }
+.invite-fields:has(.invite-name) { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.invite-hint { color: var(--text-2); font-size: .8125rem; }
+.invite-hint:empty { display: none; }
+
+.invite-combobox { position: relative; }
+.invite-suggestions { position: absolute; z-index: 20; inset-inline: 0; top: calc(100% + 4px); max-height: 320px; overflow-y: auto; margin: 0; padding: 6px; list-style: none; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--raised); box-shadow: 0 12px 32px color-mix(in srgb, var(--text) 14%, transparent); }
+.invite-suggestions[hidden] { display: none; }
+.invite-suggestions [role="option"] { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+.invite-suggestions [role="option"][aria-selected="true"] { background: var(--violet-wash); }
+
+.invite-avatar { display: inline-grid; flex: 0 0 auto; place-items: center; width: 32px; height: 32px; border-radius: 999px; background: var(--surface); color: var(--text-2); font-size: .875rem; font-weight: 600; }
+.invite-person { display: grid; min-width: 0; }
+.invite-person strong, .invite-person h3 { overflow: hidden; margin: 0; font-size: .9375rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.invite-person small { overflow: hidden; color: var(--text-2); font-size: .8125rem; text-overflow: ellipsis; white-space: nowrap; }
+.invite-chosen { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 2px 2px 2px 8px; border: 1px solid var(--violet-mark); border-radius: var(--radius-control); background: var(--violet-wash); }
+.invite-chosen .invite-avatar { background: var(--raised); color: var(--violet-ink); }
+.invite-chosen .invite-person { flex: 1; }
+
+.invite-add { justify-self: start; display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-left: 38px; padding: 0; border: 0; background: none; font-weight: 600; cursor: pointer; }
+.invite-add svg { width: 18px; height: 18px; }
+.invite-preview { margin-left: 38px; }
+.invite-preview .speech-bubble { margin-top: 4px; }
+.invite-preview-body { white-space: pre-wrap; font-family: var(--font-voice); }
+.invite-preview-link { color: var(--text-2); font-size: .8125rem; }
+.invite-submit { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+/* The guard still announces unsaved entries; its "save" wording does not fit beside this button. */
+.invite-submit .form-guard-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.invite-form > .invite-footnote { margin-top: 0; }
+
+.invite-list { max-width: 760px; margin: 12px 0 0; padding: 0; list-style: none; }
+.invite-list-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; padding-block: 12px; border-bottom: 1px solid var(--line); }
+.invite-list-row .status-pill { justify-self: end; }
+.invite-list-actions { grid-column: 2 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; }
+.invite-list-actions .text-button { min-height: 44px; padding: 0; border: 0; background: none; color: var(--late); font-size: .875rem; font-weight: 600; cursor: pointer; }
+@media (min-width: 720px) {
+  .invite-list-row { grid-template-columns: 32px minmax(0, 1fr) auto auto; }
+  .invite-list-actions { grid-column: auto; }
+}
+@media (max-width: 520px) {
+  .invite-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .invite-row-number { display: none; }
+  .invite-fields:has(.invite-name) { grid-template-columns: 1fr; }
+  .invite-add, .invite-preview { margin-left: 0; }
+  .invite-submit .button { width: 100%; }
+  .invite-list-row .status-pill { grid-column: 2 / -1; justify-self: start; }
+}
