@@ -415,4 +415,3 @@
 @media (max-width: 430px) { .invite-strip { flex-wrap: wrap; } .invite-strip p { flex-basis: calc(100% - 34px); } .invite-strip .button { margin-left: 34px; } }
 .more-page .invite-hub-card { border-color: color-mix(in srgb, var(--brand) 35%, var(--line)); }
 .mobile-nav .nav-badge { position: absolute; top: 6px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; font-size: .6875rem; }
-.sidebar .appearance-control { grid-template-columns: 1fr; gap: 6px; }

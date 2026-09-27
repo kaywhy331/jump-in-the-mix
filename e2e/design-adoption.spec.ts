@@ -1,65 +1,86 @@
-import { test, expect, type Locator, type Page } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { createPendingJumpFixture, removePendingJumpFixture } from "./pending-jump-fixture";
 
-// Public pages keep System, Light and Dark in the header; a phone keeps them in the header menu.
-async function appearance(page: Page) {
-  const group = page.getByRole("radiogroup", { name: "Appearance", exact: true });
-  if (!await group.count()) await page.locator(".public-mobile-menu > summary").click();
-  return group;
+// Public pages keep the sun and moon switch in the header; where the header has a menu, in the menu.
+async function darkSwitch(page: Page) {
+  const control = page.getByRole("switch", { name: "Dark mode", exact: true });
+  if (!await control.count()) await page.locator(".public-mobile-menu > summary").click();
+  return control;
 }
-const selected = (group: Locator, name: string) => expect(group.getByRole("radio", { name, exact: true })).toHaveAttribute("aria-checked", "true");
 
-test("appearance persists, overrides the system, and follows it again", async ({ page, context }) => {
+test("appearance follows the device until chosen, persists, and syncs across tabs", async ({ page, context }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/");
-  const choose = async (name: string) => (await appearance(page)).getByRole("radio", { name, exact: true }).click();
+  const toggle = await darkSwitch(page);
+  // No choice yet: the switch shows the device's dark look.
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
   await expect(page.locator("body")).toHaveCSS("color", "rgb(238, 237, 246)");
-  await choose("Light");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await expect(page.locator("body")).toHaveCSS("color", "rgb(26, 24, 48)");
   await page.reload();
-  await selected(await appearance(page), "Light");
+  await expect(await darkSwitch(page)).toHaveAttribute("aria-checked", "false");
   await expect(page.locator("body")).toHaveCSS("color", "rgb(26, 24, 48)");
   const other = await context.newPage();
   await other.goto("/faq");
-  await selected(await appearance(other), "Light");
+  await expect(await darkSwitch(other)).toHaveAttribute("aria-checked", "false");
   const signIn = await context.newPage();
   await signIn.goto("/login");
   await expect(signIn.locator("body")).toHaveCSS("color", "rgb(26, 24, 48)");
-  await choose("Dark");
-  await selected(await appearance(other), "Dark");
+  await (await darkSwitch(page)).click();
+  await expect(await darkSwitch(other)).toHaveAttribute("aria-checked", "true");
   await expect(signIn.locator("body")).toHaveCSS("color", "rgb(238, 237, 246)");
-  await choose("System");
-  await expect(signIn.locator("html")).not.toHaveAttribute("data-theme");
+  // An explicit choice holds when the device changes.
   await page.emulateMedia({ colorScheme: "light" });
-  await expect(page.locator("body")).toHaveCSS("color", "rgb(26, 24, 48)");
-  await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.locator("body")).toHaveCSS("color", "rgb(238, 237, 246)");
   await other.close();
   await signIn.close();
 });
 
-test("the appearance icons work from the keyboard as one group", async ({ page }) => {
+test("the switch works from the keyboard, and the inactive side is greyed", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/privacy");
-  const group = await appearance(page);
-  await group.getByRole("radio", { name: "System", exact: true }).focus();
-  await page.keyboard.press("ArrowRight");
-  await selected(group, "Light");
-  await expect(group.getByRole("radio", { name: "Light", exact: true })).toBeFocused();
+  const toggle = await darkSwitch(page);
+  await expect(toggle).toHaveAttribute("aria-checked", "false");
+  await expect(toggle.locator(".theme-switch-moon")).toHaveCSS("opacity", "0.45");
+  await expect(toggle.locator(".theme-switch-sun")).toHaveCSS("opacity", "1");
+  await toggle.focus();
+  await page.keyboard.press("Space");
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(toggle.locator(".theme-switch-sun")).toHaveCSS("opacity", "0.45");
+  await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await page.keyboard.press("End");
-  await selected(group, "Dark");
-  await page.keyboard.press("ArrowRight");
-  await selected(group, "System");
+  expect((await toggle.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+});
+
+test("Match my device returns appearance to the device setting", async ({ page }) => {
+  test.skip(!/^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? ""), "Disposable local database only");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/login");
+  await page.getByLabel("Email", { exact: true }).fill("demo@jumpinthemix.local");
+  await page.getByLabel("Password", { exact: true }).fill("JumpInTheMix123!");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.waitForURL(/\/jumps/);
+  await page.goto("/account/preferences");
+  const section = page.locator("main");
+  const toggle = section.getByRole("switch", { name: "Dark mode", exact: true });
+  await expect(section.getByText("Following your device’s setting.")).toBeVisible();
+  await toggle.click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await section.getByRole("button", { name: "Match my device", exact: true }).click();
   await expect(page.locator("html")).not.toHaveAttribute("data-theme");
-  // Only the chosen icon is a tab stop.
-  await expect(group.locator('[tabindex="0"]')).toHaveCount(1);
+  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await expect(section.getByText("Following your device’s setting.")).toBeVisible();
 });
 
 test("blocked storage still permits changing appearance for this visit", async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(window, "localStorage", { get() { throw new DOMException("Blocked", "SecurityError"); } }));
+  await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");
-  await (await appearance(page)).getByRole("radio", { name: "Dark", exact: true }).click();
+  await (await darkSwitch(page)).click();
   await expect(page.locator("body")).toHaveCSS("color", "rgb(238, 237, 246)");
   await expect(page.getByText("Applied for this visit. This browser could not remember your choice.")).toBeVisible();
 });

@@ -40,7 +40,8 @@ test("retired commercial, team, provider, and sharing routes stay unavailable", 
     expect(response?.status(), route).toBe(404);
   }
 
-  const prohibited = /\b(?:billing|subscription|checkout|invoice|upgrade|downgrade|team|members|invitations|organization|stripe|google contacts|ai provider)\b/i;
+  // Personal invitations (three per member) are a live feature; team and member invitations are not.
+  const prohibited = /\b(?:billing|subscription|checkout|invoice|upgrade|downgrade|team|members|team invitations|member invitations|organization|stripe|google contacts|ai provider)\b/i;
   for (const route of ["/jumps", "/contacts", "/mixes", "/templates", "/more", "/settings", "/account"]) {
     await page.goto(route);
     await expect(page.locator("main")).not.toContainText(prohibited);

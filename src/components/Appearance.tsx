@@ -1,18 +1,13 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
-import type { KeyboardEvent } from "react";
-import { AppIcon, type AppIconName } from "@/components/AppIcon";
+import { useEffect, useId, useState, useSyncExternalStore } from "react";
+import { AppIcon } from "@/components/AppIcon";
 import { QUICK_ADD_SHORTCUT_EVENT, readQuickAddShortcut, writeQuickAddShortcut } from "@/lib/quick-add-shortcut";
 
 type Appearance = "system" | "light" | "dark";
 const key = "jitm-appearance";
 const valid = (value: string | null): Appearance => value === "light" || value === "dark" ? value : "system";
-const choices: { value: Appearance; label: string; icon: AppIconName }[] = [
-  { value: "system", label: "System", icon: "monitor" },
-  { value: "light", label: "Light", icon: "sun" },
-  { value: "dark", label: "Dark", icon: "moon" }
-];
+const darkQuery = "(prefers-color-scheme: dark)";
 
 // Keep every route in sync, including sign-in and recovery pages without a picker.
 export function AppearanceSync() {
@@ -43,39 +38,38 @@ export function useQuickAddShortcut() {
 }
 
 /**
- * System, Light and Dark as three icon buttons in one radio group: arrow keys move between them and
- * choose. `compact` drops the hint and the Quick Add switch; `labelHidden` keeps the name for
- * assistive technology only, for a header with room for the icons alone.
+ * A sun and moon switch: the knob slides to the chosen side and the other side greys out. Until the
+ * person chooses, it follows the device and shows the device's current look; "Match my device"
+ * (full form only) returns to that. `compact` drops the hint, the reset and the Quick Add switch;
+ * `labelHidden` keeps the "Appearance" name for assistive technology only.
  */
 export function AppearanceControl({ compact = false, labelHidden = false }: { compact?: boolean; labelHidden?: boolean }) {
   const id = useId();
   const shortcutHintId = useId();
-  const group = useRef<HTMLDivElement>(null);
   const [appearance, setAppearance] = useState<Appearance>("system");
+  const [deviceDark, setDeviceDark] = useState(false);
+  // The knob only animates once the first read is done, so it never slides into place on load.
+  const [ready, setReady] = useState(false);
   const [saved, setSaved] = useState(true);
   const shortcut = useQuickAddShortcut();
   useEffect(() => {
     const update = () => setAppearance(valid(document.documentElement.dataset.theme ?? null));
+    const media = window.matchMedia(darkQuery);
+    const device = () => setDeviceDark(media.matches);
     update();
+    device();
+    const frame = requestAnimationFrame(() => setReady(true));
     window.addEventListener("jitm:appearance", update);
-    return () => window.removeEventListener("jitm:appearance", update);
+    media.addEventListener("change", device);
+    return () => { cancelAnimationFrame(frame); window.removeEventListener("jitm:appearance", update); media.removeEventListener("change", device); };
   }, []);
+  const dark = appearance === "dark" || (appearance === "system" && deviceDark);
   const change = (next: Appearance) => {
     if (next === "system") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = next;
     setAppearance(next);
     try { localStorage.setItem(key, next); setSaved(true); } catch { setSaved(false); }
     window.dispatchEvent(new Event("jitm:appearance"));
-  };
-  const move = (event: KeyboardEvent<HTMLDivElement>) => {
-    const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
-    const edge = event.key === "Home" ? 0 : event.key === "End" ? choices.length - 1 : null;
-    if (!step && edge === null) return;
-    event.preventDefault();
-    const current = choices.findIndex(choice => choice.value === appearance);
-    const index = edge ?? (current + step + choices.length) % choices.length;
-    change(choices[index].value);
-    group.current?.querySelectorAll<HTMLButtonElement>("button")[index]?.focus();
   };
   const changeShortcut = (next: boolean) => {
     setSaved(writeQuickAddShortcut(next));
@@ -84,10 +78,14 @@ export function AppearanceControl({ compact = false, labelHidden = false }: { co
   return <>
     <div className={`appearance-control${compact ? " appearance-compact" : ""}${labelHidden ? " appearance-icons-only" : ""}`}>
       <span id={id} className={labelHidden ? "sr-only" : "appearance-label"}>Appearance</span>
-      <div ref={group} className="appearance-toggle" role="radiogroup" aria-labelledby={id} onKeyDown={move}>
-        {choices.map(choice => <button key={choice.value} type="button" role="radio" aria-checked={appearance === choice.value} tabIndex={appearance === choice.value ? 0 : -1} aria-label={choice.label} title={choice.label} onClick={() => change(choice.value)}><AppIcon name={choice.icon} /></button>)}
-      </div>
-      {!compact && <small>Use your device setting or choose a look for this browser.</small>}
+      <button type="button" role="switch" aria-checked={dark} aria-label="Dark mode" title={dark ? "Switch to light" : "Switch to dark"} className="theme-switch" data-ready={ready || undefined} onClick={() => change(dark ? "light" : "dark")}>
+        <span className="theme-switch-track" aria-hidden="true">
+          <span className="theme-switch-thumb" />
+          <span className="theme-switch-icon theme-switch-sun"><AppIcon name="sun" /></span>
+          <span className="theme-switch-icon theme-switch-moon"><AppIcon name="moon" /></span>
+        </span>
+      </button>
+      {!compact && <small>{appearance === "system" ? "Following your device’s setting." : <>Chosen for this browser. <button type="button" className="text-button" onClick={() => change("system")}>Match my device</button></>}</small>}
       {!saved && <small role="status">Applied for this visit. This browser could not remember your choice.</small>}
     </div>
     {!compact && <>
