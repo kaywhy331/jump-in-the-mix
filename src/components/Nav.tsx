@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { QuickAddButton } from "@/components/QuickAdd";
+import { invitationsLeftLabel } from "@/lib/invitation-labels";
 
 const links = [
   { href: "/jumps", label: "Today", icon: "home", kind: "primary" },
@@ -30,13 +31,14 @@ export function AccountNav() {
   </nav>;
 }
 
-export function Nav() {
+/** `moreBadge` puts the invitations left on the More tab; only the phone tab bar passes it. */
+export function Nav({ moreBadge = null }: { moreBadge?: number | null }) {
   const pathname = usePathname();
   return (
     <nav className="app-nav" aria-label="Primary navigation">
       {links.map(({ href, label, icon, kind }, index) => {
         const active = pathname === href || pathname.startsWith(`${href}/`) || (href === "/mixes" && pathname.startsWith("/templates")) || (href === "/more" && ["/settings", "/account", "/help", "/admin", "/calendar", "/journey"].some(root => pathname === root || pathname.startsWith(`${root}/`)));
-        return <span className={kind === "desktop" ? "nav-desktop-item" : index === 2 ? "nav-with-quick-add" : undefined} key={href}>{index === 2 && <QuickAddButton mobile />}<Link href={href} aria-current={active ? "page" : undefined} className={`nav-link nav-${kind}${href === "/more" ? " nav-more" : ""}${active ? " active" : ""}`}><AppIcon name={icon as AppIconName}/><span>{label}</span></Link></span>;
+        return <span className={kind === "desktop" ? "nav-desktop-item" : index === 2 ? "nav-with-quick-add" : undefined} key={href}>{index === 2 && <QuickAddButton mobile />}<Link href={href} aria-current={active ? "page" : undefined} aria-label={href === "/more" && moreBadge ? `More: ${invitationsLeftLabel(moreBadge)}` : undefined} className={`nav-link nav-${kind}${href === "/more" ? " nav-more" : ""}${active ? " active" : ""}`}><AppIcon name={icon as AppIconName}/><span>{label}</span>{href === "/more" && moreBadge ? <span className="invite-count nav-badge" aria-hidden="true">{moreBadge}</span> : null}</Link></span>;
       })}
     </nav>
   );
