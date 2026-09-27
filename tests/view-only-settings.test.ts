@@ -22,6 +22,7 @@ vi.mock("@/lib/notification-actions", () => ({ updateAutomationPreferencesFormAc
 vi.mock("@/lib/date-type-actions", () => ({ createCustomDateTypeAction: async () => undefined, deleteCustomDateTypeAction: async () => undefined, renameCustomDateTypeAction: async () => undefined, saveActiveDateTypesAction: async () => undefined }));
 vi.mock("@/lib/auth-actions", () => ({ logoutAction: async () => undefined }));
 vi.mock("@/components/Appearance", () => ({ AppearanceControl: () => null }));
+vi.mock("@/lib/invitation-allowance", async (original) => ({ ...(await original<typeof import("@/lib/invitation-allowance")>()), invitationsLeft: async () => null }));
 import MorePage from "@/app/(app)/more/page";
 import JumpDateTypesPage from "@/app/(app)/settings/jump-date-types/page";
 import SendingSettingsPage from "@/app/(app)/settings/sending/page";

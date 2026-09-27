@@ -208,6 +208,8 @@
   .public-mobile-menu[open] > summary { background: var(--raised); }
   .public-page .public-mobile-menu > nav { position: absolute; z-index: 20; right: 0; top: calc(100% + 8px); width: min(260px, calc(100vw - 40px)); display: grid; gap: 0; padding: 8px; border: 1px solid var(--line); border-radius: 16px; background: var(--raised); box-shadow: var(--shadow); }
   .public-mobile-menu > nav a { padding: 12px; min-height: 44px; font-weight: 500; }
+  .public-menu-appearance { padding: 4px 12px 8px; border-top: 1px solid var(--line); margin-top: 4px; }
+  .public-menu-appearance .appearance-control { justify-content: space-between; grid-template-columns: auto auto; }
   .public-page .public-footer > nav:not(.public-trust-links) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; gap: 0 16px; }
   .public-page .public-footer nav a { display: inline-flex; align-items: center; min-height: 44px; }
   .public-page .public-footer > p { flex: none; min-width: 0; }

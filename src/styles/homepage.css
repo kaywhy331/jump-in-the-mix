@@ -268,6 +268,10 @@
 @media (max-width: 400px) { .profession-grid { grid-template-columns: 1fr; } }
 
 .public-mobile-menu { display: none; }
+/* Where the header menu exists the switch lives in it; wider headers carry it beside Sign in. */
+@media (min-width: 761px) { .public-menu-appearance { display: none; } }
+@media (max-width: 760px) { .public-page .public-site-nav .appearance-control { display: none; } }
+.public-header-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 .public-contents, .public-capabilities { margin-block: 24px; padding: 18px; border: 1px solid var(--border); border-radius: 12px; }
 .public-contents ul { display: flex; flex-wrap: wrap; gap: 10px 24px; padding-inline-start: 20px; }
 .public-page h2[id] { scroll-margin-top: 24px; }

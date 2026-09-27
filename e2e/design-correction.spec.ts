@@ -160,7 +160,7 @@ test("More keeps compact destinations reachable and secondary navigation tracks 
     expect(bounds!.height).toBeGreaterThanOrEqual(44);
     expect(bounds!.height).toBeLessThanOrEqual(60);
   }
-  await expect(page.locator(".more-page").getByLabel("Appearance", { exact: true })).toBeInViewport();
+  await expect(page.locator(".more-page").getByRole("switch", { name: "Dark mode", exact: true })).toBeInViewport();
   await expect(page.locator(".more-sign-out button")).toBeInViewport();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/settings/business");

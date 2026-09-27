@@ -41,6 +41,7 @@ import { followUpPhone, parseTodayCursor, readTodayPage } from "@/lib/today-list
 import { calendarDaysOverdue, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
 import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
 import { automaticEmailConfigured } from "@/lib/automatic-delivery";
+import { INVITATIONS_PATH, invitationsLeft } from "@/lib/invitation-allowance";
 import { phoneRegionOrDefault } from "@/lib/phone-number";
 
 export const metadata: Metadata = { title: "Today" };
@@ -126,6 +127,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const status = params.jump ? "all" : ["all", "pending", "done", "skipped"].includes(params.status ?? "") ? params.status! : "all";
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
   const { session, workspace, user, impersonation } = await requireWorkspace();
+  const invitations = impersonation ? null : await invitationsLeft(user.id, workspace.id);
   const displayPreferences = await displayPreferencesForUser(user.id);
   const timezone = displayPreferences.timeZone;
   const today = logicalDateInTimezone(new Date(), timezone);
@@ -441,6 +443,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           {activeFilterCount > 0 && <TodayLink className="button" href="/jumps">Clear filters</TodayLink>}
         </Sheet></div>
       </header>
+
+      {invitations && <section className="invite-strip" aria-label="Personal invitations"><AppIcon name="gift" /><p><strong>You have {invitations} invitation{invitations === 1 ? "" : "s"} to share.</strong></p><Link className="button small primary" href={INVITATIONS_PATH}>Invite people</Link></section>}
 
       <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
       {needsAttention.filter(item => item.scheduledAt < startToday).length > 0 && <section aria-labelledby="overdue-follow-ups"><div className="section-label urgent"><h2 id="overdue-follow-ups">Overdue</h2><span>{overdueCount}</span></div><div className="jump-list">{needsAttention.filter(item => item.scheduledAt < startToday).map(renderCard)}</div></section>}

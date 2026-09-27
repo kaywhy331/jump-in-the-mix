@@ -7,16 +7,20 @@ import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
 import { Sheet } from "@/components/Sheet";
 import { AppIcon } from "@/components/AppIcon";
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
+import { INVITATIONS_PATH, invitationsLeftLabel } from "@/lib/invitation-labels";
 
 export function AppShell({
   children,
   userName,
   displayPreferences,
+  invitationsLeft = null,
   impersonation
 }: {
   children: React.ReactNode;
   userName: string;
   displayPreferences: DisplayFormatPreferences;
+  /** Personal invitations the owner can still send; null hides every invitation prompt. */
+  invitationsLeft?: number | null;
   impersonation: {
     reference: string;
     targetName: string;
@@ -42,6 +46,10 @@ export function AppShell({
         <Logo />
         {!impersonation && <QuickAddButton />}
         <Nav />
+        {invitationsLeft && <Link className="invite-callout" href={INVITATIONS_PATH} aria-label={`Invite people: ${invitationsLeftLabel(invitationsLeft)}`}>
+          <AppIcon name="gift" /><span><strong>{invitationsLeftLabel(invitationsLeft)}</strong><small>Share free access with people you know</small></span>
+          <span className="invite-count" aria-hidden="true">{invitationsLeft}</span>
+        </Link>}
         <div className="sidebar-footer account-sidebar-footer">
           <AccountNav />
           <AppearanceControl compact />
@@ -58,6 +66,7 @@ export function AppShell({
                   <Link href="/account"><AppIcon name="profile" />My Account</Link>
                   <Link href="/settings"><AppIcon name="settings" />Settings</Link>
                   <Link href="/templates"><AppIcon name="import" />Ready-made mixes</Link>
+                  {invitationsLeft && <Link href={INVITATIONS_PATH}><AppIcon name="gift" />Invite people · {invitationsLeftLabel(invitationsLeft)}</Link>}
                   <Link href="/help"><AppIcon name="help" />Help</Link>
                 </nav>
                 <form action={logoutAction} className="contact-tools-links"><button type="submit"><AppIcon name="arrowLeft" />Sign out</button></form>
@@ -69,7 +78,7 @@ export function AppShell({
       <header className="mobile-app-header">
         <Logo />
         {impersonation ? endImpersonationForm : (
-          <Link className="button small mobile-profile-link" href="/more" aria-label="More">{userName.slice(0, 1).toUpperCase()}</Link>
+          <div className="mobile-header-actions">{invitationsLeft && <Link className="mobile-invite-link" href={INVITATIONS_PATH} aria-label={`Invite people: ${invitationsLeftLabel(invitationsLeft)}`}><AppIcon name="gift" /><span className="invite-count" aria-hidden="true">{invitationsLeft}</span></Link>}<Link className="button small mobile-profile-link" href="/more" aria-label="More">{userName.slice(0, 1).toUpperCase()}</Link></div>
         )}
       </header>
       {impersonation && (
@@ -83,7 +92,7 @@ export function AppShell({
         </section>
       )}
       <main id="workspace-main" tabIndex={-1} className="app-main">{children}</main>
-      <div className="mobile-nav"><Nav /></div>
+      <div className="mobile-nav"><Nav moreBadge={invitationsLeft} /></div>
       {!impersonation && <QuickAddDialog timezone={displayPreferences.timeZone} />}
     </div>
   );
