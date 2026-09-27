@@ -59,3 +59,36 @@ Redeploy `a70e60c` (worker, then web). Nothing needs undoing.
 ## Not run
 
 Physical devices.
+
+## Follow-up: invitations wait in Today to be sent (PR #90)
+
+Live since 2026-09-27 17:13 UTC as `231374880716af77036963fb7b658bb411cbe16f` (merge of PR #90; tag `prod-2026-09-27-2313748`). This is a code-only release, with `1da264f` as the previous production commit.
+
+| Release | Value |
+| --- | --- |
+| Worker deploy | `dep-daskqfm0tbcc73fs4spg`, live 2026-09-27 17:08:44 UTC |
+| Web deploy | `dep-daskrpl9fdbs73dtfmk0`, live 2026-09-27 17:13:20 UTC, build `zcrUG09OrNpXeE8L06mAU` |
+| Final check | 2026-09-27 17:15:45 UTC |
+
+**Why.** The owner prepared an invitation and expected it to reach the recipient's inbox. Member invitations are always delivered by the member (`manualDelivery: true`): the app adds a reminder to Today, and the member sends the message from their own email or text app. The interface did not make that clear. Delivery behavior did not change.
+
+**What changed.**
+- **Invite page.** It now says "Invitations aren't emailed for you", followed by three steps: add people, open each one in Today, send it from your email or text app. The footnote reads "Next, you'll go to Today to send them."
+- **Confirmation.** "Add N invitations to Today for …?", starting "Nothing is emailed yet", with the button **Add to Today**.
+- **Today.** While any prepared invitation is unsent, a panel shows "N invitations ready to send". It has a **Review and send** button per person, which opens that invitation's review.
+- **Your invitations.** Unsent invitations show "Ready to send · not sent yet" and a **Send now** button.
+
+**Verification.** CI jobs ran on TrixBot because GitHub Actions is still blocked:
+- **Vitest:** 2,112 passed, 0 failed.
+- **Static checks:** typecheck, `validate:static`, the build and gitleaks are clean.
+- **Playwright** on a production build, desktop and phone: 84 passed and 0 failed across 10 specs (the invitation, Today, core-flow, accessibility and design specs); 10 were skipped by the specs' own conditions.
+
+**Release.** Scripts `.artifacts/market-live-20260924/snd-*.mjs`; every step passed on the first run:
+- **Preflight:** passed; 71 migrations matched and no schema or dependency changes.
+- **Worker deploy:** passed, with its queue probe.
+- **Web deploy:** passed.
+- **Postflight:** 18 public checks passed; 7 release files and 20 assets were hashed on the live instance.
+- **Live smoke:** 17 checks passed, including the new "aren't emailed" wording and the three steps. The synthetic data was removed.
+- **Final check:** counts were unchanged and health was 200.
+
+**Rollback.** Redeploy `1da264f` (worker, then web). Nothing needs undoing.
