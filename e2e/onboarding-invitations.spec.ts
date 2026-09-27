@@ -87,11 +87,17 @@ test("three mixed-channel invitations become Today reminders with single-use lin
     await page.screenshot({ path: `.artifacts/invitations-${theme}-${test.info().project.name}.png`, fullPage: true });
   }
   await page.getByRole("button", { name: "Add invitations to Today" }).click();
-  const prepare = page.getByRole("dialog", { name: /^Prepare 3 invitations/ });
+  const prepare = page.getByRole("dialog", { name: /^Add 3 invitations to Today/ });
+  await expect(prepare).toContainText("Nothing is emailed yet.");
   await expect(prepare).toContainText("leaving 0");
   await expect(prepare.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
-  await prepare.getByRole("button", { name: "Prepare invitations", exact: true }).click();
+  await prepare.getByRole("button", { name: "Add to Today", exact: true }).click();
   await expect(page).toHaveURL(/\/jumps\?invitations=3/);
+  // Today says plainly that the invitations are waiting to be sent, one button per person.
+  const toSend = page.getByRole("region", { name: "3 invitations ready to send" });
+  await expect(toSend).toContainText("Not sent yet.");
+  await expect(toSend.getByRole("link", { name: /^Review and send the invitation to / })).toHaveCount(3);
+  await page.screenshot({ path: `.artifacts/invitations-today-${test.info().project.name}.png` });
   const invites = await prisma.referralAccessInvite.findMany({ where: { inviterUserId: user.id }, include: { reminder: true } });
   expect(invites).toHaveLength(3);
   expect(invites.every(invite => invite.manualDelivery && invite.reminder?.status === "PENDING")).toBe(true);
@@ -115,6 +121,11 @@ test("three mixed-channel invitations become Today reminders with single-use lin
       await expect(dialog).toHaveCount(0);
     }
   }
+  // "Review and send" opens that invitation's message, ready for the handoff.
+  await page.goto("/jumps");
+  await page.getByRole("link", { name: /^Review and send the invitation to / }).first().click();
+  await expect(page).toHaveURL(/[?&]jump=/);
+  await expect(page.getByLabel("Your message").filter({ visible: true }).first()).toHaveValue(/\/register\?invite=[A-Za-z0-9_-]{43}/);
   const textInvite = invites.find(invite => invite.recipientPhone)!;
   const link = (textInvite.reminder!.renderedSnapshot as { body: string }).body.match(/http[^\s]+\/register\?invite=[A-Za-z0-9_-]{43}/)![0];
   const guest = await page.context().browser()!.newPage();
@@ -124,6 +135,8 @@ test("three mixed-channel invitations become Today reminders with single-use lin
   await guest.close();
   await page.goto("/mixes/system");
   await expect(page.getByRole("heading", { name: "0 of 3 invitations remaining" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /^Send the invitation for / })).toHaveCount(3);
+  await expect(page.getByText("Ready to send · not sent yet")).toHaveCount(3);
   await page.getByRole("button", { name: "Revoke invitation…" }).first().click();
   await page.getByRole("dialog").getByRole("button", { name: "Confirm revocation", exact: true }).click();
   await expect(page.getByText("The invitation can no longer be used.")).toBeVisible();
