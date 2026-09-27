@@ -73,13 +73,19 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 .auth-shell, .onboarding-shell, .review-page, .public-shell { background: var(--surface); }
 .auth-card, .onboarding-card { border-radius: var(--radius-sheet); box-shadow: var(--shadow); }
 .auth-card > .logo, .onboarding-card > .logo { font-size: 1rem; }
-.appearance-control { display: grid; grid-template-columns: auto minmax(100px, 180px); gap: 8px 16px; align-items: center; margin-block: 20px; }
-.appearance-control label { font-size: .875rem; font-weight: 600; }
+.appearance-control { display: grid; grid-template-columns: auto auto; justify-content: start; gap: 8px 16px; align-items: center; margin-block: 20px; }
+.appearance-label { font-size: .875rem; font-weight: 600; }
 .appearance-control small { grid-column: 1 / -1; color: var(--text-2); }
-.appearance-control select { min-height: 44px; padding: 8px 10px; }
+/* System, Light and Dark as one pill of icon buttons, like the date picker's tabs. */
+.appearance-toggle { justify-self: start; display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-soft); }
+.appearance-toggle button { display: inline-grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; }
+.appearance-toggle button svg { width: 20px; height: 20px; }
+.appearance-toggle button:hover { color: var(--text); }
+.appearance-toggle button[aria-checked="true"] { background: var(--raised); color: var(--brand-dark); box-shadow: var(--shadow-sm); }
+.appearance-toggle button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .appearance-compact { gap: 8px; margin-block: 8px; }
-.appearance-compact label { font-size: .8125rem; font-weight: 500; }
-.appearance-compact select { font-size: .8125rem; }
+.appearance-compact .appearance-label { font-size: .8125rem; font-weight: 500; }
+.appearance-icons-only { display: flex; margin: 0; }
 .more-section-label { display: none; }
 .settings-hub-grid { grid-template-columns: 1fr; gap: 0; }
 .settings-hub-card { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; padding: 18px 0; background: var(--page); }

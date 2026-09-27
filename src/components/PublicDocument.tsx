@@ -13,7 +13,7 @@ export function PublicDocument({ title, effectiveDate = PUBLIC_POLICY_DATE, chil
   if (!details) notFound();
   return <div className="public-page">
     <a className="public-skip-link" href="#main-content">Skip to content</a>
-    <header className="public-header"><Logo /><Link className="button" href="/login">Sign in</Link></header>
+    <header className="public-header"><Logo /><div className="public-header-actions"><AppearanceControl compact labelHidden /><Link className="button" href="/login">Sign in</Link></div></header>
     <main id="main-content" tabIndex={-1} className="public-document">
       <Link href="/">Back to home</Link>
       <h1>{title}</h1>
@@ -21,6 +21,6 @@ export function PublicDocument({ title, effectiveDate = PUBLIC_POLICY_DATE, chil
       <PublicContents />
       {children(details)}
     </main>
-    <footer className="public-footer"><p>Jump in the Mix is operated by {details.operatorName}.</p><AppearanceControl compact /><PublicTrustLinks /></footer>
+    <footer className="public-footer"><p>Jump in the Mix is operated by {details.operatorName}.</p><PublicTrustLinks /></footer>
   </div>;
 }

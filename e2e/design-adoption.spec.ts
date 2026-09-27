@@ -1,27 +1,35 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { createPendingJumpFixture, removePendingJumpFixture } from "./pending-jump-fixture";
+
+// Public pages keep System, Light and Dark in the header; a phone keeps them in the header menu.
+async function appearance(page: Page) {
+  const group = page.getByRole("radiogroup", { name: "Appearance", exact: true });
+  if (!await group.count()) await page.locator(".public-mobile-menu > summary").click();
+  return group;
+}
+const selected = (group: Locator, name: string) => expect(group.getByRole("radio", { name, exact: true })).toHaveAttribute("aria-checked", "true");
 
 test("appearance persists, overrides the system, and follows it again", async ({ page, context }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto("/");
-  const appearance = page.getByLabel("Appearance", { exact: true });
+  const choose = async (name: string) => (await appearance(page)).getByRole("radio", { name, exact: true }).click();
   await expect(page.locator("body")).toHaveCSS("color", "rgb(238, 237, 246)");
-  await appearance.selectOption("light");
+  await choose("Light");
   await expect(page.locator("body")).toHaveCSS("color", "rgb(26, 24, 48)");
   await page.reload();
-  await expect(appearance).toHaveValue("light");
+  await selected(await appearance(page), "Light");
   await expect(page.locator("body")).toHaveCSS("color", "rgb(26, 24, 48)");
   const other = await context.newPage();
   await other.goto("/faq");
-  await expect(other.getByLabel("Appearance", { exact: true })).toHaveValue("light");
+  await selected(await appearance(other), "Light");
   const signIn = await context.newPage();
   await signIn.goto("/login");
   await expect(signIn.locator("body")).toHaveCSS("color", "rgb(26, 24, 48)");
-  await appearance.selectOption("dark");
-  await expect(other.getByLabel("Appearance", { exact: true })).toHaveValue("dark");
+  await choose("Dark");
+  await selected(await appearance(other), "Dark");
   await expect(signIn.locator("body")).toHaveCSS("color", "rgb(238, 237, 246)");
-  await appearance.selectOption("system");
+  await choose("System");
   await expect(signIn.locator("html")).not.toHaveAttribute("data-theme");
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("body")).toHaveCSS("color", "rgb(26, 24, 48)");
@@ -31,10 +39,27 @@ test("appearance persists, overrides the system, and follows it again", async ({
   await signIn.close();
 });
 
+test("the appearance icons work from the keyboard as one group", async ({ page }) => {
+  await page.goto("/privacy");
+  const group = await appearance(page);
+  await group.getByRole("radio", { name: "System", exact: true }).focus();
+  await page.keyboard.press("ArrowRight");
+  await selected(group, "Light");
+  await expect(group.getByRole("radio", { name: "Light", exact: true })).toBeFocused();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.keyboard.press("End");
+  await selected(group, "Dark");
+  await page.keyboard.press("ArrowRight");
+  await selected(group, "System");
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme");
+  // Only the chosen icon is a tab stop.
+  await expect(group.locator('[tabindex="0"]')).toHaveCount(1);
+});
+
 test("blocked storage still permits changing appearance for this visit", async ({ page }) => {
   await page.addInitScript(() => Object.defineProperty(window, "localStorage", { get() { throw new DOMException("Blocked", "SecurityError"); } }));
   await page.goto("/");
-  await page.getByLabel("Appearance", { exact: true }).selectOption("dark");
+  await (await appearance(page)).getByRole("radio", { name: "Dark", exact: true }).click();
   await expect(page.locator("body")).toHaveCSS("color", "rgb(238, 237, 246)");
   await expect(page.getByText("Applied for this visit. This browser could not remember your choice.")).toBeVisible();
 });
