@@ -18,7 +18,7 @@ type Invite = { acceptedAt: Date | null; revokedAt: Date | null; lastSentAt: Dat
 function inviteStatus(invite: Invite): [string, string] {
   if (invite.acceptedAt) return ["Accepted", "done"];
   if (invite.revokedAt) return ["Revoked", ""];
-  if (invite.manualDelivery) return invite.reminder?.status === "DONE" ? ["Marked sent by you", "done"] : invite.reminder?.status === "SKIPPED" ? ["Reminder skipped · link still available", ""] : ["Ready in Today", "email-previewed"];
+  if (invite.manualDelivery) return invite.reminder?.status === "DONE" ? ["Marked sent by you", "done"] : invite.reminder?.status === "SKIPPED" ? ["Reminder skipped · link still available", ""] : ["Ready to send · not sent yet", "email-pending"];
   if (invite.lastSentAt) return ["Invitation sent", "done"];
   return invite.delivery?.status === "QUEUED" || invite.delivery?.status === "SENDING" ? ["Invitation queued", "email-pending"] : ["Delivery needs review · contact support", "email-failed"];
 }
@@ -51,7 +51,12 @@ export default async function SystemMixPage({ searchParams }: { searchParams: Pr
         <span className="invite-slots" aria-hidden="true">{Array.from({ length: REFERRAL_INVITE_LIMIT }, (_, index) => <span key={index} className={index < remaining ? "is-open" : undefined} />)}</span>
       </div>
       {remaining > 0 && admissionProblem ? <Notice type="info">{admissionProblem}</Notice> : remaining > 0 ? <>
-        <p className="invite-lede">Type a name, email, or phone number. Each person gets a single-use signup link, and a reminder appears in Today so you can send it yourself.</p>
+        <p className="invite-lede">Invitations aren’t emailed for you. Each one goes to Today, ready for you to send from your own email or text app.</p>
+        <ol className="invite-steps" aria-label="How inviting works">
+          <li><span aria-hidden="true">1</span>Add people below</li>
+          <li><span aria-hidden="true">2</span>Open each one in Today</li>
+          <li><span aria-hidden="true">3</span>Send it from your email or text app</li>
+        </ol>
         {published ? <SystemMixInviteForm key={published.version} sender={user.name} remaining={remaining} version={published.version} content={published.content} invitedContactIds={invites.flatMap(invite => invite.contactId ? [invite.contactId] : [])} /> : <p>Invitation wording is temporarily unavailable.</p>}
       </> : <p className="invite-lede">You’ve used your three invitations. You can still see their status below.</p>}
     </section>
@@ -62,7 +67,7 @@ export default async function SystemMixPage({ searchParams }: { searchParams: Pr
         <span className="invite-person"><h3>{name}</h3><small>{address}</small></span>
         <span className={`status-pill${tone ? ` ${tone}` : ""}`}>{status}</span>
         {!invite.acceptedAt && !invite.revokedAt && <span className="invite-list-actions">
-          {invite.reminder && <Link className="button small" href={`/jumps?range=all&jump=${invite.reminder.id}#jump-${invite.reminder.id}`} aria-label={`Open the invitation reminder for ${name} in Today`}>Open in Today</Link>}
+          {invite.reminder && <Link className={`button small${invite.reminder.status === "PENDING" ? " primary" : ""}`} href={`/jumps?range=all&jump=${invite.reminder.id}#jump-${invite.reminder.id}`} aria-label={`${invite.reminder.status === "PENDING" ? "Send" : "Open"} the invitation for ${name} in Today`}>{invite.reminder.status === "PENDING" ? "Send now" : "Open in Today"}</Link>}
           <ConfirmDialog trigger="Revoke invitation…" triggerClassName="text-button" title={`Revoke invitation for ${address}?`} description="The signup link will stop working and its pending reminder will be removed. This permanently used slot will not be returned." danger><form action={revokeSystemInviteAction}><input type="hidden" name="id" value={invite.id} /><button className="button danger">Confirm revocation</button></form></ConfirmDialog>
         </span>}
       </li>;

@@ -114,7 +114,7 @@ export function SystemMixInviteForm({ sender, remaining, version, content, invit
     if (approved.current) { approved.current = false; return; }
     event.preventDefault();
     const form = event.currentTarget, submitter = (event.nativeEvent as SubmitEvent).submitter;
-    void confirm({ title: `Prepare ${recipients.length} invitation${recipients.length === 1 ? "" : "s"} for ${recipients.map(addressOf).join(", ")}?`, description: `This uses ${recipients.length} of your ${remaining} remaining slots, leaving ${remaining - recipients.length}. Revoking later does not restore slots. Nothing is sent now.`, confirmLabel: "Prepare invitations" })
+    void confirm({ title: `Add ${recipients.length} invitation${recipients.length === 1 ? "" : "s"} to Today for ${recipients.map(addressOf).join(", ")}?`, description: `Nothing is emailed yet. ${recipients.length === 1 ? "The invitation waits" : "The invitations wait"} in Today for you to send from your own email or text app. This uses ${recipients.length} of your ${remaining} remaining slots, leaving ${remaining - recipients.length}. Revoking later does not restore slots.`, confirmLabel: "Add to Today" })
       .then(ok => { if (ok) { approved.current = true; form.requestSubmit(submitter instanceof HTMLElement ? submitter : undefined); } });
   }}>
     <input type="hidden" name="systemMixVersion" value={version} /><input type="hidden" name="previewSender" value={sender} />
@@ -126,7 +126,7 @@ export function SystemMixInviteForm({ sender, remaining, version, content, invit
     {recipients.length < remaining && <button className="text-button invite-add" type="button" onClick={() => setRecipients(current => [...current, blank(Math.max(...current.map(row => row.key)) + 1)])}><AppIcon name="plus" />Add another person</button>}
     <details className="invite-preview"><summary>Preview invitation</summary><div className="speech-bubble speech-bubble--compose"><p><strong>{preview.subject}</strong></p><p className="invite-preview-body">{preview.body}</p><p className="invite-preview-link">Their unique signup link goes here. It can create one account.</p></div></details>
     <div className="invite-submit"><PrepareButton /><FormGuard /></div>
-    <p className="invite-footnote">Nothing is sent yet. Each invitation waits in Today, and you send it from your own email or text app.</p>
+    <p className="invite-footnote">Next, you’ll go to Today to send {recipients.length === 1 ? "it" : "them"}.</p>
     {confirmDialog}
   </form>;
 }

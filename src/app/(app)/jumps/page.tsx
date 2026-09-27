@@ -128,6 +128,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
   const { session, workspace, user, impersonation } = await requireWorkspace();
   const invitations = impersonation ? null : await invitationsLeft(user.id, workspace.id);
+  // Prepared personal invitations wait here until the owner sends them from their own email or text app.
+  const invitationsToSend = impersonation ? [] : await prisma.jump.findMany({ where: { workspaceId: workspace.id, status: "PENDING", accessInvite: { is: { inviterUserId: user.id, acceptedAt: null, revokedAt: null } } }, select: { id: true, contact: { select: { displayName: true } }, accessInvite: { select: { recipientEmail: true, recipientPhone: true } } }, orderBy: [{ scheduledAt: "asc" }, { id: "asc" }], take: 3 });
   const displayPreferences = await displayPreferencesForUser(user.id);
   const timezone = displayPreferences.timeZone;
   const today = logicalDateInTimezone(new Date(), timezone);
@@ -412,7 +414,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
       <JumpReturnTray />
       {params.setupLater && <Notice type="success">Your setup answers are saved. <Link href="/onboarding">Return to setup</Link> whenever you’re ready.</Notice>}
-      {params.invitations && <Notice type="success">Your invitations are ready in Today. Review each message and send it from your own text or email app.</Notice>}
+      {params.invitations && <Notice type="success">{params.invitations === "1" ? "Your invitation is" : "Your invitations are"} ready to send. {params.invitations === "1" ? "It hasn’t" : "They haven’t"} been sent yet.</Notice>}
     {params.welcome && <Notice type="success">{welcomeMessage}{welcomeNextStep}</Notice>}
       {params.demo && <Notice type="info">Using local demo data.</Notice>}
       {params.applied && <Notice type="success">Mix changes saved.</Notice>}
@@ -444,6 +446,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         </Sheet></div>
       </header>
 
+      {invitationsToSend.length > 0 && <section className="invite-send" aria-labelledby="invite-send-heading">
+        <div className="invite-send-head"><AppIcon name="gift" /><div><h2 id="invite-send-heading">{invitationsToSend.length === 1 ? "1 invitation ready to send" : `${invitationsToSend.length} invitations ready to send`}</h2><p>Not sent yet. Open each one and send it from your own email or text app.</p></div></div>
+        <ul className="invite-send-list">{invitationsToSend.map(item => {
+          const name = item.contact.displayName, address = item.accessInvite?.recipientEmail ?? item.accessInvite?.recipientPhone ?? "";
+          return <li key={item.id}><span className="invite-person"><strong>{name}</strong><small>{address}</small></span><Link className="button small primary" href={`/jumps?jump=${item.id}&range=all#jump-${item.id}`} aria-label={`Review and send the invitation to ${name}`}>Review and send</Link></li>;
+        })}</ul>
+      </section>}
       {invitations && <section className="invite-strip" aria-label="Personal invitations"><AppIcon name="gift" /><p><strong>You have {invitations} invitation{invitations === 1 ? "" : "s"} to share.</strong></p><Link className="button small primary" href={INVITATIONS_PATH}>Invite people</Link></section>}
 
       <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
