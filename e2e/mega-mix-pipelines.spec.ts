@@ -41,8 +41,8 @@ test("name a Mega-Mix, switch Journey to it, export it and import the file into 
   await page.goto("/mixes/mega");
   await expect(page.getByRole("heading", { name: "Contractor", exact: true })).toBeVisible();
   const outline = page.getByRole("list", { name: "Contractor Beats in journey order" });
-  await expect(outline.getByTitle("Beat 1", { exact: true })).toBeVisible();
-  await expect(outline).toContainText("Site visit agreed → 3a–4a · Site visit follow-through");
+  await expect(outline.getByTitle("Beat A1.a", { exact: true })).toBeVisible();
+  await expect(outline).toContainText("Site visit agreed → A2 · Site visit follow-through");
   await expect(page.getByText("1 Mix is not in a Mega-Mix")).toBeVisible();
   // A Mix without Beats is listed but left out of the file, and the page says so.
 

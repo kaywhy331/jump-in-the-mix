@@ -7,7 +7,9 @@ import { readWorkflowDefinition, workflowDefinition, workflowState } from "@/lib
 import { workflowNodeKey, type WorkflowConfiguration, type WorkflowMix, type WorkflowState } from "@/lib/mix-workflow-types";
 import { UserFacingError } from "@/lib/user-facing-error";
 
-export type WorkflowGraphMix = Pick<WorkflowMix, "id" | "name" | "status" | "source" | "triggerMode"> & { steps: Array<Pick<WorkflowMix["steps"][number], "id" | "name" | "dayOffset" | "anchor" | "channel">>; pending: number; completed: number };
+export type WorkflowGraphMix = Pick<WorkflowMix, "id" | "name" | "status" | "source" | "triggerMode"> & { steps: Array<Pick<WorkflowMix["steps"][number], "id" | "name" | "dayOffset" | "anchor" | "channel">>; pending: number; completed: number;
+  /** When the Mix was created; the Journey letters its starting points in this order. */
+  createdAt?: string };
 export type WorkflowInstanceView = {
   id: string; contactId: string; contactName: string; label: string; status: string; revision: number; definitionRevision: number; updatedAt: string;
   state: WorkflowState;
@@ -31,14 +33,15 @@ export async function readWorkflowGraph(workspaceId: string, options: { contactI
   if (options.instanceId && !snapshot) throw new UserFacingError("That journey instance is unavailable.");
   const definition = snapshot ? workflowDefinition(snapshot.definition) : await readWorkflowDefinition(prisma, workspaceId);
   const where = { workspaceId, ...(options.contactId ? { contactId: options.contactId } : {}) };
-  const [counts, instances, instanceTotal, people, analytics, megaMixes] = await Promise.all([
+  const [counts, instances, instanceTotal, people, analytics, megaMixes, created] = await Promise.all([
     prisma.jump.groupBy({ by: ["mixId", "status"], where, _count: true }),
     prisma.mixWorkflowInstance.findMany({ where, orderBy: [{ updatedAt: "desc" }, { id: "asc" }], skip: options.offset ?? 0, take: 50, include: { contact: { select: { displayName: true } }, jumps: { select: { id: true, workflowVisitId: true, scheduledAt: true, status: true } } } }),
     prisma.mixWorkflowInstance.count({ where }),
     prisma.contact.findMany({ where: { workspaceId, archivedAt: null, ...(options.query ? { displayName: { contains: options.query, mode: "insensitive" as const } } : {}) }, select: { id: true, displayName: true }, orderBy: [{ displayName: "asc" }, { id: "asc" }], take: 50 }),
     // Selecting work changes the map focus and details, while the directory stays browsable.
     readWorkflowAnalytics(workspaceId, { node: options.node, status: options.status, stage: options.stage, query: options.query, offset: options.peopleOffset }),
-    prisma.megaMixPipeline.findMany({ where: { workspaceId }, orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, members: { orderBy: { position: "asc" }, select: { mixId: true } } } })
+    prisma.megaMixPipeline.findMany({ where: { workspaceId }, orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, members: { orderBy: { position: "asc" }, select: { mixId: true } } } }),
+    prisma.mix.findMany({ where: { workspaceId, id: { in: definition.mixes.map(mix => mix.id) } }, select: { id: true, createdAt: true } })
   ]);
   if (options.focusedInstance && !instances.some(instance => instance.id === options.focusedInstance)) {
     const focused = await prisma.mixWorkflowInstance.findFirst({ where: { ...where, id: options.focusedInstance }, include: { contact: { select: { displayName: true } }, jumps: { select: { id: true, workflowVisitId: true, scheduledAt: true, status: true } } } });
@@ -89,7 +92,7 @@ export async function readWorkflowGraph(workspaceId: string, options: { contactI
   for (const rule of definition.rules) for (const route of rule.routes) if (route.target && !definition.mixes.some(mix => mix.id === route.target!.mixId && mix.status === "ACTIVE")) issues.push({ node: workflowNodeKey(rule.source), message: `${route.label}: its destination is not active.` });
   return {
     revision: definition.revision, historical: Boolean(snapshot), configuration: { rules: definition.rules, gatedStepIds: definition.gatedStepIds, intentionalEnds: definition.intentionalEnds }, canEdit: options.canEdit,
-    mixes: definition.mixes.map(mix => ({ id: mix.id, name: mix.name, status: mix.status, source: mix.source, triggerMode: mix.triggerMode,
+    mixes: definition.mixes.map(mix => ({ id: mix.id, name: mix.name, status: mix.status, source: mix.source, triggerMode: mix.triggerMode, createdAt: created.find(item => item.id === mix.id)?.createdAt.toISOString(),
       steps: mix.steps.map(({ id, name, dayOffset, anchor, channel }) => ({ id, name, dayOffset, anchor, channel })),
       pending: counts.find(item => item.mixId === mix.id && item.status === "PENDING")?._count ?? 0,
       completed: counts.find(item => item.mixId === mix.id && item.status === "DONE")?._count ?? 0 })),
