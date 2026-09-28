@@ -1,5 +1,7 @@
 # Canonical product decisions
 
+> Superseded on 2026-09-28 by the [JITM standards](standards/README.md), starting with [JITM-00](standards/00-constitution.md); every rule is mapped in the [migration ledger](standards-audit-2026-09-28/MIGRATION_LEDGER.md). Kept as history; do not implement from it.
+
 **Status:** Active implementation contract
 **Effective:** September 4, 2026
 **Payments roadmap updated:** September 7, 2026

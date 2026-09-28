@@ -1,5 +1,7 @@
 # Phone-first workflow contract
 
+> Superseded on 2026-09-28 by [JITM-09](standards/09-information-architecture-and-user-workflows.md). Kept as history; do not implement from it.
+
 The former phased checklist is complete or superseded. Current interaction decisions live in [Canonical product decisions](CANONICAL_PRODUCT_DECISIONS.md).
 
 The core workflow is Add a person → choose when to follow up → review the prepared message on Today → use the native composer or call → record the result. Today, Contacts, Plans, and More are the only primary destinations; Quick Add remains available everywhere.
