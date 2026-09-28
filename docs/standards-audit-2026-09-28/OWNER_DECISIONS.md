@@ -156,6 +156,7 @@ Kevin answered the 18 questions in §7 of the [audit](../STANDARDS_AUDIT_2026-09
 - **Who can publish:** staff publishing and moderation authority (`mixes.publish`) goes to Kevin first, with a named backup moderator added when needed. Invited members keep sharing their own Mixes; `mixes.publish` does not restrict ordinary member sharing.
 - **Replaces:** the 2026-09-24 rule that offensive and spam reports also hide at once (JITM-09 §2.49 at 1.0.0).
 - **Applied in:** JITM-09 §2.49 and §2.70.
+- **Confirmed on review of PR #95:** "Keep 'promptly' as a recommendation until staffing supports a specific response-time commitment."
 
 ### D16 — Journey stages (question 4)
 
@@ -188,12 +189,14 @@ Kevin answered the 18 questions in §7 of the [audit](../STANDARDS_AUDIT_2026-09
 - **Decision (B):** labels stay the same across the account's views. "Switching from All Mixes to a Mega-Mix should not rename the same Mix." Labels are calculated from the account's complete graph, then the view is filtered. Real graph edits may still renumber, and labels are not stored identifiers.
 - **Replaces:** the per-view numbering in JITM-09 §2.54 at 1.0.0.
 - **Applied in:** JITM-09 §2.54, JITM-05 §6. The product change is backlog B-13.
+- **Confirmed on review of PR #95:** "Standalone files and Marketplace outlines can use package-local numbering. Account views should retain account-wide labels."
 
 ### D22 — Brand line and marks (question 10)
 
 - **Decision (A):** "Stay in the mix," paired with a literal description such as "client follow-up app", "because the tagline alone does not explain the product." Its customer comprehension still needs testing.
 - **Monogram:** retired. "Retire the JM monogram from active use and consistently use the approved logo and its derived icons."
 - **Applied in:** JITM-02 §2.14, JITM-03 §2.9. Removing the monogram file and aligning the other lines are in backlog B-14.
+- **Confirmed on review of PR #95:** "Leave the existing footer and social card for B-14; the documentation correctly identifies the remaining work."
 
 ### D23 — Voice (question 11)
 
