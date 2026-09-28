@@ -27,6 +27,8 @@ For changes that affect the complete local stack, also run the smoke test in `do
 
 ## Branch and commit conventions
 
+> Superseded on 2026-09-28 by [JITM-13](docs/standards/13-git-pr-and-review.md). Kept as history; do not implement from it.
+
 Use short branches such as:
 
 ```text
@@ -59,6 +61,8 @@ docs: clarify local setup
 - AI-generated multi-record changes require a user confirmation step.
 
 ## Product language
+
+> Superseded on 2026-09-28 by [JITM-05](docs/standards/05-vocabulary-and-glossary.md). Kept as history; do not implement from it.
 
 Use the canonical terms consistently:
 

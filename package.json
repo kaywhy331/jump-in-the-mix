@@ -53,6 +53,7 @@
     "validate:imports": "node scripts/validate-imports.mjs",
     "validate:static": "npm run validate:schema && npm run validate:syntax && npm run validate:imports",
     "check": "npm run db:generate && npm run validate:static && npm run typecheck && npm test && npm run build",
+    "standards:check": "node scripts/check-standards.mjs",
     "doctor": "node scripts/doctor.mjs",
     "quickstart": "node scripts/quickstart.mjs",
     "quickstart:native": "node scripts/native-quickstart.mjs",
