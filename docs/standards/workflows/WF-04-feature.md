@@ -2,7 +2,7 @@
 id: WF-04
 title: Feature
 status: active
-version: 1.0.0
+version: 1.0.1
 owner: Kevin
 last_reviewed: 2026-09-28
 standards: [JITM-01, JITM-09, JITM-11, JITM-12, JITM-13, JITM-15]
@@ -28,7 +28,7 @@ skills: [jitm-feature, jitm-ui-change, jitm-copy]
    - add no paid services.
 5. **Tests** (JITM-12 §2). Add or extend unit and integration tests for the behavior and browser tests for the workflow. Run the relevant suites and compare failures with an `origin/main` baseline.
 6. **Record.** Write or update the implementation record when the change is release-worthy (JITM-15 §2). Update the JITM-01 §2.22 feature map when a feature's status changes.
-7. **Pull request** (JITM-13 §2). Use the template, cite rules, and list NOT RUN items. Kevin merges. Releasing is a separate task (WF-06).
+7. **Pull request** (JITM-13 §2). Use the template, cite rules, and list NOT RUN items. Kevin merges, or an agent merges with his explicit authorization (JITM-16 §2.5). Releasing is a separate task (WF-06).
 
 ## Evidence to produce
 
@@ -54,3 +54,4 @@ skills: [jitm-feature, jitm-ui-change, jitm-copy]
 ## Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.0.1 — 2026-09-28 — Base 61d4df4. Merging follows JITM-16 §2.5 (D30).

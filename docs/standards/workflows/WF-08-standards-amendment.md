@@ -2,7 +2,7 @@
 id: WF-08
 title: Standards amendment
 status: active
-version: 1.0.0
+version: 1.0.1
 owner: Kevin
 last_reviewed: 2026-09-28
 standards: [JITM-00, JITM-15, JITM-16, JITM-17]
@@ -29,7 +29,7 @@ skills: [jitm-standards-update]
 5. **Update dependents** in the same pull request: skills, workflows, the routing in `AGENTS.md`, the PR template and superseded-document banners.
 6. **Split out product changes.** If the decision changes shipped behavior or copy, open a separate task for the product change unless Kevin asked for both together (a feature Kevin approved under WF-04 counts as both together).
 7. **Check:** run `npm run standards:check`.
-8. **Pull request:** open it with the decision quoted. Kevin merges.
+8. **Pull request:** open it with the decision quoted. Kevin merges, or an agent merges with his explicit authorization (JITM-16 §2.5).
 
 ## Evidence to produce
 
@@ -52,3 +52,4 @@ skills: [jitm-standards-update]
 ## Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.0.1 — 2026-09-28 — Base 61d4df4. Merging follows JITM-16 §2.5 (D30).

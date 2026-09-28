@@ -2,7 +2,7 @@
 id: JITM-00
 title: Constitution
 status: active
-version: 1.0.0
+version: 1.0.1
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [all]
@@ -106,8 +106,9 @@ This constitution is the root of the standards in `docs/standards/`. They apply 
 ## 6. Open decisions and known deviations
 
 - The audit lists shipped copy and documents that still contradict these principles. See `docs/STANDARDS_AUDIT_2026-09-28.md`.
-- Whether preserving the current UI structure (JITM-01 §2.24) is a standing principle is asked in JITM-01 §6.
+- Preserving the current UI structure is a standing default (JITM-01 §2.24, D20).
 
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.0.1 — 2026-09-28 — Base 61d4df4. §6: the UI-structure question is answered (D20).

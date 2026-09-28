@@ -2,7 +2,7 @@
 id: WF-06
 title: Production release
 status: active
-version: 1.0.0
+version: 1.0.1
 owner: Kevin
 last_reviewed: 2026-09-28
 standards: [JITM-12, JITM-13, JITM-14, JITM-15, JITM-16]
@@ -22,7 +22,7 @@ skills: [jitm-release]
 
 1. **Confirm authority and timing.** Kevin's standing authority lets agents run these steps (JITM-16 §2.6). If your own operator or host instructions forbid releases, follow them and ask Kevin (JITM-16 §2.24). When the release changes customer-visible behavior, check that its merged pull requests have a WF-05 verdict (JITM-17 §2.10). Releases are batched and run in quiet hours, with testers told to reload afterwards (JITM-14 §2.26).
    **Gate:** the task asks for a release, and the candidate is on `main`.
-2. **Prepare the workspace.** Create a fresh worktree at the candidate commit, never a shared checkout. Release scripts and receipts go in a new directory under the git-ignored `.artifacts/`, adapted from the previous release's set (JITM-14 §2).
+2. **Prepare the workspace.** Create a fresh worktree at the candidate commit, never a shared checkout. Run the committed release script and runbook in `scripts/release/` (JITM-14 §2.10); until they exist, adapt the previous release's scripts. Receipts and logs go in a new directory under the git-ignored `.artifacts/`, never in Git.
 3. **Verify the candidate locally.** Run tier 3 (JITM-12 §2.11) against a build of the previous production commit (JITM-12 §2.14).
    **Gate:** no failure is unique to the candidate.
 4. **Run the read-only preflight.** Confirm that:
@@ -35,7 +35,7 @@ skills: [jitm-release]
 
    Record the record-count baseline and hash the changed files.
    **Gate:** every check passes; otherwise stop.
-5. **Take a fresh encrypted backup** before any change (JITM-14 §2).
+5. **Take a fresh encrypted backup** immediately before any change, code-only releases included (JITM-14 §2.12).
 6. **Migrate, only when the release needs it.** Run the reviewed one-off job inside Render's network with the owner role. Then:
    - re-verify the runtime role;
    - check the new objects;
@@ -63,7 +63,7 @@ skills: [jitm-release]
     - health answers 200 three times;
     - both services are on the release commit with auto-deploy off.
 12. **Tag the release** with an annotated `prod-<UTC date>-<sha7>` tag. Its message names the release, the pull request, both deploy ids and the previous commit. Push the tag.
-13. **Write the record** following JITM-15 §2, in a record pull request titled `docs: record the <release> release (<sha7>)`, and update the JITM-01 §2.22 feature map there if statuses changed. Kevin merges it.
+13. **Write the record** following JITM-15 §2, in a record pull request titled `docs: record the <release> release (<sha7>)`, and update the JITM-01 §2.22 feature map there if statuses changed. Kevin merges, or an agent merges with his explicit authorization (JITM-16 §2.5).
 14. **List owner follow-ups:** the steps only Kevin can take.
 
 ## Rollback
@@ -94,3 +94,4 @@ skills: [jitm-release]
 ## Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version, codifying the release sequence practiced since 2026-09-21.
+- 1.0.1 — 2026-09-28 — Base 61d4df4. The committed release script (D18), the backup in every release (D17) and merge authorization (D30).

@@ -2,7 +2,7 @@
 id: JITM-12
 title: Testing and verification
 status: active
-version: 1.0.0
+version: 1.0.1
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [tests, e2e, checks, ci, screenshots, reports]
@@ -117,7 +117,7 @@ Nothing may fail only on the candidate. [OWNER 2026-09-28 D5] [SOURCE docs/AUDIT
 
 [SOURCE AGENTS.md:21] [SOURCE docs/JOURNEY_PRODUCTION_RELEASE_2026-09-21.md:32]
 
-**2.19** Screenshots and other captures hold synthetic data only. They stay private under `.artifacts/` and enter the repository only through a sanitized evidence folder (JITM-15 §2.16). Suites that show secrets, setup codes or recovery codes run with `PLAYWRIGHT_CAPTURE=off`. [SOURCE docs/BROWSER_E2E.md:41,47] [SHIPPED 9439fd6 playwright.config.ts:4,23-25] [PROPOSED]
+**2.19** Screenshots and other captures hold synthetic data only. Raw captures stay private under `.artifacts/` and enter the repository only through a sanitized evidence folder (JITM-15 §2.16), after each selected file is checked for sensitive URLs, tokens, account details and other incidental information. Suites that show secrets, setup codes or recovery codes run with `PLAYWRIGHT_CAPTURE=off`. [OWNER 2026-09-28 D25] [SOURCE docs/BROWSER_E2E.md:41,47] [SHIPPED 9439fd6 playwright.config.ts:4,23-25]
 
 ### Test data and environments
 
@@ -167,8 +167,8 @@ Nothing may fail only on the candidate. [OWNER 2026-09-28 D5] [SOURCE docs/AUDIT
 
 ## 6. Open decisions and known deviations
 
-- **CI is not a working gate.** The `validate` job hits its 60-minute cap (`.github/workflows/ci.yml:18-21`) and Actions is billing-blocked (`docs/APPEARANCE_INVITATIONS_RELEASE_2026-09-27.md:31`). Kevin: restore Actions billing, or accept local runs (§2.12) as the gate?
-- **Screenshot policy.** §2.19 is proposed. `docs/MANUAL_DEVICE_QUALIFICATION.md:5` still carries an older no-image instruction, while `AGENTS.md:21` requires screenshot comparison. Kevin: confirm synthetic-only screenshots kept in `.artifacts/`?
+- **CI is not a working gate.** The `validate` job hits its 60-minute cap (`.github/workflows/ci.yml:18-21`) and Actions is billing-blocked (`docs/APPEARANCE_INVITATIONS_RELEASE_2026-09-27.md:31`). Kevin will restore Actions for CI and the broader smoke checks (D13); until then, local runs (§2.12) are the gate.
+- **Screenshot policy.** Kevin confirmed §2.19 (D25). `docs/MANUAL_DEVICE_QUALIFICATION.md:5` still carries an older no-image instruction and needs a banner.
 - **Release baseline.** D5 names an `origin/main` baseline. A release candidate is `origin/main` itself, so §2.14 compares a release with the previous production commit instead; pull requests still compare with `origin/main`.
 - **Pre-release lists differ.** `npm run check`, `CONTRIBUTING.md:17-24`, `docs/LOCAL_TESTING.md:22-37` and `ci.yml` each list different checks. §2.9–§2.12 now govern.
 - **No tracked authenticated production smoke.** `npm run smoke:staging` can target only the retired test site (`docs/FREE_TESTING.md:27`). The release smoke lives in untracked scripts (JITM-14 §6).
@@ -183,3 +183,4 @@ Nothing may fail only on the candidate. [OWNER 2026-09-28 D5] [SOURCE docs/AUDIT
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.0.1 — 2026-09-28 — Base 61d4df4. §2.19 confirmed, with the check before committing evidence (D25); §6 updated for D13.

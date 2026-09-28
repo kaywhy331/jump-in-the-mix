@@ -115,7 +115,7 @@ Line numbers in this file, as in SOURCE and OWNER tags, refer to the source file
 - **Facts:** No pricing is decided ([CANONICAL_PRODUCT_DECISIONS](../CANONICAL_PRODUCT_DECISIONS.md), line 85). A local-only brand, price and features document is a proposal.
 - **Decision (A):** Until Kevin sets pricing, say only "free beta, access by invitation or waitlist". The pricing document stays a proposal.
 - **Applied in:** JITM-02, JITM-04.
-- **Applied as (lead's interpretation, pending Kevin's confirmation):** the owner-reviewed 2026-09-18 claim that accounts are free with no payment card stays usable; D11 forbids amounts, tiers and payment promises.
+- **Applied as (lead's interpretation, confirmed by Kevin in D28):** the owner-reviewed 2026-09-18 claim that accounts are free with no payment card stays usable; D11 forbids amounts, tiers and payment promises.
 
 ### D12 — Appearance synchronization
 
@@ -135,6 +135,113 @@ Line numbers in this file, as in SOURCE and OWNER tags, refer to the source file
 | O6 | 2026-09-28 | Every agent task in Jump in the Mix, through Claude Code or Codex, follows these standards, skills and workflows so the product does not drift from the Jump in the Mix standard. | The owner's request that started this program |
 | O7 | 2026-09-22 | Preserve the current UI structure and format; change visible structure only where needed to fix a specific workflow gap. Whether this is a standing rule or applied only to the 2026-09-22 work is open (question 8 in the audit). | The owner's clarification, recorded in the local-only contractor UX approach (sha256 f7ea577d837b6b1f, line 5) and reflected in docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md, line 7 |
 
+## Answered decisions — second packet (2026-09-28)
+
+Kevin answered the 18 questions in §7 of the [audit](../STANDARDS_AUDIT_2026-09-28.md#questions-for-kevin) on 2026-09-28, in a later agent session, with a reason for each. D13–D30 record them in question order (D13 is question 1, D30 is question 18). They were applied against `origin/main` 61d4df4. Quotes are short extracts of his answers.
+
+### D13 — Outage alerting (question 1)
+
+- **Decision (B now, and restore Actions separately):** "Add a free external monitor for the public site and application health endpoints, and test that its alerts reach you. Monitoring should keep working when CI billing fails." Keep Render's notifications. Restore GitHub Actions for CI and the broader smoke checks: "basic uptime monitoring cannot replace those checks."
+- **Applied in:** JITM-14 §2.30, JITM-12 §6. Setting up the monitor is backlog B-08; restoring Actions billing is an owner step.
+
+### D14 — Product copy fixes (question 2)
+
+- **Decision (A):** one coordinated batch covering the automation claim, the retired demo instructions, the third-party names and the inconsistent vocabulary, "so you have one consistent explanation across marketing, onboarding, and Help." The batch also checks template claims about availability or deadlines, "using placeholders or 'only if true' guidance where necessary."
+- **Applied in:** JITM-04 §2.20 and §6; the audit backlog merges B-01, B-02 and B-03 into this batch.
+
+### D15 — Marketplace moderation (question 3)
+
+- **Decision (A, with precise wording and assigned responsibility):** keep immediate hiding for private-information reports, at most two automatic hides per reporting account per rolling 24 hours. Other reports reach moderators promptly.
+- **Correction:** "the code verifies the reporter's email — not the truth of the allegation. The policy should say that clearly" (`src/lib/marketplace.ts:24-31` at 61d4df4).
+- **Who can publish:** staff publishing and moderation authority (`mixes.publish`) goes to Kevin first, with a named backup moderator added when needed. Invited members keep sharing their own Mixes; `mixes.publish` does not restrict ordinary member sharing.
+- **Replaces:** the 2026-09-24 rule that offensive and spam reports also hide at once (JITM-09 §2.49 at 1.0.0).
+- **Applied in:** JITM-09 §2.49 and §2.70.
+
+### D16 — Journey stages (question 4)
+
+- **Decision (A):** keep stages as optional contact information. "Call the setting **Contact stages**, and describe Journey as connected Mixes and Beats."
+- **Applied in:** JITM-05 §2 (glossary), JITM-09 §2.7 and §2.51.
+
+### D17 — Backups before code-only releases (question 5)
+
+- **Decision (A):** always take a fresh backup immediately before deployment, automated through the release script. "A backup supports recovery; it does not make every rollback safe or replace restore testing."
+- **Applied in:** JITM-14 §2.12.
+
+### D18 — Release pipeline (question 6)
+
+- **Decision (A):** commit the reusable script and runbook. The script identifies the target services and commit, runs the required checks, stops on failure and records the rollback target. "Keep credentials and individual release logs outside Git."
+- **Applied in:** JITM-14 §2.10. Building the script is backlog B-11.
+
+### D19 — Missing release records (question 7)
+
+- **Decision (A):** back-fill short, evidence-based records: the commit, the deployment identifiers that exist, known changes, verification evidence and rollback context. Missing information is marked unknown, and each record is marked as reconstructed, "without pretending that undocumented checks happened."
+- **Applied in:** JITM-15 §2.19, JITM-14 §6. The back-fill is backlog B-12.
+
+### D20 — Preserving the UI structure (question 8)
+
+- **Decision (A):** a standing default. "Preserve navigation and workspace structure unless a specific workflow, accessibility, or responsive-layout problem requires a change, or you request one."
+- **Settles:** O7.
+- **Applied in:** JITM-01 §2.24.
+
+### D21 — Journey labels (question 9)
+
+- **Decision (B):** labels stay the same across the account's views. "Switching from All Mixes to a Mega-Mix should not rename the same Mix." Labels are calculated from the account's complete graph, then the view is filtered. Real graph edits may still renumber, and labels are not stored identifiers.
+- **Replaces:** the per-view numbering in JITM-09 §2.54 at 1.0.0.
+- **Applied in:** JITM-09 §2.54, JITM-05 §6. The product change is backlog B-13.
+
+### D22 — Brand line and marks (question 10)
+
+- **Decision (A):** "Stay in the mix," paired with a literal description such as "client follow-up app", "because the tagline alone does not explain the product." Its customer comprehension still needs testing.
+- **Monogram:** retired. "Retire the JM monogram from active use and consistently use the approved logo and its derived icons."
+- **Applied in:** JITM-02 §2.14, JITM-03 §2.9. Removing the monogram file and aligning the other lines are in backlog B-14.
+
+### D23 — Voice (question 11)
+
+- **Decision (A):** "I" by default in the owner's messages; owners choose "we" when they genuinely speak for a crew or team. This applies to message templates and drafts; "interface instructions can continue addressing the user as 'you.'"
+- **Applied in:** JITM-04 §2.5.
+
+### D24 — Design deviations (question 12)
+
+- **Decision (B as the default, with documented exceptions):** for unexplained visual differences, the export is the reference. Later approved decisions stay, including the dynamic Journey graph and accessibility improvements. Each disputed value is compared in context before it changes. "A shipped difference should become the standard when there is a recorded design or usability reason — not merely because it reached production." This does not restore the old Journey layout.
+- **Applied in:** JITM-06 §2.33 and §6, JITM-07 §6.
+
+### D25 — Screenshots (question 13)
+
+- **Decision (A):** synthetic data; raw captures stay in the ignored `.artifacts/` directory; selected evidence is committed only after checking it for sensitive URLs, tokens, account details and other incidental information.
+- **Applied in:** JITM-12 §2.19.
+
+### D26 — Open Journey product questions (question 14)
+
+- **a. Status:** "Workflow status governs the work; stage describes the relationship." Label them separately, and do not force a person's several running Mixes into one global status. Applied in JITM-09 §2.71.
+- **b. Pause and resume:** preserve missed work and review it explicitly. On resume, show overdue follow-ups with their original dates and let the owner reschedule or skip them. Never send a backlog automatically, silently discard missed items, or revive completed or skipped work. Applied in JITM-09 §2.72.
+- **c. Strong and weak targets:** owner-selected per connection. With no target, show factual counts and rates without a judgment; with a target, show an insufficient-data state when there are too few observations. Applied in JITM-09 §2.58.
+- **d. Member invitations:** yes, add optional email delivery after an explicit **Send invitation**, with a preview, keeping personal sharing and copy-link options. "It would deliberately change today's manual policy; until implemented, copy must continue explaining manual delivery. Keep invitation delivery separate from automatic customer outreach." Applied in JITM-09 §2.18. The feature is backlog B-16.
+- **e. Older Mixes without connections:** stop-only early updates are accepted for now, with clear limits. Keep existing history, make stopping the remaining sequence understandable, and let owners record what happened and schedule a separate follow-up. Richer outcome routing needs an explicit upgrade, never inferred connections. Applied in JITM-09 §2.73.
+- **f. Hover tooltips:** not enough as the only way to reach details. The same information must be reachable by tapping or keyboard-activating the row, preferably in the existing details pane. Hover content needs predictable dismissal and persistence. Verify the real touch and keyboard experience. Applied in JITM-10 §2.17.
+- **g. Tester onboarding:** recommend one person and one follow-up, with Mega-Mix setup as an optional next step. "This is a usability hypothesis worth testing: observe whether testers can prepare their first useful follow-up without help." Replaces the Mega-Mix-first recommendation (JITM-09 §2.20 at 1.0.0). Applied in JITM-09 §2.20. The product change is backlog B-17.
+
+### D27 — Primary checkout (question 15)
+
+- **Decision (A):** an agent inventories the owner's primary checkout read-only and proposes a cleanup. It first identifies unique source documents, unpublished changes, and work already preserved elsewhere.
+- **Applied in:** JITM-16 §6. The inventory is backlog B-18.
+
+### D28 — Pricing wording (question 16)
+
+- **Decision (A, qualified by beta and access limits):** "No card required" stays, beside "free beta" and accurate invitation or waitlist wording, for example "Free beta. No card required. Join the waitlist." Copy avoids implying permanent free access, immediate admission, or decided post-beta pricing.
+- **Confirms:** the D11 interpretation above.
+- **Applied in:** JITM-02 §2.18.
+
+### D29 — The Ready-made mixes library (question 17)
+
+- **Decision (B):** consolidate discovery in the Marketplace's **Jump in the Mix** section, beside Community and My shares. Preserve the useful filters, previews, favorites and guided setup; redirect the old browsing entry and keep existing setup links working.
+- **Applied in:** JITM-05 §2.5, JITM-09 §2.74. The product change is backlog B-19.
+
+### D30 — Merging (question 18)
+
+- **Decision (A):** agents merge only with Kevin's explicit authorization. Agents can prepare, validate and open pull requests on their own. "Once you authorize a specific merge or clearly defined batch, the agent should complete it without asking for the same permission again."
+- **Settles:** the merge question in O3.
+- **Applied in:** JITM-16 §2.5, JITM-13 §2.19, JITM-17 §2.1, `AGENTS.md`, the PR template, WF-04, WF-06, WF-08 and the skills that said "Kevin merges".
+
 ## Still open
 
-These are not blocking. They are listed in the [audit](../STANDARDS_AUDIT_2026-09-28.md#questions-for-kevin).
+The standards' §6 sections list the remaining open questions and known deviations. The second packet's product changes are tasks in the audit's [follow-up backlog](../STANDARDS_AUDIT_2026-09-28.md#8-follow-up-backlog).

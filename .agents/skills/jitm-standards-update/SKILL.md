@@ -29,7 +29,7 @@ Follow **WF-08** (`docs/standards/workflows/WF-08-standards-amendment.md`). The 
    - banners on superseded documents.
 6. **Split out product changes.** If the decision changes shipped behavior or copy, open a separate task for the product change unless Kevin asked for both together (a feature Kevin approved under WF-04 counts as both together).
 7. **Run `npm run standards:check` and fix what it reports.**
-8. **Open the pull request** with the decision quoted. Kevin merges.
+8. **Open the pull request** with the decision quoted. Kevin merges, or an agent merges with his explicit authorization (JITM-16 §2.5).
 
 ## Must-know rules
 

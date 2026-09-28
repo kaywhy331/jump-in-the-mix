@@ -36,7 +36,7 @@ Load `jitm-ui-change` for any UI work and `jitm-copy` for any words.
    - Write the implementation record if the change is release-worthy.
    - Update the JITM-01 §2.22 feature map when a feature's status changes.
    - Use the PR template, cite rules, and list NOT RUN items.
-   - Kevin merges. Releasing is a separate task (`jitm-release`).
+   - Kevin merges, or an agent merges with his explicit authorization (JITM-16 §2.5). Releasing is a separate task (`jitm-release`).
 
 ## Must-know rules
 

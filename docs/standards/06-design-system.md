@@ -2,7 +2,7 @@
 id: JITM-06
 title: Design system
 status: active
-version: 1.0.0
+version: 1.1.0
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [ui, styles, components, icons, themes, app, public-pages, staff]
@@ -64,6 +64,8 @@ Neighboring topics have their own homes:
 [SHIPPED 9439fd6 src/styles/design-tokens.css:11] [SHIPPED 9439fd6 src/styles/base.css:67] [SHIPPED 9439fd6 src/styles/design-workspaces.css:137-140] [SHIPPED 9439fd6 src/components/WorkflowJourney.module.css:196-197]
 
 **2.6** A page with no mockup uses the same tokens, type and components, and one of the archetypes in JITM-07 §2.10. Build the real structure (panes, editors, context), not a theme over old markup. [SOURCE docs/design/DESIGN_GUIDELINES.md:38,40] [SOURCE docs/design/DESIGN_GAP_ANALYSIS_2026-09-19.md:124]
+
+**2.33** Where shipped visuals differ from the export with no recorded reason, the export is the reference. Before changing a disputed value, compare it in context, in both themes and at every size that has a mockup. A shipped difference becomes the standard only when a design or usability reason is recorded (here, in §6 or in a dated record), never merely because it reached production. Later approved decisions stay: the dynamic Journey graph (§2.2) and the accessibility treatments (§2.5). [OWNER 2026-09-28 D24]
 
 ### Tokens and color
 
@@ -216,6 +218,8 @@ Export anatomy to match: flat rows with an inset hairline and a 40px initials av
 
 ## 6. Open decisions and known deviations
 
+Under §2.33 (D24), each unexplained difference below defaults to the export value, after an in-context comparison; a recorded reason can make the shipped value the standard instead.
+
 - **`--accent`** has no dark value and no users (`src/styles/design-tokens.css:49`). Remove it or define it?
 - **Export colors without tokens:** Beat dots (`#9A99AE`, `#B4B3C4`), the toast Undo (`#CFC9FF`), the selected track (`#CFCBFA`) and the landing's muted headline (`#8988A0`) (`screens/Main.html:21`, `TodaySent.html:21`, `Landing.html:21`). Tokenize them when those parts are built?
 - **Chip selection:** filter chips invert to `--text` (`screens/Journey.html:21`); choice chips use the wash (`screens/DesktopCalendar.html:21`); shipped Marketplace chips use the wash (`src/styles/mega-mixes.css:50`). Which one is standard?
@@ -231,3 +235,4 @@ Export anatomy to match: flat rows with an inset hairline and a 40px initials av
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.1.0 — 2026-09-28 — Base 61d4df4. New §2.33: the export is the default for unexplained deviations, and a shipped value becomes standard only with a recorded reason (D24).

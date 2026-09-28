@@ -80,7 +80,7 @@ Follow [WF-08](workflows/WF-08-standards-amendment.md) and JITM-17 §2:
 2. Bump the standard's version and add a changelog line.
 3. Update the dependent skills and routing.
 4. Run the check.
-5. Open a pull request. Kevin merges.
+5. Open a pull request. Kevin merges, or an agent merges with his explicit authorization (JITM-16 §2.5).
 
 ## Records of the 2026-09-28 program
 

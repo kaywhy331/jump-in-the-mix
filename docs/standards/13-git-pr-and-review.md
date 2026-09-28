@@ -2,7 +2,7 @@
 id: JITM-13
 title: Git, PR and review
 status: active
-version: 1.0.0
+version: 1.0.1
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [git, worktrees, branches, commits, pull-requests, reviews]
@@ -92,13 +92,13 @@ Example: `feat/journey-map-navigation-20260928`. [OWNER 2026-09-28 D10]
 
 **2.16** For stacked pull requests, merge the base first and retarget every dependent before deleting the base branch. Stack them so each merged tree equals the tree that was verified. [SOURCE docs/HOMEPAGE_RELEASE_AND_ROLLBACK_2026-09-10.md:18,75]
 
-**2.17** A feature pull request contains no release steps. After Kevin merges it, releasing is a separate task through WF-06. [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:3] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:8]
+**2.17** A feature pull request contains no release steps. After it is merged, releasing is a separate task through WF-06. [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:3] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:8]
 
 ### Review and merge
 
-**2.18** Pull requests are reviewed through WF-05 and scored with the rubric in JITM-17 §2. A pull request is ready for Kevin to merge only when the verdict is Approve, or when Kevin accepts the open findings. [OWNER 2026-09-28 O6] [PROPOSED]
+**2.18** Pull requests are reviewed through WF-05 and scored with the rubric in JITM-17 §2. A pull request is ready to merge only when the verdict is Approve, or when Kevin accepts the open findings. [OWNER 2026-09-28 O6] [PROPOSED]
 
-**2.19** Pull requests are merged with a merge commit. Squash and rebase merges MUST NOT be used: tags and records point at merge commits, and squashing rewrites authorship. Merging is Kevin's (JITM-16 §2). [OWNER 2026-09-28 D10] [PROPOSED] [SOURCE docs/audit-2026-09-24/tests-quality-process.md:169]
+**2.19** Pull requests are merged with a merge commit. Squash and rebase merges MUST NOT be used: tags and records point at merge commits, and squashing rewrites authorship. Who may merge: JITM-16 §2.5. [OWNER 2026-09-28 D10] [PROPOSED] [SOURCE docs/audit-2026-09-24/tests-quality-process.md:169]
 
 ## 3. Canonical implementations
 
@@ -140,3 +140,4 @@ Example: `feat/journey-map-navigation-20260928`. [OWNER 2026-09-28 D10]
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.0.1 — 2026-09-28 — Base 61d4df4. §2.17–§2.19 point to JITM-16 §2.5 for who merges (D30).
