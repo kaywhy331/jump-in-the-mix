@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { installMegaMix } from "@/lib/mega-mix-service";
 import { MEGA_MIXES } from "@/lib/mega-mixes";
 import { readWorkflowDefinition } from "@/lib/mix-workflow";
-import { numberJourneyBeats } from "@/lib/journey-numbering";
+import { numberJourney } from "@/lib/journey-numbering";
 import { DEFAULT_JOURNEY_PREFERENCES, type JourneySetupValues } from "@/lib/journey-preferences";
 import { parsePortable, portableContentIssues, portableFingerprint, type PortablePackage } from "@/lib/mix-portable";
 import { saveMixAction } from "@/lib/mix-editor-actions";
@@ -42,7 +42,7 @@ describe.skipIf(!local)("named Mega-Mixes, export and import", () => {
     const value = parsePortable(JSON.stringify(exported.package));
     const result = await importPortable({ workspaceId: otherWorkspaceId, actorUserId: otherUserId, value, name: "Our contractor pipeline", origin: "FILE", source: "test" });
     const [source, copy] = await Promise.all([readWorkflowDefinition(prisma, workspaceId), readWorkflowDefinition(prisma, otherWorkspaceId)]);
-    const shape = (definition: typeof source) => { const numbers = numberJourneyBeats(definition.mixes, definition); return definition.mixes.map(mix => ({ name: mix.name, beats: mix.steps.map(step => `${numbers[step.id]}:${step.name}:${step.channel}:${step.dayOffset}:${step.body}`) })).sort((a, b) => a.name.localeCompare(b.name)); };
+    const shape = (definition: typeof source) => { const numbers = numberJourney(definition.mixes, definition).beats; return definition.mixes.map(mix => ({ name: mix.name, beats: mix.steps.map(step => `${numbers[step.id]}:${step.name}:${step.channel}:${step.dayOffset}:${step.body}`) })).sort((a, b) => a.name.localeCompare(b.name)); };
     expect(shape(copy)).toEqual(shape(source));
     expect(copy.rules).toHaveLength(source.rules.length);
     expect(copy.rules.flatMap(rule => rule.routes.map(route => route.id)).some(id => source.rules.some(rule => rule.routes.some(route => route.id === id)))).toBe(false);

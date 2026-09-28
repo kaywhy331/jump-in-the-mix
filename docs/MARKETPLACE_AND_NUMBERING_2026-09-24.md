@@ -17,6 +17,8 @@ On September 24 the owner asked for three connected changes to the Journey and M
 
 ## 1. Beat numbering
 
+> **Superseded on September 28.** The owner replaced position numbering (1, 2, 3a, 4a/4b, 6aa) with Mix-and-Beat labels. Each starting point is a lettered journey. Its Mixes are numbered in the order its paths reach them: A1, A2, A3. Each Mix's Beats are lettered in order: A1.a, A1.b. Journeys are lettered by when their starting Mix was created. When a path hands people off into another journey's Mixes, the journey created first keeps them. Map cards and outlines show the Mix number (A3) instead of a Beat range (3a–4a). The implementation is `numberJourney` in `src/lib/journey-numbering.ts`; the rules below describe the September 24 scheme.
+
 `src/lib/journey-numbering.ts` numbers every Beat from the saved Journey graph:
 
 - Beats in a Mix are numbered in order.
