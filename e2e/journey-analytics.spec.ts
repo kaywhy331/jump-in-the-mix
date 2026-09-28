@@ -53,7 +53,9 @@ test("real people counts, concurrent positions, status/stage filters, search and
   await counts.getByRole("button", { name: "1 Active", exact: true }).click();
   await expect(roster(page).getByRole("button", { name: "View Alex's journey", exact: true })).toBeVisible();
   await expect(roster(page).getByRole("button", { name: "View Bailey's journey", exact: true })).toHaveCount(0);
-  await expect(roster(page).locator("span[data-status=waiting]")).toBeVisible();
+  // Rows stay compact: the name and the numbered Mix the person is in; statuses live in the filters and tooltip.
+  await expect(roster(page).getByRole("button", { name: "View Alex's journey", exact: true })).toContainText(/A\d+ · /);
+  await expect(roster(page).locator("span[data-status]")).toHaveCount(0);
   await counts.getByRole("button", { name: "1 Needs attention", exact: true }).click();
   await expect(roster(page).getByRole("button", { name: "View Bailey's journey", exact: true })).toBeVisible();
   await counts.getByRole("button", { name: "31 People", exact: true }).click();
@@ -108,7 +110,7 @@ test("person drill-down retains real progress controls and updates counts after 
 
 test("start work finds a contact directly in Setup without leaving the map", async ({ page }) => {
   await page.getByRole("button", { name: "Setup", exact: true }).click();
-  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active| Beats|$)/ }).click();
+  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active| Beats| Mix|$)/ }).click();
   await page.getByRole("button", { name: "Start for someone", exact: true }).click();
   await page.getByRole("searchbox", { name: "Find someone to start", exact: true }).fill("Person 25");
   await page.getByRole("button", { name: "Find", exact: true }).click();
@@ -135,8 +137,8 @@ test("selecting people keeps the directory available and updates map and context
   await expect(page.locator('[data-workflow-node][data-active=true]')).toHaveCount(0);
   await expect(people.locator("article")).toHaveCount(10);
   await page.getByRole("region", { name: "Mix and Beat journey", exact: true }).getByRole("button", { name: "All people", exact: true }).click();
-  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active| Beats|$)/ }).click();
-  await expect(details.getByRole("heading", { name: "Welcome", exact: true })).toBeVisible();
+  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active| Beats| Mix|$)/ }).click();
+  await expect(details.getByRole("heading", { name: /^(?:Mix A\d+ )?Welcome$/ })).toBeVisible();
   await details.getByText("Beats in this Mix", { exact: true }).click();
   await expect(details.getByText("Welcome call", { exact: true })).toBeVisible();
   await expect(details.getByText("Manual or connected start", { exact: false })).toBeVisible();
@@ -189,7 +191,7 @@ test("connection drafts survive pane changes and narrow deep links reveal check-
   await page.setViewportSize({ width: 390, height: 844 });
   const panels = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
   await page.getByRole("button", { name: "Setup", exact: true }).click();
-  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active| Beats|$)/ }).click();
+  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active| Beats| Mix|$)/ }).click();
   // Selecting keeps the map in view (040fc25); the Mix's details open on request.
   await expect(panels.getByRole("button", { name: "Map", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "View Mix details", exact: true }).click();
@@ -209,4 +211,60 @@ test("connection drafts survive pane changes and narrow deep links reveal check-
   await expect(page.locator('#journey-details-pane details[open]').filter({ hasText: "Just saying hello" })).toBeVisible();
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+});
+
+test("the map pans like a flowchart, lines stay readable when zoomed out, and background refreshes stay silent", async ({ page }) => {
+  const canvas = page.getByRole("region", { name: /^Scrollable journey diagram/ });
+  await page.getByRole("button", { name: "Setup", exact: true }).click();
+  await page.getByRole("button", { name: "Reset zoom to 100%", exact: true }).click();
+  for (let step = 0; step < 5; step++) await page.getByRole("button", { name: "Zoom in", exact: true }).click();
+  expect(await canvas.evaluate(element => element.scrollWidth > element.clientWidth || element.scrollHeight > element.clientHeight)).toBe(true);
+  const box = (await canvas.boundingBox())!;
+  const scroll = () => canvas.evaluate(element => ({ left: element.scrollLeft, top: element.scrollTop }));
+  // A point on the empty background, away from Mixes, lines and labels.
+  const empty = await canvas.evaluate(element => { const rect = element.getBoundingClientRect(); for (let y = rect.top + 20; y < rect.bottom - 20; y += 16) for (let x = rect.left + 20; x < rect.right - 20; x += 16) { const hit = document.elementFromPoint(x, y); if (hit && element.contains(hit) && !hit.closest("button, a, [data-workflow-node], [data-workflow-path], [data-workflow-edge-label]")) return { x, y }; } return null; });
+  expect(empty).not.toBeNull();
+
+  // Middle mouse button drags from anywhere.
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  let before = await scroll();
+  await page.mouse.down({ button: "middle" }); await page.mouse.move(box.x + box.width / 2 - 120, box.y + box.height / 2 - 60, { steps: 6 }); await page.mouse.up({ button: "middle" });
+  let after = await scroll();
+  expect(after.left + after.top).toBeGreaterThan(before.left + before.top);
+
+  // Holding Space shows the hand and a left drag moves the map without selecting anything or scrolling the page.
+  const pageScroll = await page.evaluate(() => window.scrollY);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.down("Space");
+  await expect(canvas).toHaveAttribute("data-pan", "ready");
+  before = await scroll();
+  await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2 + 40, { steps: 6 });
+  await expect(canvas).toHaveAttribute("data-pan", "active");
+  await page.mouse.up(); await page.keyboard.up("Space");
+  after = await scroll();
+  expect(after.left + after.top).toBeLessThan(before.left + before.top);
+  await expect(canvas).not.toHaveAttribute("data-pan", /.+/);
+  expect(await page.evaluate(() => window.scrollY)).toBe(pageScroll);
+  await expect(page.getByRole("complementary", { name: "Journey details", exact: true }).getByText("Beats in this Mix", { exact: true })).toHaveCount(0);
+
+  // A plain drag on the empty background also moves the map.
+  before = await scroll();
+  await page.mouse.move(empty!.x, empty!.y); await page.mouse.down(); await page.mouse.move(empty!.x - 60, empty!.y - 30, { steps: 6 }); await page.mouse.up();
+  after = await scroll();
+  expect(after).not.toEqual(before);
+
+  // Zoomed out, the lines into and out of the selected Mix still draw 4px wide on screen.
+  await page.getByRole("button", { name: "Fit map", exact: true }).click();
+  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active| Beats| Mix|$)/ }).click();
+  const line = page.locator('[data-direction=outgoing] path:not([class*="edgeHit"])').first();
+  expect(await line.evaluate(element => { const style = getComputedStyle(element); return [style.strokeWidth, style.vectorEffect]; })).toEqual(["4px", "non-scaling-stroke"]);
+
+  // A background refresh neither shows "Updating people…" nor rebuilds the rows.
+  await page.evaluate(() => { const rows = document.querySelector('[aria-label="Journey people"] article'); (rows as HTMLElement & { marker?: boolean }).marker = true; (window as unknown as { flashed: boolean }).flashed = false; new MutationObserver(() => { if (document.body.textContent?.includes("Updating people…")) (window as unknown as { flashed: boolean }).flashed = true; }).observe(document.body, { childList: true, subtree: true, characterData: true }); });
+  await page.route("**/api/mix-workflow?**", async route => { await new Promise(resolve => setTimeout(resolve, 800)); await route.continue(); });
+  const refreshed = page.waitForResponse(response => response.url().includes("/api/mix-workflow?"));
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await refreshed; await page.waitForTimeout(300);
+  expect(await page.evaluate(() => (window as unknown as { flashed: boolean }).flashed)).toBe(false);
+  expect(await page.evaluate(() => Boolean((document.querySelector('[aria-label="Journey people"] article') as HTMLElement & { marker?: boolean }).marker))).toBe(true);
 });
