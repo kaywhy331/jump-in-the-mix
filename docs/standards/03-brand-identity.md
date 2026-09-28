@@ -2,7 +2,7 @@
 id: JITM-03
 title: Brand identity
 status: active
-version: 1.0.0
+version: 1.0.1
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [brand, logo, icons, public-pages, app-shell, email, imagery]
@@ -66,7 +66,7 @@ Neighboring topics live elsewhere:
 
 **2.8** The mark has no dark variant and no backing tile. Its own white bubble keeps it legible on dark surfaces, so its background MUST stay transparent. [SHIPPED 9439fd6 src/styles/base.css:86] [SOURCE docs/HOMEPAGE_PROFESSION_PAGES_2026-09-11.md:89-91]
 
-**2.9** The design export's line-bubble logo is a placeholder and MUST NOT ship. The violet "JM" monogram in `public/icon-source.svg` is not the approved mark either and MUST NOT be used. [SOURCE docs/design/jump-in-the-mix-designs/README.txt:15] [SOURCE docs/design/DESIGN_GUIDELINES.md:3] [PROPOSED]
+**2.9** The design export's line-bubble logo is a placeholder and MUST NOT ship. The violet "JM" monogram in `public/icon-source.svg` is retired and MUST NOT be used; the approved logo and its derived icons (§2.6) are used everywhere. [OWNER 2026-09-28 D22] [SOURCE docs/design/jump-in-the-mix-designs/README.txt:15] [SOURCE docs/design/DESIGN_GUIDELINES.md:3]
 
 ### Wordmark, color and icons
 
@@ -147,12 +147,12 @@ Neighboring topics live elsewhere:
 ## 6. Open decisions and known deviations
 
 Open questions for Kevin:
-- Should `public/icon-source.svg` be deleted and dropped from the proxy allowlist (`src/proxy.ts:16`)?
 - Which sender identity should automatic customer email use when it returns (§2.23)?
 - What are the production `EMAIL_FROM` and `EMAIL_REPLY_TO` values? The beta audit could not read them (`docs/BETA_READINESS_AUDIT_2026-09-26.md:367`).
 - The `security@jumpinthemix.com` alias is still an open owner step (`docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:66`).
 
 Known deviations at 9439fd6:
+- The retired monogram `public/icon-source.svg` is still in the repository and the proxy allowlist (`src/proxy.ts:16`). Removing it is backlog B-14 (§2.9, D22).
 - The social card and its alt text carry the 2026-09-07 positioning ("Good relationships have a rhythm.", "Business · Personal · Your network") (`scripts/generate-brand-assets.mjs:27-32`; `src/lib/public-seo.ts:15`).
 - `docs/BRAND_ASSETS.md:7` still describes a white backing behind the mark; it was removed on 2026-09-11.
 - The default Web Push subject uses the jumpinthemix.app domain (`src/lib/env.ts:94`; `.env.example:121`).
@@ -161,3 +161,4 @@ Known deviations at 9439fd6:
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.0.1 — 2026-09-28 — Base 61d4df4. §2.9: the JM monogram is retired (D22).

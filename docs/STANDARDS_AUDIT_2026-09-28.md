@@ -207,6 +207,8 @@ The standards now fill each of these, with a rule or a flagged open decision:
 <a id="questions-for-kevin"></a>
 ## 7. Questions for Kevin
 
+**Answered 2026-09-28.** Kevin answered all 18 questions. His answers are recorded as D13–D30 in the [owner decision record](standards-audit-2026-09-28/OWNER_DECISIONS.md) and applied to the standards; the product changes they call for are in §8. The questions stay below as asked.
+
 None of these blocks the standards. The recommended answer is listed first.
 
 1. **Outage alerting (TST-02, TST-01).** Render failure notifications (which you set on 2026-09-26) cover service failures. The hourly application smoke cannot run while GitHub Actions is billing-blocked. Options:
@@ -270,12 +272,26 @@ None of these blocks the standards. The recommended answer is listed first.
 
 ## 8. Follow-up backlog
 
-None of these are part of this documentation-only change. Each item becomes its own task under WF-04, WF-03 or WF-08:
+None of these are part of this documentation-only change. Each item becomes its own task under WF-04, WF-03 or WF-08.
+
+**Update 2026-09-28 (D14):** B-01, B-02 and B-03 run as one coordinated copy batch under WF-03, which also checks template claims about availability and deadlines. It includes the Contact stages wording (D16) and the pricing example (D28). B-08, B-09 and B-11 to B-19 come from Kevin's answers (D13–D30); B-10 is unused, because the Contact stages wording joined the copy batch.
+
 
 - **B-01 (HIGH):** correct the reminders-page automation claim and the retired demo text on the template and feature pages (VOI-01, VOI-02).
 - **B-02 (MEDIUM):** a copy pass for vocabulary, casing, glossary wording, Help and FAQ terms, stage wording on More and Settings, the waitlist confirmation, the invitation-email promise and the social card (VOC-02–05, IAW-01, IAW-05, VOI-07, ICP-02).
-- **B-03 (HIGH):** replace third-party sales-method and author names in ready-made plans and search with descriptive labels, and add "only if true" cues to ready-made messages that assert facts (VOI-03, VOI-05). Needs question 2.
+- **B-03 (HIGH):** replace third-party sales-method and author names in ready-made plans and search with descriptive labels, and add "only if true" cues to ready-made messages that assert facts (VOI-03, VOI-05). Question 2 is answered (D14).
 - **B-04 (MEDIUM):** design-token and stylesheet drift: the dark `--accent` value, tokens for export literals, separator usage, import order, and the counts in the drift baseline (DES-01, DES-03, DES-04, DES-06).
-- **B-05 (MEDIUM):** a pixel baseline for the shipped design layer, and a keyboard and touch check of the Journey people tooltip (DES-05, ACC-01).
+- **B-05 (MEDIUM):** a pixel baseline for the shipped design layer, compared in context with the export (D24), and making the Journey people-row details reachable by tap and keyboard, verified on real input (DES-05, ACC-01, D26f).
 - **B-06 (MEDIUM):** a documentation correction pass on stale runbooks and entry documents: sessions, deploy order, Netlify pages, pre-deploy migrations, auto-deploy, five invitations, Plans, the storage contract §9b and dead links (DOC-03, DOC-05, CON-02, IAW-02, IAW-07).
 - **B-07 (LOW):** engineering hygiene: consolidate the timezone helpers, fix the industry-audit script's dependency on untracked files, retire the staging configs, and prune remote branches (ENG-01, ENG-02, REL-04, GIT-02).
+- **B-08 (HIGH):** set up a free external uptime monitor on the public site and the application health endpoint, and test that its alerts reach Kevin (D13; JITM-14 §2.30). Owner step: restore GitHub Actions billing for CI and the hourly smoke.
+- **B-09 (MEDIUM):** say in the Marketplace report, help and staff wording that "verified" means the reporter's email; confirm that `mixes.publish` is held by Kevin and name a backup moderator when needed (D15; JITM-09 §2.49, §2.70).
+- **B-11 (MEDIUM):** commit the reusable release script and runbook under `scripts/release/`, with the fresh backup automated (D17, D18; JITM-14 §2.10, §2.12).
+- **B-12 (LOW):** back-fill reconstructed records for the seven tagged deploys without one and for 4b5abd8 (D19; JITM-15 §2.19).
+- **B-13 (MEDIUM):** compute Journey labels from the account's complete graph and filter per view, so switching views never renames a Mix (D21; JITM-09 §2.54).
+- **B-14 (LOW):** pair "Stay in the mix" with a literal description, align the footer line and the social card, and remove the retired monogram and its proxy allowlist entry (D22; JITM-02 §2.14, JITM-03 §2.9).
+- **B-15 (MEDIUM):** check and fix the Journey rules for status and stage labels, resume review, target states and the stop-only early update (D26a–c, e; JITM-09 §2.58, §2.71–§2.73).
+- **B-16 (MEDIUM):** optional invitation email after a preview and an explicit Send invitation, keeping personal sharing and copy link (D26d; JITM-09 §2.18). A WF-04 feature.
+- **B-17 (HIGH):** onboarding recommends one person and one follow-up, with Mega-Mix setup as an optional next step; observe whether testers prepare a first follow-up without help (D26g; JITM-09 §2.20).
+- **B-18 (MEDIUM):** a read-only inventory of the owner's primary checkout, with a cleanup proposal (D27; AGT-03).
+- **B-19 (MEDIUM):** fold the Ready-made mixes library into the Marketplace's Jump in the Mix section, keeping filters, previews, favorites and guided setup, redirecting the old entry and keeping setup links working (D29; JITM-09 §2.74).

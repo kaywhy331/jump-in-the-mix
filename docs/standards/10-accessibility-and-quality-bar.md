@@ -2,7 +2,7 @@
 id: JITM-10
 title: Accessibility and quality bar
 status: active
-version: 1.0.0
+version: 1.1.0
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [ui, accessibility, performance, app, public-pages, staff, release-qualification]
@@ -108,7 +108,7 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 
 **2.16** The Journey map has complete equivalents: a structured list view, a named and focusable map region, a written legend, and written lists of each Mix's connections. Drawing a connection never needs a drag (gestures: JITM-09 §2.56). [OWNER 2026-09-28 D4] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:215,227,229] [SHIPPED 9439fd6 src/components/WorkflowConnections.tsx:97] [SOURCE docs/JOURNEY_CONNECTION_HANDLES_2026-09-21.md:8]
 
-**2.17** No task needs a drag, a hover or a multi-point gesture. Every drag has a single-tap or keyboard alternative. Information shown in a hover tooltip or `title` is also reachable by tap and keyboard. [SOURCE docs/beta-audit-2026-09-26/lanes/08-design-a11y-copy.md:53] [PROPOSED]
+**2.17** No task needs a drag, a hover or a multi-point gesture. Every drag has a single-tap or keyboard alternative. Information shown in a hover tooltip or `title` MUST also be reachable by tapping or keyboard-activating its element, preferably in an existing details pane, as for Journey people rows. Custom hover or focus content can be dismissed without moving the pointer or focus, stays while the pointer is over it, and stays until dismissed or no longer relevant. Verify it by touch and keyboard, not only by reading code. [OWNER 2026-09-28 D26] [SOURCE docs/beta-audit-2026-09-26/lanes/08-design-a11y-copy.md:53]
 
 ### Performance and qualification
 
@@ -151,7 +151,7 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 ## 6. Open decisions and known deviations
 
 - **Physical devices and assistive technology:** every row in the device matrix is NOT RUN, including VoiceOver, TalkBack, operating-system text at 200% and Firefox zoom (`docs/MANUAL_DEVICE_QUALIFICATION.md:73`; `docs/BETA_READINESS_AUDIT_2026-09-26.md:372`).
-- **Journey people rows:** since 2026-09-28, stage, status, reason and due time sit in a `title` tooltip (`src/components/WorkflowPeople.tsx:32`). Touch and keyboard users reach them only by selecting the person. Is that acceptable, or should they return to the row or the details pane? (§2.17)
+- **Journey people rows:** since 2026-09-28, stage, status, reason and due time sit in a `title` tooltip (`src/components/WorkflowPeople.tsx:32`). Touch and keyboard users reach them only by selecting the person. Kevin decided the hover is not enough (§2.17, D26); making the details reachable by tap and keyboard is backlog B-05.
 - **Text floor coverage:** the floor test runs only on phone widths and on 13 routes (`e2e/visual-fitment.spec.ts:176-199`). Journey, Calendar and Marketplace are not covered. Journey still sets 11–12px labels (`src/components/WorkflowJourney.module.css:53-55,227-230`), and the "Recommended" tag inside a button is 11px (`src/styles/phone-icons.css:83`).
 - **Contrast:** the active Beat number puts white on `--violet-mark` (`src/components/WorkflowJourney.module.css:228`), 3.80:1 in dark by token computation. Disabled Journey connections draw at 65% opacity (`:4`), measured at 2.63:1 in light on 2026-09-24 (`docs/audit-2026-09-24/design-a11y-responsive.md:264`).
 - **Inline links** inherit the text color with no underline (`src/styles/base.css:63`), against §2.8 (open since 2026-09-26).
@@ -161,3 +161,4 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.1.0 — 2026-09-28 — Base 61d4df4. §2.17 requires tap and keyboard access to hover content, with dismissal and persistence (D26).

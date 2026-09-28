@@ -2,7 +2,7 @@
 id: JITM-01
 title: Product concept, goals and non-goals
 status: active
-version: 1.0.0
+version: 2.0.0
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [product, features, onboarding, access, marketing, agents]
@@ -165,7 +165,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 
 If any answer is no or unclear, stop and ask Kevin (JITM-16 §2). [OWNER 2026-09-28 O6] [OWNER 2026-09-25 O4] [PROPOSED]
 
-**2.24** Changes SHOULD preserve the current UI structure: navigation, page hierarchy, pane and sheet layouts, components and responsive patterns. Visible structure changes only where needed to fix a specific workflow gap. [OWNER 2026-09-22 O7] [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:7] [SOURCE local-only f7ea577d837b6b1f docs/CONTRACTOR_UX_APPROACH_2026-09-22.md:5]
+**2.24** Changes SHOULD preserve the current UI structure: navigation, page hierarchy, workspace, pane and sheet layouts, components and responsive patterns. This is a standing default. Visible structure changes only when a specific workflow, accessibility or responsive-layout problem requires it, or when Kevin asks; the task names that problem or request. [OWNER 2026-09-28 D20] [OWNER 2026-09-22 O7] [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:7] [SOURCE local-only f7ea577d837b6b1f docs/CONTRACTOR_UX_APPROACH_2026-09-22.md:5]
 
 ## 3. Canonical implementations
 
@@ -197,17 +197,16 @@ If any answer is no or unclear, stop and ask Kevin (JITM-16 §2). [OWNER 2026-09
 ## 6. Open decisions and known deviations
 
 Open questions for Kevin:
-- Is "preserve the current UI structure" (§2.24) a standing rule, or was it scoped to the 2026-09-22 contractor work?
-- Asked in other standards: the onboarding default and whether the product should ever email member invitations (JITM-09 §6); whether the stage-based "Customer journey" in Settings stays (JITM-05 §6).
 - Pricing, the payment model and what happens after the beta are undecided (D11).
 - No numeric time-to-first-value target exists (`docs/PRODUCT_QUALITY_GATES.md:18`).
 - Status of the proposed industry Mix catalog and contact spreadsheet (local-only `fb11e3b1f8847bb3`, line 3).
 
 Known deviations at 9439fd6:
-- Registration and the invitation email promise "start with one person" while onboarding recommends a Mega-Mix (`src/app/register/page.tsx:47`; `src/lib/waitlist.ts:86-87`; `src/components/OnboardingForm.tsx:39`).
+- Registration and the invitation email promise "start with one person", as JITM-09 §2.20 now requires (D26), but onboarding still recommends a Mega-Mix (`src/app/register/page.tsx:47`; `src/lib/waitlist.ts:86-87`; `src/components/OnboardingForm.tsx:39`).
 - `README.md:5` still names the superseded contract; `README.md:11` lists "Plans"; `README.md:17` lists optional email/SMS delivery without saying it is off for the beta.
 - `docs/CANONICAL_PRODUCT_DECISIONS.md:12,135,149` still says five member invitations sent by email.
 
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 2.0.0 — 2026-09-28 — Base 61d4df4. §2.24 is a standing default and also allows changes for accessibility or responsive-layout problems, or at Kevin's request (D20). §6 updated for D16 and D26.

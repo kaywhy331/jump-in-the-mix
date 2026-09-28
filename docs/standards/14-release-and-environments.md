@@ -2,7 +2,7 @@
 id: JITM-14
 title: Release and environments
 status: active
-version: 1.0.0
+version: 2.0.0
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [production, releases, environments, render, rollback, operations]
@@ -72,7 +72,7 @@ Neighboring topics live elsewhere:
 
 **2.9** No production step starts until the candidate passes pre-release verification with no failure unique to it. [OWNER 2026-09-28 D5] [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:74]
 
-**2.10** Each release gets a new directory under the git-ignored `.artifacts/`. It holds the release scripts, adapted from the previous release's set, with every receipt and log. It is never committed or published. [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:42] [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:107] [SOURCE docs/RELEASE_QUALIFICATION_2026-09-06.md:39]
+**2.10** The reusable release script and its runbook are committed under `scripts/release/`, reviewed like application code. The script names the target services and commit, runs the required checks, takes the fresh backup (§2.12), stops on the first failure and records the rollback target. Credentials and each release's logs and receipts stay outside Git, in a new directory under the git-ignored `.artifacts/`. Until the committed script exists, a release adapts the previous release's scripts in that directory. [OWNER 2026-09-28 D18] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:42] [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:107] [SOURCE docs/RELEASE_QUALIFICATION_2026-09-06.md:39]
 
 **2.11** A read-only preflight MUST pass before any write:
 - both services run the previous commit, with auto-deploy off;
@@ -83,7 +83,7 @@ Neighboring topics live elsewhere:
 
 It records the record-count baseline and hashes the changed files that exist at the release commit. Any mismatch stops the release. [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:109-110] [SOURCE docs/MARKETPLACE_PRODUCTION_RELEASE_2026-09-24.md:16] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:43]
 
-**2.12** A fresh encrypted backup MUST be taken before any production change, in every release. [SOURCE AGENTS.md:17]
+**2.12** A fresh encrypted backup MUST be taken immediately before any production change, in every release, code-only releases included, and the release script automates it (§2.10). A backup supports recovery; it does not make every rollback safe, and it does not replace restore testing. [OWNER 2026-09-28 D17] [SOURCE AGENTS.md:17]
 
 **2.13** Migrations run before the code that needs them, in the isolated one-off job with the owner credential (JITM-11 §2.33).
 - Afterwards, re-verify the runtime role, the new objects and backup grants, and unchanged record counts.
@@ -160,7 +160,7 @@ Every synthetic row is removed. A smoke that fails on its own script is fixed an
 
 Rules for building databases and migration history are in JITM-11 §2. [SOURCE docs/OPERATIONS_READINESS.md:31,78] [SOURCE CONTRIBUTING.md:50] [SOURCE docs/EMAIL_OPERATIONS.md:62,125] [SOURCE docs/NETLIFY_DEPLOYMENT.md:69] [SOURCE docs/MIGRATION_RUNBOOK.md:56]
 
-**2.30** Production MUST have a working outage signal: the hourly read-only `production-smoke` workflow and Render's failure emails. While either is off, every release record lists it under owner follow-ups. [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:27,58] [SHIPPED 9439fd6 .github/workflows/production-smoke.yml:3-8]
+**2.30** Production MUST have an outage signal that works even when CI billing fails: a free external uptime monitor on the public site and the application health endpoint, with alert delivery to Kevin tested, plus Render's failure emails. The hourly read-only `production-smoke` workflow and CI run on GitHub Actions as well; the uptime monitor does not replace them. While any of these is off, every release record lists it under owner follow-ups. [OWNER 2026-09-28 D13] [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:27,58] [SHIPPED 9439fd6 .github/workflows/production-smoke.yml:3-8]
 
 ### Deployment facts carried from AGENTS.md
 
@@ -210,12 +210,12 @@ Differences from the quote:
 
 ## 6. Open decisions and known deviations
 
-- **Backups before code-only releases.** §2.12 requires a fresh backup in every release, but only migration releases took one (`docs/AUDIT_RELEASE_B_2026-09-25.md:84`; `docs/INVITE_PAGE_RELEASE_2026-09-27.md:42-53`). Kevin: (A) always back up, as the rule says, or (B) back up only for migration releases, with the preflight confirming the nightly backup?
+- **Backups before code-only releases.** Kevin confirmed §2.12 (D17). Past code-only releases took none (`docs/AUDIT_RELEASE_B_2026-09-25.md:84`; `docs/INVITE_PAGE_RELEASE_2026-09-27.md:42-53`).
 - **Rollback order.** §2.23 keeps web first, as `AGENTS.md:17` and most records say. Two records roll back worker first (`docs/MARKETPLACE_PRODUCTION_RELEASE_2026-09-24.md:39`; `docs/INVITE_PAGE_RELEASE_2026-09-27.md:57`).
 - **Stale runbooks.** `docs/HOSTED_DEPLOYMENT.md:55-62`, `docs/MIGRATION_RUNBOOK.md:45` and `docs/OPERATIONS_READINESS.md:58` still say web first, and their sequence includes a restore proof and a write freeze that practice does not run; §2.14 governs. `docs/WORKER_RECOVERY_QUALIFICATION.md:21` says the blueprint enables auto-deploy, which is off (`render.yaml:46,78`). `docs/MIGRATION_RUNBOOK.md:5-14` lists the migration chain only up to 2026-09-04.
-- **Untracked pipeline.** The release scripts exist only in the ignored `.artifacts/` directory (`docs/FULL_AUDIT_2026-09-24.md:116`). Kevin: commit a parameterized release script and runbook under `scripts/release/`, or keep the scripts local?
-- **Missing tags and records.** The seven tagged deploys `5a0c07b`, `def2e96`, `040fc25`, `84eda7a`, `ef87c3c`, `288fc26` and `9439fd6` have no record. `4b5abd8` has neither tag nor record. 22 of 31 tag messages lack deploy ids. Two production release records exist only in the owner's local checkout (`docs/standards-audit-2026-09-28/SOURCE_REGISTER.md`). Kevin: back-fill short records, or list them as a known gap?
-- **Outage signal.** INFERRED: §2.30 is not met. Render failure notifications for the workspace, web, worker and backup cron were set by Kevin on 2026-09-26 (owner confirmation, recorded as TST-02 in the 2026-09-28 audit), but the hourly application smoke on GitHub Actions has probably not run since Actions was billing-blocked (`docs/INVITE_PAGE_RELEASE_2026-09-27.md:30`). Kevin: restore Actions billing, add a free external uptime check, or rely on Render notifications for now (audit question 1)?
+- **Untracked pipeline.** The release scripts still exist only in the ignored `.artifacts/` directory (`docs/FULL_AUDIT_2026-09-24.md:116`). Committing the script and runbook (§2.10, D18) is backlog B-11.
+- **Missing tags and records.** The seven tagged deploys `5a0c07b`, `def2e96`, `040fc25`, `84eda7a`, `ef87c3c`, `288fc26` and `9439fd6` have no record. `4b5abd8` has neither tag nor record. 22 of 31 tag messages lack deploy ids. Two production release records exist only in the owner's local checkout (`docs/standards-audit-2026-09-28/SOURCE_REGISTER.md`). Kevin chose short reconstructed records (JITM-15 §2.19, D19); the back-fill is backlog B-12.
+- **Outage signal.** INFERRED: §2.30 is not met; the external monitor is backlog B-08 and restoring Actions billing is Kevin's step (D13). Render failure notifications for the workspace, web, worker and backup cron were set by Kevin on 2026-09-26 (owner confirmation, recorded as TST-02 in the 2026-09-28 audit), but the hourly application smoke on GitHub Actions has probably not run since Actions was billing-blocked (`docs/INVITE_PAGE_RELEASE_2026-09-27.md:30`).
 - **Free-plan scope.** The blueprints name `0.5c-512mb` instances (`render.yaml:41,74`), while `docs/AUDIT_RELEASE_B_2026-09-25.md:110` calls the workspace Render's free Hobby plan. Billing is not visible to agents, so §2.25 reads O4 as "no additions or upgrades beyond what runs today".
 - **Shutdown delay.** Whether the worker's 300-second shutdown delay is applied on the live service is unverified (`docs/AUDIT_RELEASE_B_2026-09-25.md:110`).
 - **Staging leftovers.** `playwright.staging.config.ts`, `scripts/staging-smoke.mjs` and `.github/workflows/private-test-worker.yml` still target the retired site. `README.md:28-30` and `docs/HOSTED_DEPLOYMENT.md:3-5` still point to Netlify or call the runbook inactive.
@@ -224,3 +224,4 @@ Differences from the quote:
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 2.0.0 — 2026-09-28 — Base 61d4df4. §2.10 commits the reusable release script and runbook (D18); §2.12 confirmed and automated (D17); §2.30 adds a free external uptime monitor as the signal that survives CI billing failures (D13).

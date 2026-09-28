@@ -2,7 +2,7 @@
 id: JITM-17
 title: Governance and audit rubric
 status: active
-version: 1.0.0
+version: 2.0.0
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [standards, skills, workflows, reviews, audits]
@@ -33,7 +33,7 @@ Other standards cover related ground:
 
 ### Authority and change
 
-**2.1** Kevin owns the standards. A change takes effect when its pull request is merged to `main`. Agents propose changes and never merge them (JITM-16 §2.5). [OWNER 2026-09-28 D3] [PROPOSED]
+**2.1** Kevin owns the standards. A change takes effect when its pull request is merged to `main`. Agents propose changes and merge them only as JITM-16 §2.5 allows. [OWNER 2026-09-28 D3] [OWNER 2026-09-28 D30]
 
 **2.2** A rule MUST be changed only in its home standard. The same pull request MUST bump the standard's `version`, update `last_reviewed` and add a changelog line. [PROPOSED]
 
@@ -171,3 +171,4 @@ Neither CI nor a pre-push hook blocks changes until Kevin decides otherwise. [OW
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 2.0.0 — 2026-09-28 — Base 61d4df4. §2.1: merging follows JITM-16 §2.5 (D30).

@@ -2,7 +2,7 @@
 id: JITM-02
 title: ICP and positioning
 status: active
-version: 1.0.0
+version: 2.0.0
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [marketing, public-pages, profession-pages, onboarding, copy, product-decisions]
@@ -102,7 +102,7 @@ The hook comes from the owner-supplied strategy (`assets/Jump_in_the_Mix_Brand_S
 
 [SOURCE assets/Jump_in_the_Mix_Brand_Search_Conversion_Strategy.md:54-61] [SOURCE docs/HOMEPAGE_COPY_AND_CLAIM_MATRIX_2026-09-10.md:28]
 
-**2.14** No brand line or tagline is ratified. The footer line "A little follow-through goes a long way." ships; "Stay in the mix" is a proposal used only in the homepage meta description; "Good relationships have a rhythm." is 2026-09-07 positioning left on the social card. New surfaces MUST NOT add a tagline or promote one of these without Kevin's decision. [SHIPPED 9439fd6 src/components/PublicFooter.tsx:7] [SHIPPED 9439fd6 src/app/page.tsx:10] [SOURCE assets/Jump_in_the_Mix_Brand_Search_Conversion_Strategy.md:3,9-10] [SOURCE docs/RELATIONSHIP_VOCABULARY.md:3]
+**2.14** The brand line is "Stay in the mix". It MUST be paired with a literal description of the product, such as "client follow-up app", because the line alone does not explain it. Its customer comprehension is untested, so research SHOULD check it. "Good relationships have a rhythm." and "A little follow-through goes a long way." MUST NOT be presented as the brand line; where they still ship is listed in §6. [OWNER 2026-09-28 D22] [SHIPPED 9439fd6 src/components/PublicFooter.tsx:7] [SHIPPED 9439fd6 src/app/page.tsx:10] [SOURCE assets/Jump_in_the_Mix_Brand_Search_Conversion_Strategy.md:3,9-10] [SOURCE docs/RELATIONSHIP_VOCABULARY.md:3]
 
 ### Differentiators and claims
 
@@ -135,7 +135,7 @@ Any other claim needs a claim–proof ledger entry (JITM-04 §2). [SHIPPED 9439f
 
 [SOURCE docs/CONVERSION_COPY.md:21] [SOURCE docs/HOMEPAGE_PROFESSION_PAGES_2026-09-11.md:83-85] [SOURCE docs/SEARCH_STRATEGY_IMPLEMENTATION_2026-09-12.md:40-41] [SOURCE docs/HOMEPAGE_CONVERSION_AUDIT_2026-09-07.md:5]
 
-**2.18** Until Kevin sets pricing, price and access statements MUST say no more than "free beta, access by invitation or waitlist". The owner-reviewed facts that follow from it may stay: joining and creating an account are free, and no payment card is asked for. Copy MUST NOT state or imply prices, tiers, trials, discounts, a lasting "free" promise or what happens after the beta. The Free/Plus/Pro catalogue in the owner's local-only proposal stays a proposal. [OWNER 2026-09-28 D11] [OWNER 2026-09-18 docs/ui-ux-audit-2026-09-18/CLAIM_REVIEW.md:9] [SOURCE local-only 00e0a87b7f6e77fc assets/Jump_in_the_Mix_Brand_price_freatures.md:371]
+**2.18** Until Kevin sets pricing, price and access statements MUST say no more than "free beta, access by invitation or waitlist". The owner-reviewed facts that follow from it may stay: joining and creating an account are free, and no payment card is asked for. "No card required" always sits beside "free beta" and accurate invitation or waitlist wording, for example "Free beta. No card required. Join the waitlist." Copy MUST NOT state or imply prices, tiers, trials, discounts, a lasting "free" promise, immediate admission or what happens after the beta. The Free/Plus/Pro catalogue in the owner's local-only proposal stays a proposal. [OWNER 2026-09-28 D11] [OWNER 2026-09-28 D28] [OWNER 2026-09-18 docs/ui-ux-audit-2026-09-18/CLAIM_REVIEW.md:9] [SOURCE local-only 00e0a87b7f6e77fc assets/Jump_in_the_Mix_Brand_price_freatures.md:371]
 
 ### Research
 
@@ -177,15 +177,13 @@ grep -rniE 'trusted by|testimonial|risk-free|award|guarantee|free forever|per mo
 ## 6. Open decisions and known deviations
 
 Open questions for Kevin:
-- Which brand line, if any, is ratified (§2.14)?
 - Should the public audience phrase stay "for independent professionals", or name owner-operators, trades and solo real estate (D2)?
 - Should the social card be regenerated around the current category? JITM-03 §2 owns the artwork; the wording needs your approval.
 - Should public copy changed since the 2026-09-18 claim review (the homepage access note on 2026-09-25, the FAQ sending answer on 2026-09-26) get a dated claim review?
-- Do the owner-reviewed 2026-09-18 facts (joining is free, no payment card) stand under D11's "say only"? Until you answer, they stay usable as §2.16 and §2.18 allow, and D11 is read as forbidding amounts, tiers and payment promises (the D11 note in `docs/standards-audit-2026-09-28/OWNER_DECISIONS.md`).
 
 Known deviations at 9439fd6:
 - The social sharing card and its alt text carry the 2026-09-07 positioning: "For the people who matter", "Good relationships have a rhythm.", "Business · Personal · Your network" (`scripts/generate-brand-assets.mjs:27-32`; `src/lib/public-seo.ts:15`).
-- The homepage meta description uses the unratified "Stay in the mix" (`src/app/page.tsx:10`).
+- The homepage meta description uses "Stay in the mix" (`src/app/page.tsx:10`), and the footer ships "A little follow-through goes a long way." (`src/components/PublicFooter.tsx:7`). Pairing the brand line with a literal description and aligning the footer and social card are backlog B-14 (§2.14).
 - The research protocol recruits real estate and consultants first (`docs/HOMEPAGE_RESEARCH_PROTOCOL_2026-09-10.md:5`), and the strategy proposal names contractors and consultants as first acquisition paths (`assets/Jump_in_the_Mix_Brand_Search_Conversion_Strategy.md:15`). D2 puts trades and solo real estate first.
 - `docs/SEARCH_STRATEGY_IMPLEMENTATION_2026-09-12.md:36` still says automatic sending needs a connected provider; production keeps it off for the beta.
 - No industry statistic from the profiles has been re-verified (`assets/README.md:17`).
@@ -193,3 +191,4 @@ Known deviations at 9439fd6:
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 2.0.0 — 2026-09-28 — Base 61d4df4. "Stay in the mix" is the brand line, paired with a literal description (§2.14, D22). "No card required" confirmed beside free-beta and access wording (§2.18, D28).

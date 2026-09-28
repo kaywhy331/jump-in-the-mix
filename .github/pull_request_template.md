@@ -32,4 +32,4 @@ Label each item VERIFIED (how), INFERRED (from what), NOT RUN (why) or BLOCKED (
 - [ ] Needs a production release (JITM-14)
 - [ ] Needs a migration
 
-Kevin merges. Agents never merge.
+Kevin merges. An agent merges only with Kevin's explicit authorization for this pull request or a defined batch (JITM-16 §2.5).

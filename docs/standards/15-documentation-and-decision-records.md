@@ -2,7 +2,7 @@
 id: JITM-15
 title: Documentation and decision records
 status: active
-version: 1.0.0
+version: 1.1.0
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [docs, records, decisions, evidence, local-only-sources]
@@ -72,6 +72,8 @@ Neighboring topics live elsewhere:
 9. follow-ups, carrying forward open items from earlier records.
 
 [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:1-138] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:1-61]
+
+**2.19** A record written after the fact is marked "Reconstructed" in its title line, with the date it was written. It follows §2.6 as far as the evidence allows: the commit, the deployment identifiers that exist, known changes, verification evidence and rollback context. Anything not found is written as unknown, and a check with no surviving evidence is never reported as run. [OWNER 2026-09-28 D19]
 
 **2.7** A small follow-up release MAY be added to the previous record as a titled section with its own table, verification, release steps and rollback. [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:63-94]
 
@@ -153,7 +155,7 @@ Planned or verified work MUST NOT be presented as a measured outcome. [SOURCE AG
 ## 6. Open decisions and known deviations
 
 - **Release evidence is untracked.** Scripts and receipts live only in `.artifacts/`, and no retention policy covers them (`docs/EXTERNAL_DATA_RETENTION.md:21`). Whether a sanitized copy may be tracked is open (JITM-14 §6).
-- **Missing records.** Several production deploys have no record; the list and the question for Kevin are in JITM-14 §6.
+- **Missing records.** Several production deploys have no record (JITM-14 §6). Kevin chose reconstructed records under §2.19 (D19); the back-fill is a backlog task.
 - **Dead links.** Tracked documents still link to local-only files, `.artifacts/` and removed source files, against §2.4. The source register lists them (`docs/standards-audit-2026-09-28/SOURCE_REGISTER.md:98-121`).
 - **Banners still missing** on `CONTRIBUTING.md`'s superseded sections, `docs/CANONICAL_PRODUCT_DECISIONS.md`, `docs/FREE_TESTING.md` and `docs/NETLIFY_DEPLOYMENT.md`. `docs/PRODUCTION_PROMOTION_HANDOFF_2026-09-15.md:111` still names `PRODUCT_COMPLETION.md` and `PRODUCTION_LAUNCH_PLAN.md` as the release history; per-release records replaced them.
 - **Decisions inside records.** Many earlier owner decisions live only inside release and audit records. The log gained O1–O7; older ones stay where they are unless a standard cites them.
@@ -162,3 +164,4 @@ Planned or verified work MUST NOT be presented as a measured outcome. [SOURCE AG
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.1.0 — 2026-09-28 — Base 61d4df4. New §2.19 for reconstructed release records (D19).

@@ -9,16 +9,16 @@ Follow **WF-06** (`docs/standards/workflows/WF-06-production-release.md`) step b
 
 ## Before you start
 
-- **Authority.** Kevin gave agents standing authority to run release steps (JITM-16 §2.6). Pull request merges stay with Kevin. If your own operator or host instructions forbid releases, follow them and ask Kevin (JITM-16 §2.24).
+- **Authority.** Kevin gave agents standing authority to run release steps (JITM-16 §2.6). Pull requests merge only with Kevin's explicit authorization (JITM-16 §2.5). If your own operator or host instructions forbid releases, follow them and ask Kevin (JITM-16 §2.24).
 - **Candidate.** The candidate is the merge commit on `main` after Kevin merged the pull request. Release only a commit that is on `main`.
-- **Workspace.** Create a fresh worktree at the candidate commit, never a shared checkout. Release scripts and receipts go in a new directory under the git-ignored `.artifacts/`, adapted from the previous release's set.
+- **Workspace.** Create a fresh worktree at the candidate commit, never a shared checkout. Run the committed script and runbook in `scripts/release/` (JITM-14 §2.10); until they exist, adapt the previous release's scripts. Receipts and logs go in a new directory under the git-ignored `.artifacts/`.
 
 ## The sequence (gates in WF-06)
 
 1. Confirm the target: both service names and ids, the domain and the commit each runs (JITM-14 §2.3).
 2. Verify the candidate locally against the previous production build (JITM-12 §2).
 3. Run the read-only preflight.
-4. Take a fresh encrypted backup.
+4. Take a fresh encrypted backup, in every release, code-only included (JITM-14 §2.12).
 5. Migrate, only if the release needs it, through the reviewed one-off job.
 6. Deploy the worker first.
 7. Deploy the web service second, at the same commit, keeping the build cache.

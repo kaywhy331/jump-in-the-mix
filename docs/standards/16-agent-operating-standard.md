@@ -2,7 +2,7 @@
 id: JITM-16
 title: Agent operating standard
 status: active
-version: 1.0.0
+version: 2.0.0
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [agents, claude-code, codex, all-tasks]
@@ -46,7 +46,7 @@ It governs how agents start a task, what they may decide alone, how they report,
 
 ### Authority
 
-**2.5** Agents MUST NOT merge pull requests. Kevin merges. [PROPOSED]
+**2.5** Agents prepare, validate and open pull requests on their own, but MUST NOT merge one without Kevin's explicit authorization for that pull request or for a clearly defined batch. Once he has authorized it, the agent completes the merge without asking for the same permission again. Where a permission prompt or classifier refuses the merge, the agent stops and tells Kevin. [OWNER 2026-09-28 D30]
 
 **2.6** Agents MAY run production release steps on Kevin's behalf, but only when the task explicitly asks for a release, deploy or rollback, and only through WF-06 and JITM-14. [OWNER 2026-09-24 O3] [PROPOSED]
 
@@ -135,8 +135,9 @@ They MUST NOT route around a blocked step. [OWNER 2026-09-28 O6] [PROPOSED]
 
 - Scheduled fleet agents may start outside this repository. Their cycle prompts need a pointer to this router. That is an owner option outside this repository.
 - Enforcement is advisory (D8). Nothing blocks a push that skips these rules; reviews apply JITM-17 §2.
-- **Merging.** §2.5 is proposed; no recorded instruction of Kevin's says agents must not merge. Pull requests have been merged from his account, by him or at his instruction: on 2026-09-26 an agent session was told to "continue … to fix, merge, deploy", and on 2026-09-27 the permission classifier refused an agent merge. Kevin: confirm that agents never merge?
+- **Primary checkout.** Kevin approved a read-only inventory of his primary checkout and a cleanup proposal (D27). It is backlog B-18; until then, agents leave that checkout untouched (§2.9).
 
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 2.0.0 — 2026-09-28 — Base 61d4df4. §2.5: agents merge only with Kevin's explicit authorization for a pull request or a defined batch (D30). §6 records D27.

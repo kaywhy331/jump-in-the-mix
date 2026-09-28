@@ -2,7 +2,7 @@
 id: JITM-07
 title: Layout and responsive structure
 status: active
-version: 1.0.0
+version: 1.0.1
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [ui, layout, navigation, responsive, app, public-pages, staff]
@@ -180,18 +180,21 @@ Also check a 600px-high laptop (rails) and a screen 480px high or less (sticky h
 
 ## 6. Open decisions and known deviations
 
-Questions for Kevin, where the shipped layout differs from the export without a stated reason:
+Where the shipped layout differs from the export without a recorded reason, the export is the default after an in-context comparison (JITM-06 §2.33, D24):
 - **Context column:** Today (from 1600px) and Calendar (from 1700px) use 280px (`src/styles/design-workspaces.css:121`, `src/styles/design-details.css:159`); the export uses 340px, and a 440px Calendar agenda where the code has 400px (`screens/DesktopToday.html:21`, `DesktopCalendar.html:21`).
 - **Quick Add bubble:** it renders 56×52 with 16px corners, because a legacy `min-height: 52px` wins (`src/styles/base.css:286`, `src/styles/design-workspaces.css:141`). The export draws 58×48 with 18px corners, lifted 18px (`screens/Main.html:21`).
 - **Sheet shadow:** `--shadow-sheet` is 12% light and 40% dark (`src/styles/design-tokens.css:64,112`); the export uses 20% and 38% (`screens/Review.html:21`, `DarkReview.html:22`).
 - **Docked review width (open since 2026-09-24):** the composer has no maximum; the export caps the review at 680px (`screens/DesktopToday.html:21`).
 - **Portrait tablets (open since 2026-09-24):** from 768 to 900px a sticky 64px app header shows (`src/styles/auth.css:67-69`); the export has none (`screens/TabletToday.html:21`).
-- **Printing:** no print stylesheet exists. Is printing Today or a profile a supported workflow?
 
 Known deviations:
 - 126 of 195 width breakpoints in the CSS use values outside the shared set, and `max-width: 1100px` and `1200px` overlap the matching `min-width` rules at the boundary (drift baseline metric 12).
-- Whether the 2026-09-22 note that "the desktop three-pane structure is unchanged" is a standing rule belongs to the question on JITM-01 §2.24, asked in JITM-01 §6.
+- Preserving the desktop three-pane structure is part of the standing default in JITM-01 §2.24 (D20).
+
+Question for Kevin:
+- **Printing:** no print stylesheet exists. Is printing Today or a profile a supported workflow?
 
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.0.1 — 2026-09-28 — Base 61d4df4. §6 updated for D20 and D24.

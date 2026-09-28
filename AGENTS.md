@@ -47,7 +47,7 @@ This file routes every task to the workflow, skills and standards that govern it
    - both themes, keyboard use and narrow screens.
 6. Use the glossary terms: Today, Contacts, Mix, Beat, Journey, Calendar, Quick Add, Mega-Mix, Marketplace (JITM-05 §2).
 7. This version of Next.js differs from your training data. Read `node_modules/next/dist/docs/` before writing Next.js code (JITM-11 §2).
-8. No paid services without Kevin's approval (JITM-00 §2.9). Agents never merge (JITM-16 §2.5). Production releases run only when asked, through WF-06 (JITM-16 §2.6).
+8. No paid services without Kevin's approval (JITM-00 §2.9). Agents merge only with Kevin's explicit authorization (JITM-16 §2.5). Production releases run only when asked, through WF-06 (JITM-16 §2.6).
 9. No third-party framework, course or author names in standards, skills, copy or new documents (JITM-04 §2). Never commit local-only sources (JITM-15 §2).
 10. Keep the Next.js block above first and unchanged. `CLAUDE.md` is a symlink to this file. Edit skills only in `.agents/skills/`; `.claude/skills` links there (JITM-16 §2.18, JITM-16 §2.19).
 

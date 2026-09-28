@@ -2,7 +2,7 @@
 id: JITM-04
 title: Voice, tone and copy
 status: active
-version: 1.0.0
+version: 1.0.1
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [copy, interface-text, email, help, public-pages, onboarding, ready-made-mixes, marketing, agents]
@@ -73,7 +73,7 @@ Neighboring topics live elsewhere:
 
 **2.4** Headings, buttons and labels use sentence case; product names keep their capitals (JITM-05 §2). [PROPOSED]
 
-**2.5** Ready-made messages speak in the first person singular ("I", "my") and sign with the owner's placeholders. "We" is for the owner to choose when the business really is a team or crew. [SOURCE docs/HOMEPAGE_CONTACT_DEMO.md:5] [PROPOSED]
+**2.5** Ready-made messages and drafts speak in the first person singular ("I", "my") and sign with the owner's placeholders. "We" is for the owner to choose when they really speak for a crew or business team; it is never the default. Interface instructions keep addressing the user as "you". [OWNER 2026-09-28 D23] [SOURCE docs/HOMEPAGE_CONTACT_DEMO.md:5]
 
 ### Microcopy
 
@@ -107,7 +107,7 @@ Neighboring topics live elsewhere:
 
 **2.19** Messages are plain and warm, free of sales jargon and method names, and use the placeholders for names and signatures. Texts SHOULD stay short enough to read on one phone screen. [SOURCE docs/PRODUCT_AUDIT_2026-09-04.md:93] [SOURCE docs/SALES_PLAN_LIBRARY_2026-09-05.md:51]
 
-**2.20** No message may need an invented statistic, testimonial, deadline or missing link. A line that asserts availability, scarcity, a result or another fact ("the dates are filling up") MUST carry a visible "only if it's true" cue or a placeholder the owner fills in. Owners verify terms, prices and commitments before sending. [SOURCE docs/SALES_PLAN_LIBRARY_2026-09-05.md:51,54] [SHIPPED 9439fd6 src/app/follow-up-templates/estimate-follow-up/page.tsx:36]
+**2.20** No message may need an invented statistic, testimonial, deadline or missing link. A line that asserts availability, a deadline, scarcity, a result or another fact ("the dates are filling up") MUST carry a visible "only if it's true" cue or a placeholder the owner fills in. Owners verify terms, prices and commitments before sending. [OWNER 2026-09-28 D14] [SOURCE docs/SALES_PLAN_LIBRARY_2026-09-05.md:51,54] [SHIPPED 9439fd6 src/app/follow-up-templates/estimate-follow-up/page.tsx:36]
 
 **2.21** A message MUST NOT show a broken placeholder or invent a missing fact. When a value is missing, drop the optional sentence or ask the owner once. [SOURCE docs/PRODUCT_AUDIT_2026-09-04.md:75] [SOURCE local-only 00e0a87b7f6e77fc assets/Jump_in_the_Mix_Brand_price_freatures.md:139] [PROPOSED]
 
@@ -180,9 +180,8 @@ Neighboring topics live elsewhere:
 ## 6. Open decisions and known deviations
 
 Open questions for Kevin:
-- May a ready-made message say "we" by default for trades with crews (§2.5)?
 - Should texts have a length limit? Only a 900-character phone warning ships (`src/components/EditableFollowUpAction.tsx:429`).
-- Replacing the third-party method and author names in ready-made plans changes shipped copy; confirm the descriptive labels before WF-03 runs.
+- Kevin chose one coordinated copy batch (D14): the automation claim, the retired demo text, the third-party names and the vocabulary below are fixed together, with template availability and deadline claims checked against §2.20. The descriptive labels that replace third-party names are proposed in that batch's pull request for his review.
 
 Known deviations at 9439fd6:
 - The reminders page promises sending "unless you connect an optional sending provider and turn that on", but automatic sending is off during the beta (`src/app/features/follow-up-reminders/page.tsx:37`). The Settings hub and the sending page call automatic sending optional and suggest contacting support to set it up (`src/app/(app)/settings/page.tsx:17`; `src/app/(app)/settings/sending/page.tsx:28,31`).
@@ -196,3 +195,4 @@ Known deviations at 9439fd6:
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.0.1 — 2026-09-28 — Base 61d4df4. §2.5 confirmed, with "you" for interface instructions (D23); §2.20 names deadlines (D14); §6 updated.

@@ -2,7 +2,7 @@
 id: JITM-05
 title: Vocabulary and glossary
 status: active
-version: 1.0.0
+version: 2.0.0
 owner: Kevin
 last_reviewed: 2026-09-28
 applies_to: [copy, interface-text, help, public-pages, email, onboarding, customer-docs]
@@ -72,7 +72,7 @@ Neighboring topics live elsewhere:
 | saved date | A date on a person, such as a birthday, a job date or a renewal, that can start a Mix. | `JumpDate`, `DateType` |
 | tag | A label that groups contacts. | `Group` |
 | note, private note | Context about a person. Private notes never go into messages. | none |
-| stage | An optional label for where a person stands with your business, such as Lead or Client. Stages do not organize the Journey. | `JourneyStage` |
+| stage | An optional label for where a person stands with your business, such as Lead or Client. They are managed in **Contact stages** in Settings. Stages do not organize the Journey, which is your connected Mixes and Beats. | `JourneyStage` |
 | invitation | Two kinds. A member's personal invitation: one of the member's own invitations, which the member sends from Today in their own email or text app (allowance: JITM-09 §2.17). An access invitation: the single-use link the waitlist or staff send (JITM-09 §2.15). | `ReferralAccessInvite` (its `source` tells the kinds apart); System Mix for the member wording |
 | pipeline | A plain word in Mega-Mix copy for the whole path from first inquiry to repeat work, as in "Your pipeline is ready" after a Mega-Mix is added. It is not a feature name; the feature is the Mega-Mix. | none; `MegaMixPipeline` is the Mega-Mix model |
 | connection | Two shipped meanings. In Journey, a saved path from a Beat or a finished Mix to the next Mix or Beat (JITM-09 §2.55). In the feature names Lead connections (Settings, More) and Calendar connections (Calendar), a link to an outside source of people or events. | a rule in `MixWorkflow`; `IntakeConnection`, `CalendarConnection` |
@@ -81,7 +81,7 @@ Neighboring topics live elsewhere:
 
 **2.4** A Beat belongs to a Mix; a follow-up is what lands on Today. Copy MUST describe Today as everything due for the owner, including one-time follow-ups and invitations to send, and MUST count follow-ups, not Beats, there. Setup steps are not Beats. [OWNER 2026-09-28 D1] [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:430,450] [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:24] [SOURCE docs/RELATIONSHIP_VOCABULARY.md:18]
 
-**2.5** "Ready-made" describes content Jump in the Mix publishes. It appears as the Ready-made mixes library (`/templates`, reached from More on desktop and from Mix tools) and inside the Marketplace's "Jump in the Mix" section; the Marketplace's other sections are "Community" and "My shares". Whether the library keeps its own entry once the Marketplace covers it is an open question (§6). The owner's own Mixes and Mega-Mixes, built or added, are "your Mixes" and "your Mega-Mixes". [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:14,53-57] [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:144] [SHIPPED 9439fd6 src/app/(app)/more/page.tsx:28]
+**2.5** "Ready-made" describes content Jump in the Mix publishes. It is found in the Marketplace's "Jump in the Mix" section; the Marketplace's other sections are "Community" and "My shares" (JITM-09 §2.74). The separate Ready-made mixes library (`/templates`) is being folded into that section and still ships with its own entries (§6). The owner's own Mixes and Mega-Mixes, built or added, are "your Mixes" and "your Mega-Mixes". [OWNER 2026-09-28 D29] [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:14,53-57] [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:144] [SHIPPED 9439fd6 src/app/(app)/more/page.tsx:28]
 
 ### Journey numbering
 
@@ -165,23 +165,23 @@ grep -rnE "Important Date|[Cc]ampaign|\b[Cc]ue\b|[Tt]empo" src/app src/component
 ## 6. Open decisions and known deviations
 
 Open questions for Kevin:
-- Whether Journey numbers stay per view is asked in JITM-09 §6.
-- Does the stage-based "Customer journey" in Settings stay as a secondary feature beside Journey (D4), or is it retired? If it stays, under what name, since it collides with Journey?
-- Should the Ready-made mixes library (`/templates`) keep its own entries in More and Mix tools once the Marketplace's "Jump in the Mix" section covers the same content (§2.5)?
 - The account holder is a "member" in some standards (JITM-01 §2.8) and an "owner" in others (JITM-09 §2.17). Which word should copy use?
 - Should the glossary sheet appear on Today, the contact page and onboarding (§2.17)?
 - Please confirm the wording of the plain meanings in §2.2; the sheet and Help would adopt it.
 
 Known deviations at 9439fd6 (the drift baseline counts 67 canonical and 31 variant Mega-Mix spellings):
+- Journey labels change with the view, against the account-wide labels of JITM-09 §2.54 (D21; backlog B-13).
+- The Ready-made mixes library keeps its own entries in More and Mix tools, against §2.5 and JITM-09 §2.74 (D29; backlog B-19).
 - The glossary sheet defines Today as "Your list of Beats that are due", spells "Mega-mix" and calls a Beat "One step in a Mix" (`src/components/BrandTermsHelp.tsx:7-11`). The public reminders page also says Today "shows the Beats due today" (`src/app/features/follow-up-reminders/page.tsx:23`).
 - Help uses retired words: "A mix is a follow-up campaign… Each step is a beat. Tempo…", "Remix it", "cue and loop", "set its cue" (`src/lib/support-content.ts:44-46,52`). Ready-made previews show "Cue day", "Cue · starts" and "Tempo · span" (`src/components/SharedMixPreview.tsx:15,74,76`), plus "Set the tempo" and "Your remix is ready to edit." (`src/components/PlanApproachGuide.tsx:13`; `src/components/MixWorkspace.tsx:81`). Work shows "Waiting for its timing anchor" (`src/components/WorkflowProgress.tsx:23`), and a contact page offers "Start a touchpoint" (`src/components/ContactProfile.tsx:145`).
 - "Plan" names a Mix in the app: "Name your plan", "Review your plan" (`src/components/TemplateUseForm.tsx:86,104`), "Review your first plan" (`src/components/StarterPreview.tsx:24,30`), "Follow-up plan for this visit", "No plan" (`src/components/CalendarEntryForm.tsx:101`), "Plan details & messages" (`src/app/(app)/templates/[sharedMixId]/use/page.tsx:48`).
 - Standards that quote shipped labels (for example JITM-07 §2 and JITM-09 §2) keep the shipped casing; the labels change when the copy pass fixes them.
 - Lowercase and variant spellings: "My mixes" (`src/components/MixLibraryNav.tsx:12`), "Create your first mix" (`src/app/(app)/mixes/page.tsx:76`), "Choose a complete mega-mix" (`src/app/(app)/mixes/page.tsx:58`), "A complete mega-mix · Recommended" (`src/components/OnboardingForm.tsx:39`), "Mega-mixes" (`src/components/MegaMixLibrary.tsx:22-24`).
-- More labels Journey "Customer journey: Track stages and let milestones start the right follow-ups", contrary to D4 (`src/app/(app)/more/page.tsx:13`), and writes "My Account" where the navigation says "My account" (`src/app/(app)/more/page.tsx:19`; `src/components/Nav.tsx:21`).
+- More labels Journey "Customer journey: Track stages and let milestones start the right follow-ups", and Settings calls the stage settings "Customer journey"; D16 names them Contact stages. Both are contrary to D4 (`src/app/(app)/more/page.tsx:13`), and writes "My Account" where the navigation says "My account" (`src/app/(app)/more/page.tsx:19`; `src/components/Nav.tsx:21`).
 - `START_HERE.md:70` still says "Important Dates" and "generated Jumps"; `README.md:11` lists "Plans".
 - The superseded tables remain in `docs/CANONICAL_PRODUCT_DECISIONS.md:40-50` and `CONTRIBUTING.md:61-70`.
 
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 2.0.0 — 2026-09-28 — Base 61d4df4. Ready-made content is found in the Marketplace's Jump in the Mix section (§2.5, D29); stage settings are Contact stages (D16); §6 updated for D21.
