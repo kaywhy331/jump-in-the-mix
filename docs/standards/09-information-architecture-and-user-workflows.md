@@ -1,0 +1,300 @@
+---
+id: JITM-09
+title: Information architecture and user workflows
+status: active
+version: 1.0.0
+owner: Kevin
+last_reviewed: 2026-09-28
+applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
+supersedes: [docs/UX_WORKFLOW_OPTIMIZATION.md]
+sources:
+  - src/components/Nav.tsx
+  - src/app/(app)/jumps/page.tsx
+  - src/lib/journey-numbering.ts
+  - docs/standards-audit-2026-09-28/OWNER_DECISIONS.md
+  - docs/CANONICAL_PRODUCT_DECISIONS.md
+  - docs/UX_WORKFLOW_OPTIMIZATION.md
+  - docs/JOURNEY_IMPLEMENTATION_2026-09-21.md
+  - docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md
+  - docs/ONBOARDING_INVITATIONS_2026-09-17.md
+  - docs/INVITE_PAGE_RELEASE_2026-09-27.md
+  - docs/BETA_BLOCKERS_RELEASE_2026-09-26.md
+  - docs/design/DEMO_WORKSPACE_2026-09-19.md
+related_skills: [jitm-feature, jitm-ui-change, jitm-copy, jitm-review]
+related_workflows: [WF-02, WF-03, WF-04]
+---
+
+# JITM-09 — Information architecture and user workflows
+
+> Where every page lives, what the navigation offers, and how each core workflow runs from trigger to result.
+
+## 1. Purpose and scope
+
+This standard owns the route map, the navigation destinations and labels, and the canonical workflows: access and onboarding, Quick Add, Today, Contacts, Mixes, Mega-Mixes, the Marketplace, Journey, Calendar, invitations, the waitlist, support, account controls, and the public demo and profession pages. Each workflow is written as trigger, steps, then rules. Quoted UI labels are the shipped strings at 9439fd6; their casing follows JITM-05 §2.13 once the copy pass lands (JITM-05 §6).
+
+Neighboring topics live elsewhere: the core loop, first-run promise and feature map in JITM-01 §2; layout, panes and breakpoints in JITM-07 §2; interaction patterns (review, handoff, outcome and Undo, confirmations, sheets, forms) in JITM-08 §2; terms and numbering labels in JITM-05 §2; wording in JITM-04 §2; scheduling, data and security mechanics in JITM-11 §2.
+
+For Journey, shipped behavior comes from `docs/JOURNEY_IMPLEMENTATION_2026-09-21.md` and the code. The 2026-09-21 dynamic workflow contract, forensic review and hand-off proposal are proposals except where shipped. The navigation and core-loop section of `docs/CANONICAL_PRODUCT_DECISIONS.md` and `docs/UX_WORKFLOW_OPTIMIZATION.md` are history (D3).
+
+## 2. Rules
+
+### Route map and navigation
+
+**2.1** Every page MUST sit in the route group that matches its users. [SHIPPED 9439fd6 src/app/(app)/layout.tsx:10] [SHIPPED 9439fd6 src/app/(staff)/layout.tsx:12]
+
+| Group | Routes | For |
+|---|---|---|
+| Public | `/`, `/for/[profession]`, `/faq`, `/follow-up-templates/…`, `/features/follow-up-reminders`, `/waitlist`, `/waitlist/confirm`, `/waitlist/leave`, `/contact`, `/privacy`, `/terms`, `/security`, `/offline` | Visitors |
+| Recipient | `/lead/[connectionId]`, `/review/[token]` | The owner's own customers |
+| Auth and setup | `/login`, `/register`, `/verify-email/pending`, `/auth/magic`, `/forgot-password`, `/reset-password`, `/signed-out`, `/onboarding`, `/account/deleted`, `/staff/accept` | People signing in or setting up |
+| App `(app)` | `/jumps` (Today), `/contacts/…`, `/mixes/…`, `/templates/…`, `/marketplace`, `/journey`, `/calendar`, `/more`, `/settings/…`, `/account/…`, `/help` | Signed-in owners, in the app shell |
+| Staff `(staff)` | `/admin/…`, `/account/admin-mfa` | Staff with administrator MFA |
+| API | `/api/…` | Forms, downloads and integrations; never a navigation destination |
+
+**2.2** Adding, renaming, removing or reordering a primary destination MUST go through Kevin and WF-08. [OWNER 2026-09-28 D1] [OWNER 2026-09-28 O6]
+
+**2.3** Primary navigation MUST be, in order: Today (`/jumps`), Contacts, Mixes, Journey, Calendar, More. Desktop rails show all six. The phone tab bar shows Today, Contacts, a central Quick Add, Mixes and More, and phones reach Journey and Calendar through More. Rail and tab-bar layout: JITM-07 §2. [OWNER 2026-09-28 D1] [SHIPPED 9439fd6 src/components/Nav.tsx:9-16]
+
+**2.4** Settings, Help and My account are account destinations. The desktop sidebar footer MUST list them; phones reach them through More. [SHIPPED 9439fd6 src/components/Nav.tsx:18-22] [SHIPPED 9439fd6 src/app/(app)/more/page.tsx:16-20]
+
+**2.5** Mixes MUST be marked current on `/mixes/…`, `/templates/…` and `/marketplace`. On phones, pages reached through More mark More. [PROPOSED] [SHIPPED 9439fd6 src/components/Nav.tsx:40]
+
+**2.6** More MUST offer, in order:
+- Invite people, only while invitations are left (JITM-09 §2.9);
+- Today and Ready-made mixes, on desktop only;
+- Journey, described as the map of Mixes and Beats, and Calendar;
+- Lead connections, Settings, Personal preferences, Notifications, My account and Help;
+- the appearance control and Sign out (End view-only session during a support view).
+
+[SHIPPED 9439fd6 src/app/(app)/more/page.tsx:12-28] [OWNER 2026-09-28 D4]
+
+**2.7** Settings is the hub for business and account configuration: stage settings (`/settings/journey`), Lead connections, Calendar & time blocks, My business, Personal preferences, Notifications, Sending to customers, Date types, Password & sessions, and Data & privacy. Stage settings MUST NOT be labeled or described as Journey. [SHIPPED 9439fd6 src/app/(app)/settings/page.tsx:10-20] [OWNER 2026-09-28 D4]
+
+**2.8** Quick Add MUST be one tap away on every app page: the sidebar button on desktop and the central tab on phones. It is not offered in view-only support sessions. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:61] [SHIPPED 9439fd6 src/components/AppShell.tsx:47] [SHIPPED 9439fd6 src/components/Nav.tsx:41]
+
+**2.9** "N invitations left" prompts MUST appear only to the workspace owner, while invitations remain and are not paused. They sit in the desktop sidebar, the tablet app header (768–900px), the More tab badge, a Today strip, the More page and the Profile sheet, and each opens `/mixes/system`. [OWNER 2026-09-27 docs/APPEARANCE_INVITATIONS_RELEASE_2026-09-27.md:3] [SOURCE docs/APPEARANCE_INVITATIONS_RELEASE_2026-09-27.md:20-27] [SHIPPED 9439fd6 src/lib/invitation-allowance.ts:18-20] [SHIPPED 9439fd6 src/components/AppShell.tsx:49,69,81]
+
+### Principles for every workflow
+
+**2.10** Workflows implement the core loop in JITM-01 §2. Release review SHOULD hold two budgets: adding a person with a first follow-up takes one compact form submission, and completing a prepared follow-up takes the composer handoff plus one return confirmation. [SOURCE docs/UX_WORKFLOW_OPTIMIZATION.md:7-12]
+
+**2.11** Setting up, installing, importing or saving a connection MUST NOT enroll anyone or send anything. People enter work only through an owner action that says so, such as Start after a preview of the real dates, or activating a Mix after reviewing who gets it (JITM-09 §2.39). [SOURCE docs/MEGA_MIXES_2026-09-22.md:19] [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:7,13] [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:49] [SOURCE docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:51]
+
+**2.12** The Mix editor and Journey MUST edit the same saved configuration. Work keeps the version saved when it began; edits apply to new work, and the editor says so. [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:10,24] [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:20]
+
+**2.13** An exact follow-up link (`/jumps?jump=<id>&range=all`) MUST open that follow-up whatever the filters. A follow-up that is gone or finished says so and links to its current context. [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:16] [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:472]
+
+**2.14** Every workflow MUST work with manual review and handoff alone. Automatic customer email is off in production during the beta (JITM-00 §2), and Sending to customers shows email as not available yet (its wording: JITM-04 §6). [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:6] [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:26]
+
+### Access: waitlist and invitations
+
+**2.15** A hosted account MUST be created only from a single-use access link. Links come from the waitlist (weekly waves of up to five oldest confirmed and five random requests, plus staff selections) or from a member's personal invitation. Opening a link does not use it up, and email verification still follows. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:81] [SOURCE docs/WAITLIST_OPERATIONS.md:19,23,38] [SOURCE docs/ONBOARDING_INVITATIONS_2026-09-17.md:12]
+
+**2.69** Staff set how many people can join with two admission limits, both zero until configured, and with pauses that never revoke links already sent. Counting follows the runbook `docs/ADMISSION_CONTROLS.md`. [SOURCE docs/ADMISSION_CONTROLS.md:9,21,38] [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:135]
+
+**2.16** Joining the waitlist (homepage or `/waitlist`) MUST take an email only and create no account. The 24-hour confirmation link needs a button press, and receipts never reveal account or waitlist status. `/waitlist/leave` withdraws after a confirmed button press; rejoining needs a new confirmed request. [SOURCE docs/WAITLIST_OPERATIONS.md:16-17,44-48]
+
+**2.17** Each owner MUST have three personal invitations for life, including earlier ones, and prepares one to three at a time. Revoking cancels the Today reminder and MUST NOT refund the slot. Member invitations do not count against outstanding-invitation capacity, but invitation pauses stop them. [OWNER 2026-09-17 docs/ONBOARDING_INVITATIONS_2026-09-17.md:3,10-11,13-14] [SHIPPED 9439fd6 src/lib/system-mix.ts:1] [SHIPPED 9439fd6 src/lib/admission.ts:30] [SHIPPED 9439fd6 src/lib/referral-access.ts:59]
+
+**2.18** The app MUST NOT email a member's invitation. Invite people (`/mixes/system`) runs:
+1. one field per person (name, email or phone): names suggest saved contacts, an address marks a new contact, other text is stopped;
+2. Preview invitation, a confirmation that says nothing is emailed yet, then Add to Today;
+3. the contact if needed, a single-use link and a pending Today reminder are created in one transaction;
+4. Today shows "N invitations ready to send" with Review and send; the owner sends from their own email or text app and records it;
+5. Your invitations lists each one with its status, Send now, Open in Today and Revoke.
+
+Automatic delivery never claims these reminders. Wording: JITM-04 §2. [OWNER 2026-09-17 docs/ONBOARDING_INVITATIONS_2026-09-17.md:3,10,14] [OWNER 2026-09-27 docs/INVITE_PAGE_RELEASE_2026-09-27.md:15] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:16-24,73-79] [SHIPPED 9439fd6 src/lib/referral-access.ts:65] [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:449-455]
+
+**2.19** Invitation wording is the staff-published System Mix. When the published version differs from the member's preview, the member MUST review again before a slot is spent. Customers see "Invite people"; "System Mix" is a staff term (JITM-05 §2). [SOURCE docs/SYSTEM_MIX_ADMINISTRATION.md:25] [SHIPPED 9439fd6 src/lib/referral-access.ts:55] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:17]
+
+### Onboarding to the first prepared follow-up
+
+**2.20** Onboarding (`/onboarding`) MUST recommend a complete Mega-Mix first, suggested from the business type or the marketing example the person chose. The alternatives are Choose individual mixes and Other uses or one follow-up: the one-person path, with Business, Personal connections and Networking uses. Save answers and finish later and Skip for now stay available. [OWNER 2026-09-22 docs/ONBOARDING_JOURNEY_PREFERENCES_2026-09-22.md:5] [OWNER 2026-09-22 docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:8] [SHIPPED 9439fd6 src/components/OnboardingForm.tsx:39-40,47,88] [SHIPPED 9439fd6 src/components/MegaMixSetup.tsx:25]
+
+**2.21** The Mega-Mix route MUST run:
+1. preferences (communication, spacing, working days and hours, timezone, preferred time, quiet times, appointment buffers), saved and reused for later Mega-Mixes;
+2. a review summary, which Enter can never skip;
+3. install: preferences, Mixes, connections and a receipt commit together, and no one is enrolled;
+4. "Your pipeline is ready", then Add your first customer, the contact form, a preview of real dates and Start.
+
+The individual route saves preferences and opens the library without a contact. Finish later installs and enrolls nothing. [SOURCE docs/ONBOARDING_JOURNEY_PREFERENCES_2026-09-22.md:5,7] [SOURCE docs/MEGA_MIXES_2026-09-22.md:19,25,27] [SOURCE docs/UX_GAP_FIXES_PRODUCTION_RELEASE_2026-09-23.md:5,57] [SHIPPED 9439fd6 src/components/MegaMixLibrary.tsx:29-30] [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:13,22]
+
+### Quick Add
+
+**2.22** Quick Add runs: type or Speak, Continue, then a "Saving as" review of a person (new, or an existing one chosen explicitly) with an optional private note, event and follow-up. Save all saves the chosen items together, once even on retry, and the receipt offers View person and View follow-up. Unstated times and follow-up methods MUST be chosen, and duplicates and calendar overlaps need an explicit choice. Other ways to add: Add a person, Log what happened. [OWNER 2026-09-20 docs/design/QUICK_ADD_AND_ACTIVATION_2026-09-20.md:3] [SOURCE docs/design/QUICK_ADD_AND_ACTIVATION_2026-09-20.md:7-11] [SHIPPED 9439fd6 src/components/QuickAdd.tsx:145-165]
+
+**2.23** A Quick Add follow-up is one-time, manual-only work outside every Mix: automatic delivery MUST NOT claim it, even with sending turned on. [SOURCE docs/design/QUICK_ADD_AND_ACTIVATION_2026-09-20.md:13] [SHIPPED 9439fd6 src/lib/one-time-follow-up.ts:27,47] [SHIPPED 9439fd6 src/lib/automatic-delivery.ts:162]
+
+### Today: review, outcome and next step
+
+**2.24** Today (`/jumps`) MUST order its queue: invitations ready to send, the invitations strip, the preparation notice, Overdue, Today, Needs your input, Quiet-day check-ins, Upcoming ("Next 7 days" in the due and week views), then Done. The first open card carries "Next up". [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:449-464] [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:370]
+
+**2.25** Today MUST state only what is true:
+- "You're caught up." only when nothing is due, nothing needs input and every check succeeded; otherwise it says the next steps could not be checked or are awaiting preparation;
+- Needs your input holds owner decisions, due callbacks, date repairs and failed preparation with Retry, never deliberate pauses;
+- the welcome notice after setup never promises a Review that does not exist.
+
+[SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:403-411,430] [SOURCE local-only f7ea577d837b6b1f docs/CONTRACTOR_UX_APPROACH_2026-09-22.md:62] [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:14] [SOURCE docs/UX_GAP_FIXES_2_PRODUCTION_RELEASE_2026-09-23.md:52]
+
+**2.26** Review (pattern: JITM-08 §2) MUST open on the Recommended version unless the owner already chose one for this follow-up. Text, Email and Call stay visible; an unavailable one follows the pattern in JITM-08 §2.6, and its Add link returns here. Switching MUST NOT send or create a follow-up, and it keeps a separate draft per version. [OWNER 2026-09-23 docs/CHANNEL_VERSIONS_FOR_EVERY_BEAT_2026-09-23.md:3] [SOURCE docs/CHANNEL_VERSIONS_FOR_EVERY_BEAT_2026-09-23.md:12-16]
+
+**2.27** After the handoff, recording MUST offer Sent or Not sent for messages, and Connected, Left voicemail, No answer or Did not call for calls. A configured Journey decision is recorded with it; a decision list that fails to load shows as failed and can be retried. Not sent keeps the follow-up open. [SHIPPED 9439fd6 src/components/JumpWorkflow.tsx:399-409] [SHIPPED 9439fd6 src/app/api/jumps/[jumpId]/outcome/route.ts:228] [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:15] [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:18]
+
+**2.28** "Schedule the next follow-up", "Rescheduled", and "Save & schedule follow-up" with no Mix chosen MUST each give exactly one follow-up at the chosen day and time, outside every Mix, and the confirmation names that time. For Journey work, Rescheduled moves the same follow-up instead. [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:7] [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:24] [SHIPPED 9439fd6 src/app/api/jumps/[jumpId]/outcome/route.ts:224,250-253]
+
+**2.29** A completed or skipped follow-up MUST NOT come back by itself: no settings or Beat-timing change recreates it. Only Undo or Reopen makes it open again. [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:8] [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:25] [SHIPPED 9439fd6 src/app/api/jumps/[jumpId]/outcome/route.ts:217]
+
+**2.30** Each open card MUST offer Mark done, Snooze (presets or a chosen day), Skip beat and, for Mix work, Stop mix after a confirmation that keeps completed history. Skipping keeps a ten-second Undo, and Done offers Reopen except for automatic sends. [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:381,387-390] [SOURCE docs/FULL_AUDIT_2026-09-24.md:140]
+
+**2.31** Early news goes through "Record an update or choose a callback date". The owner picks the work and what happened: a configured outcome, "Customer asked me to get back to them" or "I want to choose when to check again". After a review of the effect, it MUST cancel only the selected remaining work and the paths it affects. An expired callback creates an owner action and never implies acceptance, and no outcome is invented where none is configured. [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:15,27] [SHIPPED 9439fd6 src/components/WorkflowBusinessUpdate.tsx:55-63]
+
+### Contacts
+
+**2.32** Contacts (`/contacts`) holds people, notes, history, tags and saved dates. A profile MUST show contact methods, the next follow-up with its real dates, the stage and history, with Text, Email, Call and Note actions that respect missing methods and Do not contact. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:57] [SOURCE docs/design/DESIGN_GUIDELINES.md:26] [SOURCE docs/design/CONTACTS_IMPLEMENTATION_2026-09-19.md:11-12]
+
+**2.33** People arrive through Add a person (`/contacts/new`, with "Save & schedule follow-up"), Quick Add, CSV or vCard import, the device contact picker and lead connections. Imports MUST merge only exact, unambiguous matches and hold the rest for review. A merge moves Journey work without merging it. [SOURCE docs/QUICK_ADD.md:12-14] [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:36] [SHIPPED 9439fd6 src/components/ContactForm.tsx:303] [SHIPPED 9439fd6 src/app/(app)/more/page.tsx:15]
+
+**2.34** Adding a person to a Mix from their profile (Choose a mix) MUST ask for a start date. A date-triggered Mix takes that date when the person has none, and a finished Mix restarts from it. [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:24] [SHIPPED 9439fd6 src/components/ContactProfile.tsx:147,261]
+
+### Mixes, Mega-Mixes and the Marketplace
+
+**2.35** Mixes MUST have three tabs: the owner's Mixes, Mega-Mixes and the Marketplace (labels: JITM-05 §2). [OWNER 2026-09-24 docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:3,53] [SHIPPED 9439fd6 src/components/MixLibraryNav.tsx:12]
+
+**2.36** Authoring runs: create (`/mixes/new?custom=1`; `/mixes/new` alone opens the ready-made library), name, "When should it start?" (When I add a date, When I start it for someone, On one fixed date, After another Mix finishes), Beats with timing, text, email and call versions, explicit save, activation. A failed save MUST keep what was typed. [SOURCE docs/MIX_LIBRARY_AND_PATH_CONTROLS_2026-09-21.md:13] [SHIPPED 9439fd6 src/components/MixEditor.tsx:193] [SOURCE docs/UX_GAP_FIXES_PRODUCTION_RELEASE_2026-09-23.md:6]
+
+**2.37** Ordinary Beats are timed from the Mix start, not from the previous Beat's completion. A Beat that a connection targets waits for that connection instead, and a Beat that connections reference MUST NOT be removed until they are resolved. [SOURCE docs/MIX_HANDOFF_AND_JOURNEY_PROPOSAL_2026-09-21.md:23] [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:12]
+
+**2.38** Every Beat MUST offer Text, Email and Call versions. Wording the owner writes wins; a blank version is generated from the Beat's own wording, keeping merge fields. Call versions are talking points, and private-note fields appear only there. [OWNER 2026-09-23 docs/CHANNEL_VERSIONS_FOR_EVERY_BEAT_2026-09-23.md:3] [SOURCE docs/CHANNEL_VERSIONS_FOR_EVERY_BEAT_2026-09-23.md:7,10-11]
+
+**2.39** Activation MUST follow Personal preferences → Starting mixes: review who gets it before activating (the default), or activate on save with Review first still offered. It covers the editor, ready-made setup and starting from the library; the server enforces it, and changing it never activates drafts. [OWNER 2026-09-20 docs/design/QUICK_ADD_AND_ACTIVATION_2026-09-20.md:3] [SOURCE docs/design/QUICK_ADD_AND_ACTIVATION_2026-09-20.md:15-20] [SHIPPED 9439fd6 prisma/personal-preferences.prisma:12]
+
+**2.40** A Mix MUST attach to a visit only when the owner chooses it on that visit in Calendar; the latest or next visit is never inferred. Visit-timed Beats count calendar days from the visit (the default) or elapsed time from its start, end or completion. Moving the visit moves its follow-ups in place, and Beats after the visit wait for its recorded outcome. [SOURCE docs/FOLLOW_UP_PREPARATION_STORAGE_CONTRACT.md:171,175,177] [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:18]
+
+**2.41** The Start flow (Start for someone in Journey, also opened by a Mix page's Start or a Mega-Mix's Start link) MUST preview the real dates before Start, then open the new work. Ownership, eligibility, stops and Do not contact are checked in the same transaction, and restrictions are never cleared silently. [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:13,17] [SOURCE docs/JOURNEY_CLARITY_AND_ANALYTICS_2026-09-21.md:14] [SOURCE docs/MEGA_MIXES_2026-09-22.md:27] [SOURCE docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:44]
+
+**2.42** A Mega-Mix is a named group of the account's Mixes; the account keeps one Journey graph, and a Mix belongs to at most one Mega-Mix. The Mega-Mixes tab creates, renames, describes, fills, duplicates and removes them; a Mix chosen from another Mega-Mix moves with a notice. Removing one MUST keep its Mixes, people, follow-ups and connections, and is refused while its share is hidden or reported. [OWNER 2026-09-24 docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:3] [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:41,45] [SOURCE docs/FULL_AUDIT_2026-09-24.md:142]
+
+**2.43** The five ready-made Mega-Mixes (Contractor, Real estate, Consultant, Photographer, Recruiter) are editable starting configurations at `/templates/journeys`. The owner previews their actual Beats, timing, decisions, delays and return limits. Adding one MUST create a named Mega-Mix in one transaction (a taken name becomes "Contractor 2") and start no one. [OWNER 2026-09-22 docs/MEGA_MIXES_2026-09-22.md:3] [SOURCE docs/MEGA_MIXES_2026-09-22.md:7-15,19] [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:44]
+
+**2.44** Previewing or favoriting a ready-made Mix MUST NOT copy or activate it; Use this mix opens guided setup. Setup uses the previewed version, changed content forces a fresh preview, and a retry returns the same copy. [SOURCE docs/READY_MADE_MIX_PANES_2026-09-21.md:7] [SOURCE docs/LIBRARY_ADMINISTRATION.md:27]
+
+**2.45** Mix and Mega-Mix files MUST carry names, wording, versions, timing, paths, waits and finishes, never people, account ids or history, and the page counts what was left out. An import is checked on the server, previewed and confirmed, and adds independent Mixes that start no one. [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:47-49]
+
+**2.46** The Marketplace (`/marketplace`) MUST have three sections: Jump in the Mix (published ready-made Mixes and the five Mega-Mixes), Community (other accounts' shares) and My shares. Official items set up through the ready-made flows. [OWNER 2026-09-24 docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:3] [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:53-57]
+
+**2.47** A listing MUST show the author's latest saved version. Copies never change by themselves: the copy's page says when the original changed, and taking the new version is the copier's choice. Adding a share first checks that it has not changed since the viewer reviewed it. [OWNER 2026-09-24 docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:14] [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:72]
+
+**2.48** Every Mix and Mega-Mix page has Share. On first share the author picks a public name (the business name by default); email addresses and phone numbers MUST be refused as names and never shown. A privacy check of every Beat and version runs before the author confirms. Stop sharing is immediate, copies stay with their owners, and archiving a Mix stops its share. [OWNER 2026-09-24 docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:15] [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:68-70] [SHIPPED 9439fd6 src/lib/mix-lifecycle-actions.ts:104]
+
+**2.49** Reports: one per person per share, at most ten an hour, never on one's own share, and "Something else" needs details. The author sees the reason and details, never the reporter. Staff review every report, can restore a share or keep it hidden with a note, and the author is always told. Serious reasons (private information, offensive content, spam or harmful links) MUST hide the share at once; the shipped default is narrower (§6). [OWNER 2026-09-24 docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:16] [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:75-80]
+
+### Journey
+
+**2.50** Journey (`/journey`) MUST be a dynamic graph of the account's actual Mixes and Beats, their saved connections and people's progress. It shows missing Beats, dead ends and strong or weak connections from recorded data, and never invents nodes, routes, outcomes or traffic. [OWNER 2026-09-21 docs/MIX_HANDOFF_AND_JOURNEY_PROPOSAL_2026-09-21.md:7] [OWNER 2026-09-28 D4] [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:9,28]
+
+**2.51** Stages (Lead, Prospect, Client, Retention, or the owner's own) are optional contact metadata, managed in stage settings and used as secondary filters. They MUST NOT create, order or organize the graph. The export's stage-circle Journey is history. [OWNER 2026-09-21 docs/design/DESIGN_GUIDELINES.md:5] [OWNER 2026-09-28 D4] [SOURCE docs/JOURNEY_CLARITY_AND_ANALYTICS_2026-09-21.md:7] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:215]
+
+**2.52** Journey MUST show one graph in three views: Setup (what can happen and what is missing), Progress (who is where and why) and Results (Last 7, 30 or 90 days). It opens on Progress when the account has people and on Setup otherwise. A structured list is always available (JITM-10 §2). [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:9] [SOURCE docs/JOURNEY_CLARITY_AND_ANALYTICS_2026-09-21.md:11,15] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:28,218]
+
+**2.53** The Mega-Mix switcher MUST show All Mixes, one Mega-Mix, or the Mixes in none, one pipeline at a time, and keep the choice in the address (`?megaMix=`). [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:46] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:212]
+
+**2.54** Numbering MUST follow these rules (labels and terms: JITM-05 §2):
+- each starting point, a Mix no forward path enters, opens a lettered journey, lettered by when its starting Mix was created;
+- its Mixes are A1, A2, … in the order its paths reach them, following paths from earlier Beats before paths after the whole Mix;
+- each Mix's Beats are A1.a, A1.b, … (after z comes aa);
+- a Mix reached from two journeys keeps the number of the journey created first;
+- bounded return paths never renumber, and archived and one-time Mixes stay unnumbered;
+- numbers are computed from the current graph and never stored, so editing a path renumbers what follows; Journey numbers only the Mixes in the current Mega-Mix view, and file and Marketplace outlines number Mixes in saved order.
+
+[OWNER 2026-09-28 O5] [SHIPPED 9439fd6 src/lib/journey-numbering.ts:10-23] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:94] [SHIPPED 9439fd6 src/lib/journey-numbering.ts:65-69]
+
+**2.55** A connection is a saved rule from a Beat, or from a whole Mix finishing, to a whole Mix or one Beat. Route kinds: immediate completion, a named recorded outcome, a wait with no recorded outcome, delayed continuation, one matching choice, several matching destinations, an intentional end, and a bounded return, which MUST have a repeat limit. A join belongs to one fork and waits for all or the first of its destinations. A hand-off MUST carry the same person and piece of work into the next Mix, with no audience choice, tag or per-person Start; Start for someone begins another piece deliberately, and replays never duplicate it. [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:10-14] [SOURCE docs/JOURNEY_SAVE_RECOVERY_2026-09-21.md:17]
+
+**2.56** To draw a connection in the editable Setup view at 70% zoom or more, drag an output (+) to an input (→), click or tap two points, or use Tab with Enter or Space. The shared editor MUST open with the connection off, and it runs only after the owner turns it on and saves. Progress, Results, read-only and historical views offer no connection points. [SOURCE docs/JOURNEY_CONNECTION_HANDLES_2026-09-21.md:7-11] [SOURCE docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:51]
+
+**2.57** Removing a path MUST need a confirmation that names the path and its effect: select its line, then Delete above the canvas. Partial changes apply to new work, deleting a whole connection stops future hand-offs, and deleting a line never silently restores a waiting Beat's own schedule. A conflicting save keeps the draft (JITM-08 §2). [OWNER 2026-09-21 docs/MIX_LIBRARY_AND_PATH_CONTROLS_2026-09-21.md:5] [SOURCE docs/MIX_LIBRARY_AND_PATH_CONTROLS_2026-09-21.md:9,11] [SOURCE docs/JOURNEY_SAVE_RECOVERY_2026-09-21.md:11-13]
+
+**2.58** Counts MUST cover the whole account: each person counts once per status and point, "Here" is unfinished work at that point, totals include past participation, archived contacts are excluded, people with no work count as Not started, and Completed is not a sale. Strong or weak labels need an owner-chosen target and enough observations. [SOURCE docs/JOURNEY_CLARITY_AND_ANALYTICS_2026-09-21.md:12,15,21] [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:26]
+
+**2.59** Panning uses the empty background, Space with a drag, or the middle button; touch keeps native scrolling, and a drag never counts as a click. Refreshes every 15 seconds and on focus MUST be silent and pause while editing. Selecting a Mix keeps scroll and zoom and separates its incoming and outgoing paths with a legend and written lists. [OWNER 2026-09-28 D4] [SHIPPED 9439fd6 src/components/useCanvasPan.ts:8-13] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:116] [SOURCE docs/ONBOARDING_JOURNEY_PREFERENCES_2026-09-22.md:11]
+
+**2.60** The People roster MUST show each person with their numbered Mix ("A1 · Welcome") and offer search, status and stage filters and ten per page; counts open the matching people. Selecting a person highlights their work and offers pause, resume, stop, record outcomes, link appointments and previous visits. Panes: JITM-07 §2. [SHIPPED 9439fd6 src/components/WorkflowPeople.tsx:29-32] [SOURCE docs/JOURNEY_CLARITY_AND_ANALYTICS_2026-09-21.md:11,14] [SOURCE docs/JOURNEY_THREE_PANES_2026-09-21.md:5]
+
+**2.61** Quiet-day check-ins ("Just saying hello") are opt-in in Personal preferences, every 1–365 days (60 to start; an implementation default). A completed follow-up, a logged conversation, a completed meeting or an explicit Skip or Completed resets the clock. Suggestions MUST NOT create a follow-up, message or stage move; Today shows up to three and Journey opens the full list. [OWNER 2026-09-20 docs/design/QUIET_DAY_TOUCHPOINTS_2026-09-20.md:3] [SOURCE docs/design/QUIET_DAY_TOUCHPOINTS_2026-09-20.md:7-21]
+
+### Calendar, support, account and staff
+
+**2.62** Calendar (`/calendar`) holds meetings and time blocks with overlap checks; an intended overlap needs a checkbox, and saving MUST NOT send an invitation. Other calendars connect only by iCalendar import, subscription and export. A missing-visit repair keeps the person and work through Calendar and back. [SOURCE docs/CUSTOMER_JOURNEY_AND_CONNECTIONS.md:21,27-30] [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:13]
+
+**2.63** Help (`/help`) holds plain-language answers and, on hosted accounts, private support conversations (`/account/tickets`). New tickets, replies and reopenings MUST alert the support inbox without the message. Help and Today link back to unfinished setup. [SOURCE docs/SUPPORT.md:3] [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:27] [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:22]
+
+**2.64** Staff MUST see a workspace only in a view-only session opened from an assigned support case. The app shows a banner, blocks every change, hides Quick Add and invitation prompts, and offers End view-only session. [SOURCE docs/SUPPORT_CASE_ACCESS.md:3-13] [SHIPPED 9439fd6 src/components/AppShell.tsx:84-92] [SHIPPED 9439fd6 src/app/(app)/layout.tsx:13]
+
+**2.65** My account (`/account`) MUST hold profile, password, sessions, export (spreadsheet or complete JSON) and permanent deletion after reauthentication, which ends at `/account/deleted`. Personal preferences (`/account/preferences`) holds the browser-level appearance control (JITM-06 §2.26), profile, Starting mixes, Quiet-day check-ins, Journey preferences and scheduling defaults. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:111] [SHIPPED 9439fd6 src/app/(app)/account/preferences/page.tsx:53-63]
+
+**2.66** The staff console (`/admin/…`) MUST require staff membership and administrator MFA. Its workflows follow the runbooks in §3, not this standard. [SOURCE docs/WAITLIST_OPERATIONS.md:71] [SHIPPED 9439fd6 src/app/(staff)/layout.tsx:12]
+
+### Homepage and profession pages
+
+**2.67** Demo contract: each situation shows one explicitly fictional contact, with a reserved phone number and an `example.invalid` email, and exactly three Beats: a text today (day 0), an email tomorrow (day 1) and a call in one week (day 7). Drafts are editable, previews are marked, and outcomes are simulated with Not yet and Undo. Everything stays in memory: the demo MUST NOT open a messaging app, send, call, schedule or write to an account, and only an allowlisted situation id may reach the waitlist. The homepage uses generic situations, a profession page preselects its own, and profession is never inferred from behavior or device. [OWNER 2026-09-19 docs/design/DEMO_WORKSPACE_2026-09-19.md:3] [SOURCE docs/design/DEMO_WORKSPACE_2026-09-19.md:8-9] [SHIPPED 9439fd6 src/lib/demo-workspace.ts:4-13,61] [SHIPPED 9439fd6 src/components/ProductDemo.tsx:12,56,79,88] [SOURCE docs/HOMEPAGE_EXPERIENCE_ROADMAP_2026-09-10.md:85]
+
+**2.68** The homepage and the five profession pages share one composition (`PublicLanding`; order and hero layout: JITM-07 §2). The pages are `/for/real-estate-agents`, `/for/consultants`, `/for/photographers`, `/for/contractors` and `/for/independent-recruiters`; other slugs MUST return 404. Each has its own title, description, headline, supporting line, demo call to action and honest boundary, and links only to template pages that exist. The "Mixes for:" row appears on every public page and marks the current one. Adding or removing a page needs Kevin (JITM-02 §2). [OWNER 2026-09-28 D2] [SHIPPED 9439fd6 src/components/PublicLanding.tsx:14-15] [SHIPPED 9439fd6 src/app/for/[profession]/page.tsx:19] [SHIPPED 9439fd6 src/lib/persona-mixes.ts:18-26] [SHIPPED 9439fd6 src/components/MixesFor.tsx:4-9]
+
+## 3. Canonical implementations
+
+- Shell and navigation: `src/app/(app)/layout.tsx`, `src/components/AppShell.tsx`, `src/components/Nav.tsx`, `src/app/(app)/more/page.tsx`, `src/app/(app)/settings/page.tsx`.
+- Today: `src/app/(app)/jumps/page.tsx`, `src/components/JumpWorkflow.tsx`, `src/components/WorkflowAttention.tsx`, `src/components/WorkflowBusinessUpdate.tsx`, `src/app/api/jumps/[jumpId]/outcome/route.ts`, `src/lib/one-time-follow-up.ts`.
+- Quick Add and Contacts: `src/components/QuickAdd.tsx`, `src/lib/quick-capture.ts`, `src/components/ContactForm.tsx`, `src/components/ContactProfile.tsx`.
+- Mixes: `src/components/MixEditor.tsx`, `src/components/MixWorkspace.tsx`, `src/components/MixLibraryNav.tsx`, `src/lib/variant-generation.ts`.
+- Mega-Mixes and Marketplace: `src/lib/mega-mixes.ts`, `src/components/MegaMixLibrary.tsx`, `src/components/MegaMixSetup.tsx`, `src/lib/mix-portable.ts`, `src/lib/marketplace.ts`, `src/lib/marketplace-service.ts`.
+- Journey: `src/components/WorkflowJourney.tsx`, `src/components/WorkflowPeople.tsx`, `src/components/useCanvasPan.ts`, `src/lib/journey-numbering.ts`, `src/lib/mix-workflow-engine.ts`, `src/lib/quiet-days.ts`.
+- Onboarding and invitations: `src/components/OnboardingForm.tsx`, `src/lib/onboarding-options.ts`, `src/lib/journey-preferences.ts`, `src/app/(app)/mixes/system/page.tsx`, `src/components/SystemMixInviteForm.tsx`, `src/lib/referral-access.ts`, `src/lib/invitation-allowance.ts`.
+- Public pages: `src/components/PublicLanding.tsx`, `src/components/ProductDemo.tsx`, `src/lib/demo-workspace.ts`, `src/lib/marketing-scenarios.ts`, `src/lib/persona-mixes.ts`, `src/components/MixesFor.tsx`.
+- Staff runbooks: `docs/WAITLIST_OPERATIONS.md`, `docs/ADMISSION_CONTROLS.md`, `docs/SYSTEM_MIX_ADMINISTRATION.md`, `docs/LIBRARY_ADMINISTRATION.md`, `docs/SUPPORT_CASE_ACCESS.md`, `docs/USER_ADMINISTRATION.md`, `docs/ADMIN_REPORTS.md`, `docs/EMAIL_OPERATIONS.md`, `docs/STAFF_ACCESS.md`. Where they describe member invitations, JITM-09 §2.17 and §2.18 win.
+
+## 4. Do / Don't
+
+- **Do** send invitations through Today: "Add to Today", then Review and send from the owner's own app.
+- **Don't** add an app email for member invitations, or count them against outstanding capacity.
+- **Do** build Journey from the account's saved Mixes, Beats and connections.
+- **Don't** lay Journey out as Lead, Prospect, Client and Retention columns, or describe it that way in More or Settings.
+- **Do** create one follow-up at the chosen time for "Schedule the next follow-up".
+- **Don't** restart a Mix or recreate a skipped Beat after a settings change.
+- **Do** install a Mega-Mix, save a connection or import a file with nobody enrolled, then Start people explicitly.
+- **Don't** let the public demo open `sms:`, `mailto:` or `tel:` links, or carry drafts to the waitlist.
+
+## 5. Verification
+
+- Run the suites for the changed workflow, with the commands and origin/main baseline of JITM-12 §2:
+  - Today: `e2e/today-navigation.spec.ts`, `e2e/core-flows.spec.ts`, `e2e/channel-variants.spec.ts`, `tests/beta-follow-up-loop.test.ts`;
+  - access: `e2e/onboarding-invitations.spec.ts`, `e2e/onboarding-journey-preferences.spec.ts`, `e2e/invitation-prompts.spec.ts`, `e2e/waitlist.spec.ts`;
+  - Mixes and Journey: `e2e/mega-mixes.spec.ts`, `e2e/marketplace.spec.ts`, `e2e/journey-connections.spec.ts`, `e2e/quiet-days.spec.ts`, `tests/journey-numbering.test.ts`;
+  - public: `e2e/product-demo.spec.ts`, `e2e/profession-pages.spec.ts`.
+- Click through at phone and desktop widths: navigation matches JITM-09 §2.3 and §2.6; Quick Add saves together; Not sent leaves a follow-up open and Sent shows Undo; a next follow-up adds exactly one; an invitation emails nothing; editing a Journey path renumbers A1 / A1.a as JITM-09 §2.54 says.
+- `docs/JOURNEY_EXPERIENCE_ACCEPTANCE_2026-09-21.csv` lists Journey scenarios; its planned rows are not passing tests.
+
+## 6. Open decisions and known deviations
+
+Questions for Kevin:
+- Marketplace moderation: ratify the shipped default or restore JITM-09 §2.49? Release A hides at once only for a verified private-information report, at most two per reporting workspace per day (`docs/FULL_AUDIT_2026-09-24.md:141`; `src/lib/marketplace.ts:6-33`). Who holds `mixes.publish` before Community opens widely (`docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:119`)?
+- Journey status taxonomy: workflow status and stages both show; the clarification got no answer (`docs/JOURNEY_CLARITY_AND_ANALYTICS_2026-09-21.md:7`). Whether stage settings stay, and their label, is asked in JITM-05 §6.
+- A1 / A1.a labels depend on the view: the switcher scope renumbers, and files and Marketplace outlines use saved order (`src/components/WorkflowJourney.tsx:94`; `src/lib/journey-numbering.ts:68`). Keep, or make them account-wide?
+- Catch-up after a pause or restored restriction is undecided; automatic backlog sending is not an assumed feature (`docs/JOURNEY_EXPERIENCE_FORENSIC_REVIEW_2026-09-21.md:192,252`).
+- Default strong or weak targets, or owner-chosen per connection only (`docs/JOURNEY_EXPERIENCE_FORENSIC_REVIEW_2026-09-21.md:254`)?
+- Should the app ever email member invitations, or staff invite a named person directly? The owner expected inbox delivery on 2026-09-27; delivery stayed manual (`docs/INVITE_PAGE_RELEASE_2026-09-27.md:73`; `docs/BETA_READINESS_AUDIT_2026-09-26.md:404`).
+- Early updates for unconnected older Mixes offer only the explicit stop (`docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:27`).
+- People-row details now sit in a hover tooltip; acceptable for touch and keyboard (`src/components/WorkflowPeople.tsx:32`; JITM-10 §2)?
+- Tester onboarding default: keep the Mega-Mix recommended, or recommend one person and one follow-up? JITM-09 §2.20 stands until answered. The beta audit found the recommended route the longest, at about 9 screens (`docs/BETA_READINESS_AUDIT_2026-09-26.md:61,170,393`), and it does not meet the old "one setup screen" budget (`docs/UX_WORKFLOW_OPTIMIZATION.md:14`).
+
+Known deviations:
+- More labels `/journey` "Customer journey" and describes stages; Settings and its page use "Customer journey" for stage settings (`src/app/(app)/more/page.tsx:13`; `src/app/(app)/settings/page.tsx:11`).
+- INFERRED: `/marketplace` marks no primary destination, and desktop Journey and Calendar pages mark More as well (`src/components/Nav.tsx:40`).
+- INFERRED: during a support view the phone tab bar still shows Quick Add, but no dialog is mounted (`src/components/Nav.tsx:41`; `src/components/AppShell.tsx:96`).
+- Operations docs still describe five emailed invitations or count them in capacity (`docs/SYSTEM_MIX_ADMINISTRATION.md:11,25,29`; `docs/WAITLIST_OPERATIONS.md:18-19,52`; `docs/ADMISSION_CONTROLS.md:19,29`).
+- Superseded descriptions remain: Quick Add handing off to the contact form (`docs/VOICE_WORKFLOWS.md:7`), authored-only channel versions (`docs/FOLLOW_UP_PREPARATION_STORAGE_CONTRACT.md:193,201`), 30-day-only Results (`docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:26`), "Later this week" on Today (`docs/design/DESIGN_GUIDELINES.md:24`) and real estate as the homepage default (`docs/HOMEPAGE_EXPERIENCE_ROADMAP_2026-09-10.md:85`).
+- Template and reminder pages describe an older demo that opens a messaging app (`src/app/follow-up-templates/page.tsx:41,48`; `src/app/features/follow-up-reminders/page.tsx:44,46`).
+- Nothing leads from a finished import to Today (LOOP-06, `docs/BETA_READINESS_AUDIT_2026-09-26.md:198`).
+
+## 7. Changelog
+
+- 1.0.0 — 2026-09-28 — Initial version.
