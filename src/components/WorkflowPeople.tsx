@@ -14,7 +14,7 @@ export function WorkflowCountStrip({ counts, value, onSelect, disabled = false }
     {workflowStatuses.filter(status => ["active", "waiting", "attention", "completed"].includes(status) || counts[status] > 0).map(status => <button type="button" disabled={disabled} key={status} data-status={status} aria-pressed={value === status} onClick={() => onSelect(status)}><strong>{counts[status]}</strong><span>{workflowStatusLabels[status]}</span></button>)}
   </div>;
 }
-export function WorkflowPeople({ selectedContactId = "", data, mixes, node, status, stage, query, pending, onFilter, onPerson, displayPreferences }: { selectedContactId?: string; pending: boolean; data: WorkflowAnalytics; mixes: WorkflowGraphMix[]; node: string; status: string; stage: string; query: string; onFilter: (patch: { status?: string; stage?: string; query?: string; offset?: number; node?: string }) => void; onPerson: (id: string, instanceId?: string) => void; displayPreferences: DisplayFormatPreferences }) {
+export function WorkflowPeople({ selectedContactId = "", data, mixes, mixNumbers = {}, node, status, stage, query, pending, onFilter, onPerson, displayPreferences }: { selectedContactId?: string; pending: boolean; data: WorkflowAnalytics; mixes: WorkflowGraphMix[]; mixNumbers?: Record<string, string>; node: string; status: string; stage: string; query: string; onFilter: (patch: { status?: string; stage?: string; query?: string; offset?: number; node?: string }) => void; onPerson: (id: string, instanceId?: string) => void; displayPreferences: DisplayFormatPreferences }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const nodeName = node.startsWith("beat:") ? mixes.flatMap(mix => mix.steps).find(step => `beat:${step.id}` === node)?.name : mixes.find(mix => `mix:${mix.id}` === node)?.name;
   return <section className={styles.people} aria-label="Journey people">
@@ -23,15 +23,14 @@ export function WorkflowPeople({ selectedContactId = "", data, mixes, node, stat
     <div className={styles.rosterFilters}><label><span className="sr-only">Workflow status</span><select aria-label="Workflow status" value={status} onChange={event => onFilter({ status: event.target.value, offset: 0 })}><option value="all">All statuses</option>{workflowStatuses.map(value => <option key={value} value={value}>{workflowStatusLabels[value]}</option>)}</select></label><label><span className="sr-only">Contact stage</span><select aria-label="Contact stage" value={stage} onChange={event => onFilter({ stage: event.target.value, offset: 0 })}><option value="">All contact stages</option>{data.stages.map(item => <option key={item.id} value={item.id}>{item.name} · {item.count}</option>)}</select></label></div>
     {(status !== "all" || stage || query) && <button type="button" className="text-button" onClick={() => onFilter({ status: "all", stage: "", query: "", offset: 0 })}>Clear filters</button>}
     {pending && <p className={styles.rosterLoading} role="status">Updating people…</p>}
+    {/* One line per person: their name and the Mix they are in. Details stay in the tooltip and on their journey. */}
     <div className={styles.peopleRows} inert={pending} aria-busy={pending}>{data.roster.map(person => {
       const position = person.positions[0], mix = mixes.find(item => item.id === position?.mixId), beat = mix?.steps.find(item => item.id === position?.stepId);
-      const initials = person.displayName.trim().split(/\s+/).slice(0, 2).map(part => Array.from(part)[0]).join("");
+      const where = position ? `${mix && mixNumbers[mix.id] ? `${mixNumbers[mix.id]} · ` : ""}${mix?.name ?? "Previous Mix"}` : person.statuses.map(value => workflowStatusLabels[value]).join(", ");
+      const details = [person.stageName, person.statuses.map(value => workflowStatusLabels[value]).join(", "), beat?.name, position?.reason, position?.dueAt ? formatDateTime(position.dueAt, displayPreferences) : ""].filter(Boolean).join(" · ");
       return <article key={person.id} className={styles.personRow} data-selected={selectedContactId === person.id}>
-        <button className={styles.personSelect} type="button" aria-label={`View ${person.displayName}'s journey`} aria-pressed={selectedContactId === person.id} onClick={() => onPerson(person.id, person.positions.find(item => item.instanceId)?.instanceId ?? undefined)}>
-          <span className={styles.personAvatar} aria-hidden="true">{initials}</span>
-          <span className={styles.personCopy}><strong>{person.displayName}</strong><span className={styles.stageBadge}>{person.stageName}</span><span className={styles.statuses}>{person.statuses.map(value => <span data-status={value} key={value}>{workflowStatusLabels[value]}</span>)}</span>
-            {position && <span className={styles.personPreview}>{beat?.name ?? mix?.name ?? "Previous Mix"}<small>{position.reason}{position.dueAt ? ` · ${formatDateTime(position.dueAt, displayPreferences)}` : ""}{person.positions.length > 1 ? ` · +${person.positions.length - 1} other positions` : ""}</small></span>}
-          </span>
+        <button className={styles.personSelect} type="button" title={details} aria-label={`View ${person.displayName}'s journey`} aria-pressed={selectedContactId === person.id} onClick={() => onPerson(person.id, person.positions.find(item => item.instanceId)?.instanceId ?? undefined)}>
+          <span className={styles.personCopy}><strong>{person.displayName}</strong>{where && <span className={styles.personMix}>{where}{person.positions.length > 1 ? ` +${person.positions.length - 1}` : ""}</span>}</span>
         </button>
         <Link className={styles.personContact} href={`/contacts/${person.id}`} aria-label={`Open ${person.displayName}'s contact`} title="Open contact"><AppIcon name="external" /></Link>
       </article>;
