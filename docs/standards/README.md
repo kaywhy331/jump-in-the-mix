@@ -16,7 +16,7 @@ JITM-00 §2 defines precedence between these standards, the design export, shipp
 | ID | Standard | Governs |
 |---|---|---|
 | JITM-00 | [Constitution](00-constitution.md) | Mission, promise, non-negotiable principles, precedence |
-| JITM-01 | [Product concept and goals](01-product-concept-and-goals.md) | What JITM is and isn't, core loop, goals, non-goals, feature map |
+| JITM-01 | [Product concept, goals and non-goals](01-product-concept-and-goals.md) | What JITM is and isn't, core loop, goals, non-goals, feature map |
 | JITM-02 | [ICP and positioning](02-icp-and-positioning.md) | Audiences, ICP hypotheses, positioning, claimable differentiators |
 | JITM-03 | [Brand identity](03-brand-identity.md) | Name, logo, wordmark, brand color, bubble motif, imagery, email identity |
 | JITM-04 | [Voice, tone and copy](04-voice-tone-and-copy.md) | Voice, registers, microcopy, message tone, persuasion floor, clean-room |

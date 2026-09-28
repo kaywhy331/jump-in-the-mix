@@ -15,7 +15,7 @@ This audit is the evidence behind the new standards in [`docs/standards/`](stand
 - a few operational risks found in passing;
 - the questions for Kevin at the end.
 
-**Most important in passing:** Kevin's outage alert is an hourly production smoke on GitHub Actions. Actions has been blocked by billing, and Render failure notifications are off, so a broken production may go unnoticed (TST-02).
+**Most important in passing:** Kevin's application-level outage alert is an hourly production smoke on GitHub Actions. Actions has been blocked by billing since PR #86, so that check probably is not running. Render failure notifications cover service-level failures: Kevin confirmed setting them on 2026-09-26, but no repository record captured it until this audit (TST-02).
 
 ## Contents
 
@@ -116,13 +116,14 @@ Each finding says where the standards now resolve it, or which backlog item fixe
 | UXP-02 | No design rule existed for empty, loading, error or offline states, or for how long toasts stay and how they stack. | `docs/UI_UX_PRODUCT_READINESS_AUDIT_2026-09-18.md` | VERIFIED-DOC | MEDIUM | JITM-08 §2 |
 | ACC-01 | The 2026-09-28 Journey people rows moved stage, status and due details into a hover tooltip. Access for touch and keyboard users is unverified. | commit 4b7b0bc | INFERRED | MEDIUM | JITM-10 §6; backlog B-05 |
 | ACC-02 | Every physical-device qualification row is NOT RUN. | `docs/MANUAL_DEVICE_QUALIFICATION.md:7-48` | VERIFIED-DOC | MEDIUM | JITM-10 §6 |
+| ACC-03 | The active Beat number puts white text on `--violet-mark`, which measures 3.80:1 in the dark theme, below the 4.5:1 text minimum. | `src/styles/design-tokens.css`; JITM-10 §6 | VERIFIED-CODE | MEDIUM | JITM-10 §2; backlog B-04 |
 
 ### Engineering, testing, git and release
 
 | ID | Finding | Evidence | Label | Severity | Resolution |
 |---|---|---|---|---|---|
 | TST-01 | CI is not a working gate. The `validate` job exceeds its 60-minute cap, GitHub Actions has been blocked by billing since PR #86, and the local substitute skips the migration and restore rehearsals, Lighthouse and the image builds. | `.github/workflows/ci.yml:18-20`; `docs/APPEARANCE_INVITATIONS_RELEASE_2026-09-27.md:31` | VERIFIED-DOC | HIGH | JITM-12 §2 (local tiers); question 1 |
-| TST-02 | The outage alert chosen for REL-01 is an hourly production smoke on GitHub Actions, which is billing-blocked. Render failure notifications are also off. Kevin may get no signal when production breaks. | `docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:27,58`; `docs/INVITE_PAGE_RELEASE_2026-09-27.md:30` | INFERRED | HIGH | Question 1 (owner action) |
+| TST-02 | The application-level outage alert chosen for REL-01 is an hourly production smoke on GitHub Actions, which has been billing-blocked since PR #86. It has probably not run since. Render failure notifications for the workspace, web, worker and backup cron were set by Kevin (owner confirmation, 2026-09-26), so service failures are still reported. | `docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:27,58`; `docs/INVITE_PAGE_RELEASE_2026-09-27.md:30`; owner confirmation 2026-09-26 | INFERRED | MEDIUM | Question 1 (owner action) |
 | TST-03 | Four different "run before a PR or release" lists exist: `npm run check`, CONTRIBUTING, LOCAL_TESTING and `ci.yml`. | `package.json`; `CONTRIBUTING.md:17-24`; `docs/LOCAL_TESTING.md:22-37` | VERIFIED-DOC | MEDIUM | JITM-12 §2 |
 | TST-04 | The screenshot policy conflicts: a no-image instruction for device qualification versus required screenshot comparison for design work. | `docs/MANUAL_DEVICE_QUALIFICATION.md:5`; `AGENTS.md:21` | VERIFIED-DOC | LOW | JITM-12 §2; question 13 |
 | ENG-01 | Timezone helpers are duplicated across five modules. | `src/lib/jump-schedule.ts`, `calendar-time.ts`, `planned-step.ts`, `date-input.ts`, `display-preferences.ts` | VERIFIED-CODE | LOW | JITM-11 §6; backlog B-07 |
@@ -141,6 +142,7 @@ Each finding says where the standards now resolve it, or which backlog item fixe
 | AGT-01 | Before this change, the repository had no agent standard and no shared skills. Codex never saw `.claude/skills`, and Claude Code never saw `.agents/skills`. | [verification](standards-audit-2026-09-28/VERIFICATION.md) | VERIFIED-CODE | MEDIUM | JITM-16; skills; router (this change) |
 | AGT-02 | Host-level agent identity instructions outside the repository forbid merges and releases for fleet work. That conflicts with the JITM standing release authority (O3). | lead's review; `docs/FULL_AUDIT_2026-09-24.md:116` | VERIFIED-DOC | MEDIUM | JITM-14 §2 (stricter rule, ask Kevin); JITM-16 §2 |
 | AGT-03 | The owner's primary checkout sits on a stale branch with about 480 uncommitted and untracked files. Its older `AGENTS.md` lacks the Render section, so a session started there reads stale rules. | `git status` in the owner's checkout | VERIFIED-CODE | MEDIUM | JITM-16 §2.1, §2.9; JITM-13 §2; question 15 |
+| AGT-04 | `CLAUDE.md` imported `@AGENTS.md`, and Claude Code expands that import only in the directory where the session starts. A Claude Code session started below the repository root therefore loaded no project rules at all. | [verification](standards-audit-2026-09-28/VERIFICATION.md) §1 | VERIFIED-CODE | HIGH | Fixed in this change: `CLAUDE.md` is now a symlink to `AGENTS.md` (JITM-16 §2.18) |
 
 ## 3. Documents that disagree with each other
 
@@ -207,10 +209,10 @@ The standards now fill each of these, with a rule or a flagged open decision:
 
 None of these blocks the standards. The recommended answer is listed first.
 
-1. **Outage alerting (TST-02, TST-01).** The hourly smoke alert cannot run while GitHub Actions is blocked by billing, and Render failure emails are off. Options:
-   - A: turn on Render failure notifications now, and restore Actions billing.
-   - B: notifications only.
-   - C: accept the risk for now.
+1. **Outage alerting (TST-02, TST-01).** Render failure notifications (which you set on 2026-09-26) cover service failures. The hourly application smoke cannot run while GitHub Actions is billing-blocked. Options:
+   - A: restore Actions billing so the hourly smoke runs again.
+   - B: add a free external uptime check instead.
+   - C: rely on Render notifications for now.
 2. **Product copy fixes (VOI-01, VOI-02, VOI-03, VOC-02–05, IAW-05).** Options:
    - A: one batched copy task. It corrects the automation claim and the retired demo text, replaces the third-party method and author names with descriptive labels (D7), and aligns vocabulary and casing.
    - B: fix only VOI-01 and VOI-02 now.
@@ -255,6 +257,16 @@ None of these blocks the standards. The recommended answer is listed first.
 15. **Primary checkout (AGT-03).** Options:
     - A: an agent inventories it read-only and proposes a cleanup.
     - B: leave it as it is.
+
+16. **Pricing wording (D11).** D11 is applied as "no prices, tiers or payment terms". The claim you reviewed on 2026-09-18, that accounts are free with no payment card, stays usable. Options:
+    - A: confirm.
+    - B: strict reading: say only "free beta, access by invitation or waitlist", and remove "no card" from shipped copy.
+17. **The "Ready-made mixes" library.** It still has its own entry (More, desktop; `/templates`) beside the Marketplace's Jump in the Mix section. Options:
+    - A: keep both.
+    - B: fold the library into the Marketplace and drop the separate entry.
+18. **Merging (O3).** Pull requests have been merged from your GitHub account, by you or at your instruction. JITM-16 §2.5 proposes that agents never merge on their own. Options:
+    - A: confirm (agents merge only when you explicitly tell them to, or not at all).
+    - B: other.
 
 ## 8. Follow-up backlog
 

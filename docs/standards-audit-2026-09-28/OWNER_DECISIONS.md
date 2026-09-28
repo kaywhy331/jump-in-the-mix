@@ -8,13 +8,15 @@ Each decision below is therefore resolved as option **A**, the recommendation. T
 
 This file is also the in-repository record of owner decisions made earlier in agent sessions but never written into the repository's documents. The standards cite those as `[OWNER <date> O#]`.
 
+Line numbers in this file, as in SOURCE and OWNER tags, refer to the source file as it stood when the entry or rule was written: `origin/main` 9439fd6 for every entry below and every 1.0.0 rule (read them with `git show 9439fd6:<path>`). Amendments and new standards name their base commit in the changelog line, and a later entry here names its own. SHIPPED tags name their commit.
+
 ## Answered decisions
 
 ### D1 — Customer vocabulary
 
 - **Question:** Which words does the product use with customers?
 - **Conflict:**
-  - [CANONICAL_PRODUCT_DECISIONS](../CANONICAL_PRODUCT_DECISIONS.md) (line 38) prescribes Today / Follow-up / Plan / Ready-made plan / Saved date. Its line 50 bans `Mix` from customer copy, and its line 54 sets a four-item navigation: Today, Contacts, Plans, More.
+  - [CANONICAL_PRODUCT_DECISIONS](../CANONICAL_PRODUCT_DECISIONS.md) (lines 38–47) prescribes Today / Follow-up / Plan / Ready-made plan / Saved date. Its line 50 bans `Mix` from customer copy, and its lines 54–59 set a four-item navigation: Today, Contacts, Plans, More.
   - [CONTRIBUTING](../../CONTRIBUTING.md) (lines 66–68) uses Mix / Step / Jump.
   - [README](../../README.md) (line 3) uses Mixes and Beats.
   - The shipped navigation (`src/components/Nav.tsx`, lines 10–15) is Today, Contacts, Mixes, Journey, Calendar, More.
@@ -105,6 +107,7 @@ This file is also the in-repository record of owner decisions made earlier in ag
 
   CONTRIBUTING's convention section is superseded (D3).
 - **Applied in:** JITM-13.
+- **Applied as (pending Kevin's confirmation):** release-record branches named `docs/<topic>-record`, with no date (for example `docs/invite-page-record`, merged as PR #89), and the `docs: record …` commit subject are practice outside D10's pattern. JITM-13 §2.4 and §2.8 carry them as proposed rules.
 
 ### D11 — Pricing and claims
 
@@ -112,6 +115,7 @@ This file is also the in-repository record of owner decisions made earlier in ag
 - **Facts:** No pricing is decided ([CANONICAL_PRODUCT_DECISIONS](../CANONICAL_PRODUCT_DECISIONS.md), line 85). A local-only brand, price and features document is a proposal.
 - **Decision (A):** Until Kevin sets pricing, say only "free beta, access by invitation or waitlist". The pricing document stays a proposal.
 - **Applied in:** JITM-02, JITM-04.
+- **Applied as (lead's interpretation, pending Kevin's confirmation):** the owner-reviewed 2026-09-18 claim that accounts are free with no payment card stays usable; D11 forbids amounts, tiers and payment promises.
 
 ### D12 — Appearance synchronization
 
@@ -124,11 +128,12 @@ This file is also the in-repository record of owner decisions made earlier in ag
 | ID | Date | Decision | Where it came from |
 |---|---|---|---|
 | O1 | 2026-09-04 | Jump in the Mix is a simple, phone-first follow-up CRM for small owner-operators with no marketing experience, for example a self-employed plumber or a solo real-estate agent. It must work without extra services and should prepare the owner's outreach. Fully autonomous sending is opt-in and comes later. | The owner's brief, recorded as the lens of the [2026-09-04 product audit](../PRODUCT_AUDIT_2026-09-04.md) (line 5) |
-| O2 | 2026-09-23 | Every popup, sheet and disclosure follows one design concept. | [Design consistency record](../design/DESIGN_CONSISTENCY_2026-09-23.md), line 3 |
-| O3 | 2026-09-24 | Agents run production release steps on Kevin's behalf: preflight, migrations, deploys and checks ("I want you to always run the release steps on my behalf … I give you authority to run."). Pull-request merges stay with Kevin. | The owner's instruction in an agent session; merges since then were made by Kevin |
-| O4 | 2026-09-25 | Stay on Render's free plan for the MVP. Move to paid hosting after traction ("once we deploy and gain traction after MVP we will move towards a paid hosting"). Until then, add no paid services, batch releases and keep the build cache. | The owner's instruction in an agent session |
+| O2 | 2026-09-23 | Kevin asked whether every popup, sheet and disclosure follows one design concept; the 2026-09-23 release made them follow one. | [Design consistency record](../design/DESIGN_CONSISTENCY_2026-09-23.md), line 3 |
+| O3 | 2026-09-24 | Agents run production release steps on Kevin's behalf: preflight, migrations, deploys and checks ("I want you to always run the release steps on my behalf … I give you authority to run."). Every pull request so far was merged from Kevin's GitHub account, by Kevin or at his instruction; JITM-16 §2.5 keeps "Kevin merges" as a proposed rule for his confirmation. | The owner's instruction in an agent session |
+| O4 | 2026-09-25 | Stay on Render's free plan for the MVP. Move to paid hosting after traction ("once we deploy and gain traction after MVP we will move towards a paid hosting"). Derived defaults (proposed, for Kevin's confirmation): add no paid services without approval, batch releases, keep the build cache. | The owner's instruction in an agent session |
 | O5 | 2026-09-28 | Journey numbering: each starting point is a letter. Its Mixes are A1, A2, … and their Beats are A1.a, A1.b, …. After a hand-off, numbering follows the journey whose Mix was created first. This replaces the 2026-09-24 position numbering. | [Numbering record](../MARKETPLACE_AND_NUMBERING_2026-09-24.md), line 20; `src/lib/journey-numbering.ts` |
 | O6 | 2026-09-28 | Every agent task in Jump in the Mix, through Claude Code or Codex, follows these standards, skills and workflows so the product does not drift from the Jump in the Mix standard. | The owner's request that started this program |
+| O7 | 2026-09-22 | Preserve the current UI structure and format; change visible structure only where needed to fix a specific workflow gap. Whether this is a standing rule or applied only to the 2026-09-22 work is open (question 8 in the audit). | The owner's clarification, recorded in the local-only contractor UX approach (sha256 f7ea577d837b6b1f, line 5) and reflected in docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md, line 7 |
 
 ## Still open
 
