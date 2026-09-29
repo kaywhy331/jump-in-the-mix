@@ -12,7 +12,7 @@ function sharedMixChannelIcon(channel: SharedMixStep["channel"]): AppIconName {
 }
 
 function dayLabel(offset: number): string {
-  if (offset === 0) return "Cue day";
+  if (offset === 0) return "Start day";
   return offset > 0 ? `${offset} day${offset === 1 ? "" : "s"} after` : `${Math.abs(offset)} day${offset === -1 ? "" : "s"} before`;
 }
 
@@ -71,9 +71,9 @@ export function SharedMixPreview({
   return (
     <div className="shared-mix-preview">
       <div className="shared-mix-trigger-summary">
-        <span><strong>Cue · starts</strong>{triggerMode === "DATE_TRIGGERED" ? "from a date" : triggerMode === "MANUAL_START" ? "when you choose" : "on one date"}</span>
+        <span><strong>Starts</strong>{triggerMode === "DATE_TRIGGERED" ? "from a date" : triggerMode === "MANUAL_START" ? "when you choose" : "on one date"}</span>
         {dateTypeName && <span><strong>Starts from</strong>{dateTypeName}</span>}
-        <span><strong>Tempo · span</strong>{durationDays} day{durationDays === 1 ? "" : "s"}</span>
+        <span><strong>Timing · span</strong>{durationDays} day{durationDays === 1 ? "" : "s"}</span>
         <span><strong>Beats</strong>{steps.length}</span>
       </div>
       {summary}

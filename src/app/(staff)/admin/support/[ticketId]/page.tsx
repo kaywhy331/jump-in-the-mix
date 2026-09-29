@@ -216,7 +216,7 @@ export default async function AdminSupportTicketPage({
               <div><dt>Email verified</dt><dd>{requester?.emailVerifiedAt ? "Yes" : "No"}</dd></div>
               <div><dt>Workspace</dt><dd>{workspace?.name ?? ticket.workspaceId}</dd></div>
               <div><dt>Contacts</dt><dd>{usage.contacts}</dd></div>
-              <div><dt>Active mixes</dt><dd>{usage.plans}</dd></div>
+              <div><dt>Active Mixes</dt><dd>{usage.plans}</dd></div>
               <div><dt>Pending follow-ups</dt><dd>{usage.pendingFollowUps}</dd></div>
               <div><dt>Category</dt><dd>{supportCategoryLabel(ticket.category)}</dd></div>
               <div><dt>Priority</dt><dd>{supportPriorityLabel(ticket.priority)}</dd></div>

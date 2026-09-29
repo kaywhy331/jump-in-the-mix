@@ -155,13 +155,13 @@ test("a Mix saved on another device refuses the older editor's save and keeps it
     await phone.goto(`/mixes/${mix.id}/edit`); await ready(phone);
     const phoneEditor = phone.locator(".mix-editor-form");
     await phoneEditor.getByRole("group", { name: "Beat 1" }).getByRole("textbox", { name: "Call notes", exact: true }).fill("Phone wording.");
-    await phoneEditor.getByRole("button", { name: "Save mix", exact: true }).click();
+    await phoneEditor.getByRole("button", { name: "Save Mix", exact: true }).click();
     await expect.poll(script, { timeout: 20_000 }).toBe("Phone wording.");
     await expect(phone.getByRole("status").filter({ hasText: "Mix saved." })).toBeVisible();
 
     // The desktop's save, made from the older version, is refused; its wording stays in the editor and nothing changes.
     await desktop.getByRole("group", { name: "Beat 1" }).getByRole("textbox", { name: "Call notes", exact: true }).fill("Desktop wording.");
-    await desktop.getByRole("button", { name: "Save mix", exact: true }).click();
+    await desktop.getByRole("button", { name: "Save Mix", exact: true }).click();
     await expect(page.getByRole("alert").filter({ hasText: "This Mix was changed on another device after you opened it. Reload to compare, then apply your changes again." })).toBeVisible();
     await expect(desktop.getByRole("group", { name: "Beat 1" }).getByRole("textbox", { name: "Call notes", exact: true })).toHaveValue("Desktop wording.");
     expect(page.url()).not.toContain("updated=manual");
@@ -169,7 +169,7 @@ test("a Mix saved on another device refuses the older editor's save and keeps it
 
     // The phone keeps editing in the same editor: its own save carried the new version, so the next one goes through.
     await phoneEditor.getByRole("group", { name: "Beat 1" }).getByRole("textbox", { name: "Call notes", exact: true }).fill("Phone wording, saved again.");
-    await phoneEditor.getByRole("button", { name: "Save mix", exact: true }).click();
+    await phoneEditor.getByRole("button", { name: "Save Mix", exact: true }).click();
     await expect.poll(script, { timeout: 20_000 }).toBe("Phone wording, saved again.");
     await expect(phone.getByRole("alert").filter({ hasText: "changed on another device" })).toHaveCount(0);
   } finally {

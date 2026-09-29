@@ -17,7 +17,7 @@ export async function installMegaMix(input: {
   const original = megaMixById(input.blueprintId);
   if (input.setup) { const error = validateJourneySetup(input.setup); if (error) throw new UserFacingError(error); }
   const blueprint = original && input.setup ? tailorMegaMix(original, input.setup) : original;
-  if (!blueprint || blueprint.version !== input.expectedVersion) throw new UserFacingError("This mega-mix has changed. Reload its preview before adding it.");
+  if (!blueprint || blueprint.version !== input.expectedVersion) throw new UserFacingError("This Mega-Mix has changed. Reload its preview before adding it.");
   return prisma.$transaction(async db => {
     // Share the Journey writer lock: concurrent installs/edits must merge the latest graph.
     await db.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${input.workspaceId} FOR UPDATE`;
@@ -27,7 +27,7 @@ export async function installMegaMix(input: {
       if (input.onboarding) {
         const setup = input.onboarding;
         const profile = { industry: blueprint.industry, company: setup.company || null, smsSignature: setup.smsSignature,
-          primaryGoal: `${blueprint.name} mega-mix`, onboardingStep: 5, onboardingDone: true, useCases: ["business"] };
+          primaryGoal: `${blueprint.name} Mega-Mix`, onboardingStep: 5, onboardingDone: true, useCases: ["business"] };
         await db.workspaceProfile.upsert({ where: { workspaceId: input.workspaceId }, create: { workspaceId: input.workspaceId, ...profile, emailSignature: setup.userName }, update: profile });
         await db.userPreference.upsert({ where: { userId: input.actorUserId }, create: { userId: input.actorUserId, timezone: setup.timezone }, update: { timezone: setup.timezone } });
         if (setup.company) await db.workspace.update({ where: { id: input.workspaceId }, data: { name: setup.company } });

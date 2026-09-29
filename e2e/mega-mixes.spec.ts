@@ -25,17 +25,17 @@ test.afterEach(async () => {
   expect(errors).toEqual([]);
 });
 
-test("browse a whole journey, install it once, open its actual map and editable mixes", async ({ page }) => {
+test("browse a whole journey, install it once, open its actual map and editable Mixes", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto("/mixes");
-  await page.getByRole("link", { name: "Choose a complete mega-mix", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Contractor mega-mix", exact: true })).toBeVisible();
-  await expect(page.getByRole("list", { name: "Included mixes and connections" })).toBeVisible();
-  await expect(page.getByRole("complementary", { name: "Mega-mix setup" })).toContainText("Make this fit your day");
+  await page.getByRole("link", { name: "Choose a complete Mega-Mix", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Contractor Mega-Mix", exact: true })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Included Mixes and connections" })).toBeVisible();
+  await expect(page.getByRole("complementary", { name: "Mega-Mix setup" })).toContainText("Make this fit your day");
   await page.getByRole("heading", { name: "Make this fit your day", exact: true }).waitFor({ state: "visible" });
   await page.getByRole("button", { name: "Review my setup", exact: true }).click();
   await page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." }).check();
-  await page.getByRole("button", { name: "Add Contractor mega-mix", exact: true }).click();
+  await page.getByRole("button", { name: "Add Contractor Mega-Mix", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your pipeline is ready" })).toBeVisible();
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(13);
   expect(await prisma.mixAssignment.count({ where: { workspaceId } })).toBe(0);
@@ -49,8 +49,8 @@ test("browse a whole journey, install it once, open its actual map and editable 
   const person = await prisma.contact.create({ data: { workspaceId, displayName: "Pipeline customer", firstName: "Pipeline" } });
   await page.goto("/templates/journeys?journey=contractor");
   await expect(page.getByRole("heading", { name: "Already in your Journey" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Add Contractor mega-mix" })).toHaveCount(0);
-  await page.getByRole("complementary", { name: "Mega-mix setup" }).getByRole("link", { name: "Estimate follow-up active" }).click();
+  await expect(page.getByRole("button", { name: "Add Contractor Mega-Mix" })).toHaveCount(0);
+  await page.getByRole("complementary", { name: "Mega-Mix setup" }).getByRole("link", { name: "Estimate follow-up active" }).click();
   await expect(page.getByRole("heading", { name: "Estimate follow-up", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Start for someone", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Start for someone", exact: true }).click();
@@ -69,22 +69,22 @@ test("onboarding can prepare a full journey without adding a contact, while keep
   await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
   await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("Unfinished person");
-  await page.getByRole("radio", { name: /A complete mega-mix/ }).check();
+  await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
   await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
   await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("Unfinished person");
-  await page.getByRole("radio", { name: /A complete mega-mix/ }).check();
-  await page.getByRole("combobox", { name: "Your mega-mix", exact: true }).selectOption("photographer");
+  await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
+  await page.getByRole("combobox", { name: "Your Mega-Mix", exact: true }).selectOption("photographer");
   await page.getByText("Business name and message signature", { exact: true }).click();
   await page.getByRole("textbox", { name: "Business name (optional)", exact: true }).fill("Studio fixture");
   await page.getByRole("button", { name: "Review my setup", exact: true }).click();
   await page.getByText("Preview the Photographer journey", { exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Photographer mega-mix" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Photographer Mega-Mix" })).toBeVisible();
   await page.getByText("Preview the Photographer journey", { exact: true }).click();
   await page.getByRole("heading", { name: /^(Make this fit your day|Ready when you are)$/ }).waitFor({ state: "visible" });
   if (await page.getByRole("button", { name: "Review my setup", exact: true }).isVisible()) await page.getByRole("button", { name: "Review my setup", exact: true }).click();
   await page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." }).check();
-  await page.getByRole("button", { name: "Add Photographer mega-mix", exact: true }).click();
+  await page.getByRole("button", { name: "Add Photographer Mega-Mix", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your pipeline is ready" })).toBeVisible();
   expect(await prisma.workspaceProfile.findUnique({ where: { workspaceId } })).toMatchObject({ onboardingDone: true, company: "Studio fixture" });
   expect(await prisma.contact.count({ where: { workspaceId } })).toBe(0);
@@ -99,7 +99,7 @@ test("both themes reflow, allow keyboard preview and keep setup reachable", asyn
     for (const width of [320, 390, 834, 1440, 1920]) {
       await page.setViewportSize({ width, height: width > 1000 ? 1000 : 844 });
       if (width < 1200) await page.getByRole("button", { name: "Preview", exact: true }).click();
-      const summary = page.getByRole("list", { name: "Included mixes and connections" }).locator("summary").first();
+      const summary = page.getByRole("list", { name: "Included Mixes and connections" }).locator("summary").first();
       await summary.focus(); await page.keyboard.press("Enter");
       await expect(page.getByText(/thanks for getting in touch\. What work/)).toBeVisible();
       await page.keyboard.press("Enter");
@@ -125,12 +125,12 @@ test("a stale preview saves nothing and keeps the setup available for correction
   if (await page.getByRole("button", { name: "Review my setup", exact: true }).isVisible()) await page.getByRole("button", { name: "Review my setup", exact: true }).click();
   await page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." }).check();
   await page.locator('input[name="version"]').evaluate((input: HTMLInputElement) => { input.value = "0"; });
-  await page.getByRole("button", { name: "Add Contractor mega-mix" }).click();
-  await expect(page.getByRole("alert").filter({ hasText: "This mega-mix has changed" })).toBeVisible();
+  await page.getByRole("button", { name: "Add Contractor Mega-Mix" }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "This Mega-Mix has changed" })).toBeVisible();
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(0);
   await expect(page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." })).toBeChecked();
   await page.locator('input[name="version"]').evaluate((input: HTMLInputElement) => { input.value = "1"; });
-  await page.getByRole("button", { name: "Add Contractor mega-mix" }).click();
+  await page.getByRole("button", { name: "Add Contractor Mega-Mix" }).click();
   await expect(page.getByRole("heading", { name: "Your pipeline is ready" })).toBeVisible();
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(13);
 });
@@ -138,13 +138,13 @@ test("a stale preview saves nothing and keeps the setup available for correction
 test("switching professions uses the matching setup and invalid choices are unavailable", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto("/templates/journeys?journey=contractor");
-  await page.getByRole("navigation", { name: "Choose a mega-mix" }).getByRole("link", { name: /Recruiter/ }).click();
-  await expect(page.getByRole("heading", { name: "Recruiter mega-mix" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Choose a Mega-Mix" }).getByRole("link", { name: /Recruiter/ }).click();
+  await expect(page.getByRole("heading", { name: "Recruiter Mega-Mix" })).toBeVisible();
   await page.getByRole("button", { name: "Review my setup", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Add Recruiter mega-mix" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add Recruiter Mega-Mix" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Candidate conversation", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Hiring client conversation", exact: true })).toBeVisible();
   await page.goto("/templates/journeys?journey=unknown");
-  await expect(page.getByRole("button", { name: /Add .* mega-mix/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Add .* Mega-Mix/ })).toHaveCount(0);
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(0);
 });

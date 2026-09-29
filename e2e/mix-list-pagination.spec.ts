@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
-test("mix pages preserve filters, reach every result and keep small-screen navigation usable", async ({ page, context, baseURL }, testInfo) => {
+test("Mix pages preserve filters, reach every result and keep small-screen navigation usable", async ({ page, context, baseURL }, testInfo) => {
   test.skip(!local, "Synthetic fixtures require the explicitly named loopback test database.");
   const key = `mix-page-${randomUUID()}`;
   const user = await prisma.user.create({ data: { email: `${key}@example.test`, name: "Page owner", emailVerifiedAt: new Date() } });
@@ -24,16 +24,16 @@ test("mix pages preserve filters, reach every result and keep small-screen navig
     const total = page.locator(".mix-library-total").getByRole("status");
     const rows = page.locator(".mix-library-row");
     const names = () => rows.locator(".mix-row-copy strong").allTextContents();
-    await expect(rows).toHaveCount(20); await expect(total).toHaveText("23 mixes"); await expect(pager).toContainText("1 / 2");
+    await expect(rows).toHaveCount(20); await expect(total).toHaveText("23 Mixes"); await expect(pager).toContainText("1 / 2");
     const first = await names();
-    await pager.getByRole("link", { name: "Next mixes", exact: true }).click();
+    await pager.getByRole("link", { name: "Next Mixes", exact: true }).click();
     await expect(page).toHaveURL(/q=Page&status=ACTIVE&page=2$/);
     await expect(rows).toHaveCount(3); await expect(pager).toContainText("2 / 2");
     const last = await names();
     expect(new Set([...first, ...last]).size).toBe(23);
     await expect(page.getByText("Page sample foreign")).toHaveCount(0);
     await expect(page.getByText("Page sample 24", { exact: true })).toHaveCount(0);
-    await expect(pager.getByRole("link", { name: "Next mixes", exact: true })).toHaveCount(0);
+    await expect(pager.getByRole("link", { name: "Next Mixes", exact: true })).toHaveCount(0);
     for (const theme of ["light", "dark"]) {
       await page.setViewportSize({ width: testInfo.project.name === "mobile-chromium" ? 320 : 1440, height: 900 });
       await page.evaluate(theme => { document.documentElement.dataset.theme = theme; }, theme);
@@ -41,21 +41,21 @@ test("mix pages preserve filters, reach every result and keep small-screen navig
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
     }
-    await pager.getByRole("link", { name: "Previous mixes", exact: true }).click();
+    await pager.getByRole("link", { name: "Previous Mixes", exact: true }).click();
     await expect(rows).toHaveCount(20); expect(await names()).toEqual(first);
     await page.goto("/mixes?q=Page&status=ACTIVE&page=999");
     await expect(rows).toHaveCount(3); await expect(pager).toContainText("2 / 2");
-    const search = page.getByRole("searchbox", { name: "Search mixes" });
+    const search = page.getByRole("searchbox", { name: "Search Mixes" });
     await search.fill("Missing result"); await search.press("Enter");
     await expect(page).toHaveURL(/q=Missing\+result&status=ACTIVE$/);
     // An empty result keeps the count honest and offers one way out: clearing the filters.
-    await expect(total).toHaveText("0 mixes");
-    await expect(page.getByText("No mixes found.", { exact: true })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "No matching mixes" })).toBeVisible();
+    await expect(total).toHaveText("0 Mixes");
+    await expect(page.getByText("No Mixes found.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No matching Mixes" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Clear filters", exact: true }).first()).toHaveAttribute("href", "/mixes");
     await page.goto("/mixes?page=2");
-    await page.getByRole("button", { name: "Filter mixes", exact: true }).click();
-    const filters = page.getByRole("dialog", { name: "Filter mixes" });
+    await page.getByRole("button", { name: "Filter Mixes", exact: true }).click();
+    const filters = page.getByRole("dialog", { name: "Filter Mixes" });
     // The select sits inside its label, so the label's text also holds the option names; match the control's name.
     await filters.getByRole("combobox", { name: "Status", exact: true }).selectOption("DRAFT");
     await filters.getByRole("button", { name: "Apply filters", exact: true }).click();

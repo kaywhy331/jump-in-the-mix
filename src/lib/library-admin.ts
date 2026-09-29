@@ -20,19 +20,19 @@ async function authorize(tx: Prisma.TransactionClient, input: Actor, password?: 
 
 export async function saveLibraryDraft(input: Actor & { sharedMixId?: string; expectedRevision: number; content: LibraryContent }) {
   const content = validateLibraryContent(input.content);
-  if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) throw new LibraryError("Reload the mix before saving.");
+  if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) throw new LibraryError("Reload the Mix before saving.");
   return prisma.$transaction(async tx => {
     await lockStaff(tx); await lockLibrary(tx); await authorize(tx, input);
     let id = input.sharedMixId, version = 1;
     if (id) {
       const state = await libraryState(tx, id);
-      if (state.controlRevision !== input.expectedRevision) throw new LibraryError("This mix changed. Reload before saving your draft.");
+      if (state.controlRevision !== input.expectedRevision) throw new LibraryError("This Mix changed. Reload before saving your draft.");
       await captureLibraryBaseline(tx, state);
       version = state.draftVersion + 1;
       await tx.sharedMixMetadata.update({ where: { sharedMixId: id }, data: { draftVersion: version, controlRevision: { increment: 1 } } });
       if (state.shared.status === "UNPUBLISHED") await tx.sharedMix.update({ where: { id }, data: { title: content.title, description: content.description } });
     } else {
-      if (input.expectedRevision !== 0) throw new LibraryError("Start a new mix from the library page.");
+      if (input.expectedRevision !== 0) throw new LibraryError("Start a new Mix from the library page.");
       const { triggerMode, dateTypeName, dateTypeSlug, featured: _featured, ...fields } = content;
       id = (await tx.sharedMix.create({ data: { ...fields, steps: content.steps as unknown as Prisma.InputJsonValue, durationDays: 0, status: "UNPUBLISHED" } })).id;
       await tx.sharedMixMetadata.create({ data: { sharedMixId: id, version: 1, draftVersion: 1, controlRevision: 1, triggerMode, dateTypeName, dateTypeSlug } });
@@ -44,11 +44,11 @@ export async function saveLibraryDraft(input: Actor & { sharedMixId?: string; ex
 }
 
 export async function releaseLibraryVersion(input: Actor & { sharedMixId: string; expectedRevision: number; version: number; operation: "publish" | "rollback" | "unpublish"; password: string }) {
-  if (!["publish", "rollback", "unpublish"].includes(input.operation) || !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0 || !Number.isSafeInteger(input.version) || input.version < 1) throw new LibraryError("Reload the mix and choose a listed publication action.");
+  if (!["publish", "rollback", "unpublish"].includes(input.operation) || !Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0 || !Number.isSafeInteger(input.version) || input.version < 1) throw new LibraryError("Reload the Mix and choose a listed publication action.");
   return prisma.$transaction(async tx => {
     await lockStaff(tx); await lockLibrary(tx); await authorize(tx, input, input.password);
     const state = await libraryState(tx, input.sharedMixId);
-    if (state.controlRevision !== input.expectedRevision) throw new LibraryError("This mix changed. Reload and review the version before publishing.");
+    if (state.controlRevision !== input.expectedRevision) throw new LibraryError("This Mix changed. Reload and review the version before publishing.");
     await captureLibraryBaseline(tx, state);
     if (input.operation === "unpublish") {
       if (state.shared.status !== "APPROVED" || input.version !== state.version) throw new LibraryError("This version is no longer published.");

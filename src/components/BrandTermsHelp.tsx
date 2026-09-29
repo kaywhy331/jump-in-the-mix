@@ -4,11 +4,11 @@ import { AppIcon } from "@/components/AppIcon";
 import { Sheet } from "@/components/Sheet";
 
 const TERMS = [
-  ["Mix", "A ready-to-go series of follow-ups for one situation, like a new estimate or a finished job."],
-  ["Beat", "One step in a Mix: a text, email or call that comes due on a set day."],
-  ["Mega-mix", "A full set of connected Mixes that covers your whole pipeline, from first inquiry to repeat work."],
-  ["Journey", "The map of how your Mixes connect, and where each customer is right now."],
-  ["Today", "Your list of Beats that are due, ready to review and send."]
+  ["Mix", "A reusable follow-up plan for one kind of situation, such as an estimate that’s out: its Beats and when it starts."],
+  ["Beat", "One planned text, email or call in a Mix that comes due at a set time. Each Beat has text, email and call versions."],
+  ["Mega-Mix", "A named set of connected Mixes that covers your work from first inquiry to repeat business."],
+  ["Journey", "The map of how your Mixes connect and where each person is right now."],
+  ["Today", "The daily list of what needs you: follow-ups due and overdue, items that need your input and quiet-day check-ins, then what’s upcoming and done."]
 ] as const;
 
 /** Keeps the memorable product names while explaining them in plain words. */

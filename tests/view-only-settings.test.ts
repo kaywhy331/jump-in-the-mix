@@ -69,7 +69,7 @@ describe("settings during a view-only support session", () => {
     expect(buttons(view).map((item) => item.label)).not.toContain("Confirm delete");
     expect(tag(view, "input", 'value="type-1"')).toContain('disabled=""');
     expect(tag(owner, "input", 'value="type-1"')).not.toContain("disabled");
-    expect(view).toContain("2 saved dates</span><span>0 mixes</span>");
+    expect(view).toContain("2 saved dates</span><span>0 Mixes</span>");
     expect(disabled(button(view, "Search"))).toBe(false);
   });
 

@@ -39,7 +39,7 @@ export async function assignMixToContactAction(formData: FormData): Promise<void
     prisma.mix.findFirst({ where: { id: mixId, workspaceId: workspace.id, status: "ACTIVE" }, select: { id: true, name: true, triggerMode: true, dateTypeId: true, steps: { where: { isActive: true, anchor: { not: "CALENDAR_DAY" } }, select: { id: true }, take: 1 } } }),
     prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, select: { id: true } })
   ]);
-  if (!mix || !contact) fail(contactId, "Choose an active mix.", session);
+  if (!mix || !contact) fail(contactId, "Choose an active Mix.", session);
 
   const assignmentKey = `${workspace.id}:${mix.id}:${contact.id}`;
   // The chosen day is where the plan starts. A plan that starts from a saved date gets that date when

@@ -24,7 +24,7 @@ export async function createStarterMixAction(): Promise<void> {
     mixId = (await ensureStarterMix(workspace.id)).id;
   } catch {
     // Its only refusal is an operator's (the system date type is missing); database errors never reach the page.
-    fail("The starter mix could not be created.", session);
+    fail("The starter Mix could not be created.", session);
   }
   await prisma.$transaction([
     prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } }),

@@ -16,10 +16,10 @@ export function useAudiencePreview(all: boolean, groupIds: string[]) {
         const params = new URLSearchParams(groups.map(id => ["group", id]));
         if (everyone) params.set("all", "1");
         const response = await fetch(`/api/contacts/audience?${params}`, { cache: "no-store", signal: controller.signal });
-        if (!response.ok) throw new Error("Audience unavailable. Retry before starting this mix.");
+        if (!response.ok) throw new Error("Audience unavailable. Retry before starting this Mix.");
         const data = await response.json() as Audience;
         if (!controller.signal.aborted) setState({ key, data });
-      } catch { if (!controller.signal.aborted) setState({ key, error: "Audience unavailable. Retry before starting this mix." }); }
+      } catch { if (!controller.signal.aborted) setState({ key, error: "Audience unavailable. Retry before starting this Mix." }); }
     }, 150);
     return () => { controller.abort(); window.clearTimeout(timer); };
   }, [key, retry]);

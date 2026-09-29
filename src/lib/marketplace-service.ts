@@ -145,7 +145,7 @@ const officialMegaMixPackage = (id: string) => {
   const blueprint = megaMixById(id);
   if (!blueprint) return null;
   const mixIds = Object.fromEntries(blueprint.nodes.map(node => [node.key, node.key]));
-  return buildPortable({ kind: "mega-mix", name: `${blueprint.name} mega-mix`, description: blueprint.description, configuration: megaMixConfiguration(blueprint, mixIds, blueprint.id),
+  return buildPortable({ kind: "mega-mix", name: `${blueprint.name} Mega-Mix`, description: blueprint.description, configuration: megaMixConfiguration(blueprint, mixIds, blueprint.id),
     mixes: blueprint.nodes.map(node => ({ id: node.key, name: node.name, description: node.purpose, category: "Customer journey", industry: blueprint.industry, framework: "Mega-mix", triggerMode: "MANUAL_START", dateType: null,
       steps: node.steps.map((step, index) => ({ id: `${node.key}:${index}`, name: step.name, channel: step.channel, dayOffset: step.dayOffset, sendTimeMinutes: step.sendTimeMinutes, anchor: "CALENDAR_DAY" as const, offsetMinutes: null,
         subject: step.subject ?? null, body: step.body ?? null, script: step.script ?? null, longSms: false, includeOptOut: false, variants: [] })) })) }).package;

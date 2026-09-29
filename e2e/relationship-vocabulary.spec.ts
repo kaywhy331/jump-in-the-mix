@@ -10,7 +10,7 @@ async function signIn(page: Page) {
   await Promise.all([page.waitForURL(/\/(jumps|onboarding)(\?|$)/), page.getByRole("button", { name: "Sign in", exact: true }).click()]);
 }
 
-test("relationship mixes can be previewed, remixed, fine-tuned, and started without changing the original", async ({ page }, testInfo) => {
+test("relationship Mixes can be previewed, remixed, fine-tuned, and started without changing the original", async ({ page }, testInfo) => {
   const original = await prisma.sharedMix.findUniqueOrThrow({ where: { id: RELATIONSHIP_MIXES[0].id } });
   const name = `My first note ${testInfo.project.name} ${Date.now()}`;
   let mixId: string | undefined;
@@ -19,7 +19,7 @@ test("relationship mixes can be previewed, remixed, fine-tuned, and started with
     await page.goto("/templates?framework=Relationships");
     // The ready-made library lists every relationship Mix; choosing one previews it beside the list (the preview
     // dialog and "Remix it" were replaced by the library panes and "Use this mix" in bd125c6).
-    const library = page.getByRole("navigation", { name: "Ready-made mixes", exact: true });
+    const library = page.getByRole("navigation", { name: "Ready-made Mixes", exact: true });
     for (const mix of RELATIONSHIP_MIXES) await expect(library.getByText(mix.title, { exact: true })).toBeVisible();
     await library.locator(".mix-library-item").filter({ hasText: "The First Note" }).click();
     await expect(page).toHaveURL(new RegExp(`mix=${original.id}`));
@@ -30,7 +30,7 @@ test("relationship mixes can be previewed, remixed, fine-tuned, and started with
     await expect(beatPreview.getByRole("listitem").first()).toContainText("A warm hello");
     await expect(beatPreview.getByRole("listitem").first()).toContainText("Day 0");
     await expect(page.locator('aside[aria-label="Ready-made Mix details"]')).toContainText("When you start it for someone.");
-    await preview.getByRole("link", { name: "Use this mix", exact: true }).click();
+    await preview.getByRole("link", { name: "Use this Mix", exact: true }).click();
     await page.getByLabel("Mix name", { exact: true }).fill(name);
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByLabel("Everyone", { exact: false }).check();
@@ -44,12 +44,12 @@ test("relationship mixes can be previewed, remixed, fine-tuned, and started with
     await expect(beats).toHaveCount(2);
     await editor.getByRole("group", { name: "Beat 1", exact: true }).getByRole("textbox", { name: "Message", exact: true }).fill("Hi {{First Name}}, I’d love to catch up. {{SMS Signature}}");
     await editor.getByRole("group", { name: "Beat 2", exact: true }).getByRole("spinbutton", { name: "Days after start", exact: true }).fill("5");
-    await editor.getByRole("button", { name: "Add a beat", exact: true }).click();
+    await editor.getByRole("button", { name: "Add a Beat", exact: true }).click();
     await expect(beats).toHaveCount(3);
     const added = editor.getByRole("group", { name: "Beat 3", exact: true });
     await added.getByRole("textbox", { name: "Call notes", exact: true }).fill("• Ask what’s new.\n• Agree on a next step.");
     await added.getByRole("spinbutton", { name: "Days after start", exact: true }).fill("14");
-    await editor.getByRole("button", { name: "Save mix", exact: true }).click();
+    await editor.getByRole("button", { name: "Save Mix", exact: true }).click();
     await page.waitForURL(/updated=manual/);
     const saved = await prisma.mix.findUniqueOrThrow({ where: { id: mixId }, include: { steps: { where: { isActive: true }, orderBy: { sortOrder: "asc" }, include: { stepVersion: true } } } });
     expect(saved.status).toBe("DRAFT");
@@ -62,17 +62,17 @@ test("relationship mixes can be previewed, remixed, fine-tuned, and started with
     if (!await startSettings.evaluate(element => (element as HTMLDetailsElement).open)) await startSettings.locator(":scope > summary").click();
     await editor.getByRole("combobox", { name: "After saving", exact: true }).selectOption("ACTIVE");
     await editor.getByRole("button", { name: "Review and start", exact: true }).click();
-    const review = page.getByRole("dialog", { name: "Start this mix?", exact: true });
+    const review = page.getByRole("dialog", { name: "Start this Mix?", exact: true });
     await expect(review).toContainText("beats each");
-    await review.getByRole("button", { name: "Start the mix", exact: true }).click();
+    await review.getByRole("button", { name: "Start the Mix", exact: true }).click();
     await page.waitForURL(/updated=manual/);
     await expect.poll(async () => (await prisma.mix.findUniqueOrThrow({ where: { id: mixId } })).status).toBe("ACTIVE");
     const contact = await prisma.contact.findFirstOrThrow({ where: { workspaceId: "demo_workspace", archivedAt: null } });
     await page.goto(`/contacts/${contact.id}`);
     await page.locator(".contact-detail-more > summary").click();
     await expect(page.getByRole("combobox", { name: "Loop · repeat this date", exact: true })).toBeVisible();
-    await page.getByRole("combobox", { name: "Choose a mix", exact: true }).selectOption(mixId);
-    await page.getByRole("button", { name: "Add to a mix", exact: true }).click();
+    await page.getByRole("combobox", { name: "Choose a Mix", exact: true }).selectOption(mixId);
+    await page.getByRole("button", { name: "Add to a Mix", exact: true }).click();
     // Starting a Mix for someone now confirms with the preparation notice (006d445).
     await expect(page.getByText(/^Start saved\b.*Follow-ups are being prepared\./)).toBeVisible();
   } finally {

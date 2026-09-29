@@ -70,7 +70,7 @@ test("portrait tablet keeps the draft beside the queue and phone reflow retains 
   await expect(page.getByRole("heading", { name: "Overdue", exact: true })).toBeVisible();
 });
 
-test("Today shows horizontal beats from the selected occurrence and one continuous draft surface", async ({ page }) => {
+test("Today shows horizontal Beats from the selected occurrence and one continuous draft surface", async ({ page }) => {
   const focus = await prisma.jump.findUniqueOrThrow({ where: { id: jumpId } });
   const base = focus.scheduledAt;
   const dateAt = (days: number) => new Date(base.getTime() + days * 86_400_000);
@@ -87,7 +87,7 @@ test("Today shows horizontal beats from the selected occurrence and one continuo
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto(`/jumps?jump=${jumpId}&range=all`);
     const panel = page.locator(".follow-up-review-sheet[open]");
-    const beats = panel.getByRole("list", { name: "Pending beats in this Mix occurrence" }).getByRole("link");
+    const beats = panel.getByRole("list", { name: "Pending Beats in this Mix occurrence" }).getByRole("link");
     await expect(beats).toHaveCount(2);
     await expect(beats.nth(1)).toHaveAttribute("href", new RegExp(`jump=${ids[0]}`));
     for (const width of [1920, 834, 390]) {
@@ -117,7 +117,7 @@ test("completion shows a floating confirmation and Undo restores the pending fol
   await expect(confirmation).toHaveCount(0); expect(await prisma.jump.findUnique({ where: { id: jumpId }, select: { status: true } })).toEqual({ status: "PENDING" });
 });
 
-test("Mix library exposes editable beats, real membership, and mobile library tabs", async ({ page }) => {
+test("Mix library exposes editable Beats, real membership, and mobile library tabs", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 }); await page.goto(`/mixes?mix=${mixId}`);
   // The Mix workspace previews each Beat's wording with readable merge fields; editing is under Edit.
   const selected = page.getByRole("region", { name: "Selected Mix", exact: true });
@@ -235,7 +235,7 @@ test("phone review keeps send and outcome controls visible together in either th
     await expect(review).toBeVisible();
     const send = review.getByRole("link", { name: "Open text for Ava Zoom" });
     const done = review.getByRole("button", { name: "Mark sent for Ava Zoom" });
-    for (const control of [send, done, review.getByRole("button", { name: "Snooze", exact: true }), review.getByRole("button", { name: "Skip beat", exact: true })]) {
+    for (const control of [send, done, review.getByRole("button", { name: "Snooze", exact: true }), review.getByRole("button", { name: "Skip Beat", exact: true })]) {
       await expect(control).toBeInViewport({ ratio: 1 });
       expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     }
@@ -249,20 +249,20 @@ test("phone review keeps send and outcome controls visible together in either th
   }
 });
 
-test("inline Mix beat names and hidden options survive saving", async ({ page }) => {
+test("inline Mix Beat names and hidden options survive saving", async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.goto(`/mixes/${mixId}/edit`);
   const form = page.locator(".mix-editor-form");
   const beat = form.getByRole("group", { name: "Beat 1", exact: true });
   await expect(beat.getByLabel("Beat name", { exact: true })).toHaveValue("A quick hello");
   await beat.getByLabel("Beat name", { exact: true }).fill("Check the renovation plans");
-  await beat.getByLabel("Options for beat 1", { exact: true }).click();
+  await beat.getByLabel("Options for Beat 1", { exact: true }).click();
   await beat.locator("[data-beat-alternatives] > summary").click();
   await beat.getByRole("textbox", { name: /^Call version · talking points for you/ }).fill("Ask about the next renovation milestone.");
-  await beat.getByLabel("Options for beat 1", { exact: true }).click();
+  await beat.getByLabel("Options for Beat 1", { exact: true }).click();
   await form.locator(".mix-start-settings > summary").click();
   await form.getByRole("combobox", { name: "After saving", exact: true }).selectOption("PAUSED");
-  await form.getByRole("button", { name: "Save mix", exact: true }).click();
+  await form.getByRole("button", { name: "Save Mix", exact: true }).click();
   await expect(page).toHaveURL(/updated=manual/);
   const saved = await prisma.mixStep.findFirstOrThrow({ where: { mixId, isActive: true }, include: { stepVersion: { include: { stepTemplate: true, variants: true } } }, orderBy: { sortOrder: "asc" } });
   expect(saved.stepVersion.stepTemplate.name).toBe("Check the renovation plans");
@@ -274,10 +274,10 @@ test("short-phone activation dialog keeps both decisions inside its scroll bound
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto(`/mixes/${mixId}/edit`);
   await page.getByRole("button", { name: "Review and start", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Start this mix?", exact: true });
+  const dialog = page.getByRole("dialog", { name: "Start this Mix?", exact: true });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Keep editing", exact: true })).toBeInViewport({ ratio: 1 });
-  await expect(dialog.getByRole("button", { name: "Start the mix", exact: true })).toBeInViewport({ ratio: 1 });
+  await expect(dialog.getByRole("button", { name: "Start the Mix", exact: true })).toBeInViewport({ ratio: 1 });
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Review and start", exact: true })).toBeFocused();

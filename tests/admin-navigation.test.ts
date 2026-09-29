@@ -12,7 +12,7 @@ describe("admin workspace navigation", () => {
   it("selects the most specific area for nested routes", () => {
     expect(activeAdminArea("/admin/email/recovery", owner)?.label).toBe("Email recovery");
     expect(activeAdminArea("/admin/email/suppressions/example", owner)?.label).toBe("Suppression");
-    expect(activeAdminArea("/admin/templates/example/edit", owner)?.label).toBe("Ready-made mixes");
+    expect(activeAdminArea("/admin/templates/example/edit", owner)?.label).toBe("Ready-made Mixes");
     expect(activeAdminArea("/admin/reports/history", owner)?.label).toBe("Report history");
     expect(activeAdminArea("/admin/access-denied", owner)).toBeUndefined();
   });

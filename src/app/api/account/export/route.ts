@@ -47,7 +47,7 @@ export async function GET(request: Request) {
       "contacts.csv": strToU8(contactsCsv),
       "timeline.csv": strToU8(createTimelineCsv(activities, contactNames)),
       "follow-ups.csv": strToU8(createFollowUpsCsv(jumps)),
-      "README.txt": strToU8("Jump in the Mix spreadsheet export\n\ncontacts.csv contains people and customer-facing contact details.\ntimeline.csv contains notes and recorded outcomes, including entries marked private.\nfollow-ups.csv contains scheduled and completed follow-ups.\n\nThe JSON export also includes relationship preferences, stopped mixes, configuration and other account records. Security credentials and private connection URLs are excluded. Store either export securely.\n")
+      "README.txt": strToU8("Jump in the Mix spreadsheet export\n\ncontacts.csv contains people and customer-facing contact details.\ntimeline.csv contains notes and recorded outcomes, including entries marked private.\nfollow-ups.csv contains scheduled and completed follow-ups.\n\nThe JSON export also includes relationship preferences, stopped Mixes, configuration and other account records. Security credentials and private connection URLs are excluded. Store either export securely.\n")
     }, { level: 6 });
     return new NextResponse(Buffer.from(archive), {
       headers: {

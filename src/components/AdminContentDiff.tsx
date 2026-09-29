@@ -6,7 +6,7 @@ export function AdminContentDiff({ before, after }: { before: Partial<LibraryCon
   const count = Math.max(before.steps?.length ?? 0, after.steps?.length ?? 0);
   for (let index = 0; index < count; index++) {
     const old = before.steps?.[index], next = after.steps?.[index];
-    const beat = (row: typeof old) => row ? `${row.name} · ${row.channel} · day ${row.dayOffset} · ${row.sendTimeMinutes === null ? "account default time" : `${Math.floor(row.sendTimeMinutes / 60)}:${String(row.sendTimeMinutes % 60).padStart(2, "0")}`}\n${[row.subject, row.body, row.script].filter(Boolean).join("\n")}\nLong SMS: ${row.longSms ? "yes" : "no"} · Opt-out wording: ${row.includeOptOut ? "yes" : "no"}` : "No beat";
+    const beat = (row: typeof old) => row ? `${row.name} · ${row.channel} · day ${row.dayOffset} · ${row.sendTimeMinutes === null ? "account default time" : `${Math.floor(row.sendTimeMinutes / 60)}:${String(row.sendTimeMinutes % 60).padStart(2, "0")}`}\n${[row.subject, row.body, row.script].filter(Boolean).join("\n")}\nLong SMS: ${row.longSms ? "yes" : "no"} · Opt-out wording: ${row.includeOptOut ? "yes" : "no"}` : "No Beat";
     if (JSON.stringify(old) !== JSON.stringify(next)) changes.push({ label: `Beat ${index + 1}`, before: beat(old), after: beat(next) });
   }
   return <section className="admin-content-diff"><h3>Changes from the published version</h3>{changes.length ? <>{changes.map(change => <details key={change.label}><summary>{change.label} changed</summary><div className="admin-diff-columns"><div><h4>Published</h4><p>{change.before}</p></div><div><h4>Saved draft</h4><p>{change.after}</p></div></div></details>)}</> : <p>No content changes from the published version.</p>}</section>;

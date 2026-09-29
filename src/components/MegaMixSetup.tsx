@@ -26,7 +26,7 @@ export function MegaMixSetup({ initialId, initialSetup, onboarding, active = tru
     <input type="hidden" name="individual" value={individual ? "1" : "0"} />
     <input type="hidden" name="blueprintId" value={blueprint.id} /><input type="hidden" name="version" value={blueprint.version} /><input type="hidden" name="tailored" value="1" />
     {onboarding && <input type="hidden" name="onboarding" value="1" />}
-    {onboarding && !individual && <><label className="field"><span>Your mega-mix</span><select aria-label="Your mega-mix" value={selected} onChange={event => setSelected(event.target.value)}>{MEGA_MIXES.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><p>{blueprint.description} Includes {blueprint.nodes.length} connected mixes.</p></>}
+    {onboarding && !individual && <><label className="field"><span>Your Mega-Mix</span><select aria-label="Your Mega-Mix" value={selected} onChange={event => setSelected(event.target.value)}>{MEGA_MIXES.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><p>{blueprint.description} Includes {blueprint.nodes.length} connected mixes.</p></>}
     <p className={styles.progress}>{review ? "Review your setup" : "A few preferences, then review"}</p>
     <h2 ref={heading} tabIndex={-1}>{review ? "Ready when you are" : "Make this fit your day"}</h2>
     {error && <p role="alert" className="notice error">{error}</p>}
@@ -37,11 +37,11 @@ export function MegaMixSetup({ initialId, initialSetup, onboarding, active = tru
     </div>
     {review && <>
       <div className={styles.review}><h3>{initialSetup.preferences.reviewedAt ? "Your saved preferences" : "Your preferences"}</h3><JourneyPreferenceSummary value={setup} /><button type="button" className="button" onClick={() => { setReview(false); requestAnimationFrame(() => heading.current?.focus()); }}>Edit preferences</button></div>
-      {individual ? <><p>Next, choose individual mixes from the library. You can preview and edit each one before adding it. These communication and spacing choices apply to new mega-mixes; individual mixes keep the wording and delays you choose.</p><input type="hidden" name="reviewed" value="on" /><FormSubmitButton label="Choose individual mixes" pendingLabel="Saving your preferences…" /></> : <>
+      {individual ? <><p>Next, choose individual Mixes from the library. You can preview and edit each one before adding it. These communication and spacing choices apply to new Mega-Mixes; individual Mixes keep the wording and delays you choose.</p><input type="hidden" name="reviewed" value="on" /><FormSubmitButton label="Choose individual Mixes" pendingLabel="Saving your preferences…" /></> : <>
         <details className="onboarding-step-card"><summary>Preview the {blueprint.name} journey</summary><MegaMixPreview blueprint={blueprint} /></details>
         <p>Your {blueprint.nodes.length} connected mixes arrive with every message already written. Next, add your first customer. This step sends nothing.</p>
         <label className="checkbox-card"><input key={`${blueprint.id}-${JSON.stringify(setup)}`} type="checkbox" name="reviewed" required /><span>I’ve reviewed my journey and preferences.</span></label>
-        <FormSubmitButton label={`Add ${blueprint.name} mega-mix`} pendingLabel="Connecting your mixes…" />
+        <FormSubmitButton label={`Add ${blueprint.name} Mega-Mix`} pendingLabel="Connecting your Mixes…" />
       </>}
       <small>You can change preferences in Account, and edit or pause any Mix afterward.</small>
     </>}

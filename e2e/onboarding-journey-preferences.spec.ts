@@ -24,7 +24,7 @@ test.afterEach(async () => { await prisma.workspace.deleteMany({ where: { id: wo
 
 test("recommended onboarding validates, previews and atomically installs a tailored journey", async ({ page }) => {
   await page.goto("/onboarding");
-  await expect(page.getByRole("radio", { name: /A complete mega-mix/ })).toBeChecked();
+  await expect(page.getByRole("radio", { name: /A complete Mega-Mix/ })).toBeChecked();
   await page.getByLabel("Preferred communication", { exact: true }).selectOption("EMAIL");
   await page.getByLabel("Space between follow-ups", { exact: true }).selectOption("RELAXED");
   await page.getByLabel("Close at", { exact: true }).fill("08:00");
@@ -34,11 +34,11 @@ test("recommended onboarding validates, previews and atomically installs a tailo
   await page.getByLabel("Preferred follow-up time", { exact: true }).fill("10:30");
   await page.getByRole("button", { name: "Review my setup", exact: true }).click();
   await page.getByText("Preview the Contractor journey", { exact: true }).click();
-  const details = page.getByRole("list", { name: "Included mixes and connections" });
+  const details = page.getByRole("list", { name: "Included Mixes and connections" });
   await details.locator("summary").first().click();
   await expect(details).toContainText("Email · 10:30");
   await page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." }).check();
-  await page.getByRole("button", { name: "Add Contractor mega-mix", exact: true }).click();
+  await page.getByRole("button", { name: "Add Contractor Mega-Mix", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Your pipeline is ready" })).toBeVisible();
   expect(await prisma.workspacePreference.findUnique({ where: { workspaceId } })).toMatchObject({ defaultFollowUpMinutes: 630, journeyPreferences: { communication: "EMAIL", pace: "RELAXED", avoidAppointments: true } });
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(13);
@@ -56,7 +56,7 @@ test("recommended onboarding validates, previews and atomically installs a tailo
   expect(await prisma.workspacePreference.findUnique({ where: { workspaceId } })).toMatchObject({ journeyPreferences: { workStart: 510 } });
 });
 
-test("individual mix setup adds a selected library Mix without requiring a person", async ({ page }) => {
+test("individual Mix setup adds a selected library Mix without requiring a person", async ({ page }) => {
   sharedId = `setup-library-${randomUUID()}`;
   await prisma.sharedMix.create({ data: { id: sharedId, title: "My first check-in", description: "A simple conversation to start with.", category: "Current clients", industry: "Other", durationDays: 7, status: "APPROVED", steps: [{ name: "Check in", channel: "EMAIL", dayOffset: 0, sendTimeMinutes: 600, subject: "Checking in", body: "Hi {{First Name}}, how are things going?", script: null, longSms: false, includeOptOut: false }] } });
   await prisma.sharedMixMetadata.create({ data: { sharedMixId: sharedId, version: 1, triggerMode: "MANUAL_START", publishedAt: new Date() } });
@@ -64,15 +64,15 @@ test("individual mix setup adds a selected library Mix without requiring a perso
   await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
   await page.getByLabel("Preferred communication", { exact: true }).selectOption("SMS");
   await page.getByRole("button", { name: "Review my setup", exact: true }).click();
-  await page.getByRole("button", { name: "Choose individual mixes", exact: true }).click();
+  await page.getByRole("button", { name: "Choose individual Mixes", exact: true }).click();
   await expect(page).toHaveURL(/templates\?setup=individual/);
   await expect(page.getByText(/Your preferences are saved\. Choose a Mix below/)).toBeVisible();
   expect(await prisma.workspaceProfile.findUnique({ where: { workspaceId } })).toMatchObject({ onboardingDone: true });
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(0);
-  await page.getByRole("navigation", { name: "Ready-made mixes", exact: true }).getByRole("link", { name: /My first check-in/ }).click();
+  await page.getByRole("navigation", { name: "Ready-made Mixes", exact: true }).getByRole("link", { name: /My first check-in/ }).click();
   await expect(page.getByRole("region", { name: "Selected ready-made Mix", exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "Use this mix", exact: true }).first().click();
-  await expect(page.getByRole("heading", { name: "Set up your mix" })).toBeVisible();
+  await page.getByRole("link", { name: "Use this Mix", exact: true }).first().click();
+  await expect(page.getByRole("heading", { name: "Set up your Mix" })).toBeVisible();
   await page.getByLabel("Mix name").fill("My chosen check-in");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("button", { name: "Continue", exact: true }).click();

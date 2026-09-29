@@ -21,7 +21,7 @@ test("retired commercial, team, provider, and sharing routes stay unavailable", 
   for (const section of ["billing", "connections", "referrals", "team"]) {
     await page.goto(`/account?section=${section}`);
     expect(new URL(page.url()).pathname).toBe("/account");
-    await expect(page.getByRole("heading", { name: "My Account" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
     await expect(page.locator("main")).not.toContainText(new RegExp(section, "i"));
   }
 

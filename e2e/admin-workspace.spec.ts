@@ -80,13 +80,13 @@ test("content search, visibility, ordering and pagination work together without 
     mixIds.push(row.id);
   }
   await page.goto("/admin/templates");
-  await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill(prefix);
-  await page.getByLabel("Sort mixes").selectOption("title");
+  await page.getByRole("searchbox", { name: "Search ready-made Mixes" }).fill(prefix);
+  await page.getByLabel("Sort Mixes").selectOption("title");
   await expect(page.locator(".admin-library-row")).toHaveCount(25);
   await expect(page.locator(".admin-library-row").first()).toContainText(`${prefix} 00`);
   await page.getByRole("link", { name: "Next", exact: true }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(2);
-  await expect(page.getByRole("searchbox", { name: "Search ready-made mixes" })).toHaveValue(prefix);
+  await expect(page.getByRole("searchbox", { name: "Search ready-made Mixes" })).toHaveValue(prefix);
   await page.getByRole("navigation", { name: "Library visibility" }).getByRole("link", { name: /Unpublished/ }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(1);
   await expect(page.locator(".admin-library-row")).toContainText(`${prefix} 26`);
@@ -97,11 +97,11 @@ test("content search, visibility, ordering and pagination work together without 
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
   await page.getByRole("navigation", { name: "Library visibility" }).getByRole("link", { name: /All mixes/ }).click();
-  await page.getByLabel("Sort mixes").selectOption("popular");
+  await page.getByLabel("Sort Mixes").selectOption("popular");
   await expect(page.locator(".admin-library-row").first()).toContainText(`${prefix} 26`);
-  await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill(`${prefix} missing`);
-  await expect(page.getByRole("heading", { name: "No mixes match these filters" })).toBeVisible();
-  await page.getByRole("link", { name: "Show all mixes", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Search ready-made Mixes" }).fill(`${prefix} missing`);
+  await expect(page.getByRole("heading", { name: "No Mixes match these filters" })).toBeVisible();
+  await page.getByRole("link", { name: "Show all Mixes", exact: true }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(25);
 });
 

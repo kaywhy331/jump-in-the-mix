@@ -15,7 +15,7 @@ export function previewSchedule(steps: BoundStepTiming[], start: Date, end: Date
       note = step.anchor === "VISIT_COMPLETED" ? "Waits until you record that the visit happened; then counts the selected minutes." : !appointment ? "Needs a linked appointment." : "Exact appointment offset; quiet hours and weekends do not move it. After-visit steps wait for the outcome.";
     } else if (step.plannedAt) {
       at = plannedStepApplies(previous, step.plannedAt) ? step.plannedAt : null;
-      note = at ? "Exact planned time; quiet hours and weekends do not move it." : "The preceding beat has not been reached by this planned time.";
+      note = at ? "Exact planned time; quiet hours and weekends do not move it." : "The preceding Beat has not been reached by this planned time.";
       previous = step.plannedAt;
     } else {
       const date = shiftWeekend(addLogicalDays(logicalDateInTimezone(start, timezone), step.dayOffset), rules.weekendScheduling);

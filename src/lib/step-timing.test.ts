@@ -76,9 +76,9 @@ describe("step timing", () => {
     expect(boundPlanOutlook(steps, completed, before)).toEqual({ ready: 3, awaitingOutcome: 0, awaitingCompletion: 0, lapsed: 2, held: 0 });
     expect(boundPlanOutlook(steps, { ...entry, outcome: "NO_SHOW", outcomeAt: new Date("2026-10-06T21:00:00Z") }, before)).toEqual({ ready: 0, awaitingOutcome: 0, awaitingCompletion: 0, lapsed: 0, held: 5 });
     expect(boundPlanOutlook([], entry, before)).toEqual({ ready: 0, awaitingOutcome: 0, awaitingCompletion: 0, lapsed: 0, held: 0 });
-    expect(describeBoundPlanOutlook({ ready: 1, awaitingOutcome: 1, awaitingCompletion: 1, lapsed: 0, held: 0 })).toBe("The plan’s follow-ups line up with this visit. 1 beat is scheduled and will appear on Today. 1 beat after the visit waits until you record how it went. 1 beat counts from the moment you mark the visit completed.");
-    expect(describeBoundPlanOutlook({ ready: 0, awaitingOutcome: 2, awaitingCompletion: 0, lapsed: 2, held: 0 })).toBe("The plan’s follow-ups line up with this visit. 2 beats after the visit wait until you record how it went. 2 beats before the visit have lapsed because it has already started.");
-    expect(describeBoundPlanOutlook({ ready: 0, awaitingOutcome: 0, awaitingCompletion: 0, lapsed: 0, held: 3 })).toBe("The plan’s follow-ups line up with this visit. 3 beats are held because the visit was recorded as missed.");
+    expect(describeBoundPlanOutlook({ ready: 1, awaitingOutcome: 1, awaitingCompletion: 1, lapsed: 0, held: 0 })).toBe("The Mix’s follow-ups line up with this visit. 1 Beat is scheduled and will appear on Today. 1 Beat after the visit waits until you record how it went. 1 Beat counts from the moment you mark the visit completed.");
+    expect(describeBoundPlanOutlook({ ready: 0, awaitingOutcome: 2, awaitingCompletion: 0, lapsed: 2, held: 0 })).toBe("The Mix’s follow-ups line up with this visit. 2 Beats after the visit wait until you record how it went. 2 Beats before the visit have lapsed because it has already started.");
+    expect(describeBoundPlanOutlook({ ready: 0, awaitingOutcome: 0, awaitingCompletion: 0, lapsed: 0, held: 3 })).toBe("The Mix’s follow-ups line up with this visit. 3 Beats are held because the visit was recorded as missed.");
   });
 
   it("names the condition that gates an elapsed beat", () => {

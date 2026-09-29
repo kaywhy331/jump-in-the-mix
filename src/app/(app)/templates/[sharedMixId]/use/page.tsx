@@ -14,7 +14,7 @@ import { normalizeSharedMixSteps } from "@/lib/shared-mix";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { salesPlanById } from "@/lib/sales-plan-library";
 
-export const metadata: Metadata = { title: "Set up your mix" };
+export const metadata: Metadata = { title: "Set up your Mix" };
 
 type SearchParams = { error?: string; at?: string; sig?: string };
 
@@ -42,10 +42,10 @@ export default async function UseMixTemplatePage({ params, searchParams }: { par
   return (
     <div className="page template-use-page">
       <UrlErrorNotice params={query} viewer={session} />
-      <header className="page-header"><div><h1>Set up your mix</h1><p>{shared.title}</p></div><Link className="button" href={`/templates?mix=${shared.id}`}>Mix library</Link></header>
+      <header className="page-header"><div><h1>Set up your Mix</h1><p>{shared.title}</p></div><Link className="button" href={`/templates?mix=${shared.id}`}>Mix library</Link></header>
       <div className="template-use-grid">
         <TemplateUseForm reviewBeforeActivation={preference?.reviewMixActivation ?? true} expectedVersion={metadata?.version ?? 1} sharedMixId={shared.id} requestId={`use-${randomUUID()}`} title={shared.title} description={shared.description} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} stepCount={steps.length} durationDays={durationDays} groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, contactCount: group._count.memberships }))} activeContactCount={activeContactCount} workspaceTimezone={workspaceTimezone} />
-        <details className="card template-use-reference"><summary>Plan details & messages</summary><p className="library-goal">Your starting point</p><h2>{shared.title}</h2><p>{shared.description}</p><p className="library-plan-facts"><span>{steps.length} beats</span><span>{durationDays} days</span></p><details className="plan-message-reference"><summary>Preview the rhythm</summary><SharedMixPreview title={shared.title} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} durationDays={durationDays} steps={steps} expanded /></details>{salesPlan && <PlanApproachGuide plan={salesPlan}/>}<p className="muted-copy">When someone replies, pause their mix and continue the conversation. Replies are not detected automatically.</p></details>
+        <details className="card template-use-reference"><summary>Mix details & messages</summary><p className="library-goal">Your starting point</p><h2>{shared.title}</h2><p>{shared.description}</p><p className="library-plan-facts"><span>{steps.length} {steps.length === 1 ? "Beat" : "Beats"}</span><span>{durationDays} days</span></p><details className="plan-message-reference"><summary>Preview the rhythm</summary><SharedMixPreview title={shared.title} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} durationDays={durationDays} steps={steps} expanded /></details>{salesPlan && <PlanApproachGuide plan={salesPlan}/>}<p className="muted-copy">When someone replies, pause their Mix and continue the conversation. Replies are not detected automatically.</p></details>
       </div>
     </div>
   );

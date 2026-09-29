@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { megaMixById, suggestedMegaMix } from "@/lib/mega-mixes";
 import { MegaMixLibrary } from "@/components/MegaMixLibrary";
 
-export const metadata = { title: "Mega-mixes" };
+export const metadata = { title: "Mega-Mixes" };
 export default async function MegaMixPage({ searchParams }: { searchParams: Promise<{ journey?: string; added?: string }> }) {
   const [{ workspace, user, impersonation }, query] = await Promise.all([requireWorkspace(), searchParams]);
   const selectedId = query.journey ?? suggestedMegaMix(workspace.profile?.industry);

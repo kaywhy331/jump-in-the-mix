@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { workflowEditorData } from "@/lib/mix-workflow";
 
-export const metadata: Metadata = { title: "Create a mix" };
+export const metadata: Metadata = { title: "Create a Mix" };
 
 export default async function NewMixPage({ searchParams }: { searchParams: Promise<{ error?: string; at?: string; sig?: string; custom?: string }> }) {
   const [query, { session, workspace, user }] = await Promise.all([searchParams, requireWorkspace()]);
@@ -31,7 +31,7 @@ export default async function NewMixPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="page">
-      <header className="page-header"><div><h1>Create a mix</h1><p>Every relationship starts with a first beat. Add messages and reminders, then set the tempo.</p></div></header>
+      <header className="page-header"><div><h1>Create a Mix</h1><p>Every relationship starts with a first Beat. Add messages and reminders, then set their timing.</p></div></header>
       <UrlErrorNotice params={query} viewer={session} />
       <MixEditor reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
         workflowSources={workflow.mixes.filter(item => item.status !== "ARCHIVED" && item.source !== "ONE_TIME").map(({ id, name }) => ({ id, name }))}

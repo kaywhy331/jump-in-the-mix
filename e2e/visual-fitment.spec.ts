@@ -203,7 +203,7 @@ test("mobile text actions stay readable instead of collapsing into blank control
   await signIn(page);
   await page.goto("/templates");
   // Collection tabs keep their words; creating is a labelled icon since the phone icon pass (3f85c77).
-  for (const label of ["My mixes", "Mega-Mixes", "Marketplace"]) {
+  for (const label of ["My Mixes", "Mega-Mixes", "Marketplace"]) {
     const action = page.locator(".mix-library-tabs").getByRole("link", { name: label, exact: true });
     await expect(action).toBeVisible();
     const box = await action.boundingBox();

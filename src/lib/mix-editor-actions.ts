@@ -134,12 +134,12 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   const allowedStatuses: MixStatus[] = ["DRAFT", "ACTIVE", "PAUSED"];
 
   if (impersonation) fail(path, "Administrator support sessions are view-only.", session);
-  if (!name) fail(path, "Give the mix a name.", session);
-  if (!allowedTriggers.includes(triggerMode)) fail(path, "Choose a valid cue.", session);
+  if (!name) fail(path, "Give the Mix a name.", session);
+  if (!allowedTriggers.includes(triggerMode)) fail(path, "Choose when this Mix should start.", session);
   if (!allowedStatuses.includes(status)) fail(path, "Choose Draft, Active, or Paused.", session);
   if (status === "ACTIVE" && value(formData, "activationConfirmed", 4) !== "1") {
     const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
-    if (preference?.reviewMixActivation !== false) fail(path, "Review who gets the mix before turning it on.", session);
+    if (preference?.reviewMixActivation !== false) fail(path, "Review who gets the Mix before turning it on.", session);
   }
 
   if (triggerMode === "DATE_TRIGGERED") {
@@ -172,8 +172,8 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   const anchors = values(formData, "anchor");
   const offsetMinutes = values(formData, "offsetMinutes");
   const stepCount = offsets.length;
-  if (!stepCount || stepCount > 50) fail(path, "Add between one and fifty beats to the mix.", session);
-  if ([mixStepIds, sendTimes, plannedAts, anchors, offsetMinutes].some((items) => items.length !== stepCount)) fail(path, "The beat sequence is incomplete. Reload and try again.", session);
+  if (!stepCount || stepCount > 50) fail(path, "Add between one and fifty Beats to the Mix.", session);
+  if ([mixStepIds, sendTimes, plannedAts, anchors, offsetMinutes].some((items) => items.length !== stepCount)) fail(path, "The Beat sequence is incomplete. Reload and try again.", session);
   // Elapsed-minute timing for a plan bound to a visit; a calendar-day beat keeps its day rule. validateStepTiming is
   // pure, so what it throws is its own per-Beat wording.
   const parsedTimings = anchors.map((anchor, index) => {
@@ -189,10 +189,10 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
     return parsed;
   });
   if (parsedTimings.some((timing) => timing.anchor !== "CALENDAR_DAY") && triggerMode !== "MANUAL_START") {
-    fail(path, "Minutes from an appointment apply to a mix that starts when you bind it to a visit. Choose \"When I start it for someone\" as the cue, or time the beat by calendar day.", session);
+    fail(path, "Minutes from an appointment apply to a Mix that starts when you bind it to a visit. Choose \"When I start it for someone\" under When should it start?, or time the Beat by calendar day.", session);
   }
   if (triggerMode === "MANUAL_START" && parsedOffsets.some((offset, index) => offset < 0 && parsedTimings[index].anchor === "CALENDAR_DAY")) {
-    fail(path, "A manually started mix cannot schedule a follow-up before its start date.", session);
+    fail(path, "A manually started Mix cannot schedule a follow-up before its start date.", session);
   }
   const parsedSendTimes = sendTimes.map((raw, index) => {
     if (!raw) return null;
@@ -232,15 +232,15 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
     if (availableGroups.length !== groupIds.length) fail(path, "One or more selected tags are unavailable.", session);
     const existingGroupIds = new Set((existingMix?.assignments ?? []).flatMap((assignment) => assignment.groupId ? [assignment.groupId] : []));
     const unavailableNewGroup = mergeGroupActivity(availableGroups, groupStates).some((group) => !group.isActive && !existingGroupIds.has(group.id));
-    if (unavailableNewGroup) fail(path, "Hidden tags cannot be added to a mix.", session);
+    if (unavailableNewGroup) fail(path, "Hidden tags cannot be added to a Mix.", session);
   }
   const assignAllContacts = formData.get("assignAllContacts") === "on";
   // A mix that starts when the owner chooses needs no audience to be on: it is started from one
   // person's page or lined up with a visit from the calendar. Elapsed beats never count as scheduled
   // for an enrollment without an appointment, so the projection below counts calendar-day beats only.
-  if (status === "ACTIVE" && !afterMix && triggerMode !== "MANUAL_START" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the mix.", session);
+  if (status === "ACTIVE" && !afterMix && triggerMode !== "MANUAL_START" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the Mix.", session);
   const calendarStepCount = parsedTimings.filter((timing) => timing.anchor === "CALENDAR_DAY").length;
-  if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) fail(path, "Choose who gets the mix.", session);
+  if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) fail(path, "Choose who gets the Mix.", session);
 
   const allContactIds = assignAllContacts
     ? (await prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true } })).map((contact) => contact.id)
@@ -377,7 +377,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
     });
   } catch (error) {
     if (error instanceof MixChangedElsewhere) return { error: error.message };
-    fail(path, error instanceof MixSaveRefusal || error instanceof UserFacingError ? error.message : "The mix could not be saved.", session);
+    fail(path, error instanceof MixSaveRefusal || error instanceof UserFacingError ? error.message : "The Mix could not be saved.", session);
   }
 
   // Committed. The Marketplace shares of this Mix and of its Mega-Mix now show what was saved. Refreshed out

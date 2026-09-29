@@ -117,12 +117,12 @@ export function boundPlanOutlook(steps: BoundStepTiming[], appointment: Appointm
 /** The confirmation after a visit is saved with a plan: what is scheduled now and what waits, and why. */
 export function describeBoundPlanOutlook(outlook: BoundPlanOutlook): string {
   const beats = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
-  const parts = ["The plan’s follow-ups line up with this visit."];
-  if (outlook.ready) parts.push(`${beats(outlook.ready, "beat is", "beats are")} scheduled and will appear on Today.`);
-  if (outlook.awaitingOutcome) parts.push(`${beats(outlook.awaitingOutcome, "beat after the visit waits", "beats after the visit wait")} until you record how it went.`);
-  if (outlook.awaitingCompletion) parts.push(`${beats(outlook.awaitingCompletion, "beat counts", "beats count")} from the moment you mark the visit completed.`);
-  if (outlook.lapsed) parts.push(`${beats(outlook.lapsed, "beat before the visit has", "beats before the visit have")} lapsed because it has already started.`);
-  if (outlook.held) parts.push(`${beats(outlook.held, "beat is", "beats are")} held because the visit was recorded as missed.`);
+  const parts = ["The Mix’s follow-ups line up with this visit."];
+  if (outlook.ready) parts.push(`${beats(outlook.ready, "Beat is", "Beats are")} scheduled and will appear on Today.`);
+  if (outlook.awaitingOutcome) parts.push(`${beats(outlook.awaitingOutcome, "Beat after the visit waits", "Beats after the visit wait")} until you record how it went.`);
+  if (outlook.awaitingCompletion) parts.push(`${beats(outlook.awaitingCompletion, "Beat counts", "Beats count")} from the moment you mark the visit completed.`);
+  if (outlook.lapsed) parts.push(`${beats(outlook.lapsed, "Beat before the visit has", "Beats before the visit have")} lapsed because it has already started.`);
+  if (outlook.held) parts.push(`${beats(outlook.held, "Beat is", "Beats are")} held because the visit was recorded as missed.`);
   return parts.join(" ");
 }
 

@@ -8,9 +8,9 @@ The primary product is a hosted free beta. A Docker-based, single-owner edition 
 
 - Today: prepared follow-ups, completion outcomes, snooze, and undo
 - Contacts: live search, notes and timeline, saved dates, archive/restore, and duplicate review
-- Plans: vertical ready-made plans and a simple custom-plan builder
+- Mixes and Mega-Mixes: ready-made Mixes from the Marketplace, a Mix editor, and Journey, the map of how Mixes connect
 - Quick Add and resumable CSV/VCF imports
-- Configurable customer journeys with milestone rules, manual overrides, and pauses
+- Optional Contact stages with milestone rules, manual overrides, and pauses
 - Meetings, time blocks, and iCalendar import/export/subscriptions
 - Hosted lead forms and authenticated intake connections for external tools
 - Business profile, scheduling preferences, digests, Web Push, sessions, spreadsheet/JSON export, and account deletion

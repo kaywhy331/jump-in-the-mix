@@ -67,7 +67,7 @@ Email:    demo@jumpinthemix.local
 Password: JumpInTheMix123!
 ```
 
-The demo includes sample contacts, Important Dates, an active Mix, and generated Jumps. Changes remain only on your computer.
+The demo includes sample contacts, saved dates, an active Mix, and follow-ups on Today. Changes remain only on your computer.
 
 ## Stop or reset
 

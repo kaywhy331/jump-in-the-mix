@@ -16,5 +16,5 @@ export async function POST(request: Request) {
     const raw = await request.text(); if (raw.length > 1000) return response({ error: "Invalid favorite." }, 400);
     const value = input.parse(JSON.parse(raw));
     return response(await prisma.$transaction(db => setMixFavorite(db, member.workspaceId, session.user.id, value, value.favorite)));
-  } catch (error) { return response({ error: error instanceof z.ZodError ? "Choose a mix to favorite." : "This favorite could not be saved. Refresh and try again." }, 400); }
+  } catch (error) { return response({ error: error instanceof z.ZodError ? "Choose a Mix to favorite." : "This favorite could not be saved. Refresh and try again." }, 400); }
 }

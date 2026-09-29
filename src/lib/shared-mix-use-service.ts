@@ -20,10 +20,10 @@ async function resolveDateType(
   if (triggerMode !== "DATE_TRIGGERED") return null;
   const name = clean(nameValue, 120);
   const slug = clean(slugValue, 120);
-  if (!name) throw new Error("This mix does not identify its saved date type.");
+  if (!name) throw new Error("This Mix does not identify its saved date type.");
   const existing = await matchDateType(tx, workspaceId, { name, slug });
   if (existing) {
-    if (!existing.isActive) throw new Error(`Turn on the ${existing.name} date type before using this mix.`);
+    if (!existing.isActive) throw new Error(`Turn on the ${existing.name} date type before using this Mix.`);
     return existing.id;
   }
   return (await tx.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name, slug: slugify(name), isSystem: false, isActive: true } })).id;

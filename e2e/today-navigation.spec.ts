@@ -131,7 +131,7 @@ test("filters reset the page and snooze/stop actions preserve the current filter
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[31]}`);
   await page.getByRole("button", { name: "More options for Queue person 032", exact: true }).click();
   await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).getByRole("button", { name: "Stop mix…", exact: true }).click();
-  await page.getByRole("dialog", { name: "Stop Navigation fixture plan for Queue person 032?", exact: true }).getByRole("button", { name: "Stop mix", exact: true }).click();
+  await page.getByRole("dialog", { name: "Stop Navigation fixture plan for Queue person 032?", exact: true }).getByRole("button", { name: "Stop Mix", exact: true }).click();
   await expect(page).toHaveURL(/mixStopped=1/); expect(new URL(page.url()).searchParams.get("after")).toBe(cursor);
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[32]}`);
   await page.getByRole("button", { name: "Filter 3", exact: true }).click();
@@ -209,7 +209,7 @@ test.describe("live outcome updates", () => {
     await expect(pager(page)).toContainText("Showing 30 of 320 follow-ups");
     expect(await ids(page)).toEqual(smsIds.slice(31, 61)); expect(page.url()).toBe(location);
     await page.getByRole("button", { name: "More options for Queue person 032", exact: true }).click();
-    await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).filter({ hasText: "Move it to a better day" }).getByRole("button", { name: "Skip beat", exact: true }).click();
+    await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).filter({ hasText: "Move it to a better day" }).getByRole("button", { name: "Skip Beat", exact: true }).click();
     await expect(undoFor(page, smsIds[31])).toBeVisible(); await page.clock.runFor(10_500);
     await expect(pager(page)).toContainText("Showing 30 of 319 follow-ups");
     expect(await ids(page)).toEqual(smsIds.slice(32, 62)); expect(page.url()).toBe(location);

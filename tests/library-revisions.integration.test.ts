@@ -58,7 +58,7 @@ describe.skipIf(!local)("immutable library versions on PostgreSQL", () => {
     const { a, id } = await draft();
     const outcomes = await Promise.allSettled(["A", "B"].map(title => saveLibraryDraft({ ...a, sharedMixId: id, expectedRevision: 1, content: { ...content, title } })));
     expect(outcomes.filter(row => row.status === "fulfilled")).toHaveLength(1);
-    await expect(releaseLibraryVersion({ ...a, sharedMixId: id, expectedRevision: 1, version: 1, password, operation: "publish" })).rejects.toThrow("mix changed");
+    await expect(releaseLibraryVersion({ ...a, sharedMixId: id, expectedRevision: 1, version: 1, password, operation: "publish" })).rejects.toThrow("Mix changed");
     expect((await getLibraryState(id)).shared.status).toBe("UNPUBLISHED");
     expect(await prisma.sharedMixRevision.count({ where: { sharedMixId: id } })).toBe(2);
   });

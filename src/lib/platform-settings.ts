@@ -6,7 +6,7 @@ export const PLATFORM_SETTING_DEFINITIONS = {
   "mix.categories": {
     category: "Mixes",
     label: "Mix categories",
-    description: "Reviewed categories used to organize mixes and help customers find a useful starting point.",
+    description: "Reviewed categories used to organize Mixes and help customers find a useful starting point.",
     kind: "string-list",
     isPublic: true,
     defaultValue: [...MIX_TEMPLATE_CATEGORIES]
@@ -14,7 +14,7 @@ export const PLATFORM_SETTING_DEFINITIONS = {
   "mix.industries": {
     category: "Mixes",
     label: "Industries",
-    description: "Reviewed business-type filters available in the ready-made mix library.",
+    description: "Reviewed business-type filters available in the ready-made Mix library.",
     kind: "string-list",
     isPublic: true,
     defaultValue: [...MIX_TEMPLATE_INDUSTRIES]

@@ -33,7 +33,7 @@ test("a plan can be written inline without creating a prerequisite message templ
     await page.getByRole("combobox", { name: "Channel", exact: true }).selectOption("EMAIL");
     await page.getByLabel("Subject").fill("A renewal question for {{First Name}}");
     await page.getByLabel("Message").fill("Hi {{First Name}}, is there anything you would like to review before renewal?");
-    await page.getByRole("button", { name: "Create a mix" }).click();
+    await page.getByRole("button", { name: "Create a Mix" }).click();
     // /mixes/<id>/edit forwards to the Mix library's editor view (bd125c6).
     await page.waitForURL(/\/mixes\?mix=[^&]+&view=edit&created=manual/);
     const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId: "demo_workspace", name }, include: { steps: { include: { stepVersion: { include: { stepTemplate: true } } } } } });
@@ -71,7 +71,7 @@ test("an approved template uses one setup screen and explicit audience", async (
   try {
     await signIn(page);
     await page.goto(`/templates/${sharedId}/use`);
-    await expect(page.getByRole("heading", { name: "Set up your mix" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Set up your Mix" })).toBeVisible();
     await page.getByLabel("Mix name").fill(mixName);
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByLabel("Everyone").check();

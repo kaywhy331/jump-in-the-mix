@@ -294,7 +294,7 @@ describe.skipIf(!local)("community Marketplace", () => {
 
   it("lists official Mega-Mixes and ready-made Mixes in the Jump in the Mix section", async () => {
     const { rows } = await readMarketplace({ ...community, section: "official", kind: "MEGA_MIX" }, reader);
-    expect(rows.map(row => row.title)).toEqual(expect.arrayContaining(["Contractor mega-mix", "Recruiter mega-mix"]));
+    expect(rows.map(row => row.title)).toEqual(expect.arrayContaining(["Contractor Mega-Mix", "Recruiter Mega-Mix"]));
     const item = await readMarketplaceItem("mega:contractor", reader);
     expect(item).toMatchObject({ type: "official-mega", setupHref: "/templates/journeys?journey=contractor" });
   });

@@ -30,27 +30,27 @@ const SETUP_REFUSALS = new Set([
   "This workspace is unavailable.",
   "Choose everyone or at least one tag.",
   "Choose only active tags.",
-  "This mix does not identify its saved date type.",
-  "Choose a valid mix start date.",
-  "Choose a valid mix start time.",
-  "Choose a valid mix timezone."
+  "This Mix does not identify its saved date type.",
+  "Choose a valid Mix start date.",
+  "Choose a valid Mix start time.",
+  "Choose a valid Mix timezone."
 ]);
-const INACTIVE_DATE_TYPE = /^Turn on the [^\n]+ date type before using this mix\.$/;
+const INACTIVE_DATE_TYPE = /^Turn on the [^\n]+ date type before using this Mix\.$/;
 
 function setupRefusal(error: unknown): string {
   if (error instanceof LibraryError || error instanceof SharedMixContentError) return error.message;
-  return error instanceof Error && (SETUP_REFUSALS.has(error.message) || INACTIVE_DATE_TYPE.test(error.message)) ? error.message : "The ready-made mix could not be used.";
+  return error instanceof Error && (SETUP_REFUSALS.has(error.message) || INACTIVE_DATE_TYPE.test(error.message)) ? error.message : "The ready-made Mix could not be used.";
 }
 
 export async function useSharedMixTemplateAction(formData: FormData): Promise<void> {
   const { session, workspace, user, impersonation } = await requireWorkspace();
   const sharedMixId = value(formData, "sharedMixId", 100);
-  if (!sharedMixId) redirect(withViewerError("/templates", "Choose a ready-made mix.", session));
+  if (!sharedMixId) redirect(withViewerError("/templates", "Choose a ready-made Mix.", session));
   if (impersonation) fail(sharedMixId, "Administrator support sessions are view-only.", session);
   const status = value(formData, "status", 20) === "ACTIVE" ? "ACTIVE" : "DRAFT";
   if (status === "ACTIVE" && value(formData, "activationConfirmed", 4) !== "1") {
     const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
-    if (preference?.reviewMixActivation !== false) fail(sharedMixId, "Review who gets the mix before turning it on.", session);
+    if (preference?.reviewMixActivation !== false) fail(sharedMixId, "Review who gets the Mix before turning it on.", session);
   }
   const workspaceTimezone = await timezoneForUser(user.id);
   let result: Awaited<ReturnType<typeof useSharedMixTemplate>>;

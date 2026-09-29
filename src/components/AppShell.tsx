@@ -63,9 +63,9 @@ export function AppShell({
                 className="profile-sheet"
               >
                 <nav className="contact-tools-links" aria-label="Profile and settings">
-                  <Link href="/account"><AppIcon name="profile" />My Account</Link>
+                  <Link href="/account"><AppIcon name="profile" />My account</Link>
                   <Link href="/settings"><AppIcon name="settings" />Settings</Link>
-                  <Link href="/templates"><AppIcon name="import" />Ready-made mixes</Link>
+                  <Link href="/templates"><AppIcon name="import" />Ready-made Mixes</Link>
                   {invitationsLeft && <Link href={INVITATIONS_PATH}><AppIcon name="gift" />Invite people · {invitationsLeftLabel(invitationsLeft)}</Link>}
                   <Link href="/help"><AppIcon name="help" />Help</Link>
                 </nav>

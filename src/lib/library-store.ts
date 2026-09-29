@@ -8,7 +8,7 @@ export const libraryJson = (content: LibraryContent) => content as unknown as Pr
 
 export async function libraryState(tx: Prisma.TransactionClient, id: string) {
   const shared = await tx.sharedMix.findUnique({ where: { id } });
-  if (!shared) throw new LibraryError("This ready-made mix no longer exists.");
+  if (!shared) throw new LibraryError("This ready-made Mix no longer exists.");
   const metadata = await tx.sharedMixMetadata.findUnique({ where: { sharedMixId: id } });
   const version = metadata?.version ?? 1, draftVersion = metadata?.draftVersion ?? version;
   const draft = await tx.sharedMixRevision.findUnique({ where: { sharedMixId_version: { sharedMixId: id, version: draftVersion } } });
@@ -44,8 +44,8 @@ export async function getLibraryState(id: string) {
 
 export async function readPublishedLibrary(tx: Prisma.TransactionClient, id: string, expectedVersion?: number) {
   const shared = await tx.sharedMix.findFirst({ where: { id, status: "APPROVED" } });
-  if (!shared) throw new LibraryError("This ready-made mix is not currently available.");
+  if (!shared) throw new LibraryError("This ready-made Mix is not currently available.");
   const metadata = await tx.sharedMixMetadata.findUnique({ where: { sharedMixId: id } });
-  if (expectedVersion !== undefined && (!Number.isSafeInteger(expectedVersion) || expectedVersion !== (metadata?.version ?? 1))) throw new LibraryError("This mix changed since your preview. Reload and review it before continuing.");
+  if (expectedVersion !== undefined && (!Number.isSafeInteger(expectedVersion) || expectedVersion !== (metadata?.version ?? 1))) throw new LibraryError("This Mix changed since your preview. Reload and review it before continuing.");
   return { shared, metadata };
 }

@@ -33,9 +33,9 @@ test("Mixes use three panes with Beat preview, search and complete pagination", 
   const library = page.getByRole("complementary", { name: "Mix library", exact: true }), selected = page.getByRole("region", { name: "Selected Mix", exact: true }), context = page.getByRole("complementary", { name: "People and Journey connections", exact: true });
   await expect(selected.getByRole("heading", { name: "A welcome conversation", exact: true })).toBeVisible(); await expect(selected.getByText("Hello! What would be most useful to talk about today?", { exact: true })).toBeVisible();
   const left = await library.boundingBox(), center = await selected.boundingBox(), right = await context.boundingBox(); expect(left!.x + left!.width).toBeLessThanOrEqual(center!.x + 2); expect(center!.x + center!.width).toBeLessThanOrEqual(right!.x + 2);
-  await library.getByRole("searchbox", { name: "Search mixes", exact: true }).fill("Follow-up 23"); await library.getByRole("button", { name: "Search mixes", exact: true }).click();
+  await library.getByRole("searchbox", { name: "Search Mixes", exact: true }).fill("Follow-up 23"); await library.getByRole("button", { name: "Search Mixes", exact: true }).click();
   await expect(selected.getByRole("heading", { name: "Follow-up 23", exact: true })).toBeVisible(); await expect(library.locator(".mix-library-row")).toHaveCount(1);
-  await library.getByRole("link", { name: "Clear filters", exact: true }).click(); await library.getByRole("link", { name: "Next mixes", exact: true }).click(); await expect(library.locator(".mix-library-row")).toHaveCount(4);
+  await library.getByRole("link", { name: "Clear filters", exact: true }).click(); await library.getByRole("link", { name: "Next Mixes", exact: true }).click(); await expect(library.locator(".mix-library-row")).toHaveCount(4);
   await page.goto(`/mixes?mix=${mixes[23]}`); await expect(selected.getByRole("heading", { name: "Follow-up 23", exact: true })).toBeVisible();
 });
 
@@ -51,7 +51,7 @@ test("preview and editing stay in the workspace and protect an unsaved Beat", as
   const script = selected.locator('textarea[name="inlineScript-0"]').first(); await expect(script).toBeVisible(); await script.fill("A revised conversation for this person.");
   page.once("dialog", dialog => dialog.dismiss()); await selected.getByRole("link", { name: "Preview", exact: true }).click(); await expect(script).toHaveValue("A revised conversation for this person.");
   await page.getByRole("button", { name: "Add A welcome conversation to favorites", exact: true }).click(); await expect(page.getByRole("button", { name: "Remove A welcome conversation from favorites", exact: true })).toBeVisible(); await expect(script).toHaveValue("A revised conversation for this person.");
-  await selected.getByRole("button", { name: "Save mix", exact: true }).click(); await expect(page.getByRole("status").filter({ hasText: "Mix saved" })).toBeVisible();
+  await selected.getByRole("button", { name: "Save Mix", exact: true }).click(); await expect(page.getByRole("status").filter({ hasText: "Mix saved" })).toBeVisible();
   await page.getByRole("region", { name: "Selected Mix", exact: true }).getByRole("link", { name: "Preview", exact: true }).click(); await expect(page.getByText("A revised conversation for this person.", { exact: true })).toBeVisible();
 });
 
@@ -101,13 +101,13 @@ test("Mix panes share Contacts directory and detail boundaries", async ({ page }
 });
 
 test("directory filters and tools stay reachable by keyboard and after an empty result", async ({ page }) => {
-  const filter = page.getByRole("button", { name: "Filter mixes", exact: true });
+  const filter = page.getByRole("button", { name: "Filter Mixes", exact: true });
   await filter.focus(); await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog"); await expect(dialog).toBeVisible();
   await dialog.getByRole("combobox", { name: "Status", exact: true }).selectOption("ACTIVE");
   await dialog.getByRole("button", { name: "Apply filters", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "No matching mixes", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Filter mixes", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "No matching Mixes", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Filter Mixes", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Clear filters", exact: true }).first().click();
   await expect(page.locator(".mix-library-row")).toHaveCount(20);
   await page.getByRole("button", { name: "More Mix tools", exact: true }).click();
