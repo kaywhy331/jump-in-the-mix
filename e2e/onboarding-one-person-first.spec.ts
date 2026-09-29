@@ -83,3 +83,15 @@ test("no Mega-Mix is suggested for personal use or when the account already has 
   await prepareFirstFollowUp(page, { businessType: "Real estate" });
   await expect(page.getByRole("link", { name: /Mega-Mix/ })).toHaveCount(0);
 });
+
+test("the recommended form keeps its controls whole and fits 320px at 200% text", async ({ page }) => {
+  await account(page);
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.goto("/onboarding");
+  await expect(page.getByRole("checkbox", { name: /I reviewed this Mix/ })).toBeEnabled();
+  const whole = await page.locator(".first-win-onboarding .checkbox-card > input:visible").evaluateAll(inputs => inputs.map(input => { const box = input.getBoundingClientRect(); return box.width >= box.height; }));
+  expect(whole.length).toBeGreaterThan(3);
+  expect(whole).not.toContain(false);
+  await page.addStyleTag({ content: "html { font-size: 200% !important }" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
+});
