@@ -197,7 +197,7 @@ export default async function AdminSupportTicketPage({
           </details>
           {permissions.includes("support.view_customer") && (
             <details className="card">
-              <summary>Customer support view</summary><p>Read this requester’s workspace for up to {env.impersonationMinutes} minutes. Each page request is audited. Private contact notes and mix content may be visible.</p>
+              <summary>Customer support view</summary><p>Read this requester’s workspace for up to {env.impersonationMinutes} minutes. Each page request is audited. Private contact notes and Mix content may be visible.</p>
               {ticket.assignedToUserId === user.id && !["RESOLVED", "CLOSED"].includes(ticket.status) ? (
                 <form action="/api/admin/impersonation/start" method="post" className="form-stack">
                   <input type="hidden" name="returnTo" value={returnTo} /><input type="hidden" name="ticketId" value={ticket.id} />
@@ -216,7 +216,7 @@ export default async function AdminSupportTicketPage({
               <div><dt>Email verified</dt><dd>{requester?.emailVerifiedAt ? "Yes" : "No"}</dd></div>
               <div><dt>Workspace</dt><dd>{workspace?.name ?? ticket.workspaceId}</dd></div>
               <div><dt>Contacts</dt><dd>{usage.contacts}</dd></div>
-              <div><dt>Active mixes</dt><dd>{usage.plans}</dd></div>
+              <div><dt>Active Mixes</dt><dd>{usage.plans}</dd></div>
               <div><dt>Pending follow-ups</dt><dd>{usage.pendingFollowUps}</dd></div>
               <div><dt>Category</dt><dd>{supportCategoryLabel(ticket.category)}</dd></div>
               <div><dt>Priority</dt><dd>{supportPriorityLabel(ticket.priority)}</dd></div>

@@ -23,7 +23,7 @@ function node(key: string, name: string, purpose: string, steps: ReadyMadePlanSt
 }
 function fromPlan(key: string, planId: string, name: string, purpose: string, paths: MegaMixPath[]): MegaMixNode {
   const plan = READY_MADE_PLANS.find(item => item.id === planId);
-  if (!plan) throw new Error(`Missing mega-mix source: ${planId}`);
+  if (!plan) throw new Error(`Missing Mega-Mix source: ${planId}`);
   return { key, name, purpose, steps: plan.steps.map(step => ({ ...step })), paths, sourcePlanId: planId };
 }
 const later = (returnTo: string): MegaMixNode => node("later", "Agreed later follow-up", "Keep the agreed timing. Snooze this call reminder to the date the person requested before continuing.", [call("Review the agreed timing", "Check your notes for the date and channel the person requested. If that date has not arrived, snooze this reminder. When it is time, ask whether they want to resume. Record their decision; do not assume that waiting means yes.")], [path("Ready to resume", returnTo, 0, 3), stop()]);

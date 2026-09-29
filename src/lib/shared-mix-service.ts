@@ -43,7 +43,7 @@ export async function snapshotWorkspaceMix(workspaceId: string, mixId: string): 
     }
   });
   if (!mix) throw new UserFacingError("Mix not found.");
-  if (!mix.steps.length) throw new UserFacingError("Add at least one follow-up before publishing this mix.");
+  if (!mix.steps.length) throw new UserFacingError("Add at least one follow-up before publishing this Mix.");
 
   const steps: SharedMixStep[] = mix.steps.map((item, index) => ({
     name: item.stepVersion.stepTemplate.name || `Follow-up #${index + 1}`,
@@ -97,10 +97,10 @@ async function resolveImportedDateType(
   if (triggerMode !== "DATE_TRIGGERED") return null;
   const name = clean(dateTypeName, 120);
   const slug = clean(dateTypeSlug, 120);
-  if (!name) throw new UserFacingError("This date-based mix does not identify the date that starts it.");
+  if (!name) throw new UserFacingError("This date-based Mix does not identify the date that starts it.");
   const existing = await matchDateType(tx, workspaceId, { name, slug });
   if (existing) {
-    if (!existing.isActive) throw new UserFacingError(`Turn on the ${existing.name} date before adding this mix.`);
+    if (!existing.isActive) throw new UserFacingError(`Turn on the ${existing.name} date before adding this Mix.`);
     return existing.id;
   }
 

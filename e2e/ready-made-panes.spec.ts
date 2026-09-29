@@ -44,7 +44,7 @@ test("ready-made selection, favorites and existing copies stay connected without
   await expect(details.getByRole("link", { name: "My adapted conversation draft" })).toHaveAttribute("href", `/mixes?mix=${ownMixId}`);
   await page.locator(".mix-library-item").filter({ hasText: "Ready sample 01" }).click();
   await expect(selected).toContainText("Opening conversation 1.");
-  await expect(details.getByRole("link", { name: "Use this mix", exact: true })).toHaveAttribute("href", `/templates/${templates[1]}/use`);
+  await expect(details.getByRole("link", { name: "Use this Mix", exact: true })).toHaveAttribute("href", `/templates/${templates[1]}/use`);
   await expect(details).not.toContainText("My adapted conversation");
   await page.getByRole("button", { name: "Add Ready sample 01 to favorites", exact: true }).click();
   await expect(page.getByRole("button", { name: "Remove Ready sample 01 from favorites", exact: true })).toHaveAttribute("aria-pressed", "true");
@@ -57,40 +57,40 @@ test("ready-made selection, favorites and existing copies stay connected without
   await expect(page.locator(".mix-library-row")).toHaveCount(1);
   await expect(selected).toContainText("Opening conversation 1.");
   await page.getByRole("button", { name: "Remove Ready sample 01 from favorites", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "No favorite mixes yet" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "No favorite Mixes yet" })).toBeVisible();
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(before);
   expect(await prisma.sharedMix.aggregate({ where: { id: { in: templates } }, _sum: { importCount: true } })).toMatchObject({ _sum: { importCount: 0 } });
 });
 
 test("pagination, filtered selection, unpublished and invalid content have clear outcomes", async ({ page }) => {
   await expect(page.locator(".mix-library-row")).toHaveCount(20);
-  await page.getByRole("link", { name: "Next ready-made mixes", exact: true }).click();
+  await page.getByRole("link", { name: "Next ready-made Mixes", exact: true }).click();
   await expect(page.locator(".mix-library-row")).toHaveCount(5);
   await page.locator(".mix-library-item").filter({ hasText: "Ready sample 23" }).click();
   await expect(page.getByRole("region", { name: "Selected ready-made Mix" })).toContainText("Opening conversation 23.");
   await expect(page).toHaveURL(/page=2/);
   await page.goto(`${libraryUrl}&mix=${templates[23]}`);
   await expect(page.getByRole("region", { name: "Selected ready-made Mix" })).toContainText("Opening conversation 23.");
-  await page.getByRole("searchbox", { name: "Search ready-made mixes", exact: true }).fill("Ready sample 03");
-  await page.getByRole("button", { name: "Search ready-made mixes", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Search ready-made Mixes", exact: true }).fill("Ready sample 03");
+  await page.getByRole("button", { name: "Search ready-made Mixes", exact: true }).click();
   await expect(page.locator(".mix-library-row")).toHaveCount(1);
   await expect(page.getByRole("region", { name: "Selected ready-made Mix" })).toContainText("Opening conversation 3.");
   await page.goto(`${libraryUrl}&mix=${templates[24]}`);
-  await expect(page.getByText("This mix is being updated. Please choose another.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Use this mix", exact: true })).toHaveCount(0);
+  await expect(page.getByText("This Mix is being updated. Please choose another.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Use this Mix", exact: true })).toHaveCount(0);
   await page.goto(`/templates?mix=${templates[25]}`);
   await expect(page.getByRole("heading", { name: "Let’s get you back on track.", exact: true })).toBeVisible();
   await expect(page.getByText("Ready sample 25", { exact: true })).toHaveCount(0);
 });
 
 test("setup returns to the selected preview and creates an editable draft", async ({ page }) => {
-  await page.getByRole("complementary", { name: "Ready-made Mix details" }).getByRole("link", { name: "Use this mix", exact: true }).click();
+  await page.getByRole("complementary", { name: "Ready-made Mix details" }).getByRole("link", { name: "Use this Mix", exact: true }).click();
   await expect(page.getByLabel("Mix name", { exact: true })).toHaveValue("Ready sample 00");
   await expect(page.getByRole("link", { name: "Mix library", exact: true })).toHaveAttribute("href", `/templates?mix=${templates[0]}`);
   await page.getByRole("link", { name: "Cancel", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`mix=${templates[0]}`));
   await expect(page.getByRole("region", { name: "Selected ready-made Mix" })).toContainText("Opening conversation 0.");
-  await page.getByRole("complementary", { name: "Ready-made Mix details" }).getByRole("link", { name: "Use this mix", exact: true }).click();
+  await page.getByRole("complementary", { name: "Ready-made Mix details" }).getByRole("link", { name: "Use this Mix", exact: true }).click();
   await page.getByLabel("Mix name", { exact: true }).fill("My personal ready-made copy");
   await expect(page.getByLabel("After setup")).toHaveValue("DRAFT");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
@@ -103,7 +103,7 @@ test("setup returns to the selected preview and creates an editable draft", asyn
   await expect(page.getByRole("complementary", { name: "Ready-made Mix details" }).getByRole("link", { name: "My personal ready-made copy draft" })).toHaveAttribute("href", `/mixes?mix=${copy.id}`);
 });
 
-test("ready-made panes match My mixes and reflow in both themes with large text", async ({ page }) => {
+test("ready-made panes match My Mixes and reflow in both themes with large text", async ({ page }) => {
   test.setTimeout(300_000);
   for (const width of [390, 834, 1200, 1440, 1700, 1920]) {
     await page.setViewportSize({ width, height: 1080 });
@@ -134,7 +134,7 @@ test("ready-made panes match My mixes and reflow in both themes with large text"
       expect((await axeInPage(page).include(".mix-workspace-page").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
       if (width < 1200) {
         await panels.getByRole("button", { name: "Details", exact: true }).click();
-        await expect(page.getByRole("complementary", { name: "Ready-made Mix details" }).getByRole("link", { name: "Use this mix", exact: true })).toBeVisible();
+        await expect(page.getByRole("complementary", { name: "Ready-made Mix details" }).getByRole("link", { name: "Use this Mix", exact: true })).toBeVisible();
         if (process.env.CONNECTION_ARTIFACTS) await page.screenshot({ path: `${process.env.CONNECTION_ARTIFACTS}/ready-details-${width}-${theme}.png`, fullPage: true });
         expect((await axeInPage(page).include(".mix-workspace-page").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
       }
@@ -150,14 +150,14 @@ test("ready-made panes match My mixes and reflow in both themes with large text"
 });
 
 test("keyboard filters, tools and search remain available after an empty result", async ({ page }) => {
-  const filter = page.getByRole("button", { name: "Filter ready-made mixes", exact: true });
+  const filter = page.getByRole("button", { name: "Filter ready-made Mixes", exact: true });
   await filter.focus(); await page.keyboard.press("Enter");
-  const dialog = page.getByRole("dialog", { name: "Filter ready-made mixes", exact: true });
+  const dialog = page.getByRole("dialog", { name: "Filter ready-made Mixes", exact: true });
   await expect(dialog.getByLabel("Filter by approach")).toHaveValue(framework);
   await page.keyboard.press("Escape"); await expect(filter).toBeFocused();
-  await page.getByRole("searchbox", { name: "Search ready-made mixes", exact: true }).fill("No matching synthetic name");
+  await page.getByRole("searchbox", { name: "Search ready-made Mixes", exact: true }).fill("No matching synthetic name");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("heading", { name: "No mixes match", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "No Mixes match", exact: true })).toBeVisible();
   await filter.click(); await expect(dialog).toBeVisible(); await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "More ready-made Mix tools", exact: true }).click();
   await expect(page.getByRole("dialog").getByRole("link", { name: "My invitations", exact: true })).toBeVisible();

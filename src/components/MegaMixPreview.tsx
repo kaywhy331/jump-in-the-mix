@@ -7,11 +7,11 @@ import styles from "./MegaMix.module.css";
 export function MegaMixPreview({ blueprint }: { blueprint: MegaMix }) {
   return <div className={styles.preview}>
     <p className={styles.eyebrow}>A connected starting point</p>
-    <h2>{blueprint.name} mega-mix</h2><p>{blueprint.description}</p>
-    <div className={styles.facts}><span>{blueprint.nodes.length} mixes</span><span>{blueprint.nodes.reduce((n, item) => n + item.steps.length, 0)} Beats</span><span>Editable connections</span></div>
+    <h2>{blueprint.name} Mega-Mix</h2><p>{blueprint.description}</p>
+    <div className={styles.facts}><span>{blueprint.nodes.length} Mixes</span><span>{blueprint.nodes.reduce((n, item) => n + item.steps.length, 0)} Beats</span><span>Editable connections</span></div>
     <p className={styles.explanation}>Start someone where they are. Their recorded decisions guide the next follow-up.</p>
     <details className={styles.how}><summary>Coverage and how it works</summary><p>{blueprint.coverage}</p><p>Start someone at the Mix that fits their situation. After its Beats finish, record the decision to continue along a connected path. {blueprint.nodes.some(node => node.paths.some(route => route.on === "FINISHED")) && "Paths labeled Follow-up finished continue automatically when the source Beats are done or skipped. "}You can change any wording, timing or path in your own Journey.</p></details>
-    <ol className={styles.nodes} aria-label="Included mixes and connections">{blueprint.nodes.map((node, index) => <li key={node.key}>
+    <ol className={styles.nodes} aria-label="Included Mixes and connections">{blueprint.nodes.map((node, index) => <li key={node.key}>
       <span className={styles.number} aria-hidden="true">{index + 1}</span><div className={styles.node}>
         <h3>{node.name}</h3>{blueprint.roots.includes(node.key) && <span className={styles.root}>Suggested starting point</span>}
         <p>{node.purpose}</p>

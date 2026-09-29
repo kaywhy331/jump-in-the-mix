@@ -183,7 +183,7 @@ test("briefing uses this workspace and timezone, excludes skipped work, and warn
     const contact = await prisma.contact.create({ data: { workspaceId, displayName: current === data ? "Summary fixture" : "Other workspace private contact" } });
     const template = await prisma.stepTemplate.create({ data: { workspaceId, name: "Summary step", channel: "EMAIL" } });
     const version = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 1, body: "Fixture message" } });
-    const mix = await prisma.mix.create({ data: { workspaceId, name: "Summary mix", status: "ACTIVE", triggerMode: "MANUAL_START", steps: { create: { stepVersionId: version.id, dayOffset: 0, sortOrder: 1 } } }, include: { steps: true } });
+    const mix = await prisma.mix.create({ data: { workspaceId, name: "Summary Mix", status: "ACTIVE", triggerMode: "MANUAL_START", steps: { create: { stepVersionId: version.id, dayOffset: 0, sortOrder: 1 } } }, include: { steps: true } });
     await prisma.jump.createMany({ data: [
       { status: "PENDING" as const, scheduledAt: new Date(midnight.getTime() - 1), completedAt: null },
       { status: "PENDING" as const, scheduledAt: new Date(midnight.getTime() + 60_000), completedAt: null },

@@ -42,14 +42,14 @@ export function parseBroadcastScheduleInput(dateValue: string, timeValue: string
   const dateInput = dateValue.trim();
   const timeInput = timeValue.trim();
   const timezone = timezoneValue.trim();
-  if (!DATE_INPUT.test(dateInput)) throw new Error("Choose a valid mix start date.");
+  if (!DATE_INPUT.test(dateInput)) throw new Error("Choose a valid Mix start date.");
   const localDate = new Date(`${dateInput}T12:00:00.000Z`);
   if (Number.isNaN(localDate.getTime()) || localDate.toISOString().slice(0, 10) !== dateInput) {
-    throw new Error("Choose a valid mix start date.");
+    throw new Error("Choose a valid Mix start date.");
   }
   const timeMinutes = parseTimeInput(timeInput);
-  if (timeMinutes === null) throw new Error("Choose a valid mix start time.");
-  if (!isValidTimezone(timezone)) throw new Error("Choose a valid mix timezone.");
+  if (timeMinutes === null) throw new Error("Choose a valid Mix start time.");
+  if (!isValidTimezone(timezone)) throw new Error("Choose a valid Mix timezone.");
   return { localDate, dateInput, timeMinutes, timeInput, timezone };
 }
 

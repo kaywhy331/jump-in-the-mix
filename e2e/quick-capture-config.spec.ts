@@ -96,11 +96,11 @@ async function author(page: Page, name: string) {
 }
 test("activation preference persists, defaults to review and allows an optional review in direct mode", async ({ page }) => {
   await prisma.userPreference.update({ where: { userId }, data: { reviewMixActivation: true } });
-  await author(page, `Reviewed mix ${randomUUID()}`);
+  await author(page, `Reviewed Mix ${randomUUID()}`);
   await page.getByRole("button", { name: "Review and start", exact: true }).click();
-  const review = page.getByRole("dialog", { name: "Start this mix?", exact: true });
+  const review = page.getByRole("dialog", { name: "Start this Mix?", exact: true });
   await expect(review).toBeVisible();
-  await review.getByRole("button", { name: "Start the mix", exact: true }).click();
+  await review.getByRole("button", { name: "Start the Mix", exact: true }).click();
   // /mixes/<id>/edit forwards to the Mix library's editor view (bd125c6).
   await expect(page).toHaveURL(/\/mixes\?mix=[^&]+&view=edit&created=manual/);
   await page.goto("/account/preferences");
@@ -108,7 +108,7 @@ test("activation preference persists, defaults to review and allows an optional 
   await page.getByRole("button", { name: "Save activation preference", exact: true }).click();
   await expect(page.getByText("Mix activation preference saved.", { exact: true })).toBeVisible();
   await page.reload(); await expect(page.getByRole("combobox", { name: /^Mix activation/ })).toHaveValue("DIRECT");
-  const name = `Direct mix ${randomUUID()}`;
+  const name = `Direct Mix ${randomUUID()}`;
   await author(page, name);
   await page.getByRole("button", { name: "Review first", exact: true }).click(); await expect(review).toBeVisible();
   await review.getByRole("button", { name: "Keep editing", exact: true }).click();
@@ -124,7 +124,7 @@ for (const reviewBeforeActivation of [true, false]) test(`ready-made setup honor
   await page.getByLabel("Everyone").check();
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await page.getByRole("button", { name: reviewBeforeActivation ? "Review and start" : "Save and activate", exact: true }).click();
-  if (reviewBeforeActivation) await page.getByRole("dialog").getByRole("button", { name: "Start the mix", exact: true }).click();
+  if (reviewBeforeActivation) await page.getByRole("dialog").getByRole("button", { name: "Start the Mix", exact: true }).click();
   // The setup redirects to /mixes/<id>/edit?imported=1&activated=1, which forwards both to the library editor, so the
   // editor says the Mix started; the activation itself is checked on the saved Mix.
   await expect(page).toHaveURL(/\/mixes\?mix=[^&]+&view=edit&activated=1&imported=1$/);

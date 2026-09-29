@@ -84,7 +84,7 @@ export async function updateMixActivationPreferenceAction(formData: FormData): P
   const { session, user, workspace, impersonation } = await requireWorkspace();
   if (impersonation) fail("Personal settings are unavailable during a view-only support session.", session);
   const mode = value(formData, "mixActivation", 20);
-  if (mode !== "REVIEW" && mode !== "DIRECT") fail("Choose how you want to activate mixes.", session);
+  if (mode !== "REVIEW" && mode !== "DIRECT") fail("Choose how you want to activate Mixes.", session);
   const reviewMixActivation = mode === "REVIEW";
   await prisma.$transaction([
     prisma.userPreference.upsert({ where: { userId: user.id }, create: { userId: user.id, reviewMixActivation }, update: { reviewMixActivation } }),

@@ -23,7 +23,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       <div className="onboarding-top"><Logo /><span className="setup-step">Your starting point</span></div>
       <section className="onboarding-card first-win-onboarding">
         <h1>Setup is complete</h1>
-        <p className="onboarding-intro">Your follow-ups are on Today, and the Marketplace has more ready-made mixes to add.</p>
+        <p className="onboarding-intro">Your follow-ups are on Today, and the Marketplace has more ready-made Mixes to add.</p>
         {params.verified === "1" && <Notice type="success">Your email is verified.</Notice>}
         <div className="page-actions"><Link className="button primary" href="/jumps">Open Today</Link><Link className="button" href="/marketplace">Browse the Marketplace</Link></div>
         <p>Want a different starting point? <Link href="/onboarding?again=1">Run setup again</Link>.</p>

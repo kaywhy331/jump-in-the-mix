@@ -38,14 +38,14 @@ export default function TemplatesPage() {
     </section>
     <section aria-labelledby="routes-title">
       <h2 id="routes-title">Follow-up plans by profession</h2>
-      <p>Each page plays a demo with that profession’s own Mixes, so you can see the plan before you read the template.</p>
+      <p>Each page opens the demo with that profession’s own situations, so you can see the follow-up before you read the template.</p>
       <ul>{PERSONAS.map(item => <li key={item.id}><Link href={`/for/${item.slug}`}>{item.navLabel}</Link>: {ROUTE_LINES[item.id]}</li>)}</ul>
     </section>
     <section className="public-article-cta" aria-labelledby="hub-cta-title">
       <h2 id="hub-cta-title">Ready to put one follow-up in the mix?</h2>
       <p>Start with a sample conversation. See how a Mix turns “I’ll check back” into a planned next step.</p>
       <Link className="button primary" href="/#sample">Try the demo</Link>
-      <small>A fictional contact and an editable draft. Nothing goes out unless you open your own messaging app and send it.</small>
+      <small>A fictional contact and editable drafts. The demo doesn’t send anything or open another app.</small>
     </section>
   </PublicArticle>;
 }

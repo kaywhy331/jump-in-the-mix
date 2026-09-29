@@ -6,7 +6,7 @@ export const JOURNEY_EVENTS = [
   { value: "MEETING_NO_SHOW", label: "A meeting was missed" },
   { value: "SALE_CONFIRMED", label: "A sale is confirmed" },
   { value: "WORK_COMPLETED", label: "The work is completed" },
-  { value: "PLAN_COMPLETED", label: "The stage’s mix is completed" },
+  { value: "PLAN_COMPLETED", label: "The stage’s Mix is completed" },
   { value: "TIME_IN_STAGE", label: "Time passes in this stage" }
 ] as const;
 export const DEFAULT_JOURNEY_STAGES = ["Lead", "Prospect", "Client", "Retention"];

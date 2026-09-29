@@ -55,9 +55,9 @@ test("saved stages and existing rules explain their actual effect before editing
   await expect(form.getByRole("combobox", { name: "Move to", exact: true })).toHaveValue(stages[1].id);
   await expect(form.locator(".journey-rule-preview")).toContainText("Discovery follow-up");
   await form.getByRole("combobox", { name: "Move to", exact: true }).selectOption(stages[3].id);
-  await expect(form.locator(".journey-rule-preview")).toContainText("No automatic mix starts on entry");
+  await expect(form.locator(".journey-rule-preview")).toContainText("No automatic Mix starts on entry");
   await save(form);
-  await expect(page.getByText("Journey settings saved.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Contact stages saved.", { exact: true })).toBeVisible();
   await expect(page.locator(`#stage-${stages[0].id}`)).toHaveAttribute("open", "");
   const current = await prisma.contactJourney.findUniqueOrThrow({ where: { contactId } });
   expect(current.stageId).toBe(stages[0].id);
@@ -86,7 +86,7 @@ test("a stale save keeps the draft and offers an explicit review of the newer ru
   await expect(form.getByRole("alert")).toHaveCount(0);
   await form.getByRole("combobox", { name: "Move to", exact: true }).selectOption(stages[3].id);
   await save(form);
-  await expect(page.getByText("Journey settings saved.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Contact stages saved.", { exact: true })).toBeVisible();
   expect((await prisma.journeyRule.findUniqueOrThrow({ where: { fromStageId_eventType: { fromStageId: stages[0].id, eventType: "CONVERSATION_STARTED" } } })).toStageId).toBe(stages[3].id);
 });
 
@@ -99,7 +99,7 @@ test("Edit rule opens the selected saved rule with its current destination", asy
   await expect(form.getByRole("combobox", { name: "Move to", exact: true })).toHaveValue(stages[1].id);
   await form.getByRole("combobox", { name: "Move to", exact: true }).selectOption(stages[3].id);
   await save(form);
-  await expect(page.getByText("Journey settings saved.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Contact stages saved.", { exact: true })).toBeVisible();
   expect((await prisma.journeyRule.findUniqueOrThrow({ where: { fromStageId_eventType: { fromStageId: stages[0].id, eventType: "CONVERSATION_STARTED" } } })).toStageId).toBe(stages[3].id);
 });
 
@@ -121,7 +121,7 @@ test("timing errors preserve entries and changing triggers preserves each draft"
   await expect(form.getByLabel("Days in this stage")).toHaveValue("0");
   await expect(form.getByRole("combobox", { name: "Move to", exact: true })).toHaveValue(stages[3].id);
   await form.getByLabel("Days in this stage").fill("12"); await save(form);
-  await expect(page.getByText("Journey settings saved.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Contact stages saved.", { exact: true })).toBeVisible();
   await expect(page.locator(`#stage-${stages[0].id}`)).toContainText("After 12 days in this stage → Repeat customer");
 });
 
@@ -162,7 +162,7 @@ test("contact rules distinguish business pauses, individual pauses and milestone
   await open(panel.locator("details > summary").filter({ hasText: "Stage and automation" }));
   await expect(panel.locator("details")).toHaveAttribute("open", "");
   await expect(panel.getByRole("button", { name: "Resume transitions for this person", exact: true })).toBeVisible();
-  await expect(panel).toContainText("keeps this person’s current mixes running");
+  await expect(panel).toContainText("keeps this person’s current Mixes running");
 });
 
 test("expanded rule editing remains accessible across widths, themes and keyboard input", async ({ page }) => {

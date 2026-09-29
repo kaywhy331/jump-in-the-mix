@@ -29,7 +29,7 @@ test.beforeEach(async ({ context, page }) => { await context.addCookies(cookies)
 test.afterAll(async () => { if (workspaceId) await prisma.workspace.deleteMany({ where: { id: workspaceId } }); if (userId) await prisma.user.deleteMany({ where: { id: userId } }); });
 
 test("owners configure stages, custom triggers, order and individual pauses", async ({ page }) => {
-  await page.goto("/settings/journey"); await submit(page, page.getByRole("button",{ name: "Use this starting journey" }));
+  await page.goto("/settings/journey"); await submit(page, page.getByRole("button",{ name: "Use these starting stages" }));
   await expect(page.getByRole("heading",{ name: "Automatic transitions are on" })).toBeVisible();
   await page.getByText("Add another stage",{ exact: true }).click();
   const add = page.locator("details").filter({ has: page.locator('input[placeholder="For example, Proposal or Past customer"]') });

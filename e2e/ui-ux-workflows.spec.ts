@@ -76,7 +76,7 @@ test("onboarding permits minimal details only after reviewing its actual starter
   // Onboarding opens on the complete mega-mix; one person and one follow-up is its own starting point.
   await page.getByRole("radio", { name: /^Other uses or one follow-up/ }).check();
   await page.getByLabel("Name", { exact: true }).fill("Notes Only Person");
-  await page.getByRole("checkbox", { name: /I reviewed this plan/ }).check();
+  await page.getByRole("checkbox", { name: /I reviewed this Mix/ }).check();
   await page.getByRole("button", { name: "Prepare my first follow-up" }).click();
   await expect(page).toHaveURL(/\/jumps\?.*welcome=1/);
   await expect(page.getByText(/saved\. Add (an email address|a phone number)/)).toBeVisible();

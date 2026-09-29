@@ -72,7 +72,7 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
     <MixLibraryShell selectedMixId={item ? selectedKey : undefined} explicitSelection={Boolean(params.item)}>
       <aside className="mix-library-directory" aria-label="Marketplace">
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions"><BrandTermsHelp /></div></header>
-        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My mixes</Link><Link href="/mixes/mega"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace" aria-current="page"><AppIcon name="store" />Marketplace</Link></nav>
+        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My Mixes</Link><Link href="/mixes/mega"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace" aria-current="page"><AppIcon name="store" />Marketplace</Link></nav>
         <nav className="marketplace-sections" aria-label="Marketplace section">
           <Link href="/marketplace" aria-current={section === "official" ? "page" : undefined}>Jump in the Mix</Link>
           <Link href="/marketplace?section=community" aria-current={section === "community" ? "page" : undefined}>Community</Link>

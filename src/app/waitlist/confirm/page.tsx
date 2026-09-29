@@ -7,8 +7,8 @@ export const metadata: Metadata = { title: "Confirm your waitlist request", robo
 export default async function ConfirmWaitlistPage({ searchParams }: { searchParams: Promise<{ token?: string }> }) {
   const { token } = await searchParams;
   return <main className="auth-shell"><section className="auth-card"><Logo />
-    <h1>Confirm your email</h1><p>Confirm your email and we’ll let you know the moment it’s your turn to start mixing.</p>
-    <p>If you previously left, confirming allows invitation emails again and starts a new place in the queue.</p>
+    <h1>Confirm your email</h1><p>Confirm your email to join the waitlist. We email invitations in small groups as space opens, so we can’t promise a date.</p>
+    <p>If you previously left, confirming allows invitation emails again and adds you to the waitlist as a new request.</p>
     <form action={confirmWaitlistAction}><input type="hidden" name="token" value={token ?? ""} /><button className="button primary" type="submit">Confirm waitlist request</button></form>
   </section></main>;
 }

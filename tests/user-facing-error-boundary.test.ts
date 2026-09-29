@@ -47,7 +47,7 @@ describe("only wording our own code writes reaches the person", () => {
     mocks.scheduleVisit.mockRejectedValue(databaseError());
     expect(await visit()).toEqual({ error: "This event could not be saved. Your entries are kept." });
     mocks.installMegaMix.mockRejectedValue(databaseError());
-    expect(await install()).toEqual({ error: "The mega-mix could not be added. Your choices have been kept." });
+    expect(await install()).toEqual({ error: "The Mega-Mix could not be added. Your choices have been kept." });
     mocks.saveWorkflowConfiguration.mockRejectedValue(databaseError());
     const configured = await configure();
     expect(configured.status).toBe(400);

@@ -26,7 +26,7 @@ async function createDraft(page: Page, title: string) {
   await page.getByLabel("Title", { exact: true }).fill(title);
   await page.getByLabel("Description", { exact: true }).fill("A thoughtful check-in after meeting someone new.");
   await page.getByLabel("Message", { exact: true }).fill("Hi {{First Name}}, how did your event go?");
-  await page.getByLabel("Reason for draft change").fill("Prepare the first reviewed relationship mix");
+  await page.getByLabel("Reason for draft change").fill("Prepare the first reviewed relationship Mix");
   await page.getByRole("button", { name: "Save draft for review" }).click();
   await expect(page).toHaveURL(url => /\/admin\/templates\/[a-z0-9]+\/edit$/.test(url.pathname) && url.searchParams.get("saved") === "1");
   const id = new URL(page.url()).pathname.split("/")[3]; sharedIds.push(id); return id;
@@ -142,16 +142,16 @@ test("editors can save drafts while stale forms and removed publication rights a
   await expect(page.getByRole("button", { name: "Save draft for review" })).toBeVisible();
   const firstBeat = page.locator(".admin-beat-editor").nth(0);
   await firstBeat.getByRole("textbox", { name: "Message", exact: true }).fill("Keep these first-beat edits through reordering.");
-  await page.getByRole("button", { name: "Add beat", exact: true }).click();
+  await page.getByRole("button", { name: "Add Beat", exact: true }).click();
   const secondBeat = page.locator(".admin-beat-editor").nth(1);
   await secondBeat.getByLabel("Beat name", { exact: true }).fill("Later check-in");
   await secondBeat.getByRole("textbox", { name: "Message", exact: true }).fill("Keep this second message with its timing and options.");
-  await secondBeat.getByLabel("Days from the cue date (negative = before)").fill("7");
+  await secondBeat.getByLabel("Days from the start date (negative = before)").fill("7");
   await secondBeat.getByLabel("Send time", { exact: false }).fill("14:25");
   await secondBeat.getByLabel("Allow long text messages").check();
   await secondBeat.getByLabel("Include opt-out wording").check();
   await secondBeat.getByRole("button", { name: "Move earlier", exact: true }).click();
-  await page.getByLabel("Reason for draft change").fill("Reorder prepared beats while preserving their content");
+  await page.getByLabel("Reason for draft change").fill("Reorder prepared Beats while preserving their content");
   await page.getByRole("button", { name: "Save draft for review" }).click();
   await expect(page).toHaveURL(/saved=2(?:&|$)/);
   const saved = (await prisma.sharedMixRevision.findUniqueOrThrow({ where: { sharedMixId_version: { sharedMixId: id, version: 2 } } })).snapshot as { steps: Array<Record<string, unknown>> };

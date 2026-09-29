@@ -127,8 +127,8 @@ export function sharedMixChannelLabel(channel: Channel): string {
 
 export function normalizeSharedMixSteps(value: unknown): SharedMixStep[] {
   const rows = normalizedRows(value);
-  if (!rows.length) throw new SharedMixContentError("This ready-made mix has no beats.");
-  if (rows.length > 50) throw new SharedMixContentError("A ready-made mix may contain at most 50 beats.");
+  if (!rows.length) throw new SharedMixContentError("This ready-made Mix has no Beats.");
+  if (rows.length > 50) throw new SharedMixContentError("A ready-made Mix may contain at most 50 Beats.");
 
   return rows.map((value, index) => {
     const record = asRecord(value);
@@ -191,7 +191,7 @@ export function sharedMixContentIssue(value: unknown): string | null {
     normalizeSharedMixSteps(value);
     return null;
   } catch (error) {
-    return error instanceof Error ? error.message : "This ready-made mix has invalid content.";
+    return error instanceof Error ? error.message : "This ready-made Mix has invalid content.";
   }
 }
 

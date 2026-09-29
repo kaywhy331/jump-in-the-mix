@@ -62,7 +62,7 @@ describe("Mix editor errors are signed for the person who saved", () => {
 
   it("keeps the fixed-date parser's wording", async () => {
     const location = await redirectOf(saveMixAction(mixForm({ triggerMode: "BROADCAST", broadcastDate: "2026-02-30", broadcastTime: "09:00", broadcastTimezone: "UTC" })));
-    expect(viewerErrorMessage(params(location), owner)).toBe("Choose a valid mix start date.");
+    expect(viewerErrorMessage(params(location), owner)).toBe("Choose a valid Mix start date.");
     expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
@@ -75,7 +75,7 @@ describe("Mix editor errors are signed for the person who saved", () => {
     const location = await redirectOf(saveMixAction(mixForm()));
     expect(location.startsWith("/mixes/new?error=")).toBe(true);
     expect(location).not.toMatch(/prisma|constraint/i);
-    expect(viewerErrorMessage(params(location), owner)).toBe("The mix could not be saved.");
+    expect(viewerErrorMessage(params(location), owner)).toBe("The Mix could not be saved.");
   });
 });
 
@@ -83,16 +83,16 @@ describe("ready-made Mix, starter and lifecycle errors are signed for the person
   it("asks for a ready-made mix on the library page", async () => {
     const location = await redirectOf(useSharedMixTemplateAction(new FormData()));
     expect(location.startsWith("/templates?error=")).toBe(true);
-    expect(viewerErrorMessage(params(location), owner)).toBe("Choose a ready-made mix.");
+    expect(viewerErrorMessage(params(location), owner)).toBe("Choose a ready-made Mix.");
   });
 
   it.each([
-    ["a library refusal", new LibraryError("This mix changed since your preview. Reload and review it before continuing."), "This mix changed since your preview. Reload and review it before continuing."],
+    ["a library refusal", new LibraryError("This Mix changed since your preview. Reload and review it before continuing."), "This Mix changed since your preview. Reload and review it before continuing."],
     ["a content refusal", new SharedMixContentError("Beat 2 does not use a supported channel."), "Beat 2 does not use a supported channel."],
     ["the setup's own plain refusal", new Error("Choose only active tags."), "Choose only active tags."],
-    ["an inactive date type", new Error("Turn on the Warranty expires date type before using this mix."), "Turn on the Warranty expires date type before using this mix."],
-    ["a database error", databaseError(), "The ready-made mix could not be used."],
-    ["an unexpected error", new Error("socket hang up"), "The ready-made mix could not be used."]
+    ["an inactive date type", new Error("Turn on the Warranty expires date type before using this Mix."), "Turn on the Warranty expires date type before using this Mix."],
+    ["a database error", databaseError(), "The ready-made Mix could not be used."],
+    ["an unexpected error", new Error("socket hang up"), "The ready-made Mix could not be used."]
   ])("setting up a ready-made mix shows %s as intended", async (_label, error, shown) => {
     mocks.useTemplate.mockRejectedValue(error);
     const location = await redirectOf(useSharedMixTemplateAction(setupForm()));
@@ -104,7 +104,7 @@ describe("ready-made Mix, starter and lifecycle errors are signed for the person
     mocks.findMix.mockResolvedValue(null);
     for (const error of [new Error("System Follow-up date type is missing. Run the seed command again."), databaseError()]) {
       mocks.ensureStarter.mockRejectedValue(error);
-      expect(viewerErrorMessage(params(await redirectOf(createStarterMixAction())), owner)).toBe("The starter mix could not be created.");
+      expect(viewerErrorMessage(params(await redirectOf(createStarterMixAction())), owner)).toBe("The starter Mix could not be created.");
     }
   });
 
@@ -128,6 +128,6 @@ describe("the refusal lists match the wording their services throw", () => {
     for (const sentence of sentences) expect(wording, `${sentence} is no longer thrown by ${services.join(", ")}`).toContain(`"${sentence}"`);
   });
   it("src/lib/shared-mix-use-actions.ts INACTIVE_DATE_TYPE", () => {
-    expect(read("src/lib/shared-mix-use-service.ts")).toContain("`Turn on the ${existing.name} date type before using this mix.`");
+    expect(read("src/lib/shared-mix-use-service.ts")).toContain("`Turn on the ${existing.name} date type before using this Mix.`");
   });
 });

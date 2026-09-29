@@ -30,10 +30,10 @@ describe.skipIf(!local).sequential("persisted Mix activation policy", () => {
   };
   it("requires review by default and ignores client claims that direct mode is enabled", async () => {
     const data = form(); data.set("reviewMixActivation", "false"); data.set("mixActivation", "DIRECT");
-    expect(await refusal(saveMixAction(data))).toBe("Review who gets the mix before turning it on.");
+    expect(await refusal(saveMixAction(data))).toBe("Review who gets the Mix before turning it on.");
     expect(await prisma.mix.count({ where: { workspaceId } })).toBe(0);
     data.set("sharedMixId", "fixture-missing-template");
-    expect(await refusal(useSharedMixTemplateAction(data))).toBe("Review who gets the mix before turning it on.");
+    expect(await refusal(useSharedMixTemplateAction(data))).toBe("Review who gets the Mix before turning it on.");
   });
   it("allows confirmed activation in review mode and unconfirmed activation only with the saved direct preference", async () => {
     const reviewed = form(); reviewed.set("activationConfirmed", "1");

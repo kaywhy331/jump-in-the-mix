@@ -72,7 +72,7 @@ test("message drafts, snooze fields, nested confirmation and focus survive closi
   if (chosen.getUTCMonth() !== new Date().getUTCMonth()) await date.getByRole("button", { name: "Next month", exact: true }).click();
   await date.getByRole("button", { name: chosenLabel, exact: true }).click();
   await expect(date.locator(".when-trigger.date")).toContainText(new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", timeZone: "UTC" }).format(chosen));
-  const stop = options.getByRole("button", { name: "Stop mix…", exact: true }); await stop.click();
+  const stop = options.getByRole("button", { name: "Stop Mix…", exact: true }); await stop.click();
   const confirmation = page.getByRole("dialog", { name: "Stop Sheet plan for Sheet person 2?", exact: true });
   await expect(confirmation).toBeVisible(); await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(stop).toBeFocused(); await expect(options).toBeVisible();

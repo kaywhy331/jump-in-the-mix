@@ -6,7 +6,7 @@ export async function setMixFavorite(db: Prisma.TransactionClient, workspaceId: 
   const available = target.kind === "mix"
     ? await db.mix.findFirst({ where: { id: target.id, workspaceId, status: { not: "ARCHIVED" } }, select: { id: true } })
     : await db.sharedMix.findFirst({ where: { id: target.id, status: "APPROVED" }, select: { id: true } });
-  if (!available) throw new Error("This mix is no longer available.");
+  if (!available) throw new Error("This Mix is no longer available.");
   if (!await db.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId, userId } }, select: { id: true } })) throw new Error("This workspace is no longer available.");
   if (favorite) {
     const data = { workspaceId, userId, ...(target.kind === "mix" ? { mixId: target.id } : { sharedMixId: target.id }) };

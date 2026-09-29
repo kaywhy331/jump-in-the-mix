@@ -1,1 +1,1 @@
-export default function Loading() { return <div className="page" role="status" aria-live="polite"><h1>Loading mixes…</h1><p>Your saved work is being loaded. You can still use the navigation.</p></div>; }
+export default function Loading() { return <div className="page" role="status" aria-live="polite"><h1>Loading Mixes…</h1><p>Your saved work is being loaded. You can still use the navigation.</p></div>; }

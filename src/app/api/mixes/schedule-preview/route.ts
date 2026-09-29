@@ -12,12 +12,12 @@ export async function POST(request: Request) {
   try {
     const raw = await request.text(); if (raw.length > 30_000) throw new Error("This preview is too large.");
     const body = JSON.parse(raw);
-    if (!isValidTimezone(body.timezone) || !Array.isArray(body.steps) || !body.steps.length || body.steps.length > 50) throw new Error("Choose a timezone and between 1 and 50 beats.");
+    if (!isValidTimezone(body.timezone) || !Array.isArray(body.steps) || !body.steps.length || body.steps.length > 50) throw new Error("Choose a timezone and between 1 and 50 Beats.");
     const start = parseCalendarTime(body.start, body.timezone), end = parseCalendarTime(body.end || body.start, body.timezone);
     if (end < start) throw new Error("The appointment end must follow its start.");
     const steps = body.steps.map((step: Record<string, unknown>, index: number) => {
       const dayOffset = Number(step.dayOffset), time = step.sendTimeMinutes == null ? null : Number(step.sendTimeMinutes);
-      if (!Number.isInteger(dayOffset) || Math.abs(dayOffset) > 365 || (time !== null && (!Number.isInteger(time) || time < 0 || time > 1439))) throw new Error(`Check the timing of beat ${index + 1}.`);
+      if (!Number.isInteger(dayOffset) || Math.abs(dayOffset) > 365 || (time !== null && (!Number.isInteger(time) || time < 0 || time > 1439))) throw new Error(`Check the timing of Beat ${index + 1}.`);
       return { ...validateStepTiming(String(step.anchor ?? "CALENDAR_DAY"), String(step.offsetMinutes ?? ""), index + 1), dayOffset, sendTimeMinutes: time, plannedAt: step.plannedAt ? parseCalendarTime(String(step.plannedAt), body.timezone) : null };
     });
     const saved = (await personalSchedulingRules([membership.workspaceId])).get(membership.workspaceId) ?? DEFAULT_PERSONAL_SCHEDULING;

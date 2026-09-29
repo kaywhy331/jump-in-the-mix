@@ -44,25 +44,25 @@ test("Plan and ready-made plan filters stay focused", async ({ page }, testInfo)
 
   // The Mix libraries search when submitted and filter from a sheet; a filter keeps the search it narrows.
   await page.goto("/mixes");
-  const search = page.getByRole("searchbox", { name: "Search mixes", exact: true });
+  const search = page.getByRole("searchbox", { name: "Search Mixes", exact: true });
   await search.fill("Estimate");
   await search.press("Enter");
   await expect(page).toHaveURL(/\/mixes\?q=Estimate$/);
   await expect(page.locator(".mix-library-row")).toHaveCount(1);
-  await page.getByRole("button", { name: "Filter mixes", exact: true }).click();
-  const filters = page.getByRole("dialog", { name: "Filter mixes", exact: true });
+  await page.getByRole("button", { name: "Filter Mixes", exact: true }).click();
+  const filters = page.getByRole("dialog", { name: "Filter Mixes", exact: true });
   await filters.getByRole("combobox", { name: "Status", exact: true }).selectOption("ACTIVE");
   await filters.getByRole("button", { name: "Apply filters", exact: true }).click();
   await expect(page).toHaveURL(/\/mixes\?q=Estimate&status=ACTIVE$/);
-  await expect(page.getByRole("searchbox", { name: "Search mixes", exact: true })).toHaveValue("Estimate");
+  await expect(page.getByRole("searchbox", { name: "Search Mixes", exact: true })).toHaveValue("Estimate");
   await expect(page.locator(".mix-library-row")).toHaveCount(1);
 
   await page.goto("/templates");
-  const readyMadeSearch = page.getByRole("searchbox", { name: "Search ready-made mixes", exact: true });
+  const readyMadeSearch = page.getByRole("searchbox", { name: "Search ready-made Mixes", exact: true });
   await readyMadeSearch.fill("review");
   await readyMadeSearch.press("Enter");
   await expect(page).toHaveURL(/\/templates\?q=review/i);
-  await expect(page.getByRole("searchbox", { name: "Search ready-made mixes", exact: true })).toHaveValue("review");
+  await expect(page.getByRole("searchbox", { name: "Search ready-made Mixes", exact: true })).toHaveValue("review");
   await expect(page.locator(".mix-library-row").first()).toBeVisible();
 });
 

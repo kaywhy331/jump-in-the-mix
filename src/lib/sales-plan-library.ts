@@ -294,6 +294,6 @@ export function salesPlanSearchIds(query: string): string[] {
   if (!needle) return [];
   return SALES_PLANS.filter(plan => {
     const approach = SALES_APPROACHES[plan.approachId];
-    return [approach.author, approach.label, plan.audience].some(value => value.toLocaleLowerCase().includes(needle));
+    return [approach.label, plan.audience].some(value => value.toLocaleLowerCase().includes(needle));
   }).map(plan => plan.id);
 }

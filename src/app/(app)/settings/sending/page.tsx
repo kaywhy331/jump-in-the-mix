@@ -25,10 +25,10 @@ export default async function SendingSettingsPage({ searchParams }: { searchPara
     {params.automationSaved && <Notice type="success">Sending preferences saved.</Notice>}
     <UrlErrorNotice params={params} viewer={session} />
     {viewOnly && <ViewOnlySupportNotice />}
-    <section className="card sending-status"><span className="status-pill">{automation?.enabled ? "Automatic sending on" : "You review and send"}</span><h2>{automation?.enabled ? "Your mixes can send for you" : "Every message starts with you"}</h2><p>{automation?.enabled ? "Prepared messages send after your review window. Quiet hours still apply." : "Open a follow-up in Today, make it your own, and choose when to send. Automatic sending is optional."}</p><Link className="button" href="/jumps">Open Today</Link></section>
+    <section className="card sending-status"><span className="status-pill">{automation?.enabled ? "Automatic sending on" : "You review and send"}</span><h2>{automation?.enabled ? "Your Mixes can send for you" : "Every message starts with you"}</h2><p>{automation?.enabled ? "Prepared messages send after your review window. Quiet hours still apply." : `Open a follow-up in Today, make it your own, and choose when to send. ${automaticEmailAvailable || automaticSmsAvailable ? "Automatic sending is optional." : "Automatic sending is off during the beta."}`}</p><Link className="button" href="/jumps">Open Today</Link></section>
     <section className="card automation-settings-card">
-      <div className="card-header"><div><h2>Automatic sending <span className="status-pill">Optional</span></h2><p>Keep approval-first as the default, or let prepared messages send after time to review them in Today.</p></div></div>
-      {!automaticEmailAvailable && !automaticSmsAvailable && <Notice type="info">Automatic delivery is not available for your account yet. You can keep reviewing and sending messages from Today. Contact support when you’re ready to set it up.</Notice>}
+      <div className="card-header"><div><h2>Automatic sending <span className="status-pill">{automaticEmailAvailable || automaticSmsAvailable ? "Optional" : "Off during the beta"}</span></h2><p>Keep approval-first as the default, or let prepared messages send after time to review them in Today.</p></div></div>
+      {!automaticEmailAvailable && !automaticSmsAvailable && <Notice type="info">Automatic sending is off during the beta. Keep reviewing and sending your messages from Today.</Notice>}
       <ActionForm protect={!viewOnly} action={updateAutomationPreferencesFormAction} className="form-stack"><fieldset className="sending-options" disabled={!automaticEmailAvailable && !automaticSmsAvailable && !automation?.enabled}>
         <label className="checkbox-card"><input type="checkbox" name="automationEnabled" defaultChecked={automation?.enabled ?? false} /><span><strong>Send prepared messages automatically</strong><small>Off by default. Calls and voicemails always stay manual.</small></span></label>
         <div className="form-grid">
@@ -36,10 +36,10 @@ export default async function SendingSettingsPage({ searchParams }: { searchPara
           <label className="checkbox-card"><input type="checkbox" name="automationSmsEnabled" defaultChecked={automation?.smsEnabled ?? false} disabled={!automaticSmsAvailable} /><span><strong>Text</strong><small>{automaticSmsAvailable ? "Available" : "Not available yet"}</small></span></label>
         </div>
         <label className="field"><span>Time to review before sending</span><select name="reviewWindowMinutes" defaultValue={String(automation?.reviewWindowMinutes ?? 30)}><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="1440">24 hours</option></select><small>The window starts no earlier than the scheduled time. Quiet hours still apply.</small></label>
-        <AutomaticSendPreview /><label className="checkbox-card automation-consent"><input type="checkbox" name="automationConsent" /><span><strong>I understand these messages send without a final tap</strong><small>I have reviewed my active mixes, signatures, recipients, and consent obligations.</small></span></label>
+        <AutomaticSendPreview /><label className="checkbox-card automation-consent"><input type="checkbox" name="automationConsent" /><span><strong>I understand these messages send without a final tap</strong><small>I have reviewed my active Mixes, signatures, recipients, and consent obligations.</small></span></label>
         <FormSubmitButton label="Save automatic sending" pendingLabel="Saving…" disabled={viewOnly} />
       </fieldset></ActionForm>
     </section>
-    <p className="muted-copy">Need help getting set up? <Link href="/help#contact-support">Talk to support</Link>. Reminders to you are in <Link href="/settings/notifications">Notifications</Link>.</p>
+    <p className="muted-copy">Questions about sending? <Link href="/help#contact-support">Talk to support</Link>. Reminders to you are in <Link href="/settings/notifications">Notifications</Link>.</p>
   </div>;
 }

@@ -24,7 +24,7 @@ export class LibraryError extends Error {
 }
 export function validateLibraryContent(value: unknown): LibraryContent {
   const result = schema.safeParse(value);
-  if (!result.success) throw new LibraryError(result.error.issues[0]?.message ?? "Check the mix content.", false, result.error.issues[0]?.path.join("."));
+  if (!result.success) throw new LibraryError(result.error.issues[0]?.message ?? "Check the Mix content.", false, result.error.issues[0]?.path.join("."));
   const content = result.data;
   // The Mix editor's calendar-day rules (mix-editor-actions.ts), so every library Mix can be added and edited as saved.
   for (const [index, step] of content.steps.entries()) {
@@ -33,7 +33,7 @@ export function validateLibraryContent(value: unknown): LibraryContent {
   }
   if (content.triggerMode === "DATE_TRIGGERED") {
     content.dateTypeSlug = libraryDateKey(content.dateTypeSlug || content.dateTypeName || "");
-    if (!content.dateTypeName || !content.dateTypeSlug) throw new LibraryError("Date-based mixes must identify the saved date that starts them.");
+    if (!content.dateTypeName || !content.dateTypeSlug) throw new LibraryError("Date-based Mixes must identify the saved date that starts them.");
   } else { content.dateTypeName = null; content.dateTypeSlug = null; }
   content.steps = normalizeSharedMixSteps(content.steps);
   return content;

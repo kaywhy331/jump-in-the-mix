@@ -78,7 +78,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
       <MarketplaceNotices workspaceId={workspace.id} mixId={mix.id} reports={false} />
       {query.created === "manual" && <Notice type="success">Mix created.</Notice>}
       {query.updated && <Notice type="success">Mix saved.</Notice>}
-      {query.imported && <Notice type="success">Your remix is ready to edit.</Notice>}
+      {query.imported && <Notice type="success">Your copy is ready to edit.</Notice>}
       <UrlErrorNotice params={query} viewer={session} />
       {!editing && mix.description && <p className="mix-selected-description">{mix.description}</p>}
       {editing && !impersonation ? <MixEditor reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}

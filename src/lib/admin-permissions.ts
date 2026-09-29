@@ -61,7 +61,7 @@ export const ADMIN_AREAS: ReadonlyArray<{ label: string; href: string; permissio
   { label: "Invitations", href: "/admin/access", permission: "access.read" },
   { label: "Email recovery", href: "/admin/email/recovery", permission: "email.manage" },
   { label: "Support", href: "/admin/support", permission: "support.manage" },
-  { label: "Ready-made mixes", href: "/admin/templates", permission: "mixes.edit" },
+  { label: "Ready-made Mixes", href: "/admin/templates", permission: "mixes.edit" },
   { label: "Community reports", href: "/admin/marketplace", permission: "mixes.edit" },
   { label: "Invitation wording", href: "/admin/system-mix", permission: "mixes.edit" },
   { label: "Operations", href: "/admin/operations", permission: "operations.read" },

@@ -30,7 +30,7 @@ export async function saveSharedMixDraftFormAction(_previous: { error?: string; 
     const rows = (key: string) => data.getAll(key).map(String);
     const names = rows("stepName"), channels = rows("stepChannel"), offsets = rows("stepDayOffset"), times = rows("stepSendTimeMinutes"), subjects = rows("stepSubject"), bodies = rows("stepBody"), scripts = rows("stepScript");
     const optout = new Set(rows("stepOptOut")), longSms = new Set(rows("stepLongSms"));
-    if ([channels, offsets, times, subjects, bodies, scripts].some(row => row.length !== names.length)) throw new LibraryError("A beat is incomplete. Reload the editor and try again.");
+    if ([channels, offsets, times, subjects, bodies, scripts].some(row => row.length !== names.length)) throw new LibraryError("A Beat is incomplete. Reload the editor and try again.");
     const nullable = (text: string | undefined) => text?.trim() || null;
     const content = validateLibraryContent({ title: value(data, "title"), description: value(data, "description"), category: value(data, "category"), industry: value(data, "industry"), framework: nullable(value(data, "framework")),
       triggerMode: value(data, "triggerMode"), dateTypeName: nullable(value(data, "dateTypeName")), dateTypeSlug: nullable(value(data, "dateTypeSlug")), featured: data.get("featured") === "on",

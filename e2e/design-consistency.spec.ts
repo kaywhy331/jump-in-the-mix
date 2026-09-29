@@ -91,7 +91,7 @@ test("Profile sheet uses flat destination rows", async ({ page }, info) => {
   await page.goto("/jumps");
   await page.getByRole("button", { name: "Profile", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "Profile and settings" });
-  for (const name of ["My Account", "Settings", "Ready-made mixes", "Help"]) {
+  for (const name of ["My account", "Settings", "Ready-made Mixes", "Help"]) {
     const row = sheet.getByRole("link", { name, exact: true });
     await expect(row).toBeVisible();
     expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(48);

@@ -21,7 +21,7 @@ type SearchParams = { megaMix?: string; q?: string; new?: string; edit?: string;
 
 const originLabel = (origin: string | null) => {
   if (!origin) return "Created in this account";
-  if (origin.startsWith("BLUEPRINT:")) return `Ready-made ${megaMixById(origin.slice(10))?.name ?? ""} mega-mix`.replace("  ", " ");
+  if (origin.startsWith("BLUEPRINT:")) return `Ready-made ${megaMixById(origin.slice(10))?.name ?? ""} Mega-Mix`.replace("  ", " ");
   if (origin === "FILE") return "Imported from a file";
   if (origin.startsWith("COPY:")) return "Copied from another Mega-Mix";
   if (origin.startsWith("MARKETPLACE:")) return "Added from the Marketplace";
@@ -53,7 +53,7 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
     {params.saved && <Notice type="success">Mega-Mix saved.</Notice>}
     {params.copied && <Notice type="success">Copy ready. Its Mixes are new and separate from the original.</Notice>}
     {params.imported && <Notice type="success">Imported. No one was started; start people from Journey when you’re ready.</Notice>}
-    {params.removed && <Notice type="success">Mega-Mix removed. Its Mixes are still in My mixes.</Notice>}
+    {params.removed && <Notice type="success">Mega-Mix removed. Its Mixes are still in My Mixes.</Notice>}
     <MarketplaceNotices workspaceId={workspace.id} pipelineId={selected?.id} />
     <MixLibraryShell selectedMixId={selected?.id ?? (creating ? "new" : undefined)} explicitSelection={Boolean(params.megaMix || creating)}>
       <aside className="mix-library-directory" aria-label="Mega-Mix library">
@@ -64,8 +64,8 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
             <ImportFileForm />
           </Sheet>}
         </div></header>
-        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My mixes</Link><Link href="/mixes/mega" aria-current="page"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace"><AppIcon name="store" />Marketplace</Link></nav>
-        <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Add a ready-made mega-mix</Link>
+        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My Mixes</Link><Link href="/mixes/mega" aria-current="page"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace"><AppIcon name="store" />Marketplace</Link></nav>
+        <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Add a ready-made Mega-Mix</Link>
         <div className="mix-directory-search"><form className="mix-library-search" action="/mixes/mega" key={q}>
           <button className="icon-button" type="submit" aria-label="Search Mega-Mixes"><AppIcon name="search" /></button><label className="sr-only" htmlFor="mega-mix-search">Search Mega-Mixes</label><input id="mega-mix-search" name="q" type="search" defaultValue={q} placeholder="Search Mega-Mixes" />
         </form></div>
@@ -106,7 +106,7 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
             <RemoveMegaMixButton pipeline={{ id: selected.id, name: selected.name }} share={share} />
           </div></details>}
         </aside>
-      </div> : <EmptyState title="Name your first Mega-Mix" description="A Mega-Mix groups connected Mixes into one named pipeline you can view, number, export and share." actionHref={impersonation ? "/templates/journeys" : "/mixes/mega?new=1"} actionLabel={impersonation ? "Browse ready-made mega-mixes" : "Create a Mega-Mix"} />}
+      </div> : <EmptyState title="Name your first Mega-Mix" description="A Mega-Mix groups connected Mixes into one named pipeline you can view, number, export and share." actionHref={impersonation ? "/templates/journeys" : "/mixes/mega?new=1"} actionLabel={impersonation ? "Browse ready-made Mega-Mixes" : "Create a Mega-Mix"} />}
     </MixLibraryShell>
   </div>;
 }

@@ -11,7 +11,7 @@ export const metadata: Metadata = publicPageMetadata({
 });
 
 // Original, illustrative wording. Quote and estimate are one situation, so this is the only page
-// for it. The sample plan described below is the contractors' "Estimate sent" demo mix.
+// for it. The example Mix below is illustrative; the contractors' demo has its own three-Beat estimate situation.
 const TEXTS = [
   { id: "agreed", heading: "When you agreed to check back", text: "Hi [Name], checking back as promised on the estimate for [project]. Any questions about the scope or timing I can help clear up?" },
   { id: "deciding", heading: "When the customer needed time to decide", text: "Hi [Name], you mentioned reviewing the estimate this week. Is there anything you’d like me to clarify before you decide?" },
@@ -28,14 +28,14 @@ export default function EstimateFollowUpPage() {
     <section aria-labelledby="timing-title">
       <h2 id="timing-title">Choose the timing before the next busy day</h2>
       <p>Use the check-in date you agreed on. Without an agreed date, think about the customer’s timeline and how much time they need to review. These examples don’t establish a universally right interval.</p>
-      <p>The sample estimate Mix in the demo runs like this:</p>
+      <p>An estimate Mix might run like this. It’s an illustration, not a proven schedule:</p>
       <ol>
         <li><strong>Estimate on its way.</strong> A text the same day, so they know it’s in their inbox.</li>
         <li><strong>Help them choose.</strong> Two days later, one question about the options they were comparing.</li>
         <li><strong>Walk it through.</strong> A short call with your notes ready, around day five.</li>
         <li><strong>Dates filling up.</strong> Around day ten, an honest note about your schedule, only if it’s true.</li>
       </ol>
-      <p>Every Beat is a draft you review first. Mark it sent, not sent, or skipped, and the plan moves on with you.</p>
+      <p>Every Beat is a draft you review first. Mark it sent, not sent, or skipped, and the Mix moves on with you.</p>
     </section>
     <section aria-labelledby="stop-title">
       <h2 id="stop-title">Know when to stop</h2>
@@ -45,7 +45,7 @@ export default function EstimateFollowUpPage() {
       <h2 id="cta-title">Make “I’ll follow up” a plan</h2>
       <p>Jump in the Mix keeps the next check-in on your list and brings the draft back when it’s due. You still decide what to say and whether to send it.</p>
       <Link className="button primary" href="/for/contractors#sample">Try this estimate follow-up plan</Link>
-      <small>Preview a fictional contact and an editable draft. Nothing goes out unless you open your own messaging app and send it.</small>
+      <small>A fictional contact and editable drafts. The demo doesn’t send anything or open another app.</small>
     </section>
     <nav className="public-article-related" aria-labelledby="related-title">
       <h2 id="related-title">Related</h2>

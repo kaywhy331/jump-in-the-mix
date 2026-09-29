@@ -68,7 +68,7 @@ test("the Beat editor authors text, email and call versions, refuses private not
   const beat = page.getByRole("group", { name: "Beat 1" });
   await beat.getByLabel("Message").fill(textBody);
   // The versions live in the beat's options. The beat is a text, so only the email and call versions are offered.
-  await beat.getByLabel("Options for beat 1", { exact: true }).click();
+  await beat.getByLabel("Options for Beat 1", { exact: true }).click();
   await beat.getByText("Text, email and call versions · generated for you", { exact: true }).click();
   await expect(beat.getByLabel("Text version")).toHaveCount(0);
   await beat.getByLabel("Email version subject").fill("Your estimate");
@@ -76,7 +76,7 @@ test("the Beat editor authors text, email and call versions, refuses private not
   await beat.getByLabel("Call version · talking points for you").fill(callScript);
   await expect(beat.getByText("Text, email and call versions · 2 written by you", { exact: true })).toBeVisible();
   await audit(page);
-  await page.getByRole("button", { name: "Create a mix" }).click();
+  await page.getByRole("button", { name: "Create a Mix" }).click();
   await page.waitForURL(/created=manual/);
   const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId, name }, include: { steps: { include: { stepVersion: { include: { variants: { orderBy: { family: "asc" } } } } } } } });
   expect(mix.steps[0].stepVersion.body).toBe(textBody);
@@ -85,12 +85,12 @@ test("the Beat editor authors text, email and call versions, refuses private not
   // The editor reads the versions back; private notes in an outward version are refused, and nothing changes.
   await page.goto(`/mixes/${mix.id}/edit`); await ready(page);
   const saved = page.getByRole("group", { name: "Beat 1" });
-  await saved.getByLabel("Options for beat 1", { exact: true }).click();
+  await saved.getByLabel("Options for Beat 1", { exact: true }).click();
   await saved.getByText("Text, email and call versions · 2 written by you", { exact: true }).click();
   await expect(saved.getByLabel("Email version subject")).toHaveValue("Your estimate");
   await expect(saved.getByLabel("Call version · talking points for you")).toHaveValue(callScript);
   await saved.getByLabel(/^Email version(?! subject)/).fill(`${emailBody} {{Private Notes}}`);
-  await page.getByRole("button", { name: "Save mix" }).click();
+  await page.getByRole("button", { name: "Save Mix" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Private notes" }).first()).toContainText("Private notes may only be inserted into Beat 1's call version.");
   expect((await prisma.stepVersionVariant.findMany({ where: { stepVersionId: mix.steps[0].stepVersionId, family: "EMAIL" } }))[0].body).toBe(emailBody);
 });

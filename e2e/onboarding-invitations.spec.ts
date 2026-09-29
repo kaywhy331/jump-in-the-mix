@@ -29,7 +29,7 @@ test.afterEach(async () => {
 test("onboarding supports multiple purposes, a single starting-point dropdown, and imported contacts", async ({ page }) => {
   const { workspace } = await account(page);
   await page.goto("/onboarding");
-  await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
+  await page.getByRole("radio", { name: /Choose individual Mixes/ }).check();
   await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await page.getByRole("checkbox", { name: /Personal connections/ }).check();
   await page.getByRole("checkbox", { name: /Networking and business development/ }).check();
@@ -49,7 +49,7 @@ test("onboarding supports multiple purposes, a single starting-point dropdown, a
   const accessibility = await axeInPage(page).include(".onboarding-card").analyze();
   expect(accessibility.violations.filter(item => ["serious", "critical"].includes(item.impact ?? ""))).toEqual([]);
   await page.screenshot({ path: `.artifacts/onboarding-${test.info().project.name}.png`, fullPage: true });
-  await page.getByRole("checkbox", { name: /I reviewed this plan/ }).check();
+  await page.getByRole("checkbox", { name: /I reviewed this Mix/ }).check();
   await page.getByRole("button", { name: "Prepare my first follow-up" }).click();
   await expect(page).toHaveURL(/\/jumps\?.*welcome=1/);
   expect((await prisma.workspaceProfile.findUniqueOrThrow({ where: { workspaceId: workspace.id } })).useCases).toEqual(["business", "personal", "networking"]);

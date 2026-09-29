@@ -31,7 +31,7 @@ test.afterAll(async () => {
 async function ready(page: Page) { await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 }); }
 async function audit(page: Page) { expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]); }
 
-test("a beat is timed as a positive duration before or after the visit, or after it is marked completed, and the setting survives editing", async ({ page }) => {
+test("a Beat is timed as a positive duration before or after the visit, or after it is marked completed, and the setting survives editing", async ({ page }) => {
   const name = `Estimate visit ${randomUUID().slice(0, 8)}`;
   await page.goto("/mixes/new?custom=1"); await ready(page);
   await page.getByLabel("Mix name").fill(name);
@@ -40,7 +40,7 @@ test("a beat is timed as a positive duration before or after the visit, or after
   const dayField = beat.getByRole("spinbutton", { name: "Days after start", exact: true });
   await expect(dayField).toBeVisible();
   // Appointment timing lives in the beat's options.
-  await beat.getByLabel("Options for beat 1", { exact: true }).click();
+  await beat.getByLabel("Options for Beat 1", { exact: true }).click();
   await beat.getByText("Appointment timing (optional)", { exact: true }).click();
   await beat.getByLabel("Count from").selectOption("APPOINTMENT_START");
   // The day field gives way to a positive minutes field plus before/after; the day-based settings no longer apply to this beat.
@@ -53,7 +53,7 @@ test("a beat is timed as a positive duration before or after the visit, or after
   await expect(beat.getByText(/Becomes due 1 hour 30 minutes before the appointment starts\. It is preparation, so it lapses once the visit has started\./)).toBeVisible();
   await beat.getByLabel("Message").fill("Hi {{First Name}}, leaving now for {{Appointment Title}}.");
   await audit(page);
-  await page.getByRole("button", { name: "Create a mix" }).click();
+  await page.getByRole("button", { name: "Create a Mix" }).click();
   const mix = await expect.poll(() => prisma.mix.findFirst({ where: { workspaceId, name }, include: { steps: { orderBy: { sortOrder: "asc" } } } }), { timeout: 20_000 }).not.toBeNull().then(() => prisma.mix.findFirstOrThrow({ where: { workspaceId, name }, include: { steps: { orderBy: { sortOrder: "asc" } } } }));
   // The stored offset keeps its sign; the editor showed a positive duration.
   expect(mix.steps.map((step) => [step.anchor, step.offsetMinutes, step.dayOffset])).toEqual([["APPOINTMENT_START", -90, 0]]);
@@ -61,7 +61,7 @@ test("a beat is timed as a positive duration before or after the visit, or after
   // The editor reads the saved timing back as ninety minutes before, and can move the beat to the recorded completion.
   await page.goto(`/mixes/${mix.id}/edit`); await ready(page);
   const saved = page.getByRole("group", { name: "Beat 1" });
-  await saved.getByLabel("Options for beat 1", { exact: true }).click();
+  await saved.getByLabel("Options for Beat 1", { exact: true }).click();
   await saved.getByText("Appointment timing (optional)", { exact: true }).click();
   await expect(saved.getByLabel("Count from")).toHaveValue("APPOINTMENT_START");
   await expect(saved.getByLabel("Minutes", { exact: true })).toHaveValue("90");
@@ -75,49 +75,49 @@ test("a beat is timed as a positive duration before or after the visit, or after
   await expect(saved.getByText(/Becomes due as soon as the visit is marked completed\. It has nothing to count from until you mark the visit completed\./)).toBeVisible();
   await after.fill("60");
   await expect(saved.getByText(/Becomes due 1 hour after the visit is marked completed\./)).toBeVisible();
-  await page.getByRole("button", { name: /Save mix|Review and start/ }).click();
+  await page.getByRole("button", { name: /Save Mix|Review and start/ }).click();
   await expect.poll(async () => (await prisma.mixStep.findFirstOrThrow({ where: { mixId: mix.id, isActive: true } })).anchor, { timeout: 20_000 }).toBe("VISIT_COMPLETED");
   expect(await prisma.mixStep.findFirstOrThrow({ where: { mixId: mix.id, isActive: true } })).toMatchObject({ anchor: "VISIT_COMPLETED", offsetMinutes: 60 });
 
   // Back to the calendar-day rule: the day field returns and the minutes are cleared.
   await page.goto(`/mixes/${mix.id}/edit`); await ready(page);
   const again = page.getByRole("group", { name: "Beat 1" });
-  await again.getByLabel("Options for beat 1", { exact: true }).click();
+  await again.getByLabel("Options for Beat 1", { exact: true }).click();
   await again.getByText("Appointment timing (optional)", { exact: true }).click();
   await again.getByLabel("Count from").selectOption("CALENDAR_DAY");
   await expect(again.getByRole("spinbutton", { name: "Days after start", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /Save mix|Review and start/ }).click();
+  await page.getByRole("button", { name: /Save Mix|Review and start/ }).click();
   await expect.poll(async () => (await prisma.mixStep.findFirstOrThrow({ where: { mixId: mix.id, isActive: true } })).anchor, { timeout: 20_000 }).toBe("CALENDAR_DAY");
   expect((await prisma.mixStep.findFirstOrThrow({ where: { mixId: mix.id, isActive: true } })).offsetMinutes).toBeNull();
 });
 
-test("an appointment-based mix starts with no one enrolled, attaches to the visit the owner chooses, and reports only the work that exists", async ({ page }) => {
+test("an appointment-based Mix starts with no one enrolled, attaches to the visit the owner chooses, and reports only the work that exists", async ({ page }) => {
   const name = `Estimate visit flow ${randomUUID().slice(0, 8)}`;
   await page.goto("/mixes/new?custom=1"); await ready(page);
   await page.getByLabel("Mix name").fill(name);
   await page.getByLabel("When should it start?").selectOption("MANUAL_START");
   await page.getByLabel("After saving").selectOption("ACTIVE");
   const first = page.getByRole("group", { name: "Beat 1" });
-  await first.getByLabel("Options for beat 1", { exact: true }).click();
+  await first.getByLabel("Options for Beat 1", { exact: true }).click();
   await first.getByText("Appointment timing (optional)", { exact: true }).click();
   await first.getByLabel("Count from").selectOption("APPOINTMENT_START");
   await first.getByLabel("Minutes", { exact: true }).fill("90");
   await first.getByLabel("Before or after").selectOption("before");
   await first.getByLabel("Message").fill("Hi {{First Name}}, leaving now for {{Appointment Title}}.");
-  await page.getByRole("button", { name: "Add a beat" }).click();
+  await page.getByRole("button", { name: "Add a Beat" }).click();
   const second = page.getByRole("group", { name: "Beat 2" });
   await second.getByLabel("Channel").selectOption("SMS");
-  await second.getByLabel("Options for beat 2", { exact: true }).click();
+  await second.getByLabel("Options for Beat 2", { exact: true }).click();
   await second.getByText("Appointment timing (optional)", { exact: true }).click();
   await second.getByLabel("Count from").selectOption("APPOINTMENT_END");
   await second.getByLabel("Minutes", { exact: true }).fill("30");
   await second.getByLabel("Before or after").selectOption("after");
   await expect(second.getByText(/Becomes due 30 minutes after the appointment ends\. It waits until you record that the visit happened\./)).toBeVisible();
   await second.getByLabel("Message").fill("Thanks for having me today, {{First Name}}.");
-  await page.getByRole("button", { name: "Add a beat" }).click();
+  await page.getByRole("button", { name: "Add a Beat" }).click();
   const third = page.getByRole("group", { name: "Beat 3" });
   await third.getByLabel("Channel").selectOption("SMS");
-  await third.getByLabel("Options for beat 3", { exact: true }).click();
+  await third.getByLabel("Options for Beat 3", { exact: true }).click();
   await third.getByText("Appointment timing (optional)", { exact: true }).click();
   await third.getByLabel("Count from").selectOption("VISIT_COMPLETED");
   await third.getByLabel("Minutes after completion", { exact: true }).fill("0");
@@ -125,12 +125,12 @@ test("an appointment-based mix starts with no one enrolled, attaches to the visi
 
   // Starting the mix needs no one enrolled. The review counts nothing as scheduled: every beat waits for a visit.
   await page.getByRole("button", { name: "Review and start" }).click();
-  const review = page.getByRole("dialog", { name: "Start this mix?" });
+  const review = page.getByRole("dialog", { name: "Start this Mix?" });
   await expect(review.locator("div:has(> span:text-is('potential follow-ups')) > strong")).toHaveText("0");
-  await expect(review.locator("div:has(> span:text-is('beats wait for a visit')) > strong")).toHaveText("3");
-  await expect(review).toContainText("No one is enrolled yet. Line this mix up with a visit from the calendar, or start it from one person’s page.");
+  await expect(review.locator("div:has(> span:text-is('Beats wait for a visit')) > strong")).toHaveText("3");
+  await expect(review).toContainText("No one is enrolled yet. Line this Mix up with a visit from the calendar, or start it from one person’s page.");
   await audit(page);
-  await review.getByRole("button", { name: "Start the mix", exact: true }).click();
+  await review.getByRole("button", { name: "Start the Mix", exact: true }).click();
   await page.waitForURL(/created=manual/);
   const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId, name }, include: { steps: { orderBy: { sortOrder: "asc" } }, assignments: true } });
   expect(mix.status).toBe("ACTIVE");
@@ -151,9 +151,9 @@ test("an appointment-based mix starts with no one enrolled, attaches to the visi
   await page.goto(`/calendar?contact=${contactId}&date=${visitDate}`); await ready(page);
   const form = page.locator("form.form-grid");
   await form.getByLabel("Title").fill("Roof estimate");
-  await form.getByLabel("Follow-up plan for this visit (optional)").selectOption(mix.id);
+  await form.getByLabel("Follow-up Mix for this visit (optional)").selectOption(mix.id);
   await form.getByRole("button", { name: "Save event", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "line up with this visit" })).toHaveText("Calendar updated. The plan’s follow-ups line up with this visit. 1 beat is scheduled and will appear on Today. 1 beat after the visit waits until you record how it went. 1 beat counts from the moment you mark the visit completed.");
+  await expect(page.getByRole("status").filter({ hasText: "line up with this visit" })).toHaveText("Calendar updated. The Mix’s follow-ups line up with this visit. 1 Beat is scheduled and will appear on Today. 1 Beat after the visit waits until you record how it went. 1 Beat counts from the moment you mark the visit completed.");
   const binding = await prisma.appointmentBinding.findFirstOrThrow({ where: { workspaceId, mixId: mix.id }, include: { calendarEntry: true } });
   expect(binding.calendarEntry).toMatchObject({ title: "Roof estimate", contactId });
   expect(await prisma.appointmentBinding.count({ where: { workspaceId, mixId: mix.id } })).toBe(1);

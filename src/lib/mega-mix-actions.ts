@@ -16,8 +16,8 @@ export async function installMegaMixAction(_previous: FormResult, data: FormData
   const { workspace, user, impersonation } = await requireWorkspace();
   if (impersonation) return { error: "Administrator support sessions are view-only." };
   const blueprint = megaMixById(String(data.get("blueprintId") ?? ""));
-  if (!blueprint) return { error: "Choose an available mega-mix." };
-  if (data.get("reviewed") !== "on") return { error: "Review the included mixes and connections before adding this journey." };
+  if (!blueprint) return { error: "Choose an available Mega-Mix." };
+  if (data.get("reviewed") !== "on") return { error: "Review the included Mixes and connections before adding this journey." };
   const onboarding = data.get("onboarding") === "1";
   const timezone = String(data.get("timezone") ?? "");
   if (onboarding && !isValidTimezone(timezone)) return { error: "Choose a valid timezone." };
@@ -27,7 +27,7 @@ export async function installMegaMixAction(_previous: FormResult, data: FormData
       ...(onboarding ? { onboarding: { timezone, company: String(data.get("company") ?? "").trim().slice(0, 200),
         smsSignature: String(data.get("smsSignature") ?? "").trim().slice(0, 160) || user.name, userName: user.name } } : {}) });
   } catch (error) {
-    return { error: error instanceof UserFacingError ? error.message : "The mega-mix could not be added. Your choices have been kept." };
+    return { error: error instanceof UserFacingError ? error.message : "The Mega-Mix could not be added. Your choices have been kept." };
   }
   revalidatePath("/mixes"); revalidatePath("/journey"); revalidatePath("/templates/journeys");
   redirect(`/templates/journeys?journey=${blueprint.id}&added=1`);
@@ -44,7 +44,7 @@ export async function saveIndividualMixSetupAction(_previous: FormResult, data: 
       await saveJourneySetup(db, workspace.id, user.id, setup);
       const company = String(data.get("company") ?? "").trim().slice(0, 200);
       const smsSignature = String(data.get("smsSignature") ?? "").trim().slice(0, 160) || user.name;
-      const profile = { onboardingDone: true, onboardingStep: 5, primaryGoal: "Choose individual mixes", company: company || null, smsSignature };
+      const profile = { onboardingDone: true, onboardingStep: 5, primaryGoal: "Choose individual Mixes", company: company || null, smsSignature };
       if (company) await db.workspace.update({ where: { id: workspace.id }, data: { name: company } });
       await db.workspaceProfile.upsert({ where: { workspaceId: workspace.id }, create: { workspaceId: workspace.id, ...profile, useCases: ["business"], emailSignature: user.name }, update: profile });
       await db.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "onboarding.individual-mixes", entityType: "Workspace", entityId: workspace.id, source: "onboarding" } });

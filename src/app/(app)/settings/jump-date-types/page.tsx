@@ -56,7 +56,7 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
       <UrlErrorNotice params={params} viewer={session} />
       {viewOnly && <ViewOnlySupportNotice />}
       <BackLink href="/settings" label="Settings" /><header className="page-header">
-        <div><h1>Saved date types</h1><p>Name the moments that can start a follow-up mix.</p></div>
+        <div><h1>Saved date types</h1><p>Name the moments that can start a follow-up Mix.</p></div>
         <div className="page-actions"><Link className="button" href="/mixes">Mixes</Link></div>
       </header>
 
@@ -72,9 +72,9 @@ export default async function JumpDateTypesPage({ searchParams }: { searchParams
         {customTypes.length ? <div className="date-type-list">{customTypes.map((dateType) => (
           <article className={dateType.isActive ? "date-type-row" : "date-type-row inactive"} key={dateType.id}>
             <label className="date-type-active-choice"><input form="date-type-activation-form" type="checkbox" name="activeDateTypeIds" value={dateType.id} defaultChecked={dateType.isActive} disabled={viewOnly} /><span>Use<span className="sr-only"> {dateType.name}</span></span></label>
-            <div><strong>{dateType.name}</strong>{dateType.mixes.length > 0 && <p>Used by: {dateType.mixes.map(mix => <Link key={mix.id} href={`/mixes/${mix.id}/edit`}>{mix.name} </Link>)}</p>}<div className="jump-meta"><span>{dateType._count.jumpDates} saved date{dateType._count.jumpDates === 1 ? "" : "s"}</span><span>{dateType._count.mixes} mix{dateType._count.mixes === 1 ? "" : "es"}</span></div></div>
-            <Sheet trigger={<button className="button small" type="button">Edit</button>} title={`Rename ${dateType.name}`} description="The saved dates and mixes using this type stay connected."><form action={renameCustomDateTypeAction} className="form-stack"><input type="hidden" name="dateTypeId" value={dateType.id} /><label className="field"><span>Name</span><input name="name" defaultValue={dateType.name} required /></label><button className="button primary" type="submit" disabled={viewOnly}>Save name</button></form></Sheet>
-            {!viewOnly && <ConfirmDialog trigger="Delete…" title={`Delete ${dateType.name}?`} description="You can delete it only when no saved dates or active mixes use it. Otherwise, turn it off." danger><form action={deleteCustomDateTypeAction}><input type="hidden" name="dateTypeId" value={dateType.id} /><button className="button small danger" type="submit">Confirm delete</button></form></ConfirmDialog>}
+            <div><strong>{dateType.name}</strong>{dateType.mixes.length > 0 && <p>Used by: {dateType.mixes.map(mix => <Link key={mix.id} href={`/mixes/${mix.id}/edit`}>{mix.name} </Link>)}</p>}<div className="jump-meta"><span>{dateType._count.jumpDates} saved date{dateType._count.jumpDates === 1 ? "" : "s"}</span><span>{dateType._count.mixes} {dateType._count.mixes === 1 ? "Mix" : "Mixes"}</span></div></div>
+            <Sheet trigger={<button className="button small" type="button">Edit</button>} title={`Rename ${dateType.name}`} description="The saved dates and Mixes using this type stay connected."><form action={renameCustomDateTypeAction} className="form-stack"><input type="hidden" name="dateTypeId" value={dateType.id} /><label className="field"><span>Name</span><input name="name" defaultValue={dateType.name} required /></label><button className="button primary" type="submit" disabled={viewOnly}>Save name</button></form></Sheet>
+            {!viewOnly && <ConfirmDialog trigger="Delete…" title={`Delete ${dateType.name}?`} description="You can delete it only when no saved dates or active Mixes use it. Otherwise, turn it off." danger><form action={deleteCustomDateTypeAction}><input type="hidden" name="dateTypeId" value={dateType.id} /><button className="button small danger" type="submit">Confirm delete</button></form></ConfirmDialog>}
           </article>
         ))}</div> : <p className="muted-copy">No custom date types match this view.</p>}
 

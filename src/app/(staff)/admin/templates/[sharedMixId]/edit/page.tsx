@@ -50,14 +50,14 @@ export default async function AdminEditTemplatePage({ params, searchParams }: {
   const canPublish = permissions.includes("mixes.publish");
   let draft = state.draft;
   try { draft = { ...draft, steps: normalizeSharedMixSteps(draft.steps) }; } catch { draft = { ...draft, steps: EMPTY_LIBRARY_CONTENT.steps }; }
-  const releaseForm = (operation: "publish" | "rollback" | "unpublish", target: number, label: string) => <details className="admin-release-confirmation"><summary>{label}…</summary><p>{operation === "unpublish" ? "Customers will no longer find this mix in the library. Existing copies keep their content." : `Customers making a new copy will receive version ${target}. Existing copies keep their content.`}</p><AdminDraftForm draftKey={`library-release:${sharedMixId}:${operation}:${target}`} fields={["reason"]} revision={controlRevision} saved={query.released} action={releaseSharedMixAction}>
+  const releaseForm = (operation: "publish" | "rollback" | "unpublish", target: number, label: string) => <details className="admin-release-confirmation"><summary>{label}…</summary><p>{operation === "unpublish" ? "Customers will no longer find this Mix in the library. Existing copies keep their content." : `Customers making a new copy will receive version ${target}. Existing copies keep their content.`}</p><AdminDraftForm draftKey={`library-release:${sharedMixId}:${operation}:${target}`} fields={["reason"]} revision={controlRevision} saved={query.released} action={releaseSharedMixAction}>
     <input type="hidden" name="sharedMixId" value={sharedMixId} /><input type="hidden" name="returnTo" value={returnTo} /><input type="hidden" name="version" value={target} /><input type="hidden" name="operation" value={operation} />
     <label className="field"><span>Reason to {operation} version {target}</span><textarea name="reason" minLength={10} maxLength={500} required rows={2} /></label>
     <label className="field"><span>Your administrator password</span><input name="currentPassword" type="password" autoComplete="current-password" maxLength={72} required /></label>
     <FormSubmitButton label={label} pendingLabel="Saving publication…" />
   </AdminDraftForm></details>;
   return <div className="page admin-template-editor-page">
-    <header className="page-header"><div><h1>Review {draft.title}</h1><p>{shared.status === "APPROVED" ? `Version ${version} is published.` : "Hidden from the customer library."} Latest draft: version {draftVersion}.</p></div><Link className="button" href={returnTo}>Back to mixes</Link></header>
+    <header className="page-header"><div><h1>Review {draft.title}</h1><p>{shared.status === "APPROVED" ? `Version ${version} is published.` : "Hidden from the customer library."} Latest draft: version {draftVersion}.</p></div><Link className="button" href={returnTo}>Back to Mixes</Link></header>
     {query.saved && <Notice type="success">Draft version {query.saved} saved. Publication is a separate step.</Notice>}
     {query.released && <Notice type="success">Library publication updated.</Notice>}
     <UrlErrorNotice params={query} viewer={session} fallback="The library change could not be saved. Please try again later." />

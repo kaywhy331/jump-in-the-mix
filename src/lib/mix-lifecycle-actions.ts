@@ -61,7 +61,7 @@ export async function pauseMixAction(formData: FormData): Promise<void> {
     where: { id: mixId, workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } },
     select: { id: true }
   });
-  if (!mix) fail("Active mix not found.", session);
+  if (!mix) fail("Active Mix not found.", session);
   await prisma.$transaction([
     prisma.mix.update({ where: { id: mix.id }, data: { status: "PAUSED" } }),
     prisma.jump.updateMany({

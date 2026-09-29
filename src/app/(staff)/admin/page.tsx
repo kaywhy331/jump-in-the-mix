@@ -87,7 +87,7 @@ export default async function AdminPage() {
       {actions.length > 0 && <section className="admin-panel" aria-labelledby="admin-actions-title"><header className="admin-panel-heading"><h2 id="admin-actions-title">Quick actions</h2></header><ul className="admin-action-list">{actions.map(action => <li key={action.href}><Link prefetch={false} href={action.href}><span className="admin-action-icon"><AppIcon name={action.icon} /></span><span className="admin-action-copy"><strong>{action.label}</strong></span><span aria-hidden="true">→</span></Link></li>)}</ul></section>}
     </div>
     {(canEdit || canWaitlist) && <section className="admin-next-work" aria-label="Continue your work">
-      {canEdit && <Link prefetch={false} href="/admin/templates" className="admin-panel admin-work-link"><AppIcon name="mixes" /><span><strong>Content library</strong><small>{hiddenMixes > 0 ? `${hiddenMixes} drafts or hidden mixes` : "Manage ready-made mixes"}</small></span><span aria-hidden="true">→</span></Link>}
+      {canEdit && <Link prefetch={false} href="/admin/templates" className="admin-panel admin-work-link"><AppIcon name="mixes" /><span><strong>Content library</strong><small>{hiddenMixes > 0 ? `${hiddenMixes} drafts or hidden mixes` : "Manage ready-made Mixes"}</small></span><span aria-hidden="true">→</span></Link>}
       {canWaitlist && <Link prefetch={false} href="/admin/waitlist" className="admin-panel admin-work-link"><AppIcon name="people" /><span><strong>Customer invitations</strong><small>{schedule ? schedule.paused ? "Weekly waves paused" : `Next wave: ${formatDateTime(schedule.nextRunAt, display)}` : "Weekly waves not scheduled"}</small></span><span aria-hidden="true">→</span></Link>}
     </section>}
   </div>;

@@ -122,7 +122,7 @@ test("a ready-made plan guides setup and saves a draft without scheduling", asyn
   const name = `Guided draft ${randomUUID()}`;
   try {
     await page.goto(`/templates/${template.id}/use`);
-    await expect(page.getByRole("heading", { name: "Name your plan" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Name your Mix" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Choose people" })).not.toBeVisible();
     await page.getByLabel("Mix name", { exact: true }).fill(name);
     await page.getByRole("button", { name: "Continue", exact: true }).click();
@@ -131,7 +131,7 @@ test("a ready-made plan guides setup and saves a draft without scheduling", asyn
     await expect(page.getByLabel("Mix name", { exact: true })).toHaveValue(name);
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Review your plan" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Review your Mix" })).toBeVisible();
     await page.getByRole("button", { name: "Save draft", exact: true }).click();
     await expect.poll(async () => prisma.mix.count({ where: { workspaceId: "demo_workspace", name, status: "DRAFT" } })).toBe(1);
     const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId: "demo_workspace", name } });

@@ -52,13 +52,13 @@ test("single user can complete the primary discovery and support journey", async
 
   await page.goto("/templates");
   await expect(page.getByRole("heading", { name: "Mixes", exact: true })).toBeVisible();
-  await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill("Estimate sent");
-  await page.getByRole("button", { name: "Search ready-made mixes", exact: true }).click();
+  await page.getByRole("searchbox", { name: "Search ready-made Mixes" }).fill("Estimate sent");
+  await page.getByRole("button", { name: "Search ready-made Mixes", exact: true }).click();
   await expect(page.locator(".mix-library-row").filter({ hasText: "Estimate sent: gentle follow-up" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Create your own" })).toHaveAttribute("href", "/mixes/new?custom=1");
 
   await page.goto("/mixes/new?custom=1");
-  await expect(page.getByRole("heading", { name: "Create a mix" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Create a Mix" })).toBeVisible();
   await expect(page.getByLabel("Mix name")).toBeVisible();
 
   const ticketTitle = `E2E browser support ticket ${testInfo.project.name}`;
@@ -146,7 +146,7 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
 
   await signIn(page, email, password);
   await expect(page).toHaveURL(/\/onboarding/);
-  await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
+  await page.getByRole("radio", { name: /Choose individual Mixes/ }).check();
   await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await expect(page.getByRole("heading", { name: "Jump in the mix." })).toBeVisible();
   // The business name sits in a closed disclosure on the one-person form (the Mega-Mix setup has its own field).

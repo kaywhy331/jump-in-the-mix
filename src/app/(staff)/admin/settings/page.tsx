@@ -18,7 +18,7 @@ export default async function AdminSystemSettingsPage() {
   return (
     <div className="page admin-control-page">
       <header className="page-header">
-        <div><h1>Library options</h1><p>Options shown in customer filters and mix editors.</p></div>
+        <div><h1>Library options</h1><p>Options shown in customer filters and Mix editors.</p></div>
       </header>
 
 

@@ -21,13 +21,13 @@ export function StarterPreview({ purposes, reason, businessType, scenarioId }: {
   }, [key, retry]);
   const plan = state.key === key ? state.plan : undefined;
   return <section className="onboarding-preview" aria-label="Review your starter">
-    <h2>Review your first plan</h2>
+    <h2>Review your first Mix</h2>
     {state.error ? <p role="alert">The starter preview is unavailable. <button type="button" onClick={() => setRetry(value => value + 1)}>Retry preview</button></p> : !plan ? <p role="status">Loading your starter…</p> : <>
       <h3>{plan.title}</h3><p>{plan.description}</p>
       <ol>{plan.steps.map((step, index) => <li key={index}><strong>{step.name}</strong><p>{step.channel === "EMAIL" ? "Email" : step.channel === "SMS" ? "Text" : "Call"} · {step.dayOffset === 0 ? "Your chosen day" : `${step.dayOffset} days after`} · {String(Math.floor(step.sendTimeMinutes / 60)).padStart(2, "0")}:{String(step.sendTimeMinutes % 60).padStart(2, "0")} in your selected timezone</p>{step.subject && <p>Subject: {step.subject}</p>}<blockquote>{step.body ?? step.script}</blockquote></li>)}</ol>
-      <p>Names and signatures fill from your details. Your timing preferences can move reminders. Review each prepared message in Today before sending. You can change or pause this plan after setup.</p>
+      <p>Names and signatures fill from your details. Your timing preferences can move reminders. Review each prepared message in Today before sending. You can change or pause this Mix after setup.</p>
     </>}
-    <label className="checkbox-card"><input name="starterReviewed" type="checkbox" required disabled={!plan} key={key} /><span>I reviewed this plan and its timing.</span></label>
+    <label className="checkbox-card"><input name="starterReviewed" type="checkbox" required disabled={!plan} key={key} /><span>I reviewed this Mix and its timing.</span></label>
     <input type="hidden" name="starterPreviewAvailable" value={plan ? "1" : "0"} />
   </section>;
 }
