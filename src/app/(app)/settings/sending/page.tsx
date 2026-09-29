@@ -25,7 +25,7 @@ export default async function SendingSettingsPage({ searchParams }: { searchPara
     {params.automationSaved && <Notice type="success">Sending preferences saved.</Notice>}
     <UrlErrorNotice params={params} viewer={session} />
     {viewOnly && <ViewOnlySupportNotice />}
-    <section className="card sending-status"><span className="status-pill">{automation?.enabled ? "Automatic sending on" : "You review and send"}</span><h2>{automation?.enabled ? "Your Mixes can send for you" : "Every message starts with you"}</h2><p>{automation?.enabled ? "Prepared messages send after your review window. Quiet hours still apply." : "Open a follow-up in Today, make it your own, and choose when to send. Automatic sending is optional."}</p><Link className="button" href="/jumps">Open Today</Link></section>
+    <section className="card sending-status"><span className="status-pill">{automation?.enabled ? "Automatic sending on" : "You review and send"}</span><h2>{automation?.enabled ? "Your Mixes can send for you" : "Every message starts with you"}</h2><p>{automation?.enabled ? "Prepared messages send after your review window. Quiet hours still apply." : `Open a follow-up in Today, make it your own, and choose when to send. ${automaticEmailAvailable || automaticSmsAvailable ? "Automatic sending is optional." : "Automatic sending is off during the beta."}`}</p><Link className="button" href="/jumps">Open Today</Link></section>
     <section className="card automation-settings-card">
       <div className="card-header"><div><h2>Automatic sending <span className="status-pill">{automaticEmailAvailable || automaticSmsAvailable ? "Optional" : "Off during the beta"}</span></h2><p>Keep approval-first as the default, or let prepared messages send after time to review them in Today.</p></div></div>
       {!automaticEmailAvailable && !automaticSmsAvailable && <Notice type="info">Automatic sending is off during the beta. Keep reviewing and sending your messages from Today.</Notice>}
@@ -40,6 +40,6 @@ export default async function SendingSettingsPage({ searchParams }: { searchPara
         <FormSubmitButton label="Save automatic sending" pendingLabel="Saving…" disabled={viewOnly} />
       </fieldset></ActionForm>
     </section>
-    <p className="muted-copy">Need help getting set up? <Link href="/help#contact-support">Talk to support</Link>. Reminders to you are in <Link href="/settings/notifications">Notifications</Link>.</p>
+    <p className="muted-copy">Questions about sending? <Link href="/help#contact-support">Talk to support</Link>. Reminders to you are in <Link href="/settings/notifications">Notifications</Link>.</p>
   </div>;
 }
