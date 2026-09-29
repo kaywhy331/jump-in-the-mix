@@ -76,8 +76,10 @@
   .account-signout-all, .account-signout-all > summary { width: 100%; }
 }
 
-.first-win-onboarding .checkbox-card > span { display: grid; gap: 4px; }
+.first-win-onboarding .checkbox-card > span { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
 .first-win-onboarding .checkbox-card { align-items: flex-start; }
+/* Long option text wraps (above) instead of squeezing the radio or checkbox into a sliver. */
+.first-win-onboarding .checkbox-card > input { flex: none; }
 
 .password-control { display: flex; gap: 8px; align-items: center; }
 .password-control input { min-width: 0; flex: 1; }

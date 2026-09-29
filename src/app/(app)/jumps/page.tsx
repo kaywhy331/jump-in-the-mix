@@ -43,6 +43,8 @@ import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-
 import { automaticEmailConfigured } from "@/lib/automatic-delivery";
 import { INVITATIONS_PATH, invitationsLeft } from "@/lib/invitation-allowance";
 import { phoneRegionOrDefault } from "@/lib/phone-number";
+import { matchedMegaMix, megaMixById } from "@/lib/mega-mixes";
+import { storedMarketingScenario } from "@/lib/marketing-scenarios";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -409,13 +411,20 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     : preparation.state !== "ready" ? null
     : pending.length > 0 ? " Tap Review to begin."
     : <> <Link className="inline-action" href="/contacts/new">Add your first person<AppIcon name="chevronRight" className="inline-action-icon" /></Link></>;
+  // Once the first follow-up is ready, a complete Mega-Mix is the optional next step (JITM-09 §2.20): offered for
+  // business use while the account has none, naming the one that fits the business type or example when one does.
+  const megaMixNextStep = firstFollowUpReady && !impersonation && profile?.useCases.includes("business")
+    ? await Promise.all([prisma.megaMixPipeline.count({ where: { workspaceId: workspace.id } }), prisma.workspaceMarketingPreference.findUnique({ where: { workspaceId: workspace.id } })])
+      .then(([megaMixes, marketing]) => megaMixes ? null : { blueprint: megaMixById(matchedMegaMix(profile.industry, storedMarketingScenario(marketing?.scenario, marketing?.version)?.id)) })
+      .catch(() => null)
+    : null;
 
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
       <JumpReturnTray />
       {params.setupLater && <Notice type="success">Your setup answers are saved. <Link href="/onboarding">Return to setup</Link> whenever you’re ready.</Notice>}
       {params.invitations && <Notice type="success">{params.invitations === "1" ? "Your invitation is" : "Your invitations are"} ready to send. {params.invitations === "1" ? "It hasn’t" : "They haven’t"} been sent yet.</Notice>}
-    {params.welcome && <Notice type="success">{welcomeMessage}{welcomeNextStep}</Notice>}
+    {params.welcome && <Notice type="success">{welcomeMessage}{welcomeNextStep}{megaMixNextStep && <> Optional next step: <Link className="inline-action" href={megaMixNextStep.blueprint ? `/templates/journeys?journey=${encodeURIComponent(megaMixNextStep.blueprint.id)}` : "/templates/journeys"}>{megaMixNextStep.blueprint ? `Set up the ${megaMixNextStep.blueprint.name} Mega-Mix` : "Choose a complete Mega-Mix"}<AppIcon name="chevronRight" className="inline-action-icon" /></Link></>}</Notice>}
       {params.demo && <Notice type="info">Using local demo data.</Notice>}
       {params.applied && <Notice type="success">Mix changes saved.</Notice>}
       {params.mixStopped && <Notice type="success">Mix stopped.</Notice>}

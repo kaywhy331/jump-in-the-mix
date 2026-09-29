@@ -96,9 +96,17 @@ export const MEGA_MIXES: MegaMix[] = [contractor,
 ];
 
 export const megaMixById = (id: string | null | undefined) => MEGA_MIXES.find(item => item.id === id) ?? null;
-export function suggestedMegaMix(industry?: string | null, scenario?: string | null): string {
+// The Mega-Mix that fits the marketing example or business type the owner chose, or null when none clearly does:
+// a business type shared by several Mega-Mixes, such as Professional services, names no single one.
+export function matchedMegaMix(industry?: string | null, scenario?: string | null): string | null {
   const profession = scenario?.split("~")[0];
-  return ({ painting: "contractor", consulting: "consultant", photography: "photographer", recruiting: "recruiter", "real-estate": "real-estate" } as Record<string, string>)[profession ?? ""] ?? (industry === "Real estate" ? "real-estate" : industry === "Professional services" ? "consultant" : "contractor");
+  const fromExample = ({ painting: "contractor", consulting: "consultant", photography: "photographer", recruiting: "recruiter", "real-estate": "real-estate" } as Record<string, string>)[profession ?? ""];
+  if (fromExample) return fromExample;
+  const fits = MEGA_MIXES.filter(item => item.industry === industry);
+  return fits.length === 1 ? fits[0].id : null;
+}
+export function suggestedMegaMix(industry?: string | null, scenario?: string | null): string {
+  return matchedMegaMix(industry, scenario) ?? (industry === "Professional services" ? "consultant" : "contractor");
 }
 
 /** Instantiate references once; the saved account configuration is authoritative afterward. */

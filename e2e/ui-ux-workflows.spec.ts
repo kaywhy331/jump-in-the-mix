@@ -73,13 +73,15 @@ test("worked schedule uses weekend and quiet-hour rules while appointment offset
 test("onboarding permits minimal details only after reviewing its actual starter", async ({ page }) => {
   const { workspace } = await member(page, false);
   await page.goto("/onboarding");
-  // Onboarding opens on the complete mega-mix; one person and one follow-up is its own starting point.
-  await page.getByRole("radio", { name: /^Other uses or one follow-up/ }).check();
+  // Onboarding opens on its recommended start, one person and one follow-up (JITM-09 §2.20).
+  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
   await page.getByLabel("Name", { exact: true }).fill("Notes Only Person");
   await page.getByRole("checkbox", { name: /I reviewed this Mix/ }).check();
   await page.getByRole("button", { name: "Prepare my first follow-up" }).click();
   await expect(page).toHaveURL(/\/jumps\?.*welcome=1/);
   await expect(page.getByText(/saved\. Add (an email address|a phone number)/)).toBeVisible();
+  // Adding the missing details is the one next step; the optional Mega-Mix waits until the follow-up is ready.
+  await expect(page.getByRole("link", { name: /Mega-Mix/ })).toHaveCount(0);
   expect((await prisma.workspaceProfile.findUniqueOrThrow({ where: { workspaceId: workspace.id } })).company).toBeNull();
 });
 

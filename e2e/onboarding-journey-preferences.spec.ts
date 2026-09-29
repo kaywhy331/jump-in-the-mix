@@ -22,9 +22,11 @@ test.beforeEach(async ({ page, context }) => {
 });
 test.afterEach(async () => { await prisma.workspace.deleteMany({ where: { id: workspaceId } }); await prisma.user.deleteMany({ where: { id: userId } }); if (sharedId) { await prisma.sharedMixMetadata.deleteMany({ where: { sharedMixId: sharedId } }); await prisma.sharedMix.deleteMany({ where: { id: sharedId } }); } expect(errors).toEqual([]); });
 
-test("recommended onboarding validates, previews and atomically installs a tailored journey", async ({ page }) => {
+test("the Mega-Mix route validates, previews and atomically installs a tailored journey", async ({ page }) => {
   await page.goto("/onboarding");
-  await expect(page.getByRole("radio", { name: /A complete Mega-Mix/ })).toBeChecked();
+  // One person and one follow-up is recommended (JITM-09 §2.20); a complete Mega-Mix stays one choice away.
+  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
+  await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
   await page.getByLabel("Preferred communication", { exact: true }).selectOption("EMAIL");
   await page.getByLabel("Space between follow-ups", { exact: true }).selectOption("RELAXED");
   await page.getByLabel("Close at", { exact: true }).fill("08:00");
@@ -94,6 +96,12 @@ test("onboarding reflows in both themes and supports keyboard and enlarged text"
         await page.screenshot({ path: `${out}/onboarding-${width}-${theme}.png`, fullPage: true });
       }
     }
+  }
+  // The loop above reflows the recommended one-person form; the Mega-Mix route must reflow too.
+  await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
+  for (const width of [320, 390, 834, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
   }
   await page.getByRole("button", { name: "Review my setup", exact: true }).focus(); await page.keyboard.press("Enter");
   await expect(page.getByRole("heading", { name: "Ready when you are" })).toBeFocused();
