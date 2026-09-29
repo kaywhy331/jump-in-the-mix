@@ -49,7 +49,7 @@ test("onboarding supports multiple purposes, a single starting-point dropdown, a
   const accessibility = await axeInPage(page).include(".onboarding-card").analyze();
   expect(accessibility.violations.filter(item => ["serious", "critical"].includes(item.impact ?? ""))).toEqual([]);
   await page.screenshot({ path: `.artifacts/onboarding-${test.info().project.name}.png`, fullPage: true });
-  await page.getByRole("checkbox", { name: /I reviewed this plan/ }).check();
+  await page.getByRole("checkbox", { name: /I reviewed this Mix/ }).check();
   await page.getByRole("button", { name: "Prepare my first follow-up" }).click();
   await expect(page).toHaveURL(/\/jumps\?.*welcome=1/);
   expect((await prisma.workspaceProfile.findUniqueOrThrow({ where: { workspaceId: workspace.id } })).useCases).toEqual(["business", "personal", "networking"]);
