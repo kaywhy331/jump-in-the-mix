@@ -68,7 +68,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
             </form>
           </Sheet>
         </div>
-        <div className="mix-library-total"><span role="status">{total} {total === 1 ? "mix" : "mixes"}</span><Link className="mix-favorites-filter" href={href({ favorites: favorites ? undefined : "1", page: undefined })} aria-current={favorites ? "page" : undefined}><AppIcon name="heart" />Favorites</Link></div>
+        <div className="mix-library-total"><span role="status">{total} {total === 1 ? "Mix" : "Mixes"}</span><Link className="mix-favorites-filter" href={href({ favorites: favorites ? undefined : "1", page: undefined })} aria-current={favorites ? "page" : undefined}><AppIcon name="heart" />Favorites</Link></div>
         {(q || status || favorites) && <Link className="mix-clear-filters" href="/mixes"><AppIcon name="close" />Clear filters</Link>}
         {mixes.length ? <MixLibraryNav showTabs={false} mixes={mixes.map(mix => ({ ...mix, favorite: mix.favorites.length > 0 }))} selected={selected} href={id => `${href({ mix: id })}#selected-mix`} canEdit={!impersonation} /> : <p className="muted-copy">{favorites ? "Favorite a Mix to find it here." : "No Mixes found."}</p>}
         {pages > 1 && <nav className="mix-library-pagination" aria-label="Mix result pages">{page > 1 && <Link className="icon-button" href={href({ page: String(page - 1) })} aria-label="Previous Mixes"><AppIcon name="arrowLeft" /></Link>}<span>{page} / {pages}</span>{page < pages && <Link className="icon-button" href={href({ page: String(page + 1) })} aria-label="Next Mixes"><AppIcon name="arrowLeft" style={{ transform: "rotate(180deg)" }} /></Link>}</nav>}

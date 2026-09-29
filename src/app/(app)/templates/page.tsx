@@ -105,7 +105,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
             </form>
           </Sheet>
         </div>
-        <div className="mix-library-total"><span role="status">{templates.length} {templates.length === 1 ? "mix" : "mixes"}</span><Link className="mix-favorites-filter" href={href({ favorites: favorites ? undefined : "1", page: undefined })} aria-current={favorites ? "page" : undefined}><AppIcon name="heart" />Favorites</Link></div>
+        <div className="mix-library-total"><span role="status">{templates.length} {templates.length === 1 ? "Mix" : "Mixes"}</span><Link className="mix-favorites-filter" href={href({ favorites: favorites ? undefined : "1", page: undefined })} aria-current={favorites ? "page" : undefined}><AppIcon name="heart" />Favorites</Link></div>
         {(query || filterCount || favorites) && <Link className="mix-clear-filters" href="/templates"><AppIcon name="close" />Clear filters</Link>}
         {industry && industry !== "Any business" && <p className="ready-made-directory-note">Includes Mixes for any business.</p>}
         {visible.length ? <nav className="mix-library-nav" aria-label="Ready-made Mixes">{visible.map(template => {

@@ -83,7 +83,7 @@ export function TemplateUseForm({
       <input type="hidden" name="expectedVersion" value={expectedVersion} />
       <input type="hidden" name="requestId" value={requestId} />
       <section className="card mix-editor-section" data-setup-step="0" hidden={setupStep !== 0}>
-        <div className="card-header"><div><h2 tabIndex={-1}>Name your Mix</h2><p>Save a draft first, or choose to start after reviewing it.</p></div><span className="status-pill">{stepCount} {stepCount === 1 ? "beat" : "beats"} · {durationDays === 0 ? "On the cue day" : `${durationDays} ${durationDays === 1 ? "day" : "days"}`}</span></div>
+        <div className="card-header"><div><h2 tabIndex={-1}>Name your Mix</h2><p>Save a draft first, or choose to start after reviewing it.</p></div><span className="status-pill">{stepCount} {stepCount === 1 ? "Beat" : "Beats"} · {durationDays === 0 ? "On the cue day" : `${durationDays} ${durationDays === 1 ? "day" : "days"}`}</span></div>
         <div className="form-grid">
           <div className="field full"><label htmlFor="template-mix-name">Mix name</label><input id="template-mix-name" name="name" value={name} onChange={(event) => setName(event.target.value)} maxLength={160} required /></div>
           <div className="field"><label htmlFor="template-status">After setup</label><select id="template-status" name="status" value={status} onChange={(event) => setStatus(event.target.value as "DRAFT" | "ACTIVE")}><option value="DRAFT">Keep as a draft</option><option value="ACTIVE">Start the Mix</option></select></div>

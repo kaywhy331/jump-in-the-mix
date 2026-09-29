@@ -130,7 +130,7 @@ test("filters reset the page and snooze/stop actions preserve the current filter
   await expect(page).toHaveURL(/snoozed=1/); expect(new URL(page.url()).searchParams.get("after")).toBe(cursor);
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[31]}`);
   await page.getByRole("button", { name: "More options for Queue person 032", exact: true }).click();
-  await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).getByRole("button", { name: "Stop mix…", exact: true }).click();
+  await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).getByRole("button", { name: "Stop Mix…", exact: true }).click();
   await page.getByRole("dialog", { name: "Stop Navigation fixture plan for Queue person 032?", exact: true }).getByRole("button", { name: "Stop Mix", exact: true }).click();
   await expect(page).toHaveURL(/mixStopped=1/); expect(new URL(page.url()).searchParams.get("after")).toBe(cursor);
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[32]}`);

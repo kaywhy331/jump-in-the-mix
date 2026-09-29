@@ -56,7 +56,7 @@ export function LibraryDraftForm({ id, revision, content, returnTo = "/admin/tem
       {current.triggerMode === "DATE_TRIGGERED" ? <><label className="field"><span>Saved date type name</span><input name="dateTypeName" value={current.dateTypeName ?? ""} onChange={e => update({ dateTypeName: e.target.value })} maxLength={120} required /></label><details><summary>Saved date key ({current.dateTypeSlug || libraryDateKey(current.dateTypeName || "") || "generated from name"})</summary><label className="field"><span>Saved date key</span><input name="dateTypeSlug" value={current.dateTypeSlug ?? ""} onChange={e => update({ dateTypeSlug: e.target.value })} placeholder={libraryDateKey(current.dateTypeName || "")} maxLength={120} /><small>Leave blank to generate it from the name. An existing key links Mixes to the matching saved date type.</small></label></details></> : <><input type="hidden" name="dateTypeName" value="" /><input type="hidden" name="dateTypeSlug" value="" /></>}
       <label><input type="checkbox" name="featured" checked={current.featured} onChange={e => update({ featured: e.target.checked })} />Feature this Mix when published</label>
     </section>
-    <section className="card form-stack"><h2>Prepared beats ({current.steps.length})</h2>
+    <section className="card form-stack"><h2>Prepared Beats ({current.steps.length})</h2>
       {current.steps.map((step, index) => {
         const script = ["PHONE_CALL", "VOICEMAIL"].includes(step.channel);
         const placeholders = [...CONTACT_PLACEHOLDERS.slice(0, 7), ...MY_INFO_PLACEHOLDERS.slice(0, 7), ...(step.channel === "PHONE_CALL" ? [...PRIVATE_NOTE_PLACEHOLDERS.slice(0, 1)] : [])];
