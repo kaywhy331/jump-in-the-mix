@@ -95,3 +95,29 @@ test("the recommended form keeps its controls whole and fits 320px at 200% text"
   await page.addStyleTag({ content: "html { font-size: 200% !important }" });
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
 });
+
+test.describe("on a device whose timezone differs from the account's", () => {
+  test.use({ timezoneId: "America/Chicago" });
+
+  test("an untouched form reports no unsaved changes and leaves without asking", async ({ page }) => {
+    await account(page);
+    await page.goto("/onboarding");
+    const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Prepare my first follow-up" }) });
+    // The page fills in the device timezone, today's date there and the starter preview; none of that is the person's change.
+    await expect(form.getByText("Detected from this device for follow-up times.", { exact: false })).toBeVisible();
+    await expect(form.getByRole("checkbox", { name: /I reviewed this Mix/ })).toBeEnabled();
+    const unsaved = form.getByRole("status").filter({ hasText: "Unsaved changes" });
+    await expect(unsaved).toHaveCount(0);
+    const prompts: string[] = [];
+    page.on("dialog", dialog => { prompts.push(dialog.message()); void dialog.dismiss(); });
+    expect(await page.evaluate(() => { const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; })).toBe(false);
+    // What the person types is still protected, and undoing it clears the warning.
+    const name = page.getByLabel("Name", { exact: true });
+    await name.fill("Riley Example");
+    await expect(unsaved).toHaveCount(1);
+    await name.fill("");
+    await expect(unsaved).toHaveCount(0);
+    await Promise.all([page.waitForURL(url => url.pathname === "/"), page.getByRole("link", { name: "Jump in the Mix home" }).click()]);
+    expect(prompts).toEqual([]);
+  });
+});
