@@ -101,21 +101,21 @@ test("activation reviews contain focus, restore it, and keep confirmation reacha
     await page.getByLabel("After saving").selectOption("ACTIVE");
     await page.getByLabel("Everyone").check();
     await page.getByLabel("Message", { exact: true }).fill("A synthetic review message.");
-    await checkModal(page, page.getByRole("button", { name: "Review and start" }), "Start the mix");
+    await checkModal(page, page.getByRole("button", { name: "Review and start" }), "Start the Mix");
     await page.goto(`/templates/${templateId}-0/use`);
     await expect(page.getByLabel("After setup")).toHaveValue("DRAFT");
     await page.getByLabel("After setup").selectOption("ACTIVE");
     await page.getByRole("button", { name: "Continue", exact: true }).click();
     await page.getByLabel("Everyone").check();
     await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await checkModal(page, page.getByRole("button", { name: "Review and start" }), "Start the mix");
+    await checkModal(page, page.getByRole("button", { name: "Review and start" }), "Start the Mix");
   }
 });
 
 test("library selection preserves filters and keyboard tools stay accessible", async ({ page }) => {
   await page.goto("/templates");
   await expect(page.locator(".mix-library-row")).toHaveCount(20);
-  await page.getByRole("link", { name: "Next ready-made mixes", exact: true }).click();
+  await page.getByRole("link", { name: "Next ready-made Mixes", exact: true }).click();
   await expect(page).toHaveURL(/page=2/);
   await expect(page.locator(".mix-library-row")).toHaveCount(20);
   await page.goto(`/templates?category=New+customers&industry=Home+services&framework=${encodeURIComponent(framework)}`);
@@ -127,7 +127,7 @@ test("library selection preserves filters and keyboard tools stay accessible", a
   // On a phone, choosing a Mix shows its Beats pane; the library tools are under the Mixes pane.
   await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
   await choosePane(page, "Mixes");
-  const filter = page.getByRole("button", { name: "Filter ready-made mixes", exact: true });
+  const filter = page.getByRole("button", { name: "Filter ready-made Mixes", exact: true });
   await filter.focus(); await page.keyboard.press("Enter");
   const goals = await page.getByLabel("Filter by goal").locator("option").allTextContents();
   expect(goals).toContain("New customers"); expect(goals).not.toContain("New clients");
@@ -139,13 +139,13 @@ test("library selection preserves filters and keyboard tools stay accessible", a
   await expect(page.getByLabel("Filter by business type")).toHaveValue("");
   await expect(page.getByLabel("Filter by approach")).toHaveValue("");
   await page.keyboard.press("Escape");
-  await page.getByRole("searchbox", { name: "Search ready-made mixes" }).fill("Jeremy Miner");
-  await page.getByRole("button", { name: "Search ready-made mixes", exact: true }).click();
-  await expect(page).toHaveURL(/q=Jeremy\+Miner|q=Jeremy%20Miner/, { timeout: 60_000 });
+  await page.getByRole("searchbox", { name: "Search ready-made Mixes" }).fill("Question-led discovery");
+  await page.getByRole("button", { name: "Search ready-made Mixes", exact: true }).click();
+  await expect(page).toHaveURL(/q=Question-led\+discovery|q=Question-led%20discovery/, { timeout: 60_000 });
   // The search loads a new page, which opens on the library pane; a phone shows the chosen Mix's details under Details.
   await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
   await choosePane(page, "Details");
-  await expect(page.getByRole("complementary", { name: "Ready-made Mix details" })).toContainText("NEPQ");
+  await expect(page.getByRole("complementary", { name: "Ready-made Mix details" })).toContainText("Question-led discovery");
 });
 
 test("collapsed contact details retain address identity and notes on save", async ({ page }) => {

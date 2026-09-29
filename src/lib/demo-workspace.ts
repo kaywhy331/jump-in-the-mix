@@ -46,7 +46,7 @@ export function demoSituations(scenarioId?: string): readonly DemoSituation[] {
   if (!persona) return HOME_DEMO_SITUATIONS;
   return professionSituations[persona.id].map(([id, label, context, topic]) => ({
     id, label, person: persona.person, context, topic,
-    text: `Hi ${persona.person.split(" ")[0]}, just checking in about ${topic}. Is now a good time to pick up our conversation?`
+    text: `Hi ${persona.person.split(" ")[0]}, I wanted to follow up on ${topic}. Is now a good time to pick up our conversation?`
   }));
 }
 export function demoDrafts(situation: DemoSituation) {

@@ -34,7 +34,7 @@ export const PERSONAS: Persona[] = [
     id: "real-estate", slug: scenario("real-estate").slug, label: "Real estate", navLabel: "Real Estate Agents", noun: "real estate agents",
     headline: "“Not yet” still deserves a next step.",
     supporting: "Set a plan for the buyers and past clients you mean to check back with, instead of hoping the conversation resurfaces. Choose the timing, review the draft, and keep each message personal.",
-    demoHeading: "Try a real estate mix",
+    demoHeading: "Try a real estate Mix",
     seoTitle: "Real Estate Follow-Up App",
     description: "Plan buyer and past-client check-ins without leaving them to memory. Choose the timing, review the draft, and keep each conversation personal.",
     demoCta: "Try a buyer check-in",
@@ -72,7 +72,7 @@ export const PERSONAS: Persona[] = [
     id: "consulting", slug: scenario("consulting").slug, label: "Consulting", navLabel: "Consultants", noun: "independent consultants",
     headline: "Client work fills the day. Proposal follow-up still needs a place.",
     supporting: "Give proposals and past-client check-ins a place in your week, with simple plans and messages you can make your own. Nothing goes out until you’ve reviewed it.",
-    demoHeading: "Try a consulting mix",
+    demoHeading: "Try a consulting Mix",
     seoTitle: "Client Follow-Up App for Consultants",
     description: "Keep proposal follow-ups and past-client check-ins on a plan while you deliver current work. Review each draft and send it yourself.",
     demoCta: "Try a proposal follow-up",
@@ -117,7 +117,7 @@ export const PERSONAS: Persona[] = [
     id: "photography", slug: scenario("photography").slug, label: "Photography", navLabel: "Photographers", noun: "independent photographers",
     headline: "The inquiry came in. Then the editing took over.",
     supporting: "Give inquiries and past-client check-ins the same attention you give the work, with a simple plan for the next conversation and a draft you can make your own.",
-    demoHeading: "Try a photography mix",
+    demoHeading: "Try a photography Mix",
     seoTitle: "Follow-Up App for Photographers",
     description: "Plan inquiry follow-ups and past-client check-ins around your work. Start with a message template, make it yours, and send it yourself.",
     demoCta: "Try an inquiry follow-up",
@@ -130,7 +130,7 @@ export const PERSONAS: Persona[] = [
         steps: [
           { title: "Send the pricing", timing: "Immediate", channel: "email", subject: "Your coverage options", message: "Hi {{First Name}},\n\nLovely to talk today. Here are the two options we discussed—shorter coverage and the full day—with what each includes. Happy to walk through either one.\n\n{{Your Name}}" },
           { title: "Help them compare", timing: "Day 3", channel: "email", subject: "Any questions about the options?", message: "Hi {{First Name}}—when we spoke, you were deciding between shorter coverage and the full-day package. Is there anything I can clarify to help you compare them?" },
-          { title: "Dates still open", timing: "Day 10", channel: "text", message: "Hi {{First Name}}, {{Your Name}} here. No pressure at all—just letting you know your date is still open on my side. Happy to hold it for a few days if that helps." }
+          { title: "Date still open (only if it’s true)", timing: "Day 10", channel: "text", message: "Hi {{First Name}}, {{Your Name}} here. No pressure at all—just letting you know your date is still open on my side. Happy to hold it for a few days if that helps." }
         ]
       },
       {
@@ -146,7 +146,7 @@ export const PERSONAS: Persona[] = [
         id: "vendor-thanks", label: "Vendor thank-you", description: "A planner, florist or venue you worked alongside · Share the work and keep the referral warm.",
         steps: [
           { title: "Share their work", timing: "Day 2", channel: "email", subject: "A few images of your arrangements", message: "Hi {{First Name}}—it was great working with you on Saturday. I've selected a few images of the floral arrangements. What's the best email to send them to?" },
-          { title: "Share the feature", timing: "Day 30", channel: "email", subject: "The day was featured", message: "Hi {{First Name}},\n\nThe wedding was just featured—your arrangements look wonderful in it. I've credited you throughout; feel free to share.\n\n{{Your Name}}" }
+          { title: "Share the feature (only if it’s true)", timing: "Day 30", channel: "email", subject: "The day was featured", message: "Hi {{First Name}},\n\nThe wedding was just featured—your arrangements look wonderful in it. I've credited you throughout; feel free to share.\n\n{{Your Name}}" }
         ]
       }
     ]
@@ -155,7 +155,7 @@ export const PERSONAS: Persona[] = [
     id: "painting", slug: scenario("painting").slug, label: "Contractors", navLabel: "Contractors", noun: "independent contractors",
     headline: "The estimate went out. Don’t let the follow-up disappear.",
     supporting: "You’re on the job. Your estimate is still waiting on a decision. Put the next check-in on a plan, with a draft ready to review when it’s time.",
-    demoHeading: "Try a contractor mix",
+    demoHeading: "Try a contractor Mix",
     seoTitle: "Contractor Follow-Up Software",
     description: "Keep estimate follow-ups from getting buried in the workday. Plan check-ins, review message drafts, and send through your usual text or email app.",
     demoCta: "Try an estimate follow-up",
@@ -169,7 +169,7 @@ export const PERSONAS: Persona[] = [
           { title: "Estimate on its way", timing: "Immediate", channel: "text", message: "Hi {{First Name}}, it's {{Your Name}}. Your estimate is in your inbox—two options in there like we discussed. Any questions, just text me." },
           { title: "Help them choose", timing: "Day 2", channel: "text", message: "Hi {{First Name}}—it's {{Your Name}}. You mentioned wanting to compare the smaller scope with the full project. Is there anything I can clarify about the two options?" },
           { title: "Walk it through", timing: "Day 5", channel: "phone", message: "• Which option are they leaning to?\n• Any rooms to add or drop?\n• Confirm start dates you have open\n• Agree when they'll decide" },
-          { title: "Dates filling up", timing: "Day 10", channel: "text", message: "Hi {{First Name}}, {{Your Name}} here. No pressure—just letting you know the dates we talked about are starting to fill. Happy to pencil you in if you'd like." }
+          { title: "Dates filling up (only if it’s true)", timing: "Day 10", channel: "text", message: "Hi {{First Name}}, {{Your Name}} here. No pressure—just letting you know the dates we talked about are starting to fill. Happy to pencil you in if you'd like." }
         ]
       },
       {
@@ -185,7 +185,7 @@ export const PERSONAS: Persona[] = [
         steps: [
           { title: "A few days later", timing: "Day 3", channel: "text", message: "Hi {{First Name}}—now that you've had a few days back in the space, is there anything from the project you'd like me to take another look at?" },
           { title: "Thanks and a review", timing: "Day 14", channel: "email", subject: "Thanks from {{Your Name}}", message: "Hi {{First Name}},\n\nThanks again for having us in. If you were happy with the work, a short review helps more than you'd think—and if you know anyone planning a project, I'd be glad to help them too.\n\n{{Your Name}}" },
-          { title: "Next project", timing: "6 months", channel: "text", message: "Hi {{First Name}}, it's {{Your Name}}. If there's another project on your list this year, I'm booking now and happy to take a look." }
+          { title: "Next project", timing: "6 months", channel: "text", message: "Hi {{First Name}}, it's {{Your Name}}. If there's another project on your list this year, I'd be happy to take a look." }
         ]
       }
     ]
@@ -194,7 +194,7 @@ export const PERSONAS: Persona[] = [
     id: "recruiting", slug: scenario("recruiting").slug, label: "Recruiting", navLabel: "Recruiters", noun: "independent recruiters",
     headline: "No open role. Still a relationship.",
     supporting: "Put candidate and client check-ins on a plan, so staying in touch doesn’t depend on the next assignment. Review every message before you send it.",
-    demoHeading: "Try a recruiting mix",
+    demoHeading: "Try a recruiting Mix",
     seoTitle: "Recruiter Follow-Up App",
     description: "Plan candidate and client check-ins between searches. Keep the next touchpoint organized and review each message before you send.",
     demoCta: "Try a candidate check-in",
@@ -214,7 +214,7 @@ export const PERSONAS: Persona[] = [
         id: "client-plans", label: "Client's hiring plans", description: "A hiring manager whose search depends on budget · Revisit when the timing is clearer.",
         steps: [
           { title: "Revisit the timing", timing: "Day 30", channel: "email", subject: "The controller search", message: "Hi {{First Name}}—when we last spoke, the controller search depended on next quarter's budget. Has the timing become clearer, or should we revisit it another time?" },
-          { title: "Quarter check", timing: "Day 90", channel: "email", subject: "Checking in on the quarter", message: "Hi {{First Name}},\n\nNew quarter—if the controller role is back on the table, I have a couple of people worth a conversation. If not, no problem at all; I'll check back later in the year.\n\n{{Your Name}}" },
+          { title: "Quarter check", timing: "Day 90", channel: "email", subject: "Checking in on the quarter", message: "Hi {{First Name}},\n\nNew quarter—if the controller role is back on the table, I'd be glad to talk through candidates. If not, no problem at all; I'll check back later in the year.\n\n{{Your Name}}" },
           { title: "Plan the search", timing: "Day 100", channel: "phone", message: "• Confirm budget and start date\n• What's changed in the brief?\n• Agree the shortlist timeline" }
         ]
       },

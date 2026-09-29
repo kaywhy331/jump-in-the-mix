@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SALES_APPROACHES } from "../src/lib/sales-approaches";
+import { SALES_APPROACHES, approachLabel } from "../src/lib/sales-approaches";
 import { SALES_PLANS, salesPlanSearchIds } from "../src/lib/sales-plan-library";
 import { MIX_TEMPLATE_CATEGORIES, MIX_TEMPLATE_INDUSTRIES, normalizeSharedMixSteps } from "../src/lib/shared-mix";
 import { READY_MADE_PLANS } from "../src/lib/vertical-plan-library";
@@ -42,12 +42,20 @@ describe("sales strategy plan library", () => {
     }
   });
 
-  it("finds frameworks by their authors as well as their common names", () => {
-    expect(salesPlanSearchIds("Jeremy Miner")).toContain("plan_sales_nepq_inquiry");
-    expect(salesPlanSearchIds("NEPQ")).toContain("plan_sales_home_estimate");
-    expect(salesPlanSearchIds("Chris Voss")).toContain("plan_sales_empathy_concern");
-    expect(salesPlanSearchIds("April Dunford")).toContain("plan_sales_b2b_alternatives");
-    expect(salesPlanSearchIds("Marcus Sheridan")).toContain("plan_sales_transparent_evaluation");
+  it("finds plans by their descriptive approach labels, which carry no source or attribution", () => {
+    expect(salesPlanSearchIds("question-led")).toContain("plan_sales_nepq_inquiry");
+    expect(salesPlanSearchIds("Question-led discovery")).toContain("plan_sales_home_estimate");
+    expect(salesPlanSearchIds("listening-first")).toContain("plan_sales_empathy_concern");
+    expect(salesPlanSearchIds("honest comparison")).toContain("plan_sales_b2b_alternatives");
+    expect(salesPlanSearchIds("answer-first")).toContain("plan_sales_transparent_evaluation");
     expect(salesPlanSearchIds("unrelated unknown author")).toEqual([]);
+    for (const approach of Object.values(SALES_APPROACHES)) expect(Object.keys(approach).sort()).toEqual(["adaptation", "label", "principle"]);
+  });
+
+  it("shows the descriptive label for a ready-made Mix installed with a retired approach label", () => {
+    expect(approachLabel("NEPQ-inspired discovery")).toBe("Question-led discovery");
+    expect(approachLabel("They Ask, You Answer / Endless Customers")).toBe("Answer-first education");
+    expect(approachLabel("Question-led discovery")).toBe("Question-led discovery");
+    expect(approachLabel("Mega-mix")).toBe("Mega-mix");
   });
 });

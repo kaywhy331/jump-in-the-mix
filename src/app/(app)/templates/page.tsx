@@ -16,8 +16,9 @@ import { getPlatformStringList } from "@/lib/platform-settings";
 import { prisma } from "@/lib/prisma";
 import { normalizeSharedMixSteps, sharedMixContentIssue } from "@/lib/shared-mix";
 import { salesPlanSearchIds } from "@/lib/sales-plan-library";
+import { approachLabel } from "@/lib/sales-approaches";
 
-export const metadata: Metadata = { title: "Ready-made mixes" };
+export const metadata: Metadata = { title: "Ready-made Mixes" };
 const PAGE_SIZE = 20;
 
 type SearchParams = { setup?: string; mix?: string; favorites?: string; q?: string; category?: string; industry?: string; framework?: string; page?: string; error?: string; at?: string; sig?: string };
@@ -85,39 +86,39 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
           <Sheet trigger={<button className="icon-button" type="button" aria-label="More ready-made Mix tools" title="More ready-made Mix tools"><AppIcon name="more" /></button>} title="Ready-made Mix tools">
             <nav className="contact-tools-links"><Link href="/mixes/system"><AppIcon name="people" />My invitations</Link></nav>
             <details className="workflow-options"><summary>Ideas for your business</summary><ProfessionExamples /></details>
-            <details className="workflow-options"><summary>Browse by task</summary><nav className="contact-tools-links" aria-label="Choose a follow-up task">{[["Follow up a new lead", "lead"], ["Check an estimate", "estimate"], ["Reconnect with someone", "reconnect"]].map(([label, q]) => <Link href={`/templates?q=${q}`} key={q}>{label}</Link>)}<Link href="/templates">Browse all mixes</Link></nav></details>
+            <details className="workflow-options"><summary>Browse by task</summary><nav className="contact-tools-links" aria-label="Choose a follow-up task">{[["Follow up a new lead", "lead"], ["Check an estimate", "estimate"], ["Reconnect with someone", "reconnect"]].map(([label, q]) => <Link href={`/templates?q=${q}`} key={q}>{label}</Link>)}<Link href="/templates">Browse all Mixes</Link></nav></details>
           </Sheet>
         </div></header>
-        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My mixes</Link><Link href="/mixes/mega"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace" aria-current="page"><AppIcon name="store" />Marketplace</Link></nav>
-        <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Choose a complete mega-mix</Link>
+        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My Mixes</Link><Link href="/mixes/mega"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace" aria-current="page"><AppIcon name="store" />Marketplace</Link></nav>
+        <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Choose a complete Mega-Mix</Link>
         <div className="mix-directory-search">
           <form className="mix-library-search" action="/templates" key={`${query}:${category}:${industry}:${framework}:${favorites}`}>
-            <button className="icon-button" type="submit" aria-label="Search ready-made mixes"><AppIcon name="search" /></button><label className="sr-only" htmlFor="ready-made-search">Search ready-made mixes</label><input id="ready-made-search" name="q" type="search" defaultValue={query} placeholder="Search mixes" />
+            <button className="icon-button" type="submit" aria-label="Search ready-made Mixes"><AppIcon name="search" /></button><label className="sr-only" htmlFor="ready-made-search">Search ready-made Mixes</label><input id="ready-made-search" name="q" type="search" defaultValue={query} placeholder="Search Mixes" />
             {favorites && <input name="favorites" type="hidden" value="1" />}{category && <input name="category" type="hidden" value={category} />}{industry && <input name="industry" type="hidden" value={industry} />}{framework && <input name="framework" type="hidden" value={framework} />}
           </form>
-          <Sheet trigger={<button className="icon-button" type="button" aria-label="Filter ready-made mixes" title="Filter ready-made mixes"><AppIcon name="filter" />{filterCount > 0 && <span className="mix-filter-count">{filterCount}</span>}</button>} title="Filter ready-made mixes" description="Choose filters, then apply them.">
+          <Sheet trigger={<button className="icon-button" type="button" aria-label="Filter ready-made Mixes" title="Filter ready-made Mixes"><AppIcon name="filter" />{filterCount > 0 && <span className="mix-filter-count">{filterCount}</span>}</button>} title="Filter ready-made Mixes" description="Choose filters, then apply them.">
             <form className="form-grid" action="/templates" key={`${category}:${industry}:${framework}`}><input name="q" type="hidden" value={query} />{favorites && <input name="favorites" type="hidden" value="1" />}
               <label className="field full"><span>Goal</span><select name="category" defaultValue={category} aria-label="Filter by goal"><option value="">Every goal</option>{categories.map(item => <option key={item}>{item}</option>)}</select></label>
               <label className="field full"><span>Business type</span><select name="industry" defaultValue={industry} aria-label="Filter by business type"><option value="">Every business type</option>{industries.map(item => <option key={item}>{item}</option>)}</select></label>
-              <label className="field full"><span>Approach</span><select name="framework" defaultValue={framework} aria-label="Filter by approach"><option value="">Every approach</option>{frameworks.map(item => <option key={item} value={item}>{item === "Ready-made" ? "Everyday follow-up" : item}</option>)}</select></label>
+              <label className="field full"><span>Approach</span><select name="framework" defaultValue={framework} aria-label="Filter by approach"><option value="">Every approach</option>{frameworks.map(item => <option key={item} value={item}>{item === "Ready-made" ? "Everyday follow-up" : approachLabel(item)}</option>)}</select></label>
               <button className="button primary" type="submit"><AppIcon name="check" />Apply filters</button>
             </form>
           </Sheet>
         </div>
         <div className="mix-library-total"><span role="status">{templates.length} {templates.length === 1 ? "mix" : "mixes"}</span><Link className="mix-favorites-filter" href={href({ favorites: favorites ? undefined : "1", page: undefined })} aria-current={favorites ? "page" : undefined}><AppIcon name="heart" />Favorites</Link></div>
         {(query || filterCount || favorites) && <Link className="mix-clear-filters" href="/templates"><AppIcon name="close" />Clear filters</Link>}
-        {industry && industry !== "Any business" && <p className="ready-made-directory-note">Includes mixes for any business.</p>}
-        {visible.length ? <nav className="mix-library-nav" aria-label="Ready-made mixes">{visible.map(template => {
+        {industry && industry !== "Any business" && <p className="ready-made-directory-note">Includes Mixes for any business.</p>}
+        {visible.length ? <nav className="mix-library-nav" aria-label="Ready-made Mixes">{visible.map(template => {
           const issue = sharedMixContentIssue(template.steps), steps = issue ? [] : normalizeSharedMixSteps(template.steps);
           return <div className="mix-library-row" key={template.id}>
             <Link className="mix-library-item" href={`${href({ mix: template.id })}#selected-mix`} aria-current={selected?.id === template.id ? "page" : undefined}>
               <span className="mix-row-icon" aria-hidden="true"><AppIcon name="mixes" /></span><span className="mix-row-copy"><strong>{template.title}</strong><small>{issue ? "Being updated" : `${steps.length} ${steps.length === 1 ? "Beat" : "Beats"} · ${planGoalLabel(template.category)}`}</small></span>
             </Link><MixFavoriteButton target={{ kind: "template", id: template.id }} name={template.title} initial={template.favorites.length > 0} canEdit={!impersonation} />
           </div>;
-        })}</nav> : <p className="muted-copy">{favorites ? "Favorite a Mix to find it here." : "No mixes found."}</p>}
-        {totalPages > 1 && <nav className="mix-library-pagination" aria-label="Ready-made mix result pages">{currentPage > 1 && <Link className="icon-button" href={href({ page: String(currentPage - 1) })} aria-label="Previous ready-made mixes"><AppIcon name="arrowLeft" /></Link>}<span>{currentPage} / {totalPages}</span>{currentPage < totalPages && <Link className="icon-button" href={href({ page: String(currentPage + 1) })} aria-label="Next ready-made mixes"><AppIcon name="arrowLeft" style={{ transform: "rotate(180deg)" }} /></Link>}</nav>}
+        })}</nav> : <p className="muted-copy">{favorites ? "Favorite a Mix to find it here." : "No Mixes found."}</p>}
+        {totalPages > 1 && <nav className="mix-library-pagination" aria-label="Ready-made Mix result pages">{currentPage > 1 && <Link className="icon-button" href={href({ page: String(currentPage - 1) })} aria-label="Previous ready-made Mixes"><AppIcon name="arrowLeft" /></Link>}<span>{currentPage} / {totalPages}</span>{currentPage < totalPages && <Link className="icon-button" href={href({ page: String(currentPage + 1) })} aria-label="Next ready-made Mixes"><AppIcon name="arrowLeft" style={{ transform: "rotate(180deg)" }} /></Link>}</nav>}
       </aside>
-      {selected ? <ReadyMadeMixWorkspace key={selected.id} template={selected} metadata={selectedMetadata} copies={copies} canUse={!impersonation} /> : <EmptyState title={favorites ? "No favorite mixes yet" : "No mixes match"} description={favorites ? "Use the heart beside a Mix to keep it here." : "Try another search or clear your filters."} actionHref="/templates" actionLabel="Browse ready-made mixes" />}
+      {selected ? <ReadyMadeMixWorkspace key={selected.id} template={selected} metadata={selectedMetadata} copies={copies} canUse={!impersonation} /> : <EmptyState title={favorites ? "No favorite Mixes yet" : "No Mixes match"} description={favorites ? "Use the heart beside a Mix to keep it here." : "Try another search or clear your filters."} actionHref="/templates" actionLabel="Browse ready-made Mixes" />}
     </MixLibraryShell>
   </div>;
 }
