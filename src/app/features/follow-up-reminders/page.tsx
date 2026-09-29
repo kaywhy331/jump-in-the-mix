@@ -20,7 +20,7 @@ export default function FollowUpRemindersPage() {
     </section>
     <section aria-labelledby="due-title">
       <h2 id="due-title">What appears when a Beat is due</h2>
-      <p>Your Today list shows the Beats due today, anything overdue, and what’s coming this week. The next one is marked “Next up”, with the message ready to open in your own text or email app, or the call notes ready for a phone call. Editing the draft happens right there, before anything is sent.</p>
+      <p>Your Today list shows the follow-ups due today, anything overdue, and what’s coming up. The next one is marked “Next up”, with the message ready to open in your own text or email app, or the call notes ready for a phone call. Editing the draft happens right there, before anything is sent.</p>
     </section>
     <section aria-labelledby="notifications-title">
       <h2 id="notifications-title">Optional notifications, off until you turn them on</h2>
@@ -34,16 +34,16 @@ export default function FollowUpRemindersPage() {
     <section aria-labelledby="manual-title">
       <h2 id="manual-title">What stays with you</h2>
       <ul>
-        <li><strong>Sending.</strong> A Beat opens your own messaging or email app with the draft ready, or you copy it into whichever app you prefer. Nothing goes out on its own unless you connect an optional sending provider and turn that on.</li>
+        <li><strong>Sending.</strong> A Beat opens your own messaging or email app with the draft ready, or you copy it into whichever app you prefer. Nothing goes out on its own: automatic sending is off during the beta.</li>
         <li><strong>Recording what happened.</strong> Mark a Beat sent, not sent, no answer, left a voicemail, rescheduled, or skipped. A reminder is never treated as proof that a message was sent.</li>
         <li><strong>Deciding the next step.</strong> Jump in the Mix doesn’t read replies. If someone answers, declines, or asks you to stop, you change the plan.</li>
       </ul>
     </section>
     <section className="public-article-cta" aria-labelledby="cta-title">
       <h2 id="cta-title">Try a follow-up reminder</h2>
-      <p>In the demo, open a planned Beat and choose its date. In the product, that date is when the Beat lands on your Today list.</p>
+      <p>The demo shows one fictional contact with three Beats: a text today, an email tomorrow and a call next week. Edit a draft, preview it, and record what happened. In the product, each Beat lands on your Today list on its date.</p>
       <Link className="button primary" href="/#sample">Try a follow-up reminder</Link>
-      <small>A fictional contact and an editable draft. Nothing goes out unless you open your own messaging app and send it.</small>
+      <small>A fictional contact and editable drafts. The demo doesn’t send anything or open another app.</small>
     </section>
     <nav className="public-article-related" aria-labelledby="related-title">
       <h2 id="related-title">Related</h2>

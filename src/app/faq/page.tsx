@@ -26,7 +26,7 @@ export default function FaqPage() {
           <details id="replies"><summary>Does it know when someone replies?</summary><p>No. Jump in the Mix doesn’t read your messages or watch for replies. You decide whether a response changes the plan and whether another message is appropriate, and you record whether each Beat was sent, not sent, or skipped.</p></details>
           <details id="phone-number"><summary>Do I need a new phone number?</summary><p>No. A text follow-up opens in your phone’s own messaging app with the draft ready, so it comes from the number you already use. On a computer, copy the draft into whichever app you use.</p></details>
           <details id="your-data"><summary>How can I control my data?</summary><p>Keep contact details, notes, and follow-up history together. In Settings, open Data &amp; privacy to export your data or delete your account. Private notes stay out of text messages and emails.</p></details>
-          <details><summary>Does it cost anything to join?</summary><p>Joining the waitlist and creating your account are free. You don’t need a payment card.</p></details>
+          <details><summary>Does it cost anything to join?</summary><p>Not during the beta. Joining the waitlist and creating your account are free, and no card is required. Prices after the beta haven’t been set.</p></details>
           <details><summary>How do invitations work?</summary><p>Accounts are by invitation. A member can invite you: each member has three personal invitations to share by text or email. Or join the waitlist: we email invitations from it in small groups as space opens, so we can’t promise a date. Either way, your invitation is a personal link that creates one free account.</p></details>
         </div>
       </section>
