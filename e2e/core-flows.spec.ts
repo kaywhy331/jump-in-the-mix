@@ -146,9 +146,9 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
 
   await signIn(page, email, password);
   await expect(page).toHaveURL(/\/onboarding/);
-  await page.getByRole("radio", { name: /Choose individual Mixes/ }).check();
-  await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await expect(page.getByRole("heading", { name: "Jump in the mix." })).toBeVisible();
+  // The recommended start is one person and one follow-up (JITM-09 §2.20), so its form is already open.
+  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
   // The business name sits in a closed disclosure on the one-person form (the Mega-Mix setup has its own field).
   await page.getByText("Optional business details and signature").click();
   await page.getByPlaceholder("Lee Plumbing").fill("Browser Test Plumbing");
@@ -173,6 +173,8 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
     page.getByRole("button", { name: "Prepare my first follow-up" }).click()
   ]);
   await expect(page.getByText("Your first follow-up for Jordan First Win is ready.")).toBeVisible();
+  // With the first follow-up ready, the welcome offers the Mega-Mix for the chosen business type as an optional next step.
+  await expect(page.getByRole("status").getByRole("link", { name: "Set up the Contractor Mega-Mix", exact: true })).toHaveAttribute("href", "/templates/journeys?journey=contractor");
   const firstFollowUp = page.locator(".jump-task-card:visible").filter({ hasText: "Jordan First Win" }).first();
   await expect(firstFollowUp).toBeVisible();
   await firstFollowUp.getByRole("button", { name: "Review message for Jordan First Win" }).click();

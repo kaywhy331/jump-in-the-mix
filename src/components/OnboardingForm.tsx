@@ -21,7 +21,8 @@ import { marketingScenario } from "@/lib/marketing-scenarios";
 type ContactOption = { id: string; displayName: string };
 export function OnboardingForm({ userName, industry, initialUses, timezone, today, scenarioId, contacts, initialSetup, company, smsSignature }: { userName: string; industry: string | null; initialUses: OnboardingUse[]; timezone: string; today: string; scenarioId?: string; contacts: ContactOption[]; initialSetup: JourneySetupValues; company?: string; smsSignature?: string }) {
   const router = useRouter();
-  const [setupMode, setSetupMode] = useState<"person" | "journey" | "individual">(initialSetup.preferences.draftSetupMode ?? "journey");
+  // One person and one follow-up is the recommended start (JITM-09 §2.20). Answers saved for later reopen their own route.
+  const [setupMode, setSetupMode] = useState<"person" | "journey" | "individual">(initialSetup.preferences.draftSetupMode ?? "person");
   const [purposes, setPurposes] = useState<OnboardingUse[]>(initialUses);
   const [businessType, setBusinessType] = useState(industry ?? "Home services");
   const [selectedTimezone, setSelectedTimezone] = useState(timezone);
@@ -36,7 +37,7 @@ export function OnboardingForm({ userName, industry, initialUses, timezone, toda
   const reasons = onboardingReasons(purposes);
   const [choice, setChoice] = useState(scenario && business ? "suggested" : reasons[0] ?? "");
   const selected = choice === "suggested" && scenario && business || reasons.includes(choice) ? choice : reasons[0] ?? "";
-  return <><fieldset className="onboarding-step-card"><legend>Choose your starting point</legend><div className="form-stack"><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "journey"} onChange={() => setSetupMode("journey")} /><span><strong>A complete Mega-Mix · Recommended</strong><small>Your whole pipeline on day one: every follow-up from first inquiry to repeat work, written and connected. Just tweak the wording to sound like you.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "individual"} onChange={() => setSetupMode("individual")} /><span><strong>Choose individual Mixes</strong><small>Build your journey one Mix at a time. Preview and customize each one.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "person"} onChange={() => setSetupMode("person")} /><span><strong>Other uses or one follow-up</strong><small>Personal connections, another kind of business, or a simple start with one person.</small></span></label></div></fieldset>
+  return <><fieldset className="onboarding-step-card"><legend>Choose your starting point</legend><div className="form-stack"><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "person"} onChange={() => setSetupMode("person")} /><span><strong>One person and one follow-up · Recommended</strong><small>Add someone you need to follow up with, then review the first follow-up prepared for them. You can add a complete Mega-Mix later.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "journey"} onChange={() => setSetupMode("journey")} /><span><strong>A complete Mega-Mix</strong><small>Your whole pipeline on day one: every follow-up from first inquiry to repeat work, written and connected. Just tweak the wording to sound like you.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "individual"} onChange={() => setSetupMode("individual")} /><span><strong>Choose individual Mixes</strong><small>Build your journey one Mix at a time. Preview and customize each one.</small></span></label></div></fieldset>
   <div hidden={setupMode === "person"}><MegaMixSetup initialId={initialSetup.preferences.draftBlueprintId || suggestedMegaMix(industry, scenarioId)} initialSetup={initialSetup} onboarding={{ userName, company, smsSignature }} individual={setupMode === "individual"} active={setupMode !== "person"} />{setupMode === "individual" && <button type="button" className="text-button" onClick={() => setSetupMode("person")}>Start with one person and one follow-up instead</button>}</div>
   <div hidden={setupMode !== "person"}><ActionForm action={completeOnboardingFormAction} className="form-stack" protect={setupMode === "person"}>
     <RequiredFieldsNote />
@@ -56,7 +57,7 @@ export function OnboardingForm({ userName, industry, initialUses, timezone, toda
       </div>
     </details>
     <fieldset className="onboarding-step-card">
-      <legend><span>2</span> Choose a starting point</legend>
+      <legend><span>2</span> Choose your first follow-up</legend>
       <div className="form-stack">
         <input type="hidden" name="starterChoice" value={selected === "suggested" ? "suggested" : "choose"} />
         <label className="field"><span>What do you want to do?</span><select name="reason" value={selected} onChange={event => setChoice(event.target.value)} required disabled={!purposes.length}>

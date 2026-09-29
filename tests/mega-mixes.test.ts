@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MEGA_MIXES, megaMixConfiguration, type MegaMix } from "@/lib/mega-mixes";
+import { MEGA_MIXES, matchedMegaMix, megaMixConfiguration, suggestedMegaMix, type MegaMix } from "@/lib/mega-mixes";
 import { workflowConfiguration, validateWorkflow } from "@/lib/mix-workflow-config";
 import { startWorkflow, advanceWorkflow, observeWorkflow, recordWorkflowDecision } from "@/lib/mix-workflow-engine";
 import type { WorkflowDefinition } from "@/lib/mix-workflow-types";
@@ -61,5 +61,28 @@ describe("complete journey blueprints", () => {
     expect(state.runs).toHaveLength(1);
     advanceWorkflow(state, graph, { now: new Date(start.getTime() + 180 * 86400_000), admittedAt: start });
     expect(state.runs.map(run => run.mixId)).toEqual(["referral", "nurture"]);
+  });
+});
+
+describe("the Mega-Mix suggested after the one-person start", () => {
+  it("names the Mega-Mix that the marketing example or a single matching business type points to", () => {
+    expect(matchedMegaMix(null, "real-estate~not-ready")).toBe("real-estate");
+    expect(matchedMegaMix("Professional services", "photography")).toBe("photographer");
+    expect(matchedMegaMix("Home services")).toBe("contractor");
+    expect(matchedMegaMix("Real estate", null)).toBe("real-estate");
+  });
+
+  it("names none when several Mega-Mixes share the business type or none fits it", () => {
+    expect(matchedMegaMix("Professional services")).toBeNull();
+    expect(matchedMegaMix("Insurance & finance")).toBeNull();
+    expect(matchedMegaMix("Other")).toBeNull();
+    expect(matchedMegaMix(null, null)).toBeNull();
+  });
+
+  it("keeps the Mega-Mix that onboarding and the library preselect unchanged", () => {
+    expect(suggestedMegaMix("Professional services")).toBe("consultant");
+    expect(suggestedMegaMix("Insurance & finance")).toBe("contractor");
+    expect(suggestedMegaMix(null, "consulting~proposal-sent")).toBe("consultant");
+    expect(suggestedMegaMix("Real estate")).toBe("real-estate");
   });
 });

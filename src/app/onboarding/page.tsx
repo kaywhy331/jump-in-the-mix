@@ -39,7 +39,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       <div className="onboarding-top"><Logo /><span className="setup-step">Your starting point</span></div>
       <section className="onboarding-card first-win-onboarding">
         <h1>Jump in the mix.</h1>
-        <p className="onboarding-intro">Choose a connected journey or build your own. We’ll help it fit your working day.</p>
+        <p className="onboarding-intro">Start with one person and review their first follow-up before you send it.</p>
         {scenario && <p className="onboarding-intro">You tried the {scenario.label.toLowerCase()} example. We’ll use it to suggest a starting point.</p>}
         {params.verified === "1" && <Notice type="success">Your email is verified.</Notice>}
         <UrlErrorNotice params={params} viewer={session} />

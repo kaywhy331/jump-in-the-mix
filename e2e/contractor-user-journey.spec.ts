@@ -36,7 +36,8 @@ async function settle(instanceId: string, now = new Date()) {
 
 test("setup alternatives and finish later retain answers without installing unrelated work", async ({ page }) => {
   await page.goto("/onboarding");
-  await expect(page.getByRole("radio", { name: /Other uses or one follow-up/ })).toBeVisible();
+  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
+  await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
   await page.getByLabel("Preferred communication", { exact: true }).selectOption("EMAIL");
   await page.getByLabel("Space between follow-ups", { exact: true }).selectOption("RELAXED");
   await page.getByRole("button", { name: "Save answers and finish later", exact: true }).click();
@@ -45,9 +46,11 @@ test("setup alternatives and finish later retain answers without installing unre
   expect(await prisma.mix.count({ where: { workspaceId } })).toBe(0);
   expect(await prisma.contact.count({ where: { workspaceId } })).toBe(0);
   await page.getByRole("link", { name: "Return to setup", exact: true }).click();
+  // Saved answers reopen the route they were saved from, not the recommended default.
+  await expect(page.getByRole("radio", { name: /A complete Mega-Mix/ })).toBeChecked();
   await expect(page.getByLabel("Preferred communication", { exact: true })).toHaveValue("EMAIL");
   await expect(page.getByLabel("Space between follow-ups", { exact: true })).toHaveValue("RELAXED");
-  await page.getByRole("radio", { name: /Other uses or one follow-up/ }).check();
+  await page.getByRole("radio", { name: /^One person and one follow-up/ }).check();
   await expect(page.getByRole("checkbox", { name: /Personal connections/ })).toBeVisible();
 });
 
