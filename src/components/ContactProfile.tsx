@@ -92,7 +92,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
           <span className="person-initials profile-avatar" aria-hidden="true">{initials}</span>
           <div className="profile-identity">{heading}</div>
         </header>
-        <Notice type="info">Archived on {formatDate(contact.archivedAt, displayPreferences)}. Notes, dates and history are kept. Restoring can prepare follow-ups from active mixes again; do-not-contact and pause settings still apply.</Notice>
+        <Notice type="info">Archived on {formatDate(contact.archivedAt, displayPreferences)}. Notes, dates and history are kept. Restoring can prepare follow-ups from active Mixes again; do-not-contact and pause settings still apply.</Notice>
         <div className="page-actions">
           <form action={restoreContactAction}><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><FormSubmitButton label="Restore contact" pendingLabel="Restoring…" disabled={Boolean(impersonation)} /></form>
           <Link className="button" href="/contacts/archived">Archived contacts</Link>

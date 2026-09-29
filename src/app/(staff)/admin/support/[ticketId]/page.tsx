@@ -197,7 +197,7 @@ export default async function AdminSupportTicketPage({
           </details>
           {permissions.includes("support.view_customer") && (
             <details className="card">
-              <summary>Customer support view</summary><p>Read this requester’s workspace for up to {env.impersonationMinutes} minutes. Each page request is audited. Private contact notes and mix content may be visible.</p>
+              <summary>Customer support view</summary><p>Read this requester’s workspace for up to {env.impersonationMinutes} minutes. Each page request is audited. Private contact notes and Mix content may be visible.</p>
               {ticket.assignedToUserId === user.id && !["RESOLVED", "CLOSED"].includes(ticket.status) ? (
                 <form action="/api/admin/impersonation/start" method="post" className="form-stack">
                   <input type="hidden" name="returnTo" value={returnTo} /><input type="hidden" name="ticketId" value={ticket.id} />

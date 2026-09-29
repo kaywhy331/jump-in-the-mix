@@ -61,7 +61,7 @@ test("individual Mix setup adds a selected library Mix without requiring a perso
   await prisma.sharedMix.create({ data: { id: sharedId, title: "My first check-in", description: "A simple conversation to start with.", category: "Current clients", industry: "Other", durationDays: 7, status: "APPROVED", steps: [{ name: "Check in", channel: "EMAIL", dayOffset: 0, sendTimeMinutes: 600, subject: "Checking in", body: "Hi {{First Name}}, how are things going?", script: null, longSms: false, includeOptOut: false }] } });
   await prisma.sharedMixMetadata.create({ data: { sharedMixId: sharedId, version: 1, triggerMode: "MANUAL_START", publishedAt: new Date() } });
   await page.goto("/onboarding");
-  await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
+  await page.getByRole("radio", { name: /Choose individual Mixes/ }).check();
   await page.getByLabel("Preferred communication", { exact: true }).selectOption("SMS");
   await page.getByRole("button", { name: "Review my setup", exact: true }).click();
   await page.getByRole("button", { name: "Choose individual Mixes", exact: true }).click();

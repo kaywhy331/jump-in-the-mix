@@ -75,7 +75,7 @@ test("a Beat is timed as a positive duration before or after the visit, or after
   await expect(saved.getByText(/Becomes due as soon as the visit is marked completed\. It has nothing to count from until you mark the visit completed\./)).toBeVisible();
   await after.fill("60");
   await expect(saved.getByText(/Becomes due 1 hour after the visit is marked completed\./)).toBeVisible();
-  await page.getByRole("button", { name: /Save mix|Review and start/ }).click();
+  await page.getByRole("button", { name: /Save Mix|Review and start/ }).click();
   await expect.poll(async () => (await prisma.mixStep.findFirstOrThrow({ where: { mixId: mix.id, isActive: true } })).anchor, { timeout: 20_000 }).toBe("VISIT_COMPLETED");
   expect(await prisma.mixStep.findFirstOrThrow({ where: { mixId: mix.id, isActive: true } })).toMatchObject({ anchor: "VISIT_COMPLETED", offsetMinutes: 60 });
 
@@ -86,7 +86,7 @@ test("a Beat is timed as a positive duration before or after the visit, or after
   await again.getByText("Appointment timing (optional)", { exact: true }).click();
   await again.getByLabel("Count from").selectOption("CALENDAR_DAY");
   await expect(again.getByRole("spinbutton", { name: "Days after start", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /Save mix|Review and start/ }).click();
+  await page.getByRole("button", { name: /Save Mix|Review and start/ }).click();
   await expect.poll(async () => (await prisma.mixStep.findFirstOrThrow({ where: { mixId: mix.id, isActive: true } })).anchor, { timeout: 20_000 }).toBe("CALENDAR_DAY");
   expect((await prisma.mixStep.findFirstOrThrow({ where: { mixId: mix.id, isActive: true } })).offsetMinutes).toBeNull();
 });

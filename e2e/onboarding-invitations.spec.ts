@@ -29,7 +29,7 @@ test.afterEach(async () => {
 test("onboarding supports multiple purposes, a single starting-point dropdown, and imported contacts", async ({ page }) => {
   const { workspace } = await account(page);
   await page.goto("/onboarding");
-  await page.getByRole("radio", { name: /Choose individual mixes/ }).check();
+  await page.getByRole("radio", { name: /Choose individual Mixes/ }).check();
   await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await page.getByRole("checkbox", { name: /Personal connections/ }).check();
   await page.getByRole("checkbox", { name: /Networking and business development/ }).check();

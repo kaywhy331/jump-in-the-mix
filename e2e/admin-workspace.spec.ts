@@ -96,7 +96,7 @@ test("content search, visibility, ordering and pagination work together without 
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   }
-  await page.getByRole("navigation", { name: "Library visibility" }).getByRole("link", { name: /All mixes/ }).click();
+  await page.getByRole("navigation", { name: "Library visibility" }).getByRole("link", { name: /All Mixes/ }).click();
   await page.getByLabel("Sort Mixes").selectOption("popular");
   await expect(page.locator(".admin-library-row").first()).toContainText(`${prefix} 26`);
   await page.getByRole("searchbox", { name: "Search ready-made Mixes" }).fill(`${prefix} missing`);
