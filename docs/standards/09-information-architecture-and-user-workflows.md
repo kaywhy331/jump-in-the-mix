@@ -299,6 +299,7 @@ Decided on 2026-09-28 (D15, D16, D21, D26, D29) but not yet built or verified; e
 - Journey people-row details sit only in a hover tooltip (`src/components/WorkflowPeople.tsx:32`), against JITM-10 §2.17 (B-05).
 
 Known deviations:
+- Three links still say "customer journey" for Contact stages or the Journey map, against §2.7 and D4 (JITM-05 §6 lists them).
 - INFERRED: `/marketplace` marks no primary destination, and desktop Journey and Calendar pages mark More as well (`src/components/Nav.tsx:40`).
 - INFERRED: during a support view the phone tab bar still shows Quick Add, but no dialog is mounted (`src/components/Nav.tsx:41`; `src/components/AppShell.tsx:96`).
 - Operations docs still describe five emailed invitations or count them in capacity (`docs/SYSTEM_MIX_ADMINISTRATION.md:11,25,29`; `docs/WAITLIST_OPERATIONS.md:18-19,52`; `docs/ADMISSION_CONTROLS.md:19,29`).
@@ -310,4 +311,4 @@ Known deviations:
 - 1.0.0 — 2026-09-28 — Initial version.
 - 2.0.0 — 2026-09-28 — Base 61d4df4. Kevin's second packet: reports hide at once only for verified-email private-information reports (§2.49, D15); new §2.70 publishing authority; Contact stages (§2.7, §2.51, D16); invitation email after Send invitation (§2.18, D26); onboarding recommends one person and one follow-up (§2.20, D26); account-wide numbering (§2.54, D21); owner-chosen targets (§2.58, D26); new §2.71–§2.73 status, resume and early-update rules (D26); new §2.74 one Marketplace destination (D29).
 - 2.0.1 — 2026-09-29 — Base 722d64b. Onboarding on `main` now recommends one person and one follow-up and offers a complete Mega-Mix afterward (B-17), so §2.20 and §6 no longer list the Mega-Mix-first deviation. Production follows at the release that includes it.
-- 2.0.2 — 2026-09-29 — Base cb154fd. §2.20 records Kevin's confirmation of where the optional Mega-Mix step appears and which Mega-Mix it names (O9). §6 drops the Customer journey labels and the old demo text, which the copy batch fixed (PR #96, O8).
+- 2.0.2 — 2026-09-29 — Base 9f967bc. §2.20 records Kevin's confirmation of where the optional Mega-Mix step appears and which Mega-Mix it names (O9). §6 drops the More and Settings Customer journey labels and the old demo text, which the copy batch fixed (PR #96, O8), and adds the three "customer journey" links that remain.

@@ -144,7 +144,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 | Waitlist and personal invitations | Shipped | §2.8; JITM-09 §2.17 |
 | Data controls: export, sessions, account deletion | Shipped | `docs/CANONICAL_PRODUCT_DECISIONS.md:111` |
 | Help and support conversations; staff console | Shipped | `docs/SUPPORT.md:3`; `docs/CANONICAL_PRODUCT_DECISIONS.md:16` |
-| Stage-based customer journey settings | Shipped, role open (JITM-05 §6) | `src/app/(app)/settings/page.tsx:11` |
+| Contact stages: optional labels such as Lead or Client, and the Mix each stage can start | Shipped | D16; `src/app/(app)/settings/page.tsx:11` |
 | Automatic customer email; automatic SMS | Built but off | §2.4 |
 | Payments | Planned | `docs/CANONICAL_PRODUCT_DECISIONS.md:85` |
 | Native apps; paid voice assistant, inbox analysis, messaging bridges | Deferred | §2.7, §2.20 |
@@ -210,4 +210,4 @@ Known deviations at 9439fd6:
 - 1.0.0 — 2026-09-28 — Initial version.
 - 2.0.0 — 2026-09-28 — Base 61d4df4. §2.24 is a standing default and also allows changes for accessibility or responsive-layout problems, or at Kevin's request (D20). §6 updated for D16 and D26.
 - 2.0.1 — 2026-09-29 — Base 722d64b. §6: onboarding on `main` now recommends one person and one follow-up, matching the registration and invitation promise (B-17). Production follows at the release that includes it.
-- 2.0.2 — 2026-09-29 — Base cb154fd. §6: `README.md` no longer lists "Plans" (PR #96, O8). Its superseded-contract and delivery lines remain.
+- 2.0.2 — 2026-09-29 — Base 9f967bc. §2.22: the feature map names Contact stages, whose role D16 settled. §6: `README.md` no longer lists "Plans" (PR #96, O8). Its superseded-contract and delivery lines remain.

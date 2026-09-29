@@ -182,10 +182,13 @@ Neighboring topics live elsewhere:
 Open questions for Kevin:
 - Should texts have a length limit? Only a 900-character phone warning ships (`src/components/EditableFollowUpAction.tsx:429`).
 
-Known deviations: none recorded. The copy batch (PR #96, merged 2026-09-29 as 65f2c96, approved by Kevin as O8) fixed each one listed at 9439fd6. Each was rechecked against `main` at cb154fd.
+Known deviations at 9f967bc. The copy batch (PR #96, merged 2026-09-29 as 65f2c96, approved by Kevin as O8) fixed each one listed at 9439fd6. The review of the release that shipped it found these:
+- The appointment form says a visit's Mix sends nothing automatically "unless you turn that on for this visit", but no such control exists (`src/components/CalendarEntryForm.tsx:101`), against §2.28.
+- The sending page's status card says "Automatic sending on" and "Your Mixes can send for you" whenever the saved preference is on, even when no automatic channel is available, as in production during the beta. The card below it says "Off during the beta" (`src/app/(app)/settings/sending/page.tsx:28,30`), against §2.28.
+- A copy of a ready-made Mix stores the library record's approach value, and the Mix editor shows it under "Internal approach (optional)" without the descriptive label the library shows (`src/lib/shared-mix-use-service.ts:85`; `src/components/MixEditor.tsx:216`; `src/lib/sales-approaches.ts:44-55`). Library records added before 2026-09-28 still store the retired labels, which name third-party methods, so copies made from them show those names, against §2.34.
 
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.5 confirmed, with "you" for interface instructions (D23); §2.20 names deadlines (D14); §6 updated.
-- 1.0.2 — 2026-09-29 — Base cb154fd. §6: the D14 copy batch is approved (O8) and merged (PR #96). The resolved question and the seven 9439fd6 deviations it fixed are removed.
+- 1.0.2 — 2026-09-29 — Base 9f967bc. §6: the D14 copy batch is approved (O8) and merged (PR #96). The resolved question and the seven 9439fd6 deviations it fixed are removed. Three deviations found by the release review are added.

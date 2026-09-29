@@ -2,7 +2,7 @@
 
 Onboarding now recommends one person and one follow-up. A complete Mega-Mix is offered afterward, as an optional next step. This carries out Kevin's decision D26g of 2026-09-28 ([owner decisions](standards-audit-2026-09-28/OWNER_DECISIONS.md), JITM-09 §2.20) and backlog item B-17 ([standards audit](STANDARDS_AUDIT_2026-09-28.md) §8).
 
-**Status:** merged on 2026-09-29. PR #96 was merged as `65f2c96` and PR #97 as `cb154fd`; `main`'s tree equals the verified head `686965e`. Kevin approved the wording and confirmed the defaults the same day (O9 in the [owner decisions](standards-audit-2026-09-28/OWNER_DECISIONS.md)). Not yet released: the release is a separate task (WF-06). It is code-only, with no migration.
+**Status:** merged and released on 2026-09-29. PR #96 was merged as `65f2c96` and PR #97 as `cb154fd`, whose tree equals the verified head `686965e`. Kevin approved the wording and confirmed the defaults the same day (O9 in the [owner decisions](standards-audit-2026-09-28/OWNER_DECISIONS.md)). Production runs `9f967bc` (tag `prod-2026-09-29-9f967bc`), which adds PR #99's casing fixes; the release record is PR #100. The release was code-only, with no migration.
 
 | Item | Value |
 | --- | --- |

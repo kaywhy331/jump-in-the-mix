@@ -169,14 +169,17 @@ Open questions for Kevin:
 - Should the glossary sheet appear on Today, the contact page and onboarding (§2.17)?
 - Please confirm the wording of the plain meanings in §2.2. The glossary sheet and Help adopted it in the copy batch (PR #96).
 
-Known deviations, rechecked at cb154fd after the copy batch (PR #96). Line references are at 9439fd6 unless another commit is named:
+Known deviations, rechecked at 9f967bc after the copy batch (PR #96) and its casing follow-up (PR #99):
 - Journey labels change with the view, against the account-wide labels of JITM-09 §2.54 (D21; backlog B-13).
 - The Ready-made mixes library keeps its own entries in More and Mix tools, against §2.5 and JITM-09 §2.74 (D29; backlog B-19).
-- Lowercase and variant spellings remain only in the Mega-Mix library: the pane button "Mega-mixes" and the count "{n} connected mixes" (`src/components/MegaMixLibrary.tsx:23,25` at cb154fd).
+- Retired words remain, against §2.10: "On the cue day" and "on the cue day" when adding a ready-made Mix (`src/components/TemplateUseForm.tsx:86,114`), "with the cue" on the appointment form (`src/components/CalendarEntryForm.tsx:102`), "Loop · repeat this date" on the contact page (`src/components/ContactProfile.tsx:251,256`) and "touchpoint" in the recruiter page's meta description (`src/lib/persona-mixes.ts:199`).
+- Three links still say "customer journey", against D4 and D16: "Set up your customer journey" and "customer journey rules" open Contact stages (`src/components/ContactJourneyPanel.tsx:12`; `src/app/(app)/settings/connections/page.tsx:55`), and "Customer journey" opens the Journey map (`src/components/ContactsBulkWorkspace.tsx:161`).
+- Mixes added from a Mega-Mix are saved with the goal "Customer journey" and the approach "Mega-mix", and the Mix editor shows both (`src/lib/mega-mix-service.ts:44`; `src/lib/marketplace-service.ts:149`; `src/components/MixEditor.tsx:214,216`).
+- The Mega-Mix library's pane button says "Mega-mixes" and its count says "{n} connected mixes" (`src/components/MegaMixLibrary.tsx:23,25`), against §2.13 and §2.14.
 - The superseded tables remain in `docs/CANONICAL_PRODUCT_DECISIONS.md:40-50` and `CONTRIBUTING.md:61-70`.
 
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 2.0.0 — 2026-09-28 — Base 61d4df4. Ready-made content is found in the Marketplace's Jump in the Mix section (§2.5, D29); stage settings are Contact stages (D16); §6 updated for D21.
-- 2.0.1 — 2026-09-29 — Base cb154fd. §6: the copy batch (PR #96, O8) fixed the glossary sheet, Help's retired words, "plan" for a Mix, the Customer journey and My Account labels, `START_HERE.md` and `README.md` "Plans", and all but two lowercase spellings. Those entries are removed; standards no longer quote the old casing.
+- 2.0.1 — 2026-09-29 — Base 9f967bc. §6: the copy batch (PR #96, O8) and PR #99 fixed the glossary sheet, Help's retired words, "plan" for a Mix, the More and Settings labels for Journey and Contact stages, "My Account", `START_HERE.md` and `README.md` "Plans", and most lowercase spellings. Those entries are removed, and standards no longer quote the old casing. The retired words, "customer journey" links and Mega-Mix spellings found by the release review are listed.
