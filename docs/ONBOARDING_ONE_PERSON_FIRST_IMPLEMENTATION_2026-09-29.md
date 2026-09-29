@@ -2,7 +2,7 @@
 
 Onboarding now recommends one person and one follow-up. A complete Mega-Mix is offered afterward, as an optional next step. This carries out Kevin's decision D26g of 2026-09-28 ([owner decisions](standards-audit-2026-09-28/OWNER_DECISIONS.md), JITM-09 §2.20) and backlog item B-17 ([standards audit](STANDARDS_AUDIT_2026-09-28.md) §8).
 
-**Status:** built and verified locally; not merged and not released. The release is a separate task (WF-06) after this pull request and its base merge. It is code-only, with no migration.
+**Status:** merged on 2026-09-29. PR #96 was merged as `65f2c96` and PR #97 as `cb154fd`; `main`'s tree equals the verified head `686965e`. Kevin approved the wording and confirmed the defaults the same day (O9 in the [owner decisions](standards-audit-2026-09-28/OWNER_DECISIONS.md)). Not yet released: the release is a separate task (WF-06). It is code-only, with no migration.
 
 | Item | Value |
 | --- | --- |
@@ -47,17 +47,17 @@ Onboarding now recommends one person and one follow-up. A complete Mega-Mix is o
 - JITM-01 2.0.1: the §6 deviation about the "start with one person" promise is removed.
 - Production still recommends the Mega-Mix first until a release includes this change. The JITM-01 §2.22 feature map is updated in that release's record (WF-06 step 13).
 
-## Defaults chosen here (JITM-15 §2.12)
+## Defaults chosen here (JITM-15 §2.12), confirmed by Kevin on 2026-09-29 (O9)
 
-1. **Where the optional next step appears:** in Today's welcome, once the first follow-up is ready. Should it also appear later, for example after the first follow-up is sent?
-2. **Which Mega-Mix it names:** from the example or a single matching business type; otherwise the list. Should Professional services name one Mega-Mix? Consultant, Photographer and Recruiter all fit it.
-3. **Wording:** the option label and description, the intro, the step 2 title, "Optional next step:" and the Help answer. It follows the voice standard and needs Kevin's approval (JITM-04 §2.24, §2.28).
+1. **Where the optional next step appears:** in Today's welcome, once the first follow-up is ready. Confirmed; it does not appear again later.
+2. **Which Mega-Mix it names:** from the example or a single matching business type; otherwise the list. Confirmed: Professional services, which Consultant, Photographer and Recruiter all fit, opens the list.
+3. **Wording:** the option label and description, the intro, the step 2 title, "Optional next step:" and the Help answer. Approved by Kevin (JITM-04 §2.24, §2.28).
 
 ## Claims in the new onboarding copy (JITM-04 §2.26)
 
 | Claim | Type | Proof | Status |
 | --- | --- | --- | --- |
-| "Start with one person and review their first follow-up before you send it." | Product; sending | The one-person route adds the person to a starter Mix and prepares their first follow-up. The owner reviews it on Today and sends it from their own app. Automatic customer email is off in production during the beta, and SMS is not configured (JITM-00 §2.3). | Verified in code and in the browser (core-flows). A sending claim, so it needs Kevin's approval (§2.28) |
+| "Start with one person and review their first follow-up before you send it." | Product; sending | The one-person route adds the person to a starter Mix and prepares their first follow-up. The owner reviews it on Today and sends it from their own app. Automatic customer email is off in production during the beta, and SMS is not configured (JITM-00 §2.3). | Verified in code and in the browser (core-flows). A sending claim; approved by Kevin on 2026-09-29 (O9, §2.28) |
 | "…then review the first follow-up prepared for them." | Product | `e2e/core-flows.spec.ts`: the prepared message opens on Review | Verified |
 | "You can add a complete Mega-Mix later." | Product | Mega-Mix setup stays available from Mixes, the Marketplace and the welcome's next step (`e2e/onboarding-one-person-first.spec.ts`) | Verified |
 | "Recommended" | Recommendation | D26g, a usability hypothesis, not a proven result | Owner decision |
