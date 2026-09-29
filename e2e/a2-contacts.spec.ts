@@ -175,8 +175,8 @@ test("profile Mix controls carry the Mix name and the Journey track can be reach
     await expect(track).toBeFocused();
 
     await page.locator("details.contact-detail-more > summary").click();
-    await expect(page.getByRole("button", { name: `Stop the ${mix.name} mix`, exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: `Remove the ${mix.name} mix`, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: `Stop the ${mix.name} Mix`, exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: `Remove the ${mix.name} Mix`, exact: true })).toBeVisible();
   } finally {
     await prisma.contact.deleteMany({ where: { workspaceId, id: contactId } });
     await prisma.journeyStage.deleteMany({ where: { id: stage.id } });

@@ -127,7 +127,7 @@ test("editors can save drafts while stale forms and removed publication rights a
   await openDraft(page);
   await page.getByLabel("Reason for draft change").fill("Attempt save from a stale editor form");
   await page.getByRole("button", { name: "Save draft for review" }).click();
-  await expect(page.locator(".notice.error")).toContainText("mix changed");
+  await expect(page.locator(".notice.error")).toContainText("Mix changed");
   expect(await prisma.sharedMixRevision.count({ where: { sharedMixId: id } })).toBe(1);
   await page.getByRole("link", { name: "2. Preview and publish", exact: true }).click();
   await page.locator(".admin-release-confirmation > summary").filter({ hasText: "Publish version 1" }).click();
