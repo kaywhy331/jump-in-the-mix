@@ -63,7 +63,7 @@ test("relationship Mixes can be previewed, remixed, fine-tuned, and started with
     await editor.getByRole("combobox", { name: "After saving", exact: true }).selectOption("ACTIVE");
     await editor.getByRole("button", { name: "Review and start", exact: true }).click();
     const review = page.getByRole("dialog", { name: "Start this Mix?", exact: true });
-    await expect(review).toContainText("beats each");
+    await expect(review).toContainText("Beats each");
     await review.getByRole("button", { name: "Start the Mix", exact: true }).click();
     await page.waitForURL(/updated=manual/);
     await expect.poll(async () => (await prisma.mix.findUniqueOrThrow({ where: { id: mixId } })).status).toBe("ACTIVE");
