@@ -2,9 +2,9 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 2.0.0
+version: 2.0.1
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-09-29
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
 supersedes: [docs/UX_WORKFLOW_OPTIMIZATION.md]
 sources:
@@ -109,7 +109,7 @@ Automatic delivery never claims these reminders. Wording: JITM-04 §2. [OWNER 20
 
 ### Onboarding to the first prepared follow-up
 
-**2.20** Onboarding (`/onboarding`) MUST recommend one person and one follow-up first, so a tester sees the core value before configuring a whole system. Setting up a complete Mega-Mix, suggested from the business type or the marketing example the person chose, stays available as an optional next step, as does Choose individual mixes. Save answers and finish later and Skip for now stay available. The recommendation is a usability hypothesis: observe whether testers prepare their first useful follow-up without help. Shipped onboarding still recommends the Mega-Mix first (§6). [OWNER 2026-09-28 D26] [OWNER 2026-09-22 docs/ONBOARDING_JOURNEY_PREFERENCES_2026-09-22.md:5] [OWNER 2026-09-22 docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:8] [SHIPPED 9439fd6 src/components/OnboardingForm.tsx:39-40,47,88] [SHIPPED 9439fd6 src/components/MegaMixSetup.tsx:25]
+**2.20** Onboarding (`/onboarding`) MUST recommend one person and one follow-up first, so a tester sees the core value before configuring a whole system. Setting up a complete Mega-Mix, suggested from the business type or the marketing example the person chose, stays available as an optional next step, as does Choose individual mixes. Save answers and finish later and Skip for now stay available. The recommendation is a usability hypothesis: observe whether testers prepare their first useful follow-up without help. [OWNER 2026-09-28 D26] [OWNER 2026-09-22 docs/ONBOARDING_JOURNEY_PREFERENCES_2026-09-22.md:5] [OWNER 2026-09-22 docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:8] [SHIPPED 9439fd6 src/components/OnboardingForm.tsx:39-40,47,88] [SHIPPED 9439fd6 src/components/MegaMixSetup.tsx:25]
 
 **2.21** The Mega-Mix route MUST run:
 1. preferences (communication, spacing, working days and hours, timezone, preferred time, quiet times, appointment buffers), saved and reused for later Mega-Mixes;
@@ -293,7 +293,6 @@ Questions for Kevin:
 Decided on 2026-09-28 (D15, D16, D21, D26, D29) but not yet built or verified; each is a backlog task in `docs/STANDARDS_AUDIT_2026-09-28.md` §8:
 - Report, help and staff wording does not yet say that "verified" means the reporter's email (§2.49; B-09).
 - Journey numbers only the Mixes in the current Mega-Mix view (`src/components/WorkflowJourney.tsx:94`; `src/lib/journey-numbering.ts:68`), against §2.54 (B-13).
-- Onboarding recommends the Mega-Mix first, the longest route at about 9 screens (`src/components/OnboardingForm.tsx:39`; `docs/BETA_READINESS_AUDIT_2026-09-26.md:61,170,393`), against §2.20 (B-17).
 - Invitation email after an explicit Send invitation is not built (§2.18; B-16). The owner expected inbox delivery on 2026-09-27 (`docs/INVITE_PAGE_RELEASE_2026-09-27.md:73`).
 - The status and stage labels (§2.71), resume review (§2.72), target states (§2.58) and the stop-only early update (§2.73) have not been checked against shipped behavior (B-15).
 - The Ready-made mixes library keeps its own entries in More and Mix tools (`src/app/(app)/more/page.tsx:28`), against §2.74 (B-19).
@@ -312,3 +311,4 @@ Known deviations:
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 2.0.0 — 2026-09-28 — Base 61d4df4. Kevin's second packet: reports hide at once only for verified-email private-information reports (§2.49, D15); new §2.70 publishing authority; Contact stages (§2.7, §2.51, D16); invitation email after Send invitation (§2.18, D26); onboarding recommends one person and one follow-up (§2.20, D26); account-wide numbering (§2.54, D21); owner-chosen targets (§2.58, D26); new §2.71–§2.73 status, resume and early-update rules (D26); new §2.74 one Marketplace destination (D29).
+- 2.0.1 — 2026-09-29 — Base 722d64b. Onboarding on `main` now recommends one person and one follow-up and offers a complete Mega-Mix afterward (B-17), so §2.20 and §6 no longer list the Mega-Mix-first deviation. Production follows at the release that includes it.
