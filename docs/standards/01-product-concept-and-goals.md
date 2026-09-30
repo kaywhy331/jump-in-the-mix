@@ -2,7 +2,7 @@
 id: JITM-01
 title: Product concept, goals and non-goals
 status: active
-version: 2.1.0
+version: 2.2.0
 owner: Kevin
 last_reviewed: 2026-09-29
 applies_to: [product, features, onboarding, access, marketing, agents]
@@ -115,7 +115,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 **2.19** Google Contacts sync, the AI plan wizard and signup-reward referrals are retired. They MUST NOT compile into the app or gate core behavior. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:87] [SOURCE README.md:20]
 
 **2.20** Deferred work MUST be labeled planned or deferred, never available:
-- charging: Stripe's hosted checkout is planned and stays off until Kevin chooses a start date (§2.9) [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:12];
+- charging: Stripe's hosted checkout and billing portal are built and stay off until Kevin chooses a start date (§2.9, `docs/BILLING.md`) [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:12];
 - native apps;
 - a paid realtime voice assistant, inbox analysis and messaging bridges;
 - multiple paid tiers, discounts and advanced analytics;
@@ -146,7 +146,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 | Help and support conversations; staff console | Shipped | `docs/SUPPORT.md:3`; `docs/CANONICAL_PRODUCT_DECISIONS.md:16` |
 | Contact stages: optional labels such as Lead or Client, and the Mix each stage can start | Shipped | D16; `src/app/(app)/settings/page.tsx:11` |
 | Automatic customer email; automatic SMS | Built but off | §2.4 |
-| Payments | Planned | `docs/CANONICAL_PRODUCT_DECISIONS.md:85` |
+| Payments: Stripe hosted checkout, billing portal and Plan and billing (`/account/billing`) | Built but off (`BILLING_ENABLED`) | `docs/BILLING.md`; `docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md` |
 | Native apps; paid voice assistant, inbox analysis, messaging bridges | Deferred | §2.7, §2.20 |
 | Plans and prices: Free, Plus and Pro, shown on `/pricing` and in the FAQ; charging and limits wait for the start date | Planned (prices decided) | §2.9; `docs/PRICING_DECISION_2026-09-29.md` |
 | Automatic email sent as "{Business} via Jump in the Mix" | Proposed | `docs/BETA_READINESS_AUDIT_2026-09-26.md:48` |
@@ -176,6 +176,7 @@ If any answer is no or unclear, stop and ask Kevin (JITM-16 §2). [OWNER 2026-09
 - `src/lib/automatic-delivery.ts`: the automatic-email switch.
 - `src/lib/system-mix.ts` (`REFERRAL_INVITE_LIMIT`): the invitation allowance.
 - `src/lib/plans.ts` (`PLANS`): the plans, prices and limits (§2.9).
+- `src/lib/billing-sync.ts` and `src/app/api/webhooks/stripe/route.ts`: an account's plan follows Stripe's own record (JITM-11 §2.54).
 - `src/lib/persona-mixes.ts`: the per-profession boundary lines that say what the product is not.
 - `docs/ADMIN_REPORTS.md`: the exact activation and retention populations.
 
@@ -206,6 +207,9 @@ Known deviations at 9439fd6:
 - `README.md:5` still names the superseded contract, and `README.md:17` lists optional email/SMS delivery without saying it is off for the beta. The copy batch (PR #96) removed "Plans" from `README.md:11`.
 - `docs/CANONICAL_PRODUCT_DECISIONS.md:12,135,149` still says five member invitations sent by email.
 
+Known deviation from the billing change (`docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md`):
+- JITM-09 §2.65 doesn't yet name Plan and billing (`/account/billing`), which My account links to. Update it after PR #102, which also changes JITM-09, merges.
+
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
@@ -213,3 +217,4 @@ Known deviations at 9439fd6:
 - 2.0.1 — 2026-09-29 — Base 722d64b. §6: onboarding on `main` now recommends one person and one follow-up, matching the registration and invitation promise (B-17). Production follows at the release that includes it.
 - 2.0.2 — 2026-09-29 — Base 9f967bc. §2.22: the feature map names Contact stages, whose role D16 settled. §6: `README.md` no longer lists "Plans" (PR #96, O8). Its superseded-contract and delivery lines remain.
 - 2.1.0 — 2026-09-29 — Base dc81d10. §2.9 records Kevin's plans, prices and limits, with charging off until he chooses a start date; §2.20, §2.22, §4 and §6 follow (docs/PRICING_DECISION_2026-09-29.md).
+- 2.2.0 — 2026-09-29 — Base db54cc7. Payments are built but off (§2.20, §2.22); §3 names the billing sync; §6 notes that JITM-09 §2.65 must name Plan and billing (docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md).
