@@ -2,7 +2,7 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 2.0.2
+version: 2.1.0
 owner: Kevin
 last_reviewed: 2026-09-29
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
@@ -109,7 +109,7 @@ Automatic delivery never claims these reminders. Wording: JITM-04 §2. [OWNER 20
 
 ### Onboarding to the first prepared follow-up
 
-**2.20** Onboarding (`/onboarding`) MUST recommend one person and one follow-up first, so a tester sees the core value before configuring a whole system. Setting up a complete Mega-Mix, suggested from the business type or the marketing example the person chose, stays available as an optional next step, as does Choose individual mixes. Save answers and finish later and Skip for now stay available. The recommendation is a usability hypothesis: observe whether testers prepare their first useful follow-up without help. Once the first follow-up is ready, Today's welcome offers that next step. It names the Mega-Mix matching the marketing example, or the business type when exactly one Mega-Mix fits it; otherwise it opens the Mega-Mix list. It is not offered for personal-only use or when the account already has a Mega-Mix. [OWNER 2026-09-29 O9] [OWNER 2026-09-28 D26] [OWNER 2026-09-22 docs/ONBOARDING_JOURNEY_PREFERENCES_2026-09-22.md:5] [OWNER 2026-09-22 docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:8] [SHIPPED 9439fd6 src/components/OnboardingForm.tsx:39-40,47,88] [SHIPPED 9439fd6 src/components/MegaMixSetup.tsx:25]
+**2.20** Onboarding (`/onboarding`) MUST recommend one person and one follow-up first, so a tester sees the core value before configuring a whole system. Setting up a complete Mega-Mix, suggested from the business type or the marketing example the person chose, stays available as an optional next step, as does Choose individual mixes. Save answers and finish later and Skip for now stay available. The recommendation is a usability hypothesis: observe whether testers prepare their first useful follow-up without help. Once the first follow-up is ready, Today's welcome offers that next step. It names the Mega-Mix matching the marketing example, or the business type when exactly one Mega-Mix fits it; otherwise it opens the Mega-Mix list. It is not offered for personal-only use or when the account already has a Mega-Mix. A business type with its own curated journey offers that journey's starts as the first follow-up: Real estate offers the Real estate Mega-Mix's starts, with a new buyer lead first, and each start is that stage's own Beats. Other business types keep the general list. [OWNER 2026-09-29 docs/REALTOR_JOURNEY_IMPLEMENTATION_2026-09-29.md:12] [OWNER 2026-09-29 O9] [OWNER 2026-09-28 D26] [OWNER 2026-09-22 docs/ONBOARDING_JOURNEY_PREFERENCES_2026-09-22.md:5] [OWNER 2026-09-22 docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:8] [SHIPPED 9439fd6 src/components/OnboardingForm.tsx:39-40,47,88] [SHIPPED 9439fd6 src/components/MegaMixSetup.tsx:25]
 
 **2.21** The Mega-Mix route MUST run:
 1. preferences (communication, spacing, working days and hours, timezone, preferred time, quiet times, appointment buffers), saved and reused for later Mega-Mixes;
@@ -174,7 +174,7 @@ The individual route saves preferences and opens the library without a contact. 
 
 **2.42** A Mega-Mix is a named group of the account's Mixes; the account keeps one Journey graph, and a Mix belongs to at most one Mega-Mix. The Mega-Mixes tab creates, renames, describes, fills, duplicates and removes them; a Mix chosen from another Mega-Mix moves with a notice. Removing one MUST keep its Mixes, people, follow-ups and connections, and is refused while its share is hidden or reported. [OWNER 2026-09-24 docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:3] [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:41,45] [SOURCE docs/FULL_AUDIT_2026-09-24.md:142]
 
-**2.43** The five ready-made Mega-Mixes (Contractor, Real estate, Consultant, Photographer, Recruiter) are editable starting configurations at `/templates/journeys`. The owner previews their actual Beats, timing, decisions, delays and return limits. Adding one MUST create a named Mega-Mix in one transaction (a taken name becomes "Contractor 2") and start no one. [OWNER 2026-09-22 docs/MEGA_MIXES_2026-09-22.md:3] [SOURCE docs/MEGA_MIXES_2026-09-22.md:7-15,19] [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:44]
+**2.43** The five ready-made Mega-Mixes (Contractor, Real estate, Consultant, Photographer, Recruiter) are editable starting configurations at `/templates/journeys`. The owner previews their actual Beats, timing, decisions, delays and return limits. Adding one MUST create a named Mega-Mix in one transaction (a taken name becomes "Contractor 2") and start no one. The Real estate Mega-Mix is curated for the work: buyers and sellers start on separate paths that meet at the contract, and each stage starts only when its milestone is recorded, so no message comes before the event it follows. [OWNER 2026-09-29 docs/REALTOR_JOURNEY_IMPLEMENTATION_2026-09-29.md:12] [OWNER 2026-09-22 docs/MEGA_MIXES_2026-09-22.md:3] [SOURCE docs/MEGA_MIXES_2026-09-22.md:7-15,19] [SOURCE docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:44]
 
 **2.44** Previewing or favoriting a ready-made Mix MUST NOT copy or activate it; Use this mix opens guided setup. Setup uses the previewed version, changed content forces a fresh preview, and a retry returns the same copy. [SOURCE docs/READY_MADE_MIX_PANES_2026-09-21.md:7] [SOURCE docs/LIBRARY_ADMINISTRATION.md:27]
 
@@ -289,6 +289,7 @@ Shipped Journey still numbers per Mega-Mix view (§6). [OWNER 2026-09-28 D21] [O
 
 Questions for Kevin:
 - Who is the named backup moderator, once one is needed (§2.70)?
+- Should the other business types get their own journey starts, as Real estate has (§2.20)? They still start on "Follow up about an estimate", which also reaches Insurance & finance owners, and with no business name that text says "my business" (the rest of ONB-10, `docs/REALTOR_JOURNEY_IMPLEMENTATION_2026-09-29.md`).
 
 Decided on 2026-09-28 (D15, D16, D21, D26, D29) but not yet built or verified; each is a backlog task in `docs/STANDARDS_AUDIT_2026-09-28.md` §8:
 - Report, help and staff wording does not yet say that "verified" means the reporter's email (§2.49; B-09).
@@ -312,3 +313,4 @@ Known deviations:
 - 2.0.0 — 2026-09-28 — Base 61d4df4. Kevin's second packet: reports hide at once only for verified-email private-information reports (§2.49, D15); new §2.70 publishing authority; Contact stages (§2.7, §2.51, D16); invitation email after Send invitation (§2.18, D26); onboarding recommends one person and one follow-up (§2.20, D26); account-wide numbering (§2.54, D21); owner-chosen targets (§2.58, D26); new §2.71–§2.73 status, resume and early-update rules (D26); new §2.74 one Marketplace destination (D29).
 - 2.0.1 — 2026-09-29 — Base 722d64b. Onboarding on `main` now recommends one person and one follow-up and offers a complete Mega-Mix afterward (B-17), so §2.20 and §6 no longer list the Mega-Mix-first deviation. Production follows at the release that includes it.
 - 2.0.2 — 2026-09-29 — Base 9f967bc. §2.20 records Kevin's confirmation of where the optional Mega-Mix step appears and which Mega-Mix it names (O9). §6 drops the More and Settings Customer journey labels and the old demo text, which the copy batch fixed (PR #96, O8), and adds the three "customer journey" links that remain.
+- 2.1.0 — 2026-09-29 — Base dc81d10. §2.20: a business type with its own curated journey starts onboarding from it; Real estate starts from the Real estate Mega-Mix. §2.43: the Real estate Mega-Mix has separate buyer and seller paths (Kevin, 2026-09-29). §6 asks about the other business types.
