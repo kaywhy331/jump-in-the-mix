@@ -17,9 +17,23 @@ export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery 
   useEffect(() => {
     const form = marker.current?.closest("form");
     if (!form) return;
-    const snapshot = () => JSON.stringify([...new FormData(form)].filter(([name]) => !name.startsWith("$ACTION_") && name !== "activationConfirmed"));
-    let initial = snapshot();
-    const update = () => { dirty.current = snapshot() !== initial; setChanged(dirty.current); };
+    // A field the page fills in to report its own state, such as whether a preview loaded, is marked data-form-guard-ignore.
+    const snapshot = () => {
+      const ignored = new Set([...form.querySelectorAll<HTMLInputElement>("[data-form-guard-ignore]")].map(field => field.name));
+      return JSON.stringify([...new FormData(form)].filter(([name]) => !name.startsWith("$ACTION_") && name !== "activationConfirmed" && !ignored.has(name)));
+    };
+    // Changes count from the person's first action on the page. Until then the page is still filling the form in (a detected
+    // timezone, today's date in that timezone), and each of those values becomes part of the starting point.
+    let initial = snapshot(), acted = false;
+    const act = (event: Event) => {
+      if (acted || !(event.isTrusted || event.type === "input" || event.type === "change")) return;
+      acted = true;
+      // A press comes before the change it causes; a click, input or change event arrives after the form has changed.
+      if (event.type === "pointerdown" || event.type === "keydown" || event.type === "beforeinput") initial = snapshot();
+    };
+    const actions = ["pointerdown", "keydown", "beforeinput", "click", "input", "change"];
+    for (const type of actions) document.addEventListener(type, act, true);
+    const update = () => { const current = snapshot(); if (!acted) initial = current; dirty.current = current !== initial; setChanged(dirty.current); };
     const reset = (event: Event) => { queueMicrotask(() => { if (!event.defaultPrevented) { initial = snapshot(); update(); } }); };
     const allow = () => !(forced.current ?? dirty.current) || submitting.current || window.confirm("Leave without saving your changes?");
     const keepsDraft = (href: string) => {
@@ -53,7 +67,7 @@ export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery 
     document.addEventListener("submit", otherSubmit, true);
     document.addEventListener("click", click, true); window.addEventListener("beforeunload", unload); navigation?.addEventListener("navigate", navigate);
     window.addEventListener(BEFORE_FORM_NAVIGATION, programmatic);
-    return () => { observer.disconnect(); document.removeEventListener("submit", otherSubmit, true); document.removeEventListener("input", associated); document.removeEventListener("change", associated); form.removeEventListener("reset", reset); document.removeEventListener("click", click, true); window.removeEventListener("beforeunload", unload); navigation?.removeEventListener("navigate", navigate); window.removeEventListener(BEFORE_FORM_NAVIGATION, programmatic); };
+    return () => { for (const type of actions) document.removeEventListener(type, act, true); observer.disconnect(); document.removeEventListener("submit", otherSubmit, true); document.removeEventListener("input", associated); document.removeEventListener("change", associated); form.removeEventListener("reset", reset); document.removeEventListener("click", click, true); window.removeEventListener("beforeunload", unload); navigation?.removeEventListener("navigate", navigate); window.removeEventListener(BEFORE_FORM_NAVIGATION, programmatic); };
   }, [guardOtherForms]);
   return <span ref={marker} className="form-guard-status muted-copy" role="status">{pending ? "Saving…" : (forceDirty ?? changed) ? "Unsaved changes. Save before leaving this page." : ""}</span>;
 }

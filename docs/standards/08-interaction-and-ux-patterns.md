@@ -2,9 +2,9 @@
 id: JITM-08
 title: Interaction and UX patterns
 status: active
-version: 1.0.0
+version: 1.0.1
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-09-29
 applies_to: [ui, interaction, forms, dialogs, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
@@ -131,6 +131,8 @@ Neighboring topics have their own homes:
 
 Private drafts stay in memory; they are never copied into browser storage. [SHIPPED 9439fd6 src/components/FormGuard.tsx:7-58] [SHIPPED 9439fd6 src/components/QuickAdd.tsx:78-92] [SOURCE docs/design/SAVE_RECOVERY_RELEASE_2026-09-20.md:5,9]
 
+An untouched form never warns. A form counts as changed only once the person acts on the page; values the page fills in before then, such as a detected timezone or today's date in that timezone, are part of its starting point. A field that only reports the page's own state, such as whether a preview loaded, carries `data-form-guard-ignore`. [OWNER 2026-09-29 docs/FORM_GUARD_UNTOUCHED_FORM_FIX_2026-09-29.md:12]
+
 **2.31** A stalled request offers Stop waiting and times out; Quick Add waits 30 seconds. Both keep the draft and its retry identity and explain that a save the server already received cannot be cancelled. [SHIPPED 9439fd6 src/components/QuickAdd.tsx:121,163] [SOURCE docs/design/SAVE_RECOVERY_RELEASE_2026-09-20.md:10]
 
 ### Screen states
@@ -191,3 +193,4 @@ Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21]
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.0.1 — 2026-09-29 — Base 9f967bc. §2.30: an untouched form never warns; changes count from the person's first action, and status-only fields carry `data-form-guard-ignore` (Kevin's go-ahead, 2026-09-29).

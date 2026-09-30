@@ -28,6 +28,6 @@ export function StarterPreview({ purposes, reason, businessType, scenarioId }: {
       <p>Names and signatures fill from your details. Your timing preferences can move reminders. Review each prepared message in Today before sending. You can change or pause this Mix after setup.</p>
     </>}
     <label className="checkbox-card"><input name="starterReviewed" type="checkbox" required disabled={!plan} key={key} /><span>I reviewed this Mix and its timing.</span></label>
-    <input type="hidden" name="starterPreviewAvailable" value={plan ? "1" : "0"} />
+    <input type="hidden" name="starterPreviewAvailable" value={plan ? "1" : "0"} data-form-guard-ignore />
   </section>;
 }
