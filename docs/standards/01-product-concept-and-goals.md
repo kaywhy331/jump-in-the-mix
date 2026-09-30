@@ -2,7 +2,7 @@
 id: JITM-01
 title: Product concept, goals and non-goals
 status: active
-version: 2.0.2
+version: 2.1.0
 owner: Kevin
 last_reviewed: 2026-09-29
 applies_to: [product, features, onboarding, access, marketing, agents]
@@ -65,7 +65,7 @@ It does not restate:
 
 **2.8** Access is closed during the beta: a hosted account comes only from the waitlist or a member's personal invitation, never from open sign-up, and lead forms and QR or device intake create contacts in the owner's account, never accounts or invitations. The flows, the invitation allowance and the admission limits are JITM-09 §2.15–§2.19 and JITM-09 §2.69. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:12,81,131,135-137] [SOURCE docs/ADMISSION_CONTROLS.md:9] [OWNER 2026-09-17 docs/ONBOARDING_INVITATIONS_2026-09-17.md:3,11] [OWNER 2026-09-18 docs/ui-ux-audit-2026-09-18/CLAIM_REVIEW.md:10] [SHIPPED 9439fd6 src/lib/system-mix.ts:1]
 
-**2.9** The beta has no billing and no paid tiers, and it sets no commercial limits on contacts, tags, saved dates, Mixes, imports or follow-ups. Public wording about price follows JITM-02 §2. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:85,95] [OWNER 2026-09-28 D11]
+**2.9** Kevin set the plans: Free at $0; Plus at $15 a month or $144 a year; Pro at $29 a month or $288 a year. Until charging starts on a date he chooses, nothing is charged and the beta sets no commercial limits on contacts, tags, saved dates, Mixes, imports or follow-ups. From that date the plans limit only people with follow-ups on (100, 1,000 and 5,000) and active Mixes (3, 25 and 100). A person counts once, a Mega-Mix counts as one Mix, and reaching a limit stops new additions, never access to what the account has. Public wording about price follows JITM-02 §2.18. [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:11] [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:12] [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:13] [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:14] [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:85,95] [SOURCE local-only 00e0a87b7f6e77fc assets/Jump_in_the_Mix_Brand_price_freatures.md:371,533]
 
 ### Core loop, first run and activation
 
@@ -115,7 +115,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 **2.19** Google Contacts sync, the AI plan wizard and signup-reward referrals are retired. They MUST NOT compile into the app or gate core behavior. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:87] [SOURCE README.md:20]
 
 **2.20** Deferred work MUST be labeled planned or deferred, never available:
-- payments (Stripe is planned; model, pricing and start date are undecided);
+- charging: Stripe's hosted checkout is planned and stays off until Kevin chooses a start date (§2.9) [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:12];
 - native apps;
 - a paid realtime voice assistant, inbox analysis and messaging bridges;
 - multiple paid tiers, discounts and advanced analytics;
@@ -148,7 +148,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 | Automatic customer email; automatic SMS | Built but off | §2.4 |
 | Payments | Planned | `docs/CANONICAL_PRODUCT_DECISIONS.md:85` |
 | Native apps; paid voice assistant, inbox analysis, messaging bridges | Deferred | §2.7, §2.20 |
-| Paid tiers and a price catalogue | Proposed (local-only `00e0a87b7f6e77fc`) | D11 |
+| Plans and prices: Free, Plus and Pro, shown on `/pricing` and in the FAQ; charging and limits wait for the start date | Planned (prices decided) | §2.9; `docs/PRICING_DECISION_2026-09-29.md` |
 | Automatic email sent as "{Business} via Jump in the Mix" | Proposed | `docs/BETA_READINESS_AUDIT_2026-09-26.md:48` |
 | Industry Mix catalog, per-enrollment context, contact spreadsheet | Proposed (local-only `fb11e3b1f8847bb3`) | not decided |
 | Google Contacts sync, AI plan wizard, signup-reward referrals | Retired | §2.19 |
@@ -175,13 +175,14 @@ If any answer is no or unclear, stop and ask Kevin (JITM-16 §2). [OWNER 2026-09
 - `src/lib/one-time-follow-up.ts`: one follow-up at a chosen time, shared by Quick Add and "Schedule the next follow-up".
 - `src/lib/automatic-delivery.ts`: the automatic-email switch.
 - `src/lib/system-mix.ts` (`REFERRAL_INVITE_LIMIT`): the invitation allowance.
+- `src/lib/plans.ts` (`PLANS`): the plans, prices and limits (§2.9).
 - `src/lib/persona-mixes.ts`: the per-profession boundary lines that say what the product is not.
 - `docs/ADMIN_REPORTS.md`: the exact activation and retention populations.
 
 ## 4. Do / Don't
 
 - **Do** open a feature plan with its concept fit: "Serves step 3 of the core loop: the owner reviews a quiet-day check-in on Today without leaving the list."
-- **Do** label a proposal "Proposed, not decided", as the price catalogue and the industry catalog are.
+- **Do** label a proposal "Proposed, not decided", as the industry catalog is.
 - **Don't** add an "Invite your team" control or a workspace switcher.
 - **Don't** add a "they replied" badge or an inbox view; the product does not read replies.
 - **Don't** describe automatic sending as a beta feature, in a plan or in copy.
@@ -197,7 +198,7 @@ If any answer is no or unclear, stop and ask Kevin (JITM-16 §2). [OWNER 2026-09
 ## 6. Open decisions and known deviations
 
 Open questions for Kevin:
-- Pricing, the payment model and what happens after the beta are undecided (D11).
+- Before charging starts (§2.9): the start date; what happens to beta accounts; sales tax; refunds, cancellation timing and the grace period after a failed payment; deleting an account with a paid plan (`docs/PRICING_DECISION_2026-09-29.md` "Still open before charging starts").
 - No numeric time-to-first-value target exists (`docs/PRODUCT_QUALITY_GATES.md:18`).
 - Status of the proposed industry Mix catalog and contact spreadsheet (local-only `fb11e3b1f8847bb3`, line 3).
 
@@ -211,3 +212,4 @@ Known deviations at 9439fd6:
 - 2.0.0 — 2026-09-28 — Base 61d4df4. §2.24 is a standing default and also allows changes for accessibility or responsive-layout problems, or at Kevin's request (D20). §6 updated for D16 and D26.
 - 2.0.1 — 2026-09-29 — Base 722d64b. §6: onboarding on `main` now recommends one person and one follow-up, matching the registration and invitation promise (B-17). Production follows at the release that includes it.
 - 2.0.2 — 2026-09-29 — Base 9f967bc. §2.22: the feature map names Contact stages, whose role D16 settled. §6: `README.md` no longer lists "Plans" (PR #96, O8). Its superseded-contract and delivery lines remain.
+- 2.1.0 — 2026-09-29 — Base dc81d10. §2.9 records Kevin's plans, prices and limits, with charging off until he chooses a start date; §2.20, §2.22, §4 and §6 follow (docs/PRICING_DECISION_2026-09-29.md).

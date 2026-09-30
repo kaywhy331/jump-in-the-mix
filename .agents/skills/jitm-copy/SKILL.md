@@ -34,7 +34,7 @@ If the text sits in a changed layout, also load `jitm-ui-change`.
 
 - **Sending:** the owner reviews and sends every message. Opening a messaging app is not delivery, and never say it is. Automatic customer email is off in production during the beta, and automatic SMS is not configured (JITM-00 §2.3).
 - **Proof:** no invented testimonials, statistics, research, customer quotes or outcomes (JITM-00 §2.4, JITM-04 §2).
-- **Pricing:** no prices, tiers or payment terms; say "free beta, access by invitation or waitlist". "No card required" may stay beside the free-beta and access wording, as in "Free beta. No card required. Join the waitlist." (JITM-02 §2.16, §2.18).
+- **Pricing:** state only Kevin's plans and prices: Free $0, Plus $15 a month or $144 a year, Pro $29 a month or $288 a year (JITM-01 §2.9, `src/lib/plans.ts`). Say that paid plans haven't started until charging starts, and never promise a start date, a trial, a discount or what happens to beta accounts. "No card required" stays beside the free-beta and access wording, as in "Free beta. No card required. Join the waitlist." (JITM-02 §2.16, §2.18).
 - **ICPs:** the five ICP profiles are fictional composites. Use them as research inputs only, never as proof or testimony (JITM-02 §2).
 - **Clean-room:** no third-party framework, course, sales-method or author names in copy, standards or skills. Describe the mechanism instead (JITM-04 §2).
 - **Implementation talk:** copy never explains workers, queues, databases or other internals. An empty state names the next useful business action (JITM-04 §2).
@@ -44,7 +44,7 @@ If the text sits in a changed layout, also load `jitm-ui-change`.
 ## Where to look
 
 - Glossary and definitions: JITM-05. The in-app glossary is `src/components/BrandTermsHelp.tsx`.
-- Public pages: `src/components/PublicLanding.tsx`, `src/app/for/[profession]/page.tsx`, `src/app/faq/`, `src/app/features/`, `src/app/follow-up-templates/`.
+- Public pages: `src/components/PublicLanding.tsx`, `src/app/for/[profession]/page.tsx`, `src/app/faq/`, `src/app/pricing/`, `src/app/features/`, `src/app/follow-up-templates/`.
 - Help and FAQ content: `src/lib/support-content.ts`.
 - Ready-made Mixes: `src/lib/persona-mixes.ts`, `src/lib/sales-plan-library.ts`.
 - ICP hypotheses: the five `assets/ICP - *.md` files. The copywriting references are local-only; see the source register.

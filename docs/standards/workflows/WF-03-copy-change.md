@@ -2,9 +2,9 @@
 id: WF-03
 title: Copy change
 status: active
-version: 1.0.0
+version: 1.1.0
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-09-29
 standards: [JITM-02, JITM-03, JITM-04, JITM-05]
 skills: [jitm-copy]
 ---
@@ -31,7 +31,7 @@ skills: [jitm-copy]
 2. **Check the vocabulary** against the glossary (JITM-05 §2). Use current terms, and never a retired term or an internal model name.
 3. **Build a claims ledger for persuasive copy.** List each claim with its proof and status (JITM-04 §2.26). Every consequential claim is removed, or proven in the ledger and approved by Kevin with a date (JITM-04 §2.28). Public copy ships only with Kevin's approval (JITM-04 §2.31).
    - No invented testimonials, statistics or research.
-   - Pricing: no prices, tiers or payment terms; say "free beta, access by invitation or waitlist". The owner-reviewed facts "free account, no payment card" may stay (JITM-02 §2.16, §2.18).
+   - Pricing: state only Kevin's plans and prices (JITM-01 §2.9), and say that paid plans haven't started until charging starts. Never promise a start date, a trial, a discount or what happens to beta accounts. The owner-reviewed facts "free account, no payment card" stay (JITM-02 §2.16, §2.18).
    - No promise of automatic sending or confirmed delivery.
 4. **Draft in the register's voice** (JITM-04 §2). Interface text is plain and short. Personal wording sounds like the owner, not like marketing.
 5. **Verify every factual statement against current behavior,** in the code or the running app, never against an older document.
@@ -63,3 +63,4 @@ skills: [jitm-copy]
 ## Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.1.0 — 2026-09-29 — Step 3: copy may state Kevin's plans and prices (docs/PRICING_DECISION_2026-09-29.md).

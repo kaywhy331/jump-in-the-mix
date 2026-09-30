@@ -2,7 +2,7 @@
 id: JITM-02
 title: ICP and positioning
 status: active
-version: 2.0.1
+version: 2.1.0
 owner: Kevin
 last_reviewed: 2026-09-29
 applies_to: [marketing, public-pages, profession-pages, onboarding, copy, product-decisions]
@@ -116,6 +116,7 @@ The hook comes from the owner-supplied strategy (`assets/Jump_in_the_Mix_Brand_S
 - private notes stay out of messages;
 - you can export your data or delete your account;
 - joining and creating an account are free, with no payment card;
+- the plans: Free at $0, Plus at $15 a month or $144 a year, Pro at $29 a month or $288 a year; paid plans haven't started; you're charged only if you choose a paid plan (Kevin approves the exact wording);
 - access is by a member's invitation or the waitlist, with no promised date; each member has three personal invitations;
 - optional notifications stay off until you turn them on;
 - you record what happened;
@@ -135,7 +136,7 @@ Any other claim needs a claim–proof ledger entry (JITM-04 §2). [SHIPPED 9439f
 
 [SOURCE docs/CONVERSION_COPY.md:21] [SOURCE docs/HOMEPAGE_PROFESSION_PAGES_2026-09-11.md:83-85] [SOURCE docs/SEARCH_STRATEGY_IMPLEMENTATION_2026-09-12.md:40-41] [SOURCE docs/HOMEPAGE_CONVERSION_AUDIT_2026-09-07.md:5]
 
-**2.18** Until Kevin sets pricing, price and access statements MUST say no more than "free beta, access by invitation or waitlist". The owner-reviewed facts that follow from it may stay: joining and creating an account are free, and no payment card is asked for. "No card required" always sits beside "free beta" and accurate invitation or waitlist wording, for example "Free beta. No card required. Join the waitlist." Copy MUST NOT state or imply prices, tiers, trials, discounts, a lasting "free" promise, immediate admission or what happens after the beta. The Free/Plus/Pro catalogue in the owner's local-only proposal stays a proposal. [OWNER 2026-09-28 D11] [OWNER 2026-09-28 D28] [OWNER 2026-09-18 docs/ui-ux-audit-2026-09-18/CLAIM_REVIEW.md:9] [SOURCE local-only 00e0a87b7f6e77fc assets/Jump_in_the_Mix_Brand_price_freatures.md:371]
+**2.18** Price statements MUST match Kevin's plans (JITM-01 §2.9) and say that paid plans haven't started until charging starts. The owner-reviewed access facts stay: joining and creating an account are free, and no payment card is asked for. "No card required" always sits beside "free beta" and accurate invitation or waitlist wording, for example "Free beta. No card required. Join the waitlist." Copy MUST NOT state or imply a start date for charging, trials, discounts, a lasting price, immediate admission or what happens to beta accounts when charging starts. While paid plans can't be bought, structured data and the social card describe no offers or prices. [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:7] [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:11] [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:12] [OWNER 2026-09-28 D28] [OWNER 2026-09-18 docs/ui-ux-audit-2026-09-18/CLAIM_REVIEW.md:9]
 
 ### Research
 
@@ -180,7 +181,6 @@ Open questions for Kevin:
 - Should the public audience phrase stay "for independent professionals", or name owner-operators, trades and solo real estate (D2)?
 - Should the social card be regenerated around the current category? JITM-03 §2 owns the artwork; the wording needs your approval.
 - Should public copy changed since the 2026-09-18 claim review (the homepage access note on 2026-09-25, the FAQ sending answer on 2026-09-26) get a dated claim review?
-- The FAQ answer Kevin approved in the copy batch (O8) ends "Prices after the beta haven't been set." (`src/app/faq/page.tsx:29`). §2.18 says copy must not state or imply what happens after the beta. Should §2.18 allow this sentence, or should the FAQ drop it?
 
 Known deviations at 9439fd6:
 - The social sharing card and its alt text carry the 2026-09-07 positioning: "For the people who matter", "Good relationships have a rhythm.", "Business · Personal · Your network" (`scripts/generate-brand-assets.mjs:27-32`; `src/lib/public-seo.ts:15`).
@@ -194,3 +194,4 @@ Known deviations at 9439fd6:
 - 1.0.0 — 2026-09-28 — Initial version.
 - 2.0.0 — 2026-09-28 — Base 61d4df4. "Stay in the mix" is the brand line, paired with a literal description (§2.14, D22). "No card required" confirmed beside free-beta and access wording (§2.18, D28).
 - 2.0.1 — 2026-09-29 — Base 9f967bc. §6: asks whether §2.18 allows the approved FAQ sentence about prices after the beta (O8).
+- 2.1.0 — 2026-09-29 — Base dc81d10. §2.16 adds the plans; §2.18 lets copy state Kevin's prices and says what it still must not promise. §6: the O8 question about the FAQ price sentence is answered (docs/PRICING_DECISION_2026-09-29.md).
