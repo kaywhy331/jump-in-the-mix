@@ -2,7 +2,8 @@ import bcrypt from "bcryptjs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The form action keeps a refusal the person can act on in the form's error slot (audit F11).
-const mocks = vi.hoisted(() => ({ requireWorkspace: vi.fn(), destroySession: vi.fn(), consumeRateLimit: vi.fn(), deleteAccountData: vi.fn() }));
+const mocks = vi.hoisted(() => ({ requireWorkspace: vi.fn(), destroySession: vi.fn(), consumeRateLimit: vi.fn(), deleteAccountData: vi.fn(), closeBillingForDeletion: vi.fn() }));
+vi.mock("@/lib/billing-deletion", () => ({ closeBillingForDeletion: mocks.closeBillingForDeletion }));
 vi.mock("@/lib/auth", () => ({ requireWorkspace: mocks.requireWorkspace, destroySession: mocks.destroySession }));
 vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: mocks.consumeRateLimit }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
@@ -25,7 +26,8 @@ function submission(currentPassword = password, confirmation = ACCOUNT_DELETION_
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.requireWorkspace.mockResolvedValue({ user: { id: "user-1", passwordHash }, session: { createdAt: new Date() }, impersonation: null });
+  mocks.requireWorkspace.mockResolvedValue({ user: { id: "user-1", passwordHash }, session: { createdAt: new Date() }, workspace: { id: "workspace-1" }, impersonation: null });
+  mocks.closeBillingForDeletion.mockResolvedValue(undefined);
   mocks.consumeRateLimit.mockResolvedValue({ allowed: true });
   mocks.deleteAccountData.mockResolvedValue({ deleted: true, requestId: "request-1" });
 });
@@ -39,6 +41,14 @@ describe("deleteAccountAction", () => {
 
   it("sends the person to the deleted page after a successful deletion", async () => {
     await expect(deleteAccountAction({ error: null }, submission())).rejects.toThrow("REDIRECT /account/deleted");
+    expect(mocks.closeBillingForDeletion).toHaveBeenCalledWith("workspace-1");
+    expect(mocks.closeBillingForDeletion.mock.invocationCallOrder[0]).toBeLessThan(mocks.deleteAccountData.mock.invocationCallOrder[0]);
+  });
+
+  it("deletes nothing when a paid plan can't be closed with Stripe", async () => {
+    mocks.closeBillingForDeletion.mockRejectedValueOnce(new AccountDeletionBlockedError("Your paid plan couldn’t be closed with the payment provider, so nothing was deleted."));
+    await expect(deleteAccountAction({ error: null }, submission())).resolves.toEqual({ error: "Your paid plan couldn’t be closed with the payment provider, so nothing was deleted." });
+    expect(mocks.deleteAccountData).not.toHaveBeenCalled();
   });
 
   it("does not disguise unexpected failures as a form message", async () => {
@@ -50,5 +60,6 @@ describe("deleteAccountAction", () => {
     await expect(deleteAccountAction({ error: null }, submission("wrong"))).resolves.toEqual({ error: "The current password is incorrect." });
     await expect(deleteAccountAction({ error: null }, submission(password, "delete my account"))).resolves.toEqual({ error: `Type ${ACCOUNT_DELETION_PHRASE} exactly to continue.` });
     expect(mocks.deleteAccountData).not.toHaveBeenCalled();
+    expect(mocks.closeBillingForDeletion).not.toHaveBeenCalled();
   });
 });

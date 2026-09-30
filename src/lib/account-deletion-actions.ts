@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { AccountDeletionBlockedError, deleteAccountData } from "@/lib/account-deletion";
 import { ACCOUNT_DELETION_PHRASE } from "@/lib/account-deletion-policy";
+import { closeBillingForDeletion } from "@/lib/billing-deletion";
 import { destroySession, requireWorkspace } from "@/lib/auth";
 import { consumeRateLimit } from "@/lib/rate-limit";
 
@@ -17,7 +18,7 @@ export async function deleteAccountAction(
   _previous: AccountDeletionActionState,
   formData: FormData
 ): Promise<AccountDeletionActionState> {
-  const { user, session, impersonation } = await requireWorkspace();
+  const { user, session, workspace, impersonation } = await requireWorkspace();
   if (impersonation) return { error: "End the administrator support session before deleting an account." };
 
   const rateLimit = await consumeRateLimit({
@@ -40,6 +41,7 @@ export async function deleteAccountAction(
   }
 
   try {
+    await closeBillingForDeletion(workspace.id);
     await deleteAccountData(user.id);
   } catch (error) {
     // A rule the person can act on (for example the last active staff owner) belongs in the form,

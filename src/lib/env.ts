@@ -1,3 +1,4 @@
+import { billingConfigurationIssues } from "@/lib/billing-config";
 import { trustedProxyCidrIssues } from "@/lib/client-ip";
 import { privateTestConfigurationIssues, privateTestEnabled } from "@/lib/private-test";
 import { publicTrustConfigurationIssues } from "@/lib/public-trust";
@@ -148,6 +149,7 @@ export function productionConfigurationIssues(source: NodeJS.ProcessEnv = proces
       if (!source.AUTH_APPLE_CLIENT_ID?.trim() || !source.AUTH_APPLE_TEAM_ID?.trim() || !source.AUTH_APPLE_KEY_ID?.trim() || !source.AUTH_APPLE_PRIVATE_KEY?.trim()) issues.push("Apple sign-in credentials are required for hosted production");
     }
   }
+  issues.push(...billingConfigurationIssues(source));
   issues.push(...trustedProxyCidrIssues(commaSeparated(source.TRUSTED_PROXY_CIDRS)));
   for (const name of ["EMAIL_DAILY_LIMIT", "EMAIL_MONTHLY_LIMIT", "EMAIL_DAILY_AUTH_RESERVE", "EMAIL_MONTHLY_AUTH_RESERVE"] as const) {
     if (source[name] !== undefined && (!Number.isSafeInteger(Number(source[name])) || Number(source[name]) < 1 || Number(source[name]) > 1_000_000)) issues.push(`${name} must be an integer from 1 to 1000000`);

@@ -2,9 +2,9 @@
 id: JITM-11
 title: Engineering architecture
 status: active
-version: 1.0.0
+version: 1.1.0
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-09-29
 applies_to: [src, prisma, worker, scripts, infra, dependencies]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -176,6 +176,18 @@ Neighboring topics live elsewhere:
 
 **2.46** A change that edits many records at once from a generated suggestion MUST ask the person to confirm first. [SOURCE CONTRIBUTING.md:59]
 
+### Billing
+
+**2.53** Billing stays off unless `BILLING_ENABLED` is true and both Stripe secrets are set. While it is off, nothing can be bought, no plan limits apply and the Stripe webhook refuses events. Readiness refuses a partial billing configuration, and a test key in hosted production. [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:12] [PROPOSED]
+
+**2.54** An account's plan changes only from Stripe's own record. Webhook events are verified against the raw request body and the endpoint's signing secret, and recorded once by event id; each one re-reads the customer's subscriptions, so late, repeated or out-of-order events leave the right plan. A return from checkout is confirmed with Stripe before the page shows the plan; the return address never grants one. [SOURCE docs/PRODUCTION_LAUNCH_PLAN.md:96] [PROPOSED]
+
+**2.55** Card details never reach the app: buying, card and plan changes and cancellation happen on Stripe's hosted checkout and billing portal. Only the account owner, outside a support view, can open them, and an account holds at most one paid plan. [SOURCE docs/PRODUCTION_LAUNCH_PLAN.md:23,90] [PROPOSED]
+
+**2.56** Prices come from `src/lib/plans.ts`. A Stripe price is sold only when its lookup key, amount, currency and interval match the plan exactly, so a price edited in Stripe can't be charged; a changed price needs a new lookup key and a code change. [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:11] [PROPOSED]
+
+**2.57** Deleting an account first deletes its Stripe customer, which ends every subscription; if that fails, nothing is deleted. [PROPOSED]
+
 ### What stays deliberately strong
 
 **2.47** These controls MUST NOT be weakened, bypassed or disabled to pass a check, simplify code or speed a release. They add engineering detail to JITM-00 §2.
@@ -211,6 +223,7 @@ Neighboring topics live elsewhere:
 - `src/lib/jump-schedule.ts`: logical dates, `zonedDateTimeToUtc()`, `createJumpUniquenessKey()`.
 - `src/lib/automatic-delivery-window.ts` (the sending rule) and `src/lib/one-time-follow-up.ts`.
 - `src/lib/client-ip.ts`, `src/lib/phone-dial.ts`, `src/lib/phone-number.ts`, `src/lib/user-facing-error.ts`.
+- `src/lib/billing-config.ts`, `src/lib/billing-plans.ts`, `src/lib/billing-sync.ts`, `src/lib/stripe-client.ts` and `src/app/api/webhooks/stripe/route.ts`: billing (§2.53–§2.57); runbook `docs/BILLING.md`.
 - `src/worker/index.ts`: claim, lease, bounded passes and shutdown.
 - `scripts/migrate-with-owner.mjs` and `scripts/configure-runtime-database.mjs`: the owner-job migration and the runtime-role check.
 - Guard tests:
@@ -253,3 +266,4 @@ Neighboring topics live elsewhere:
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+- 1.1.0 — 2026-09-29 — Base db54cc7. §2.53–§2.57 add the billing rules for Stripe checkout, the billing portal and the webhook (docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md).

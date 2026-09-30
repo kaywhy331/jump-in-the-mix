@@ -27,6 +27,11 @@
 .page--form > .card, .page--form > .form-stack > .card { background: var(--page); border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 24px 0; }
 .page--form > .card:first-of-type, .page--form > .form-stack > .card:first-of-type { margin-top: 0; }
 .page--form .card-header h2 { font-size: 1.125rem; }
+/* Plan and billing: the two paid plans side by side, stacked on phones. */
+.billing-plan-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.billing-plan-option { display: grid; gap: var(--space-2); align-content: start; padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--raised); }
+.billing-plan-option h3, .billing-plan-option p { margin: 0; }
+@media (max-width: 767px) { .billing-plan-options { grid-template-columns: 1fr; } }
 .page--content .support-faq-item, .page--content .session-row { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: var(--page); }
 .page--content .support-faq-item > summary { font-weight: 600; }
 .mobile-app-header, .mobile-nav { background: var(--page); border-color: var(--line); }
