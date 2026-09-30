@@ -34,7 +34,8 @@ export function OnboardingForm({ userName, industry, initialUses, timezone, toda
   const scenario = marketingScenario(scenarioId);
   const business = purposes.includes("business");
   const organization = business || purposes.includes("networking");
-  const reasons = onboardingReasons(purposes);
+  // A business type with its own journey, such as Real estate, offers that journey's first follow-ups.
+  const reasons = onboardingReasons(purposes, business ? businessType : null, scenario && business ? scenario.id : null);
   const [choice, setChoice] = useState(scenario && business ? "suggested" : reasons[0] ?? "");
   const selected = choice === "suggested" && scenario && business || reasons.includes(choice) ? choice : reasons[0] ?? "";
   return <><fieldset className="onboarding-step-card"><legend>Choose your starting point</legend><div className="form-stack"><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "person"} onChange={() => setSetupMode("person")} /><span><strong>One person and one follow-up · Recommended</strong><small>Add someone you need to follow up with, then review the first follow-up prepared for them. You can add a complete Mega-Mix later.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "journey"} onChange={() => setSetupMode("journey")} /><span><strong>A complete Mega-Mix</strong><small>Your whole pipeline on day one: every follow-up from first inquiry to repeat work, written and connected. Just tweak the wording to sound like you.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "individual"} onChange={() => setSetupMode("individual")} /><span><strong>Choose individual Mixes</strong><small>Build your journey one Mix at a time. Preview and customize each one.</small></span></label></div></fieldset>

@@ -63,6 +63,33 @@ test("a real estate start offers the Real estate Mega-Mix as the optional next s
   await expect(page.getByRole("heading", { name: "Real estate Mega-Mix" })).toBeVisible();
 });
 
+test("a realtor's first follow-up comes from the Real estate journey, starting with a new buyer lead", async ({ page }) => {
+  await account(page);
+  await page.goto("/onboarding");
+  await page.getByLabel("Type of business").selectOption("Real estate");
+  const reason = page.getByLabel("What do you want to do?");
+  await expect(reason).toHaveValue("Reply to a new buyer lead");
+  await expect(reason.locator("option")).toHaveText(["Reply to a new buyer lead", "Reply to a new seller lead", "Follow up after a showing or open house", "Check back when they asked you to",
+    "Update a client who is under contract", "Check in after closing", "Keep in touch with a past client"]);
+  const preview = page.getByRole("region", { name: "Review your starter" });
+  await expect(preview.getByRole("heading", { name: "New buyer lead", exact: true })).toBeVisible();
+  await expect(preview).toContainText("thanks for reaching out about buying a home");
+  await expect(preview).toContainText("1 day after");
+  await expect(preview).not.toContainText(/estimate/i);
+  await reason.selectOption("Follow up after a showing or open house");
+  await expect(preview.getByRole("heading", { name: "After a showing or open house", exact: true })).toBeVisible();
+  await reason.selectOption("Reply to a new buyer lead");
+  await page.getByLabel("Name", { exact: true }).fill("Riley Example");
+  await page.getByLabel("Phone recommended").fill("+1 (555) 010-0142");
+  await page.getByRole("checkbox", { name: /I reviewed this Mix/ }).check();
+  await Promise.all([page.waitForURL(/\/jumps\?.*welcome=1/), page.getByRole("button", { name: "Prepare my first follow-up" }).click()]);
+  await expect(page.getByText("Your first follow-up for Riley Example is ready.")).toBeVisible();
+  const workspace = await prisma.workspace.findFirstOrThrow({ where: { ownerId: users.at(-1)! } });
+  const first = await prisma.jump.findFirstOrThrow({ where: { workspaceId: workspace.id }, orderBy: { scheduledAt: "asc" } });
+  expect(JSON.stringify(first.renderedSnapshot)).toContain("thanks for reaching out about buying a home");
+  expect(JSON.stringify(first.renderedSnapshot)).not.toMatch(/estimate|my business/i);
+});
+
 test("the marketing example names its Mega-Mix even when several share the business type", async ({ page }) => {
   await account(page, { scenario: "photography" });
   await prepareFirstFollowUp(page, { email: true });

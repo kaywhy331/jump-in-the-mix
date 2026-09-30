@@ -55,8 +55,10 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
   const marketingPreference = await prisma.workspaceMarketingPreference.findUnique({ where: { workspaceId: workspace.id } });
   const scenario = storedMarketingScenario(marketingPreference?.scenario, marketingPreference?.version);
   const starterChoice = value(formData, "starterChoice");
-  const reason = starterChoice === "suggested" && business && scenario ? scenario.reason : value(formData, "reason") || onboardingReasons(uses)[0];
-  if (!onboardingReasons(uses).includes(reason)) fail(path, "Choose a follow-up that fits your selected use.", session);
+  // The example the person tried brings its own reason; any other choice must be one this business type offers.
+  const suggested = starterChoice === "suggested" && business && scenario;
+  const reason = suggested ? suggested.reason : value(formData, "reason") || onboardingReasons(uses, businessType)[0];
+  if (!suggested && !onboardingReasons(uses, businessType).includes(reason)) fail(path, "Choose a follow-up that fits your selected use.", session);
   const followUpDate = value(formData, "followUpDate");
   const privateContext = value(formData, "privateContext").slice(0, 1000);
   const timezone = value(formData, "timezone");
