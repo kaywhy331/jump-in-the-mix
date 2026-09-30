@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MEGA_MIXES, matchedMegaMix, megaMixConfiguration, suggestedMegaMix, type MegaMix } from "@/lib/mega-mixes";
+import { MEGA_MIXES, installedMegaMixKeys, matchedMegaMix, megaMixConfiguration, suggestedMegaMix, type MegaMix } from "@/lib/mega-mixes";
 import { workflowConfiguration, validateWorkflow } from "@/lib/mix-workflow-config";
 import { startWorkflow, advanceWorkflow, observeWorkflow, recordWorkflowDecision } from "@/lib/mix-workflow-engine";
 import type { WorkflowDefinition } from "@/lib/mix-workflow-types";
@@ -52,6 +52,35 @@ describe("complete journey blueprints", () => {
     expect(state.transitions[0].target).toBeNull();
   });
 
+  it("starts realtor buyers and sellers on their own paths, which meet at the contract", () => {
+    const blueprint = MEGA_MIXES.find(item => item.id === "real-estate")!, graph = definition(blueprint), start = new Date("2026-09-29T10:00:00Z");
+    expect(blueprint.roots).toEqual(["buyer", "seller"]);
+    for (const [offer, next] of [["buyer-offer", "contract"], ["seller-offer", "contract"]]) {
+      const state = startWorkflow(graph, { mixId: offer, stepId: null }, start.toISOString());
+      observeWorkflow(state, state.visits.map(visit => ({ visitId: visit.id, status: "DONE", outcome: "completed", completedAt: start.toISOString() })));
+      const now = new Date(start.getTime() + 11_000);
+      advanceWorkflow(state, graph, { now, admittedAt: start });
+      expect(state.evaluations[0].status).toBe("WAITING");
+      recordWorkflowDecision(state, graph, state.evaluations[0].id, "Offer accepted", now.toISOString());
+      advanceWorkflow(state, graph, { now, admittedAt: start });
+      expect(state.runs.map(run => run.mixId)).toEqual([offer, next]);
+    }
+  });
+
+  it("sends a realtor's after-showing text only once a showing is recorded, and returns a failed contract to the right side", () => {
+    const graph = definition(MEGA_MIXES.find(item => item.id === "real-estate")!), start = new Date("2026-09-29T10:00:00Z");
+    for (const [from, decision, next] of [["search", "Showing done", "showings"], ["contract", "Deal fell through; buyer keeps looking", "search"], ["contract", "Deal fell through; home back on the market", "listed"]]) {
+      const state = startWorkflow(graph, { mixId: from, stepId: null }, start.toISOString());
+      observeWorkflow(state, state.visits.map(visit => ({ visitId: visit.id, status: "DONE", outcome: "completed", completedAt: start.toISOString() })));
+      const now = new Date(start.getTime() + 11_000);
+      advanceWorkflow(state, graph, { now, admittedAt: start });
+      expect(state.runs.map(run => run.mixId)).toEqual([from]);
+      recordWorkflowDecision(state, graph, state.evaluations[0].id, decision, now.toISOString());
+      advanceWorkflow(state, graph, { now, admittedAt: start });
+      expect(state.runs.map(run => run.mixId)).toEqual([from, next]);
+    }
+  });
+
   it("waits six months before a contractor's repeat-work follow-up", () => {
     const graph = definition(MEGA_MIXES[0]), start = new Date("2026-09-22T10:00:00Z");
     const state = startWorkflow(graph, { mixId: "referral", stepId: null }, start.toISOString());
@@ -61,6 +90,16 @@ describe("complete journey blueprints", () => {
     expect(state.runs).toHaveLength(1);
     advanceWorkflow(state, graph, { now: new Date(start.getTime() + 180 * 86400_000), admittedAt: start });
     expect(state.runs.map(run => run.mixId)).toEqual(["referral", "nurture"]);
+  });
+});
+
+describe("installed Mega-Mixes", () => {
+  it("lists an installation from the earlier Real estate version by its own stages", () => {
+    const v1 = { inquiry: "m1", discovery: "m2", proposal: "m3", delivery: "m4", handover: "m5", aftercare: "m6", referral: "m7", nurture: "m8", concern: "m9", later: "m10", quiet: "m11" };
+    expect(installedMegaMixKeys({ blueprintId: "real-estate", version: 1, mixIds: v1 }).sort()).toEqual(Object.keys(v1).sort());
+    const current = MEGA_MIXES.find(item => item.id === "real-estate")!;
+    const ids = Object.fromEntries(current.nodes.map(node => [node.key, `mix-${node.key}`]));
+    expect(installedMegaMixKeys({ blueprintId: "real-estate", version: current.version, mixIds: ids })).toEqual(current.nodes.map(node => node.key));
   });
 });
 

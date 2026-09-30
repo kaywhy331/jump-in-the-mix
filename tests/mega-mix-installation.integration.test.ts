@@ -9,7 +9,7 @@ import { processWorkflowInstance, readWorkflowDefinition, saveWorkflowConfigurat
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 describe.skipIf(!local)("mega-mix installation", () => {
   let userId: string, workspaceId: string;
-  const install = (blueprintId = "contractor") => installMegaMix({ workspaceId, actorUserId: userId, blueprintId, expectedVersion: 1 });
+  const install = (blueprintId = "contractor") => installMegaMix({ workspaceId, actorUserId: userId, blueprintId, expectedVersion: MEGA_MIXES.find(item => item.id === blueprintId)?.version ?? 1 });
   beforeEach(async () => {
     userId = (await prisma.user.create({ data: { name: "Mega-mix fixture", email: `mega-${randomUUID()}@example.invalid` } })).id;
     workspaceId = (await prisma.workspace.create({ data: { ownerId: userId, name: "Mega-mix fixture", slug: randomUUID() } })).id;

@@ -6,6 +6,7 @@ import { READY_MADE_PLANS, starterPlanForBusinessType, starterPlanForMarketingSc
 import { normalizeSharedMixSteps } from "@/lib/shared-mix";
 import { PERSONAS } from "@/lib/persona-mixes";
 import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
+import { journeyStartReasons, starterPlanForReason } from "@/lib/journey-starts";
 
 const NO_CONNECTIONS = { rules: [], gatedStepIds: [], intentionalEnds: [] };
 type Step = Partial<PortableStep>;
@@ -131,6 +132,7 @@ describe("everything the app exports today imports again", () => {
     const plans = [
       ...[null, ...BUSINESS_TYPES].map(type => starterPlanForBusinessType(type)),
       ...[null, ...BUSINESS_TYPES].flatMap(type => reasons.map(reason => starterPlanForOnboarding(type, reason))),
+      ...BUSINESS_TYPES.flatMap(type => (journeyStartReasons(type) ?? []).map(reason => starterPlanForReason(type, reason))),
       ...scenarios.flatMap(id => { const plan = starterPlanForMarketingScenario(id); return plan ? [plan] : []; })
     ];
     expect(plans.length).toBeGreaterThan(reasons.length);

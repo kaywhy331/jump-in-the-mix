@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { starterPlanForBusinessType, starterPlanForMarketingScenario, starterPlanForOnboarding } from "@/lib/vertical-plan-library";
+import { starterPlanForBusinessType, starterPlanForMarketingScenario } from "@/lib/vertical-plan-library";
+import { starterPlanForReason } from "@/lib/journey-starts";
 
 export async function ensureStarterMix(workspaceId: string, businessType?: string | null, reason?: string, marketingScenario?: string | null) {
-  const draft = marketingScenario ? starterPlanForMarketingScenario(marketingScenario) ?? starterPlanForOnboarding(businessType, reason ?? "General follow-up") : reason ? starterPlanForOnboarding(businessType, reason) : starterPlanForBusinessType(businessType);
+  const draft = marketingScenario ? starterPlanForMarketingScenario(marketingScenario) ?? starterPlanForReason(businessType, reason ?? "General follow-up") : reason ? starterPlanForReason(businessType, reason) : starterPlanForBusinessType(businessType);
   const existing = await prisma.mix.findFirst({
     where: { workspaceId, source: "STARTER", status: { not: "ARCHIVED" }, ...((reason || marketingScenario) ? { name: draft.title } : {}) },
     orderBy: { createdAt: "asc" }
