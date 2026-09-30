@@ -82,3 +82,5 @@ The prices come from Kevin's local-only proposal, `assets/Jump_in_the_Mix_Brand_
 | "Free beta. No card required." | Access | JITM-02 §2.16, §2.18, D28 | Verified |
 
 The page describes no offers in structured data, keeps prices out of the social card, and names no start date, trial, discount or treatment of beta accounts.
+
+**This change:** branch `copy/show-prices-20260929`, pull request #103, stacked on #98.
