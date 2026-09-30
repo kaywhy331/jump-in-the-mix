@@ -2,7 +2,7 @@
 
 A new account's one-person onboarding form said "Unsaved changes. Save before leaving this page." before the person had typed anything. The shared form guard now counts changes only from the person's first action on the page. This was follow-up 2 of the [one-person onboarding record](ONBOARDING_ONE_PERSON_FIRST_IMPLEMENTATION_2026-09-29.md).
 
-**Status:** built and verified locally; not merged and not released. The release is a separate task (WF-06). It is code-only, with no migration.
+**Status:** merged on 2026-09-30 as `cb694a9`; not released. The release is a separate task (WF-06). It is code-only, with no migration.
 
 | Item | Value |
 | --- | --- |

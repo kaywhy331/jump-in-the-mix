@@ -39,7 +39,7 @@ The prices come from Kevin's local-only proposal, `assets/Jump_in_the_Mix_Brand_
 - Refunds, cancellation timing, the grace period after a failed payment, and deleting an account that has a paid plan.
 - Activating Stripe for live payments: business details, payouts and receipts.
 
-## Public copy in this change, for Kevin's approval
+## Public copy in this change, approved by Kevin on 2026-09-30 (O13)
 
 **FAQ, "Does it cost anything to join?"** (`src/app/faq/page.tsx`)
 - Before: "Not during the beta. Joining the waitlist and creating your account are free, and no card is required. Prices after the beta haven't been set."
@@ -73,14 +73,14 @@ The prices come from Kevin's local-only proposal, `assets/Jump_in_the_Mix_Brand_
 
 | Claim | Type | Proof | Status |
 | --- | --- | --- | --- |
-| The three plans, their prices and yearly prices | Price | Kevin's choices above | Decided by Kevin; the wording awaits his approval |
+| The three plans, their prices and yearly prices | Price | Kevin's choices above | Decided by Kevin; wording approved 2026-09-30 (O13) |
 | The limits and how they count, including "a Mega-Mix counts as one Mix" | Price and product | Kevin's choices; his proposal §8 | Decided; enforced only once charging starts, in a later change |
 | "Paid plans haven't started yet" | Price | Nothing can be bought: there is no checkout in production | Verified |
-| "You're charged only if you choose a paid plan"; "No card needed" for Free | Price | Charging will need a checkout the owner completes for a paid plan; Free needs none | Design of the checkout change; needs Kevin's approval |
-| "Reaching a limit never removes anything…" | Product promise | Kevin's proposal §8: limits restrict new additions, never access | Needs Kevin's approval; implemented with the limits |
+| "You're charged only if you choose a paid plan"; "No card needed" for Free | Price | Charging will need a checkout the owner completes for a paid plan; Free needs none | Approved 2026-09-30 (O13); charging needs the checkout (PR #104) |
+| "Reaching a limit never removes anything…" | Product promise | Kevin's proposal §8: limits restrict new additions, never access | Approved 2026-09-30 (O13); enforced by the plan limits, still to build |
 | "Every plan includes" items | Product | Shipped features in JITM-01 §2.22 | Verified |
 | "Free beta. No card required." | Access | JITM-02 §2.16, §2.18, D28 | Verified |
 
 The page describes no offers in structured data, keeps prices out of the social card, and names no start date, trial, discount or treatment of beta accounts.
 
-**This change:** branch `copy/show-prices-20260929`, pull request #103, stacked on #98.
+**This change:** branch `copy/show-prices-20260929`, pull request #103, merged on 2026-09-30 as `174386f`.

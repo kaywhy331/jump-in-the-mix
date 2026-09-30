@@ -2,9 +2,9 @@
 id: JITM-02
 title: ICP and positioning
 status: active
-version: 2.1.0
+version: 2.1.1
 owner: Kevin
-last_reviewed: 2026-09-29
+last_reviewed: 2026-09-30
 applies_to: [marketing, public-pages, profession-pages, onboarding, copy, product-decisions]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -116,7 +116,7 @@ The hook comes from the owner-supplied strategy (`assets/Jump_in_the_Mix_Brand_S
 - private notes stay out of messages;
 - you can export your data or delete your account;
 - joining and creating an account are free, with no payment card;
-- the plans: Free at $0, Plus at $15 a month or $144 a year, Pro at $29 a month or $288 a year; paid plans haven't started; you're charged only if you choose a paid plan (Kevin approves the exact wording);
+- the plans: Free at $0, Plus at $15 a month or $144 a year, Pro at $29 a month or $288 a year; paid plans haven't started; you're charged only if you choose a paid plan (wording approved 2026-09-30, O13);
 - access is by a member's invitation or the waitlist, with no promised date; each member has three personal invitations;
 - optional notifications stay off until you turn them on;
 - you record what happened;
@@ -195,3 +195,4 @@ Known deviations at 9439fd6:
 - 2.0.0 — 2026-09-28 — Base 61d4df4. "Stay in the mix" is the brand line, paired with a literal description (§2.14, D22). "No card required" confirmed beside free-beta and access wording (§2.18, D28).
 - 2.0.1 — 2026-09-29 — Base 9f967bc. §6: asks whether §2.18 allows the approved FAQ sentence about prices after the beta (O8).
 - 2.1.0 — 2026-09-29 — Base dc81d10. §2.16 adds the plans; §2.18 lets copy state Kevin's prices and says what it still must not promise. §6: the O8 question about the FAQ price sentence is answered (docs/PRICING_DECISION_2026-09-29.md).
+- 2.1.1 — 2026-09-30 — Base 94b9539. §2.16: Kevin approved the plans wording (O13).
