@@ -14,6 +14,16 @@ async function signIn(page: Page) {
   ]);
 }
 
+// Plan and billing is the one approved billing surface (docs/PRICING_DECISION_2026-09-29.md): its card on My account
+// links to /account/billing. The rest of the page keeps out the retired commercial, team and provider wording.
+async function mainTextOutsidePlanCard(page: Page) {
+  return page.locator("main").evaluate((main) => {
+    const copy = main.cloneNode(true) as HTMLElement;
+    copy.querySelectorAll("section:has(a[href='/account/billing'])").forEach((card) => card.remove());
+    return copy.textContent ?? "";
+  });
+}
+
 test("retired commercial, team, provider, and sharing routes stay unavailable", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The retired route boundary is exercised once.");
   await signIn(page);
@@ -22,7 +32,8 @@ test("retired commercial, team, provider, and sharing routes stay unavailable", 
     await page.goto(`/account?section=${section}`);
     expect(new URL(page.url()).pathname).toBe("/account");
     await expect(page.getByRole("heading", { name: "My account" })).toBeVisible();
-    await expect(page.locator("main")).not.toContainText(new RegExp(section, "i"));
+    await expect(page.locator("main a[href='/account/billing']")).toHaveCount(1);
+    expect(await mainTextOutsidePlanCard(page)).not.toMatch(new RegExp(section, "i"));
   }
 
   for (const route of [
@@ -31,7 +42,6 @@ test("retired commercial, team, provider, and sharing routes stay unavailable", 
     "/join",
     "/api/billing/checkout",
     "/api/integrations/google/status",
-    "/api/webhooks/stripe",
     "/mixes/wizard",
     "/mixes/example/share",
     "/r/example"
@@ -39,12 +49,15 @@ test("retired commercial, team, provider, and sharing routes stay unavailable", 
     const response = await page.goto(route);
     expect(response?.status(), route).toBe(404);
   }
+  // The Stripe webhook exists for billing and accepts only signed POSTs (refused while billing is off: plan-and-billing.spec.ts).
+  expect((await page.request.get("/api/webhooks/stripe")).status()).toBe(405);
 
   // Personal invitations (three per member) are a live feature; team and member invitations are not.
   const prohibited = /\b(?:billing|subscription|checkout|invoice|upgrade|downgrade|team|members|team invitations|member invitations|organization|stripe|google contacts|ai provider)\b/i;
   for (const route of ["/jumps", "/contacts", "/mixes", "/templates", "/more", "/settings", "/account"]) {
     await page.goto(route);
-    await expect(page.locator("main")).not.toContainText(prohibited);
+    await expect(page.locator("main")).toBeVisible();
+    expect(await mainTextOutsidePlanCard(page), route).not.toMatch(prohibited);
   }
 });
 
