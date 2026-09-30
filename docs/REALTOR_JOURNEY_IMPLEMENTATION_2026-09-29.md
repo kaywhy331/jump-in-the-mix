@@ -2,7 +2,7 @@
 
 A realtor's onboarding now starts from a Real estate journey curated for the work, and the Real estate Mega-Mix is rebuilt with separate buyer and seller paths. Before this change, a new realtor's first prepared text read "…just checking that you received the estimate from my business" (ONB-10 in the [one-person onboarding record](ONBOARDING_ONE_PERSON_FIRST_IMPLEMENTATION_2026-09-29.md)).
 
-**Status:** built and verified locally; not merged and not released. The new message wording needs Kevin's approval before merge (JITM-04 §2.31). The release is a separate task (WF-06). It is code-only, with no migration.
+**Status:** merged on 2026-09-30 as `20be467`, after Kevin approved the wording (O13 in the owner decisions); not released. The release is a separate task (WF-06). It is code-only, with no migration.
 
 | Item | Value |
 | --- | --- |
@@ -44,7 +44,7 @@ A realtor's onboarding now starts from a Real estate journey curated for the wor
 - Other business types keep the general list.
 - The starter preview says "1 day after" instead of "1 days after".
 
-## Wording for Kevin's approval
+## Wording Kevin approved on 2026-09-30 (O13)
 
 Register: the owner's personal wording. Texts and emails are first person, and "we" appears only as "you and I" ("before we meet"). Call Beats are private talking points. Facts the owner must supply are placeholders in brackets. Nothing states a price, a result, a deadline, lending, legal or tax advice, or anything about a neighborhood's people or schools.
 

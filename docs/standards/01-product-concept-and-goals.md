@@ -2,9 +2,9 @@
 id: JITM-01
 title: Product concept, goals and non-goals
 status: active
-version: 2.2.0
+version: 2.2.1
 owner: Kevin
-last_reviewed: 2026-09-29
+last_reviewed: 2026-09-30
 applies_to: [product, features, onboarding, access, marketing, agents]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -207,9 +207,6 @@ Known deviations at 9439fd6:
 - `README.md:5` still names the superseded contract, and `README.md:17` lists optional email/SMS delivery without saying it is off for the beta. The copy batch (PR #96) removed "Plans" from `README.md:11`.
 - `docs/CANONICAL_PRODUCT_DECISIONS.md:12,135,149` still says five member invitations sent by email.
 
-Known deviation from the billing change (`docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md`):
-- JITM-09 §2.65 doesn't yet name Plan and billing (`/account/billing`), which My account links to. Update it after PR #102, which also changes JITM-09, merges.
-
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
@@ -218,3 +215,4 @@ Known deviation from the billing change (`docs/STRIPE_BILLING_IMPLEMENTATION_202
 - 2.0.2 — 2026-09-29 — Base 9f967bc. §2.22: the feature map names Contact stages, whose role D16 settled. §6: `README.md` no longer lists "Plans" (PR #96, O8). Its superseded-contract and delivery lines remain.
 - 2.1.0 — 2026-09-29 — Base dc81d10. §2.9 records Kevin's plans, prices and limits, with charging off until he chooses a start date; §2.20, §2.22, §4 and §6 follow (docs/PRICING_DECISION_2026-09-29.md).
 - 2.2.0 — 2026-09-29 — Base db54cc7. Payments are built but off (§2.20, §2.22); §3 names the billing sync; §6 notes that JITM-09 §2.65 must name Plan and billing (docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md).
+- 2.2.1 — 2026-09-30 — Base 94b9539. §6: JITM-09 §2.65 now names Plan and billing, so that deviation is gone.

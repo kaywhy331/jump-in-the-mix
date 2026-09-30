@@ -2,7 +2,7 @@
 
 The app can now sell Kevin's paid plans through Stripe's hosted checkout and billing portal, and keeps each account's plan in step with Stripe. Everything stays off until `BILLING_ENABLED=true`. Kevin sets that on the date he chooses charging to start. The runbook is [Billing with Stripe](BILLING.md).
 
-**Status:** built and verified locally; not merged and not released. Charging is off; production gains only the new tables and the Plan and billing page in its free-beta state.
+**Status:** merged on 2026-09-30 as `94b9539`; not released. Charging is off; a release adds only the new tables and the Plan and billing page in its free-beta state.
 
 | Item | Value |
 | --- | --- |

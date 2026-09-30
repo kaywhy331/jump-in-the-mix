@@ -2,9 +2,9 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 2.1.0
+version: 2.2.0
 owner: Kevin
-last_reviewed: 2026-09-29
+last_reviewed: 2026-09-30
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
 supersedes: [docs/UX_WORKFLOW_OPTIMIZATION.md]
 sources:
@@ -242,7 +242,7 @@ Shipped Journey still numbers per Mega-Mix view (§6). [OWNER 2026-09-28 D21] [O
 
 **2.64** Staff MUST see a workspace only in a view-only session opened from an assigned support case. The app shows a banner, blocks every change, hides Quick Add and invitation prompts, and offers End view-only session. [SOURCE docs/SUPPORT_CASE_ACCESS.md:3-13] [SHIPPED 9439fd6 src/components/AppShell.tsx:84-92] [SHIPPED 9439fd6 src/app/(app)/layout.tsx:13]
 
-**2.65** My account (`/account`) MUST hold profile, password, sessions, export (spreadsheet or complete JSON) and permanent deletion after reauthentication, which ends at `/account/deleted`. Personal preferences (`/account/preferences`) holds the browser-level appearance control (JITM-06 §2.26), profile, Starting mixes, Quiet-day check-ins, Journey preferences and scheduling defaults. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:111] [SHIPPED 9439fd6 src/app/(app)/account/preferences/page.tsx:53-63]
+**2.65** My account (`/account`) MUST hold profile, password, sessions, export (spreadsheet or complete JSON) and permanent deletion after reauthentication, which ends at `/account/deleted`, and it links to Plan and billing (`/account/billing`). While billing is off, Plan and billing explains the free beta and offers nothing to buy; while it is on, the owner buys a plan on Stripe's checkout and manages it in Stripe's billing portal (JITM-01 §2.9, JITM-11 §2.53–§2.55). Personal preferences (`/account/preferences`) holds the browser-level appearance control (JITM-06 §2.26), profile, Starting mixes, Quiet-day check-ins, Journey preferences and scheduling defaults. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:111] [SHIPPED 9439fd6 src/app/(app)/account/preferences/page.tsx:53-63] [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:12]
 
 **2.66** The staff console (`/admin/…`) MUST require staff membership and administrator MFA. Its workflows follow the runbooks in §3, not this standard. [SOURCE docs/WAITLIST_OPERATIONS.md:71] [SHIPPED 9439fd6 src/app/(staff)/layout.tsx:12]
 
@@ -314,3 +314,4 @@ Known deviations:
 - 2.0.1 — 2026-09-29 — Base 722d64b. Onboarding on `main` now recommends one person and one follow-up and offers a complete Mega-Mix afterward (B-17), so §2.20 and §6 no longer list the Mega-Mix-first deviation. Production follows at the release that includes it.
 - 2.0.2 — 2026-09-29 — Base 9f967bc. §2.20 records Kevin's confirmation of where the optional Mega-Mix step appears and which Mega-Mix it names (O9). §6 drops the More and Settings Customer journey labels and the old demo text, which the copy batch fixed (PR #96, O8), and adds the three "customer journey" links that remain.
 - 2.1.0 — 2026-09-29 — Base dc81d10. §2.20: a business type with its own curated journey starts onboarding from it; Real estate starts from the Real estate Mega-Mix. §2.43: the Real estate Mega-Mix has separate buyer and seller paths (Kevin, 2026-09-29). §6 asks about the other business types.
+- 2.2.0 — 2026-09-30 — Base 94b9539. §2.65: My account links to Plan and billing (`/account/billing`), shipped in PR #104 (O10).
