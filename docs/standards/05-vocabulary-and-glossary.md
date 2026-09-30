@@ -2,9 +2,9 @@
 id: JITM-05
 title: Vocabulary and glossary
 status: active
-version: 2.0.0
+version: 2.0.1
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-09-29
 applies_to: [copy, interface-text, help, public-pages, email, onboarding, customer-docs]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md, CONTRIBUTING.md#product-language]
 sources:
@@ -167,21 +167,19 @@ grep -rnE "Important Date|[Cc]ampaign|\b[Cc]ue\b|[Tt]empo" src/app src/component
 Open questions for Kevin:
 - The account holder is a "member" in some standards (JITM-01 §2.8) and an "owner" in others (JITM-09 §2.17). Which word should copy use?
 - Should the glossary sheet appear on Today, the contact page and onboarding (§2.17)?
-- Please confirm the wording of the plain meanings in §2.2; the sheet and Help would adopt it.
+- Please confirm the wording of the plain meanings in §2.2. The glossary sheet and Help adopted it in the copy batch (PR #96).
 
-Known deviations at 9439fd6 (the drift baseline counts 67 canonical and 31 variant Mega-Mix spellings):
+Known deviations, rechecked at 9f967bc after the copy batch (PR #96) and its casing follow-up (PR #99):
 - Journey labels change with the view, against the account-wide labels of JITM-09 §2.54 (D21; backlog B-13).
 - The Ready-made mixes library keeps its own entries in More and Mix tools, against §2.5 and JITM-09 §2.74 (D29; backlog B-19).
-- The glossary sheet defines Today as "Your list of Beats that are due", spells "Mega-mix" and calls a Beat "One step in a Mix" (`src/components/BrandTermsHelp.tsx:7-11`). The public reminders page also says Today "shows the Beats due today" (`src/app/features/follow-up-reminders/page.tsx:23`).
-- Help uses retired words: "A mix is a follow-up campaign… Each step is a beat. Tempo…", "Remix it", "cue and loop", "set its cue" (`src/lib/support-content.ts:44-46,52`). Ready-made previews show "Cue day", "Cue · starts" and "Tempo · span" (`src/components/SharedMixPreview.tsx:15,74,76`), plus "Set the tempo" and "Your remix is ready to edit." (`src/components/PlanApproachGuide.tsx:13`; `src/components/MixWorkspace.tsx:81`). Work shows "Waiting for its timing anchor" (`src/components/WorkflowProgress.tsx:23`), and a contact page offers "Start a touchpoint" (`src/components/ContactProfile.tsx:145`).
-- "Plan" names a Mix in the app: "Name your plan", "Review your plan" (`src/components/TemplateUseForm.tsx:86,104`), "Review your first plan" (`src/components/StarterPreview.tsx:24,30`), "Follow-up plan for this visit", "No plan" (`src/components/CalendarEntryForm.tsx:101`), "Plan details & messages" (`src/app/(app)/templates/[sharedMixId]/use/page.tsx:48`).
-- Standards that quote shipped labels (for example JITM-07 §2 and JITM-09 §2) keep the shipped casing; the labels change when the copy pass fixes them.
-- Lowercase and variant spellings: "My mixes" (`src/components/MixLibraryNav.tsx:12`), "Create your first mix" (`src/app/(app)/mixes/page.tsx:76`), "Choose a complete mega-mix" (`src/app/(app)/mixes/page.tsx:58`), "A complete mega-mix · Recommended" (`src/components/OnboardingForm.tsx:39`), "Mega-mixes" (`src/components/MegaMixLibrary.tsx:22-24`).
-- More labels Journey "Customer journey: Track stages and let milestones start the right follow-ups", and Settings calls the stage settings "Customer journey"; D16 names them Contact stages. Both are contrary to D4 (`src/app/(app)/more/page.tsx:13`), and writes "My Account" where the navigation says "My account" (`src/app/(app)/more/page.tsx:19`; `src/components/Nav.tsx:21`).
-- `START_HERE.md:70` still says "Important Dates" and "generated Jumps"; `README.md:11` lists "Plans".
+- Retired words remain, against §2.10: "On the cue day" and "on the cue day" when adding a ready-made Mix (`src/components/TemplateUseForm.tsx:86,114`), "with the cue" on the appointment form (`src/components/CalendarEntryForm.tsx:102`), "Loop · repeat this date" on the contact page (`src/components/ContactProfile.tsx:251,256`) and "touchpoint" in the recruiter page's meta description (`src/lib/persona-mixes.ts:199`).
+- Three links still say "customer journey", against D4 and D16: "Set up your customer journey" and "customer journey rules" open Contact stages (`src/components/ContactJourneyPanel.tsx:12`; `src/app/(app)/settings/connections/page.tsx:55`), and "Customer journey" opens the Journey map (`src/components/ContactsBulkWorkspace.tsx:161`).
+- Mixes added from a Mega-Mix are saved with the goal "Customer journey" and the approach "Mega-mix", and the Mix editor shows both (`src/lib/mega-mix-service.ts:44`; `src/lib/marketplace-service.ts:149`; `src/components/MixEditor.tsx:214,216`).
+- The Mega-Mix library's pane button says "Mega-mixes" and its count says "{n} connected mixes" (`src/components/MegaMixLibrary.tsx:23,25`), against §2.13 and §2.14.
 - The superseded tables remain in `docs/CANONICAL_PRODUCT_DECISIONS.md:40-50` and `CONTRIBUTING.md:61-70`.
 
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 2.0.0 — 2026-09-28 — Base 61d4df4. Ready-made content is found in the Marketplace's Jump in the Mix section (§2.5, D29); stage settings are Contact stages (D16); §6 updated for D21.
+- 2.0.1 — 2026-09-29 — Base 9f967bc. §6: the copy batch (PR #96, O8) and PR #99 fixed the glossary sheet, Help's retired words, "plan" for a Mix, the More and Settings labels for Journey and Contact stages, "My Account", `START_HERE.md` and `README.md` "Plans", and most lowercase spellings. Those entries are removed, and standards no longer quote the old casing. The retired words, "customer journey" links and Mega-Mix spellings found by the release review are listed.

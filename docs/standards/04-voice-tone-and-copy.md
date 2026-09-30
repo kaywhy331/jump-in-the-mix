@@ -2,9 +2,9 @@
 id: JITM-04
 title: Voice, tone and copy
 status: active
-version: 1.0.1
+version: 1.0.2
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-09-29
 applies_to: [copy, interface-text, email, help, public-pages, onboarding, ready-made-mixes, marketing, agents]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -181,18 +181,14 @@ Neighboring topics live elsewhere:
 
 Open questions for Kevin:
 - Should texts have a length limit? Only a 900-character phone warning ships (`src/components/EditableFollowUpAction.tsx:429`).
-- Kevin chose one coordinated copy batch (D14): the automation claim, the retired demo text, the third-party names and the vocabulary below are fixed together, with template availability and deadline claims checked against §2.20. The descriptive labels that replace third-party names are proposed in that batch's pull request for his review.
 
-Known deviations at 9439fd6:
-- The reminders page promises sending "unless you connect an optional sending provider and turn that on", but automatic sending is off during the beta (`src/app/features/follow-up-reminders/page.tsx:37`). The Settings hub and the sending page call automatic sending optional and suggest contacting support to set it up (`src/app/(app)/settings/page.tsx:17`; `src/app/(app)/settings/sending/page.tsx:28,31`).
-- The template and reminders pages describe the retired four-Beat demo that opened messaging apps: "The sample estimate Mix in the demo runs like this" (`src/app/follow-up-templates/estimate-follow-up/page.tsx:31-36`), "Each page plays a demo with that profession's own Mixes" (`src/app/follow-up-templates/page.tsx:41`), "In the demo, open a planned Beat and choose its date" (`src/app/features/follow-up-reminders/page.tsx:44`), and "Nothing goes out unless you open your own messaging app" (`src/app/follow-up-templates/page.tsx:48`; `src/app/follow-up-templates/estimate-follow-up/page.tsx:48`; `src/app/features/follow-up-reminders/page.tsx:46`). The three-Beat demo that replaced it on 2026-09-19 sends and opens nothing (`docs/design/DEMO_WORKSPACE_2026-09-19.md:3,9`).
-- Ready-made plan guides show third-party sales-method names, authors and source links, and library search matches author names (`src/components/PlanApproachGuide.tsx:12,17`; `src/lib/sales-approaches.ts`; `src/lib/sales-plan-library.ts:297`). D7 covers product copy.
-- Profession Mix wording asserts facts without an "only if true" cue ("your date is still open", "The wedding was just featured", "the dates we talked about are starting to fill", "I have a couple of people worth a conversation") (`src/lib/persona-mixes.ts:133,149,172,217`). Only a chosen example's first message reaches an account today.
-- Profession demo drafts say "just checking in about {topic}" (`src/lib/demo-workspace.ts:49`), against §2.18.
-- The waitlist confirmation page promises to tell people "the moment it's your turn" (`src/app/waitlist/confirm/page.tsx:10`), against §2.15.
-- Help calls a Mix "a follow-up campaign" (`src/lib/support-content.ts:44`); JITM-05 §6 lists the vocabulary deviations.
+Known deviations at 9f967bc. The copy batch (PR #96, merged 2026-09-29 as 65f2c96, approved by Kevin as O8) fixed each one listed at 9439fd6. The review of the release that shipped it found these:
+- The appointment form says a visit's Mix sends nothing automatically "unless you turn that on for this visit", but no such control exists (`src/components/CalendarEntryForm.tsx:101`), against §2.28.
+- The sending page's status card says "Automatic sending on" and "Your Mixes can send for you" whenever the saved preference is on, even when no automatic channel is available, as in production during the beta. The card below it says "Off during the beta" (`src/app/(app)/settings/sending/page.tsx:28,30`), against §2.28.
+- A copy of a ready-made Mix stores the library record's approach value, and the Mix editor shows it under "Internal approach (optional)" without the descriptive label the library shows (`src/lib/shared-mix-use-service.ts:85`; `src/components/MixEditor.tsx:216`; `src/lib/sales-approaches.ts:44-55`). Library records added before 2026-09-28 still store the retired labels, which name third-party methods, so copies made from them show those names, against §2.34.
 
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.5 confirmed, with "you" for interface instructions (D23); §2.20 names deadlines (D14); §6 updated.
+- 1.0.2 — 2026-09-29 — Base 9f967bc. §6: the D14 copy batch is approved (O8) and merged (PR #96). The resolved question and the seven 9439fd6 deviations it fixed are removed. Three deviations found by the release review are added.

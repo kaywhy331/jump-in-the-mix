@@ -2,9 +2,9 @@
 id: JITM-02
 title: ICP and positioning
 status: active
-version: 2.0.0
+version: 2.0.1
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-09-29
 applies_to: [marketing, public-pages, profession-pages, onboarding, copy, product-decisions]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -180,6 +180,7 @@ Open questions for Kevin:
 - Should the public audience phrase stay "for independent professionals", or name owner-operators, trades and solo real estate (D2)?
 - Should the social card be regenerated around the current category? JITM-03 §2 owns the artwork; the wording needs your approval.
 - Should public copy changed since the 2026-09-18 claim review (the homepage access note on 2026-09-25, the FAQ sending answer on 2026-09-26) get a dated claim review?
+- The FAQ answer Kevin approved in the copy batch (O8) ends "Prices after the beta haven't been set." (`src/app/faq/page.tsx:29`). §2.18 says copy must not state or imply what happens after the beta. Should §2.18 allow this sentence, or should the FAQ drop it?
 
 Known deviations at 9439fd6:
 - The social sharing card and its alt text carry the 2026-09-07 positioning: "For the people who matter", "Good relationships have a rhythm.", "Business · Personal · Your network" (`scripts/generate-brand-assets.mjs:27-32`; `src/lib/public-seo.ts:15`).
@@ -192,3 +193,4 @@ Known deviations at 9439fd6:
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 2.0.0 — 2026-09-28 — Base 61d4df4. "Stay in the mix" is the brand line, paired with a literal description (§2.14, D22). "No card required" confirmed beside free-beta and access wording (§2.18, D28).
+- 2.0.1 — 2026-09-29 — Base 9f967bc. §6: asks whether §2.18 allows the approved FAQ sentence about prices after the beta (O8).

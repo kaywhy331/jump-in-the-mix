@@ -2,7 +2,7 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 2.0.1
+version: 2.0.2
 owner: Kevin
 last_reviewed: 2026-09-29
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
@@ -109,7 +109,7 @@ Automatic delivery never claims these reminders. Wording: JITM-04 §2. [OWNER 20
 
 ### Onboarding to the first prepared follow-up
 
-**2.20** Onboarding (`/onboarding`) MUST recommend one person and one follow-up first, so a tester sees the core value before configuring a whole system. Setting up a complete Mega-Mix, suggested from the business type or the marketing example the person chose, stays available as an optional next step, as does Choose individual mixes. Save answers and finish later and Skip for now stay available. The recommendation is a usability hypothesis: observe whether testers prepare their first useful follow-up without help. [OWNER 2026-09-28 D26] [OWNER 2026-09-22 docs/ONBOARDING_JOURNEY_PREFERENCES_2026-09-22.md:5] [OWNER 2026-09-22 docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:8] [SHIPPED 9439fd6 src/components/OnboardingForm.tsx:39-40,47,88] [SHIPPED 9439fd6 src/components/MegaMixSetup.tsx:25]
+**2.20** Onboarding (`/onboarding`) MUST recommend one person and one follow-up first, so a tester sees the core value before configuring a whole system. Setting up a complete Mega-Mix, suggested from the business type or the marketing example the person chose, stays available as an optional next step, as does Choose individual mixes. Save answers and finish later and Skip for now stay available. The recommendation is a usability hypothesis: observe whether testers prepare their first useful follow-up without help. Once the first follow-up is ready, Today's welcome offers that next step. It names the Mega-Mix matching the marketing example, or the business type when exactly one Mega-Mix fits it; otherwise it opens the Mega-Mix list. It is not offered for personal-only use or when the account already has a Mega-Mix. [OWNER 2026-09-29 O9] [OWNER 2026-09-28 D26] [OWNER 2026-09-22 docs/ONBOARDING_JOURNEY_PREFERENCES_2026-09-22.md:5] [OWNER 2026-09-22 docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:8] [SHIPPED 9439fd6 src/components/OnboardingForm.tsx:39-40,47,88] [SHIPPED 9439fd6 src/components/MegaMixSetup.tsx:25]
 
 **2.21** The Mega-Mix route MUST run:
 1. preferences (communication, spacing, working days and hours, timezone, preferred time, quiet times, appointment buffers), saved and reused for later Mega-Mixes;
@@ -299,12 +299,11 @@ Decided on 2026-09-28 (D15, D16, D21, D26, D29) but not yet built or verified; e
 - Journey people-row details sit only in a hover tooltip (`src/components/WorkflowPeople.tsx:32`), against JITM-10 §2.17 (B-05).
 
 Known deviations:
-- More labels `/journey` "Customer journey" and describes stages; Settings and its page use "Customer journey" for stage settings (`src/app/(app)/more/page.tsx:13`; `src/app/(app)/settings/page.tsx:11`).
+- Three links still say "customer journey" for Contact stages or the Journey map, against §2.7 and D4 (JITM-05 §6 lists them).
 - INFERRED: `/marketplace` marks no primary destination, and desktop Journey and Calendar pages mark More as well (`src/components/Nav.tsx:40`).
 - INFERRED: during a support view the phone tab bar still shows Quick Add, but no dialog is mounted (`src/components/Nav.tsx:41`; `src/components/AppShell.tsx:96`).
 - Operations docs still describe five emailed invitations or count them in capacity (`docs/SYSTEM_MIX_ADMINISTRATION.md:11,25,29`; `docs/WAITLIST_OPERATIONS.md:18-19,52`; `docs/ADMISSION_CONTROLS.md:19,29`).
 - Superseded descriptions remain: Quick Add handing off to the contact form (`docs/VOICE_WORKFLOWS.md:7`), authored-only channel versions (`docs/FOLLOW_UP_PREPARATION_STORAGE_CONTRACT.md:193,201`), 30-day-only Results (`docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:26`), "Later this week" on Today (`docs/design/DESIGN_GUIDELINES.md:24`) and real estate as the homepage default (`docs/HOMEPAGE_EXPERIENCE_ROADMAP_2026-09-10.md:85`).
-- Template and reminder pages describe an older demo that opens a messaging app (`src/app/follow-up-templates/page.tsx:41,48`; `src/app/features/follow-up-reminders/page.tsx:44,46`).
 - Nothing leads from a finished import to Today (LOOP-06, `docs/BETA_READINESS_AUDIT_2026-09-26.md:198`).
 
 ## 7. Changelog
@@ -312,3 +311,4 @@ Known deviations:
 - 1.0.0 — 2026-09-28 — Initial version.
 - 2.0.0 — 2026-09-28 — Base 61d4df4. Kevin's second packet: reports hide at once only for verified-email private-information reports (§2.49, D15); new §2.70 publishing authority; Contact stages (§2.7, §2.51, D16); invitation email after Send invitation (§2.18, D26); onboarding recommends one person and one follow-up (§2.20, D26); account-wide numbering (§2.54, D21); owner-chosen targets (§2.58, D26); new §2.71–§2.73 status, resume and early-update rules (D26); new §2.74 one Marketplace destination (D29).
 - 2.0.1 — 2026-09-29 — Base 722d64b. Onboarding on `main` now recommends one person and one follow-up and offers a complete Mega-Mix afterward (B-17), so §2.20 and §6 no longer list the Mega-Mix-first deviation. Production follows at the release that includes it.
+- 2.0.2 — 2026-09-29 — Base 9f967bc. §2.20 records Kevin's confirmation of where the optional Mega-Mix step appears and which Mega-Mix it names (O9). §6 drops the More and Settings Customer journey labels and the old demo text, which the copy batch fixed (PR #96, O8), and adds the three "customer journey" links that remain.
