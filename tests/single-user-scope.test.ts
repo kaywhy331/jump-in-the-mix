@@ -18,8 +18,10 @@ function sourceFiles(directory: string): string[] {
 const activeProductFiles = [...sourceFiles("src/app"), ...sourceFiles("src/components")].sort();
 const activeProductSource = activeProductFiles.map((path) => `${path}\n${read(path)}`).join("\n");
 
+// Kevin set the plans on 2026-09-29 (docs/PRICING_DECISION_2026-09-29.md), so the pricing page and the FAQ may say
+// "pricing" and "paid plan". Charging stays off until he chooses a start date, so the rest stays out of the app.
 const retiredCommercialTerms = [
-  "billing", "stripe", "pricing", "checkout", "invoice", "paid plan", "paid tier",
+  "billing", "stripe", "checkout", "invoice", "paid tier",
   "upgrade", "downgrade", "google contacts", "ai mix", "referral rewards",
   "invite member", "workspace switcher", "transfer ownership"
 ];

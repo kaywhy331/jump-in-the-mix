@@ -29,6 +29,30 @@ test("template and feature pages are public, titled, canonical and copyable", as
   }
 });
 
+test("the pricing page and the FAQ state the plans without offering checkout", async ({ page }) => {
+  const response = await page.goto("/pricing");
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveTitle("Plans and pricing | Jump in the Mix");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Plans and pricing");
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", /\/pricing$/);
+  await expect(page.locator(".pricing-card h2")).toHaveText(["Free", "Plus", "Pro"]);
+  await expect(page.locator(".pricing-price")).toHaveText(["$0", "$15 a month", "$29 a month"]);
+  await expect(page.locator(".pricing-yearly")).toHaveText(["No card needed", "or $144 a year", "or $288 a year"]);
+  await expect(page.locator(".pricing-limits").first()).toHaveText(/Up to 100 people with follow-ups\s*Up to 3 active Mixes/);
+  await expect(page.getByRole("main")).toContainText("Paid plans haven’t started yet");
+  await expect(page.getByRole("main").getByRole("link", { name: "Join the waitlist" })).toHaveAttribute("href", "/waitlist");
+  await expect(page.getByRole("button", { name: /buy|subscribe|upgrade|choose/i })).toHaveCount(0);
+  await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(0);
+  expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
+  await page.goto("/faq#cost");
+  const cost = page.locator("#cost");
+  await cost.locator("summary").click();
+  await expect(cost.locator("p")).toHaveText("Not during the beta. Joining the waitlist and creating your account are free, and no card is required. Paid plans haven’t started yet. When they do, the plans are Free ($0), Plus ($15 a month) and Pro ($29 a month), and you’re charged only if you choose a paid plan. See the plans.");
+  await Promise.all([page.waitForURL(/\/pricing$/), cost.getByRole("link", { name: "See the plans" }).click()]);
+  await expect(page.locator(".public-footer a[href='/pricing']")).toHaveText("Pricing");
+});
+
 test("the homepage explains the mechanism, links the routes and carries accurate structured data", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Put client follow-up into a rhythm." })).toBeVisible();
