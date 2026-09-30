@@ -6,7 +6,7 @@ A realtor's onboarding now starts from a Real estate journey curated for the wor
 
 | Item | Value |
 | --- | --- |
-| Branch | `feat/realtor-journey-20260929` |
+| Branch | `feat/realtor-journey-20260929`, pull request #102 |
 | Base | `docs/copy-onboarding-approvals-20260929` (PR #98), because both change JITM-09. Merge #98 first, then retarget this pull request to `main` (JITM-13 §2.16) |
 | Code commits | `acf7110` (the Real estate Mega-Mix) and `1c9b109` (the onboarding start) |
 | Decision | Kevin, 2026-09-29, on which follow-up each business type starts with: "Realtor should follow a journey that is tailored and curated for that particular field of work." Asked how far to go, he chose "Rebuild the realtor journey": realtors start from real-estate follow-ups, each taken from a Real estate Mega-Mix rebuilt with separate buyer and seller paths. |
