@@ -1,0 +1,38 @@
+// Plans and Stripe billing (Kevin, 2026-09-29; docs/PRICING_DECISION_2026-09-29.md). Charging stays off until
+// BILLING_ENABLED is set. A workspace without a row is on Free, and only a verified Stripe subscription changes that.
+model WorkspaceBilling {
+  workspaceId          String           @id
+  stripeCustomerId     String?          @unique
+  stripeSubscriptionId String?          @unique
+  plan                 BillingPlan      @default(FREE)
+  interval             BillingInterval?
+  subscriptionStatus   String?
+  currentPeriodEnd     DateTime?
+  cancelAt             DateTime?
+  syncedAt             DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  workspace            Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+// Each verified Stripe event is processed once; a retried delivery finds its id and is acknowledged.
+model StripeWebhookEvent {
+  id          String    @id
+  type        String
+  customerId  String?
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([receivedAt])
+}
+
+enum BillingPlan {
+  FREE
+  PLUS
+  PRO
+}
+
+enum BillingInterval {
+  MONTH
+  YEAR
+}

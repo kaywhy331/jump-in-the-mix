@@ -18,11 +18,10 @@ function sourceFiles(directory: string): string[] {
 const activeProductFiles = [...sourceFiles("src/app"), ...sourceFiles("src/components")].sort();
 const activeProductSource = activeProductFiles.map((path) => `${path}\n${read(path)}`).join("\n");
 
-// Kevin set the plans on 2026-09-29 (docs/PRICING_DECISION_2026-09-29.md), so the pricing page and the FAQ may say
-// "pricing" and "paid plan". Charging stays off until he chooses a start date, so the rest stays out of the app.
+// Kevin set the plans on 2026-09-29 (docs/PRICING_DECISION_2026-09-29.md): the pricing pages and Plan and billing may
+// name prices, Stripe, checkout, billing and invoices. Tiers stay the three plans, and nothing "upgrades" features.
 const retiredCommercialTerms = [
-  "billing", "stripe", "checkout", "invoice", "paid tier",
-  "upgrade", "downgrade", "google contacts", "ai mix", "referral rewards",
+  "paid tier", "upgrade", "downgrade", "google contacts", "ai mix", "referral rewards",
   "invite member", "workspace switcher", "transfer ownership"
 ];
 
@@ -74,7 +73,6 @@ describe("phone-first small-business product boundary", () => {
       "src/app/(app)/settings/jumps",
       "src/app/api/billing",
       "src/app/api/integrations/google",
-      "src/app/api/webhooks/stripe",
       "src/app/r"
     ];
     const allFiles = sourceFiles("src/app");

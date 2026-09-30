@@ -54,6 +54,7 @@
     "validate:static": "npm run validate:schema && npm run validate:syntax && npm run validate:imports",
     "check": "npm run db:generate && npm run validate:static && npm run typecheck && npm test && npm run build",
     "standards:check": "node scripts/check-standards.mjs",
+    "stripe:setup": "tsx scripts/stripe-setup-prices.ts",
     "doctor": "node scripts/doctor.mjs",
     "quickstart": "node scripts/quickstart.mjs",
     "quickstart:native": "node scripts/native-quickstart.mjs",
@@ -92,6 +93,7 @@
     "qrcode": "1.5.4",
     "react": "19.2.7",
     "react-dom": "19.2.7",
+    "stripe": "22.6.2",
     "svix": "2.3.0",
     "web-push": "^3.6.7",
     "zod": "4.1.12"
