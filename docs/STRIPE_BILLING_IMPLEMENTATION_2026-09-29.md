@@ -6,7 +6,7 @@ The app can now sell Kevin's paid plans through Stripe's hosted checkout and bil
 
 | Item | Value |
 | --- | --- |
-| Branch | `feat/stripe-billing-20260929` |
+| Branch | `feat/stripe-billing-20260929`, pull request #104 |
 | Base | `copy/show-prices-20260929` (PR #103, itself on #98). Merge #98, then #103, then this one, retargeting each to `main` |
 | Decision | Kevin, 2026-09-29: "we can identify the prices up front right now and incorporate it with the payment terminal"; "Build now, charge later": checkout is built and tested in Stripe's test mode and stays off until he picks a date ([decision record](PRICING_DECISION_2026-09-29.md)). |
 | Workflow | WF-01, then WF-04 with WF-02, WF-03 and WF-08; skills `jitm-feature`, `jitm-ui-change`, `jitm-copy`, `jitm-standards-update` |
@@ -59,7 +59,10 @@ The app can now sell Kevin's paid plans through Stripe's hosted checkout and bil
 
 ## Verification
 
-See the pull request for the final run. Labels follow JITM-12 §2.1.
+At the final code, `a4cfbf0`. Labels follow JITM-12 §2.1.
+- VERIFIED: schema. `db:deploy` and `db:verify-release` pass (72 migrations, none missing or mismatched), and all four `db:rehearse-migration` rehearsals pass.
+- VERIFIED: Vitest 2,137 passed, 17 of them new. The 24 failures are the four backup and recovery files that also fail on `main` (`spawn pg_dump ENOENT`).
+- VERIFIED: browser specs with billing off: 50 passed, 4 skipped by their own conditions. Billing on with fake Stripe keys on a second local server: 9 checks pass, including a purchase that fails safely with "Nothing was charged" and the webhook through the real server (200, 400 and 503). No browser chunk contains `api.stripe.com`.
 - VERIFIED: unit tests for prices, plans from subscriptions and configuration (`tests/billing-plans.test.ts`).
 - VERIFIED: database integration tests (`tests/stripe-billing.integration.test.ts`). Stripe's API is faked; the signatures are real:
   - a signed event stores Stripe's plan;
