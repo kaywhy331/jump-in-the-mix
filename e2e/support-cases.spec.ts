@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import AxeBuilder from "@axe-core/playwright";
+import { axeInPage } from "./axe-in-page";
 import { prisma } from "../src/lib/prisma";
 import { createSupportFixture } from "../tests/helpers/support-fixture";
 import { clearRateLimit } from "../src/lib/rate-limit";
@@ -20,7 +20,7 @@ async function checkLayout(page: import("@playwright/test").Page) {
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(value => document.documentElement.setAttribute("data-theme", value), theme);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    expect((await axeInPage(page).analyze()).violations).toEqual([]);
   }
 }
 
@@ -45,6 +45,7 @@ test("support assigns a case, opens its audited read-only view, and returns to t
   await page.getByRole("textbox", { name: "Support reason", exact: true }).fill("Review the queue configuration reported in this ticket.");
   await page.getByRole("button", { name: "Start view-only session" }).click();
   await expect(page.locator(".impersonation-banner")).toContainText(f.ticket.reference);
+  await expect(page.locator('button[aria-label="Quick Add"]')).toHaveCount(0);
   await expect(page.locator(".impersonation-banner")).toContainText("Private customer");
   const response = await page.goto("/contacts?search=NEVER_LOG_THIS_PRIVATE_SEARCH");
   expect(response?.headers()["cache-control"]).toContain("no-store");

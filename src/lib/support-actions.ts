@@ -8,6 +8,7 @@ import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 import { SupportAccessError } from "@/lib/support-case-access";
 import { isSupportCategory } from "@/lib/support-content";
+import { redactSupportReportText, supportDiagnosticsSummary } from "@/lib/support-report";
 import {
   createSupportTicketRecord,
   reopenSupportTicketRecord,
@@ -33,13 +34,16 @@ export async function createSupportTicketAction(formData: FormData): Promise<voi
   const { workspace, user, session, impersonation } = await requireWorkspace();
   if (impersonation) helpError("Administrator support sessions are view-only.", session);
 
-  const title = value(formData, "title", 160);
+  const title = redactSupportReportText(value(formData, "title", 160)).slice(0, 160);
+  const report = redactSupportReportText(value(formData, "body", 5000));
   const context = value(formData, "supportContext", 100);
   const safeContext = /^(Today|Contacts|Mixes|Calendar|Journey|Settings|Account|Help); (phone|desktop\/tablet) layout$/.test(context) ? context : "";
-  const body = value(formData, "body", safeContext ? 4800 : 5000) + (safeContext ? `\n\nIncluded context: ${safeContext}` : "");
+  const diagnostics = supportDiagnosticsSummary(value(formData, "supportDiagnostics", 513)) || safeContext;
+  const attachment = diagnostics ? `\n\nIncluded context: ${diagnostics}` : "";
+  const body = report.slice(0, 5000 - attachment.length) + attachment;
   const categoryValue = value(formData, "category", 40);
   if (title.length < 5) helpError("Give the ticket a clear title of at least 5 characters.", session);
-  if (body.length < 10) helpError("Add at least 10 characters describing what happened and what you expected.", session);
+  if (report.trim().length < 10) helpError("Add at least 10 characters describing what happened and what you expected.", session);
   if (!isSupportCategory(categoryValue)) helpError("Choose a valid support category.", session);
 
   const metadata = await getRequestMetadata();

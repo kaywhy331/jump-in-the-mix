@@ -45,7 +45,7 @@ export function AppShell({
       <aside className="sidebar">
         <Logo />
         {!impersonation && <QuickAddButton />}
-        <Nav />
+        <Nav quickAdd={!impersonation} />
         {invitationsLeft && <Link className="invite-callout" href={INVITATIONS_PATH} aria-label={`Invite people: ${invitationsLeftLabel(invitationsLeft)}`}>
           <AppIcon name="gift" /><span><strong>{invitationsLeftLabel(invitationsLeft)}</strong><small>Share free access with people you know</small></span>
           <span className="invite-count" aria-hidden="true">{invitationsLeft}</span>
@@ -92,7 +92,7 @@ export function AppShell({
         </section>
       )}
       <main id="workspace-main" tabIndex={-1} className="app-main">{children}</main>
-      <div className="mobile-nav"><Nav moreBadge={invitationsLeft} /></div>
+      <div className="mobile-nav"><Nav moreBadge={invitationsLeft} quickAdd={!impersonation} /></div>
       {!impersonation && <QuickAddDialog timezone={displayPreferences.timeZone} />}
     </div>
   );

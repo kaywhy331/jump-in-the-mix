@@ -1,7 +1,27 @@
 "use client";
+
 import { useState } from "react";
-const sections = ["Today", "Contacts", "Mixes", "Calendar", "Journey", "Settings", "Account", "Help"];
-export function SupportContext() {
-  const [enabled, setEnabled] = useState(false); const [section, setSection] = useState("Help");
-  return <div><label className="checkbox-row"><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} />Include the affected section and this device’s screen layout</label>{enabled && <><label className="field"><span>Affected section</span><select value={section} onChange={event => setSection(event.target.value)}>{sections.map(value => <option key={value}>{value}</option>)}</select></label><input name="supportContext" type="hidden" value={`${section}; ${typeof window !== "undefined" && window.innerWidth < 768 ? "phone" : "desktop/tablet"} layout`} /><small>Includes only this section name and layout. No contact IDs, page contents, cookies, or browsing history.</small></>}</div>;
+import { SUPPORT_SECTIONS, supportBrowserFamily, supportDiagnosticsSummary, type SupportDiagnostics } from "@/lib/support-report";
+
+export function SupportContext({ disabled = false }: { disabled?: boolean }) {
+  const [diagnostics, setDiagnostics] = useState<SupportDiagnostics | null>(null);
+  const summary = diagnostics ? supportDiagnosticsSummary(JSON.stringify(diagnostics)) : "";
+  return <div className="support-context">
+    <label className="checkbox-row"><input type="checkbox" disabled={disabled} checked={Boolean(diagnostics)} onChange={event => {
+      const theme = document.documentElement.getAttribute("data-theme");
+      setDiagnostics(event.target.checked ? {
+        section: "Help",
+        layout: window.innerWidth < 768 ? "phone" : "desktop/tablet",
+        browser: supportBrowserFamily(navigator.userAgent),
+        theme: theme === "light" || theme === "dark" ? theme : "system",
+        connection: navigator.onLine ? "online" : "offline"
+      } : null);
+    }} />Include basic diagnostics (optional)</label>
+    {diagnostics && <>
+      <label className="field support-compact-field"><span>Affected section</span><select disabled={disabled} value={diagnostics.section} onChange={event => setDiagnostics({ ...diagnostics, section: event.target.value as SupportDiagnostics["section"] })}>{SUPPORT_SECTIONS.map(value => <option key={value}>{value}</option>)}</select></label>
+      <input name="supportDiagnostics" type="hidden" value={JSON.stringify(diagnostics)} disabled={disabled} />
+      <p className="support-diagnostics-preview">Will include: {summary}.</p>
+      <small>No page contents, links, contact IDs or browser history are attached.</small>
+    </>}
+  </div>;
 }

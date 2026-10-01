@@ -16,7 +16,7 @@ describe("Help and support boundaries", () => {
     expect(help).toContain('id="contact-support"');
     expect(help).toContain("if (env.pilotMode)");
     expect(help).toContain("<SelfHostedHelp />");
-    expect(help).toContain("SUPPORT_CATEGORIES");
+    expect(read("src/components/SupportReportFields.tsx")).toContain("SUPPORT_CATEGORIES");
     expect(help).toContain("createSupportTicketFormAction");
   });
 

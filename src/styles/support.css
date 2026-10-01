@@ -210,3 +210,11 @@
   .support-definition-list > div { grid-template-columns: 1fr; gap: 3px; }
   .admin-support-stats { grid-template-columns: 1fr 1fr; }
 }
+
+/* Feedback uses the existing reading/detail archetype and shared form controls. */
+.support-compact-field { width: fit-content; max-width: 100%; }
+.support-compact-field select { width: auto; max-width: 100%; }
+.support-context { display: grid; gap: 10px; }
+.support-diagnostics-preview, .support-report-safety { color: var(--muted); font-size: .875rem; margin: 0; }
+.support-report-preview > div { padding: 12px; overflow-wrap: anywhere; }
+.support-report-preview p { white-space: pre-wrap; font-family: var(--font-voice); }
