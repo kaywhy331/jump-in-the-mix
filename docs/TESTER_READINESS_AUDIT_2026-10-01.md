@@ -79,3 +79,8 @@ Targeted candidate review (0–3): constitution 3; concept 3; copy/vocabulary 2;
 ## NOT READ / NOT RUN
 
 NOT READ: production secrets, customer workspace data, private inboxes, local memory databases, external-agent conversations. NOT RUN: production mutations, invitations, email delivery, billing activation/provider calls, full `npm run check`, full browser/a11y suites, full drift-baseline remeasurement, load qualification, migration/restore rehearsals beyond fresh local deploy, Lighthouse, physical iOS/Android/native apps, real OAuth, full signup/verification/reset delivery, restricted runtime-role tests, production release/deployment/merge. Targeted checks are deliberately bounded under JITM-12 §2.13.
+
+
+## Follow-up after the initial candidate
+
+The original results above remain the dated application-candidate record. A later lightweight check passed the complete server-side account sequence with in-memory mail capture; public live/ready/worker GETs also returned 200. This does not convert the original browser failures into passes or prove inbox delivery. See [mail-capture follow-up](TESTER_MAIL_CAPTURE_2026-10-01.md) and [next approval bundle](TESTER_APPROVAL_BUNDLE_2026-10-01.md). Heavy browser/build work was deferred while the shared host was assigned elsewhere.
