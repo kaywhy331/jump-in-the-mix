@@ -90,15 +90,44 @@ describe.skipIf(!local)("Stripe billing", () => {
 
   it("closes the Stripe customer before an account is deleted, and blocks deletion when that fails", async () => {
     stripeApi.del.mockResolvedValueOnce({ id: customerId, deleted: true });
-    await closeBillingForDeletion(workspaceId);
+    await closeBillingForDeletion(userId);
     expect(stripeApi.del).toHaveBeenCalledWith(customerId);
     stripeApi.del.mockRejectedValueOnce(Object.assign(new Error("gone"), { statusCode: 404, code: "resource_missing" }));
-    await expect(closeBillingForDeletion(workspaceId)).resolves.toBeUndefined();
+    await expect(closeBillingForDeletion(userId)).resolves.toBeUndefined();
     stripeApi.del.mockRejectedValueOnce(new Error("network"));
-    await expect(closeBillingForDeletion(workspaceId)).rejects.toBeInstanceOf(AccountDeletionBlockedError);
+    await expect(closeBillingForDeletion(userId)).rejects.toBeInstanceOf(AccountDeletionBlockedError);
     await prisma.workspaceBilling.update({ where: { workspaceId }, data: { stripeCustomerId: null } });
     stripeApi.del.mockClear();
-    await closeBillingForDeletion(workspaceId);
+    await closeBillingForDeletion(userId);
     expect(stripeApi.del).not.toHaveBeenCalled();
+  });
+
+  it("closes billing for every workspace the person owns, and never for one they only belong to (BIL-01)", async () => {
+    const memberId = (await prisma.user.create({ data: { name: "Billing member", email: `billing-member-${randomUUID()}@example.test` } })).id;
+    const secondId = (await prisma.workspace.create({ data: { ownerId: userId, name: "Second fixture", slug: randomUUID() } })).id;
+    const secondCustomer = `cus_${randomUUID().replaceAll("-", "").slice(0, 14)}`;
+    try {
+      await prisma.workspaceBilling.create({ data: { workspaceId: secondId, stripeCustomerId: secondCustomer } });
+      // The member's only workspace is the owner's paid one: the one the session would open.
+      await prisma.workspaceMember.create({ data: { workspaceId, userId: memberId } });
+      await closeBillingForDeletion(memberId);
+      expect(stripeApi.del).not.toHaveBeenCalled();
+
+      stripeApi.del.mockResolvedValue({ deleted: true });
+      await closeBillingForDeletion(userId);
+      expect(stripeApi.del.mock.calls.map(([id]) => id).sort()).toEqual([customerId, secondCustomer].sort());
+
+      // A retry after a partial failure skips the customer Stripe already deleted and closes the rest.
+      stripeApi.del.mockReset();
+      stripeApi.del.mockImplementation(async (id: string) => {
+        if (id === customerId) throw Object.assign(new Error("gone"), { statusCode: 404, code: "resource_missing" });
+        return { deleted: true };
+      });
+      await expect(closeBillingForDeletion(userId)).resolves.toBeUndefined();
+      expect(stripeApi.del).toHaveBeenCalledWith(secondCustomer);
+    } finally {
+      await prisma.workspace.deleteMany({ where: { id: secondId } });
+      await prisma.user.deleteMany({ where: { id: memberId } });
+    }
   });
 });

@@ -14,6 +14,16 @@ export const LAST_ACTIVE_OWNER_MESSAGE = "Add another active owner before deleti
 /** Deletion refused by a rule the person can act on themselves; nothing was removed. */
 export class AccountDeletionBlockedError extends Error {}
 
+type StaffReader = Pick<Prisma.TransactionClient, "staffMembership">;
+
+/** Throws the refusal when the person is the last active staff owner. Rechecked under the staff lock during deletion. */
+export async function assertNotLastActiveOwner(userId: string, db: StaffReader = prisma): Promise<void> {
+  const staff = await db.staffMembership.findUnique({ where: { userId } });
+  if (staff?.role === "OWNER" && staff.status === "ACTIVE" && await db.staffMembership.count({ where: { role: "OWNER", status: "ACTIVE" } }) <= 1) {
+    throw new AccountDeletionBlockedError(LAST_ACTIVE_OWNER_MESSAGE);
+  }
+}
+
 function subjectHash(userId: string): string {
   return createHash("sha256").update(`account-deletion:${userId}`).digest("hex");
 }
@@ -63,10 +73,7 @@ export async function deleteAccountData(
     await tx.staffInvitation.updateMany({ where: { id: { in: pendingStaff.map(row => row.id) } }, data: { revokedAt: new Date() } });
     await tx.waitlistDelivery.updateMany({ where: { staffInvitationId: { in: pendingStaff.map(row => row.id) }, status: { in: ["QUEUED", "SENDING", "REVIEW"] } }, data: { status: "CANCELED", lockedAt: null, leaseId: null } });
     await tx.staffInvitation.deleteMany({ where: { email: user.email } });
-    const staff = await tx.staffMembership.findUnique({ where: { userId } });
-    if (staff?.role === "OWNER" && staff.status === "ACTIVE" && await tx.staffMembership.count({ where: { role: "OWNER", status: "ACTIVE" } }) <= 1) {
-      throw new AccountDeletionBlockedError(LAST_ACTIVE_OWNER_MESSAGE);
-    }
+    await assertNotLastActiveOwner(userId, tx);
     await tx.adminImpersonation.deleteMany({
       where: {
         OR: [
