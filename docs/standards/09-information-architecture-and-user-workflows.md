@@ -2,9 +2,9 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 2.2.0
+version: 2.3.0
 owner: Kevin
-last_reviewed: 2026-09-30
+last_reviewed: 2026-10-01
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
 supersedes: [docs/UX_WORKFLOW_OPTIMIZATION.md]
 sources:
@@ -192,6 +192,8 @@ The individual route saves preferences and opens the library without a contact. 
 
 **2.74** The Marketplace's Jump in the Mix section is the one place to discover ready-made Mixes and Mega-Mixes, beside Community and My shares. The separate Ready-made mixes browsing entry is retired: its filters, previews, favorites and guided setup carry over, the old browsing route redirects to the section, and existing setup links keep working. Until that change ships, the library keeps its entries (§6). [OWNER 2026-09-28 D29]
 
+**2.75** Plan limits in the workflows, only while billing is on (JITM-01 §2.9): when an automatic addition (a saved date, a tag, an import, a Contact stage, a Mix's audience) would pass the people limit, the person is skipped in that Mix, not held until there is room, and Today tells the owner how many people were skipped in the last week, with a link to Plan and billing. The contact profile marks the Mix "Not started: plan limit" with Resume, which works once there is room. A start the owner makes directly is refused with the reason, before anything is saved. Turning on a Mix beyond the active-Mix limit is refused the same way. The onboarding first follow-up Mix doesn't count toward active Mixes. [OWNER 2026-09-30 docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md:8] [OWNER 2026-09-30 docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md:9] [PROPOSED]
+
 ### Journey
 
 **2.50** Journey (`/journey`) MUST be a dynamic graph of the account's actual Mixes and Beats, their saved connections and people's progress. It shows missing Beats, dead ends and strong or weak connections from recorded data, and never invents nodes, routes, outcomes or traffic. [OWNER 2026-09-21 docs/MIX_HANDOFF_AND_JOURNEY_PROPOSAL_2026-09-21.md:7] [OWNER 2026-09-28 D4] [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:9,28]
@@ -315,3 +317,4 @@ Known deviations:
 - 2.0.2 — 2026-09-29 — Base 9f967bc. §2.20 records Kevin's confirmation of where the optional Mega-Mix step appears and which Mega-Mix it names (O9). §6 drops the More and Settings Customer journey labels and the old demo text, which the copy batch fixed (PR #96, O8), and adds the three "customer journey" links that remain.
 - 2.1.0 — 2026-09-29 — Base dc81d10. §2.20: a business type with its own curated journey starts onboarding from it; Real estate starts from the Real estate Mega-Mix. §2.43: the Real estate Mega-Mix has separate buyer and seller paths (Kevin, 2026-09-29). §6 asks about the other business types.
 - 2.2.0 — 2026-09-30 — Base 94b9539. §2.65: My account links to Plan and billing (`/account/billing`), shipped in PR #104 (O10).
+- 2.3.0 — 2026-10-01 — Base f1ac84d. New §2.75: plan limits skip automatic additions and refuse direct starts, with a Today notice (O14, docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).

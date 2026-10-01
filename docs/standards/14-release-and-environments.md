@@ -2,9 +2,9 @@
 id: JITM-14
 title: Release and environments
 status: active
-version: 2.1.0
+version: 2.1.1
 owner: Kevin
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-01
 applies_to: [production, releases, environments, render, rollback, operations]
 supersedes: [AGENTS.md#deployment-destinations, AGENTS.md#production-deployment-render, docs/FREE_TESTING.md, docs/NETLIFY_DEPLOYMENT.md, docs/HOSTED_DEPLOYMENT.md#deploy-order]
 sources:
@@ -162,7 +162,7 @@ Rules for building databases and migration history are in JITM-11 §2. [SOURCE d
 
 **2.30** Production MUST have an outage signal that works even when CI billing fails: a free external uptime monitor on the public site and the application health endpoint, with alert delivery to Kevin tested, plus Render's failure emails. The hourly read-only `production-smoke` workflow and CI run on GitHub Actions as well; the uptime monitor does not replace them. While any of these is off, every release record lists it under owner follow-ups. [OWNER 2026-09-28 D13] [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:27,58] [SHIPPED 9439fd6 .github/workflows/production-smoke.yml:3-8]
 
-**2.31** Production keeps `BILLING_ENABLED` unset until Kevin chooses the date charging starts. The billing variables (`BILLING_ENABLED`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`) go on the web service only, in the reviewed release plan of the release that turns billing on (§2.28), after the plan limits have shipped; the steps are in `docs/BILLING.md`. [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:12] [PROPOSED]
+**2.31** Production keeps `BILLING_ENABLED` unset until Kevin chooses the date charging starts. The billing variables (`BILLING_ENABLED`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`) go on the web service and the worker, which applies the people limit (JITM-11 §2.58), and nowhere else, in the reviewed release plan of the release that turns billing on (§2.28), after the plan limits have shipped; the steps are in `docs/BILLING.md`. [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:12] [PROPOSED]
 
 ### Deployment facts carried from AGENTS.md
 
@@ -228,3 +228,4 @@ Differences from the quote:
 - 1.0.0 — 2026-09-28 — Initial version.
 - 2.0.0 — 2026-09-28 — Base 61d4df4. §2.10 commits the reusable release script and runbook (D18); §2.12 confirmed and automated (D17); §2.30 adds a free external uptime monitor as the signal that survives CI billing failures (D13).
 - 2.1.0 — 2026-09-29 — Base db54cc7. §2.31: billing stays off in production until Kevin chooses the start date, and its variables arrive in a reviewed release plan (docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md).
+- 2.1.1 — 2026-10-01 — Base f1ac84d. §2.31: the billing variables also go on the worker, which applies the people limit (docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).
