@@ -34,6 +34,7 @@ import { readJourneyPreferences } from "@/lib/journey-preferences";
 import { addLogicalDays, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
+import { planLimits, recentPlanLimitSkips } from "@/lib/plan-limits";
 import { readPreparationStatus } from "@/lib/preparation";
 import { snoozeJumpAction } from "@/lib/snooze-actions";
 import { snoozeChoices } from "@/lib/snooze-schedule";
@@ -186,6 +187,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     if (!pendingIds.length) return [];
     return prisma.automatedDelivery.findMany({ where: { workspaceId: workspace.id, jumpId: { in: pendingIds }, status: "FAILED" }, select: { jumpId: true, error: true, updatedAt: true } }).catch(() => []);
   };
+  // People the plan's limit kept out of a Mix this week (src/lib/plan-limits.ts); a problem reading it hides the notice.
+  const readPlanLimitNotice = async () => {
+    const skipped = await recentPlanLimitSkips(workspace.id).catch(() => 0);
+    return skipped ? { skipped, plan: (await planLimits(workspace.id)).plan } : null;
+  };
+  const planLimitNotice = await readPlanLimitNotice().catch(() => null);
   const [drafts, failedDeliveryRows, owner, automation, quietDays, workflowAttention] = await Promise.all([
     readJumpDrafts(workspace.id, pendingIds),
     readFailedDeliveries(),
@@ -464,6 +471,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       </section>}
       {invitations && <section className="invite-strip" aria-label="Personal invitations"><AppIcon name="gift" /><p><strong>You have {invitations} invitation{invitations === 1 ? "" : "s"} to share.</strong></p><Link className="button small primary" href={INVITATIONS_PATH}>Invite people</Link></section>}
 
+      {planLimitNotice && <div className="notice warning compact" data-plan-limit-skipped={planLimitNotice.skipped}><p>{planLimitNotice.skipped === 1 ? "1 person wasn’t" : `${planLimitNotice.skipped.toLocaleString("en-US")} people weren’t`} added to a Mix this week. Your {planLimitNotice.plan.name} plan has room for {planLimitNotice.plan.people.toLocaleString("en-US")} people with follow-ups on.</p><p>Once there’s room, resume the Mix from their contact page. <Link href="/account/billing">See plans</Link></p></div>}
       <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
       {needsAttention.filter(item => item.scheduledAt < startToday).length > 0 && <section aria-labelledby="overdue-follow-ups"><div className="section-label urgent"><h2 id="overdue-follow-ups">Overdue</h2><span>{overdueCount}</span></div><div className="jump-list">{needsAttention.filter(item => item.scheduledAt < startToday).map(renderCard)}</div></section>}
       {needsAttention.filter(item => item.scheduledAt >= startToday).length > 0 && <section aria-labelledby="today-follow-ups"><div className="section-label"><h2 id="today-follow-ups">Today</h2><span>{attentionCount - overdueCount}</span></div><div className="jump-list">{needsAttention.filter(item => item.scheduledAt >= startToday).map(renderCard)}</div></section>}

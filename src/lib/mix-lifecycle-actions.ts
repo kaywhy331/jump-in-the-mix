@@ -6,6 +6,7 @@ import { type ErrorViewer, withViewerError } from "@/lib/form-errors";
 import { prisma } from "@/lib/prisma";
 import { unshareForArchivedMix } from "@/lib/marketplace-service";
 import { startDraftMix } from "@/lib/mix-start";
+import { activeMixLimitRefusal } from "@/lib/plan-limits";
 import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
 
 function value(formData: FormData, key: string): string {
@@ -31,8 +32,10 @@ export async function activateMixAction(formData: FormData): Promise<void> {
   if (!mix) fail("Mix not found or already active.", session);
   const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
   if (preference?.reviewMixActivation !== false) redirect(`/mixes/${mix.id}/edit?activate=1`);
-  await prisma.$transaction(async tx => {
+  const refusal = await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR UPDATE`;
+    const limit = await activeMixLimitRefusal(workspace.id, { mixIds: [mix.id] }, tx);
+    if (limit) return limit;
     await startDraftMix(tx, { workspaceId: workspace.id, mixId: mix.id, now: new Date() });
     await tx.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } });
     const definition = await readWorkflowDefinition(tx, workspace.id);
@@ -49,7 +52,9 @@ export async function activateMixAction(formData: FormData): Promise<void> {
         source: "mixes.list"
       }
     });
+    return null;
   });
+  if (refusal) fail(refusal, session);
   await queueMixReconciliation(workspace.id, mix.id);
   redirect("/mixes?activated=1");
 }

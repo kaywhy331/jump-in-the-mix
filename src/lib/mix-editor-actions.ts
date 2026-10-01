@@ -1,5 +1,6 @@
 "use server";
 
+import { activeMixLimitRefusal } from "@/lib/plan-limits";
 import { randomUUID } from "node:crypto";
 import { MAX_STEP_OFFSET_DAYS, validateStepTiming } from "@/lib/step-timing";
 import type { Channel, MixStatus, MixTriggerMode } from "@/generated/prisma/client";
@@ -259,6 +260,10 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
       if (existingMix && openedAt) {
         const current = await tx.mix.findUnique({ where: { id: mixId }, select: { updatedAt: true } });
         if (!current || current.updatedAt.getTime() !== Date.parse(openedAt)) throw new MixChangedElsewhere(MIX_CHANGED_ELSEWHERE);
+      }
+      if (status === "ACTIVE") {
+        const limit = await activeMixLimitRefusal(workspace.id, existingMix ? { mixIds: [mixId] } : { newUnits: 1 }, tx);
+        if (limit) throw new UserFacingError(limit);
       }
       const freshStart = Boolean(existingMix && status === "ACTIVE" && triggerMode === "MANUAL_START"
         && await startDraftMix(tx, { workspaceId: workspace.id, mixId, now }));

@@ -36,3 +36,17 @@ enum BillingInterval {
   MONTH
   YEAR
 }
+
+// The people who have follow-ups on, as the plan counts them (JITM-01 §2.9). A person keeps their place while any
+// Mix runs for them; someone new beyond the plan's limit is skipped. Every person is counted while billing is off,
+// so the people an account already has keep their follow-ups when charging starts.
+model PlanPerson {
+  workspaceId String
+  contactId   String
+  admittedAt  DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, contactId])
+  @@index([contactId])
+}

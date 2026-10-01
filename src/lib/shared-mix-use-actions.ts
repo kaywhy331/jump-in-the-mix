@@ -1,5 +1,6 @@
 "use server";
 
+import { UserFacingError } from "@/lib/user-facing-error";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { type ErrorViewer, withViewerError } from "@/lib/form-errors";
@@ -38,7 +39,7 @@ const SETUP_REFUSALS = new Set([
 const INACTIVE_DATE_TYPE = /^Turn on the [^\n]+ date type before using this Mix\.$/;
 
 function setupRefusal(error: unknown): string {
-  if (error instanceof LibraryError || error instanceof SharedMixContentError) return error.message;
+  if (error instanceof LibraryError || error instanceof SharedMixContentError || error instanceof UserFacingError) return error.message;
   return error instanceof Error && (SETUP_REFUSALS.has(error.message) || INACTIVE_DATE_TYPE.test(error.message)) ? error.message : "The ready-made Mix could not be used.";
 }
 

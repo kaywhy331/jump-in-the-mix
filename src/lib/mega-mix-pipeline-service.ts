@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { activeMixLimitRefusal } from "@/lib/plan-limits";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
@@ -179,6 +180,9 @@ export async function installPortable(db: DB, input: { workspaceId: string; acto
   if (issue) throw new UserFacingError(`This ${value.kind === "mix" ? "Mix" : "Mega-Mix"} cannot be ${input.origin.startsWith("COPY:") ? "copied" : "added"}: ${issue.replace(/\.$/, "")}.`);
   const name = cleanMegaMixName(input.name);
   if (value.kind === "mega-mix") await assertNameFree(db, input.workspaceId, name);
+  // Everything added starts active: a Mega-Mix takes one place among the plan's active Mixes, a Mix one each.
+  const limit = await activeMixLimitRefusal(input.workspaceId, { newUnits: value.kind === "mega-mix" ? 1 : value.mixes.length }, db);
+  if (limit) throw new UserFacingError(limit);
   const mixIds = new Map<string, string>(), stepIds = new Map<string, string>();
   for (const item of value.mixes) {
     const dateTypeId = item.triggerMode === "DATE_TRIGGERED" ? await resolveDateType(db, input.workspaceId, item.dateType) : null;

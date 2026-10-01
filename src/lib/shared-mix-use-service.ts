@@ -1,5 +1,7 @@
 import type { MixStatus, MixTriggerMode, Prisma } from "@/generated/prisma/client";
 import { parseBroadcastScheduleInput } from "@/lib/mix-broadcast";
+import { activeMixLimitRefusal } from "@/lib/plan-limits";
+import { UserFacingError } from "@/lib/user-facing-error";
 import { prisma } from "@/lib/prisma";
 import { lockLibrary, readPublishedLibrary } from "@/lib/library-store";
 import { normalizeSharedMixSteps } from "@/lib/shared-mix";
@@ -58,6 +60,10 @@ export async function useSharedMixTemplate(input: {
     const triggerMode = metadata?.triggerMode ?? "MANUAL_START";
     const groupIds = [...new Set(input.groupIds.filter(Boolean))];
     if (input.status === "ACTIVE" && !input.assignAllContacts && !groupIds.length) throw new Error("Choose everyone or at least one tag.");
+    if (input.status === "ACTIVE") {
+      const limit = await activeMixLimitRefusal(input.workspaceId, { newUnits: 1 }, tx);
+      if (limit) throw new UserFacingError(limit);
+    }
     if (groupIds.length) {
       const [groupCount, inactiveCount] = await Promise.all([
         tx.group.count({ where: { workspaceId: input.workspaceId, id: { in: groupIds } } }),

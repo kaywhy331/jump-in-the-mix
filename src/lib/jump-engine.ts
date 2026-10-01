@@ -3,6 +3,7 @@ import { readJourneyPreferences } from "@/lib/journey-preferences";
 import { isDeepStrictEqual } from "node:util";
 import type { JumpStatus, Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { applyPeopleLimit } from "@/lib/plan-limits";
 import { renderJumpSnapshot } from "@/lib/jump-render";
 import {
   addLogicalDays,
@@ -205,6 +206,11 @@ function schedulingRule(stored: PersonalSchedulingRule | undefined): PersonalSch
 
 export async function reconcileJumps(filters: ReconciliationFilters = {}): Promise<JumpReconciliationResult> {
   const now = new Date();
+  // The plan's people limit settles first, over the whole workspace whatever the filters, so someone it skips is
+  // stopped in that Mix before anything is generated for them (JITM-01 §2.9).
+  const limitedWorkspaces = filters.workspaceId ? [filters.workspaceId]
+    : (await prisma.mixAssignment.findMany({ where: { isActive: true, mix: { status: "ACTIVE" } }, distinct: ["workspaceId"], select: { workspaceId: true } })).map(row => row.workspaceId);
+  for (const workspaceId of limitedWorkspaces) await applyPeopleLimit(workspaceId, now);
   const [assignments, stops, pendingBounds, snoozedPending, mergedDrafted] = await Promise.all([
     prisma.mixAssignment.findMany({
       where: {

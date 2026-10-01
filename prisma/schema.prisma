@@ -176,6 +176,7 @@ model Workspace {
   members                WorkspaceMember[]
   profile                WorkspaceProfile?
   billing                WorkspaceBilling?
+  planPeople             PlanPerson[]
   marketingPreference    WorkspaceMarketingPreference?
   contacts               Contact[]
   groups                 Group[]
@@ -308,6 +309,7 @@ model Contact {
   mergesAsMerged   ContactMergeRecord[] @relation("ContactMergeMerged")
   reviewRequests   ReviewRequest[]
 
+  planSeat               PlanPerson[]
 
   @@index([workspaceId, displayName])
   @@index([workspaceId, company])
