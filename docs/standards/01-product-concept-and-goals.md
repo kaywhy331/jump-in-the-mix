@@ -2,9 +2,9 @@
 id: JITM-01
 title: Product concept, goals and non-goals
 status: active
-version: 2.2.1
+version: 2.2.2
 owner: Kevin
-last_reviewed: 2026-09-30
+last_reviewed: 2026-10-01
 applies_to: [product, features, onboarding, access, marketing, agents]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -148,7 +148,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 | Automatic customer email; automatic SMS | Built but off | §2.4 |
 | Payments: Stripe hosted checkout, billing portal and Plan and billing (`/account/billing`) | Built but off (`BILLING_ENABLED`) | `docs/BILLING.md`; `docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md` |
 | Native apps; paid voice assistant, inbox analysis, messaging bridges | Deferred | §2.7, §2.20 |
-| Plans and prices: Free, Plus and Pro, shown on `/pricing` and in the FAQ; charging and limits wait for the start date | Planned (prices decided) | §2.9; `docs/PRICING_DECISION_2026-09-29.md` |
+| Plans and prices: Free, Plus and Pro, shown on `/pricing` and in the FAQ; plan limits for people with follow-ups on and active Mixes | Prices shipped; limits built but off (`BILLING_ENABLED`) | §2.9; `docs/PRICING_DECISION_2026-09-29.md`; JITM-09 §2.75 |
 | Automatic email sent as "{Business} via Jump in the Mix" | Proposed | `docs/BETA_READINESS_AUDIT_2026-09-26.md:48` |
 | Industry Mix catalog, per-enrollment context, contact spreadsheet | Proposed (local-only `fb11e3b1f8847bb3`) | not decided |
 | Google Contacts sync, AI plan wizard, signup-reward referrals | Retired | §2.19 |
@@ -216,3 +216,4 @@ Known deviations at 9439fd6:
 - 2.1.0 — 2026-09-29 — Base dc81d10. §2.9 records Kevin's plans, prices and limits, with charging off until he chooses a start date; §2.20, §2.22, §4 and §6 follow (docs/PRICING_DECISION_2026-09-29.md).
 - 2.2.0 — 2026-09-29 — Base db54cc7. Payments are built but off (§2.20, §2.22); §3 names the billing sync; §6 notes that JITM-09 §2.65 must name Plan and billing (docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md).
 - 2.2.1 — 2026-09-30 — Base 94b9539. §6: JITM-09 §2.65 now names Plan and billing, so that deviation is gone.
+- 2.2.2 — 2026-10-01 — Base f1ac84d. §2.22: the plan limits are built and stay off with billing (docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).

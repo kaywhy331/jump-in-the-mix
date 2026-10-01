@@ -1,5 +1,6 @@
 "use server";
 
+import { assertRoomForPeople, peopleLimitRefusal } from "@/lib/plan-limits";
 import { applyJourneyEvent } from "@/lib/journey";
 
 import { workflowContinuation } from "@/lib/workflow-continuation";
@@ -307,6 +308,9 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
     payload = contactPayload(formData, region);
     await validateContactPayload(workspace.id, region, payload);
     followUp = await initialFollowUpPayload(workspace.id, formData);
+    // Starting a Mix for a new person takes a place on the plan; say so before anything is saved.
+    const refusal = followUp?.mixId ? await peopleLimitRefusal(workspace.id, 1) : null;
+    if (refusal) throw new ContactInputError(refusal);
   } catch (error) {
     // A retry that raced its own first submission finds its phone or email taken by that save.
     const raced = await earlierCreation(workspace.id, idempotencyKey);
@@ -371,6 +375,7 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
         }
       });
       if (followUp.mixId) {
+        await assertRoomForPeople(tx, workspace.id, [created.id]);
         await tx.mixAssignment.create({
           data: {
             assignmentKey: `${workspace.id}:${followUp.mixId}:${created.id}`,

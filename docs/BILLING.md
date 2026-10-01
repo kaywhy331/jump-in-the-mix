@@ -59,6 +59,13 @@ Kevin's plans are Free ($0), Plus ($15 a month or $144 a year) and Pro ($29 a mo
 
    It prints a `whsec_…` for the local server. Pay with Stripe's test card `4242 4242 4242 4242`, any future date and any CVC.
 
+## Plan limits
+
+While billing is on, each plan limits people with follow-ups on and active Mixes (`src/lib/plan-limits.ts`, JITM-09 §2.75, JITM-11 §2.58):
+- **People.** A person counts once while any Mix runs for them. Someone added automatically beyond the limit is skipped in that Mix, and Today says how many were skipped in the last week. Their contact page shows "Not started: plan limit" with Resume. Starting a Mix for someone yourself is refused when there is no room.
+- **Active Mixes.** Turning on a Mix beyond the limit is refused. A Mega-Mix counts as one, and the first follow-up Mix doesn't count.
+- **What the account already has stays.** While billing is off everyone is counted, so the people with follow-ups on when charging starts keep them, even beyond the limit. The worker keeps that count up to date on every pass.
+
 ## Turning billing on (Kevin's go-live)
 
 Decide the open items first ([decision record](PRICING_DECISION_2026-09-29.md), "Still open before charging starts"):
@@ -70,15 +77,15 @@ Decide the open items first ([decision record](PRICING_DECISION_2026-09-29.md), 
 - account deletion with a paid plan.
 
 Then:
-1. Merge and release the plan limits. Without them, Free would still have no limits.
+1. Release the plan limits (merged with the limits pull request; check they are live). Without them, Free would still have no limits.
 2. Activate the Stripe account for live payments: business details, payouts, receipts and support details.
 3. Run `npm run stripe:setup -- --live` with the live key, and add the live webhook endpoint.
-4. In one reviewed release plan (JITM-14 §2.28), set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `BILLING_ENABLED=true` on the web service.
+4. In one reviewed release plan (JITM-14 §2.28), set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `BILLING_ENABLED=true` on the web service and the worker. The worker applies the people limit; without the variables there, automatic additions are never limited.
 5. Buy a plan with a real card, check Plan and billing and the portal, then refund it in Stripe.
 
 ## Turning billing off
 
-Set `BILLING_ENABLED=false`. Checkout and the portal stop, plan limits stop, and the webhook refuses events, which Stripe retries for up to three days. **Existing subscriptions keep charging in Stripe.** Cancel or pause them there before turning billing off for good.
+Set `BILLING_ENABLED=false` on the web service and the worker. Checkout and the portal stop, plan limits stop, and the webhook refuses events, which Stripe retries for up to three days. **Existing subscriptions keep charging in Stripe.** Cancel or pause them there before turning billing off for good.
 
 ## Costs
 

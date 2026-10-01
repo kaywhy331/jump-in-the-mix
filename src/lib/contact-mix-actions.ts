@@ -1,5 +1,6 @@
 "use server";
 
+import { assertRoomForPeople } from "@/lib/plan-limits";
 import { assertMixStartEligible } from "@/lib/mix-start-eligibility";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
@@ -47,6 +48,7 @@ export async function assignMixToContactAction(formData: FormData): Promise<void
   const startAt = zonedDateTimeToUtc(start, 12 * 60, timezone);
   let startedOn: string = logicalDateKey(start);
   try { await prisma.$transaction(async (tx) => {
+    await assertRoomForPeople(tx, workspace.id, [contact.id]);
     await assertMixStartEligible(tx, workspace.id, contact.id, mix.id);
     const previous = await tx.mixAssignment.findUnique({ where: { assignmentKey }, select: { isActive: true } });
     // A finished or removed plan restarts from the chosen day; one still running keeps its start.

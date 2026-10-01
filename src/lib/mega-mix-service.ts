@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { megaMixById, megaMixConfiguration } from "@/lib/mega-mixes";
 import { readWorkflowDefinition, saveWorkflowConfiguration, workflowJson } from "@/lib/mix-workflow";
 import { availableMegaMixName, cleanMegaMixName } from "@/lib/mega-mix-pipeline-service";
+import { activeMixLimitRefusal } from "@/lib/plan-limits";
 import { UserFacingError } from "@/lib/user-facing-error";
 
 export async function installMegaMix(input: {
@@ -35,6 +36,9 @@ export async function installMegaMix(input: {
     };
     const existing = await db.megaMixInstallation.findUnique({ where: { workspaceId_blueprintId: { workspaceId: input.workspaceId, blueprintId: blueprint.id } } });
     if (existing) { await finishOnboarding(); return { id: existing.id, repeated: true, mixIds: existing.mixIds as Record<string, string> }; }
+    // The whole Mega-Mix takes one place among the plan's active Mixes.
+    const limit = await activeMixLimitRefusal(input.workspaceId, { newUnits: 1 }, db);
+    if (limit) throw new UserFacingError(limit);
 
     if (input.setup) await saveJourneySetup(db, input.workspaceId, input.actorUserId, input.setup);
     const id = randomUUID(), mixIds: Record<string, string> = {};

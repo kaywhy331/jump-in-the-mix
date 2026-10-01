@@ -1,4 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
+import { assertRoomForPeople } from "@/lib/plan-limits";
 import { queueBoundReconciliation, saveCalendarEntryIn, type CalendarEntryInput } from "@/lib/calendar";
 import { isValidEmail, normalizeEmail, normalizePhone } from "@/lib/contact-input";
 import { applyJourneyEvent } from "@/lib/journey";
@@ -136,6 +137,7 @@ export async function scheduleVisit(input: ScheduleVisitInput): Promise<Schedule
     if (entry.kind !== "MEETING") throw new UserFacingError("Only a meeting can carry a follow-up plan.");
     const plan = await tx.mix.findFirst({ where: { id: input.planId, workspaceId: input.workspaceId, status: "ACTIVE", triggerMode: "MANUAL_START", source: { not: "ONE_TIME" } }, select: { id: true } });
     if (!plan) throw new UserFacingError("Choose an active plan from this business.");
+    await assertRoomForPeople(tx, input.workspaceId, [contactId]);
     const unscoped = await tx.mixAssignment.findFirst({ where: { workspaceId: input.workspaceId, mixId: plan.id, contactId, isActive: true, appointmentBinding: null }, select: { id: true } });
     const bound = await tx.appointmentBinding.findUnique({ where: { calendarEntryId_mixId: { calendarEntryId: entry.id, mixId: plan.id } }, select: { id: true, assignmentId: true } });
     let bindingId: string;

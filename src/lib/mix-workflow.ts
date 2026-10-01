@@ -2,6 +2,7 @@ import { workflowCalendarStepTime } from "@/lib/workflow-scheduling";
 import { applyBusinessUpdate, undoBusinessUpdate, workflowFingerprint } from "@/lib/workflow-business-update";
 import type { WorkflowBusinessUpdate, WorkflowUpdateRecord } from "@/lib/mix-workflow-types";
 import { assertMixStartEligible } from "@/lib/mix-start-eligibility";
+import { assertRoomForPeople } from "@/lib/plan-limits";
 import { nextJourneyAvailability } from "@/lib/journey-availability";
 import { readJourneyPreferences } from "@/lib/journey-preferences";
 import { createHash } from "node:crypto";
@@ -86,6 +87,8 @@ export async function queueWorkflowForJump(db: DB, workspaceId: string, jumpId: 
 export async function startWorkflowInstance(input: { workspaceId: string; contactId: string; mixId: string; requestId: string; label?: string; expectedDefinitionRevision?: number; now?: Date }) {
   const now = input.now ?? new Date();
   return prisma.$transaction(async db => {
+    // The plan's lock comes before the contact row's (src/lib/plan-limits.ts).
+    await assertRoomForPeople(db, input.workspaceId, [input.contactId]);
     await db.$queryRaw`SELECT id FROM "Contact" WHERE id = ${input.contactId} AND "workspaceId" = ${input.workspaceId} FOR UPDATE`;
     const contact = await db.contact.findFirst({ where: { id: input.contactId, workspaceId: input.workspaceId, archivedAt: null } });
     if (!contact) throw new UserFacingError("Choose a person in this account.");

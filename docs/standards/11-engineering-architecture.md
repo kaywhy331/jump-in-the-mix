@@ -2,9 +2,9 @@
 id: JITM-11
 title: Engineering architecture
 status: active
-version: 1.1.1
+version: 1.2.0
 owner: Kevin
-last_reviewed: 2026-09-30
+last_reviewed: 2026-10-01
 applies_to: [src, prisma, worker, scripts, infra, dependencies]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -188,6 +188,8 @@ Neighboring topics live elsewhere:
 
 **2.57** Deleting an account first deletes the Stripe customer of every workspace the person owns (the workspaces the deletion removes), which ends every subscription; it never touches a workspace they only belong to. A refusal the person can act on (the last active staff owner) is checked before any customer is deleted; if Stripe fails, nothing is deleted. [PROPOSED]
 
+**2.58** Plan limits are enforced in `src/lib/plan-limits.ts` and only while billing is on (§2.53). People: the workspace's `PlanPerson` rows are the people with follow-ups on. Before every follow-up generation pass, the worker settles them for the whole workspace under the workspace's own advisory lock: a person with no running Mix leaves, someone new joins while there is room (earliest enrollment first), and anyone left over gets a `MixStop` with reason `plan.limit` in each Mix that would have started for them. While billing is off everyone is counted, so the people an account has when charging starts keep their follow-ups. A start the owner makes directly (a contact's Mix, a workflow start, a new contact's first Mix, a visit's plan, Resume) reserves the place first and is refused when there is none, taking the plan's lock before any contact row lock. Active Mixes: every path that turns a Mix on checks the count inside its transaction; a Mega-Mix counts as one, and `ONE_TIME` and `STARTER` Mixes don't count. [OWNER 2026-09-30 docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md:8] [OWNER 2026-09-30 docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md:9] [PROPOSED]
+
 ### What stays deliberately strong
 
 **2.47** These controls MUST NOT be weakened, bypassed or disabled to pass a check, simplify code or speed a release. They add engineering detail to JITM-00 §2.
@@ -268,3 +270,4 @@ Neighboring topics live elsewhere:
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.1.0 — 2026-09-29 — Base db54cc7. §2.53–§2.57 add the billing rules for Stripe checkout, the billing portal and the webhook (docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md).
 - 1.1.1 — 2026-09-30 — Base 5c02e8d. §2.57 names the owned workspaces and the last-owner pre-check (BIL-01, docs/BILLING_DELETION_FIX_2026-09-30.md).
+- 1.2.0 — 2026-10-01 — Base f1ac84d. New §2.58: how the plan limits are enforced (docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { prisma } from "@/lib/prisma";
+import { reservePeople } from "@/lib/plan-limits";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -66,7 +67,7 @@ export async function stopMixForContactAction(formData: FormData): Promise<void>
 }
 
 export async function resumeMixForContactAction(formData: FormData): Promise<void> {
-  const { workspace, user } = await requireWritableWorkspace(refuseTo(formData));
+  const { workspace, user, session } = await requireWritableWorkspace(refuseTo(formData));
   const contactId = value(formData, "contactId");
   const mixId = value(formData, "mixId");
   const returnTo = safeReturnTo(value(formData, "returnTo"), contactId);
@@ -75,6 +76,9 @@ export async function resumeMixForContactAction(formData: FormData): Promise<voi
     select: { id: true }
   });
   if (!stop) redirect(withFlag(returnTo, "mixResumeError"));
+  // Resuming starts follow-ups again, which takes a place on the plan if the person has none.
+  const refusal = await reservePeople(workspace.id, [contactId]);
+  if (refusal) redirect(withViewerError(returnTo, refusal, session));
 
   await prisma.$transaction([
     prisma.mixStop.delete({ where: { id: stop.id } }),
