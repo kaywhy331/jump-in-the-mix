@@ -13,7 +13,7 @@ Kevin's plans are Free ($0), Plus ($15 a month or $144 a year) and Pro ($29 a mo
   - If a duplicate checkout leaves two subscriptions, the higher plan applies. Refund the duplicate in Stripe.
 - **Managing a plan.** Manage billing opens Stripe's billing portal. There the owner updates the card, sees invoices, switches between Plus and Pro (prorated) or cancels at the end of the paid period.
 - **Prices.** The app finds Stripe prices by lookup key (`jitm_plus_month`, `jitm_plus_year`, `jitm_pro_month`, `jitm_pro_year`). It sells one only when its amount, currency and interval match `src/lib/plans.ts` exactly. A price edited in Stripe can't be charged: checkout reports that payments aren't available.
-- **Deleting an account.** Before any account data is removed, the app deletes the Stripe customer. That ends every subscription at once and removes saved cards; Stripe keeps its own records of past payments. If Stripe can't be reached, nothing is deleted and the owner is asked to try again.
+- **Deleting an account.** Before any account data is removed, the app deletes the Stripe customer of every workspace the person owns. A workspace they only belong to keeps its owner's billing. That ends every subscription at once and removes saved cards; Stripe keeps its own records of past payments. If Stripe can't be reached, nothing is deleted and the owner is asked to try again.
 - **Records.** `WorkspaceBilling` holds the account's plan and Stripe identifiers. `StripeWebhookEvent` holds each event id for 90 days, so a retried delivery is recognized. Stripe retries for up to three days.
 
 ## Settings

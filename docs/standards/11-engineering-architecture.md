@@ -2,9 +2,9 @@
 id: JITM-11
 title: Engineering architecture
 status: active
-version: 1.1.0
+version: 1.1.1
 owner: Kevin
-last_reviewed: 2026-09-29
+last_reviewed: 2026-09-30
 applies_to: [src, prisma, worker, scripts, infra, dependencies]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -186,7 +186,7 @@ Neighboring topics live elsewhere:
 
 **2.56** Prices come from `src/lib/plans.ts`. A Stripe price is sold only when its lookup key, amount, currency and interval match the plan exactly, so a price edited in Stripe can't be charged; a changed price needs a new lookup key and a code change. [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:11] [PROPOSED]
 
-**2.57** Deleting an account first deletes its Stripe customer, which ends every subscription; if that fails, nothing is deleted. [PROPOSED]
+**2.57** Deleting an account first deletes the Stripe customer of every workspace the person owns (the workspaces the deletion removes), which ends every subscription; it never touches a workspace they only belong to. A refusal the person can act on (the last active staff owner) is checked before any customer is deleted; if Stripe fails, nothing is deleted. [PROPOSED]
 
 ### What stays deliberately strong
 
@@ -267,3 +267,4 @@ Neighboring topics live elsewhere:
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.1.0 — 2026-09-29 — Base db54cc7. §2.53–§2.57 add the billing rules for Stripe checkout, the billing portal and the webhook (docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md).
+- 1.1.1 — 2026-09-30 — Base 5c02e8d. §2.57 names the owned workspaces and the last-owner pre-check (BIL-01, docs/BILLING_DELETION_FIX_2026-09-30.md).
