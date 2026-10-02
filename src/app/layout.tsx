@@ -12,13 +12,19 @@ import { PublicConversionEvents } from "@/components/PublicConversionEvents";
 import { env } from "@/lib/env";
 import "@/styles/index.css";
 
+// Preload the UI weights that stabilize the first heading and controls.
+// All weights share one family; regular and medium load when used.
 const uiFont = localFont({ src: [
   { path: "./fonts/instrument-sans.ttf", weight: "400" },
-  { path: "./fonts/instrument-sans-1.ttf", weight: "500" },
+  { path: "./fonts/instrument-sans-1.ttf", weight: "500" }
+], variable: "--font-instrument", display: "swap", preload: false,
+declarations: [{ prop: "font-family", value: "uiFont" }] });
+const uiEmphasisFont = localFont({ src: [
   { path: "./fonts/instrument-sans-2.ttf", weight: "600" },
   { path: "./fonts/instrument-sans-3.ttf", weight: "700" }
-], variable: "--font-instrument", display: "swap" });
-const voiceFont = localFont({ src: "./fonts/newsreader.ttf", weight: "400", variable: "--font-newsreader", display: "swap" });
+], variable: "--font-instrument-emphasis", display: "swap", adjustFontFallback: false,
+declarations: [{ prop: "font-family", value: "uiFont" }] });
+const voiceFont = localFont({ src: "./fonts/newsreader.ttf", weight: "400", variable: "--font-newsreader", display: "swap", preload: false });
 
 export const metadata: Metadata = {
   title: {
@@ -42,7 +48,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   await connection();
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
-    <html lang="en" data-scroll-behavior="smooth" className={`${uiFont.variable} ${voiceFont.variable}`} suppressHydrationWarning>
+    <html lang="en" data-scroll-behavior="smooth" className={`${uiFont.variable} ${uiEmphasisFont.variable} ${voiceFont.variable}`} suppressHydrationWarning>
       <head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: appearanceScript }} /></head>
       <body>
         <AppearanceSync />
