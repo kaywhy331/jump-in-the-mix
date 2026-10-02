@@ -8,7 +8,8 @@ import { generateTotpCode, generateTotpSecret } from "../src/lib/totp";
 
 const enabled = process.env.ADMIN_UX_E2E === "1" && process.env.AUTH_REQUIRE_ADMIN_MFA === "true" && /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 test.skip(!enabled, "Requires disposable local admin UX fixtures and MFA.");
-test.use({ actionTimeout: 15000, screenshot: "off", video: "off", trace: "off" });
+// These fixtures intercept session checks; a controlling service worker can bypass page.route.
+test.use({ actionTimeout: 15000, screenshot: "off", video: "off", trace: "off", serviceWorkers: "block" });
 const password = "Admin workflow synthetic password!";
 async function fixture() {
   const support = await createSupportFixture();
@@ -96,7 +97,10 @@ test("a different staff session cannot recover the previous operator's in-memory
     await page.goto(`/admin/support/${f.ticket.id}`);
     await page.locator('textarea[name="body"]').fill("Private draft belonging to the first operator.");
     await page.route("**/api/admin/browser-context", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ status: "unavailable" }) }));
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await Promise.all([
+      page.waitForResponse(response => response.url().endsWith("/api/admin/browser-context") && response.status() === 503),
+      page.evaluate(() => window.dispatchEvent(new Event("focus")))
+    ]);
     await expect(page.getByRole("button", { name: "Retry session check" })).toBeEnabled();
     await expect(page.locator('textarea[name="body"]')).toBeHidden();
     await page.unroute("**/api/admin/browser-context");
@@ -104,7 +108,11 @@ test("a different staff session cannot recover the previous operator's in-memory
     await expect(page.locator('textarea[name="body"]')).toBeVisible();
     await expect(page.locator('textarea[name="body"]')).toHaveValue("Private draft belonging to the first operator.");
     await context.addCookies([{ name: "jitm_session", value: f.colleague.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await Promise.all([
+      page.waitForEvent("load"),
+      page.evaluate(() => window.dispatchEvent(new Event("focus")))
+    ]);
+    await expect(page.locator(".admin-operator strong")).toContainText(f.colleague.user.name);
     await expect(page.locator('textarea[name="body"]')).toHaveValue("");
     expect(await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }))).not.toContain("Private draft");
   } finally { await f.cleanup(); }

@@ -255,7 +255,12 @@ test("the map pans like a flowchart, lines stay readable when zoomed out, and ba
 
   // Zoomed out, the lines into and out of the selected Mix still draw 4px wide on screen.
   await page.getByRole("button", { name: "Fit map", exact: true }).click();
-  await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active| Beats| Mix|$)/ }).click();
+  // Finish the explicit selection refresh before observing a separate background refresh.
+  await Promise.all([
+    page.waitForResponse(response => response.url().includes("/api/mix-workflow?") && new URL(response.url()).searchParams.get("node") === `mix:${mixes[0]}`),
+    page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: active| Beats| Mix|$)/ }).click()
+  ]);
+  await expect(page.getByText("Updating people…", { exact: true })).toHaveCount(0);
   const line = page.locator('[data-direction=outgoing] path:not([class*="edgeHit"])').first();
   expect(await line.evaluate(element => { const style = getComputedStyle(element); return [style.strokeWidth, style.vectorEffect]; })).toEqual(["4px", "non-scaling-stroke"]);
 
