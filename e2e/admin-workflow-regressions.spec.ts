@@ -192,3 +192,42 @@ test("export polling pauses while hidden and stops after eight automatic checks"
     await page.clock.runFor(120_000); expect(refreshes).toBe(8);
   } finally { await prisma.reportExport.deleteMany({ where: { actorUserId: f.admin.user.id } }); await f.cleanup(); }
 });
+
+test("staff ticket navigation and customer details reflow at enlarged text sizes", async ({ page, context }, info) => {
+  const f = await fixture();
+  try {
+    await context.addCookies([{ name: "jitm_session", value: f.admin.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
+    await page.goto(`/admin/support/${f.ticket.id}`);
+    const navigation = page.getByRole("navigation", { name: "Administration", exact: true });
+    const menu = page.getByRole("button", { name: "Menu", exact: true });
+    const close = page.getByRole("button", { name: "Close ticket", exact: true });
+    for (const width of [320, 760, 761, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      for (const theme of ["light", "dark"]) {
+        await page.evaluate(theme => {
+          document.documentElement.setAttribute("data-theme", theme);
+          document.documentElement.style.fontSize = "200%";
+        }, theme);
+        await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), `${width}px ${theme} at 200% text`).toBeLessThanOrEqual(width + 1);
+        await expect(page.locator(".admin-ticket-context")).toContainText(f.customer.user.email);
+        expect(await page.locator(".admin-ticket-context").evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+        if (width <= 760) {
+          await menu.click();
+          await expect(page.getByRole("button", { name: "Close menu", exact: true })).toHaveAttribute("aria-expanded", "true");
+          expect(await navigation.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+          expect(await navigation.getByRole("link").evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
+          await page.keyboard.press("Escape");
+          await expect(menu).toHaveAttribute("aria-expanded", "false");
+          await expect(menu).toBeFocused();
+        }
+        await close.hover();
+        await expect(close).toBeVisible();
+        expect(await close.evaluate(element => element.matches(":hover"))).toBe(true);
+      }
+    }
+    await page.evaluate(() => document.documentElement.style.removeProperty("font-size"));
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await close.hover();
+    expect(await close.evaluate(element => element.matches(":hover"))).toBe(true);
+  } finally { await f.cleanup(); }
+});
