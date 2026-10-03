@@ -1,13 +1,35 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { DEMO_BEATS, demoSituations } from "../src/lib/demo-workspace";
 import { MARKETING_SCENARIOS } from "../src/lib/marketing-scenarios";
+
+type NativeClick = { href: string; prevented: boolean };
+
+// Never let a test hand a real sms:, mailto: or tel: link to the operating system.
+// The document listener runs after React's handlers, so it records whether the page itself
+// prevented the default; the window listener then cancels the navigation.
+async function guardNativeLinks(page: Page, options: { blockStorage?: boolean; blockClipboard?: boolean } = {}) {
+  await page.addInitScript(({ blockStorage, blockClipboard }) => {
+    const clicks: NativeClick[] = [];
+    (window as unknown as { __demoNative: NativeClick[] }).__demoNative = clicks;
+    const native = (event: Event) => {
+      const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+      return link && /^(sms|mailto|tel):/i.test(link.getAttribute("href") ?? "") ? link : null;
+    };
+    document.addEventListener("click", event => { const link = native(event); if (link) clicks.push({ href: link.getAttribute("href")!, prevented: event.defaultPrevented }); });
+    window.addEventListener("click", event => { if (native(event)) event.preventDefault(); });
+    if (blockStorage) for (const name of ["localStorage", "sessionStorage"]) Object.defineProperty(window, name, { get() { throw new DOMException("Storage blocked", "SecurityError"); } });
+    if (blockClipboard) Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject(new Error("Clipboard blocked")) } });
+  }, options);
+}
+const nativeClicks = (page: Page) => page.evaluate(() => (window as unknown as { __demoNative: NativeClick[] }).__demoNative);
 
 test("Today demo supports editing, previews, truthful outcomes, Not yet and Undo", async ({ page }) => {
   const mutations: string[] = [];
   const errors: string[] = [];
   page.on("request", request => { if (!["GET", "HEAD"].includes(request.method())) mutations.push(request.url()); });
   page.on("pageerror", error => errors.push(error.message));
+  await guardNativeLinks(page);
   await page.goto("/");
   await page.getByRole("link", { name: "Try the demo", exact: true }).click();
   const demo = page.locator("#sample");
@@ -41,7 +63,9 @@ test("Today demo supports editing, previews, truthful outcomes, Not yet and Undo
   }
   await expect(demo.getByRole("link", { name: "Join the waitlist" })).toHaveAttribute("href", "/waitlist");
   await expect(schedule.getByRole("button")).toHaveText(["TextTodayDone in demo", "EmailTomorrowDone in demo", "CallIn 1 weekDone in demo"]);
+  // Recording a simulated outcome never needs, or implies, a native handoff.
   await expect(demo.locator('a[href^="sms:"],a[href^="mailto:"],a[href^="tel:"]')).toHaveCount(0);
+  expect(await nativeClicks(page)).toEqual([]);
   expect(mutations).toEqual([]);
   expect(errors).toEqual([]);
 });

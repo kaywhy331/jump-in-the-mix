@@ -86,18 +86,27 @@ export const DEMO_SCENARIOS: { id: string; label: string; description: string; s
   }
 ];
 
-export function demoActionUrl(channel: DemoStep["channel"], subject: string, message: string, appleMobile = false, contact: Pick<DemoContactDetails, "phone" | "email"> = DEMO_CONTACT_DEFAULTS): string | null {
+// iPadOS reports a Mac platform, so touch support distinguishes it from a desktop Mac.
+export function isAppleMobile(userAgent: string, platform = "", maxTouchPoints = 0): boolean {
+  return /iPhone|iPad|iPod/.test(userAgent) || (platform === "MacIntel" && maxTouchPoints > 1);
+}
+
+// The contact is explicit so the caller always supplies the fictional destination being shown.
+export function demoActionUrl(channel: DemoStep["channel"], subject: string, message: string, appleMobile: boolean, contact: Pick<DemoContactDetails, "phone" | "email">): string | null {
   // Keep the demo marker even when a visitor edits the draft.
-  const body = encodeURIComponent(`${DEMO_MARKER}\n\n${message}`);
+  const text = `${DEMO_MARKER}\n\n${message}`;
   if (channel === "email") {
     if (!/^[^\s@,;<>]+@[a-z\d](?:[a-z\d-]*[a-z\d])?(?:\.[a-z\d](?:[a-z\d-]*[a-z\d])?)+$/i.test(contact.email)) return null;
     const recipient = contact.email.split("@").map(encodeURIComponent).join("@");
-    return `mailto:${recipient}?subject=${encodeURIComponent(`[DEMO] ${subject}`)}&body=${body}`;
+    // RFC 6068 line breaks in a mailto body are CRLF; a subject is a single line.
+    const mailBody = encodeURIComponent(text.replace(/\r\n|\r|\n/g, "\r\n"));
+    return `mailto:${recipient}?subject=${encodeURIComponent(`[DEMO] ${subject.replace(/\s+/g, " ").trim()}`)}&body=${mailBody}`;
   }
+  const body = encodeURIComponent(text.replace(/\r\n|\r/g, "\n"));
   const phone = demoPhone(contact.phone);
   if (!phone) return null;
   if (channel === "phone") return `tel:${phone}`;
   // Apple Messages uses &body; other SMS handlers use RFC 5724's ?body.
-  // A copy action remains available for handlers that ignore message bodies.
+  // A copy action remains available for handlers that ignore message bodies or are missing.
   return `sms:${phone}${appleMobile ? "&" : "?"}body=${body}`;
 }

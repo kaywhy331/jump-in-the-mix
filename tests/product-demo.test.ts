@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { DEMO_CONTACT_DEFAULTS, DEMO_MARKER, DEMO_SCENARIOS, demoActionUrl, personalizeDemoText, resolveDemoContact } from "../src/lib/product-demo";
+import { DEMO_CONTACT_DEFAULTS, DEMO_MARKER, DEMO_SCENARIOS, demoActionUrl, isAppleMobile, personalizeDemoText, resolveDemoContact } from "../src/lib/product-demo";
+import { HOME_DEMO_SITUATIONS, demoContact } from "../src/lib/demo-workspace";
 
 describe("personalized homepage demo", () => {
   it("falls back per field without overwriting other contact details", () => {
@@ -29,11 +30,27 @@ describe("personalized homepage demo", () => {
     expect(decodeURIComponent(email.pathname)).toBe(contact.email);
     expect([...email.searchParams.keys()]).toEqual(["subject", "body"]);
     expect(email.searchParams.get("subject")).toBe(`[DEMO] ${subject}`);
-    expect(email.searchParams.get("body")).toBe(`${DEMO_MARKER}\n\n${body}`);
+    // Mail bodies use CRLF line breaks (RFC 6068); the message text is otherwise unchanged.
+    expect(email.searchParams.get("body")).toBe(`${DEMO_MARKER}\n\n${body}`.replaceAll("\n", "\r\n"));
+    expect(demoActionUrl("email", "Two\nlines", "a\r\nb", false, contact)).toContain("subject=%5BDEMO%5D%20Two%20lines&body=");
     expect(demoActionUrl("phone", "", body, false, contact)).toBe("tel:+12025550142");
     expect(demoActionUrl("text", "", body, false, contact)).toBe(`sms:+12025550142?body=${encodeURIComponent(`${DEMO_MARKER}\n\n${body}`)}`);
     expect(demoActionUrl("text", "", body, true, contact)).toContain("sms:+12025550142&body=");
     expect(demoActionUrl("phone", "", "", false, { ...contact, phone: "+44 7700 900123" })).toBe("tel:+447700900123");
+  });
+
+  it("detects Apple mobile Messages separators, including iPadOS desktop mode", () => {
+    expect(isAppleMobile("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)")).toBe(true);
+    expect(isAppleMobile("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", "MacIntel", 5)).toBe(true);
+    expect(isAppleMobile("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", "MacIntel", 0)).toBe(false);
+    expect(isAppleMobile("Mozilla/5.0 (Linux; Android 14; Pixel 7)", "Linux armv8l", 5)).toBe(false);
+  });
+
+  it("builds all three native URLs from the visible fictional contact only", () => {
+    const contact = demoContact(HOME_DEMO_SITUATIONS[0]);
+    expect(demoActionUrl("phone", "", "notes stay on the page", false, contact)).toBe("tel:+12025550142");
+    expect(demoActionUrl("email", "Hello", "Hi", false, contact)).toMatch(/^mailto:alex\.morgan@example\.invalid\?subject=/);
+    expect(demoActionUrl("text", "", "Hi", false, contact)).toMatch(/^sms:\+12025550142\?body=/);
   });
 
   it.each(["bad email", "a@example.invalid,b@example.invalid", "a@example.invalid?bcc=b@example.invalid", "a@example.invalid\r\nBcc: b@example.invalid"])("blocks malformed or multiple email recipients: %s", email => {
