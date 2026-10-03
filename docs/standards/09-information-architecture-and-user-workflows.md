@@ -2,9 +2,9 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 2.3.0
+version: 3.0.0
 owner: Kevin
-last_reviewed: 2026-10-01
+last_reviewed: 2026-10-03
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
 supersedes: [docs/UX_WORKFLOW_OPTIMIZATION.md]
 sources:
@@ -250,7 +250,7 @@ Shipped Journey still numbers per Mega-Mix view (§6). [OWNER 2026-09-28 D21] [O
 
 ### Homepage and profession pages
 
-**2.67** Demo contract: each situation shows one explicitly fictional contact, with a reserved phone number and an `example.invalid` email, and exactly three Beats: a text today (day 0), an email tomorrow (day 1) and a call in one week (day 7). Drafts are editable, previews are marked, and outcomes are simulated with Not yet and Undo. Everything stays in memory: the demo MUST NOT open a messaging app, send, call, schedule or write to an account, and only an allowlisted situation id may reach the waitlist. The homepage uses generic situations, a profession page preselects its own, and profession is never inferred from behavior or device. [OWNER 2026-09-19 docs/design/DEMO_WORKSPACE_2026-09-19.md:3] [SOURCE docs/design/DEMO_WORKSPACE_2026-09-19.md:8-9] [SHIPPED 9439fd6 src/lib/demo-workspace.ts:4-13,61] [SHIPPED 9439fd6 src/components/ProductDemo.tsx:12,56,79,88] [SOURCE docs/HOMEPAGE_EXPERIENCE_ROADMAP_2026-09-10.md:85]
+**2.67** Demo contract: each situation shows one explicitly fictional contact, with a reserved phone number and an `example.invalid` email, and exactly three Beats: a text today (day 0), an email tomorrow (day 1) and a call in one week (day 7). Drafts are editable and previews are marked. In a preview, ordinary user-activated `sms:`, `mailto:` and `tel:` links (the number only for a call) hand the edited, demo-marked text to the visitor's own app, with copy and manual-select fallbacks that keep the marker. A click only means a handoff was requested: the page MUST NOT treat focus, visibility or a click as proof that anything opened, sent or was delivered, and MUST NOT mark a Beat done from it. Where an app or body is unavailable, the copy says so honestly. Outcomes are simulated with Mark sent or called, Not yet and Undo, which change only the demo record. Drafts, subjects, Beats and progress are kept per situation in memory in the mounted tab only (a refresh clears them; Reset clears only the selected situation). The demo MUST NOT use cookies, storage, URL drafts, send automatically, place a call, schedule or write to an account, and only an allowlisted situation id may reach the waitlist. The only destinations are the fictional number and the per-situation `example.invalid` email. An owned auto-reply demo is a deferred future option (OWNER 2026-10-03). The homepage uses generic situations, a profession page preselects its own, and profession is never inferred from behavior or device. [OWNER 2026-09-19 docs/design/DEMO_WORKSPACE_2026-09-19.md:3] [SOURCE docs/design/DEMO_WORKSPACE_2026-09-19.md:8-9] [SHIPPED 9439fd6 src/lib/demo-workspace.ts:4-13,61] [SHIPPED 9439fd6 src/components/ProductDemo.tsx:12,56,79,88] [SOURCE docs/HOMEPAGE_EXPERIENCE_ROADMAP_2026-09-10.md:85] [OWNER 2026-10-03 D31 docs/standards-audit-2026-09-28/OWNER_DECISIONS.md]
 
 **2.68** The homepage and the five profession pages share one composition (`PublicLanding`; order and hero layout: JITM-07 §2). The pages are `/for/real-estate-agents`, `/for/consultants`, `/for/photographers`, `/for/contractors` and `/for/independent-recruiters`; other slugs MUST return 404. Each has its own title, description, headline, supporting line, demo call to action and honest boundary, and links only to template pages that exist. The "Mixes for:" row appears on every public page and marks the current one. Adding or removing a page needs Kevin (JITM-02 §2). [OWNER 2026-09-28 D2] [SHIPPED 9439fd6 src/components/PublicLanding.tsx:14-15] [SHIPPED 9439fd6 src/app/for/[profession]/page.tsx:19] [SHIPPED 9439fd6 src/lib/persona-mixes.ts:18-26] [SHIPPED 9439fd6 src/components/MixesFor.tsx:4-9]
 
@@ -275,7 +275,7 @@ Shipped Journey still numbers per Mega-Mix view (§6). [OWNER 2026-09-28 D21] [O
 - **Do** create one follow-up at the chosen time for "Schedule the next follow-up".
 - **Don't** restart a Mix or recreate a skipped Beat after a settings change.
 - **Do** install a Mega-Mix, save a connection or import a file with nobody enrolled, then Start people explicitly.
-- **Don't** let the public demo open `sms:`, `mailto:` or `tel:` links, or carry drafts to the waitlist.
+- **Don't** let the public demo open anything except from a visitor's own click on a `sms:`, `mailto:` or `tel:` link, claim that it opened or sent, or carry drafts to the waitlist.
 
 ## 5. Verification
 
@@ -318,3 +318,4 @@ Known deviations:
 - 2.1.0 — 2026-09-29 — Base dc81d10. §2.20: a business type with its own curated journey starts onboarding from it; Real estate starts from the Real estate Mega-Mix. §2.43: the Real estate Mega-Mix has separate buyer and seller paths (Kevin, 2026-09-29). §6 asks about the other business types.
 - 2.2.0 — 2026-09-30 — Base 94b9539. §2.65: My account links to Plan and billing (`/account/billing`), shipped in PR #104 (O10).
 - 2.3.0 — 2026-10-01 — Base f1ac84d. New §2.75: plan limits skip automatic additions and refuse direct starts, with a Today notice (O14, docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).
+- 3.0.0 — 2026-10-03 — Base fdb95b6. §2.67 and §4: the public demo hands drafts to the visitor's own text, email and phone apps through ordinary links, a deliberate reversal of the earlier no-handoff rule (D31). Frontmatter version is 3.0.0.

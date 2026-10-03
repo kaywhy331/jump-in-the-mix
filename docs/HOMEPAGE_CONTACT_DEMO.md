@@ -1,5 +1,24 @@
 # Homepage contact demo
 
+## Future option: verified demo replies (deferred)
+
+Kevin confirmed on October 3, 2026: "okay let's do that and add the auto reply demo as an option in the future." Continue the native-handler correction with the existing fictional sample contacts. As a future optional demo, consider a verified JITM-owned inbox and phone/SMS number providing one clearly labeled demo reply or greeting. Keep demo replies separate from marketing opt-in; a demo action or inbound message must not enroll anyone. Require actual destination ownership/receipt verification and approval for any service before activation. No working demo destination or autoresponder is currently established by this record; do not build, provision or enable one now, or repurpose the support address. This is a backlog item, not an activated capability or a deliverability claim.
+
+## Current instructions: three-Beat native sample (October 3, 2026)
+
+Owner decision D31: "They are actually supposed to trigger the text message, email, and phone functions when clicking the button." Implementation: `src/components/ProductDemo.tsx`, `src/lib/product-demo.ts`, `src/lib/demo-workspace.ts`; tests: `e2e/product-demo.spec.ts`, `tests/product-demo.test.ts`.
+
+- Each situation has one fictional contact and exactly three Beats: text today, email tomorrow, call in one week. The only destinations are `(202) 555-0142` and a per-situation `example.invalid` email.
+- In a preview, ordinary `sms:`, `mailto:` and `tel:` anchors, only when the visitor activates them, ask the visitor's device to open its own apps; the device may have no handler. The text and email carry the edited message and the `[DEMO — preview]` marker, and the email subject starts with `[DEMO]`. The call link carries the number only; call notes stay on the page.
+- A click means a handoff was requested. Focus, visibility or a click never prove that anything opened, sent or was delivered, and never mark a Beat done. If no app handles the link, or an app ignores the body, the page says so honestly and offers copy.
+- Copy and the manual-select field keep the same marker (and email subject marker). If the clipboard is denied, the manual field takes focus.
+- Mark sent or called, Not yet and Undo are simulated demo records; Undo cannot recall an actual message or call.
+- State is memory-only in the mounted tab: drafts, subjects, Beat and progress are kept per situation; a refresh clears them; Reset clears only the selected situation. No cookies, storage, URL drafts or account APIs.
+- Tests intercept native link defaults and never send or call.
+
+The descriptions and dated release evidence below are historical releases. Where they conflict with the current instructions above, the current instructions win; they are not proof that this candidate is released.
+
+
 The public homepage contains a self-contained contact demo. Visitors first see a fictional contact, the plan choices, and a ready-to-try message or call reminders. Message editing is an optional disclosure; the step selector, Previous/Next controls, and full sequence are inside “Explore the full …-step plan.” Selecting a step from the full plan returns focus to its draft. A signup invitation follows the sample, and the hero links directly to it.
 
 By default, all 13 follow-ups use the voice of **Jamie**, one self-employed service professional speaking directly to Alex. Texts introduce Jamie by name; emails use a first-name sign-off. Calls show four short reminder bullets for that same individual, with editing available in a disclosure below the list. Keep the language personal and singular (I, me, my), with no company or team persona.

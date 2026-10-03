@@ -22,7 +22,7 @@ export function PublicLanding({ persona }: { persona?: Pick<Persona, "id" | "hea
           <h1 id="hero-title">{persona ? persona.headline : <>You meant to follow up. <em>Then work happened.</em></>}</h1>
           <p>{persona?.supporting ?? "A client follow-up app for independent professionals. Put the next check-in on a simple plan, with a message ready to make your own. You choose the timing. You review, edit, and send."}</p>
           <div className="hero-actions"><a className="button primary" href="#sample" data-demo-trigger>{persona?.demoCta ?? "Try the demo"}</a><WaitlistLink className="button" scenarioId={persona?.id}>Join the waitlist</WaitlistLink></div>
-          <p className="hero-note">Practice with a fictional contact. Nothing is sent and no messaging app opens. Free accounts, no card; access is by invitation from a member, or from the waitlist as space opens.</p>
+          <p className="hero-note">Practice with a fictional contact. The demo sends nothing itself. If you choose to open the draft in your own text, email or phone app, the recipient is a non-working example and you decide whether to send or call. Free accounts, no card; access is by invitation from a member, or from the waitlist as space opens.</p>
         </div>
         <ProductDemo scenarioId={persona?.id} />
         <MixesFor current={persona?.id} />
