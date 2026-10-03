@@ -143,7 +143,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 | Opt-in notifications: morning email, due push, weekly report | Shipped | `docs/CANONICAL_PRODUCT_DECISIONS.md:77` |
 | Waitlist and personal invitations | Shipped | §2.8; JITM-09 §2.17 |
 | Data controls: export, sessions, account deletion | Shipped | `docs/CANONICAL_PRODUCT_DECISIONS.md:111` |
-| Help and support conversations; staff console | Shipped | `docs/SUPPORT.md:3`; `docs/CANONICAL_PRODUCT_DECISIONS.md:16` |
+| Help and support conversations, redacted tester-report preview; staff console | Shipped (tester preview at `01935f2`) | `docs/SUPPORT.md:3`; `docs/TESTER_FEEDBACK_RELEASE_2026-10-03.md` |
 | Contact stages: optional labels such as Lead or Client, and the Mix each stage can start | Shipped | D16; `src/app/(app)/settings/page.tsx:11` |
 | Automatic customer email; automatic SMS | Built but off | §2.4 |
 | Payments: Stripe hosted checkout, billing portal and Plan and billing (`/account/billing`) | Built but off (`BILLING_ENABLED`) | `docs/BILLING.md`; `docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md` |
