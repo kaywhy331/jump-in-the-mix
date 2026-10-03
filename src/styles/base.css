@@ -141,7 +141,8 @@ img, svg { max-width: 100%; }
 .cta-band h2 { font-size: 2.2rem; line-height: 1.05; margin: 0 0 10px; }
 .cta-band p { margin: 0; opacity: 0.82; }
 .public-footer { padding: 34px 24px; border-top: 1px solid var(--line); color: var(--muted); text-align: center; }
-.button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 44px; border-radius: var(--radius-sm); border: 1px solid var(--line); padding: 9px var(--space-4); background: var(--raised); color: var(--ink); font-weight: 760; line-height: 1.25; transition: transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease; }
+/* Keep text and background in the same theme on every animation frame. */
+.button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 44px; border-radius: var(--radius-sm); border: 1px solid var(--line); padding: 9px var(--space-4); background: var(--raised); color: var(--ink); font-weight: 760; line-height: 1.25; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
 .button:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(23, 32, 54, 0.09); }
 .button.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
 .button.primary:hover { background: var(--brand-dark); }
