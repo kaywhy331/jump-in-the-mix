@@ -226,6 +226,8 @@ test("zoomed dragging follows screen coordinates and touch selection works after
   await expect(editor(page).getByRole("combobox", { name: /^Continue to/ })).toHaveValue(`mix:${mixes[1]}`);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await editor(page).getByRole("button", { name: "Cancel", exact: true }).click();
+  // closeEditor refocuses and scrolls the origin port in the next animation frame; wait for that so it cannot move the ports after they are measured.
+  await expect(port(page, 0, true, "output")).toBeFocused();
   await canvas(page).evaluate(element => { element.scrollTop = 0; element.scrollLeft = 40; element.scrollIntoView({ block: "center", behavior: "instant" }); });
   const from = await center(port(page, 1, false, "output")), to = await center(port(page, 1, true, "input"));
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ ...from, id: 2 }] });
