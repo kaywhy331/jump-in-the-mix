@@ -119,20 +119,39 @@ test("email and call links carry the marker, edited subject, CRLF body and numbe
   expect(hrefs[1]).toBe("tel:+12025550142");
 });
 
-test("focus and visibility changes never prove a handoff; Not yet and Undo keep edits", async ({ page }) => {
+test("focus and visibility changes never prove a handoff; edited email Beat survives Not yet, Undo; Reset restores default", async ({ page }) => {
+  const SUBJECT = "Unique subject Q7 for Alex";
+  const BODY = "Unique body Z9 line one\nUnique body Z9 line two";
   await guardNativeLinks(page, { blockStorage: true });
   await page.goto("/");
-  const demo = await open(page, "text", "Preview SMS");
-  await demo.locator('a[data-demo-native="text"]').click();
+  let demo = await open(page, "email", "Preview email");
+  await demo.getByRole("button", { name: "Back to edit" }).click();
+  await demo.getByRole("textbox", { name: "Subject", exact: true }).fill(SUBJECT);
+  await demo.getByRole("textbox", { name: "Message to Alex Morgan" }).fill(BODY);
+  await demo.getByRole("button", { name: "Preview email", exact: true }).click();
+  await demo.locator('a[data-demo-native="email"]').click();
   await page.evaluate(() => { window.dispatchEvent(new Event("blur")); document.dispatchEvent(new Event("visibilitychange")); window.dispatchEvent(new Event("focus")); });
   await expect(demo.getByRole("status")).toContainText("cannot tell whether anything opened or was sent");
   await expect(demo.getByText("Done in demo")).toHaveCount(0);
+  const preview = demo.locator('[data-demo-preview="email"]');
+  await expect(preview).toBeVisible();
+  await expect(preview).toContainText(SUBJECT);
+  await expect(demo.locator("blockquote")).toContainText("Unique body Z9 line two");
   await demo.getByRole("button", { name: "Not yet", exact: true }).click();
   await expect(demo.getByRole("heading", { level: 3 })).toBeFocused();
-  await demo.getByRole("button", { name: "Preview SMS" }).click();
+  await expect(demo.getByRole("textbox", { name: "Subject", exact: true })).toHaveValue(SUBJECT);
+  await expect(demo.getByRole("textbox", { name: "Message to Alex Morgan" })).toHaveValue(BODY);
+  await demo.getByRole("button", { name: "Preview email", exact: true }).click();
   await demo.getByRole("button", { name: "Mark sent (demo)", exact: true }).click();
   await demo.getByRole("button", { name: "Undo recorded outcome" }).click();
-  await expect(demo.getByRole("textbox")).not.toHaveValue("");
+  await expect(demo.locator('[data-demo-beat="email"]')).toBeVisible();
+  await expect(demo.getByRole("textbox", { name: "Subject", exact: true })).toHaveValue(SUBJECT);
+  await expect(demo.getByRole("textbox", { name: "Message to Alex Morgan" })).toHaveValue(BODY);
+  expect((await nativeClicks(page)).map(click => click.href.split(":")[0])).toEqual(["mailto"]);
+  await demo.getByRole("button", { name: "Reset example" }).click();
+  await expect(demo.getByRole("textbox", { name: "Message to Alex Morgan" })).toBeFocused();
+  await expect(demo.getByRole("textbox", { name: "Message to Alex Morgan" })).not.toHaveValue(BODY);
+  await expect(demo.getByRole("textbox", { name: "Subject", exact: true })).toHaveCount(0);
 });
 
 test("denied copy falls back to a focused, marked manual field; unavailable handler claims no success", async ({ page }) => {
