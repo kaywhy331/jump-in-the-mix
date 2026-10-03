@@ -1,5 +1,12 @@
 # Homepage contact demo
 
+## Future option: verified demo replies (deferred)
+
+Kevin confirmed on October 3, 2026: "okay let's do that and add the auto reply demo as an option in the future." Continue the native-handler correction with the existing fictional sample contacts. As a future optional demo, consider a verified JITM-owned inbox and phone/SMS number providing one clearly labeled demo reply or greeting. Keep demo replies separate from marketing opt-in; a demo action or inbound message must not enroll anyone. Require actual destination ownership/receipt verification and approval for any service before activation. No working demo destination or autoresponder is currently established by this record; do not build, provision or enable one now, or repurpose the support address. This is a backlog item, not an activated capability or a deliverability claim.
+
+The descriptions and dated release evidence below predate the current correction; they are not proof that the local native-handler candidate is complete or released.
+
+
 The public homepage contains a self-contained contact demo. Visitors first see a fictional contact, the plan choices, and a ready-to-try message or call reminders. Message editing is an optional disclosure; the step selector, Previous/Next controls, and full sequence are inside “Explore the full …-step plan.” Selecting a step from the full plan returns focus to its draft. A signup invitation follows the sample, and the hero links directly to it.
 
 By default, all 13 follow-ups use the voice of **Jamie**, one self-employed service professional speaking directly to Alex. Texts introduce Jamie by name; emails use a first-name sign-off. Calls show four short reminder bullets for that same individual, with editing available in a disclosure below the list. Keep the language personal and singular (I, me, my), with no company or team persona.
