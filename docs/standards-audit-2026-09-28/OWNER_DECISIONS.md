@@ -252,6 +252,13 @@ Kevin answered the 18 questions in §7 of the [audit](../STANDARDS_AUDIT_2026-09
 - **Settles:** the merge question in O3.
 - **Applied in:** JITM-16 §2.5, JITM-13 §2.19, JITM-17 §2.1, `AGENTS.md`, the PR template, WF-04, WF-06, WF-08 and the skills that said "Kevin merges".
 
+### D31 — Public demo native handoff (2026-10-03)
+
+- **Decision:** "They are actually supposed to trigger the text message, email, and phone functions when clicking the button." The public demo's ordinary user-activated `sms:`, `mailto:` and `tel:` links hand the edited, demo-marked sample to the visitor's own apps, aimed only at the fictional number and per-situation `example.invalid` email. A click means requested only; the visitor decides whether to send or call. Simulated Mark sent or called, Not yet and Undo remain demo records. State stays in memory in the mounted tab.
+- **Future option:** an owned auto-reply demo (a verified JITM-owned inbox or number with one clearly labeled reply, separate from marketing opt-in, with destination verification and service approval first) is deferred and not built.
+- **Reverses:** the no-handoff rule in JITM-09 §2.67 at 2.3.0 (D2-era demo contract).
+- **Applied in:** JITM-09 §2.67 and §4 (3.0.0), `docs/HOMEPAGE_CONTACT_DEMO.md`.
+
 ## Still open
 
 The standards' §6 sections list the remaining open questions and known deviations. The second packet's product changes are tasks in the audit's [follow-up backlog](../STANDARDS_AUDIT_2026-09-28.md#8-follow-up-backlog).

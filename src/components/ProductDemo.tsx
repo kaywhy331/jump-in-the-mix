@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AppIcon } from "@/components/AppIcon";
 import { DEMO_BEATS, demoContact, demoDrafts, demoSituations } from "@/lib/demo-workspace";
 import { MARKETING_SCENARIOS } from "@/lib/marketing-scenarios";
-import { demoActionUrl, isAppleMobile } from "@/lib/product-demo";
+import { DEMO_MARKER, demoActionUrl, isAppleMobile } from "@/lib/product-demo";
 import styles from "./ProductDemo.module.css";
 
 type Practice = { drafts: ReturnType<typeof demoDrafts>; beat: number; view: "edit" | "preview" | "recorded"; done: number[]; handoff: boolean; copied: "" | "copied" | "manual" };
@@ -38,10 +38,11 @@ export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scen
   const manual = useRef<HTMLTextAreaElement>(null);
   const nativeUrl = ready ? demoActionUrl(beat.channel, draft.subject, draft.message, apple, contact) : null;
   const nativeApp = beat.channel === "text" ? "text" : beat.channel === "email" ? "email" : "phone";
-  const copyText = beat.channel === "email" ? `Subject: ${draft.subject}\n\n${draft.message}` : draft.message;
+  // Copied and hand-selected text keeps the same demo markers as the native link.
+  const copyText = beat.channel === "email" ? `Subject: [DEMO] ${draft.subject.replace(/\s+/g, " ").trim()}\n\n${DEMO_MARKER}\n\n${draft.message}` : `${DEMO_MARKER}\n\n${draft.message}`;
   const copyDraft = async () => {
     try { await navigator.clipboard.writeText(copyText); update({ copied: "copied" }); }
-    catch { update({ copied: "manual" }); requestAnimationFrame(() => manual.current?.select()); }
+    catch { update({ copied: "manual" }); requestAnimationFrame(() => { manual.current?.focus(); manual.current?.select(); }); }
   };
 
   useEffect(() => { setApple(isAppleMobile(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)); setReady(true); }, []);
@@ -96,13 +97,13 @@ export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scen
             {beat.channel === "phone" && <p className={styles.callLabel}>Your call notes · no call is placed</p>}
             <blockquote>{draft.message}</blockquote>
           </div>
-          <p className={styles.hint}>Sample only. {beat.channel === "email" ? contact.email : contact.phone} is a fictional, non-working {beat.channel === "email" ? "address" : "number"}, so expect no reply. {beat.channel === "phone" ? "The link opens your own phone app with the number only; your call notes stay on this page." : `The link opens your own ${nativeApp} app with this draft filled in, marked as a demo.`} Open it and inspect it there: you decide whether to {beat.channel === "phone" ? "call" : "send"}, and this page cannot tell what you did.</p>
+          <p className={styles.hint}>Sample only. {beat.channel === "email" ? contact.email : contact.phone} is a fictional, non-working {beat.channel === "email" ? "address" : "number"}, so expect no reply. {beat.channel === "phone" ? "If your device has a phone app, the link asks it to show this number only; your call notes stay on this page." : `If your device has a ${nativeApp} app, the link asks it to open with this draft, marked as a demo. Some apps ignore the draft or its subject, so check it there.`} You decide whether to {beat.channel === "phone" ? "call" : "send"}, and this page cannot tell what you did.</p>
           <div className={styles.actions}>
             {nativeUrl && <a className="button primary" href={nativeUrl} data-demo-native={beat.channel} onClick={() => update({ handoff: true })}>{beat.channel === "phone" ? "Open your phone app" : `Open in your ${nativeApp} app`}</a>}
             <button className="button" type="button" onClick={copyDraft}>{beat.channel === "phone" ? "Copy call notes" : "Copy draft"}</button>
           </div>
           <div role="status" className={styles.hint}>
-            {practice.handoff && "Handoff requested. If nothing opened, your device may not have a handler for this link; copy the draft instead. Your edits are still here."}
+            {practice.handoff && "Handoff requested. This page cannot tell whether anything opened or was sent. If nothing opened, your device may have no app for this link; copy the text instead. Your edits are still here."}
             {practice.copied === "copied" && " Copied to your clipboard."}
             {practice.copied === "manual" && " Copying was blocked. Select the text below and copy it yourself."}
           </div>

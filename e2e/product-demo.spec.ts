@@ -70,6 +70,104 @@ test("Today demo supports editing, previews, truthful outcomes, Not yet and Undo
   expect(errors).toEqual([]);
 });
 
+const MARKER = "[DEMO — preview]";
+const open = async (page: Page, channel: string, preview: string) => {
+  const demo = page.locator("#sample");
+  await demo.locator(`[data-demo-beat="${channel}"]`).click();
+  await demo.getByRole("button", { name: preview, exact: true }).click();
+  return demo;
+};
+
+test("each Beat hands the exact edited text to its native link; repeats only request again", async ({ page }) => {
+  const mutations: string[] = [];
+  page.on("request", request => { if (!["GET", "HEAD"].includes(request.method())) mutations.push(request.url()); });
+  await guardNativeLinks(page);
+  await page.goto("/");
+  const demo = page.locator("#sample");
+  await demo.getByRole("textbox", { name: "Message to Alex Morgan" }).fill("Hi Alex & co, 100% ready?\nSecond line");
+  await demo.getByRole("button", { name: "Preview SMS" }).click();
+  const sms = demo.locator('a[data-demo-native="text"]');
+  await expect(sms).toHaveAttribute("href", `sms:+12025550142?body=${encodeURIComponent(`${MARKER}\n\nHi Alex & co, 100% ready?\nSecond line`)}`);
+  await sms.click();
+  await sms.click();
+  await expect(demo.getByRole("status")).toContainText("Handoff requested");
+  await expect(demo.getByText("Today’s Beat done", { exact: true })).toHaveCount(0);
+  const clicks = await nativeClicks(page);
+  expect(clicks.map(click => click.href)).toEqual([await sms.getAttribute("href"), await sms.getAttribute("href")]);
+  expect(clicks.every(click => !click.prevented)).toBe(true);
+  expect(mutations).toEqual([]);
+});
+
+test("email and call links carry the marker, edited subject, CRLF body and number only", async ({ page }) => {
+  await guardNativeLinks(page);
+  await page.goto("/");
+  let demo = await open(page, "email", "Preview email");
+  await demo.getByRole("button", { name: "Back to edit" }).click();
+  await demo.getByRole("textbox", { name: "Subject", exact: true }).fill("Plan & more  ?");
+  await demo.getByRole("textbox", { name: "Message to Alex Morgan" }).fill("Line one\nLine two");
+  await demo.getByRole("button", { name: "Preview email", exact: true }).click();
+  const mail = demo.locator('a[data-demo-native="email"]');
+  await expect(mail).toHaveAttribute("href", `mailto:alex.morgan@example.invalid?subject=${encodeURIComponent("[DEMO] Plan & more ?")}&body=${encodeURIComponent(`${MARKER}\r\n\r\nLine one\r\nLine two`)}`);
+  await mail.click();
+  demo = await open(page, "phone", "Preview call");
+  const tel = demo.locator('a[data-demo-native="phone"]');
+  await expect(tel).toHaveAttribute("href", "tel:+12025550142");
+  await tel.click();
+  const hrefs = (await nativeClicks(page)).map(click => click.href);
+  expect(hrefs).toHaveLength(2);
+  expect(hrefs[0]).toMatch(/^mailto:alex\.morgan@example\.invalid\?subject=%5BDEMO%5D%20Plan%20%26%20more%20%3F&body=/);
+  expect(hrefs[1]).toBe("tel:+12025550142");
+});
+
+test("focus and visibility changes never prove a handoff; Not yet and Undo keep edits", async ({ page }) => {
+  await guardNativeLinks(page, { blockStorage: true });
+  await page.goto("/");
+  const demo = await open(page, "text", "Preview SMS");
+  await demo.locator('a[data-demo-native="text"]').click();
+  await page.evaluate(() => { window.dispatchEvent(new Event("blur")); document.dispatchEvent(new Event("visibilitychange")); window.dispatchEvent(new Event("focus")); });
+  await expect(demo.getByRole("status")).toContainText("cannot tell whether anything opened or was sent");
+  await expect(demo.getByText("Done in demo")).toHaveCount(0);
+  await demo.getByRole("button", { name: "Not yet", exact: true }).click();
+  await expect(demo.getByRole("heading", { level: 3 })).toBeFocused();
+  await demo.getByRole("button", { name: "Preview SMS" }).click();
+  await demo.getByRole("button", { name: "Mark sent (demo)", exact: true }).click();
+  await demo.getByRole("button", { name: "Undo recorded outcome" }).click();
+  await expect(demo.getByRole("textbox")).not.toHaveValue("");
+});
+
+test("denied copy falls back to a focused, marked manual field; unavailable handler claims no success", async ({ page }) => {
+  await guardNativeLinks(page, { blockClipboard: true });
+  await page.goto("/");
+  let demo = await open(page, "email", "Preview email");
+  await demo.getByRole("button", { name: "Copy draft" }).click();
+  const manual = demo.getByRole("textbox", { name: "Draft text to copy by hand" });
+  await expect(manual).toBeFocused();
+  await expect(manual).toHaveValue(new RegExp(`^Subject: \\[DEMO\\] .+\\n\\n${MARKER.replace(/[[\]]/g, "\\$&")}\\n\\n`));
+  await expect(demo.getByRole("status")).toContainText("Copying was blocked");
+  demo = await open(page, "phone", "Preview call");
+  await demo.locator('a[data-demo-native="phone"]').click();
+  await expect(demo.getByRole("textbox", { name: "Draft text to copy by hand" })).toHaveValue(new RegExp(`^${MARKER.replace(/[[\]]/g, "\\$&")}\\n\\n`));
+  await expect(demo.getByRole("status")).not.toContainText(/delivered|successfully|has opened/i);
+  await expect(demo.getByText("Done in demo")).toHaveCount(0);
+});
+
+test("synthetic captures: handoff states in both themes at narrow and desktop widths", async ({ page }) => {
+  await guardNativeLinks(page);
+  for (const [name, width] of [["narrow", 390], ["desktop", 1280]] as const) {
+    for (const colorScheme of ["light", "dark"] as const) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.emulateMedia({ colorScheme });
+      await page.goto("/");
+      const demo = page.locator("#sample");
+      await demo.screenshot({ path: `.artifacts/demo-handoff/captures/${name}-${colorScheme}-initial.png` });
+      await open(page, "text", "Preview SMS");
+      await demo.locator('a[data-demo-native="text"]').click();
+      await expect(demo.getByRole("status")).toContainText("Handoff requested");
+      await demo.screenshot({ path: `.artifacts/demo-handoff/captures/${name}-${colorScheme}-handoff.png` });
+    }
+  }
+});
+
 test("situations retain separate drafts, subjects and progress; reset affects only the current one", async ({ page }) => {
   await page.goto("/");
   const demo = page.locator("#sample");
