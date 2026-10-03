@@ -123,7 +123,7 @@
 .staff-shell .support-ticket-reference { margin: 0 6px 0 0; font-size: .6875rem; }
 .staff-shell .support-admin-ticket p { margin: 3px 0 0; font-size: .75rem; color: var(--muted); }
 .staff-shell .admin-ticket-age { display: grid; gap: 3px; color: var(--muted); font-size: .75rem; text-align: right; }
-.staff-shell .admin-ticket-context { padding: 10px 14px; margin-bottom: 12px; }
+.staff-shell .admin-ticket-context { padding: 10px 14px; margin-bottom: 12px; overflow-wrap: anywhere; }
 .staff-shell .support-admin-detail-grid { grid-template-columns: minmax(0,1fr) 300px; gap: 16px; }
 .staff-shell .support-admin-main-column, .staff-shell .support-admin-side-column { gap: 12px; }
 .staff-shell .support-admin-side-column > .card, .staff-shell .support-admin-main-column > .card { margin: 0; }

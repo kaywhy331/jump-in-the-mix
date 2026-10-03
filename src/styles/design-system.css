@@ -14,7 +14,8 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 .button.primary, .button.primary:hover { background: var(--violet); border-color: var(--violet); color: var(--on-violet); }
 .button.primary:hover { filter: brightness(.94); }
 .button.soft { background: var(--violet-wash); color: var(--violet-ink); }
-.button.danger { color: var(--late); border-color: var(--danger-border); }
+/* Keep foreground and background in the same theme throughout a color change. */
+.button.danger { color: var(--late); border-color: var(--danger-border); transition-property: transform, box-shadow, border-color; }
 .button:disabled { opacity: .55; cursor: not-allowed; }
 .text-button, .inline-action { color: var(--violet-text); }
 .card, .empty-state, .stat-card, .auth-card, .onboarding-card, .review-card { background: var(--raised); border-color: var(--line); box-shadow: none; }

@@ -141,3 +141,52 @@ test("provider form rejects an arbitrary URL locally and resend requires renewed
   await expect(page).toHaveURL(/\/account\/admin-mfa\?verify=1/);
   expect((await prisma.waitlistDelivery.findUniqueOrThrow({ where: { id: item.delivery.id } })).generation).toBe(1);
 });
+
+test("Recovery controls stay readable through theme changes in normal, hover and keyboard focus states", async ({ page }) => {
+  await f.invitation(); await f.invitation(false);
+  await page.goto("/admin/email/recovery");
+  const controls = [
+    page.getByRole("button", { name: "Sign out", exact: true }),
+    page.getByRole("link", { name: "Recipient suppression", exact: true }),
+    page.getByRole("link", { name: "Review delivery", exact: true }).nth(0),
+    page.getByRole("link", { name: "Review delivery", exact: true }).nth(1)
+  ];
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const control of controls) {
+      await control.scrollIntoViewIfNeeded();
+      for (const state of ["normal", "hover", "keyboard"] as const) {
+        await page.mouse.move(0, 0);
+        await control.evaluate(element => (element as HTMLElement).blur());
+        if (state === "hover") await control.hover();
+        if (state === "keyboard") {
+          await control.focus();
+          await page.keyboard.press("Shift+Tab");
+          await page.keyboard.press("Tab");
+          await expect(control).toBeFocused();
+          expect(await control.evaluate(element => element.matches(":focus-visible"))).toBe(true);
+        }
+        for (const theme of ["dark", "light"]) {
+          const minimum = await control.evaluate(async (element, nextTheme) => {
+            const luminance = (color: string) => {
+              const rgb = color.match(/[\d.]+/g)!.slice(0, 3).map(value => Number(value) / 255);
+              const linear = rgb.map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+              return linear[0] * .2126 + linear[1] * .7152 + linear[2] * .0722;
+            };
+            document.documentElement.setAttribute("data-theme", nextTheme);
+            let minimum = Infinity;
+            const started = performance.now();
+            do {
+              const style = getComputedStyle(element);
+              const values = [luminance(style.color), luminance(style.backgroundColor)].sort((a, b) => a - b);
+              minimum = Math.min(minimum, (values[1] + .05) / (values[0] + .05));
+              await new Promise(requestAnimationFrame);
+            } while (performance.now() - started < 250);
+            return minimum;
+          }, theme);
+          expect(minimum, `${await control.textContent()}: ${width}px ${state} ${theme} including transition frames`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+  }
+});

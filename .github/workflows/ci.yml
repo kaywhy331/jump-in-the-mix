@@ -15,12 +15,12 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    # The validate job runs 37 to 41 minutes since the Lighthouse gate measures the real throttled
-    # paint (about 7.5 minutes for its 18 runs, against 3.5 simulated). A 40-minute cap cancelled a
-    # green run at that last gate; the cap is a safety limit, not a budget.
-    timeout-minutes: 60
+    # The serial 810-case browser matrix outgrew the previous 60-minute whole-job cap.
+    # Keep every test and its timeout; reserve time for later gates and failure artifacts.
+    timeout-minutes: 100
     env:
       APP_URL: http://127.0.0.1:3000
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
       # Fixture suites require an explicitly named, loopback-only test database.
       DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_design_ci?schema=public
       DATA_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
@@ -256,20 +256,44 @@ jobs:
           path: customer-load-report.json
           if-no-files-found: ignore
           retention-days: 7
+      - name: Browser fixture preflight
+        timeout-minutes: 10
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
+        shell: bash
+        run: |
+          set -o pipefail
+          npx playwright test e2e/ui-ux-admin.spec.ts e2e/ui-ux-workflows.spec.ts --project desktop-chromium 2>&1 | tee browser-fixture-e2e.log
+      - name: Invited registration with captured synthetic mail
+        timeout-minutes: 10
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node --import ./scripts/browser-mail-fixture.mjs .next/standalone/server.js
+          PLAYWRIGHT_MAIL_FIXTURE: "1"
+          RESEND_API_KEY: jitm-e2e-mail-fixture
+          EMAIL_FROM: test@example.test
+          BILLING_ENABLED: "false"
+          AUTOMATIC_CUSTOMER_EMAIL: "false"
+        shell: bash
+        run: |
+          set -o pipefail
+          npx playwright test e2e/registration.spec.ts 2>&1 | tee registration-e2e.log
       - name: Browser-driven end-to-end tests
+        timeout-minutes: 60
         env:
           PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
           PUBLIC_TRUST_E2E: "1"
         shell: bash
         run: |
           set -o pipefail
-          npm run test:e2e 2>&1 | tee e2e.log
+          npm run test:e2e -- --config playwright.ci.config.ts 2>&1 | tee e2e.log
       - name: Upload browser diagnostics
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@v4
         with:
           name: browser-e2e-diagnostics
           path: |
+            browser-fixture-e2e.log
+            registration-e2e.log
             e2e.log
             playwright-report
             test-results

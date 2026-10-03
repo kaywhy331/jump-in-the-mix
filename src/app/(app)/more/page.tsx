@@ -17,7 +17,7 @@ const destinations = [
   ["/account/preferences", "Personal preferences", "Your display name, timezone, follow-up time, quiet hours, and working days."],
   ["/settings/notifications", "Notifications", "Email summaries and reminders on this device."],
   ["/account", "My account", "Profile, password, active sessions, export, and account deletion."],
-  ["/help", "Help", "Plain-language answers and ways to get assistance."]
+  ["/help", "Help", "Get help, report a problem, or share an idea."]
 ] as const;
 
 const icons: AppIconName[] = ["journey", "calendar", "link", "settings", "filter", "bell", "profile", "help"];

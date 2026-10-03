@@ -95,3 +95,45 @@ test("a replacement requires explicit review and a current password, preserving 
   expect(await prisma.supportTicketMessage.count({ where: { ticketId: f.ticket.id, authorType: "ADMIN" } })).toBe(1);
   expect(await prisma.emailSendAttempt.count({ where: { messageId: { in: deliveries.map(d => d.emailMessageId) } } })).toBe(0);
 });
+
+test("Close ticket stays readable through theme changes in normal, hover and keyboard focus states", async ({ page, context }, info) => {
+  await context.addCookies([{ name: "jitm_session", value: f.admin.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
+  await page.goto(`/admin/support/${f.ticket.id}`);
+  const close = page.getByRole("button", { name: "Close ticket", exact: true });
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await close.scrollIntoViewIfNeeded();
+    for (const state of ["normal", "hover", "keyboard"] as const) {
+      await page.mouse.move(0, 0);
+      await close.evaluate(element => (element as HTMLElement).blur());
+      if (state === "hover") await close.hover();
+      if (state === "keyboard") {
+        await close.focus();
+        await page.keyboard.press("Tab");
+        await page.keyboard.press("Shift+Tab");
+        await expect(close).toBeFocused();
+        expect(await close.evaluate(element => element.matches(":focus-visible"))).toBe(true);
+      }
+      for (const theme of ["dark", "light"]) {
+        const minimum = await close.evaluate(async (element, nextTheme) => {
+          const luminance = (color: string) => {
+            const rgb = color.match(/[\d.]+/g)!.slice(0, 3).map(value => Number(value) / 255);
+            const linear = rgb.map(value => value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4);
+            return linear[0] * .2126 + linear[1] * .7152 + linear[2] * .0722;
+          };
+          document.documentElement.setAttribute("data-theme", nextTheme);
+          let minimum = Infinity;
+          const started = performance.now();
+          do {
+            const style = getComputedStyle(element);
+            const values = [luminance(style.color), luminance(style.backgroundColor)].sort((a, b) => a - b);
+            minimum = Math.min(minimum, (values[1] + .05) / (values[0] + .05));
+            await new Promise(requestAnimationFrame);
+          } while (performance.now() - started < 250);
+          return minimum;
+        }, theme);
+        expect(minimum, `${width}px ${state} ${theme} including transition frames`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  }
+});

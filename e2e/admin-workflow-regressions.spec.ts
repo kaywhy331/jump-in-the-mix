@@ -8,7 +8,8 @@ import { generateTotpCode, generateTotpSecret } from "../src/lib/totp";
 
 const enabled = process.env.ADMIN_UX_E2E === "1" && process.env.AUTH_REQUIRE_ADMIN_MFA === "true" && /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 test.skip(!enabled, "Requires disposable local admin UX fixtures and MFA.");
-test.use({ actionTimeout: 15000, screenshot: "off", video: "off", trace: "off" });
+// These fixtures intercept session checks; a controlling service worker can bypass page.route.
+test.use({ actionTimeout: 15000, screenshot: "off", video: "off", trace: "off", serviceWorkers: "block" });
 const password = "Admin workflow synthetic password!";
 async function fixture() {
   const support = await createSupportFixture();
@@ -96,7 +97,10 @@ test("a different staff session cannot recover the previous operator's in-memory
     await page.goto(`/admin/support/${f.ticket.id}`);
     await page.locator('textarea[name="body"]').fill("Private draft belonging to the first operator.");
     await page.route("**/api/admin/browser-context", route => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ status: "unavailable" }) }));
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await Promise.all([
+      page.waitForResponse(response => response.url().endsWith("/api/admin/browser-context") && response.status() === 503),
+      page.evaluate(() => window.dispatchEvent(new Event("focus")))
+    ]);
     await expect(page.getByRole("button", { name: "Retry session check" })).toBeEnabled();
     await expect(page.locator('textarea[name="body"]')).toBeHidden();
     await page.unroute("**/api/admin/browser-context");
@@ -104,7 +108,11 @@ test("a different staff session cannot recover the previous operator's in-memory
     await expect(page.locator('textarea[name="body"]')).toBeVisible();
     await expect(page.locator('textarea[name="body"]')).toHaveValue("Private draft belonging to the first operator.");
     await context.addCookies([{ name: "jitm_session", value: f.colleague.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
-    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    await Promise.all([
+      page.waitForEvent("load"),
+      page.evaluate(() => window.dispatchEvent(new Event("focus")))
+    ]);
+    await expect(page.locator(".admin-operator strong")).toContainText(f.colleague.user.name);
     await expect(page.locator('textarea[name="body"]')).toHaveValue("");
     expect(await page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }))).not.toContain("Private draft");
   } finally { await f.cleanup(); }
@@ -183,4 +191,43 @@ test("export polling pauses while hidden and stops after eight automatic checks"
     expect(refreshes).toBe(8);
     await page.clock.runFor(120_000); expect(refreshes).toBe(8);
   } finally { await prisma.reportExport.deleteMany({ where: { actorUserId: f.admin.user.id } }); await f.cleanup(); }
+});
+
+test("staff ticket navigation and customer details reflow at enlarged text sizes", async ({ page, context }, info) => {
+  const f = await fixture();
+  try {
+    await context.addCookies([{ name: "jitm_session", value: f.admin.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
+    await page.goto(`/admin/support/${f.ticket.id}`);
+    const navigation = page.getByRole("navigation", { name: "Administration", exact: true });
+    const menu = page.getByRole("button", { name: "Menu", exact: true });
+    const close = page.getByRole("button", { name: "Close ticket", exact: true });
+    for (const width of [320, 760, 761, 1440]) {
+      await page.setViewportSize({ width, height: 1000 });
+      for (const theme of ["light", "dark"]) {
+        await page.evaluate(theme => {
+          document.documentElement.setAttribute("data-theme", theme);
+          document.documentElement.style.fontSize = "200%";
+        }, theme);
+        await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth), `${width}px ${theme} at 200% text`).toBeLessThanOrEqual(width + 1);
+        await expect(page.locator(".admin-ticket-context")).toContainText(f.customer.user.email);
+        expect(await page.locator(".admin-ticket-context").evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+        if (width <= 760) {
+          await menu.click();
+          await expect(page.getByRole("button", { name: "Close menu", exact: true })).toHaveAttribute("aria-expanded", "true");
+          expect(await navigation.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+          expect(await navigation.getByRole("link").evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth + 1))).toBe(true);
+          await page.keyboard.press("Escape");
+          await expect(menu).toHaveAttribute("aria-expanded", "false");
+          await expect(menu).toBeFocused();
+        }
+        await close.hover();
+        await expect(close).toBeVisible();
+        expect(await close.evaluate(element => element.matches(":hover"))).toBe(true);
+      }
+    }
+    await page.evaluate(() => document.documentElement.style.removeProperty("font-size"));
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await close.hover();
+    expect(await close.evaluate(element => element.matches(":hover"))).toBe(true);
+  } finally { await f.cleanup(); }
 });
