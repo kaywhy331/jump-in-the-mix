@@ -261,6 +261,43 @@ test("all channel editors and previews reflow accessibly in both themes", async 
   }
 });
 
+test("native previews stay inside the viewport at 200% text in both themes", async ({ page }) => {
+  test.setTimeout(150_000);
+  await guardNativeLinks(page);
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const colorScheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme });
+      for (const beat of DEMO_BEATS) {
+        await page.goto("/");
+        const demo = await open(page, beat.channel, beat.preview);
+        const link = demo.locator(`a[data-demo-native="${beat.channel}"]`);
+        await link.click();
+        await expect(demo.getByRole("status")).toContainText("cannot tell whether anything opened or was sent");
+        // Snapshot every size first, then assign the doubled values, so nothing compounds.
+        await page.evaluate(() => {
+          const nodes = [...document.querySelectorAll<HTMLElement>("#sample *")];
+          const sizes = nodes.map(node => parseFloat(getComputedStyle(node).fontSize));
+          nodes.forEach((node, index) => { node.style.fontSize = `${sizes[index] * 2}px`; });
+        });
+        const fit = await page.evaluate(() => {
+          const limit = document.documentElement.clientWidth + 0.5;
+          const controls = [...document.querySelectorAll<HTMLElement>("#sample a[data-demo-native], #sample button, #sample textarea")]
+            .filter(node => node.getClientRects().length > 0)
+            .map(node => node.getBoundingClientRect());
+          return { page: document.documentElement.scrollWidth <= innerWidth, controls: controls.length > 0 && controls.every(box => box.left >= -0.5 && box.right <= limit) };
+        });
+        expect(fit, `${beat.channel} ${width} ${colorScheme}`).toEqual({ page: true, controls: true });
+        await expect(link).toBeVisible();
+        await expect(demo.getByRole("button", { name: beat.channel === "phone" ? "Mark called (demo)" : "Mark sent (demo)", exact: true })).toBeVisible();
+        // Truth survives the larger text: the draft stays here and nothing is recorded as done.
+        await expect(demo.getByText("Today’s Beat done", { exact: true })).toHaveCount(0);
+        expect((await nativeClicks(page)).map(click => click.href)).toEqual([await link.getAttribute("href")]);
+      }
+    }
+  }
+});
+
 test("without JavaScript, the fictional schedule and access link remain readable", async ({ browser, baseURL }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();

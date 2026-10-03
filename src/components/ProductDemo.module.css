@@ -35,7 +35,7 @@
 .review :global(.field) { margin-bottom: 12px; font-size: .8125rem; }
 .review :global(.button) { min-height: 44px; white-space: normal; font-size: .875rem; padding: 10px 12px; }
 .primary { display: flex; gap: 8px; width: 100%; }
-.hint { margin: 12px 0 0; color: var(--text-2); font-size: .8125rem; line-height: 1.5; }
+.hint { margin: 12px 0 0; color: var(--text-2); font-size: .8125rem; line-height: 1.5; overflow-wrap: anywhere; }
 .preview { padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 20px; }
 .previewHeader { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--border); font-size: .8125rem; }
 .previewHeader span { margin-left: auto; color: var(--text-2); font-size: .6875rem; }

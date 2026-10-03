@@ -142,7 +142,7 @@ test("the demo uses the two design fonts and stays accessible through all steps"
   await page.getByRole("button", { name: "Preview SMS", exact: true }).click();
   await expect(page.locator("#sample blockquote")).toContainText("Tuesday");
   await page.getByRole("button", { name: "Mark sent (demo)", exact: true }).click();
-  await expect(page.locator("#sample")).toContainText("Nothing was sent.");
+  await expect(page.locator("#sample")).toContainText("Nothing was sent by this demo.");
   expect((await new AxeBuilder({ page }).include("#sample").analyze()).violations).toEqual([]);
 });
 
