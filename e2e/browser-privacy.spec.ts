@@ -188,8 +188,16 @@ test("blocked storage and rejected installation do not break the workspace or re
   await context.addInitScript(() => {
     for (const name of ["getItem", "setItem", "removeItem"] as const) Storage.prototype[name] = () => { throw new DOMException("Blocked", "SecurityError"); };
     navigator.serviceWorker.register = () => Promise.reject(new Error("Registration unavailable"));
+    // The account boundary can be ready before the page content (which owns the return tray) has hydrated.
+    // Record when the tray subscribes, so the synthetic opening below is sent to a listener that exists.
+    const subscribe = window.addEventListener.bind(window);
+    window.addEventListener = ((type: string, ...rest: unknown[]) => {
+      if (type === "jitm:jump-opened") (window as unknown as { __returnTrayListening?: boolean }).__returnTrayListening = true;
+      return (subscribe as (...args: unknown[]) => void)(type, ...rest);
+    }) as typeof window.addEventListener;
   });
   await useOwner(context, page, owners[0]); await page.goto("/jumps"); await ready(page);
+  await page.waitForFunction(() => (window as unknown as { __returnTrayListening?: boolean }).__returnTrayListening === true);
   await page.evaluate(() => {
     window.dispatchEvent(new CustomEvent("jitm:jump-state", { detail: { status: "DONE" } }));
     const scope = document.querySelector<HTMLElement>("[data-browser-scope]")!.dataset.browserScope!;
