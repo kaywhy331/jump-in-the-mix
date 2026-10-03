@@ -53,3 +53,36 @@ export function redactSupportReportText(text: string): string {
       return digits >= 7 ? "[number removed]" : match;
     });
 }
+
+// Match multipart form line endings for the client preview. The server formats
+// the received body directly; do not normalize or alter its accepted contract.
+export function supportReportBodyForSubmission(body: string): string {
+  return body.replace(/\r\n|\r|\n/g, "\r\n");
+}
+
+export const SUPPORT_TITLE_LIMIT = 160;
+export const SUPPORT_BODY_LIMIT = 5000;
+
+// Single source of truth for the saved report, shared by the server action and the UI preview.
+// Inputs are raw strings; trimming and slicing happen here, before redaction, as the server did.
+export function formatSupportReport(input: { title: string; body: string; diagnostics?: string; context?: string }) {
+  const clip = (text: string, max: number) => text.trim().slice(0, max);
+  const rawTitle = clip(input.title, SUPPORT_TITLE_LIMIT);
+  const redactedTitle = redactSupportReportText(rawTitle);
+  const title = redactedTitle.slice(0, SUPPORT_TITLE_LIMIT);
+  const rawBody = clip(input.body, SUPPORT_BODY_LIMIT);
+  const report = redactSupportReportText(rawBody);
+  const context = clip(input.context ?? "", 100);
+  const safeContext = /^(Today|Contacts|Mixes|Calendar|Journey|Settings|Account|Help); (phone|desktop\/tablet) layout$/.test(context) ? context : "";
+  const diagnostics = supportDiagnosticsSummary(clip(input.diagnostics ?? "", 513)) || safeContext;
+  const attachment = diagnostics ? `\n\nIncluded context: ${diagnostics}` : "";
+  const room = SUPPORT_BODY_LIMIT - attachment.length;
+  const body = report.slice(0, room) + attachment;
+  return {
+    title,
+    report,
+    body,
+    titleShortened: input.title.trim().length > SUPPORT_TITLE_LIMIT || redactedTitle.length > SUPPORT_TITLE_LIMIT,
+    bodyShortened: input.body.trim().length > SUPPORT_BODY_LIMIT || report.length > room
+  };
+}

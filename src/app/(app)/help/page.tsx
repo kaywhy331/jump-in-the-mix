@@ -1,6 +1,5 @@
 import { ActionForm } from "@/components/ActionForm";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
-import { SupportContext } from "@/components/SupportContext";
 import { SupportReportFields } from "@/components/SupportReportFields";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -82,7 +81,6 @@ export default async function HelpPage({ searchParams }: { searchParams: Promise
           <div className="card-header"><div><h2>Share feedback or get help</h2><p>Something confusing, broken, or missing? Tell us.</p></div></div>
           <ActionForm protect action={createSupportTicketFormAction} className="form-stack">
             <SupportReportFields disabled={Boolean(impersonation)} />
-            <SupportContext disabled={Boolean(impersonation)} />
             <div className="form-actions"><FormSubmitButton disabled={Boolean(impersonation)} label="Send feedback" pendingLabel="Sending…" /></div>
             <details><summary>Replies and privacy</summary><p>Support is best effort; there is no guaranteed reply time. Check this conversation for responses. If you cannot sign in, use <Link href="/contact">public contact support</Link>.</p><p>{SUPPORT_RETENTION_NOTICE}</p></details>
           </ActionForm>
