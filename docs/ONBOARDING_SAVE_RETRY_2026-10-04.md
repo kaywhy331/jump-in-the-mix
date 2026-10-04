@@ -1,6 +1,6 @@
 # Recover the first onboarding save — 2026-10-04
 
-Status: local candidate; not published or deployed. Base: `edaf12f9afbbef027e16f10f8b47d68768c9c864`. Branch: `fix/onboarding-save-retry-20261004`.
+Status: draft PR #116; not merged or deployed. The original local qualification is retained below; see the exact-head CI correction addendum. Base: `edaf12f9afbbef027e16f10f8b47d68768c9c864`. Branch: `fix/onboarding-save-retry-20261004`.
 
 ## Problem and resulting behavior
 
@@ -22,7 +22,7 @@ One pre-existing limitation is deliberately retained: a new request that assigns
 
 ## Verification
 
-VERIFIED-RUNTIME against the final five source/test files, with their hashes recorded before and after every check:
+VERIFIED-RUNTIME against the original candidate a1dd086 five source/test files, with their hashes recorded before and after every check:
 
 | Check | Result | Total elapsed |
 |---|---|---|
@@ -45,8 +45,18 @@ Both completed reviews exited zero after one provider turn each. Their combined 
 
 ## Limits and publication
 
-NOT RUN: live authenticated account acceptance, controlled inbox delivery, physical iPhone/Android/native-app handoff, automatic messages or invitations, paid services, production mutations, publication and deployment. Local tests use fictional accounts on a disposable loopback `jitm_design_*` database with external browser/server requests blocked. Existing internal workers and protected worktrees were preserved, and only one heavy workload ran on the station.
+NOT RUN: live authenticated account acceptance, controlled inbox delivery, physical iPhone/Android/native-app handoff, automatic messages or invitations, paid services, production mutations, deployment. Publication subsequently created draft PR #116. Local tests use fictional accounts on a disposable loopback `jitm_design_*` database with external browser/server requests blocked. Existing internal workers and protected worktrees were preserved, and only one heavy workload ran on the station.
 
 NOT RUN: the complete browser suite, full-app accessibility, public Lighthouse, image builds, live load qualification and migration/restore rehearsals. The browser checks are scoped to onboarding, recovery, feedback and the existing core-page accessibility suite; there are no public-page, schema, dependency, infrastructure or worker-code changes. Existing installed dependencies were reused under the task's no-install instruction.
 
-This is one verified readiness improvement, not clearance to admit all 10–20 testers. Live login/device/inbox acceptance and the existing operational/support-owner decisions remain separate. Publication requires approval of the concrete candidate; merge and production release require their own explicit authorization. No separate backup or rollback gate was introduced.
+This is one verified readiness improvement, not clearance to admit all 10–20 testers. Live login/device/inbox acceptance and the existing operational/support-owner decisions remain separate. Kevin subsequently authorized publication and deployment through the existing release workflow after exact-head CI and independent review. Draft PR #116 is published; merge and deployment remain gated on that evidence. No separate backup or rollback gate was introduced.
+
+## Exact-head CI fixture correction - 2026-10-04
+
+FAILED-CI: original candidate `a1dd086` in [PR #116](https://github.com/kaywhy331/jump-in-the-mix/pull/116), [CI run 37220011666](https://github.com/kaywhy331/jump-in-the-mix/actions/runs/37220011666), passed aggregate checks/build and failed **Seed browser-test workspaces** before browser testing. The new integration fixture created the system follow-up date type with a random identifier. Its unique system/slug key prevented the shipped catalog's duplicate-skipping insertion of `system_follow_up`; the seed's stable-ID lookup then failed with Prisma P2025.
+
+VERIFIED-RUNTIME: the original test on a fresh disposable PostgreSQL database reproduced the same failure: migrations and 34 focused tests passed, then the actual browser seed failed. The correction uses the shipped `system_follow_up` identifier when the fixture inserts this entry and only reactivates an existing entry. No production source, schema, CI configuration, assertion, timeout or retry changed.
+
+VERIFIED-RUNTIME: the corrected fixture passed migrations, all 34 focused tests and the actual browser seed in 24.014 seconds, exit zero, on another fresh disposable database. Source hashes stayed unchanged during the run. All 824 production-build input hashes still match the original reviewed implementation. Both outcomes are retained; the failure was not hidden by rerunning unchanged CI.
+
+Independent native Claude Code 2.1.289 follow-up review requested and received `claude-opus-5-5`, low effort, bounded and read-only. Verdict: **Approve**, exit zero. The reviewer assessed the exact corrected test plus catalog and seed dependencies; it did not execute the coordinator's checks. The original full-source Sonnet and Opus approvals remain applicable to unchanged production code. Exact corrected-head GitHub CI is still pending at this commit; no merge or deployment completion is claimed.

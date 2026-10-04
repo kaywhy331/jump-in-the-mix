@@ -50,7 +50,9 @@ async function counts() {
 
 describe.skipIf(!local)("onboarding save retries with PostgreSQL", () => {
   beforeAll(async () => {
-    await prisma.dateType.upsert({ where: { scopeKey_slug: { scopeKey: "system", slug: "follow-up" } }, create: { scopeKey: "system", slug: "follow-up", name: "Follow-up", isSystem: true }, update: { isActive: true } });
+    // The later browser seed reads this shipped catalog entry by its stable id.
+    // A random id with the same unique system slug would block catalog insertion.
+    await prisma.dateType.upsert({ where: { scopeKey_slug: { scopeKey: "system", slug: "follow-up" } }, create: { id: "system_follow_up", scopeKey: "system", slug: "follow-up", name: "Follow-up", isSystem: true }, update: { isActive: true } });
   });
   beforeEach(async () => { vi.mocked(generateJumps).mockClear(); await account(); });
   afterEach(async () => {
