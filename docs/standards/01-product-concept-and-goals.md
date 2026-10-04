@@ -2,9 +2,9 @@
 id: JITM-01
 title: Product concept, goals and non-goals
 status: active
-version: 2.2.2
+version: 2.2.3
 owner: Kevin
-last_reviewed: 2026-10-01
+last_reviewed: 2026-10-04
 applies_to: [product, features, onboarding, access, marketing, agents]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -131,6 +131,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 
 | Feature | Status | Basis |
 |---|---|---|
+| Public fictional demo: edited SMS/email draft and call handoff, manual outcomes | Shipped at `edaf12f` (physical handlers NOT RUN) | D31; `docs/DEMO_NATIVE_HANDOFF_RELEASE_2026-10-04.md` |
 | Today: due and overdue follow-ups, outcomes, snooze, skip, undo, Needs your input, quiet-day check-ins | Shipped | `src/app/(app)/jumps/page.tsx:459-464` |
 | Contacts: search, notes, history, tags, saved dates, archive, duplicates, CSV/VCF import, device contact picker | Shipped | `README.md:10,12`; `docs/QUICK_ADD.md:12` |
 | Mixes: editor, start rules, text/email/call versions of every Beat, appointment timing | Shipped | `docs/CHANNEL_VERSIONS_FOR_EVERY_BEAT_2026-09-23.md:7` |
@@ -217,3 +218,4 @@ Known deviations at 9439fd6:
 - 2.2.0 — 2026-09-29 — Base db54cc7. Payments are built but off (§2.20, §2.22); §3 names the billing sync; §6 notes that JITM-09 §2.65 must name Plan and billing (docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md).
 - 2.2.1 — 2026-09-30 — Base 94b9539. §6: JITM-09 §2.65 now names Plan and billing, so that deviation is gone.
 - 2.2.2 — 2026-10-01 — Base f1ac84d. §2.22: the plan limits are built and stay off with billing (docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).
+- 2.2.3 — 2026-10-04 — Base edaf12f. §2.22 records the public fictional native-handoff demo release (D31); actual handler success and delivery remain NOT RUN.
