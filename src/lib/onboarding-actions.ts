@@ -2,6 +2,7 @@
 
 import { captureFormFailure, recoverableFormAction, withViewerError, type ErrorViewer, type FormResult } from "@/lib/form-errors";
 import { randomUUID } from "node:crypto";
+import type { Prisma } from "@/generated/prisma/client";
 import { redirect } from "next/navigation";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { generateJumps } from "@/lib/jump-engine";
@@ -36,8 +37,36 @@ function welcomePath(firstContact: string | null): string {
   return `/jumps?${params.toString()}`;
 }
 
+type OnboardingReceipt = { contactId: string; mixId: string };
+
+async function earlierOnboarding(db: Pick<Prisma.TransactionClient, "idempotencyKey">, workspaceId: string, key: string | null): Promise<OnboardingReceipt | null> {
+  if (!key) return null;
+  const row = await db.idempotencyKey.findUnique({ where: { workspaceId_key: { workspaceId, key } }, select: { response: true } });
+  const saved = row?.response;
+  if (!saved || typeof saved !== "object" || Array.isArray(saved)) return null;
+  return typeof saved.contactId === "string" && typeof saved.mixId === "string" ? { contactId: saved.contactId, mixId: saved.mixId } : null;
+}
+
+async function finishOnboarding(workspaceId: string, receipt: OnboardingReceipt): Promise<never> {
+  const contact = await prisma.contact.findFirst({ where: { id: receipt.contactId, workspaceId, archivedAt: null }, select: { displayName: true } });
+  // An old form must not recreate a person who was removed or reactivate a stopped Mix.
+  if (!contact) redirect("/contacts");
+  const assignment = await prisma.mixAssignment.findFirst({ where: { workspaceId, contactId: receipt.contactId, mixId: receipt.mixId, isActive: true, mix: { workspaceId, status: { not: "ARCHIVED" } } }, select: { id: true } });
+  if (!assignment) redirect("/jumps");
+  // The receipt commits with the data, before preparation. A retry can finish this idempotent
+  // phase if the original request failed after committing; settled occurrences stay settled.
+  await generateJumps({ workspaceId, contactId: receipt.contactId, mixId: receipt.mixId });
+  redirect(welcomePath(contact.displayName));
+}
+
 export async function completeOnboardingAction(formData: FormData): Promise<void> {
   const { session, workspace, user } = await requireWritableWorkspace((message, viewer) => fail("/onboarding", message, viewer));
+  // Match the existing Add-contact contract: one request per opened form, scoped to its
+  // authenticated workspace and member. An uncertain save always recovers the original data.
+  const requestId = value(formData, "requestId").slice(0, 120);
+  const key = requestId ? `onboarding:${user.id}:${requestId}` : null;
+  const earlier = await earlierOnboarding(prisma, workspace.id, key);
+  if (earlier) return finishOnboarding(workspace.id, earlier);
   const uses = onboardingUses(formData.getAll("useCase").map(String));
   const business = uses.includes("business");
   if (!uses.length) fail("/onboarding", "Choose how you want to use Jump in the Mix.", session);
@@ -81,10 +110,15 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
 
   const followUpType = await prisma.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true } });
   if (!followUpType) fail(path, "The follow-up date type is unavailable. Run setup again.", session);
-  const starterMix = await ensureStarterMix(workspace.id, businessType, reason, starterChoice === "suggested" ? scenario?.id : null);
-  const contactId = savedContact?.id ?? randomUUID();
-  await prisma.$transaction(async (tx) => {
-    if (!savedContact) await tx.contact.create({
+  const receipt = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR NO KEY UPDATE`;
+    const raced = await earlierOnboarding(tx, workspace.id, key);
+    if (raced) return raced;
+    const currentContact = savedContact ? await tx.contact.findFirst({ where: { id: savedContact.id, workspaceId: workspace.id, archivedAt: null } }) : null;
+    if (savedContact && !currentContact) fail(path, "Choose an active person from your contacts.", session);
+    const starterMix = await ensureStarterMix(workspace.id, businessType, reason, starterChoice === "suggested" ? scenario?.id : null, tx);
+    const contactId = currentContact?.id ?? randomUUID();
+    if (!currentContact) await tx.contact.create({
       data: {
         id: contactId,
         workspaceId: workspace.id,
@@ -96,7 +130,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
         phones: phones.length ? { create: phones.map((item) => ({ phone: item.value, normalized: item.normalized, label: item.label, isPrimary: item.isPrimary })) } : undefined
       }
     });
-    if (savedContact && privateContext) await tx.contact.update({ where: { id: contactId }, data: { privateNotes: [savedContact.privateNotes, privateContext].filter(Boolean).join("\n\n") } });
+    if (currentContact && privateContext) await tx.contact.update({ where: { id: contactId, workspaceId: workspace.id }, data: { privateNotes: [currentContact.privateNotes, privateContext].filter(Boolean).join("\n\n") } });
     await tx.jumpDate.create({
       data: {
         workspaceId: workspace.id,
@@ -127,9 +161,11 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
     });
     await tx.workspace.update({ where: { id: workspace.id }, data: { name: businessName || `${user.name}'s connections` } });
     await tx.userPreference.upsert({ where: { userId: user.id }, create: { userId: user.id, timezone }, update: { timezone } });
+    const saved = { contactId, mixId: starterMix.id };
+    if (key) await tx.idempotencyKey.create({ data: { workspaceId: workspace.id, key, response: saved, expiresAt: new Date(Date.now() + 7 * 86_400_000) } });
+    return saved;
   });
-  await generateJumps({ workspaceId: workspace.id, contactId, mixId: starterMix.id });
-  redirect(welcomePath(displayName));
+  return finishOnboarding(workspace.id, receipt);
 }
 
 export async function skipOnboardingAction(formData: FormData): Promise<void> {

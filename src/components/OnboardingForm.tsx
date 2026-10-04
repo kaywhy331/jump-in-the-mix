@@ -7,7 +7,8 @@ import { ActionForm } from "@/components/ActionForm";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { RequiredFieldsNote } from "@/components/RequiredFieldsNote";
 import { StarterPreview } from "@/components/StarterPreview";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { FormResult } from "@/lib/form-errors";
 import { LocalDateInput } from "@/components/LocalDateInput";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
@@ -22,6 +23,12 @@ type ContactOption = { id: string; displayName: string };
 export function OnboardingForm({ userName, industry, initialUses, timezone, today, scenarioId, contacts, initialSetup, company, smsSignature }: { userName: string; industry: string | null; initialUses: OnboardingUse[]; timezone: string; today: string; scenarioId?: string; contacts: ContactOption[]; initialSetup: JourneySetupValues; company?: string; smsSignature?: string }) {
   const router = useRouter();
   // One person and one follow-up is the recommended start (JITM-09 §2.20). Answers saved for later reopen their own route.
+  const requestId = useRef("");
+  const prepareFirstFollowUp = async (previous: FormResult, data: FormData): Promise<FormResult> => {
+    requestId.current ||= globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    data.set("requestId", requestId.current);
+    return completeOnboardingFormAction(previous, data);
+  };
   const [setupMode, setSetupMode] = useState<"person" | "journey" | "individual">(initialSetup.preferences.draftSetupMode ?? "person");
   const [purposes, setPurposes] = useState<OnboardingUse[]>(initialUses);
   const [businessType, setBusinessType] = useState(industry ?? "Home services");
@@ -40,7 +47,7 @@ export function OnboardingForm({ userName, industry, initialUses, timezone, toda
   const selected = choice === "suggested" && scenario && business || reasons.includes(choice) ? choice : reasons[0] ?? "";
   return <><fieldset className="onboarding-step-card"><legend>Choose your starting point</legend><div className="form-stack"><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "person"} onChange={() => setSetupMode("person")} /><span><strong>One person and one follow-up · Recommended</strong><small>Add someone you need to follow up with, then review the first follow-up prepared for them. You can add a complete Mega-Mix later.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "journey"} onChange={() => setSetupMode("journey")} /><span><strong>A complete Mega-Mix</strong><small>Your whole pipeline on day one: every follow-up from first inquiry to repeat work, written and connected. Just tweak the wording to sound like you.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "individual"} onChange={() => setSetupMode("individual")} /><span><strong>Choose individual Mixes</strong><small>Build your journey one Mix at a time. Preview and customize each one.</small></span></label></div></fieldset>
   <div hidden={setupMode === "person"}><MegaMixSetup initialId={initialSetup.preferences.draftBlueprintId || suggestedMegaMix(industry, scenarioId)} initialSetup={initialSetup} onboarding={{ userName, company, smsSignature }} individual={setupMode === "individual"} active={setupMode !== "person"} />{setupMode === "individual" && <button type="button" className="text-button" onClick={() => setSetupMode("person")}>Start with one person and one follow-up instead</button>}</div>
-  <div hidden={setupMode !== "person"}><ActionForm action={completeOnboardingFormAction} className="form-stack" protect={setupMode === "person"}>
+  <div hidden={setupMode !== "person"}><ActionForm action={prepareFirstFollowUp} className="form-stack" protect={setupMode === "person"}>
     <RequiredFieldsNote />
     <fieldset className="onboarding-step-card">
       <legend><span>1</span> Make this fit your life</legend>
