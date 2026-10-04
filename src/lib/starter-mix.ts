@@ -1,22 +1,23 @@
 import { randomUUID } from "node:crypto";
+import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { starterPlanForBusinessType, starterPlanForMarketingScenario } from "@/lib/vertical-plan-library";
 import { starterPlanForReason } from "@/lib/journey-starts";
 
-export async function ensureStarterMix(workspaceId: string, businessType?: string | null, reason?: string, marketingScenario?: string | null) {
+export async function ensureStarterMix(workspaceId: string, businessType?: string | null, reason?: string, marketingScenario?: string | null, transaction?: Prisma.TransactionClient) {
   const draft = marketingScenario ? starterPlanForMarketingScenario(marketingScenario) ?? starterPlanForReason(businessType, reason ?? "General follow-up") : reason ? starterPlanForReason(businessType, reason) : starterPlanForBusinessType(businessType);
-  const existing = await prisma.mix.findFirst({
-    where: { workspaceId, source: "STARTER", status: { not: "ARCHIVED" }, ...((reason || marketingScenario) ? { name: draft.title } : {}) },
-    orderBy: { createdAt: "asc" }
-  });
-  if (existing) return existing;
-
-  const followUp = await prisma.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true } });
-  if (!followUp) throw new Error("System Follow-up date type is missing. Run the seed command again.");
-
-  const mixId = randomUUID();
-
-  return prisma.$transaction(async (tx) => {
+  const prepare = async (tx: Prisma.TransactionClient) => {
+    // Use the caller's transaction when onboarding also saves its receipt and first person.
+    // Other callers take the same workspace lock before checking for an existing starter.
+    await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR NO KEY UPDATE`;
+    const existing = await tx.mix.findFirst({
+      where: { workspaceId, source: "STARTER", status: { not: "ARCHIVED" }, ...((reason || marketingScenario) ? { name: draft.title } : {}) },
+      orderBy: { createdAt: "asc" }
+    });
+    if (existing) return existing;
+    const followUp = await tx.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true } });
+    if (!followUp) throw new Error("System Follow-up date type is missing. Run the seed command again.");
+    const mixId = randomUUID();
     const mix = await tx.mix.create({
       data: {
         id: mixId,
@@ -52,5 +53,6 @@ export async function ensureStarterMix(workspaceId: string, businessType?: strin
       });
     }
     return mix;
-  });
+  };
+  return transaction ? prepare(transaction) : prisma.$transaction(prepare);
 }
