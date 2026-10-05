@@ -16,6 +16,7 @@ Kevin asked for "an easy way for the user to be able to add a contact that is sa
 | Add from your phone | `src/app/(app)/contacts/from-phone/page.tsx` | Phones see only their own steps, read from the user agent. iPads and computers see both. Import contacts links here. |
 | 2. iPhone shortcut | `src/app/api/webhooks/phone-contacts/route.ts`, `src/lib/contact-share-keys.ts`, `src/lib/contact-share-key-actions.ts`, `src/components/ContactShareKeyPanel.tsx`, `prisma/contact-share-keys.prisma` | The owner makes a personal key, shown once with Copy. The shortcut POSTs the shared vCard with `X-JITM-Key`, and the answer is one plain sentence that the shortcut shows as its notification. A new key replaces the old one; Turn off removes it. |
 | 3. Saved card | same page | Share Contact → Save to Files → Import contacts (the existing vCard import with its review). For several people: touch and hold a list in Contacts → Export. |
+| iPhone tips | `src/components/IphoneAddTips.tsx` | "Tips for adding on iPhone" with a (!) icon opens a sheet with short steps for one person and for several. Selecting several people in iPhone Contacts is a hidden two-finger drag; then touch and hold → Share. The last step names the shortcut when it is offered, otherwise Save to Files. Added on Kevin's request after the release. |
 
 ### How a shared card is added
 
