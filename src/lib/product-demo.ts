@@ -91,6 +91,15 @@ export function isAppleMobile(userAgent: string, platform = "", maxTouchPoints =
   return /iPhone|iPad|iPod/.test(userAgent) || (platform === "MacIntel" && maxTouchPoints > 1);
 }
 
+// Where a demo text or call goes. Browsers cannot tell whether an app handles sms: or tel:, so this
+// goes by platform: phones and Macs (Messages and FaceTime are built in) open the link directly; other
+// computers (Windows, Linux, ChromeOS) show a code to scan with a phone instead.
+export function demoHandoff(userAgent: string, platform = "", maxTouchPoints = 0, finePointer = false): "direct" | "scan" {
+  if (isAppleMobile(userAgent, platform, maxTouchPoints) || /Android|Mobi/i.test(userAgent)) return "direct";
+  if (/Macintosh|Mac OS X/.test(userAgent) || platform === "MacIntel") return "direct";
+  return finePointer ? "scan" : "direct";
+}
+
 // The contact is explicit so the caller always supplies the fictional destination being shown.
 export function demoActionUrl(channel: DemoStep["channel"], subject: string, message: string, appleMobile: boolean, contact: Pick<DemoContactDetails, "phone" | "email">): string | null {
   // Keep the demo marker even when a visitor edits the draft.

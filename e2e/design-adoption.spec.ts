@@ -139,14 +139,18 @@ test("the demo uses the two design fonts and stays accessible through all steps"
   await page.goto("/");
   await page.locator("#sample textarea").fill("Hi Alex, is Tuesday still a good time to catch up?");
   expect(await page.locator("#sample textarea").evaluate(element => getComputedStyle(element).fontFamily)).toMatch(/newsreader/i);
-  // A desktop shows the scan pop-out first; its "Open it here instead" link is the native link.
+  // A computer without a texting app shows the scan pop-out instead of the native link.
   const scan = page.locator("#sample").getByRole("button", { name: "Open text", exact: true });
-  if (await scan.count()) await scan.click();
-  const sms = page.locator('#sample a[data-demo-native="text"]');
-  await expect(sms).toHaveAttribute("href", /Tuesday/);
-  // Never hand a real sms: link to the operating system.
-  await sms.evaluate(link => link.addEventListener("click", event => event.preventDefault()));
-  await sms.click();
+  if (await scan.count()) {
+    await scan.click();
+    await page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
+  } else {
+    const sms = page.locator('#sample a[data-demo-native="text"]');
+    await expect(sms).toHaveAttribute("href", /Tuesday/);
+    // Never hand a real sms: link to the operating system.
+    await sms.evaluate(link => link.addEventListener("click", event => event.preventDefault()));
+    await sms.click();
+  }
   await page.getByRole("button", { name: "Sent", exact: true }).click();
   await expect(page.locator("#sample")).toContainText("Nothing was sent by this demo.");
   expect((await new AxeBuilder({ page }).include("#sample").analyze()).violations).toEqual([]);

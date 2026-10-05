@@ -51,9 +51,13 @@
 
 /* Desktop scan pop-out: a drawn phone whose screen holds the code. The bezel stays dark and the
    screen stays white in both themes so phone cameras read the code reliably. */
-.qrDialog { width: min(440px, calc(100vw - 28px)); background: var(--raised); }
-.qrDialog .hint a { color: var(--violet-text); font-weight: 600; }
-.phoneFrame { width: 190px; margin: 16px auto 10px; padding: 10px; border-radius: 40px; background: #1c1c1e; box-shadow: 0 0 0 2px #3a3a3c, var(--shadow); }
+.qrDialog { width: min(360px, calc(100vw - 28px)); padding: 20px; background: var(--raised); }
+.qrHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.qrHeader > :global(.icon-button) { flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; padding: 12px; border: 0; border-radius: 50%; background: var(--surface); color: var(--text-2); }
+.qrHeader h2 { margin: 0; font-size: 1.125rem; line-height: 1.35; font-weight: 700; }
+.qrLede { margin: 4px 0 0; color: var(--text-2); font-size: .875rem; line-height: 1.45; }
+.demo .qrDone { width: 100%; min-height: 44px; }
+.phoneFrame { width: 190px; margin: 18px auto 20px; padding: 10px; border-radius: 40px; background: #1c1c1e; box-shadow: 0 0 0 2px #3a3a3c, var(--shadow); }
 .phoneScreen { position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; aspect-ratio: 9 / 19.5; padding: 42px 14px 18px; border-radius: 31px; background: #fff; color: #1c1c1e; }
 .island { position: absolute; top: 10px; left: 50%; width: 72px; height: 22px; border-radius: 12px; background: #1c1c1e; transform: translateX(-50%); }
 .phoneApp { display: flex; align-items: center; gap: 6px; font-size: .75rem; font-weight: 600; color: #3c3c43; }
@@ -62,8 +66,6 @@
 .qrPending { display: grid; place-items: center; width: 100%; aspect-ratio: 1; margin-top: auto; border-radius: 12px; background: #f2f2f7; font-size: .75rem; color: #3c3c43; }
 .phoneCaption { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-bottom: auto; font-size: .875rem; font-weight: 600; }
 .phoneCaption small { font-size: .75rem; font-weight: 400; color: #6c6c70; }
-.qrDialog :global(.confirm-dialog-actions) { margin-top: 12px; }
-.qrDialog :global(.confirm-dialog-actions .button) { flex: 1; }
 @media (max-height: 820px) {
-  .phoneFrame { width: 160px; margin-block: 10px 6px; }
+  .phoneFrame { width: 164px; margin-block: 16px 18px; }
 }
