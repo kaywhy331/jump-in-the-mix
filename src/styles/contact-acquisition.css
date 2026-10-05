@@ -30,6 +30,20 @@ button.settings-hub-card.device-contact-picker:disabled { cursor: progress; opac
 .duplicate-review > div > span { display: grid; gap: 1px; padding: 7px 8px; border-radius: 9px; background: var(--raised); }
 .duplicate-review small { color: var(--muted); }
 
+/* Add from your phone (/contacts/from-phone) and its entry on Add a contact. */
+.page--form > .device-contact-quick-add { margin-bottom: 4px; }
+.phone-share-card { display: grid; gap: 12px; }
+.phone-share-card h2, .phone-share-card p { margin: 0; }
+.phone-share-steps { display: grid; gap: 16px; margin: 0; padding: 0; list-style: none; counter-reset: phone-share; }
+.phone-share-steps > li { counter-increment: phone-share; display: grid; grid-template-columns: 25px minmax(0, 1fr); column-gap: 10px; row-gap: 6px; }
+.phone-share-steps > li::before { content: counter(phone-share); grid-row: 1 / span 4; display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; background: var(--brand); color: var(--on-violet); font-size: 14px; font-weight: 700; }
+.phone-share-steps > li > * { grid-column: 2; min-width: 0; }
+.phone-share-steps small { color: var(--muted); font-size: 14px; line-height: 1.45; }
+.phone-share-steps .form-actions { justify-content: flex-start; margin: 0; }
+.phone-share-steps .copy-field .form-actions { margin-top: 6px; }
+.phone-share-card > .text-button { justify-self: start; min-height: 44px; }
+.import-phone-link { margin: 12px 0 0; }
+
 .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .voice-note-control { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 340px; }
 .voice-note-control > small { flex-basis: 100%; font-size: .78rem; line-height: 1.4; }

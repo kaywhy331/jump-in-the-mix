@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
+import { isAppleMobile } from "@/lib/product-demo";
 
 const desiredProperties = ["name", "email", "tel", "address"] as const;
 type ContactProperty = (typeof desiredProperties)[number];
@@ -70,9 +71,13 @@ function readableError(error: unknown): string {
   return error instanceof Error ? error.message : "The device Contact Picker could not be opened.";
 }
 
-export function DeviceContactQuickAdd({ onboarding = false }: { onboarding?: boolean }) {
+/** Where the control sits: the Contacts tools sheet, the top of Add a contact, or the Add from your phone page. */
+type Placement = "sheet" | "new-contact" | "page";
+
+export function DeviceContactQuickAdd({ onboarding = false, placement = "sheet" }: { onboarding?: boolean; placement?: Placement }) {
   const router = useRouter();
   const [support, setSupport] = useState<"detecting" | "supported" | "unsupported">("detecting");
+  const [apple, setApple] = useState(false);
   const [properties, setProperties] = useState<ContactProperty[]>([]);
   const [phase, setPhase] = useState<"idle" | "picking" | "saving">("idle");
   const [error, setError] = useState("");
@@ -82,6 +87,7 @@ export function DeviceContactQuickAdd({ onboarding = false }: { onboarding?: boo
   useEffect(() => {
     let active = true;
     const detect = async () => {
+      setApple(isAppleMobile(navigator.userAgent, navigator.platform, navigator.maxTouchPoints));
       const manager = contactsManager();
       if (!window.isSecureContext || !manager) {
         if (active) setSupport("unsupported");
@@ -163,6 +169,7 @@ export function DeviceContactQuickAdd({ onboarding = false }: { onboarding?: boo
   };
 
   if (support === "detecting") {
+    if (placement !== "sheet") return null;
     return (
       <div className="device-contact-quick-add">
         <button className="settings-hub-card device-contact-picker" type="button" disabled>
@@ -176,11 +183,16 @@ export function DeviceContactQuickAdd({ onboarding = false }: { onboarding?: boo
   if (support === "unsupported" && onboarding) return <p className="muted">Device contact selection isn’t available in this browser. Import a CSV or vCard file, or enter a person below.</p>;
 
   if (support === "unsupported") {
+    // Only Chrome on Android opens the address book from a web page. iPhones share contacts instead.
+    if (placement === "page") return <p className="muted">Open this page in Chrome on your Android phone to choose people from its contacts.</p>;
+    if (placement === "new-contact" && !apple) return null;
     return (
       <div className="device-contact-quick-add">
-        <Link className="settings-hub-card device-contact-picker" href="/contacts/new?quickAddFallback=1">
+        <Link className="settings-hub-card device-contact-picker" href="/contacts/from-phone">
           <span className="settings-hub-icon"><AppIcon name="smartphone" /></span>
-          <span><strong>Add from phone contacts</strong><small>Not available in this browser. Use the fast manual form instead.</small></span>
+          {apple
+            ? <span><strong>Add from iPhone contacts</strong><small>Share people from your Contacts app.</small></span>
+            : <span><strong>Add from phone contacts</strong><small>See how on iPhone and Android.</small></span>}
         </Link>
       </div>
     );
