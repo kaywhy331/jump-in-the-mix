@@ -22,16 +22,18 @@ async function guardNativeLinks(page: Page, options: { blockStorage?: boolean; b
     if (blockClipboard) Object.defineProperty(navigator, "clipboard", { value: { writeText: () => Promise.reject(new Error("Clipboard blocked")) } });
   }, options);
 }
-// Phones get the native link directly. A desktop (fine pointer) gets a scan pop-out for text and call
-// whose "Open it here instead" link is the same native link; email is always direct.
-async function nativeAction(page: Page, channel: string, action: string) {
+// Phones and Macs get the native link directly. Other computers (fine pointer) get a scan pop-out for
+// text and call, finished with Done; email is always direct. Returns the native href, if one was used.
+async function handOff(page: Page, channel: string, action: string) {
   const demo = page.locator("#sample");
   await expect(demo).toHaveAttribute("aria-busy", "false");
   const direct = demo.getByRole("link", { name: action, exact: true });
-  if (channel === "email" || await direct.count()) return direct;
+  if (channel === "email" || await direct.count()) { const href = await direct.getAttribute("href"); await direct.click(); return href; }
   await demo.getByRole("button", { name: action, exact: true }).click();
-  return page.getByRole("dialog").locator(`a[data-demo-native="${channel}"]`);
+  await page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
+  return null;
 }
+const linkFormats = (testInfo: { project: { name: string } }) => test.skip(testInfo.project.name === "desktop-chromium", "This computer shows a scan code; link formats are checked on the phone profile and the Mac test.");
 const nativeClicks = (page: Page) => page.evaluate(() => (window as unknown as { __demoNative: NativeClick[] }).__demoNative);
 
 test("Today demo hands off straight to the native app, then asks for the outcome; Not sent and Undo", async ({ page }, testInfo) => {
@@ -61,7 +63,7 @@ test("Today demo hands off straight to the native app, then asks for the outcome
   await expect(schedule).not.toContainText("Done in demo");
   await demo.getByRole("button", { name: "Not sent", exact: true }).click();
   await expect(message).toHaveValue("Hi Alex, would next week work for a quick check-in?");
-  await (await nativeAction(page, "text", "Open text")).click();
+  await handOff(page, "text", "Open text");
   await demo.getByRole("button", { name: "Sent", exact: true }).click();
   await expect(demo.getByRole("status")).toContainText("Nothing was sent");
   await expect(demo.getByText("Today’s Beat done", { exact: true })).toBeVisible();
@@ -70,12 +72,12 @@ test("Today demo hands off straight to the native app, then asks for the outcome
   await expect(message).toHaveValue("Hi Alex, would next week work for a quick check-in?");
   for (const beat of DEMO_BEATS) {
     await demo.locator(`[data-demo-beat="${beat.channel}"]`).click();
-    await (await nativeAction(page, beat.channel, beat.action)).click();
+    await handOff(page, beat.channel, beat.action);
     await demo.getByRole("button", { name: beat.channel === "phone" ? "Connected" : "Sent", exact: true }).click();
   }
   await expect(demo.getByRole("link", { name: "Join the waitlist" })).toHaveAttribute("href", "/waitlist");
   await expect(schedule.getByRole("button")).toHaveText(["TextTodayDone in demo", "EmailTomorrowDone in demo", "CallIn 1 weekDone in demo"]);
-  expect((await nativeClicks(page)).map(click => click.href.split(":")[0])).toEqual(desktop ? ["sms", "sms", "mailto", "tel"] : ["sms", "sms", "sms", "mailto", "tel"]);
+  expect((await nativeClicks(page)).map(click => click.href.split(":")[0])).toEqual(desktop ? ["mailto"] : ["sms", "sms", "sms", "mailto", "tel"]);
   expect(mutations).toEqual([]);
   expect(errors).toEqual([]);
 });
@@ -88,28 +90,28 @@ const open = async (page: Page, channel: string) => {
 };
 
 test("each Beat hands the exact edited text to its native link; repeats only request again", async ({ page }, testInfo) => {
-  // A desktop's pop-out closes after its handoff, so only a phone can repeat the tap.
-  const repeats = testInfo.project.name === "desktop-chromium" ? 1 : 2;
+  linkFormats(testInfo);
   const mutations: string[] = [];
   page.on("request", request => { if (!["GET", "HEAD"].includes(request.method())) mutations.push(request.url()); });
   await guardNativeLinks(page);
   await page.goto("/");
   const demo = page.locator("#sample");
   await demo.getByRole("textbox", { name: "Message to Alex Morgan" }).fill("Hi Alex & co, 100% ready?\nSecond line");
-  const sms = await nativeAction(page, "text", "Open text");
+  const sms = demo.getByRole("link", { name: "Open text", exact: true });
   await expect(sms).toHaveAttribute("href", `sms:+12025550142?body=${encodeURIComponent(`${MARKER}\n\nHi Alex & co, 100% ready?\nSecond line`)}`);
   const href = await sms.getAttribute("href");
   await sms.click();
-  if (repeats === 2) await sms.click();
+  await sms.click();
   await expect(demo.getByRole("button", { name: "Sent", exact: true })).toBeVisible();
   await expect(demo.getByText("Today’s Beat done", { exact: true })).toHaveCount(0);
   const clicks = await nativeClicks(page);
-  expect(clicks.map(click => click.href)).toEqual(Array(repeats).fill(href));
+  expect(clicks.map(click => click.href)).toEqual([href, href]);
   expect(clicks.every(click => !click.prevented)).toBe(true);
   expect(mutations).toEqual([]);
 });
 
-test("email and call links carry the marker, edited subject, CRLF body and number only", async ({ page }) => {
+test("email and call links carry the marker, edited subject, CRLF body and number only", async ({ page }, testInfo) => {
+  linkFormats(testInfo);
   await guardNativeLinks(page);
   await page.goto("/");
   let demo = await open(page, "email");
@@ -120,7 +122,7 @@ test("email and call links carry the marker, edited subject, CRLF body and numbe
   await mail.click();
   await demo.getByRole("button", { name: "Not sent", exact: true }).click();
   demo = await open(page, "phone");
-  const tel = await nativeAction(page, "phone", "Call");
+  const tel = demo.getByRole("link", { name: "Call", exact: true });
   await expect(tel).toHaveAttribute("href", "tel:+12025550142");
   await tel.click();
   await expect(demo.getByRole("button")).toContainText(["Connected", "Left voicemail", "No answer", "Did not call"]);
@@ -168,7 +170,7 @@ test("synthetic captures: handoff states in both themes at narrow and desktop wi
       await page.goto("/");
       const demo = page.locator("#sample");
       await demo.screenshot({ path: `.artifacts/demo-handoff/captures/${name}-${colorScheme}-initial.png` });
-      await (await nativeAction(page, "text", "Open text")).click();
+      await handOff(page, "text", "Open text");
       await expect(demo.getByRole("button", { name: "Sent", exact: true })).toBeVisible();
       await demo.screenshot({ path: `.artifacts/demo-handoff/captures/${name}-${colorScheme}-handoff.png` });
     }
@@ -211,7 +213,7 @@ test("every situation uses SMS today, email tomorrow and a call in seven days, w
         await expect(node).toContainText(beat.due);
         await node.click();
         await expect(demo.getByRole("heading", { level: 3 })).toContainText(beat.due.toLowerCase());
-        await (await nativeAction(page, beat.channel, beat.action)).click();
+        await handOff(page, beat.channel, beat.action);
         await expect(demo.getByRole("heading", { level: 3 })).toContainText(situation.person.split(" ")[0]);
         await demo.getByRole("button", { name: beat.channel === "phone" ? "Connected" : "Sent", exact: true }).click();
       }
@@ -237,7 +239,7 @@ test("all channel editors and outcome questions reflow accessibly in both themes
       for (const beat of DEMO_BEATS) {
         await demo.locator(`[data-demo-beat="${beat.channel}"]`).click();
         for (const view of ["edit", "returned"]) {
-          if (view === "returned") await (await nativeAction(page, beat.channel, beat.action)).click();
+          if (view === "returned") await handOff(page, beat.channel, beat.action);
           expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
           // Scan all six states at the narrowest width; wider layouts still check fit.
           if (width === 320) {
@@ -260,9 +262,7 @@ test("native actions and outcome questions stay inside the viewport at 200% text
       for (const beat of DEMO_BEATS) {
         await page.goto("/");
         const demo = await open(page, beat.channel);
-        const link = await nativeAction(page, beat.channel, beat.action);
-        const href = await link.getAttribute("href");
-        await link.click();
+        const href = await handOff(page, beat.channel, beat.action);
         await expect(demo.getByText("Opening an app does not send it.")).toBeVisible();
         // Snapshot every size first, then assign the doubled values, so nothing compounds.
         await page.evaluate(() => {
@@ -281,13 +281,13 @@ test("native actions and outcome questions stay inside the viewport at 200% text
         await expect(demo.getByRole("button", { name: beat.channel === "phone" ? "Did not call" : "Not sent", exact: true })).toBeVisible();
         // Truth survives the larger text: the draft stays here and nothing is recorded as done.
         await expect(demo.getByText("Today’s Beat done", { exact: true })).toHaveCount(0);
-        expect((await nativeClicks(page)).map(click => click.href)).toEqual([href]);
+        expect((await nativeClicks(page)).map(click => click.href)).toEqual(href ? [href] : []);
       }
     }
   }
 });
 
-test("on desktop, text and call show a scannable phone code with direct copy; Done asks for the outcome", async ({ page }, testInfo) => {
+test("on a computer without a texting app, text and call show a short scan pop-out; Done asks for the outcome", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Phones hand off directly.");
   await guardNativeLinks(page);
   for (const colorScheme of ["light", "dark"] as const) {
@@ -296,11 +296,13 @@ test("on desktop, text and call show a scannable phone code with direct copy; Do
     const demo = page.locator("#sample");
     await demo.getByRole("textbox", { name: "Message to Alex Morgan" }).fill("Hi Alex, is Tuesday good?");
     await demo.getByRole("button", { name: "Open text", exact: true }).click();
-    const dialog = page.getByRole("dialog", { name: "Scan to text Alex from your phone" });
-    await expect(dialog).toContainText("Texts send from a phone, not from this website.");
-    await expect(dialog).toContainText("Nothing is sent until you press send.");
-    await expect(dialog).toContainText("fictional demo number");
+    const dialog = page.getByRole("dialog", { name: "Scan to text Alex" });
+    await expect(dialog).toHaveAccessibleDescription("Opens your phone’s messages app with this draft.");
     await expect(dialog.locator('[data-demo-qr="text"] path')).toHaveAttribute("d", /^M/);
+    await expect(dialog.locator("a")).toHaveCount(0);
+    // The close control sits on the title row.
+    const [title, close] = await Promise.all([dialog.getByRole("heading").boundingBox(), dialog.getByRole("button", { name: "Close" }).boundingBox()]);
+    expect(Math.abs((title!.y + title!.height / 2) - (close!.y + close!.height / 2))).toBeLessThan(4);
     expect((await new AxeBuilder({ page }).include("dialog").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations.map(v => v.id)).toEqual([]);
     await page.screenshot({ path: `.artifacts/demo-handoff/captures/desktop-${colorScheme}-scan-text.png` });
     await page.keyboard.press("Escape");
@@ -312,12 +314,30 @@ test("on desktop, text and call show a scannable phone code with direct copy; Do
     await expect(demo.getByRole("heading", { name: "How did the text with Alex go?" })).toBeFocused();
     await demo.locator('[data-demo-beat="phone"]').click();
     await demo.getByRole("button", { name: "Call", exact: true }).click();
-    const call = page.getByRole("dialog", { name: "Scan to call Alex from your phone" });
-    await expect(call).toContainText("ready to dial. Nothing is dialed until you press call.");
+    const call = page.getByRole("dialog", { name: "Scan to call Alex" });
+    await expect(call).toHaveAccessibleDescription("Opens your phone’s calling app, ready to dial.");
     await page.screenshot({ path: `.artifacts/demo-handoff/captures/desktop-${colorScheme}-scan-call.png` });
     await call.getByRole("button", { name: "Close" }).click();
   }
   expect(await nativeClicks(page)).toEqual([]);
+});
+
+test("a Mac opens Messages and FaceTime directly, with Apple's message format", async ({ browser, baseURL }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Desktop only.");
+  const context = await browser.newContext({ baseURL, userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36" });
+  const page = await context.newPage();
+  await guardNativeLinks(page);
+  await page.goto("/");
+  const demo = page.locator("#sample");
+  await expect(demo).toHaveAttribute("aria-busy", "false");
+  const sms = demo.getByRole("link", { name: "Open text", exact: true });
+  await expect(sms).toHaveAttribute("href", /^sms:\+12025550142&body=/);
+  await sms.click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(demo.getByRole("heading", { name: "How did the text with Alex go?" })).toBeVisible();
+  await demo.locator('[data-demo-beat="phone"]').click();
+  await expect(demo.getByRole("link", { name: "Call", exact: true })).toHaveAttribute("href", "tel:+12025550142");
+  await context.close();
 });
 
 test("without JavaScript, the fictional schedule and access link remain readable", async ({ browser, baseURL }) => {

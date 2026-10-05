@@ -6,7 +6,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { DEMO_BEATS, demoContact, demoDrafts, demoSituations } from "@/lib/demo-workspace";
 import { MARKETING_SCENARIOS } from "@/lib/marketing-scenarios";
 import { DemoPhoneQr } from "@/components/DemoPhoneQr";
-import { demoActionUrl, demoQrPayload, isAppleMobile } from "@/lib/product-demo";
+import { demoActionUrl, demoHandoff, demoQrPayload, isAppleMobile } from "@/lib/product-demo";
 import styles from "./ProductDemo.module.css";
 
 type Practice = { drafts: ReturnType<typeof demoDrafts>; beat: number; view: "edit" | "returned" | "recorded"; done: number[] };
@@ -20,7 +20,7 @@ export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scen
   const [practices, setPractices] = useState<Record<string, Practice>>({});
   const [ready, setReady] = useState(false);
   const [apple, setApple] = useState(false);
-  // A desktop has no phone to hand a text or call to, so those Beats show a code to scan instead.
+  // Computers without a built-in texting/calling app show a code to scan for those Beats instead.
   const [desktop, setDesktop] = useState(false);
   const [scanning, setScanning] = useState(false);
   const example = choices.find(item => item.id === selected) ?? choices[0];
@@ -48,9 +48,11 @@ export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scen
     : [["Sent", true], ["Not sent", false]] as const;
 
   useEffect(() => {
-    const appleMobile = isAppleMobile(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
-    setApple(appleMobile);
-    setDesktop(!appleMobile && !/Android|Mobi/i.test(navigator.userAgent) && window.matchMedia("(hover: hover) and (pointer: fine)").matches);
+    const { userAgent, platform, maxTouchPoints } = navigator;
+    const mac = /Macintosh|Mac OS X/.test(userAgent) || platform === "MacIntel";
+    // Apple Messages, on iPhone, iPad and Mac, reads the body after "&".
+    setApple(isAppleMobile(userAgent, platform, maxTouchPoints) || mac);
+    setDesktop(demoHandoff(userAgent, platform, maxTouchPoints, window.matchMedia("(hover: hover) and (pointer: fine)").matches) === "scan");
     setReady(true);
   }, []);
   useEffect(() => { if (selection) window.dispatchEvent(new CustomEvent("jitm:scenario", { detail: { scenario: selection } })); }, [selection]);
@@ -100,8 +102,8 @@ export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scen
             : nativeUrl
             ? <a className={`button primary ${styles.primary}`} href={nativeUrl} data-demo-native={beat.channel} onClick={handOff}><AppIcon name={beat.icon} />{beat.action}</a>
             : <button className={`button primary ${styles.primary}`} type="button" disabled><AppIcon name={beat.icon} />{beat.action}</button>}
-          {!recorded && <p className={styles.hint}>{desktop && beat.channel !== "email" ? "Shows a code to scan with your phone." : beat.channel === "phone" ? "Opens your phone app, ready to dial. Your notes stay here." : `Opens your ${beat.channel === "text" ? "messages" : "email"} app with this draft.`}</p>}
-          {scanning && nativeUrl && beat.channel !== "email" && <DemoPhoneQr channel={beat.channel} person={example.person} phone={contact.phone} code={demoQrPayload(beat.channel, draft.message, contact) ?? nativeUrl} nativeUrl={nativeUrl}
+          {!recorded && <p className={styles.hint}>{desktop && beat.channel !== "email" ? "Shows a code to scan with your phone." : beat.channel === "phone" ? "Opens your calling app, ready to dial. Your notes stay here." : `Opens your ${beat.channel === "text" ? "messages" : "email"} app with this draft.`}</p>}
+          {scanning && nativeUrl && beat.channel !== "email" && <DemoPhoneQr channel={beat.channel} person={example.person} phone={contact.phone} code={demoQrPayload(beat.channel, draft.message, contact) ?? nativeUrl}
             onDone={() => { setScanning(false); go("returned"); }} onClose={() => setScanning(false)} />}
         </>}
         {practice.view === "returned" && <>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEMO_CONTACT_DEFAULTS, DEMO_MARKER, DEMO_SCENARIOS, demoActionUrl, demoQrPayload, isAppleMobile, personalizeDemoText, resolveDemoContact } from "../src/lib/product-demo";
+import { DEMO_CONTACT_DEFAULTS, DEMO_MARKER, DEMO_SCENARIOS, demoActionUrl, demoHandoff, demoQrPayload, isAppleMobile, personalizeDemoText, resolveDemoContact } from "../src/lib/product-demo";
 import { HOME_DEMO_SITUATIONS, demoContact } from "../src/lib/demo-workspace";
 
 describe("personalized homepage demo", () => {
@@ -65,5 +65,15 @@ describe("personalized homepage demo", () => {
     expect(demoQrPayload("text", "Hi Alex:\r\nsee you", contact)).toBe(`SMSTO:+12025550142:${DEMO_MARKER}\n\nHi Alex:\nsee you`);
     expect(demoQrPayload("phone", "notes stay here", contact)).toBe("tel:+12025550142");
     expect(demoQrPayload("text", "Hi", { phone: "not a number" })).toBeNull();
+  });
+  it("opens texts and calls directly on phones and Macs, and shows a scan code on other computers", () => {
+    const mac = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15";
+    expect(demoHandoff(mac, "MacIntel", 0, true)).toBe("direct");
+    expect(demoHandoff(mac, "MacIntel", 5, false)).toBe("direct"); // iPad in desktop mode
+    expect(demoHandoff("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)", "iPhone", 5, false)).toBe("direct");
+    expect(demoHandoff("Mozilla/5.0 (Linux; Android 14; Pixel 8) Mobile", "Linux armv8l", 5, false)).toBe("direct");
+    expect(demoHandoff("Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Win32", 0, true)).toBe("scan");
+    expect(demoHandoff("Mozilla/5.0 (X11; Linux x86_64)", "Linux x86_64", 0, true)).toBe("scan");
+    expect(demoHandoff("Mozilla/5.0 (Windows NT 10.0; Win64; x64)", "Win32", 10, false)).toBe("direct"); // touch-only
   });
 });
