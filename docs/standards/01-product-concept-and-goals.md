@@ -2,7 +2,7 @@
 id: JITM-01
 title: Product concept, goals and non-goals
 status: active
-version: 2.3.0
+version: 2.3.1
 owner: Kevin
 last_reviewed: 2026-10-05
 applies_to: [product, features, onboarding, access, marketing, agents]
@@ -140,8 +140,8 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 | Calendar: meetings, time blocks, iCalendar import, subscribe and export | Shipped | `docs/CUSTOMER_JOURNEY_AND_CONNECTIONS.md:21-30` |
 | Quick Add, typed or spoken; spoken Today summary | Shipped (devices NOT RUN) | `docs/design/QUICK_ADD_AND_ACTIVATION_2026-09-20.md:7`; `docs/VOICE_WORKFLOWS.md:31`; `docs/CANONICAL_PRODUCT_DECISIONS.md:131` |
 | Lead connections: hosted lead form, authenticated intake | Shipped | `README.md:15` |
-| Add from your phone: Android picker on Add a contact, iPhone saved-card import guide | Built, not yet released | D32; `docs/PHONE_CONTACTS_2026-10-05.md` |
-| iPhone share shortcut (personal key, shared contact cards) | Built; its setup steps stay hidden until `IPHONE_CONTACTS_SHORTCUT_URL` is set, while the endpoint accepts an existing key | D32; `docs/PHONE_CONTACTS_2026-10-05.md` |
+| Add from your phone: Android picker on Add a contact, iPhone saved-card import guide | Shipped (devices NOT RUN) | D32; `docs/PHONE_CONTACTS_2026-10-05.md`; `docs/PHONE_CONTACTS_RELEASE_2026-10-05.md` |
+| iPhone share shortcut (personal key, shared contact cards) | Live, with its setup steps hidden until `IPHONE_CONTACTS_SHORTCUT_URL` is set; the endpoint accepts an existing key | D32; `docs/PHONE_CONTACTS_2026-10-05.md`; `docs/PHONE_CONTACTS_RELEASE_2026-10-05.md` |
 | Opt-in notifications: morning email, due push, weekly report | Shipped | `docs/CANONICAL_PRODUCT_DECISIONS.md:77` |
 | Waitlist and personal invitations | Shipped | §2.8; JITM-09 §2.17 |
 | Data controls: export, sessions, account deletion | Shipped | `docs/CANONICAL_PRODUCT_DECISIONS.md:111` |
@@ -221,3 +221,4 @@ Known deviations at 9439fd6:
 - 2.2.1 — 2026-09-30 — Base 94b9539. §6: JITM-09 §2.65 now names Plan and billing, so that deviation is gone.
 - 2.2.2 — 2026-10-01 — Base f1ac84d. §2.22: the plan limits are built and stay off with billing (docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).
 - 2.3.0 — 2026-10-05 — Base 9b3f949. §2.22 adds Add from your phone (built, not yet released), the iPhone share shortcut (setup steps hidden until its link is set) and deferred continuous contact sync (D32, docs/PHONE_CONTACTS_2026-10-05.md).
+- 2.3.1 — 2026-10-05 — Base e6b4c6a. §2.22: Add from your phone is shipped, and the iPhone share shortcut is live with its steps hidden until its link is set (docs/PHONE_CONTACTS_RELEASE_2026-10-05.md).
