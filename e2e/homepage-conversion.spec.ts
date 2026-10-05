@@ -91,7 +91,7 @@ test("conversion hooks record engagement without claiming a send or collecting d
   // Demo controls are disabled until hydration; the adapter attaches in the same commit.
   await expect(page.locator("#sample textarea")).toBeEnabled();
   await page.locator("#sample textarea").fill("Private draft content must never reach analytics");
-  await page.locator("#sample").getByRole("button", { name: "Preview SMS", exact: true }).click();
+  await page.locator('#sample [data-demo-beat="email"]').click();
   await page.locator('.hero-actions a[href="/waitlist"]').click();
   await expect(page).toHaveURL(/\/waitlist$/);
   const events = await page.evaluate(() => (window as Window & { conversionTestEvents?: Record<string, unknown>[] }).conversionTestEvents ?? []);
@@ -114,7 +114,7 @@ test("conversion hooks respect browser privacy signals", async ({ browser }, tes
     const page = await context.newPage();
     try {
       await page.goto("/");
-      await page.locator("#sample").getByRole("button", { name: "Preview SMS", exact: true }).click();
+      await page.locator('#sample [data-demo-beat="email"]').click();
       await page.locator('.hero-actions a[href="/waitlist"]').click();
       await expect(page).toHaveURL(/\/waitlist$/);
       expect(await page.evaluate(() => (window as unknown as Window & { conversionTestEvents: unknown[] }).conversionTestEvents)).toEqual([]);

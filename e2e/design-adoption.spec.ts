@@ -139,9 +139,12 @@ test("the demo uses the two design fonts and stays accessible through all steps"
   await page.goto("/");
   await page.locator("#sample textarea").fill("Hi Alex, is Tuesday still a good time to catch up?");
   expect(await page.locator("#sample textarea").evaluate(element => getComputedStyle(element).fontFamily)).toMatch(/newsreader/i);
-  await page.getByRole("button", { name: "Preview SMS", exact: true }).click();
-  await expect(page.locator("#sample blockquote")).toContainText("Tuesday");
-  await page.getByRole("button", { name: "Mark sent (demo)", exact: true }).click();
+  const sms = page.locator('#sample a[data-demo-native="text"]');
+  await expect(sms).toHaveAttribute("href", /Tuesday/);
+  // Never hand a real sms: link to the operating system.
+  await sms.evaluate(link => link.addEventListener("click", event => event.preventDefault()));
+  await sms.click();
+  await page.getByRole("button", { name: "Sent", exact: true }).click();
   await expect(page.locator("#sample")).toContainText("Nothing was sent by this demo.");
   expect((await new AxeBuilder({ page }).include("#sample").analyze()).violations).toEqual([]);
 });

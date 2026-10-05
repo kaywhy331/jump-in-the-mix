@@ -4,7 +4,15 @@
 
 Kevin confirmed on October 3, 2026: "okay let's do that and add the auto reply demo as an option in the future." Continue the native-handler correction with the existing fictional sample contacts. As a future optional demo, consider a verified JITM-owned inbox and phone/SMS number providing one clearly labeled demo reply or greeting. Keep demo replies separate from marketing opt-in; a demo action or inbound message must not enroll anyone. Require actual destination ownership/receipt verification and approval for any service before activation. No working demo destination or autoresponder is currently established by this record; do not build, provision or enable one now, or repurpose the support address. This is a backlog item, not an activated capability or a deliverability claim.
 
-## Current instructions: three-Beat native sample (October 3, 2026)
+## Current instructions: direct native handoff (October 4, 2026)
+
+Owner direction: "The 'Preview SMS', 'Preview email', 'Preview call' is supposed to open the messaging app, or email app, or initiate the phone ready to press dial. It is not supposed to change the UI with more buttons. It is supposed to flow as if it was the app itself."
+
+- The Beat action is the native link itself, labelled as in the app: **Open text**, **Open email**, **Call**. There is no in-page preview card, "Open in your app" button, Copy draft or manual-copy field.
+- About 900 ms after the tap, the Beat shows the same outcome question as the app's return tray: Sent / Not sent for text and email; Connected / Left voicemail / No answer / Did not call for a call. "Not sent" and "Did not call" return to the draft; the others record the Beat as done in the demo.
+- Unchanged from October 3: links carry the demo marker, recipients are fictional, a click proves only that a handoff was requested, state is memory-only, and tests intercept native links.
+
+## Superseded: three-Beat native sample (October 3, 2026)
 
 Owner decision D31: "They are actually supposed to trigger the text message, email, and phone functions when clicking the button." Implementation: `src/components/ProductDemo.tsx`, `src/lib/product-demo.ts`, `src/lib/demo-workspace.ts`; tests: `e2e/product-demo.spec.ts`, `tests/product-demo.test.ts`.
 

@@ -2,9 +2,9 @@ import { MARKETING_SCENARIOS, type MarketingScenarioId } from "./marketing-scena
 
 // Browser-only illustration; these dates do not change real starter Mix schedules.
 export const DEMO_BEATS = [
-  { channel: "text", label: "Text", icon: "message", day: 0, due: "Today", preview: "Preview SMS" },
-  { channel: "email", label: "Email", icon: "email", day: 1, due: "Tomorrow", preview: "Preview email" },
-  { channel: "phone", label: "Call", icon: "phone", day: 7, due: "In 1 week", preview: "Preview call" }
+  { channel: "text", label: "Text", icon: "message", day: 0, due: "Today", action: "Open text" },
+  { channel: "email", label: "Email", icon: "email", day: 1, due: "Tomorrow", action: "Open email" },
+  { channel: "phone", label: "Call", icon: "phone", day: 7, due: "In 1 week", action: "Call" }
 ] as const;
 export type DemoSituation = { id: string; label: string; person: string; context: string; topic: string; text: string };
 export const HOME_DEMO_SITUATIONS: readonly DemoSituation[] = [
