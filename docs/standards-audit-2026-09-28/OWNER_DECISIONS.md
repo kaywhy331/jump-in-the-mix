@@ -259,6 +259,16 @@ Kevin answered the 18 questions in §7 of the [audit](../STANDARDS_AUDIT_2026-09
 - **Reverses:** the no-handoff rule in JITM-09 §2.67 at 2.3.0 (D2-era demo contract).
 - **Applied in:** JITM-09 §2.67 and §4 (3.0.0), `docs/HOMEPAGE_CONTACT_DEMO.md`.
 
+### D32 — Adding people from a phone (2026-10-05)
+
+- **Request:** "I would like an easy way for the user to be able to add a contact that is saved in their phone into the webapp."
+- **Decision:** "Okay I will go off your recommendations and go with 1,2,and 3." That means three things:
+  1. The Android contact picker sits at the top of Add a contact and in the Contacts tools.
+  2. An iPhone shortcut sends contact cards shared from the Contacts app with the owner's personal key. The cards go through the picker's matching: one exact email or phone match is merged, an ambiguous match is left unchanged, and notes, dates and photos are not taken.
+  3. A guide shows how to save a contact card to Files and import it.
+- **Deferred:** continuous sync, either from Google Contacts or through an App Store app, until beta users ask for automatic syncing. iCloud contacts are not pursued: the only route needs an Apple app-specific password.
+- **Applied in:** JITM-09 §2.33 (3.1.0), JITM-01 §2.22 (2.3.0), JITM-11 §2.38 (1.2.1), `docs/PHONE_CONTACTS_2026-10-05.md`.
+
 ## Still open
 
 The standards' §6 sections list the remaining open questions and known deviations. The second packet's product changes are tasks in the audit's [follow-up backlog](../STANDARDS_AUDIT_2026-09-28.md#8-follow-up-backlog).

@@ -2,9 +2,9 @@
 id: JITM-11
 title: Engineering architecture
 status: active
-version: 1.2.0
+version: 1.2.1
 owner: Kevin
-last_reviewed: 2026-10-01
+last_reviewed: 2026-10-05
 applies_to: [src, prisma, worker, scripts, infra, dependencies]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -153,7 +153,7 @@ Neighboring topics live elsewhere:
 
 **2.37** Tokens in links and callbacks (magic links, OAuth state, access grants, review and referral links) MUST be random and expiring, and single-use where the flow allows. OAuth state is stored only as a hash. [SOURCE docs/SECURITY.md:5,37] [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:12]
 
-**2.38** Unsafe requests MUST pass the origin check in `src/proxy.ts`. Server Actions share the `AUTH_ALLOWED_ORIGINS` allowlist and a 1 MB body limit. The Apple sign-in callback and signed webhooks are the only exceptions. [SHIPPED 9439fd6 src/proxy.ts:143-148] [SHIPPED 9439fd6 next.config.ts:34-38] [SOURCE docs/SECURITY.md:13]
+**2.38** Unsafe requests MUST pass the origin check in `src/proxy.ts`. Server Actions share the `AUTH_ALLOWED_ORIGINS` allowlist and a 1 MB body limit. The Apple sign-in callback and `/api/webhooks/*` are the only exceptions. That path holds the signed webhooks and the key-authenticated endpoints, which are lead intake and phone contact sharing (D32). Each one authenticates without cookies. [SHIPPED 9439fd6 src/proxy.ts:143-148] [SHIPPED 9439fd6 next.config.ts:34-38] [SOURCE docs/SECURITY.md:13]
 
 **2.39** Every response carries a fresh nonce-based Content Security Policy (`strict-dynamic`, with `unsafe-eval` only outside production) and the headers set in `src/proxy.ts`. Inline scripts MUST carry the request's `x-nonce`, as the root layout does. Agents MUST NOT add `unsafe-inline` or third-party script hosts. [SHIPPED 9439fd6 src/proxy.ts:74-77,93-104] [SHIPPED 9439fd6 src/app/layout.tsx:40-46]
 
@@ -271,3 +271,4 @@ Neighboring topics live elsewhere:
 - 1.1.0 — 2026-09-29 — Base db54cc7. §2.53–§2.57 add the billing rules for Stripe checkout, the billing portal and the webhook (docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md).
 - 1.1.1 — 2026-09-30 — Base 5c02e8d. §2.57 names the owned workspaces and the last-owner pre-check (BIL-01, docs/BILLING_DELETION_FIX_2026-09-30.md).
 - 1.2.0 — 2026-10-01 — Base f1ac84d. New §2.58: how the plan limits are enforced (docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).
+- 1.2.1 — 2026-10-05 — Base 9b3f949. §2.38 names `/api/webhooks/*` as the origin-check exception. It covers the key-authenticated lead intake that was already there and the new phone contact endpoint (D32).

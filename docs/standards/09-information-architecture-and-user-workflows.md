@@ -2,9 +2,9 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 3.0.0
+version: 3.1.0
 owner: Kevin
-last_reviewed: 2026-10-03
+last_reviewed: 2026-10-05
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
 supersedes: [docs/UX_WORKFLOW_OPTIMIZATION.md]
 sources:
@@ -152,7 +152,7 @@ The individual route saves preferences and opens the library without a contact. 
 
 **2.32** Contacts (`/contacts`) holds people, notes, history, tags and saved dates. A profile MUST show contact methods, the next follow-up with its real dates, the stage and history, with Text, Email, Call and Note actions that respect missing methods and Do not contact. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:57] [SOURCE docs/design/DESIGN_GUIDELINES.md:26] [SOURCE docs/design/CONTACTS_IMPLEMENTATION_2026-09-19.md:11-12]
 
-**2.33** People arrive through Add a person (`/contacts/new`, with "Save & schedule follow-up"), Quick Add, CSV or vCard import, the device contact picker and lead connections. Imports MUST merge only exact, unambiguous matches and hold the rest for review. A merge moves Journey work without merging it. [SOURCE docs/QUICK_ADD.md:12-14] [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:36] [SHIPPED 9439fd6 src/components/ContactForm.tsx:303] [SHIPPED 9439fd6 src/app/(app)/more/page.tsx:15]
+**2.33** People arrive through Add a person (`/contacts/new`, with "Save & schedule follow-up"), Quick Add, CSV or vCard import, the device contact picker, contact cards shared from a phone, and lead connections. Imports MUST merge only exact, unambiguous matches and hold the rest for review. A merge moves Journey work without merging it. Add from your phone (`/contacts/from-phone`) gives each phone its own path. On Android it is the picker, which also sits at the top of Add a contact. On iPhone it is the owner's shortcut, which sends shared cards with a personal key; the key is shown once, stored only as a hash, and replaced by a new one. A card saved to Files can also be imported. Shared cards take only the name, company, emails, phones and addresses. [OWNER 2026-10-05 D32] [SOURCE docs/QUICK_ADD.md:12-14] [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:36] [SHIPPED 9439fd6 src/components/ContactForm.tsx:303] [SHIPPED 9439fd6 src/app/(app)/more/page.tsx:15]
 
 **2.34** Adding a person to a Mix from their profile (Choose a mix) MUST ask for a start date. A date-triggered Mix takes that date when the person has none, and a finished Mix restarts from it. [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:24] [SHIPPED 9439fd6 src/components/ContactProfile.tsx:147,261]
 
@@ -319,3 +319,4 @@ Known deviations:
 - 2.2.0 — 2026-09-30 — Base 94b9539. §2.65: My account links to Plan and billing (`/account/billing`), shipped in PR #104 (O10).
 - 2.3.0 — 2026-10-01 — Base f1ac84d. New §2.75: plan limits skip automatic additions and refuse direct starts, with a Today notice (O14, docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).
 - 3.0.0 — 2026-10-03 — Base fdb95b6. §2.67 and §4: the public demo hands drafts to the visitor's own text, email and phone apps through ordinary links, a deliberate reversal of the earlier no-handoff rule (D31). Frontmatter version is 3.0.0.
+- 3.1.0 — 2026-10-05 — Base 9b3f949. §2.33: people can also arrive as contact cards shared from a phone. It adds the Android picker on Add a contact, the iPhone shortcut with its personal key, and the saved-card import guide on `/contacts/from-phone` (D32, docs/PHONE_CONTACTS_2026-10-05.md).
