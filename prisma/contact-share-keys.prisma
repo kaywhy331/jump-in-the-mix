@@ -1,0 +1,15 @@
+/// The owner's personal key for adding contact cards shared from their phone (the iPhone shortcut).
+/// Only the hash is stored; the key is shown once. A new key replaces the old one.
+model ContactShareKey {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  tokenHash   String    @unique
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}

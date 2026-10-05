@@ -40,6 +40,8 @@ export async function quickAddDeviceContacts(input: {
   timezone: string;
   requestId: string;
   contacts: DeviceContactInput[];
+  /** Where the people came from, for the audit record: the browser picker or a card shared from the phone. */
+  source?: "contacts.device-picker" | "contacts.phone-share";
 }): Promise<QuickAddResult> {
   if (!/^[a-zA-Z0-9_-]{8,100}$/.test(input.requestId)) throw new Error("The Quick Add request identifier is invalid.");
   if (!input.contacts.length || input.contacts.length > 50) throw new Error("Choose between 1 and 50 device Contacts at a time.");
@@ -103,10 +105,29 @@ export async function quickAddDeviceContacts(input: {
       actorUserId: input.actorUserId,
       action: "contact.quick-add",
       entityType: "ContactImport",
-      source: "contacts.device-picker",
+      source: input.source ?? "contacts.device-picker",
       metadata: { requestId: input.requestId, ...summary }
     }
   }).catch((error) => console.error("Quick Add summary audit failed", error));
 
   return { summary, items };
+}
+
+const people = (count: number) => `${count} ${count === 1 ? "person" : "people"}`;
+
+/** One plain-text answer for a phone share, shown by the iPhone shortcut as its notification. */
+export function quickAddSentence(result: QuickAddResult): string {
+  const { summary, items } = result;
+  if (items.length === 1) {
+    const [item] = items;
+    if (item.status === "CREATED") return `Added ${item.displayName} to Jump in the Mix.`;
+    if (item.status === "MERGED") return `${item.displayName} was already in Jump in the Mix. Any new details were added.`;
+    if (item.matchKind === "AMBIGUOUS" || item.matchKind === "FUZZY") return `${item.displayName} may already be in Jump in the Mix, so nothing changed. Check Contacts.`;
+    return `${item.displayName} couldn't be added. Add them in Jump in the Mix instead.`;
+  }
+  const parts = [`Added ${people(summary.created)}.`];
+  if (summary.merged) parts.push(`${people(summary.merged)} already saved; any new details were added.`);
+  if (summary.reviewNeeded) parts.push(`${people(summary.reviewNeeded)} may already be saved, so nothing changed. Check Contacts.`);
+  if (summary.failed) parts.push(`${people(summary.failed)} couldn't be added.`);
+  return parts.join(" ");
 }

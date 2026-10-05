@@ -11,6 +11,14 @@ export type DeviceContactAddressInput = {
 
 export type DeviceContactInput = {
   names: string[];
+  /** Sent only for shared contact cards; the browser contact picker has no company field. */
+  company?: string | null;
+  /**
+   * The card's own first and last names (vCard N), sent only for shared contact cards. When present
+   * the full name is not split, so "Dr. Jordan Lee Jr." keeps Jordan as the first name and a company
+   * card gets no first name.
+   */
+  structuredName?: { firstName: string | null; lastName: string | null };
   emails: string[];
   phones: string[];
   addresses: DeviceContactAddressInput[];
@@ -92,8 +100,11 @@ export function deviceContactToImportRecord(
   const providedName = clean(contact.names.find((name) => Boolean(name.trim())), 240);
   const emails = deviceEmails(contact.emails);
   const phones = devicePhones(contact.phones);
-  const displayName = providedName ?? emails[0]?.value ?? phones[0]?.value ?? null;
+  const company = clean(contact.company, 200);
+  const displayName = providedName ?? company ?? emails[0]?.value ?? phones[0]?.value ?? null;
   const nameParts = providedName?.split(/\s+/).filter(Boolean) ?? [];
+  const firstName = contact.structuredName ? clean(contact.structuredName.firstName, 240) : nameParts[0] ?? null;
+  const lastName = contact.structuredName ? clean(contact.structuredName.lastName, 240) : nameParts.length > 1 ? nameParts.slice(1).join(" ") : null;
 
   return {
     rowId: `device-${requestId}-${index + 1}`.slice(0, 160),
@@ -102,10 +113,10 @@ export function deviceContactToImportRecord(
     // records through the VCF-compatible shape. Newly created Contact rows are
     // immediately reclassified to ContactSource.API by the Quick Add service.
     source: "VCF",
-    firstName: nameParts[0] ?? null,
-    lastName: nameParts.length > 1 ? nameParts.slice(1).join(" ") : null,
+    firstName,
+    lastName,
     displayName,
-    company: null,
+    company,
     publicNotes: null,
     emails,
     phones,

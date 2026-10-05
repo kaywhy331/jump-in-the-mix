@@ -1,5 +1,6 @@
 import { workflowContinuation } from "@/lib/workflow-continuation";
 import type { Metadata } from "next";
+import { DeviceContactQuickAdd } from "@/components/DeviceContactQuickAdd";
 import { NewContactForm } from "@/components/NewContactForm";
 import { Notice } from "@/components/Notice";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
@@ -50,6 +51,7 @@ export default async function NewContactPage({ searchParams }: { searchParams: P
       <UrlErrorNotice params={query} viewer={session} />
       {query.quickAddFallback && <Notice type="info">Your browser does not expose the native Contact Picker. Use this compact form instead; supported browsers also offer optional voice dictation for Public Notes.</Notice>}
       {continuation && <Notice type="info">Save this person to return to your selected Mix. You will choose when to start it.</Notice>}
+      {!continuation && !query.quickAddFallback && <DeviceContactQuickAdd placement="new-contact" />}
       <NewContactForm
         returnTo={continuation}
         draftId={query.draft?.slice(0, 100)}

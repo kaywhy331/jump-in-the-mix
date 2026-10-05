@@ -403,6 +403,7 @@ export function ContactImportWizardV2({
             <small>Up to 5,000 rows and 10 MB. You may leave after the import is queued.</small>
           </label>
           <div className="import-privacy-note"><strong>Only your account can access the contacts you import.</strong><span>We check for matching email addresses and phone numbers. You decide what to do with possible duplicates.</span></div>
+          <p className="import-phone-link"><Link className="inline-action" href="/contacts/from-phone">Adding people from your phone?</Link></p>
         </section>
       )}
 
