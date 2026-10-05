@@ -107,6 +107,13 @@ export function demoActionUrl(channel: DemoStep["channel"], subject: string, mes
   if (!phone) return null;
   if (channel === "phone") return `tel:${phone}`;
   // Apple Messages uses &body; other SMS handlers use RFC 5724's ?body.
-  // A copy action remains available for handlers that ignore message bodies or are missing.
   return `sms:${phone}${appleMobile ? "&" : "?"}body=${body}`;
+}
+
+// What a desktop visitor scans with a phone: SMSTO (read by iPhone and Android cameras) carries the
+// marked draft; a call carries the number only.
+export function demoQrPayload(channel: "text" | "phone", message: string, contact: Pick<DemoContactDetails, "phone">): string | null {
+  const phone = demoPhone(contact.phone);
+  if (!phone) return null;
+  return channel === "phone" ? `tel:${phone}` : `SMSTO:${phone}:${DEMO_MARKER}\n\n${message.replace(/\r\n|\r/g, "\n")}`;
 }

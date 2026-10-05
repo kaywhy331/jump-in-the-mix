@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEMO_CONTACT_DEFAULTS, DEMO_MARKER, DEMO_SCENARIOS, demoActionUrl, isAppleMobile, personalizeDemoText, resolveDemoContact } from "../src/lib/product-demo";
+import { DEMO_CONTACT_DEFAULTS, DEMO_MARKER, DEMO_SCENARIOS, demoActionUrl, demoQrPayload, isAppleMobile, personalizeDemoText, resolveDemoContact } from "../src/lib/product-demo";
 import { HOME_DEMO_SITUATIONS, demoContact } from "../src/lib/demo-workspace";
 
 describe("personalized homepage demo", () => {
@@ -59,5 +59,11 @@ describe("personalized homepage demo", () => {
 
   it.each(["123", "+1 202 555 0142?body=wrong", "555-CALL-NOW", "1234567890123456"])("blocks invalid phone destinations: %s", phone => {
     expect(demoActionUrl("phone", "", "", false, { ...DEMO_CONTACT_DEFAULTS, phone })).toBeNull();
+  });
+  it("builds the desktop scan codes: SMSTO with the marked draft, a call with the number only", () => {
+    const contact = demoContact(HOME_DEMO_SITUATIONS[0]);
+    expect(demoQrPayload("text", "Hi Alex:\r\nsee you", contact)).toBe(`SMSTO:+12025550142:${DEMO_MARKER}\n\nHi Alex:\nsee you`);
+    expect(demoQrPayload("phone", "notes stay here", contact)).toBe("tel:+12025550142");
+    expect(demoQrPayload("text", "Hi", { phone: "not a number" })).toBeNull();
   });
 });
