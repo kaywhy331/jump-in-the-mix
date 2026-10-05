@@ -204,10 +204,12 @@ export function parseVcardDeviceContacts(text: string): DeviceContactInput[] {
   return vcardBlocks(text).map(readVcard).map((card) => ({
     names: [card.displayName || [card.firstName, card.lastName].filter(Boolean).join(" ")].filter(Boolean),
     company: card.company || null,
+    structuredName: { firstName: card.firstName, lastName: card.lastName },
     emails: card.emails.map((item) => item.value),
     phones: card.phones.map((item) => item.value),
     addresses: card.addresses.map((item) => ({
-      addressLines: [item.street, item.extended, item.poBox].filter(Boolean),
+      // An iPhone writes a two-line street as one value with a line break.
+      addressLines: [...item.street.split("\n"), item.extended, item.poBox].map((line) => line.trim()).filter(Boolean),
       city: item.city || null,
       region: item.state || null,
       postalCode: item.postalCode || null,

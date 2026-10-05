@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { CopyField } from "@/components/CopyField";
 import { Notice } from "@/components/Notice";
@@ -16,9 +16,12 @@ export function ContactShareKeyPanel({ title, shortcutUrl, keyStatus, viewOnly }
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
   const [confirm, confirmDialog] = useConfirmDialog();
+  const keyRef = useRef<HTMLDivElement>(null);
+  // The Make button disappears once the key shows, so move focus to the key itself.
+  useEffect(() => { if (key) keyRef.current?.querySelector("input")?.focus(); }, [key]);
 
   const makeKey = async () => {
-    if (keyMade && !await confirm({ title: "Make a new key?", description: "Your current key stops working. Paste the new one into the shortcut when you add it again.", confirmLabel: "Make a new key" })) return;
+    if (keyMade && !await confirm({ title: "Make a new key?", description: "Your current key stops working. Paste the new one into the shortcut when you add it again.", confirmLabel: "Make a new key", danger: true })) return;
     startTransition(async () => {
       setError("");
       const result: ContactShareKeyResult = await makeContactShareKeyAction().catch(() => ({ error: "The key could not be made. Try again." }));
@@ -45,7 +48,7 @@ export function ContactShareKeyPanel({ title, shortcutUrl, keyStatus, viewOnly }
         <li>
           <strong>Make your key</strong>
           {key
-            ? <><CopyField label="Key" value={key} /><small>Keep it private. Anyone with it can add people to your Contacts.</small></>
+            ? <><div ref={keyRef}><CopyField label="Key" value={key} secret /></div><small>Keep it private. Anyone with it can add people to your Contacts and add details to people already there.</small></>
             : keyMade
               ? <small>Made {keyStatus?.made}{keyStatus?.lastUsed ? `, last used ${keyStatus.lastUsed}` : ", not used yet"}.</small>
               : <small>The shortcut uses it to add people to your account.</small>}

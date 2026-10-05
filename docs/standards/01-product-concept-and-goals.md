@@ -141,7 +141,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 | Quick Add, typed or spoken; spoken Today summary | Shipped (devices NOT RUN) | `docs/design/QUICK_ADD_AND_ACTIVATION_2026-09-20.md:7`; `docs/VOICE_WORKFLOWS.md:31`; `docs/CANONICAL_PRODUCT_DECISIONS.md:131` |
 | Lead connections: hosted lead form, authenticated intake | Shipped | `README.md:15` |
 | Add from your phone: Android picker on Add a contact, iPhone saved-card import guide | Built, not yet released | D32; `docs/PHONE_CONTACTS_2026-10-05.md` |
-| iPhone share shortcut (personal key, shared contact cards) | Built but off (`IPHONE_CONTACTS_SHORTCUT_URL`) | D32; `docs/PHONE_CONTACTS_2026-10-05.md` |
+| iPhone share shortcut (personal key, shared contact cards) | Built; its setup steps stay hidden until `IPHONE_CONTACTS_SHORTCUT_URL` is set, while the endpoint accepts an existing key | D32; `docs/PHONE_CONTACTS_2026-10-05.md` |
 | Opt-in notifications: morning email, due push, weekly report | Shipped | `docs/CANONICAL_PRODUCT_DECISIONS.md:77` |
 | Waitlist and personal invitations | Shipped | §2.8; JITM-09 §2.17 |
 | Data controls: export, sessions, account deletion | Shipped | `docs/CANONICAL_PRODUCT_DECISIONS.md:111` |
@@ -220,4 +220,4 @@ Known deviations at 9439fd6:
 - 2.2.0 — 2026-09-29 — Base db54cc7. Payments are built but off (§2.20, §2.22); §3 names the billing sync; §6 notes that JITM-09 §2.65 must name Plan and billing (docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md).
 - 2.2.1 — 2026-09-30 — Base 94b9539. §6: JITM-09 §2.65 now names Plan and billing, so that deviation is gone.
 - 2.2.2 — 2026-10-01 — Base f1ac84d. §2.22: the plan limits are built and stay off with billing (docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).
-- 2.3.0 — 2026-10-05 — Base 9b3f949. §2.22 adds Add from your phone (built, not yet released), the iPhone share shortcut (built but off until its link is set) and deferred continuous contact sync (D32, docs/PHONE_CONTACTS_2026-10-05.md).
+- 2.3.0 — 2026-10-05 — Base 9b3f949. §2.22 adds Add from your phone (built, not yet released), the iPhone share shortcut (setup steps hidden until its link is set) and deferred continuous contact sync (D32, docs/PHONE_CONTACTS_2026-10-05.md).

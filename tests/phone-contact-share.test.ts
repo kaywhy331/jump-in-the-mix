@@ -33,6 +33,7 @@ describe("contact cards shared from a phone", () => {
     expect(contact).toEqual({
       names: ["Jordan Lee"],
       company: "Lee Plumbing, Inc.",
+      structuredName: { firstName: "Jordan", lastName: "Lee" },
       emails: ["jordan@example.com"],
       phones: ["(555) 555-0123"],
       addresses: [{ addressLines: ["12 Main St"], city: "Springfield", region: "IL", postalCode: "62701", country: "United States" }]
@@ -115,5 +116,23 @@ describe("phone share boundaries", () => {
     expect(read("src/app/(app)/contacts/new/page.tsx")).toContain('<DeviceContactQuickAdd placement="new-contact" />');
     expect(read("src/components/DeviceContactQuickAdd.tsx")).toContain('href="/contacts/from-phone"');
     expect(read("src/components/ContactImportWizardV2.tsx")).toContain('href="/contacts/from-phone"');
+  });
+});
+
+describe("names and addresses on shared cards", () => {
+  const record = (lines: string[]) => deviceContactToImportRecord(parseVcardDeviceContacts(["BEGIN:VCARD", "VERSION:3.0", ...lines, "END:VCARD"].join("\r\n"))[0], 0, "phone-share-names");
+
+  it("takes first and last names from the card, not from splitting the full name", () => {
+    expect(record(["N:Lee Jr.;Jordan;;Dr.;", "FN:Dr. Jordan Lee Jr.", "TEL:(555) 555-0101"])).toMatchObject({ firstName: "Jordan", lastName: "Lee Jr.", displayName: "Dr. Jordan Lee Jr." });
+    expect(record(["N:Smith;Mary Ann;;;", "FN:Mary Ann Smith", "TEL:(555) 555-0102"])).toMatchObject({ firstName: "Mary Ann", lastName: "Smith" });
+  });
+
+  it("gives a company card no first name and names it after the company", () => {
+    expect(record(["N:;;;;", "FN:Acme Roofing", "ORG:Acme Roofing;", "X-ABShowAs:COMPANY", "TEL:(555) 555-0103"])).toMatchObject({ firstName: null, lastName: null, displayName: "Acme Roofing", company: "Acme Roofing" });
+    expect(record(["N:;;;;", "ORG:Corner Hardware;"])).toMatchObject({ firstName: null, displayName: "Corner Hardware" });
+  });
+
+  it("splits a two-line street into address lines", () => {
+    expect(record(["FN:Sam Rivera", "N:Rivera;Sam;;;", "ADR;type=HOME:;;12 Main St\\nApt 4;Springfield;IL;62701;"]).addresses[0]).toMatchObject({ street1: "12 Main St", street2: "Apt 4", city: "Springfield" });
   });
 });

@@ -72,6 +72,7 @@ test.describe("on iPhone", () => {
       await shortcut.getByRole("button", { name: "Make my key" }).click();
       const keyField = shortcut.getByLabel("Key", { exact: true });
       await expect(keyField).toHaveValue(/^[A-Za-z0-9_-]{43}$/);
+      await expect(keyField).toBeFocused();
       const key = await keyField.inputValue();
 
       const added = await page.request.post("/api/webhooks/phone-contacts", { headers: { "x-jitm-key": key, "content-type": "text/vcard" }, data: card("E2E Shared Person", email) });

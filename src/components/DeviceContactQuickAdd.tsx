@@ -78,6 +78,7 @@ export function DeviceContactQuickAdd({ onboarding = false, placement = "sheet" 
   const router = useRouter();
   const [support, setSupport] = useState<"detecting" | "supported" | "unsupported">("detecting");
   const [apple, setApple] = useState(false);
+  const [iphone, setIphone] = useState(false);
   const [properties, setProperties] = useState<ContactProperty[]>([]);
   const [phase, setPhase] = useState<"idle" | "picking" | "saving">("idle");
   const [error, setError] = useState("");
@@ -88,6 +89,7 @@ export function DeviceContactQuickAdd({ onboarding = false, placement = "sheet" 
     let active = true;
     const detect = async () => {
       setApple(isAppleMobile(navigator.userAgent, navigator.platform, navigator.maxTouchPoints));
+      setIphone(/iPhone|iPod/.test(navigator.userAgent));
       const manager = contactsManager();
       if (!window.isSecureContext || !manager) {
         if (active) setSupport("unsupported");
@@ -190,7 +192,7 @@ export function DeviceContactQuickAdd({ onboarding = false, placement = "sheet" 
       <div className="device-contact-quick-add">
         <Link className="settings-hub-card device-contact-picker" href="/contacts/from-phone">
           <span className="settings-hub-icon"><AppIcon name="smartphone" /></span>
-          {apple
+          {iphone
             ? <span><strong>Add from iPhone contacts</strong><small>Share people from your Contacts app.</small></span>
             : <span><strong>Add from phone contacts</strong><small>See how on iPhone and Android.</small></span>}
         </Link>
@@ -217,7 +219,7 @@ export function DeviceContactQuickAdd({ onboarding = false, placement = "sheet" 
       {error && (
         <div className="quick-add-result error" role="alert">
           <span>{error}</span>
-          <Link href="/contacts/new?quickAddFallback=1">Open manual form</Link>
+          {placement !== "new-contact" && <Link href="/contacts/new?quickAddFallback=1">Open manual form</Link>}
         </div>
       )}
       {summary && (

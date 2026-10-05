@@ -20,12 +20,14 @@ Kevin asked for "an easy way for the user to be able to add a contact that is sa
 ### How a shared card is added
 
 - The shortcut endpoint reads each card (`parseVcardDeviceContacts`) into the picker's shape: name, company, emails, phones and addresses. Notes, birthdays and other dates, and photos are not taken, because nothing reviews them before saving. A birthday could otherwise start a date-triggered Mix.
+- First and last names come from the card's own name fields, as in the file import. "Dr. Jordan Lee Jr." gets the first name Jordan, and a company card gets no first name; it is named after the company.
+- A two-line street is split into address lines.
 - It then runs the picker's `quickAddDeviceContacts`:
   - no match: the person is created;
   - one exact email or phone match: the card is merged without overwriting primary values;
   - an ambiguous or fuzzy match: nothing changes, and the answer says to check Contacts.
 - The audit source is `contacts.phone-share`.
-- A share is limited to 50 cards and a 2 MB body. A repeat of the same body within 10 minutes (a double tap or a retry) returns the first answer through the import idempotency keys.
+- A share is limited to 50 cards and a 2 MB body. A repeat of the same body in the same fixed 10-minute slot (a double tap or a quick retry) returns the first answer through the import idempotency keys. A retry that crosses a slot boundary is processed again, and matching then merges or skips it.
 - It is owner-only, like Quick Add and import (`commitContactImportBatch` checks the owner).
 
 ### Key security
@@ -34,13 +36,14 @@ Kevin asked for "an easy way for the user to be able to add a contact that is sa
 - **When a key works:** only while its user owns the workspace, is not suspended, and has a verified email where sign-in requires one.
 - **Rate limits:** 120 requests per hour per client address, checked before the key lookup, and 120 per hour per key.
 - **Path:** the endpoint lives under `/api/webhooks/`, the only path the origin check exempts, because Shortcuts sends no browser Origin (JITM-11 §2.38). It uses no cookies and never logs the body.
-- **Ending a key:** Make a new key or Turn off ends the old key at once. Account or workspace deletion cascades.
+- **Ending a key:** Make a new key or Turn off ends the old key at once. Account or workspace deletion cascades. The key is shown hidden, with Show key and Copy key.
+- **What a key does not end with:** like a lead connection key, it survives Change password, Sign out everywhere and an administrator's session revocation. Open question for Kevin: should those also end the key?
 
 ### Configuration
 
 `IPHONE_CONTACTS_SHORTCUT_URL` is optional and goes on the web service only. Its value must be `https://www.icloud.com/shortcuts/<id>`, and readiness refuses any other value.
 
-Until it is set, iPhone users see only the saved-card steps. `/contacts/from-phone?setup=shortcut` shows the key steps without the link, for building the shortcut.
+Until it is set, iPhone users see only the saved-card steps, unless they already have a key. In that case the key steps stay visible so they can see its use and turn it off. `/contacts/from-phone?setup=shortcut` shows the key steps without the link, for building the shortcut.
 
 Migration `20261005120000_contact_share_keys` is additive (one new table); the previous release never reads it.
 
@@ -49,6 +52,7 @@ Migration `20261005120000_contact_share_keys` is additive (one new table); the p
 Apple installs only shortcuts that were shared from an iPhone or Mac, so this has to be made in the Shortcuts app. It takes about five minutes, after the release is live.
 
 1. **Get a key.** On jumpinthemix.com, open `https://jumpinthemix.com/contacts/from-phone?setup=shortcut`, tap Make my key, then Copy key.
+   - The key is hidden; Copy key copies it anyway.
 2. **Create the shortcut.** In the Shortcuts app, tap **+**. Rename it exactly **Add to Jump in the Mix**; the page tells people to tap that name.
 3. **Add a Text action.** Add **Text** as the first action and paste your key into it. Step 8 turns this into the question new users answer.
 4. **Accept shared contacts.** Tap the shortcut's settings (ⓘ) and turn on **Show in Share Sheet**.

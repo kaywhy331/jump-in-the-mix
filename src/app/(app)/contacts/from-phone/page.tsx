@@ -22,7 +22,8 @@ export default async function AddFromPhonePage({ searchParams }: { searchParams:
   const iphone = /iPhone|iPod/.test(userAgent);
   const android = /Android/.test(userAgent);
   // The shortcut steps appear once its link is set; `?setup=shortcut` shows them while the shortcut is being built.
-  const shortcutReady = Boolean(env.iphoneContactsShortcutUrl) || query.setup === "shortcut";
+  // An existing key always shows, so its owner can see when it was used and turn it off.
+  const shortcutReady = Boolean(env.iphoneContactsShortcutUrl) || query.setup === "shortcut" || Boolean(status);
 
   return (
     <div className="page page--form phone-share-page">

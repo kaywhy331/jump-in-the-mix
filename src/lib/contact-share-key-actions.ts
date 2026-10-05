@@ -13,8 +13,10 @@ async function owner() {
   return { workspaceId: workspace.id, userId: user.id };
 }
 
+// The key change has already happened; a failed audit write must not hide the new key from its owner.
 async function audit(workspaceId: string, userId: string, action: string) {
-  await prisma.auditLog.create({ data: { workspaceId, actorType: "USER", actorUserId: userId, action, entityType: "ContactShareKey", source: "contacts.from-phone" } });
+  await prisma.auditLog.create({ data: { workspaceId, actorType: "USER", actorUserId: userId, action, entityType: "ContactShareKey", source: "contacts.from-phone" } })
+    .catch(() => console.error("Phone contact key audit failed", action));
 }
 
 /** A new key for the iPhone shortcut, returned once. Any earlier key stops working. */
