@@ -1,5 +1,6 @@
 import { cleanImportValue, MAX_FILE_BYTES, MAX_IMPORT_ROWS } from "@/lib/contact-import-shared";
 import type { ParsedImportTable } from "@/lib/contact-import-types";
+import type { DeviceContactInput } from "@/lib/device-contact";
 
 function uniqueHeaders(values: string[]): string[] {
   const used = new Map<string, number>();
@@ -97,57 +98,84 @@ function vcardType(metaParts: string[]): string | null {
   return values.find((part) => !part.includes("=") && !/^(PREF|VOICE)$/i.test(part)) ?? null;
 }
 
+type VcardValue = { value: string; label: string | null };
+type VcardAddress = { street: string; extended: string; poBox: string; city: string; state: string; postalCode: string; country: string; label: string | null };
+type VcardCard = {
+  displayName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  company: string | null;
+  notes: string | null;
+  birthday: string | null;
+  anniversary: string | null;
+  emails: VcardValue[];
+  phones: VcardValue[];
+  addresses: VcardAddress[];
+};
+
+function vcardBlocks(text: string): string[] {
+  return text.replace(/\r?\n[ \t]/g, "").match(/BEGIN:VCARD[\s\S]*?END:VCARD/gi) ?? [];
+}
+
+function readVcard(card: string): VcardCard {
+  const result: VcardCard = { displayName: null, firstName: null, lastName: null, company: null, notes: null, birthday: null, anniversary: null, emails: [], phones: [], addresses: [] };
+  for (const rawLine of card.split(/\r?\n/)) {
+    const separator = rawLine.indexOf(":");
+    if (separator < 0) continue;
+    const meta = rawLine.slice(0, separator);
+    const rawValue = rawLine.slice(separator + 1);
+    const parts = meta.split(";");
+    const property = (parts.shift() ?? "").split(".").pop()?.toUpperCase() ?? "";
+    const value = decodeVcardValue(rawValue, parts.some((part) => /^ENCODING=QUOTED-PRINTABLE$/i.test(part)));
+    const label = vcardType(parts);
+
+    if (property === "FN") result.displayName = value;
+    else if (property === "N") {
+      const [lastName, firstName] = value.split(";");
+      if (firstName) result.firstName = firstName;
+      if (lastName) result.lastName = lastName;
+    } else if (property === "ORG") result.company = value.split(";")[0]?.trim() ?? value;
+    else if (property === "EMAIL" && value) result.emails.push({ value, label });
+    else if (property === "TEL" && value) result.phones.push({ value: value.replace(/^tel:/i, ""), label });
+    else if (property === "ADR" && value) {
+      const [poBox = "", extended = "", street = "", city = "", state = "", postalCode = "", country = ""] = value.split(";");
+      if ([street, extended, poBox, city, state, postalCode, country].some(Boolean)) result.addresses.push({ street, extended, poBox, city, state, postalCode, country, label });
+    } else if (property === "NOTE") result.notes = value;
+    else if (property === "BDAY") result.birthday = value;
+    else if (property === "ANNIVERSARY") result.anniversary = value;
+  }
+  return result;
+}
+
 export function parseVcfText(text: string, fileName = "contacts.vcf"): ParsedImportTable {
   if (new TextEncoder().encode(text).byteLength > MAX_FILE_BYTES) throw new Error("Choose a VCF smaller than 10 MB.");
-  const cards = text.replace(/\r?\n[ \t]/g, "").match(/BEGIN:VCARD[\s\S]*?END:VCARD/gi) ?? [];
+  const cards = vcardBlocks(text);
   if (!cards.length) throw new Error("No valid vCard records were found.");
   if (cards.length > MAX_IMPORT_ROWS) throw new Error(`Import up to ${MAX_IMPORT_ROWS.toLocaleString()} Contacts at a time.`);
 
   const canonicalRows: Record<string, string>[] = [];
   const warnings: string[] = [];
   for (let cardIndex = 0; cardIndex < cards.length; cardIndex += 1) {
+    const card = readVcard(cards[cardIndex]);
     const row: Record<string, string> = {};
-    const emails: { value: string; label: string | null }[] = [];
-    const phones: { value: string; label: string | null }[] = [];
-    const addresses: { value: string; label: string | null }[] = [];
+    if (card.displayName !== null) row["Display Name"] = card.displayName;
+    if (card.firstName) row["First Name"] = card.firstName;
+    if (card.lastName) row["Last Name"] = card.lastName;
+    if (card.company !== null) row.Company = card.company;
+    if (card.notes !== null) row.Notes = card.notes;
+    if (card.birthday !== null) row.Birthday = card.birthday;
+    if (card.anniversary !== null) row.Anniversary = card.anniversary;
 
-    for (const rawLine of cards[cardIndex].split(/\r?\n/)) {
-      const separator = rawLine.indexOf(":");
-      if (separator < 0) continue;
-      const meta = rawLine.slice(0, separator);
-      const rawValue = rawLine.slice(separator + 1);
-      const parts = meta.split(";");
-      const property = (parts.shift() ?? "").split(".").pop()?.toUpperCase() ?? "";
-      const value = decodeVcardValue(rawValue, parts.some((part) => /^ENCODING=QUOTED-PRINTABLE$/i.test(part)));
-      const label = vcardType(parts);
-
-      if (property === "FN") row["Display Name"] = value;
-      else if (property === "N") {
-        const [lastName, firstName] = value.split(";");
-        if (firstName) row["First Name"] = firstName;
-        if (lastName) row["Last Name"] = lastName;
-      } else if (property === "ORG") row.Company = value.split(";")[0]?.trim() ?? value;
-      else if (property === "EMAIL" && value) emails.push({ value, label });
-      else if (property === "TEL" && value) phones.push({ value: value.replace(/^tel:/i, ""), label });
-      else if (property === "ADR" && value) {
-        const [poBox, extended, street, city, state, postalCode, country] = value.split(";");
-        const formatted = [street, extended, poBox, city, state, postalCode, country].filter(Boolean).join(", ");
-        if (formatted) addresses.push({ value: formatted, label });
-      } else if (property === "NOTE") row.Notes = value;
-      else if (property === "BDAY") row.Birthday = value;
-      else if (property === "ANNIVERSARY") row.Anniversary = value;
-    }
-
-    emails.forEach((item, index) => {
+    card.emails.forEach((item, index) => {
       row[`Email ${index + 1}`] = item.value;
       if (item.label) row[`Email ${index + 1} Label`] = item.label;
     });
-    phones.forEach((item, index) => {
+    card.phones.forEach((item, index) => {
       row[`Phone ${index + 1}`] = item.value;
       if (item.label) row[`Phone ${index + 1} Label`] = item.label;
     });
-    addresses.forEach((item, index) => {
-      row[`Address ${index + 1}`] = item.value;
+    card.addresses.forEach((item, index) => {
+      row[`Address ${index + 1}`] = [item.street, item.extended, item.poBox, item.city, item.state, item.postalCode, item.country].filter(Boolean).join(", ");
       if (item.label) row[`Address ${index + 1} Label`] = item.label;
     });
     if (!Object.values(row).some(Boolean)) warnings.push(`vCard ${cardIndex + 1} did not contain importable Contact fields.`);
@@ -165,6 +193,27 @@ export function parseVcfText(text: string, fileName = "contacts.vcf"): ParsedImp
     rowNumbers: canonicalRows.map((_, index) => index + 1),
     warnings
   };
+}
+
+/**
+ * Contact cards shared from a phone, in the shape the device contact picker sends: name, company,
+ * emails, phones and addresses. Notes, dates and photos are left out, because nothing reviews them
+ * before they are saved. Cards without a name, company, email or phone are dropped.
+ */
+export function parseVcardDeviceContacts(text: string): DeviceContactInput[] {
+  return vcardBlocks(text).map(readVcard).map((card) => ({
+    names: [card.displayName || [card.firstName, card.lastName].filter(Boolean).join(" ")].filter(Boolean),
+    company: card.company || null,
+    emails: card.emails.map((item) => item.value),
+    phones: card.phones.map((item) => item.value),
+    addresses: card.addresses.map((item) => ({
+      addressLines: [item.street, item.extended, item.poBox].filter(Boolean),
+      city: item.city || null,
+      region: item.state || null,
+      postalCode: item.postalCode || null,
+      country: item.country || null
+    }))
+  })).filter((contact) => [...contact.names, contact.company ?? "", ...contact.emails, ...contact.phones].some((value) => value.trim()));
 }
 
 export function parseContactFile(text: string, fileName: string): ParsedImportTable {

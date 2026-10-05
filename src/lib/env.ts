@@ -50,6 +50,12 @@ function emailLimit(value: string | undefined, fallback: number): number {
   return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= 1_000_000 ? parsed : fallback;
 }
 
+/** The shared iPhone shortcut that adds contact cards, as its iCloud link; anything else counts as unset. */
+export function iphoneContactsShortcutUrl(value: string | undefined): string {
+  const link = value?.trim() ?? "";
+  return /^https:\/\/www\.icloud\.com\/shortcuts\/[A-Za-z0-9]{16,64}$/.test(link) ? link : "";
+}
+
 const emailDailyLimit = emailLimit(process.env.EMAIL_DAILY_LIMIT, 90);
 const emailMonthlyLimit = emailLimit(process.env.EMAIL_MONTHLY_LIMIT, 2700);
 
@@ -96,6 +102,7 @@ export const env = {
   twilioAccountSid: process.env.TWILIO_ACCOUNT_SID ?? "",
   twilioAuthToken: process.env.TWILIO_AUTH_TOKEN ?? "",
   twilioFromNumber: process.env.TWILIO_FROM_NUMBER ?? "",
+  iphoneContactsShortcutUrl: iphoneContactsShortcutUrl(process.env.IPHONE_CONTACTS_SHORTCUT_URL),
   pilotMode: enabled(process.env.PILOT_MODE),
   privateTestMode: privateTestEnabled(),
   demoMode: enabled(process.env.DEMO_MODE),
@@ -149,6 +156,7 @@ export function productionConfigurationIssues(source: NodeJS.ProcessEnv = proces
       if (!source.AUTH_APPLE_CLIENT_ID?.trim() || !source.AUTH_APPLE_TEAM_ID?.trim() || !source.AUTH_APPLE_KEY_ID?.trim() || !source.AUTH_APPLE_PRIVATE_KEY?.trim()) issues.push("Apple sign-in credentials are required for hosted production");
     }
   }
+  if (source.IPHONE_CONTACTS_SHORTCUT_URL?.trim() && !iphoneContactsShortcutUrl(source.IPHONE_CONTACTS_SHORTCUT_URL)) issues.push("IPHONE_CONTACTS_SHORTCUT_URL must be the shortcut's https://www.icloud.com/shortcuts/ link");
   issues.push(...billingConfigurationIssues(source));
   issues.push(...trustedProxyCidrIssues(commaSeparated(source.TRUSTED_PROXY_CIDRS)));
   for (const name of ["EMAIL_DAILY_LIMIT", "EMAIL_MONTHLY_LIMIT", "EMAIL_DAILY_AUTH_RESERVE", "EMAIL_MONTHLY_AUTH_RESERVE"] as const) {

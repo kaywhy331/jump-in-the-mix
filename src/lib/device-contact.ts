@@ -11,6 +11,8 @@ export type DeviceContactAddressInput = {
 
 export type DeviceContactInput = {
   names: string[];
+  /** Sent only for shared contact cards; the browser contact picker has no company field. */
+  company?: string | null;
   emails: string[];
   phones: string[];
   addresses: DeviceContactAddressInput[];
@@ -105,7 +107,7 @@ export function deviceContactToImportRecord(
     firstName: nameParts[0] ?? null,
     lastName: nameParts.length > 1 ? nameParts.slice(1).join(" ") : null,
     displayName,
-    company: null,
+    company: clean(contact.company, 200),
     publicNotes: null,
     emails,
     phones,
