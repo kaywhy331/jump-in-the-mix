@@ -5,7 +5,8 @@ import Link from "next/link";
 import { AppIcon } from "@/components/AppIcon";
 import { DEMO_BEATS, demoContact, demoDrafts, demoSituations } from "@/lib/demo-workspace";
 import { MARKETING_SCENARIOS } from "@/lib/marketing-scenarios";
-import { demoActionUrl, isAppleMobile } from "@/lib/product-demo";
+import { DemoPhoneQr } from "@/components/DemoPhoneQr";
+import { demoActionUrl, demoQrPayload, isAppleMobile } from "@/lib/product-demo";
 import styles from "./ProductDemo.module.css";
 
 type Practice = { drafts: ReturnType<typeof demoDrafts>; beat: number; view: "edit" | "returned" | "recorded"; done: number[] };
@@ -19,6 +20,9 @@ export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scen
   const [practices, setPractices] = useState<Record<string, Practice>>({});
   const [ready, setReady] = useState(false);
   const [apple, setApple] = useState(false);
+  // A desktop has no phone to hand a text or call to, so those Beats show a code to scan instead.
+  const [desktop, setDesktop] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const example = choices.find(item => item.id === selected) ?? choices[0];
   const key = `${scenarioId ?? "home"}~${example.id}`;
   const initial: Practice = { drafts: demoDrafts(example), beat: 0, view: "edit", done: [] };
@@ -43,7 +47,12 @@ export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scen
     ? [["Connected", true], ["Left voicemail", true], ["No answer", true], ["Did not call", false]] as const
     : [["Sent", true], ["Not sent", false]] as const;
 
-  useEffect(() => { setApple(isAppleMobile(navigator.userAgent, navigator.platform, navigator.maxTouchPoints)); setReady(true); }, []);
+  useEffect(() => {
+    const appleMobile = isAppleMobile(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
+    setApple(appleMobile);
+    setDesktop(!appleMobile && !/Android|Mobi/i.test(navigator.userAgent) && window.matchMedia("(hover: hover) and (pointer: fine)").matches);
+    setReady(true);
+  }, []);
   useEffect(() => { if (selection) window.dispatchEvent(new CustomEvent("jitm:scenario", { detail: { scenario: selection } })); }, [selection]);
   useEffect(() => { if (focusStep.current) { stepHeading.current?.focus(); focusStep.current = false; } }, [practice.view, practice.beat, key]);
   useEffect(() => {
@@ -86,10 +95,14 @@ export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scen
           <p className={styles.recipient}>{beat.channel === "email" ? `To ${contact.email}` : `${beat.channel === "phone" ? "Call" : "SMS to"} ${contact.phone}`}</p>
           {beat.channel === "email" && <label className="field"><span>Subject</span><input value={draft.subject} maxLength={200} disabled={!ready || recorded} onChange={event => edit({ subject: event.target.value })} /></label>}
           <label className={styles.draft}><span className="sr-only">{beat.channel === "phone" ? "Call notes" : "Message"} to {example.person}</span><textarea ref={field} value={draft.message} onChange={event => edit({ message: event.target.value })} maxLength={1500} rows={beat.channel === "email" ? 7 : 4} disabled={!ready || recorded} /></label>
-          {recorded ? <><p>This Beat is already recorded in the demo.</p><button className="button" type="button" onClick={undo}>Undo recorded outcome</button></> : nativeUrl
+          {recorded ? <><p>This Beat is already recorded in the demo.</p><button className="button" type="button" onClick={undo}>Undo recorded outcome</button></> : nativeUrl && desktop && beat.channel !== "email"
+            ? <button className={`button primary ${styles.primary}`} type="button" aria-haspopup="dialog" onClick={() => setScanning(true)}><AppIcon name={beat.icon} />{beat.action}</button>
+            : nativeUrl
             ? <a className={`button primary ${styles.primary}`} href={nativeUrl} data-demo-native={beat.channel} onClick={handOff}><AppIcon name={beat.icon} />{beat.action}</a>
             : <button className={`button primary ${styles.primary}`} type="button" disabled><AppIcon name={beat.icon} />{beat.action}</button>}
-          {!recorded && <p className={styles.hint}>{beat.channel === "phone" ? "Opens your phone app, ready to dial. Your notes stay here." : `Opens your ${beat.channel === "text" ? "messages" : "email"} app with this draft.`}</p>}
+          {!recorded && <p className={styles.hint}>{desktop && beat.channel !== "email" ? "Shows a code to scan with your phone." : beat.channel === "phone" ? "Opens your phone app, ready to dial. Your notes stay here." : `Opens your ${beat.channel === "text" ? "messages" : "email"} app with this draft.`}</p>}
+          {scanning && nativeUrl && beat.channel !== "email" && <DemoPhoneQr channel={beat.channel} person={example.person} phone={contact.phone} code={demoQrPayload(beat.channel, draft.message, contact) ?? nativeUrl} nativeUrl={nativeUrl}
+            onDone={() => { setScanning(false); go("returned"); }} onClose={() => setScanning(false)} />}
         </>}
         {practice.view === "returned" && <>
           <p className={styles.hint}>Opening an app does not send it. Record what happened.</p>
