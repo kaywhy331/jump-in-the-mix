@@ -12,7 +12,9 @@ import { contactMixStatus } from "../src/lib/contact-mix-status";
 import { generateJumps } from "../src/lib/jump-engine";
 import { saveMixAction } from "../src/lib/mix-editor-actions";
 import { activateMixAction, archiveMixAction, pauseMixAction } from "../src/lib/mix-lifecycle-actions";
-import { bulkAssignMixAction, removeMixAssignmentAction, undoBulkMixStartAction } from "../src/lib/contact-mix-actions";
+import { assignMixToContactAction, bulkAssignMixAction, removeMixAssignmentAction, undoBulkMixStartAction } from "../src/lib/contact-mix-actions";
+import { readWorkflowAttention } from "../src/lib/workflow-attention";
+import { applyPeopleLimit } from "../src/lib/plan-limits";
 import { processWorkflowInstance, saveWorkflowConfiguration } from "../src/lib/mix-workflow";
 import { emptyWorkflow } from "../src/lib/mix-workflow-types";
 import { resumeMixForContactAction, stopMixForContactAction } from "../src/lib/mix-stop-actions";
@@ -204,9 +206,23 @@ describe.skipIf(!local).sequential("No Mix status as Mixes are saved, paused and
       await redirected(archiveMixAction(fields({ mixId: seasonal })));
       await redirected(pauseMixAction(fields({ mixId: winter })));
       await workerPass();
-      // Their Journey records are still ACTIVE, yet only the paused Mix's person reads as in a Mix.
-      expect(await prisma.mixWorkflowInstance.count({ where: { workspaceId: ws, contactId: { in: [removed, stopped, archived] }, status: "ACTIVE" } })).toBe(3);
+      // Remove ends the run's Journey record (UNDO-04); Stop and Archive leave theirs running but held under their
+      // own wording. Only the paused Mix's person reads as in a Mix, and nothing asks the owner about the others.
+      const attention = await readWorkflowAttention(ws);
+      expect(attention.items.map(item => item.reason).join(" ")).not.toMatch(/reconciled|_/);
+      expect(attention.items.filter(item => [removed, stopped, archived].includes(item.contactId))).toEqual([]);
+      expect(await prisma.mixWorkflowInstance.findMany({ where: { workspaceId: ws, contactId: removed }, select: { status: true } })).toEqual([{ status: "STOPPED" }]);
+      expect(await prisma.mixWorkflowInstance.count({ where: { workspaceId: ws, contactId: { in: [stopped, archived] }, status: "ACTIVE" } })).toBe(2);
       expect(await Promise.all([running, removed, stopped, archived, paused].map(statusIn))).toEqual(["in-mix", "no-mix", "no-mix", "no-mix", "in-mix"]);
+      // Started again from the profile for the same day: the same occurrence, so the ended record picks its run back
+      // up and both Beats come back, linked to it.
+      const removedRecord = await prisma.mixWorkflowInstance.findFirstOrThrow({ where: { workspaceId: ws, contactId: removed }, select: { id: true } });
+      await redirected(assignMixToContactAction(fields({ contactId: removed, mixId: estimate, startDate: new Date(Date.now() + day).toISOString().slice(0, 10) })));
+      await workerPass();
+      expect(await prisma.jump.count({ where: { workspaceId: ws, contactId: removed, mixId: estimate, status: "PENDING", workflowInstanceId: removedRecord.id } })).toBe(2);
+      expect(await prisma.mixWorkflowInstance.findMany({ where: { workspaceId: ws, contactId: removed }, select: { id: true, status: true } })).toEqual([{ id: removedRecord.id, status: "ACTIVE" }]);
+      expect(await statusIn(removed)).toBe("in-mix");
+      expect((await readWorkflowAttention(ws)).items.filter(item => item.contactId === removed)).toEqual([]);
 
       // The last Beat done: the record is still ACTIVE and its state not yet updated, so nothing waits yet (PR #128's question can be asked).
       await prisma.jump.updateMany({ where: { workspaceId: ws, contactId: { in: [finisher, lone] }, status: "PENDING" }, data: { status: "DONE", completedAt: new Date(), completionMethod: "outcome:sent" } });
@@ -225,7 +241,7 @@ describe.skipIf(!local).sequential("No Mix status as Mixes are saved, paused and
     }
   });
 
-  it("puts people back as they were when a bulk start is undone in a Journey-connected account, and starts nothing after it (UNDO-01, UNDO-02, JRN-01)", async () => {
+  it("puts people back as they were when a bulk start is undone in a Journey-connected account, ends its Journey records, and starts again the same day (UNDO-01, UNDO-02, UNDO-04)", async () => {
     const owner = await prisma.user.create({ data: { email: `no-mix-journey-undo-${suffix}@example.test`, name: "Journey owner", passwordHash: "fixture-only" } });
     const journeyWorkspace = await prisma.workspace.create({ data: { ownerId: owner.id, slug: `no-mix-journey-undo-${suffix}`, name: "Journey Undo fixture", profile: { create: {} } } });
     const ws = journeyWorkspace.id;
@@ -256,19 +272,41 @@ describe.skipIf(!local).sequential("No Mix status as Mixes are saved, paused and
       const started = await redirected(bulkAssignMixAction(fields({ contactIds: [fresh, confirmed], mixId: estimate, returnTo: "/contacts" })));
       expect(started.searchParams.get("mixStarted")).toBe("2");
       await workerPass();
-      // Each start is Journey work: a record and its Beats, linked to it.
+      // Each start is Journey work: a record and its Beats, linked to it, and a place on the plan.
       expect(await prisma.jump.count({ where: { workspaceId: ws, mixId: estimate, status: "PENDING", workflowInstanceId: { not: null } } })).toBe(4);
       expect(await Promise.all([fresh, confirmed].map(statusIn))).toEqual(["in-mix", "in-mix"]);
+      await applyPeopleLimit(ws);
+      expect(await prisma.planPerson.count({ where: { workspaceId: ws, contactId: { in: [fresh, confirmed] } } })).toBe(2);
+      const records = await prisma.mixWorkflowInstance.findMany({ where: { workspaceId: ws, contactId: { in: [fresh, confirmed] } }, select: { id: true }, orderBy: { id: "asc" } });
+      expect(records).toHaveLength(2);
+      // What Today and the morning email list as needing input (src/lib/notification-delivery.ts reads the same).
+      const needsInput = async () => (await readWorkflowAttention(ws)).items.filter(item => [fresh, confirmed].includes(item.contactId));
 
       const undone = await redirected(undoBulkMixStartAction(fields({ undoId: started.searchParams.get("mixUndo")!, returnTo: "/contacts" })));
       expect(Object.fromEntries(undone.searchParams)).toMatchObject({ mixUndone: "2", mixUndoConfirmed: "1" });
       expect(await Promise.all([fresh, confirmed].map(statusIn))).toEqual(["no-mix", "no-mix-needed"]);
-      // The records stay as history, yet nothing counts them, and the cancelled run never reads as finished:
-      // after the worker's passes, past the Journey's undo window, the connection has started nothing.
+      // Undo ends each start's Journey record with it (UNDO-04). After the worker's passes, past the Journey's undo
+      // window, the connection has started nothing, nothing on Today or in the morning email asks about these
+      // people, and their places on the plan are released.
       await workerPass();
       await workerPass(new Date(Date.now() + 60_000));
       expect(await prisma.jump.count({ where: { workspaceId: ws, contactId: { in: [fresh, confirmed] }, status: "PENDING" } })).toBe(0);
       expect(await Promise.all([fresh, confirmed].map(statusIn))).toEqual(["no-mix", "no-mix-needed"]);
+      expect((await needsInput()).map(item => `${item.label} · ${item.reason}`)).toEqual([]);
+      expect(await prisma.mixWorkflowInstance.findMany({ where: { id: { in: records.map(record => record.id) } }, select: { status: true } })).toEqual([{ status: "STOPPED" }, { status: "STOPPED" }]);
+      await applyPeopleLimit(ws, new Date(Date.now() + 11 * 60_000));
+      expect(await prisma.planPerson.count({ where: { workspaceId: ws, contactId: { in: [fresh, confirmed] } } })).toBe(0);
+
+      // Started again the same day: the same occurrence, so the same records pick their runs back up and the Beats
+      // come back, linked to them, with nothing on Today.
+      const again = await redirected(bulkAssignMixAction(fields({ contactIds: [fresh, confirmed], mixId: estimate, returnTo: "/contacts" })));
+      expect(again.searchParams.get("mixStarted")).toBe("2");
+      await workerPass();
+      expect(await prisma.jump.count({ where: { workspaceId: ws, mixId: estimate, contactId: { in: [fresh, confirmed] }, status: "PENDING", workflowInstanceId: { in: records.map(record => record.id) } } })).toBe(4);
+      expect(await prisma.mixWorkflowInstance.findMany({ where: { workspaceId: ws, contactId: { in: [fresh, confirmed] } }, select: { id: true, status: true }, orderBy: { id: "asc" } })).toEqual(records.map(record => ({ id: record.id, status: "ACTIVE" })));
+      expect(await Promise.all([fresh, confirmed].map(statusIn))).toEqual(["in-mix", "in-mix"]);
+      await workerPass(new Date(Date.now() + 60_000));
+      expect(await needsInput()).toEqual([]);
     } finally {
       session.context = previous;
       await prisma.contactActivity.deleteMany({ where: { workspaceId: ws } });

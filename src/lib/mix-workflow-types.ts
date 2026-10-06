@@ -63,7 +63,16 @@ export type WorkflowState = {
   updates?: WorkflowUpdateRecord[];
   pendingBusinessUpdate?: { requestId: string; input: WorkflowBusinessUpdate; recordedAt: string };
   pendingChoices?: Array<{ requestId: string; visitId: string; sourceCompletedAt: string; decisions: Array<{ ruleId: string; outcome: string }> }>;
-  context?: { timezone: string; appointmentBindingId: string | null; calendarEntryId?: string; completionCutoff?: string; occurrenceKey?: string; admissionAlias?: string };
+  context?: { timezone: string; appointmentBindingId: string | null; calendarEntryId?: string; completionCutoff?: string; occurrenceKey?: string; admissionAlias?: string; enrollmentEnded?: EnrollmentEnded };
+};
+/** What an ended enrollment took out of its run, so a later start of the same occurrence can put it back (src/lib/enrollment-workflow.ts). */
+export type EnrollmentEnded = {
+  at: string; status: string; reason: string;
+  runs: Array<{ id: string; status: WorkflowRun["status"]; completedAt: string | null }>;
+  visits: Array<{ id: string; status: WorkflowVisit["status"]; reason: string | null }>;
+  evaluations: Array<{ id: string; status: WorkflowEvaluation["status"] }>;
+  transitions: Array<{ id: string; status: WorkflowTransition["status"]; reason: string | null }>;
+  pendingChoices: NonNullable<WorkflowState["pendingChoices"]>;
 };
 export const emptyWorkflowState = (): WorkflowState => ({ sequence: 0, runs: [], visits: [], evaluations: [], transitions: [], commands: [], issue: null });
 export const workflowNodeKey = (target: WorkflowTarget) => target.stepId ? `beat:${target.stepId}` : `mix:${target.mixId}`;

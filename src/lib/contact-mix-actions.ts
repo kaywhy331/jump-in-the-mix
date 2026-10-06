@@ -13,6 +13,8 @@ import { UserFacingError } from "@/lib/user-facing-error";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { NO_MIX_NEEDED_NOTICE, type MixStartCounts, type MixStartResult } from "@/lib/contact-mix-status-labels";
 import { contactIdsInMix, contactMixStatuses } from "@/lib/contact-mix-status";
+import { endLockedEnrollmentWorkflows, ENROLLMENT_REMOVED_REASON, ENROLLMENT_UNDONE_REASON, lockEnrollmentWorkflows, workflowTookUpdate } from "@/lib/enrollment-workflow";
+import type { WorkflowState } from "@/lib/mix-workflow-types";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -67,6 +69,21 @@ export async function assignMixToContactAction(formData: FormData): Promise<void
 
 /** The notice parameters a bulk start returns with; a later return drops them so the notice never repeats. */
 const BULK_MIX_START_NOTICE = ["mixStarted", "mixKept", "mixSaved", "mixDated", "mixStartedId", "mixStartOn", "mixVisit", "mixUndo", "mixUndone", "mixUndoKept", "mixUndoDates", "mixUndoConfirmed"];
+
+/**
+ * How the scheduler keys one enrollment's run (src/lib/jump-engine.ts). `triggers` key its Journey record
+ * (`state.context.occurrenceKey`) and its Beats: a hand-started run by its start day in the owner's time zone, a
+ * date-based run by the person's dates (only the date a start wrote, when it wrote one), a fixed-date Mix by its
+ * schedule, a visit-bound run by its binding. `beats` adds the planned Beats, keyed by Beat for every start type.
+ */
+function runKeys(input: { triggerMode: string | undefined; startDate: Date | null; createdAt: Date; ownerTimezone: string; jumpDateId?: string | null; bindingId?: string | null }): { triggers: string[]; beats: string[] } {
+  if (input.bindingId) return { triggers: [`appointment:${input.bindingId}`], beats: [`appointment:${input.bindingId}`] };
+  const triggers = input.triggerMode === "DATE_TRIGGERED" ? [input.jumpDateId ? `jump-date:${input.jumpDateId}:` : "jump-date:"]
+    : input.triggerMode === "BROADCAST" ? ["broadcast:"]
+    : [`manual:${logicalDateKey(logicalDateInTimezone(input.startDate ?? input.createdAt, input.ownerTimezone))}`];
+  return { triggers, beats: [...triggers, "planned:"] };
+}
+const occurrenceIn = (prefixes: string[]) => ({ OR: prefixes.map(prefix => ({ templateSnapshot: { path: ["occurrenceKey"], string_starts_with: prefix } })) });
 
 /** One start a bulk Add made, as recorded for its Undo (D46): what it changed, and what was there before. */
 type RecordedStart = {
@@ -186,12 +203,8 @@ export async function undoBulkMixStartAction(formData: FormData): Promise<void> 
   const starts = recordedStarts(record?.metadata);
   if (!record?.entityId || !starts.length) redirect(contactsReturn(returnTo, { mixUndone: "0" }));
   const mixId = record.entityId;
-  // The scheduler keys a hand-started run by its start day in the owner's time zone, and a planned Beat by the
-  // Beat; a date-based run by the person's dates; a fixed-date Mix by its schedule (src/lib/jump-engine.ts).
   const [mix, ownerTimezone] = await Promise.all([prisma.mix.findFirst({ where: { id: mixId, workspaceId: workspace.id }, select: { triggerMode: true } }), timezoneForWorkspace(workspace.id)]);
-  const occurrencesOf = (start: RecordedStart, row: { startDate: Date | null; createdAt: Date }) => mix?.triggerMode === "DATE_TRIGGERED"
-    ? [start.jumpDateId ? `jump-date:${start.jumpDateId}:` : "jump-date:"]
-    : mix?.triggerMode === "BROADCAST" ? ["broadcast:"] : [`manual:${logicalDateKey(logicalDateInTimezone(row.startDate ?? row.createdAt, ownerTimezone))}`, "planned:"];
+  const keysOf = (start: RecordedStart, row: { startDate: Date | null; createdAt: Date }) => runKeys({ triggerMode: mix?.triggerMode, startDate: row.startDate, createdAt: row.createdAt, ownerTimezone, jumpDateId: start.jumpDateId });
   let result: { ended: number; kept: number; dates: number; confirmed: number };
   try {
     result = await prisma.$transaction(async (tx) => {
@@ -200,29 +213,36 @@ export async function undoBulkMixStartAction(formData: FormData): Promise<void> 
         SELECT id, "contactId", "isActive", "startDate", "createdAt", "updatedAt" FROM "MixAssignment"
         WHERE "workspaceId" = ${workspace.id} AND "mixId" = ${mixId} AND id IN (${Prisma.join(starts.map(start => start.assignmentId))}) ORDER BY id FOR UPDATE`;
       const byId = new Map(rows.map(row => [row.id, row]));
-      const unchanged = starts.filter(start => {
+      const untouched = starts.filter(start => {
         const row = byId.get(start.assignmentId);
         return row?.isActive && row.contactId === start.contactId && row.updatedAt.getTime() === Date.parse(start.assignmentUpdatedAt);
       });
+      // In an account with a Journey connection each start also has a Journey record for its run. Lock those first, in
+      // the Journey pass's order. A start whose record took a business update since was moved on by the owner in
+      // Journey, so it counts as changed since and is left as it is (UNDO-04, UNDO-05).
+      const journeys = new Map<string, Awaited<ReturnType<typeof lockEnrollmentWorkflows>>>();
+      for (const start of untouched) journeys.set(start.assignmentId, await lockEnrollmentWorkflows(tx, { workspaceId: workspace.id, contactId: start.contactId, mixId, occurrencePrefixes: keysOf(start, byId.get(start.assignmentId)!).triggers }));
+      const unchanged = untouched.filter(start => !journeys.get(start.assignmentId)!.some(record => workflowTookUpdate(record.state as unknown as WorkflowState)));
       if (!unchanged.length) return { ended: 0, kept: starts.length, dates: 0, confirmed: 0 };
-      let dates = 0;
+      const endedAt = new Date();
+      let dates = 0, journeysEnded = 0;
       for (const start of unchanged) {
         await tx.mixAssignment.update({ where: { id: start.assignmentId }, data: start.previous
           ? { isActive: start.previous.isActive, startDate: start.previous.startDate ? new Date(start.previous.startDate) : null, mode: start.previous.mode }
           : { isActive: false } });
-        // The start's own follow-ups still to come: the scheduler's rows keyed to its run, written since it. Done and
-        // skipped rows are history. Cancelled as reconciled, so the pass queued below brings back any row that
-        // another enrollment of the person shares, such as a tag running the Mix from the same day.
+        // The start's own follow-ups still to come: the scheduler's rows keyed to its run, planned Beats included,
+        // written since it. Done and skipped rows are history. Cancelled as reconciled, so the pass queued below
+        // brings back any row that another enrollment of the person shares, such as a tag running the Mix from the
+        // same day.
         await tx.jump.updateMany({
           where: {
             workspaceId: workspace.id, mixId, contactId: start.contactId, status: "PENDING", workflowManaged: false, appointmentBindingId: null,
-            AND: [
-              { OR: [{ createdAt: { gte: record.createdAt } }, { updatedAt: { gte: record.createdAt } }] },
-              { OR: occurrencesOf(start, byId.get(start.assignmentId)!).map(prefix => ({ templateSnapshot: { path: ["occurrenceKey"], string_starts_with: prefix } })) }
-            ]
+            AND: [{ OR: [{ createdAt: { gte: record.createdAt } }, { updatedAt: { gte: record.createdAt } }] }, occurrenceIn(keysOf(start, byId.get(start.assignmentId)!).beats)]
           },
           data: { status: "CANCELED", completedAt: null, completionMethod: "reconciled" }
         });
+        // Then its Journey record's run ends with it, so nothing asks the owner about those Beats or keeps a plan place.
+        journeysEnded += await endLockedEnrollmentWorkflows(tx, journeys.get(start.assignmentId)!, ENROLLMENT_UNDONE_REASON, endedAt);
         if (start.jumpDateId && start.jumpDateUpdatedAt) {
           dates += (await tx.jumpDate.updateMany({ where: { id: start.jumpDateId, workspaceId: workspace.id, contactId: start.contactId, isActive: true, updatedAt: new Date(start.jumpDateUpdatedAt) }, data: { isActive: false } })).count;
         }
@@ -234,7 +254,7 @@ export async function undoBulkMixStartAction(formData: FormData): Promise<void> 
         await tx.contactRelationshipState.upsert({ where: { contactId }, create: { workspaceId: workspace.id, contactId, noMixNeededAt: confirmedAt }, update: { noMixNeededAt: confirmedAt } });
       }
       await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });
-      await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "mix.assignment.bulk-undo", entityType: "Mix", entityId: mixId, source: "contacts.bulk", metadata: { startRecordId: record.id, contactIds: unchanged.map(start => start.contactId), endedDates: dates, restoredConfirmations: confirmed } } });
+      await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "mix.assignment.bulk-undo", entityType: "Mix", entityId: mixId, source: "contacts.bulk", metadata: { startRecordId: record.id, contactIds: unchanged.map(start => start.contactId), endedDates: dates, restoredConfirmations: confirmed, endedJourneyRecords: journeysEnded } } });
       return { ended: unchanged.length, kept: starts.length - unchanged.length, dates, confirmed: confirmed.length };
     }, { timeout: 30_000 });
   } catch {
@@ -251,14 +271,26 @@ export async function removeMixAssignmentAction(formData: FormData): Promise<voi
   if (impersonation) fail(contactId, "Administrator support sessions are view-only.", session);
   const assignment = await prisma.mixAssignment.findFirst({
     where: { id: assignmentId, workspaceId: workspace.id, contactId },
-    select: { id: true, mixId: true }
+    select: { id: true, mixId: true, startDate: true, createdAt: true, mix: { select: { triggerMode: true } }, appointmentBinding: { select: { id: true } } }
   });
   if (!assignment) fail(contactId, "Mix assignment not found.", session);
+  const keys = runKeys({ triggerMode: assignment.mix.triggerMode, startDate: assignment.startDate, createdAt: assignment.createdAt, ownerTimezone: await timezoneForWorkspace(workspace.id), bindingId: assignment.appointmentBinding?.id ?? null });
 
-  await prisma.$transaction([
-    prisma.mixAssignment.update({ where: { id: assignment.id }, data: { isActive: false } }),
-    prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId, mixId: assignment.mixId } } }),
-    prisma.auditLog.create({
+  await prisma.$transaction(async (tx) => {
+    // The run's Journey record, locked before its Beats in the Journey pass's order (UNDO-04).
+    const journeys = await lockEnrollmentWorkflows(tx, { workspaceId: workspace.id, contactId, mixId: assignment.mixId, occurrencePrefixes: keys.triggers });
+    await tx.mixAssignment.update({ where: { id: assignment.id }, data: { isActive: false } });
+    // The run's follow-ups still to come end now, cancelled as reconciled as the scheduler's next pass would have
+    // done, so that pass brings back any row another enrollment of the person still wants.
+    await tx.jump.updateMany({
+      where: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, status: "PENDING", workflowManaged: false, appointmentBindingId: assignment.appointmentBinding?.id ?? null, ...occurrenceIn(keys.beats) },
+      data: { status: "CANCELED", completedAt: null, completionMethod: "reconciled" }
+    });
+    // Its Journey record's run ends too, so Today, the morning email and Journey People don't ask about those Beats
+    // and the record keeps no plan place; a later start of the same Mix and day picks it back up.
+    const journeysEnded = await endLockedEnrollmentWorkflows(tx, journeys, ENROLLMENT_REMOVED_REASON, new Date());
+    await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId, mixId: assignment.mixId } } });
+    await tx.auditLog.create({
       data: {
         workspaceId: workspace.id,
         actorType: "USER",
@@ -267,9 +299,9 @@ export async function removeMixAssignmentAction(formData: FormData): Promise<voi
         entityType: "MixAssignment",
         entityId: assignment.id,
         source: "contacts.detail",
-        metadata: { contactId, mixId: assignment.mixId }
+        metadata: { contactId, mixId: assignment.mixId, endedJourneyRecords: journeysEnded }
       }
-    })
-  ]);
+    });
+  }, { timeout: 30_000 });
   redirect(`/contacts/${contactId}?mixRemoved=1`);
 }

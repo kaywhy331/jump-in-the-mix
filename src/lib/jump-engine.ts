@@ -512,7 +512,7 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
         const definition = workflowDefinitions.get(assignment.workspaceId)!;
         const workflow = definition.rules.length || definition.gatedStepIds.length ? await ensureLegacyWorkflow({ workspaceId: assignment.workspaceId, contactId: contact.id, mixId: assignment.mixId,
           occurrenceKey: trigger.occurrenceKey, startedAt: zonedDateTimeToUtc(trigger.logicalDate, trigger.timeMinutes ?? 0, trigger.timezone), timezone: trigger.timezone,
-          appointmentBindingId: binding?.id ?? null, definition }) : null;
+          appointmentBindingId: binding?.id ?? null, definition, passStartedAt: now }) : null;
         if (workflow && (!workflow.legacy || workflow.status === "PAUSED" || workflow.status === "STOPPED")) continue;
         const savedSteps = (workflow?.mix ?? definition.mixes.find(mix => mix.id === assignment.mixId)!).steps.filter(step => !(workflow?.gatedStepIds ?? definition.gatedStepIds).includes(step.id)).map(step => ({ ...step, plannedAt: step.plannedAt ? new Date(step.plannedAt) : null,
           stepVersionId: step.versionId, stepVersion: { subject: step.subject, body: step.body, script: step.script, stepTemplate: { channel: step.channel } } }));
