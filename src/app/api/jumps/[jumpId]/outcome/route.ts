@@ -11,6 +11,7 @@ import { createOneTimeFollowUp } from "@/lib/one-time-follow-up";
 import { prisma } from "@/lib/prisma";
 import { queueWorkflowForJump, workflowDefinition, workflowState } from "@/lib/mix-workflow";
 import { workflowDecisionRulesForVisit } from "@/lib/mix-workflow-engine";
+import { mixEndQuestion } from "@/lib/mix-end-question";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 
@@ -329,7 +330,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
       return response;
     });
 
-    return NextResponse.json(result);
+    // A Mix that ended here with nothing after it asks what's next for the person (JITM-09 §2.77). A promised
+    // next follow-up already answers that. The question is advisory: if it can't be read, the outcome stands.
+    const mixEnd = !result.nextJumpId && (result.status === "DONE" || result.status === "SKIPPED")
+      ? await mixEndQuestion(membership.workspaceId, jump.id).catch(() => null)
+      : null;
+    return NextResponse.json({ ...result, mixEnd });
   } catch (error) {
     const duplicate = await prisma.idempotencyKey.findUnique({
       where: { workspaceId_key: { workspaceId: membership.workspaceId, key: idempotencyKey } },

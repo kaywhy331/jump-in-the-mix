@@ -8,9 +8,9 @@ import { prisma } from "@/lib/prisma";
 
 const value = (formData: FormData, key: string) => String(formData.get(key) ?? "").trim();
 
-/** The profile or the Contacts list the owner acted from; nothing else is a valid return. */
+/** The profile, the Contacts list or Today's end-of-Mix question the owner acted from; nothing else is a valid return. */
 function returnPath(raw: string, notice: Record<string, string>): string {
-  const base = /^\/contacts(\/[A-Za-z0-9_-]{1,120})?(\?[^#]*)?$/.test(raw) ? new URL(raw, "http://local") : new URL("/contacts", "http://local");
+  const base = /^\/contacts(\/[A-Za-z0-9_-]{1,120})?(\?[^#]*)?$/.test(raw) || raw === "/jumps" ? new URL(raw, "http://local") : new URL("/contacts", "http://local");
   for (const key of ["people", "error", "at", "sig", "mixStarted", "noMixNeeded", "noMixCleared", "noMixSkipped", "noMixPeople", "stateUpdated"]) base.searchParams.delete(key);
   for (const [key, item] of Object.entries(notice)) base.searchParams.set(key, item);
   const query = base.searchParams.toString();
@@ -45,7 +45,7 @@ export async function setNoMixNeededAction(formData: FormData): Promise<void> {
         });
       }
       await tx.contactActivity.createMany({ data: changing.map(contactId => ({ workspaceId: workspace.id, contactId, actorUserId: user.id, kind: "SYSTEM" as const, visibility: "WORKSPACE" as const, summary: confirm ? "Marked No Mix needed." : "No Mix needed removed.", metadata: { noMixNeeded: confirm } })) });
-      await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: confirm ? "contact.no-mix-needed.set" : "contact.no-mix-needed.clear", entityType: "Contact", entityId: changing.length === 1 ? changing[0] : workspace.id, source: returnTo.startsWith("/contacts/") ? "contacts.detail" : "contacts.bulk", metadata: { contactIds: changing } } });
+      await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: confirm ? "contact.no-mix-needed.set" : "contact.no-mix-needed.clear", entityType: "Contact", entityId: changing.length === 1 ? changing[0] : workspace.id, source: returnTo === "/jumps" ? "today.mix-end" : returnTo.startsWith("/contacts/") ? "contacts.detail" : "contacts.bulk", metadata: { contactIds: changing } } });
     });
   }
   const skipped = contactIds.length - changing.length;

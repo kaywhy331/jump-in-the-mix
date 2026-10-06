@@ -3,6 +3,9 @@ import { readWorkflowAttention } from "@/lib/workflow-attention";
 import { QuietDaySuggestions } from "@/components/QuietDaySuggestions";
 import { readQuietDays } from "@/lib/quiet-days";
 import { contactMixCounts } from "@/lib/contact-mix-status";
+import { setNoMixNeededAction } from "@/lib/contact-no-mix-actions";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { MixEndPrompt } from "@/components/MixEndPrompt";
 import { sameContactSequence } from "@/lib/contact-profile-view";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -32,7 +35,7 @@ import { buildJumpReplacementValues } from "@/lib/jump-render";
 import { detachedChanges, preparationFamilyForChannel, type PreparationFamily } from "@/lib/preparation-family";
 import { offersChoice, preparedVariants, recommendedVariant, selectedVariant, usableVariants, variantsOfSnapshot } from "@/lib/preparation-variants";
 import { readJourneyPreferences } from "@/lib/journey-preferences";
-import { addLogicalDays, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
+import { addLogicalDays, logicalDateInTimezone, logicalDateKey, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
 import { planLimits, recentPlanLimitSkips } from "@/lib/plan-limits";
@@ -93,6 +96,8 @@ type SearchParams = {
   listReset?: string;
   contactSaved?: string;
   verified?: string;
+  mixAssigned?: string; mixStart?: string; mixPerson?: string;
+  noMixNeeded?: string; noMixPeople?: string; noMixCleared?: string;
 };
 
 
@@ -204,6 +209,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     // People with no Mix have nothing to remind the owner about them (JITM-09 §2.77); a failed count only hides the line.
     contactMixCounts(workspace.id).catch(() => null)
   ]);
+  // The Mixes the end-of-Mix question can start, as on the profile.
+  const startableMixes = await prisma.mix.findMany({ where: { workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } }, select: { id: true, name: true }, orderBy: { name: "asc" } });
   const noMixCount = mixCounts?.["no-mix"] ?? 0;
   const failedDeliveries = new Map(failedDeliveryRows.map((row) => [row.jumpId, row] as const));
   // A drafted follow-up is held from automatic delivery; the card says so only where delivery would otherwise apply.
@@ -433,6 +440,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
       <JumpReturnTray />
+      <MixEndPrompt mixes={startableMixes} todayKey={logicalDateKey(logicalDateInTimezone(new Date(), timezone))} address={JSON.stringify(params)} viewOnly={Boolean(impersonation)} />
       {params.setupLater && <Notice type="success">Your setup answers are saved. <Link href="/onboarding">Return to setup</Link> whenever you’re ready.</Notice>}
       {params.invitations && <Notice type="success">{params.invitations === "1" ? "Your invitation is" : "Your invitations are"} ready to send. {params.invitations === "1" ? "It hasn’t" : "They haven’t"} been sent yet.</Notice>}
     {params.welcome && <Notice type="success">{welcomeMessage}{welcomeNextStep}{megaMixNextStep && <> Optional next step: <Link className="inline-action" href={megaMixNextStep.blueprint ? `/templates/journeys?journey=${encodeURIComponent(megaMixNextStep.blueprint.id)}` : "/templates/journeys"}>{megaMixNextStep.blueprint ? `Set up the ${megaMixNextStep.blueprint.name} Mega-Mix` : "Choose a complete Mega-Mix"}<AppIcon name="chevronRight" className="inline-action-icon" /></Link></>}</Notice>}
@@ -444,6 +452,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       {params.contactSaved === "1" && <Notice type="success">Contact saved. This follow-up now uses the new details.</Notice>}
       {params.verified === "1" && <Notice type="success">Your email is verified.</Notice>}
       {params.listReset && <Notice type="info">This part of the list changed. You’re back at the first follow-ups.</Notice>}
+      {params.mixAssigned && <Notice type="success">{params.mixStart === "saved" ? "Start saved. It follows this person’s saved date." : /^\d{4}-\d{2}-\d{2}$/.test(params.mixStart ?? "") ? `Start saved for ${formatDate(new Date(`${params.mixStart}T12:00:00Z`), { ...displayPreferences, timeZone: "UTC" })}.` : "Start saved."} Follow-ups are being prepared.{params.mixAssigned === "visit" && " Its Beats timed from an appointment wait until you line it up with a visit from the calendar."}{params.mixPerson && <> <Link href={`/contacts/${encodeURIComponent(params.mixPerson)}`}>View person</Link></>}</Notice>}
+      {params.noMixNeeded && (Number(params.noMixNeeded) > 0 && params.noMixPeople ? <Notice type="success"><span className="notice-with-action">Marked No Mix needed.<form action={setNoMixNeededAction}><input type="hidden" name="intent" value="clear" />{params.noMixPeople.split(",").slice(0, 100).map(id => <input type="hidden" name="contactIds" value={id} key={id} />)}<input type="hidden" name="returnTo" value="/jumps" /><FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form></span></Notice> : <Notice type="info">They’re already in a Mix or marked Do not contact, so nothing changed.</Notice>)}
+      {params.noMixCleared && <Notice type="success">No Mix needed removed.</Notice>}
       <UrlErrorNotice params={params} viewer={session} />
 
       <header className="page-header today-page-header">
