@@ -226,6 +226,15 @@ describe.sequential("whether a person is in a Mix (JITM-09 §2.76)", () => {
     await jump(finished, paused, "CANCELED", { completionMethod: "reconciled", createdAt: new Date(Date.now() - 3 * day) });
     await jump(finished, paused, "DONE", { createdAt: new Date(Date.now() - 2 * day) });
     expect(await status(finished)).toBe("no-mix");
+    // Someone who joins the paused Mix's tag, with nothing prepared for them yet, is one of its people too (PAUSE-01).
+    const group = await prisma.group.create({ data: { workspaceId, name: `Paused tag ${suffix}` } });
+    await prisma.mixAssignment.create({ data: { workspaceId, mixId: paused.id, groupId: group.id, assignmentKey: `${workspaceId}:${paused.id}:group:${group.id}`, mode: "DYNAMIC", startDate: new Date() } });
+    const joiner = await person("Joined during the pause");
+    await prisma.contactGroupMembership.create({ data: { contactId: joiner, groupId: group.id } });
+    expect(await status(joiner)).toBe("in-mix");
+    // Not once the person is stopped in it.
+    await prisma.mixStop.create({ data: { workspaceId, mixId: paused.id, contactId: joiner, reason: "Asked to stop" } });
+    expect(await status(joiner)).toBe("no-mix");
     // A paused date-based Mix still holds the next date of a repeating one.
     const pausedDates = await mix("Paused renewals", { status: "PAUSED", triggerMode: "DATE_TRIGGERED", dateTypeId });
     const renewing = await person("Renewing");

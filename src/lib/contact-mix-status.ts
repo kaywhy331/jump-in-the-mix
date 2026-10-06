@@ -68,6 +68,13 @@ function inMixSql(workspaceId: string, now: Date) {
       AND m.status = 'PAUSED' AND m.source <> 'ONE_TIME' AND st."isActive"
       AND NOT EXISTS (SELECT 1 FROM "Jump" later WHERE later."workspaceId" = ${workspaceId} AND later."contactId" = c.id AND later."mixStepId" = j."mixStepId" AND later."createdAt" > j."createdAt")
       AND ${notStopped(Prisma.sql`j."mixId"`)} AND ${enrolled(Prisma.sql`j."mixId"`)})`;
+  // Also held by a pause: someone enrolled in a paused Mix started by hand, with a calendar-day Beat, that has
+  // prepared nothing for them yet, because they joined its tag during the pause or were started just before
+  // it. The scheduler skips a paused Mix, so their Beats come when it resumes (PAUSE-01).
+  const unpreparedInPause = Prisma.sql`EXISTS (SELECT 1 FROM "Mix" m WHERE m."workspaceId" = ${workspaceId} AND m.status = 'PAUSED' AND m."triggerMode" = 'MANUAL_START' AND m.source <> 'ONE_TIME'
+      AND EXISTS (SELECT 1 FROM "MixStep" st WHERE st."mixId" = m.id AND st."isActive" AND st.anchor = 'CALENDAR_DAY')
+      AND ${notStopped(Prisma.sql`m.id`)} AND ${enrolled(Prisma.sql`m.id`)}
+      AND NOT EXISTS (SELECT 1 FROM "Jump" j WHERE j."workspaceId" = ${workspaceId} AND j."contactId" = c.id AND j."mixId" = m.id))`;
   // A Mix the person can still get work from: running or paused (D45), and not stopped for them.
   const mixOpen = (mix: Prisma.Sql) => Prisma.sql`(EXISTS (SELECT 1 FROM "Mix" om WHERE om.id = ${mix} AND om."workspaceId" = ${workspaceId}
     AND om.status IN ('ACTIVE', 'PAUSED') AND om.source <> 'ONE_TIME') AND ${notStopped(mix)})`;
@@ -104,7 +111,7 @@ function inMixSql(workspaceId: string, now: Date) {
     EXISTS (SELECT 1 FROM "Jump" j JOIN "Mix" m ON m.id = j."mixId"
       WHERE j."workspaceId" = ${workspaceId} AND j."contactId" = c.id AND j.status = 'PENDING' AND m.source <> 'ONE_TIME')
     OR ${journeyWork}
-    OR (EXISTS (SELECT 1 FROM "Mix" pm WHERE pm."workspaceId" = ${workspaceId} AND pm.status = 'PAUSED' AND pm.source <> 'ONE_TIME') AND ${heldByPause})
+    OR (EXISTS (SELECT 1 FROM "Mix" pm WHERE pm."workspaceId" = ${workspaceId} AND pm.status = 'PAUSED' AND pm.source <> 'ONE_TIME') AND (${heldByPause} OR ${unpreparedInPause}))
     OR (EXISTS (SELECT 1 FROM preparing) AND (
       EXISTS (SELECT 1 FROM "MixAssignment" a JOIN "Mix" m ON m.id = a."mixId"
         WHERE a."workspaceId" = ${workspaceId} AND a."contactId" = c.id AND a."isActive" AND m.status = 'ACTIVE' AND m.source <> 'ONE_TIME'
