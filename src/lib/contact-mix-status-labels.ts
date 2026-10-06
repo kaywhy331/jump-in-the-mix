@@ -22,16 +22,29 @@ export type MixStartCounts = Record<MixStartResult, number>;
 const people = (count: number) => count === 1 ? "1 person" : `${count.toLocaleString()} people`;
 
 /**
+ * What the bulk Mix sheet says about the chosen Mix, by how it starts (`Mix.triggerMode`; D46, COPY-02). Only a
+ * hand-started Mix runs again for someone who finished it; a date-based one follows each person's saved date,
+ * and a fixed-date Mix goes out on its own date, so the start day does nothing for it.
+ */
+export function bulkMixSheetSentence(triggerMode: string): string {
+  if (triggerMode === "DATE_TRIGGERED") return "It follows each person’s saved date. Anyone without one gets the start day as their date. Anyone still in it keeps their start.";
+  if (triggerMode === "BROADCAST") return "It goes out on its fixed date. Anyone still in it keeps their start.";
+  return "Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.";
+}
+
+/**
  * The confirmation after Add to the Mix (JITM-04 §2.7): it names the Mix and says what happened to each
  * group of people, so it never promises follow-ups that are not coming. `startDay` is the chosen start day
- * as the owner reads it.
+ * as the owner reads it; a fixed-date Mix (`triggerMode` BROADCAST) goes out on its own date instead.
  */
-export function bulkMixStartNotice(input: { mixName: string; counts: MixStartCounts; startDay: string; startsToday: boolean; waitsForVisit: boolean }): string {
+export function bulkMixStartNotice(input: { mixName: string; triggerMode: string; counts: MixStartCounts; startDay: string; startsToday: boolean; waitsForVisit: boolean }): string {
   const { counts, mixName } = input;
   const started = counts.started + counts["saved-date-kept"] + counts["date-written"];
   const kept = counts["already-running"];
   const sentences: string[] = [];
-  if (started) sentences.push(`${mixName} ${counts.started && !input.startsToday ? `starts on ${input.startDay}` : "started"} for ${people(started)}.`);
+  if (started) sentences.push(input.triggerMode === "BROADCAST"
+    ? `${mixName} goes out to ${people(started)} on its fixed date.`
+    : `${mixName} ${counts.started && !input.startsToday ? `starts on ${input.startDay}` : "started"} for ${people(started)}.`);
   if (kept) sentences.push(started
     ? `${kept === 1 ? "1 was" : `${kept.toLocaleString()} were`} already in it and ${kept === 1 ? "keeps" : "keep"} their start.`
     : `${people(kept)} ${kept === 1 ? "was" : "were"} already in ${mixName} and ${kept === 1 ? "keeps" : "keep"} their start.`);

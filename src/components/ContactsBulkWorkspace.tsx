@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { Sheet } from "@/components/Sheet";
 import { applyJumpToContactsAction, bulkArchiveContactsAction, bulkRemoveGroupAction } from "@/lib/bulk-contact-actions";
 import { bulkAssignMixAction } from "@/lib/contact-mix-actions";
-import { CONTACT_MIX_FILTERS, type ContactMixCounts, type ContactMixFilter, type ContactMixStatus } from "@/lib/contact-mix-status-labels";
+import { bulkMixSheetSentence, CONTACT_MIX_FILTERS, type ContactMixCounts, type ContactMixFilter, type ContactMixStatus } from "@/lib/contact-mix-status-labels";
 import { setNoMixNeededAction } from "@/lib/contact-no-mix-actions";
 import { createContactsCsv, type ExportContact } from "@/lib/contact-export";
 import { restoreContactListScroll, saveContactListState as rememberContactList } from "@/lib/contact-list-state";
@@ -82,7 +82,7 @@ export function ContactsBulkWorkspace({
   permissionFilter: string;
   mixFilter?: ContactMixFilter | "";
   mixCounts?: ContactMixCounts;
-  mixes?: { id: string; name: string }[];
+  mixes?: { id: string; name: string; triggerMode: string }[];
   todayKey?: string;
   /** Where a bulk action returns: this list's filters and docked person, without earlier notices (D47). */
   listHref?: string;
@@ -101,6 +101,9 @@ export function ContactsBulkWorkspace({
   const [selectionMode, setSelectionMode] = useState(intent === "one-time-jump");
   const [messageChannel, setMessageChannel] = useState("SMS");
   const [sendWhen, setSendWhen] = useState("now");
+  // The Mix chosen in the bulk Mix sheet, so its wording follows how that Mix starts (COPY-02).
+  const [chosenMixId, setChosenMixId] = useState(mixes[0]?.id ?? "");
+  const chosenMix = mixes.find(mix => mix.id === chosenMixId) ?? mixes[0];
   const selectedIds = useMemo(() => [...selected], [selected]);
   const selectedContacts = useMemo(() => contacts.filter((contact) => selected.has(contact.id)), [contacts, selected]);
   const selectedDoNotContact = selectedContacts.filter((contact) => contact.doNotContact);
@@ -251,9 +254,10 @@ export function ContactsBulkWorkspace({
           {mixes.length ? <>
             {selectedDoNotContact.length > 0 && <div className="notice error" id="bulk-mix-blocked">Remove {selectedDoNotContact.map((contact) => contact.displayName).join(", ")} because “Do not contact” is on.</div>}
             <form action={bulkAssignMixAction} className="form-stack">{contactIdsInputs(selectedIds)}<input type="hidden" name="returnTo" value={listHref} />
-              <label className="field"><span>Choose a Mix</span><select name="mixId" required>{mixes.map(mix => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></label>
-              <label className="field"><span>Start on</span><input type="date" name="startDate" required min={todayKey} defaultValue={todayKey} /></label>
-              <p className="muted-copy">Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.</p>
+              <label className="field"><span>Choose a Mix</span><select name="mixId" required value={chosenMix?.id} onChange={(event) => setChosenMixId(event.target.value)}>{mixes.map(mix => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></label>
+              {/* A fixed-date Mix goes out on its own date, so it asks for no start day (COPY-02). */}
+              {chosenMix?.triggerMode !== "BROADCAST" && <label className="field"><span>Start on</span><input type="date" name="startDate" required min={todayKey} defaultValue={todayKey} /></label>}
+              <p className="muted-copy">{bulkMixSheetSentence(chosenMix?.triggerMode ?? "MANUAL_START")}</p>
               {/* The reason a disabled button gives is linked to it, so assistive technology reads it too (JITM-08 §2.6). */}
               <button className="button primary" type="submit" disabled={selectedDoNotContact.length > 0} aria-describedby={selectedDoNotContact.length > 0 ? "bulk-mix-blocked" : undefined}>Add to the Mix</button>
             </form>

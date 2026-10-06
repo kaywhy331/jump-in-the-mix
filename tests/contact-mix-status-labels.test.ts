@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bulkMixStartNotice, bulkMixUndoNotice, noMixClearedNotice, noMixNeededNotice, noMixTodayLine, type MixStartCounts } from "../src/lib/contact-mix-status-labels";
+import { bulkMixSheetSentence, bulkMixStartNotice, bulkMixUndoNotice, noMixClearedNotice, noMixNeededNotice, noMixTodayLine, type MixStartCounts } from "../src/lib/contact-mix-status-labels";
 
 describe("No Mix wording (JITM-09 §2.76–§2.77)", () => {
   it("says that no Mix will remind the owner, in the singular and the plural (D44)", () => {
@@ -10,8 +10,8 @@ describe("No Mix wording (JITM-09 §2.76–§2.77)", () => {
   });
 
   const counts = (partial: Partial<MixStartCounts>): MixStartCounts => ({ started: 0, "already-running": 0, "saved-date-kept": 0, "date-written": 0, ...partial });
-  const notice = (partial: Partial<MixStartCounts>, options: { startsToday?: boolean; waitsForVisit?: boolean } = {}) =>
-    bulkMixStartNotice({ mixName: "Estimate follow-up", counts: counts(partial), startDay: "Oct 9", startsToday: options.startsToday ?? true, waitsForVisit: options.waitsForVisit ?? false });
+  const notice = (partial: Partial<MixStartCounts>, options: { startsToday?: boolean; waitsForVisit?: boolean; triggerMode?: string } = {}) =>
+    bulkMixStartNotice({ mixName: "Estimate follow-up", triggerMode: options.triggerMode ?? "MANUAL_START", counts: counts(partial), startDay: "Oct 9", startsToday: options.startsToday ?? true, waitsForVisit: options.waitsForVisit ?? false });
 
   it("names the Mix and what the bulk start did for each group of people (BLK-01)", () => {
     expect(notice({ started: 3, "already-running": 1 }, { waitsForVisit: true }))
@@ -26,6 +26,16 @@ describe("No Mix wording (JITM-09 §2.76–§2.77)", () => {
     expect(notice({ "saved-date-kept": 2, "date-written": 1 }, { startsToday: false }))
       .toBe("Estimate follow-up started for 3 people. 2 follow their saved date. 1 had no saved date, so Oct 9 was saved for them.");
     expect(notice({ "saved-date-kept": 1, "already-running": 2 })).toBe("Estimate follow-up started for 1 person. 2 were already in it and keep their start. 1 follows their saved date.");
+  });
+
+  it("says nothing about a start day for a fixed-date Mix, and words the sheet by how the Mix starts (COPY-02)", () => {
+    expect(notice({ started: 2 }, { startsToday: false, triggerMode: "BROADCAST" })).toBe("Estimate follow-up goes out to 2 people on its fixed date.");
+    expect(notice({ started: 1, "already-running": 1 }, { triggerMode: "BROADCAST" })).toBe("Estimate follow-up goes out to 1 person on its fixed date. 1 was already in it and keeps their start.");
+    // D46's sentence stays for a hand-started Mix; only that kind runs again for someone who finished it.
+    expect(bulkMixSheetSentence("MANUAL_START")).toBe("Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.");
+    expect(bulkMixSheetSentence("DATE_TRIGGERED")).toBe("It follows each person’s saved date. Anyone without one gets the start day as their date. Anyone still in it keeps their start.");
+    expect(bulkMixSheetSentence("BROADCAST")).toBe("It goes out on its fixed date. Anyone still in it keeps their start.");
+    for (const mode of ["DATE_TRIGGERED", "BROADCAST"]) expect(bulkMixSheetSentence(mode)).not.toMatch(/starts it again/);
   });
 
   it("says who Undo put back, what else it restored, and what it left because it changed since (D46, UNDO-02)", () => {

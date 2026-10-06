@@ -107,6 +107,9 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
   const since = new Date();
   const { suffix, people: list } = await people(["Ana", "Ben"]);
   const ids = list.map(person => person.id);
+  // A hand-started Mix of this test's own, beside the demo account's date-based and fixed-date Mixes.
+  const handMix = await prisma.mix.create({ data: { id: `e2e-no-mix-hand-${suffix}`, workspaceId, name: `Hand-started ${suffix}`, status: "ACTIVE", triggerMode: "MANUAL_START", steps: { create: { stepVersionId: "demo_step_sms_v1", dayOffset: 0, sortOrder: 1 } } } });
+  const fixedMix = await prisma.mix.create({ data: { id: `e2e-no-mix-fixed-${suffix}`, workspaceId, name: `Fixed-date ${suffix}`, status: "ACTIVE", triggerMode: "BROADCAST", steps: { create: { stepVersionId: "demo_step_sms_v1", dayOffset: 0, sortOrder: 1 } } } });
   try {
     await page.goto(`/contacts?q=${encodeURIComponent(suffix)}`);
     for (const person of list) await expect(page.locator(".contact-row").filter({ hasText: person.displayName }).locator(".contact-no-mix")).toHaveText("No Mix");
@@ -150,9 +153,16 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     await page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }).click();
     for (const person of list) await page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true }).check();
     await bar.getByRole("button", { name: "Mix", exact: true }).click();
-    // The sheet says that anyone who finished the Mix starts it again (D46).
+    // The sheet words itself by how the chosen Mix starts (COPY-02): a fixed-date Mix asks for no start day,
+    // and only a hand-started one says that anyone who finished it starts it again (D46).
+    const choose = sheet.getByRole("combobox", { name: "Choose a Mix", exact: true });
+    await choose.selectOption(fixedMix.id);
+    await expect(sheet.getByText("It goes out on its fixed date. Anyone still in it keeps their start.", { exact: true })).toBeVisible();
+    await expect(sheet.getByLabel("Start on", { exact: true })).toHaveCount(0);
+    await choose.selectOption(handMix.id);
     await expect(sheet.getByText("Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.", { exact: true })).toBeVisible();
-    const mixName = await sheet.getByRole("combobox", { name: "Choose a Mix", exact: true }).evaluate((select: HTMLSelectElement) => select.selectedOptions[0].text);
+    await expect(sheet.getByLabel("Start on", { exact: true })).toBeVisible();
+    const mixName = handMix.name;
     await Promise.all([page.waitForURL(/mixStarted=2/), sheet.getByRole("button", { name: "Add to the Mix", exact: true }).click()]);
     // The notice names the Mix and what the start did (BLK-01), and offers Undo (D46).
     const started = page.locator(".notice.success").filter({ hasText: `${mixName} started for 2 people.` });
@@ -175,6 +185,7 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     expect(Object.fromEntries(new URL(page.url()).searchParams)).toMatchObject({ q: suffix, mix: "no-mix", person: first.id });
   } finally {
     await cleanUp(ids, since);
+    await prisma.mix.deleteMany({ where: { id: { in: [handMix.id, fixedMix.id] } } });
   }
 });
 

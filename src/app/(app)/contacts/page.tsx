@@ -241,15 +241,16 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     (narrowed
       ? prisma.contact.findMany({ where: filteredWhere, select: { id: true }, orderBy: { id: "asc" }, take: MIX_FILTER_LIMIT }).then(rows => contactMixCounts(workspace.id, undefined, rows.map(row => row.id)))
       : contactMixCounts(workspace.id)).catch(() => null),
-    prisma.mix.findMany({ where: { workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+    prisma.mix.findMany({ where: { workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } }, select: { id: true, name: true, triggerMode: true }, orderBy: { name: "asc" } })
   ]);
   const todayKey = logicalDateKey(logicalDateInTimezone(new Date(), displayPreferences.timeZone));
   // After Add to the Mix: what each start did, for the Mix it names (JITM-04 §2.7).
-  const startedMix = (params.mixStarted || params.mixUndone) && params.mixStartedId ? await prisma.mix.findFirst({ where: { id: params.mixStartedId.slice(0, 120), workspaceId: workspace.id }, select: { name: true } }) : null;
+  const startedMix = (params.mixStarted || params.mixUndone) && params.mixStartedId ? await prisma.mix.findFirst({ where: { id: params.mixStartedId.slice(0, 120), workspaceId: workspace.id }, select: { name: true, triggerMode: true } }) : null;
   const count = (raw?: string) => Math.max(0, Math.floor(Number(raw) || 0));
   const startOn = /^\d{4}-\d{2}-\d{2}$/.test(params.mixStartOn ?? "") ? params.mixStartOn! : todayKey;
   const mixStartNotice = params.mixStarted ? bulkMixStartNotice({
     mixName: startedMix?.name ?? "The Mix",
+    triggerMode: startedMix?.triggerMode ?? "MANUAL_START",
     counts: { started: Math.max(0, count(params.mixStarted) - count(params.mixSaved) - count(params.mixDated)), "already-running": count(params.mixKept), "saved-date-kept": count(params.mixSaved), "date-written": count(params.mixDated) },
     startDay: formatDate(new Date(`${startOn}T12:00:00Z`), { ...displayPreferences, timeZone: "UTC" }),
     startsToday: startOn === todayKey,
