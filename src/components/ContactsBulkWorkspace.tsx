@@ -7,6 +7,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { DeviceContactQuickAdd } from "@/components/DeviceContactQuickAdd";
 import { EmptyState } from "@/components/EmptyState";
+import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { Sheet } from "@/components/Sheet";
 import { applyJumpToContactsAction, bulkArchiveContactsAction, bulkRemoveGroupAction } from "@/lib/bulk-contact-actions";
 import { bulkAssignMixAction } from "@/lib/contact-mix-actions";
@@ -258,8 +259,9 @@ export function ContactsBulkWorkspace({
               {/* A fixed-date Mix goes out on its own date, so it asks for no start day (COPY-02). */}
               {chosenMix?.triggerMode !== "BROADCAST" && <label className="field"><span>Start on</span><input type="date" name="startDate" required min={todayKey} defaultValue={todayKey} /></label>}
               <p className="muted-copy">{bulkMixSheetSentence(chosenMix?.triggerMode ?? "MANUAL_START")}</p>
-              {/* The reason a disabled button gives is linked to it, so assistive technology reads it too (JITM-08 §2.6). */}
-              <button className="button primary" type="submit" disabled={selectedDoNotContact.length > 0} aria-describedby={selectedDoNotContact.length > 0 ? "bulk-mix-blocked" : undefined}>Add to the Mix</button>
+              {/* The reason a disabled button gives is linked to it, so assistive technology reads it too (JITM-08 §2.6).
+                  It stays disabled while the start is sent, so a double tap starts nobody twice (UNDO-03). */}
+              <FormSubmitButton label="Add to the Mix" pendingLabel="Adding…" disabled={selectedDoNotContact.length > 0} describedBy={selectedDoNotContact.length > 0 ? "bulk-mix-blocked" : undefined} />
             </form>
           </> : <p>Create a Mix first. <Link href="/mixes">Go to Mixes</Link></p>}
           <form action={setNoMixNeededAction} className="form-stack bulk-no-mix-form">{contactIdsInputs(selectedIds)}<input type="hidden" name="returnTo" value={listHref} />

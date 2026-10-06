@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 import { createOneTimeFollowUp } from "../src/lib/one-time-follow-up";
 import { prisma } from "../src/lib/prisma";
 import { axeInPage } from "./axe-in-page";
@@ -163,7 +163,18 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     await expect(sheet.getByText("Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.", { exact: true })).toBeVisible();
     await expect(sheet.getByLabel("Start on", { exact: true })).toBeVisible();
     const mixName = handMix.name;
-    await Promise.all([page.waitForURL(/mixStarted=2/), sheet.getByRole("button", { name: "Add to the Mix", exact: true }).click()]);
+    // While the start is being sent the button stays disabled, so a double tap starts nobody twice (UNDO-03).
+    let release!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    const hold = async (route: Route) => { if (route.request().method() === "POST") await held; await route.continue(); };
+    const contactsPage = (url: URL) => url.pathname === "/contacts";
+    await page.route(contactsPage, hold);
+    const navigated = page.waitForURL(/mixStarted=2/);
+    await sheet.getByRole("button", { name: "Add to the Mix", exact: true }).click();
+    await expect(sheet.getByRole("button", { name: "Adding…", exact: true })).toBeDisabled();
+    release();
+    await navigated;
+    await page.unroute(contactsPage, hold);
     // The notice names the Mix and what the start did (BLK-01), and offers Undo (D46).
     const started = page.locator(".notice.success").filter({ hasText: `${mixName} started for 2 people.` });
     await expect(started).toBeVisible();
