@@ -199,7 +199,16 @@ test("the disabled Add to the Mix gives its reason to assistive technology (A11Y
 test("the chip, the What's next sheet and the bulk Mix sheet work from the keyboard alone (LAY-01)", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "One keyboard pass, in the docked desktop layout; the phone layout has the same controls.");
   test.setTimeout(120_000);
+  const since = new Date();
   const { suffix, people: [person] } = await people(["Keys"]);
+  /**
+   * A keyboard user's start on a page: the skip link, once the account boundary has checked the browser's
+   * account. Focus stays in the page from there, so the boundary's window-focus check never interrupts.
+   */
+  async function startAtSkipLink() {
+    await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
+    await page.getByRole("link", { name: "Skip to content" }).focus();
+  }
   /** Presses Tab until the control has focus, at most `limit` times. */
   async function tabTo(control: Locator, limit = 60) {
     for (let index = 0; index < limit; index++) {
@@ -210,6 +219,7 @@ test("the chip, the What's next sheet and the bulk Mix sheet work from the keybo
   }
   try {
     await page.goto(`/contacts/${person.id}`);
+    await startAtSkipLink();
     const chip = page.getByRole("button", { name: `No Mix: choose what's next for ${person.displayName}` });
     await tabTo(chip);
     expect(await chip.evaluate(element => element.matches(":focus-visible"))).toBe(true);
@@ -223,6 +233,7 @@ test("the chip, the What's next sheet and the bulk Mix sheet work from the keybo
 
     // Select, open the bulk Mix sheet, reach every control, mark No Mix needed and Undo it, all with keys.
     await page.goto(`/contacts?q=${encodeURIComponent(suffix)}`);
+    await startAtSkipLink();
     await tabTo(page.getByRole("button", { name: "More contact tools" }));
     await page.keyboard.press("Enter");
     await tabTo(page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }), 30);
@@ -230,19 +241,20 @@ test("the chip, the What's next sheet and the bulk Mix sheet work from the keybo
     const checkbox = page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true });
     await tabTo(checkbox);
     await page.keyboard.press("Space");
-    await expect(checkbox).toBeChecked();
+    // Once ticked, the checkbox's name says what it will do next.
+    await expect(page.getByRole("checkbox", { name: `Deselect ${person.displayName}`, exact: true })).toBeChecked();
     await tabTo(page.getByRole("complementary", { name: "Actions for selected contacts" }).getByRole("button", { name: "Mix", exact: true }), 30);
     await page.keyboard.press("Enter");
     const bulk = page.getByRole("dialog", { name: "Mix for 1 person" });
     await expect(bulk).toBeVisible();
     for (const control of [bulk.getByRole("combobox", { name: "Choose a Mix" }), bulk.getByLabel("Start on"), bulk.getByRole("button", { name: "Add to the Mix", exact: true }), bulk.getByRole("button", { name: "Mark No Mix needed", exact: true })]) await tabTo(control, 20);
     await Promise.all([page.waitForURL(/noMixNeeded=1/), page.keyboard.press("Enter")]);
-    const undo = page.locator(".notice.success").getByRole("button", { name: "Undo", exact: true });
-    await tabTo(undo);
+    await startAtSkipLink();
+    await tabTo(page.locator(".notice.success").getByRole("button", { name: "Undo", exact: true }));
     await Promise.all([page.waitForURL(/noMixCleared=1/), page.keyboard.press("Enter")]);
     await expect(page.locator(".contact-row").filter({ hasText: person.displayName }).locator(".contact-no-mix")).toHaveText("No Mix");
   } finally {
-    await cleanUp([person.id]);
+    await cleanUp([person.id], since);
   }
 });
 
