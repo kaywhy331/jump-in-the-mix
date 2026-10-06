@@ -78,6 +78,7 @@ All four are in the [owner decision log](standards-audit-2026-09-28/OWNER_DECISI
   - The queued batch keeps the answer. Batches queued before this release start none.
   - People who can't start the Mix are skipped, like any automatic addition (§2.75).
 - **A Contact stage's own Mix.** When a person's stage starts its Mix, the new-contact Mix is not added on top.
+- **Already in the Mix by another route.** The new-contact Mix doesn't start again for someone already in it through its Everyone audience or a shown tag that runs it. That would give them a second run with duplicate follow-ups (the BLK-02 finding of #125's second review, applied here).
 - **Shared start routine.** Starting one person on a Mix moved into `src/lib/contact-mix-start.ts`, so the profile, bulk Add, Today's question and these paths share it. It returns what the start did (#125's BLK-01 fix, ported unchanged), and a start with no user is audited as the system's.
 
 **Schema:** two additive migrations.
@@ -116,6 +117,12 @@ All of it was run on TrixBot against the local `jitm_design_local` database, wit
 | Screenshots | VERIFIED, inspected | Production build at 390, 834, 1194 and 1920, light and dark, for the question and the New contacts page. The sheet, Add a contact, Quick Add, the import step and a lead connection were captured at 390 and 1920. The question follows the export's sent-confirmation toast. Settings has no export screen, so it follows the form-page archetype (JITM-07). Captures stay private in `.artifacts/mix-next-step-20261006/` (JITM-12 §2.19). |
 
 ## Found, not fixed
+
+- **The question in accounts with Journey connections waits for #125's JRN-01 fix.**
+  - In any account with a Journey rule, such as one with a Mega-Mix, a Mix runs as Journey work. Its record stays active until a background step runs about ten seconds after the outcome.
+  - At the moment the last Beat is recorded, the shared status still reads "In a Mix", so the question doesn't appear there.
+  - #125's second review (JRN-01) is rewriting when Journey work counts. The requirement is that an instance with no Beat or decision left to come doesn't count.
+  - `tests/mix-end-question.integration.test.ts` holds the acceptance case, marked as a known failure until that fix is merged in.
 
 - **"Mark sent" before the Beat's Journey choices load.** The click opens an empty "Record journey outcome" step, with Save outcome and Cancel, instead of recording. The owner needs an extra tap. This is existing behavior in `JumpOutcomeButton` (`src/components/JumpWorkflow.tsx`).
   - The No Mix slice classified `design-correction.spec.ts:111` as order-dependent. Its failure snapshots show this step, so this is the cause.

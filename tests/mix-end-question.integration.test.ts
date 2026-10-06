@@ -134,6 +134,25 @@ describe.sequential("asking what's next when a Mix ends with nothing after it (J
     expect(await ask(finished)).toBeNull();
   });
 
+  // Known gap until #125's JRN-01 fix: the person's own Journey record still reads ACTIVE until its job runs, so the
+  // shared status says "In a Mix" and nothing is asked. `it.fails` turns red once the fix lands; then make it `it`.
+  it.fails("asks in an account with Journey connections, where the Mix ran as Journey work (JRN-01)", async () => {
+    // Any Journey rule makes every start Journey work; this rule leads on from another Mix, not from this one.
+    const other = await mix("Referral path", 1);
+    const rule: WorkflowRule = { id: randomUUID(), name: "After referrals", source: { mixId: other.id, stepId: null }, enabled: true, mode: "PARALLEL", join: null,
+      routes: [{ id: randomUUID(), label: "After this Mix finishes", when: "FINISHED", outcome: "", delayMinutes: 0, target: null, maxVisits: null, replace: false }] };
+    await prisma.mixWorkflow.upsert({ where: { workspaceId }, create: { workspaceId, configuration: JSON.parse(JSON.stringify({ ...emptyWorkflow(), rules: [rule] })) }, update: { configuration: JSON.parse(JSON.stringify({ ...emptyWorkflow(), rules: [rule] })) } });
+    const quote = await mix("Quote follow-up", 1);
+    const sky = await person("Sky");
+    await start(sky, quote);
+    const instance = await prisma.mixWorkflowInstance.create({ data: { workspaceId, contactId: sky, admissionKey: `legacy:${sky}:${quote.id}`, label: "Quote follow-up", definition: {}, state: {} } });
+    const done = await beat(sky, quote, 0, "DONE");
+    await prisma.jump.update({ where: { id: done }, data: { workflowInstanceId: instance.id } });
+    // The Journey pass that closes the record runs later, as a job; the last Beat is done, so the Mix has ended.
+    try { expect(await ask(done)).toMatchObject({ mixName: "Quote follow-up" }); }
+    finally { await prisma.mixWorkflow.delete({ where: { workspaceId } }); }
+  });
+
   it("only reads the workspace's own follow-ups", async () => {
     const other = await prisma.workspace.create({ data: { name: "Mix end other", slug: `mix-end-other-${suffix}`, ownerId: userId, profile: { create: {} } } });
     try {

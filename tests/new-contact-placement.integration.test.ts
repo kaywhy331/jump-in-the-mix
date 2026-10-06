@@ -162,6 +162,26 @@ describe.skipIf(!local).sequential("where new people go (JITM-09 §2.78)", () =>
       }
     });
 
+    it("isn't started again for someone a tag already puts in it", async () => {
+      const tag = await prisma.group.create({ data: { workspaceId, name: `Referrals ${suffix}` } });
+      await prisma.mixAssignment.create({ data: { workspaceId, mixId: defaultMix.id, groupId: tag.id, assignmentKey: `${workspaceId}:${defaultMix.id}:group:${tag.id}`, mode: "DYNAMIC", startDate: new Date() } });
+      try {
+        const tagged = await person("Tagged");
+        await prisma.contactGroupMembership.create({ data: { groupId: tag.id, contactId: tagged } });
+        expect(await place([tagged])).toMatchObject({ started: [], skipped: [tagged] });
+        expect(await directStart(tagged, defaultMix.id)).toBeNull();
+        // A hidden tag runs nothing, so the setting's Mix starts.
+        const hidden = await person("Hidden tag");
+        await prisma.contactGroupMembership.create({ data: { groupId: tag.id, contactId: hidden } });
+        await prisma.contactGroupState.create({ data: { groupId: tag.id, workspaceId, isActive: false } });
+        expect(await place([hidden])).toMatchObject({ started: [hidden] });
+      } finally {
+        await prisma.contactGroupState.deleteMany({ where: { groupId: tag.id } });
+        await prisma.mixAssignment.deleteMany({ where: { groupId: tag.id } });
+        await prisma.group.delete({ where: { id: tag.id } });
+      }
+    });
+
     it("skips someone who can't start it, unless the owner chose it just now", async () => {
       const restricted = await person("Restricted");
       await prisma.contactRelationshipState.create({ data: { workspaceId, contactId: restricted, doNotContact: true } });

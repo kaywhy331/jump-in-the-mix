@@ -90,15 +90,18 @@ export async function placeNewContacts(tx: Tx, input: {
   if (input.chosenByOwner) await assertRoomForPeople(tx, workspaceId, contactIds);
   const timezone = input.timezone ?? await timezoneForWorkspace(workspaceId);
   const start = logicalDateInTimezone(now, timezone);
+  const hiddenTags = (await tx.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
   for (const contactId of contactIds) {
     const [journey, running] = await Promise.all([
       tx.contactJourney.findUnique({ where: { contactId }, select: { stage: { select: { planId: true } } } }),
-      tx.mixAssignment.findFirst({ where: { workspaceId, contactId, mixId: mix.id, isActive: true }, select: { id: true } })
+      // Already in this Mix by any route: their own start, the Mix's Everyone audience, or a shown tag it runs for.
+      // Starting it again would give them a second run with duplicate follow-ups (BLK-02 of the #125 review).
+      tx.mixAssignment.findFirst({ where: { workspaceId, mixId: mix.id, isActive: true, OR: [{ contactId }, { groupId: { notIn: hiddenTags }, group: { memberships: { some: { contactId } } } }] }, select: { id: true } })
     ]);
     const stageMix = journey?.stage.planId
       ? await tx.mixAssignment.findFirst({ where: { workspaceId, contactId, mixId: journey.stage.planId, isActive: true }, select: { id: true } })
       : null;
-    // Their Contact stage started its own Mix, or they are already in this one.
+    // Their Contact stage started its own Mix, or they are already in this one by any route.
     if (stageMix || running) { result.skipped.push(contactId); continue; }
     try {
       await startMixForContact(tx, { workspaceId, userId: input.actorUserId ?? null, contactId, mix: { ...mix, triggerMode: "MANUAL_START", dateTypeId: null, steps: beats }, start, timezone, source: input.source ?? "contacts.new" });
