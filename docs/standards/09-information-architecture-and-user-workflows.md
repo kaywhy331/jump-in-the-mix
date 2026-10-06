@@ -2,7 +2,7 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 4.0.1
+version: 4.1.0
 owner: Kevin
 last_reviewed: 2026-10-05
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
@@ -128,7 +128,7 @@ The individual route saves preferences and opens the library without a contact. 
 
 ### Today: review, outcome and next step
 
-**2.24** Today (`/jumps`) MUST order its queue: invitations ready to send, the invitations strip, the preparation notice, Overdue, Today, Needs your input, Quiet-day check-ins, Upcoming ("Next 7 days" in the due and week views), then Done. The first open card carries "Next up". [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:449-464] [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:370]
+**2.24** Today (`/jumps`) MUST order its queue: invitations ready to send, the invitations strip, the preparation notice, Overdue, Today, Needs your input, Quiet-day check-ins, the No Mix line (§2.77), Upcoming ("Next 7 days" in the due and week views), then Done. The first open card carries "Next up". [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:449-464] [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:370]
 
 **2.25** Today MUST state only what is true:
 - "You're caught up." only when nothing is due, nothing needs input and every check succeeded; otherwise it says the next steps could not be checked or are awaiting preparation;
@@ -335,3 +335,4 @@ Known deviations:
 - 3.1.0 — 2026-10-05 — Base 9b3f949. §2.33: people can also arrive as contact cards shared from a phone. It adds the Android picker on Add a contact, the iPhone shortcut with its personal key, and the saved-card import guide on `/contacts/from-phone` (D32, docs/PHONE_CONTACTS_2026-10-05.md).
 - 4.0.0 — 2026-10-05 — Base e8692f2. Kevin's answers on Mix placement and stages (D33–D36, docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md). §2.51 now lets a Mix set a stage and a Mega-Mix create stage labels (D35, part of D16 replaced). New §2.76–§2.77: every contact shows No Mix or No Mix needed, with a filter, bulk actions, a Today line and an end-of-Mix question (D33). New §2.78: a setting decides where new contacts go, default C (D34). New §2.79: how a Mix sets a stage and a Mega-Mix adds labels (D35). New §2.80: stage presets and milestones in the owner's words (D36). §6 points to the proposed defaults (P1–P10) and the unbuilt work.
 - 4.0.1 — 2026-10-05 — Base e8692f2. §2.76–§2.77 drop [PROPOSED]: Kevin confirmed their defaults (D33 confirmation). §2.78–§2.80 keep [PROPOSED] where their details are unconfirmed.
+- 4.1.0 — 2026-10-05 — Base 8bee3b1. §2.24: Today's order includes the No Mix line after Quiet-day check-ins (§2.77). The No Mix status, filter, bulk actions, Today line and Journey People status are built (docs/NO_MIX_STATUS_2026-10-05.md); the end-of-Mix question in §2.77 is not, and comes with the next build slice.
