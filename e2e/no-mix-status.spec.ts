@@ -160,7 +160,7 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     await expect(page.locator(".contact-row")).toHaveCount(0);
     expect(await prisma.mixAssignment.count({ where: { workspaceId, contactId: { in: ids }, isActive: true } })).toBe(2);
     await Promise.all([page.waitForURL(/mixUndone=2/), started.getByRole("button", { name: "Undo", exact: true }).click()]);
-    await expect(page.locator(".notice.success").filter({ hasText: `Undone. ${mixName} ended for 2 people` })).toBeVisible();
+    await expect(page.locator(".notice.success").filter({ hasText: `Undone. ${mixName} is back to how it was for 2 people` })).toBeVisible();
     await expect(page.locator(".contact-row")).toHaveCount(2);
     expect(await prisma.mixAssignment.count({ where: { workspaceId, contactId: { in: ids }, isActive: true } })).toBe(0);
 

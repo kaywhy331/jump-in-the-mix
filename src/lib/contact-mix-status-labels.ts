@@ -41,12 +41,17 @@ export function bulkMixStartNotice(input: { mixName: string; counts: MixStartCou
   return sentences.join(" ");
 }
 
-/** The confirmation after Undo on a bulk start (D46): what ended, and what was left because it changed since. */
-export function bulkMixUndoNotice(input: { mixName: string; ended: number; kept: number; dates: number }): string {
+/**
+ * The confirmation after Undo on a bulk start (D46): who is back to how they were before it, what else it put
+ * back, and who was left because they changed since. Undo puts back an earlier run of the Mix rather than
+ * ending it (UNDO-02), and removes only the start's own follow-ups, so other routes keep theirs (UNDO-01).
+ */
+export function bulkMixUndoNotice(input: { mixName: string; ended: number; kept: number; dates: number; confirmed?: number }): string {
   const sentences = [input.ended
-    ? `Undone. ${input.mixName} ended for ${people(input.ended)}, and its follow-ups still to come for them were removed.`
+    ? `Undone. ${input.mixName} is back to how it was for ${people(input.ended)}, without the follow-ups still to come from this start.`
     : "Nothing was undone: those starts had already ended or changed since."];
   if (input.dates) sentences.push(input.dates === 1 ? "The date saved when it started was removed." : "The dates saved when it started were removed.");
+  if (input.confirmed) sentences.push(`${input.confirmed === 1 ? "1 person is" : `${input.confirmed.toLocaleString()} people are`} marked No Mix needed again.`);
   if (input.ended && input.kept) sentences.push(`${input.kept === 1 ? "1 person" : `${input.kept.toLocaleString()} people`} changed since and ${input.kept === 1 ? "was" : "were"} left as they are.`);
   return sentences.join(" ");
 }

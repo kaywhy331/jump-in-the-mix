@@ -49,6 +49,7 @@ type SearchParams = {
   mixUndone?: string;
   mixUndoKept?: string;
   mixUndoDates?: string;
+  mixUndoConfirmed?: string;
   noMixNeeded?: string;
   noMixPeople?: string;
   noMixInMix?: string;
@@ -254,7 +255,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     startsToday: startOn === todayKey,
     waitsForVisit: params.mixVisit === "1"
   }) : "";
-  const mixUndoNotice = params.mixUndone ? bulkMixUndoNotice({ mixName: startedMix?.name ?? "The Mix", ended: count(params.mixUndone), kept: count(params.mixUndoKept), dates: count(params.mixUndoDates) }) : "";
+  const mixUndoNotice = params.mixUndone ? bulkMixUndoNotice({ mixName: startedMix?.name ?? "The Mix", ended: count(params.mixUndone), kept: count(params.mixUndoKept), dates: count(params.mixUndoDates), confirmed: count(params.mixUndoConfirmed) }) : "";
   const mixUndoId = /^[A-Za-z0-9_-]{1,64}$/.test(params.mixUndo ?? "") ? params.mixUndo : "";
 
   const contactDtos: ContactBulkDto[] = contacts.map((contact) => {

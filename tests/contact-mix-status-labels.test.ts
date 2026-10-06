@@ -28,11 +28,14 @@ describe("No Mix wording (JITM-09 §2.76–§2.77)", () => {
     expect(notice({ "saved-date-kept": 1, "already-running": 2 })).toBe("Estimate follow-up started for 1 person. 2 were already in it and keep their start. 1 follows their saved date.");
   });
 
-  it("says what Undo ended, and what it left because it changed since (D46)", () => {
+  it("says who Undo put back, what else it restored, and what it left because it changed since (D46, UNDO-02)", () => {
     expect(bulkMixUndoNotice({ mixName: "Estimate follow-up", ended: 3, kept: 1, dates: 0 }))
-      .toBe("Undone. Estimate follow-up ended for 3 people, and its follow-ups still to come for them were removed. 1 person changed since and was left as they are.");
+      .toBe("Undone. Estimate follow-up is back to how it was for 3 people, without the follow-ups still to come from this start. 1 person changed since and was left as they are.");
     expect(bulkMixUndoNotice({ mixName: "Renewal reminder", ended: 1, kept: 0, dates: 1 }))
-      .toBe("Undone. Renewal reminder ended for 1 person, and its follow-ups still to come for them were removed. The date saved when it started was removed.");
+      .toBe("Undone. Renewal reminder is back to how it was for 1 person, without the follow-ups still to come from this start. The date saved when it started was removed.");
+    expect(bulkMixUndoNotice({ mixName: "Estimate follow-up", ended: 2, kept: 0, dates: 0, confirmed: 1 }))
+      .toBe("Undone. Estimate follow-up is back to how it was for 2 people, without the follow-ups still to come from this start. 1 person is marked No Mix needed again.");
+    expect(bulkMixUndoNotice({ mixName: "Estimate follow-up", ended: 2, kept: 0, dates: 0, confirmed: 2 })).toMatch(/ 2 people are marked No Mix needed again\.$/);
     expect(bulkMixUndoNotice({ mixName: "Estimate follow-up", ended: 0, kept: 2, dates: 0 })).toBe("Nothing was undone: those starts had already ended or changed since.");
   });
 

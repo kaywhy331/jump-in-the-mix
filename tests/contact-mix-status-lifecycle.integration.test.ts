@@ -12,7 +12,7 @@ import { contactMixStatus } from "../src/lib/contact-mix-status";
 import { generateJumps } from "../src/lib/jump-engine";
 import { saveMixAction } from "../src/lib/mix-editor-actions";
 import { activateMixAction, archiveMixAction, pauseMixAction } from "../src/lib/mix-lifecycle-actions";
-import { removeMixAssignmentAction } from "../src/lib/contact-mix-actions";
+import { bulkAssignMixAction, removeMixAssignmentAction, undoBulkMixStartAction } from "../src/lib/contact-mix-actions";
 import { processWorkflowInstance, saveWorkflowConfiguration } from "../src/lib/mix-workflow";
 import { emptyWorkflow } from "../src/lib/mix-workflow-types";
 import { resumeMixForContactAction, stopMixForContactAction } from "../src/lib/mix-stop-actions";
@@ -213,6 +213,58 @@ describe.skipIf(!local).sequential("No Mix status as Mixes are saved, paused and
       await workerPass(new Date(Date.now() + 60_000));
       expect(await prisma.jump.count({ where: { workspaceId: ws, contactId: finisher, mixId: thanks, status: "PENDING" } })).toBe(1);
       expect(await statusIn(finisher)).toBe("in-mix");
+    } finally {
+      session.context = previous;
+      await prisma.contactActivity.deleteMany({ where: { workspaceId: ws } });
+      await prisma.workspace.deleteMany({ where: { id: ws } });
+      await prisma.user.deleteMany({ where: { id: owner.id } });
+    }
+  });
+
+  it("puts people back as they were when a bulk start is undone in a Journey-connected account, and starts nothing after it (UNDO-01, UNDO-02, JRN-01)", async () => {
+    const owner = await prisma.user.create({ data: { email: `no-mix-journey-undo-${suffix}@example.test`, name: "Journey owner", passwordHash: "fixture-only" } });
+    const journeyWorkspace = await prisma.workspace.create({ data: { ownerId: owner.id, slug: `no-mix-journey-undo-${suffix}`, name: "Journey Undo fixture", profile: { create: {} } } });
+    const ws = journeyWorkspace.id;
+    const previous = session.context;
+    session.context = { session: { authUser: owner }, user: owner, workspace: journeyWorkspace, impersonation: null };
+    try {
+      await prisma.workspaceMember.create({ data: { workspaceId: ws, userId: owner.id, role: "OWNER" } });
+      const handMix = async (name: string, days: number[]) => {
+        const created = await prisma.mix.create({ data: { workspaceId: ws, name, status: "ACTIVE", triggerMode: "MANUAL_START" } });
+        for (const [index, dayOffset] of days.entries()) {
+          const template = await prisma.stepTemplate.create({ data: { workspaceId: ws, name: `${name} ${index + 1}`, channel: "PHONE_CALL", versions: { create: { version: 1, script: "Check in." } } }, include: { versions: true } });
+          await prisma.mixStep.create({ data: { mixId: created.id, stepVersionId: template.versions[0].id, dayOffset, sortOrder: index + 1 } });
+        }
+        return created.id;
+      };
+      const estimate = await handMix("Estimate", [0, 7]), thanks = await handMix("Thank you", [0]);
+      await prisma.$transaction(db => saveWorkflowConfiguration(db, ws, { ...emptyWorkflow(), rules: [{ id: randomUUID(), name: "After the estimate", source: { mixId: estimate, stepId: null }, enabled: true, mode: "PARALLEL", join: null,
+        routes: [{ id: randomUUID(), label: "Continue", when: "FINISHED", outcome: "", delayMinutes: 0, target: { mixId: thanks, stepId: null }, maxVisits: null, replace: false }] }] }, 0, owner.id));
+      const contact = async (name: string) => (await prisma.contact.create({ data: { workspaceId: ws, displayName: `${name} ${suffix}` } })).id;
+      const fresh = await contact("Fresh"), confirmed = await contact("Confirmed");
+      await prisma.contactRelationshipState.create({ data: { workspaceId: ws, contactId: confirmed, noMixNeededAt: new Date(Date.now() - 60_000) } });
+      const workerPass = async (at = new Date()) => {
+        await generateJumps({ workspaceId: ws });
+        for (const record of await prisma.mixWorkflowInstance.findMany({ where: { workspaceId: ws, status: { in: ["ACTIVE", "PAUSED"] } }, select: { id: true } })) await processWorkflowInstance(ws, record.id, at);
+      };
+      const statusIn = (contactId: string) => contactMixStatus(ws, contactId);
+
+      const started = await redirected(bulkAssignMixAction(fields({ contactIds: [fresh, confirmed], mixId: estimate, returnTo: "/contacts" })));
+      expect(started.searchParams.get("mixStarted")).toBe("2");
+      await workerPass();
+      // Each start is Journey work: a record and its Beats, linked to it.
+      expect(await prisma.jump.count({ where: { workspaceId: ws, mixId: estimate, status: "PENDING", workflowInstanceId: { not: null } } })).toBe(4);
+      expect(await Promise.all([fresh, confirmed].map(statusIn))).toEqual(["in-mix", "in-mix"]);
+
+      const undone = await redirected(undoBulkMixStartAction(fields({ undoId: started.searchParams.get("mixUndo")!, returnTo: "/contacts" })));
+      expect(Object.fromEntries(undone.searchParams)).toMatchObject({ mixUndone: "2", mixUndoConfirmed: "1" });
+      expect(await Promise.all([fresh, confirmed].map(statusIn))).toEqual(["no-mix", "no-mix-needed"]);
+      // The records stay as history, yet nothing counts them, and the cancelled run never reads as finished:
+      // after the worker's passes, past the Journey's undo window, the connection has started nothing.
+      await workerPass();
+      await workerPass(new Date(Date.now() + 60_000));
+      expect(await prisma.jump.count({ where: { workspaceId: ws, contactId: { in: [fresh, confirmed] }, status: "PENDING" } })).toBe(0);
+      expect(await Promise.all([fresh, confirmed].map(statusIn))).toEqual(["no-mix", "no-mix-needed"]);
     } finally {
       session.context = previous;
       await prisma.contactActivity.deleteMany({ where: { workspaceId: ws } });
