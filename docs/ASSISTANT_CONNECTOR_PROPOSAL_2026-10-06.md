@@ -1,19 +1,21 @@
 # Assistant connector proposal — October 6, 2026
 
-> **Planned, not built.** Kevin decided on 2026-10-06 that owners will be able to use their own AI assistant with Jump in the Mix (D38–D41 in `docs/standards-audit-2026-09-28/OWNER_DECISIONS.md`). The connector is built after D33–D35 ship and the phone checks pass (D41). Nothing here is implemented. The decisions are recorded in JITM-00 §2.3 and §2.5, JITM-01 §2.25 and JITM-08 §2.35. The engineering below is a proposal for the build's WF-04 plan, to be written into JITM-11 when it is built. All times are UTC.
+> **Planned, not built.** Kevin decided on 2026-10-06 that owners will be able to use their own AI assistant with Jump in the Mix (D38–D43 in `docs/standards-audit-2026-09-28/OWNER_DECISIONS.md`). The connector is built after D33–D35 ship and the phone checks pass (D41). Nothing here is implemented. The decisions are recorded in JITM-00 §2.3 and §2.5, JITM-01 §2.14–§2.15 and §2.25–§2.26, and JITM-08 §2.35. The engineering below is a proposal for the build's WF-04 plan, to be written into JITM-11 when it is built. All times are UTC.
 
 ## What Kevin decided
 
 Kevin's request: "I definitely want the connector that ai agents can connect to in the near future, to allow users that have chatgpt, iOS ai, claude, gemini, or any other capable model be able to utilize their ai assistant with jitm easily providing them with the needed information to be quick and take action on their behalf."
 
-Kevin then answered four questions (VERIFIED-DOC, D38–D41):
+Kevin then answered four questions and two follow-ups (VERIFIED-DOC, D38–D43):
 
 | Decision | What it means |
 |---|---|
-| D38: the assistant sends after a yes | An owner's own assistant may send a prepared message from the owner's own number or email account after the owner says yes to that message. That counts as the owner sending it. Jump in the Mix itself never sends it, and records the send as the assistant reported it. |
-| D39: one person at a time, undoable | An assistant reads the owner's own workspace and changes one person per request. Each change is shown back and can be undone. Skipping or completing asks first. Nothing changes many people at once. |
+| D38: the assistant sends after a yes | An owner's own assistant may send a prepared message from the owner's own number or email account once the owner says yes in the assistant. That counts as the owner sending it. Jump in the Mix itself never sends it, and records the send as the assistant reported it. |
+| D39: one person at a time, undoable | An assistant reads the owner's own workspace and changes one person per request. Each change is shown back and can be undone. Skipping and completing are marked as needing the owner's approval. Nothing changes many people at once. |
 | D40: a Shortcut now, an app later | On iPhone, the first path is a Siri Shortcut that uses the owner's personal key. A native app waits for the demand signposts in JITM-01 §2.7. |
 | D41: build after D33–D35 | The connector is designed now. It is built once D33–D35 and the phone checks are done, then given to the first tester wave. |
+| D42: no AI calls | An assistant may start a call that connects the owner to the person after the owner says yes, and the owner speaks. For example, it sees on Today that a call to Jane is due and what the call's notes say, asks to connect the call, and dials after the yes. Jump in the Mix offers no AI-voice calling. |
+| D43: assistant actions count, and permission lives in the assistant | Outcomes and actions an assistant logs count toward activation and retention. The owner gives the assistant permission to act on the assistant's side, which Jump in the Mix does not control. The connector provides the items that need action and records what the assistant reports. |
 
 ## What owners get, by assistant
 
@@ -29,9 +31,9 @@ MCP is the shared way assistants call outside tools. The Linux Foundation's Agen
 | Gemini | The same connector, once Google's assistant accepts outside MCP connectors. That is on the roadmap for Google's always-on agent (note 03) but not verified as available. | Gemini can send texts but "can't read or summarize your messages" ([Gemini Apps Help](https://support.google.com/gemini/answer/15574940?hl=en)). With the connector it can fetch the prepared text, ask, send, and log the outcome. |
 | Siri (iPhone) | A Siri Shortcut with the owner's personal key (D40) | The Shortcut puts the prepared text in Messages' compose sheet, and the owner's tap is the yes. Apple only lets apps prefill a message "for a person's approval" ([Apple Developer](https://developer.apple.com/documentation/messageui/mfmessagecomposeviewcontroller)). |
 
-Example requests: "What's on my Today?"; "Read me the check-in for Jane and send it" (the assistant asks "Send it?" first); "I called Bob, no answer, try again Thursday"; "Add Maria from the open house and start the past-client Mix"; "Skip the review request for the Lees" (the assistant asks first).
+Example requests: "What's on my Today?"; "Read me the check-in for Jane and send it" (the assistant asks "Send it?" first); "I called Bob, no answer, try again Thursday"; "Add Maria from the open house and start the past-client Mix"; "Skip the review request for the Lees" (marked as needing approval, so the assistant asks); "Call Bob about the roof estimate" (the assistant asks to connect the call, then dials).
 
-Calls: an assistant may dial for the owner, who then speaks. It never holds an AI-generated voice call with a customer. That line is JITM-01 §2.26 and is still marked PROPOSED, so it needs Kevin's confirmation. The FCC has treated AI-generated voices as "artificial" under the TCPA since 2024-02-08 ([FCC](https://docs.fcc.gov/public/attachments/DOC-400393A1.pdf)).
+Calls (D42): an assistant may start a call that connects the owner to the person after the owner says yes, and the owner speaks. Jump in the Mix offers no AI-voice calling (JITM-01 §2.26). The FCC has treated AI-generated voices as "artificial" under the TCPA since 2024-02-08 ([FCC](https://docs.fcc.gov/public/attachments/DOC-400393A1.pdf)).
 
 ## The connector's actions
 
@@ -45,12 +47,13 @@ The tool names are working names. Every tool acts inside the one workspace the g
 | `list_mixes` | The owner's Mixes and Mega-Mixes with their Beats | Read |
 | `get_calendar` | Meetings and time blocks in a date range | Read |
 | `prepare_message` | The prepared wording for one follow-up and channel, the person's number or email, and the handoff link | Read |
+| `prepare_call` | One due call: the person, the number, the call's notes and a tap-to-call link the assistant can use to connect the owner | Read |
 | `add_person` | Add one person, optionally with a note and a Mix | Change, undoable |
 | `add_note` | Add a note to one person | Change, undoable |
 | `log_outcome` | Record one follow-up's outcome, using the outcomes Today offers, including "sent by the assistant", and the next promise | Change, undoable |
 | `reschedule` | Move or snooze one follow-up | Change, undoable |
 | `start_mix`, `stop_mix` | Start or stop a Mix for one person, or mark "No Mix needed" once D33 ships | Change, undoable |
-| `complete_follow_up`, `skip_follow_up` | Complete or skip one follow-up | Asks the owner first |
+| `complete_follow_up`, `skip_follow_up` | Complete or skip one follow-up | Change, marked as needing the owner's approval |
 | `undo_change` | Undo the assistant's most recent change for one person | Change |
 
 **Not offered:**
@@ -61,19 +64,27 @@ The tool names are working names. Every tool acts inside the one workspace the g
 
 **Proposed behavior to settle in the WF-04 plan:**
 - **Undo window:** the most recent change per person, for a limited time.
-- **Confirm-first tools:** these require an explicit confirmation flag, and carry MCP's "destructive" hint so assistants show their own confirmation.
+- **Approval marks:** sending, skipping and completing carry MCP's "destructive" hint, and their descriptions say the owner must approve, so assistants ask under their own permission settings. Jump in the Mix cannot verify that they did (D43).
+- **Activation:** outcomes and actions an assistant logs count toward activation and retention (D43, JITM-01 §2.14–§2.15). The person's history names the assistant.
 - **Private notes:** prepared messages never include them. An assistant can read them because they are the owner's own data, so connecting an assistant shares them with that assistant's provider.
 - **Plan limits:** these apply as they do in the app, while billing stays off.
 
 ## How a send after a yes works
 
 1. The assistant calls `prepare_message` and shows the owner the person, the channel and the exact wording.
-2. The owner says yes to that message, or taps send in the compose sheet.
+2. The owner approves it in the assistant, under the assistant's own permission settings (D43), or taps send in the compose sheet.
 3. The assistant sends from the owner's own number or email account. If it cannot, it offers the handoff link, and the owner sends from the phone's own app as today (JITM-08 §2.1–§2.2).
 4. The assistant calls `log_outcome` with "sent by the assistant". Jump in the Mix records it as reported by that assistant, never as delivered (JITM-00 §2.3, JITM-08 §2.35).
 5. The reply says when the next follow-up is due and offers Undo (JITM-08 §2.4, §2.35).
 
-No step may run unattended. A scheduled or batched send without a yes for each message would be automatic sending, which stays an off-by-default option (JITM-00 §2.3).
+Jump in the Mix never schedules or batches sends itself; its own automatic sending stays an off-by-default option (JITM-00 §2.3). How an assistant asks for permission is set in the assistant, not in Jump in the Mix (D43).
+
+## How a call works (D42)
+
+1. The assistant calls `prepare_call` for a due call and tells the owner who it is and what the call's notes say.
+2. The assistant asks to connect the call, and the owner says yes.
+3. The assistant dials from the owner's phone, and the owner speaks. Siri and Gemini can place calls; a cloud assistant offers the tap-to-call link instead.
+4. The assistant logs the outcome the owner reports, using the outcomes Today offers.
 
 ## Security and tenancy (proposed engineering)
 
@@ -110,7 +121,14 @@ No step may run unattended. A scheduled or batched send without a yes for each m
 
 - **Build:** needs no paid service. The MCP SDK is open source, and adding it as a dependency goes through JITM-11's dependency rules.
 - **Using the connector:** owners may need a paid tier of their own assistant to add custom connectors. That is their cost, not the product's, and is to be verified for each assistant at build time.
-- **Listing:** no directory listing is needed to use the connector, because owners can add it by its address. Listing in Claude's directory needs a paid Claude plan; submission has been self-serve since 2026-09-25 ([Claude docs](https://claude.com/docs/directory/publish), checked 2026-10-05 Pacific). ChatGPT's app directory has accepted submissions since December 2025 (note 04). Whether to list is Kevin's decision at launch (JITM-00 §2.9).
+- **Listing:** no directory listing is needed to use the connector, because owners can add it by its address. A listing makes it findable inside Claude's apps. Claude's directory facts ([Claude docs](https://claude.com/docs/directory/publish), checked 2026-10-06):
+  - submitting needs a Claude Pro, Max, Team or Enterprise account, and free accounts can't submit;
+  - there is no partner program to join;
+  - Anthropic scans each MCP connector for policy compliance and lists it as a Community connector by default, and may escalate it to Verified review;
+  - a listed connector gets a dashboard of server health and usage by tool;
+  - Pro costs $20 a month, or $17 a month billed annually ([Claude pricing](https://claude.com/pricing), checked 2026-10-06), and an existing Pro or Max account qualifies.
+
+  ChatGPT's app directory has accepted submissions since December 2025 (note 04). Whether to list is Kevin's decision at launch (JITM-00 §2.9).
 - **Hosting:** if the web service sleeps when idle on its current plan, the first assistant request after a quiet period waits for it to wake, and an assistant may give up first. The production plan's behavior is recorded as ambiguous in JITM-14, so check it before launch.
 
 ## Build plan, after D33–D35 and the phone checks
@@ -120,8 +138,8 @@ Each slice is its own WF-04 task with tests, labeled per JITM-12:
 1. **Access:** grants, the sign-in and consent flow, revocation, and the Connected assistants page.
 2. **Reading:** `get_today`, `find_people`, `get_person`, `list_mixes`, `get_calendar`.
 3. **Changing:** the change tools with Undo and history labels; confirm-first for complete and skip.
-4. **Sending after a yes:** `prepare_message`, the "sent by the assistant" outcome and the handoff fallback.
-5. **Siri Shortcut:** Today read aloud, outcomes logged by voice, and a prepared text sent from the compose sheet. Checked on a physical iPhone.
+4. **Sending and calls after a yes:** `prepare_message`, `prepare_call`, the "sent by the assistant" outcome and the handoff fallback.
+5. **Siri Shortcut:** Today read aloud, outcomes logged by voice, a prepared text sent from the compose sheet, and a due call connected after a yes. Checked on a physical iPhone.
 6. **Testers, then words:** the first tester wave uses it. Then the copy, privacy wording and claims ledger go through WF-03, and Kevin decides on directory listings.
 
 **Verification for each slice:**
@@ -133,9 +151,11 @@ Each slice is its own WF-04 task with tests, labeled per JITM-12:
 
 These do not block the design. They are listed in JITM-01 §6.
 
-- Whether an assistant may place calls at all, and whether to confirm JITM-01 §2.26's line on AI-generated voices.
-- Paid items at launch: a paid Claude plan to list the connector, and a paid Render instance if idle wake-ups break assistant requests.
-- Whether outcomes an assistant logs count toward activation and retention (JITM-01 §2.14–§2.15).
+- Paid items at launch:
+  - a Claude Pro, Max, Team or Enterprise account to submit the connector to Claude's directory (an existing Pro or Max account qualifies);
+  - a paid Render instance, if idle wake-ups break assistant requests.
+
+Calls (D42) and activation (D43) were settled on 2026-10-06.
 
 ## Sources
 
@@ -158,3 +178,4 @@ These do not block the design. They are listed in JITM-01 §6.
   - the Shortcuts compose-sheet behavior on an iPhone running iOS 27;
   - the production web service's idle behavior.
 - The MCP authorization specification was not re-read for this document; the build plan must follow the version current at build time.
+- Claude's directory requirements were checked on 2026-10-06. ChatGPT's and Gemini's publishing requirements were not.

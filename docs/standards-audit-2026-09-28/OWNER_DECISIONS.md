@@ -374,6 +374,31 @@ Base e8692f2. D33–D37 answer the five questions in the analysis recorded in [M
 - **Decision:** "After D33–D35 ship" (A).
 - **Applied in:** JITM-01 §2.20, §2.22 and §2.25; the design is `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md`.
 
+### D42 — Calls through an assistant (2026-10-06)
+
+- **Question:** may an assistant place calls, and does JITM-01 §2.26's line against AI-generated voices stand?
+- **Decision:** "no AI calls. It can be AI assistant initiated though to connect users to their contacts. Example: AI assistant can check today and see that there is a call needing to be made to [Name] about [Phone Notes], AI ask user to connect the call, user says 'yes', AI makes the call."
+- **Meaning:** an assistant may start a call that connects the owner to the person, after the owner says yes, and the owner then speaks. Jump in the Mix offers no AI-voice calling.
+- **Applied in:** JITM-01 §2.26 (no longer proposed), JITM-08 §2.35, `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md`.
+
+### D43 — Assistant actions count, and permission lives in the assistant (2026-10-06)
+
+- **Question:** do outcomes an assistant logs count toward activation and retention (JITM-01 §2.14–§2.15)?
+- **Decision:** "yes all assistant should count towards the logs"
+- **Kevin's reasoning, which also settles who controls an assistant's permission:** "How I see the AI assistant working is, there would still be a user's permission on the ai assistant side to allow the ai assistant to act upon their behalf. It is something that will be on their AI assistant side that we don't have control over. Our system only provides the AI agent the items that need action to be taken. If they use a 3rd party agent, we have no control over how they utilize the workflow on their end."
+- **Meaning:**
+  - Actions an owner's connected assistant takes through the connector count as the owner's actions for activation and retention. Jump in the Mix's own automation still never counts.
+  - The owner gives an assistant permission to act on the assistant's side. Jump in the Mix neither controls nor verifies that permission, nor how a third-party assistant runs its workflow.
+  - The connector provides the items that need action, the prepared wording and one-person actions. It marks sending, skipping and completing as needing the owner's approval, and records what the assistant reports.
+- **Refines:** D38 and D39. The yes for each message, and the approval before skipping or completing, are given in the assistant under its own permission settings.
+- **Applied in:**
+  - JITM-00 §2.3;
+  - JITM-01 §2.14, §2.15 and §2.25 (3.0.0);
+  - JITM-08 §2.35;
+  - `AGENTS.md`;
+  - the `jitm-copy` skill;
+  - `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md`.
+
 ## Still open
 
 The standards' §6 sections list the remaining open questions and known deviations. The second packet's product changes are tasks in the audit's [follow-up backlog](../STANDARDS_AUDIT_2026-09-28.md#8-follow-up-backlog).

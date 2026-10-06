@@ -37,7 +37,7 @@ This file routes every task to the workflow, skills and standards that govern it
 
 ## Non-negotiables
 
-1. The owner reviews and sends every message, or says yes to each one their own connected assistant sends from their number or email. Opening a messaging app is not delivery. Automatic customer email is off in production during the beta, and automatic SMS is not configured (JITM-00 §2.3).
+1. The owner reviews and sends every message, or their own connected assistant sends it from their number or email with the owner's permission. Jump in the Mix never sends it itself. Opening a messaging app is not delivery. Automatic customer email is off in production during the beta, and automatic SMS is not configured (JITM-00 §2.3).
 2. Never invent product behavior, metrics, testimonials, customer evidence, pricing or decisions (JITM-00 §2.4).
 3. A workspace's data is reachable only through that workspace's own session (JITM-00 §2.5).
 4. Completed or skipped follow-ups never come back. Scheduling stays timezone-safe and idempotent (JITM-00 §2.6).
