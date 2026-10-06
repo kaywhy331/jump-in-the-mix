@@ -17,6 +17,7 @@ import { addLogicalDays, logicalDateInTimezone, logicalDateKey, zonedDateTimeToU
 import { DEFAULT_PERSONAL_SCHEDULING, outsideQuietHours, shiftWeekend } from "@/lib/personal-scheduling";
 import { anchoredStepInstant, anchoredStepIsPreparation } from "@/lib/step-timing";
 import { UserFacingError } from "@/lib/user-facing-error";
+import { reopenEnrollmentRun } from "@/lib/enrollment-workflow";
 
 type DB = Prisma.TransactionClient;
 export const workflowJson = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
@@ -51,18 +52,36 @@ export async function saveWorkflowConfiguration(db: DB, workspaceId: string, inp
 }
 
 /** Record an existing scheduler admission before preparing its Beats. Retries keep its snapshot. */
-export async function ensureLegacyWorkflow(input: { workspaceId: string; contactId: string; mixId: string; occurrenceKey: string; startedAt: Date; timezone: string; appointmentBindingId: string | null; definition: WorkflowDefinition }) {
+export async function ensureLegacyWorkflow(input: { workspaceId: string; contactId: string; mixId: string; occurrenceKey: string; startedAt: Date; timezone: string; appointmentBindingId: string | null; definition: WorkflowDefinition; passStartedAt?: Date }) {
   const admissionKey = `legacy:${createHash("sha256").update(`${input.contactId}:${input.mixId}:${input.occurrenceKey}`).digest("hex")}`;
   const state = startWorkflow(input.definition, { mixId: input.mixId, stepId: null }, input.startedAt.toISOString(), true);
   state.context = { timezone: input.timezone, appointmentBindingId: input.appointmentBindingId, occurrenceKey: input.occurrenceKey, completionCutoff: input.definition.publishedAt };
   const known = await prisma.mixWorkflowInstance.findFirst({ where: { workspaceId: input.workspaceId, contactId: input.contactId, OR: [{ admissionKey }, { state: { path: ["context", "admissionAlias"], equals: admissionKey } }] }, orderBy: { createdAt: "asc" } });
-  const instance = known ?? await prisma.mixWorkflowInstance.upsert({ where: { workspaceId_admissionKey: { workspaceId: input.workspaceId, admissionKey } },
+  let instance = known ?? await prisma.mixWorkflowInstance.upsert({ where: { workspaceId_admissionKey: { workspaceId: input.workspaceId, admissionKey } },
     create: { workspaceId: input.workspaceId, contactId: input.contactId, admissionKey, label: input.definition.mixes.find(mix => mix.id === input.mixId)?.name ?? "Mix", definition: workflowJson(input.definition), state: workflowJson(state) }, update: {} }).catch(async error => {
       if ((error as { code?: string }).code !== "P2002") throw error;
       return prisma.mixWorkflowInstance.findUniqueOrThrow({ where: { workspaceId_admissionKey: { workspaceId: input.workspaceId, admissionKey } } });
     });
+  // An enrollment that ended (Remove from Mix, or Undo of a bulk start) ended this run; a start of the same occurrence
+  // since then picks it back up, on the same day too. A pass that began before the end read the old enrollment, so it
+  // never does (UNDO-04).
+  const ended = workflowState(instance.state).context?.enrollmentEnded;
+  if (ended && (!input.passStartedAt || input.passStartedAt.getTime() > Date.parse(ended.at))) instance = await reopenEndedEnrollment(instance.id, input.workspaceId) ?? instance;
   const saved = workflowState(instance.state);
   return { id: instance.id, status: instance.status, legacy: saved.runs[0]?.legacy, runId: saved.runs[0]?.id, visits: saved.visits.filter(visit => visit.runId === saved.runs[0]?.id && !visit.parentTransitionId), mix: workflowDefinition(instance.definition).mixes.find(mix => mix.id === input.mixId)!, gatedStepIds: workflowDefinition(instance.definition).gatedStepIds };
+}
+
+/** Puts an ended enrollment's run back under the record's lock; null when someone else already did (src/lib/enrollment-workflow.ts). */
+async function reopenEndedEnrollment(instanceId: string, workspaceId: string) {
+  return prisma.$transaction(async db => {
+    await db.$queryRaw`SELECT id FROM "MixWorkflowInstance" WHERE id = ${instanceId} AND "workspaceId" = ${workspaceId} FOR UPDATE`;
+    const current = await db.mixWorkflowInstance.findFirst({ where: { id: instanceId, workspaceId } });
+    if (!current) return null;
+    const state = workflowState(current.state);
+    const status = reopenEnrollmentRun(state, current.status);
+    if (!status) return current;
+    return db.mixWorkflowInstance.update({ where: { id: instanceId }, data: { status, state: workflowJson(state), revision: { increment: 1 }, nextCheckAt: new Date() } });
+  });
 }
 
 export async function mergeWorkflowContact(db: DB, workspaceId: string, sourceContactId: string, survivorId: string): Promise<void> {
