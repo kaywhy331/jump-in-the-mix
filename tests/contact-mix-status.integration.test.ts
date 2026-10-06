@@ -134,6 +134,24 @@ describe.sequential("whether a person is in a Mix (JITM-09 §2.76)", () => {
     expect(await status(tagged)).toBe("no-mix");
   });
 
+  it("never reads a date-based Mix, or one that waits for a visit, as being prepared for everyone (DEF-01)", async () => {
+    const undated = await person("No renewal date");
+    await prisma.mixAssignment.create({ data: { workspaceId, mixId: dateMix.id, contactId: undated, assignmentKey: `${workspaceId}:${dateMix.id}:${undated}` } });
+    const visitOnly = await mix("Visit follow-up");
+    await prisma.mixStep.updateMany({ where: { mixId: visitOnly.id }, data: { anchor: "APPOINTMENT_END", offsetMinutes: 60 } });
+    const visitor = await person("Waiting for a visit");
+    await prisma.mixAssignment.create({ data: { workspaceId, mixId: visitOnly.id, contactId: visitor, assignmentKey: `${workspaceId}:${visitOnly.id}:${visitor}`, startDate: new Date() } });
+    await queue({});
+    await queue({ mixId: dateMix.id });
+    await queue({ mixId: visitOnly.id });
+    expect(await status(undated)).toBe("no-mix");
+    expect(await status(visitor)).toBe("no-mix");
+    // Their own start still reads as being prepared.
+    await queue({ contactId: visitor, mixId: visitOnly.id });
+    expect(await status(visitor)).toBe("in-mix");
+    await prepared();
+  });
+
   it("counts running or paused Journey work", async () => {
     const working = await person("Working");
     const instance = await prisma.mixWorkflowInstance.create({ data: { workspaceId, contactId: working, admissionKey: `manual:${working}:${suffix}`, label: "Estimate", definition: {}, state: {} } });

@@ -33,12 +33,15 @@ function inMixSql(workspaceId: string, now: Date) {
   const tagShown = Prisma.sql`NOT EXISTS (SELECT 1 FROM "ContactGroupState" gs WHERE gs."groupId" = a."groupId" AND gs."isActive" = false)`;
   // Being prepared (DEF-01): a job still to run covers this person and this Mix. A job that names both is
   // their own start, a restart included. A job for the whole Mix or the whole account (a save, a new tag
-  // member) counts only while the Mix has prepared nothing for them yet, so editing a Mix never makes
-  // someone who finished it read as in it again.
+  // member) counts only for a Mix started by hand with a calendar-day Beat that has prepared nothing for
+  // them yet: editing a Mix never makes someone who finished it read as in it again, and a date-based Mix
+  // (counted by its dates below) or one that waits for a visit is never "being prepared" for everyone.
   const preparing = Prisma.sql`EXISTS (SELECT 1 FROM preparing p
     WHERE (p."contactId" IS NULL OR p."contactId" = c.id) AND (p."mixId" IS NULL OR p."mixId" = a."mixId")
       AND ((p."contactId" = c.id AND p."mixId" = a."mixId")
-        OR NOT EXISTS (SELECT 1 FROM "Jump" j WHERE j."workspaceId" = ${workspaceId} AND j."contactId" = c.id AND j."mixId" = a."mixId")))`;
+        OR (m."triggerMode" = 'MANUAL_START'
+          AND EXISTS (SELECT 1 FROM "MixStep" st WHERE st."mixId" = a."mixId" AND st."isActive" AND st.anchor = 'CALENDAR_DAY')
+          AND NOT EXISTS (SELECT 1 FROM "Jump" j WHERE j."workspaceId" = ${workspaceId} AND j."contactId" = c.id AND j."mixId" = a."mixId"))))`;
   // Still enrolled in the Mix: their own active assignment, or a shown tag the Mix runs for.
   const enrolled = (mix: Prisma.Sql) => Prisma.sql`(EXISTS (SELECT 1 FROM "MixAssignment" a
       WHERE a."workspaceId" = ${workspaceId} AND a."contactId" = c.id AND a."mixId" = ${mix} AND a."isActive")
