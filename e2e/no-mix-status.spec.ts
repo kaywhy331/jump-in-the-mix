@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 import { createOneTimeFollowUp } from "../src/lib/one-time-follow-up";
 import { prisma } from "../src/lib/prisma";
 import { axeInPage } from "./axe-in-page";
@@ -107,6 +107,9 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
   const since = new Date();
   const { suffix, people: list } = await people(["Ana", "Ben"]);
   const ids = list.map(person => person.id);
+  // A hand-started Mix of this test's own, beside the demo account's date-based and fixed-date Mixes.
+  const handMix = await prisma.mix.create({ data: { id: `e2e-no-mix-hand-${suffix}`, workspaceId, name: `Hand-started ${suffix}`, status: "ACTIVE", triggerMode: "MANUAL_START", steps: { create: { stepVersionId: "demo_step_sms_v1", dayOffset: 0, sortOrder: 1 } } } });
+  const fixedMix = await prisma.mix.create({ data: { id: `e2e-no-mix-fixed-${suffix}`, workspaceId, name: `Fixed-date ${suffix}`, status: "ACTIVE", triggerMode: "BROADCAST", steps: { create: { stepVersionId: "demo_step_sms_v1", dayOffset: 0, sortOrder: 1 } } } });
   try {
     await page.goto(`/contacts?q=${encodeURIComponent(suffix)}`);
     for (const person of list) await expect(page.locator(".contact-row").filter({ hasText: person.displayName }).locator(".contact-no-mix")).toHaveText("No Mix");
@@ -150,17 +153,35 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     await page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }).click();
     for (const person of list) await page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true }).check();
     await bar.getByRole("button", { name: "Mix", exact: true }).click();
-    // The sheet says that anyone who finished the Mix starts it again (D46).
+    // The sheet words itself by how the chosen Mix starts (COPY-02): a fixed-date Mix asks for no start day,
+    // and only a hand-started one says that anyone who finished it starts it again (D46).
+    const choose = sheet.getByRole("combobox", { name: "Choose a Mix", exact: true });
+    await choose.selectOption(fixedMix.id);
+    await expect(sheet.getByText("It goes out on its fixed date. Anyone still in it keeps their start.", { exact: true })).toBeVisible();
+    await expect(sheet.getByLabel("Start on", { exact: true })).toHaveCount(0);
+    await choose.selectOption(handMix.id);
     await expect(sheet.getByText("Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.", { exact: true })).toBeVisible();
-    const mixName = await sheet.getByRole("combobox", { name: "Choose a Mix", exact: true }).evaluate((select: HTMLSelectElement) => select.selectedOptions[0].text);
-    await Promise.all([page.waitForURL(/mixStarted=2/), sheet.getByRole("button", { name: "Add to the Mix", exact: true }).click()]);
+    await expect(sheet.getByLabel("Start on", { exact: true })).toBeVisible();
+    const mixName = handMix.name;
+    // While the start is being sent the button stays disabled, so a double tap starts nobody twice (UNDO-03).
+    let release!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    const hold = async (route: Route) => { if (route.request().method() === "POST") await held; await route.continue(); };
+    const contactsPage = (url: URL) => url.pathname === "/contacts";
+    await page.route(contactsPage, hold);
+    const navigated = page.waitForURL(/mixStarted=2/);
+    await sheet.getByRole("button", { name: "Add to the Mix", exact: true }).click();
+    await expect(sheet.getByRole("button", { name: "Adding…", exact: true })).toBeDisabled();
+    release();
+    await navigated;
+    await page.unroute(contactsPage, hold);
     // The notice names the Mix and what the start did (BLK-01), and offers Undo (D46).
     const started = page.locator(".notice.success").filter({ hasText: `${mixName} started for 2 people.` });
     await expect(started).toBeVisible();
     await expect(page.locator(".contact-row")).toHaveCount(0);
     expect(await prisma.mixAssignment.count({ where: { workspaceId, contactId: { in: ids }, isActive: true } })).toBe(2);
     await Promise.all([page.waitForURL(/mixUndone=2/), started.getByRole("button", { name: "Undo", exact: true }).click()]);
-    await expect(page.locator(".notice.success").filter({ hasText: `Undone. ${mixName} ended for 2 people` })).toBeVisible();
+    await expect(page.locator(".notice.success").filter({ hasText: `Undone. ${mixName} is back to how it was for 2 people` })).toBeVisible();
     await expect(page.locator(".contact-row")).toHaveCount(2);
     expect(await prisma.mixAssignment.count({ where: { workspaceId, contactId: { in: ids }, isActive: true } })).toBe(0);
 
@@ -175,6 +196,7 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     expect(Object.fromEntries(new URL(page.url()).searchParams)).toMatchObject({ q: suffix, mix: "no-mix", person: first.id });
   } finally {
     await cleanUp(ids, since);
+    await prisma.mix.deleteMany({ where: { id: { in: [handMix.id, fixedMix.id] } } });
   }
 });
 
@@ -302,5 +324,50 @@ test("a person with No Mix and a pending one-time follow-up is described truthfu
     await expect(line).not.toContainText("nothing will remind you");
   } finally {
     await cleanUp([person.id]);
+  }
+});
+
+// LAY-02: at normal text a row stays on one line beside a real stage and due label, shortening them as the export
+// does; with enlarged text each part takes its own line and shows whole, with no "·" left alone on a line.
+test("a contact row keeps one line at normal text and gives each part its own line when enlarged (LAY-02)", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Measured once, on the phone project, at the narrowest widths.");
+  const since = new Date();
+  const { suffix, people: list } = await people(["Rowan", "Sage"]);
+  const stage = await prisma.journeyStage.create({ data: { workspaceId, name: `Waiting on a decision ${suffix}`, position: 990 } });
+  const mix = await prisma.mix.create({ data: { workspaceId, name: `Row check ${suffix}`, status: "ACTIVE", triggerMode: "MANUAL_START", steps: { create: { stepVersionId: "demo_step_sms_v1", dayOffset: 0, sortOrder: 1 } } }, include: { steps: true } });
+  try {
+    await prisma.contactJourney.createMany({ data: list.map(person => ({ contactId: person.id, workspaceId, stageId: stage.id, automatic: false })) });
+    // A follow-up due an hour ago beside the stage, the longest kind of row; the other person has No Mix.
+    await prisma.jump.create({ data: { workspaceId, contactId: list[0].id, mixId: mix.id, mixStepId: mix.steps[0].id, stepVersionId: "demo_step_sms_v1", scheduledAt: new Date(Date.now() - 3_600_000), reason: mix.name, uniquenessKey: `e2e-row-check:${list[0].id}`, templateSnapshot: { channel: "SMS", body: "Checking in" }, renderedSnapshot: { body: "Checking in" } } });
+    const rows = () => page.locator(".contact-row-summary").evaluateAll(summaries => summaries.map(summary => {
+      const parts = [...summary.children].filter(part => getComputedStyle(part).display !== "none");
+      return {
+        lines: Math.round(summary.getBoundingClientRect().height / parseFloat(getComputedStyle(summary).lineHeight)),
+        whole: parts.every(part => part.scrollWidth <= part.clientWidth + 1),
+        separators: parts.filter(part => part.classList.contains("contact-summary-separator")).length,
+        overflow: summary.scrollWidth - summary.clientWidth
+      };
+    }));
+    // Polled, so a measurement taken while the list is still settling is retried rather than trusted.
+    for (const width of [320, 390]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(`/contacts?q=${encodeURIComponent(suffix)}`);
+      await expect(page.locator(".contact-row")).toHaveCount(2);
+      await page.evaluate(() => document.fonts.ready);
+      await expect.poll(rows, { message: `${width}px: one line, with its separator` }).toEqual([0, 1].map(() => expect.objectContaining({ lines: 1, separators: 1, overflow: 0 })));
+    }
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto(`/contacts?q=${encodeURIComponent(suffix)}`);
+    await expect(page.locator(".contact-row")).toHaveCount(2);
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    await page.evaluate(() => document.fonts.ready);
+    await expect.poll(rows, { message: "200% text: each part whole on its own line, no separator left" }).toEqual([0, 1].map(() => expect.objectContaining({ lines: expect.any(Number), whole: true, separators: 0, overflow: 0 })));
+    for (const row of await rows()) expect(row.lines).toBeGreaterThanOrEqual(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  } finally {
+    await prisma.jump.deleteMany({ where: { contactId: { in: list.map(person => person.id) } } });
+    await cleanUp(list.map(person => person.id), since);
+    await prisma.mix.deleteMany({ where: { id: mix.id } });
+    await prisma.journeyStage.deleteMany({ where: { id: stage.id } });
   }
 });

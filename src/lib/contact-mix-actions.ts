@@ -1,17 +1,18 @@
 "use server";
 
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma, type AssignmentMode } from "@/generated/prisma/client";
 import { assertRoomForPeople } from "@/lib/plan-limits";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
-import { timezoneForUser } from "@/lib/display-preferences";
+import { timezoneForUser, timezoneForWorkspace } from "@/lib/display-preferences";
 import { startMixForContact, visitTimedBeats, type MixStartOutcome } from "@/lib/contact-mix-start";
-import { logicalDateInTimezone, logicalDateKey, type LogicalDate } from "@/lib/jump-schedule";
+import { logicalDateInTimezone, logicalDateKey, zonedDateTimeToUtc, type LogicalDate } from "@/lib/jump-schedule";
 import { prisma } from "@/lib/prisma";
 import { UserFacingError } from "@/lib/user-facing-error";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { NO_MIX_NEEDED_NOTICE, type MixStartCounts, type MixStartResult } from "@/lib/contact-mix-status-labels";
+import { contactIdsInMix, contactMixStatuses } from "@/lib/contact-mix-status";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -65,10 +66,13 @@ export async function assignMixToContactAction(formData: FormData): Promise<void
 }
 
 /** The notice parameters a bulk start returns with; a later return drops them so the notice never repeats. */
-const BULK_MIX_START_NOTICE = ["mixStarted", "mixKept", "mixSaved", "mixDated", "mixStartedId", "mixStartOn", "mixVisit", "mixUndo", "mixUndone", "mixUndoKept", "mixUndoDates"];
+const BULK_MIX_START_NOTICE = ["mixStarted", "mixKept", "mixSaved", "mixDated", "mixStartedId", "mixStartOn", "mixVisit", "mixUndo", "mixUndone", "mixUndoKept", "mixUndoDates", "mixUndoConfirmed"];
 
-/** One start a bulk Add made, as recorded for its Undo (D46). */
-type RecordedStart = { contactId: string; assignmentId: string; assignmentUpdatedAt: string; jumpDateId: string | null; jumpDateUpdatedAt: string | null };
+/** One start a bulk Add made, as recorded for its Undo (D46): what it changed, and what was there before. */
+type RecordedStart = {
+  contactId: string; assignmentId: string; assignmentUpdatedAt: string; jumpDateId: string | null; jumpDateUpdatedAt: string | null;
+  previous: { isActive: boolean; startDate: string | null; mode: AssignmentMode } | null; noMixNeeded: boolean;
+};
 const BULK_START_ACTION = "mix.assignment.bulk-start";
 
 /** Back to the list the owner acted from, filters kept; anything else returns to Contacts. */
@@ -105,14 +109,25 @@ export async function bulkAssignMixAction(formData: FormData): Promise<void> {
   try {
     undoId = await prisma.$transaction(async (tx) => {
       await assertRoomForPeople(tx, workspace.id, contacts.map(contact => contact.id));
+      // Anyone this Mix already has work for, by any route (their own start, its audience or a tag, a visit or
+      // Journey work), keeps their start and gets no second run (BLK-02).
+      const alreadyIn = await contactIdsInMix(tx, workspace.id, mix.id, contacts.map(contact => contact.id));
+      // A No Mix needed confirmation in force before the start, which Undo puts back (UNDO-02).
+      const before = await contactMixStatuses(workspace.id, contacts.map(contact => contact.id), new Date(), tx);
       const starts: RecordedStart[] = [];
       for (const contact of contacts) {
+        if (alreadyIn.has(contact.id)) { counts["already-running"] += 1; continue; }
         let outcome: MixStartOutcome;
         try { outcome = await startMixForContact(tx, { workspaceId: workspace.id, userId: user.id, contactId: contact.id, mix, start: start!, timezone, source: "contacts.bulk", queuePreparation: false }); }
         catch (error) { throw error instanceof UserFacingError ? new UserFacingError(`${contact.displayName}: ${error.message}`) : error; }
         counts[outcome.result] += 1;
         // Someone already in the Mix keeps their start, so Undo has nothing of theirs to end.
-        if (outcome.result !== "already-running") starts.push({ contactId: contact.id, assignmentId: outcome.assignment.id, assignmentUpdatedAt: outcome.assignment.updatedAt.toISOString(), jumpDateId: outcome.writtenDate?.id ?? null, jumpDateUpdatedAt: outcome.writtenDate?.updatedAt.toISOString() ?? null });
+        if (outcome.result !== "already-running") starts.push({
+          contactId: contact.id, assignmentId: outcome.assignment.id, assignmentUpdatedAt: outcome.assignment.updatedAt.toISOString(),
+          jumpDateId: outcome.writtenDate?.id ?? null, jumpDateUpdatedAt: outcome.writtenDate?.updatedAt.toISOString() ?? null,
+          previous: outcome.previous ? { isActive: outcome.previous.isActive, startDate: outcome.previous.startDate?.toISOString() ?? null, mode: outcome.previous.mode } : null,
+          noMixNeeded: before.get(contact.id) === "no-mix-needed"
+        });
       }
       // One preparation pass for the Mix rather than one per person: the worker reads only mixId, so it prepares
       // the whole Mix once, as a save of that Mix does, and contactIds lets these people read as being prepared.
@@ -141,52 +156,92 @@ function recordedStarts(metadata: Prisma.JsonValue | null | undefined): Recorded
   if (!Array.isArray(starts)) return [];
   return starts.flatMap(item => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-    const { contactId, assignmentId, assignmentUpdatedAt, jumpDateId, jumpDateUpdatedAt } = item as Record<string, unknown>;
+    const { contactId, assignmentId, assignmentUpdatedAt, jumpDateId, jumpDateUpdatedAt, previous, noMixNeeded } = item as Record<string, unknown>;
     if (typeof contactId !== "string" || typeof assignmentId !== "string" || typeof assignmentUpdatedAt !== "string") return [];
-    return [{ contactId, assignmentId, assignmentUpdatedAt, jumpDateId: typeof jumpDateId === "string" ? jumpDateId : null, jumpDateUpdatedAt: typeof jumpDateUpdatedAt === "string" ? jumpDateUpdatedAt : null }];
+    const earlier = previous && typeof previous === "object" && !Array.isArray(previous) ? previous as Record<string, unknown> : null;
+    return [{
+      contactId, assignmentId, assignmentUpdatedAt,
+      jumpDateId: typeof jumpDateId === "string" ? jumpDateId : null, jumpDateUpdatedAt: typeof jumpDateUpdatedAt === "string" ? jumpDateUpdatedAt : null,
+      previous: earlier && typeof earlier.isActive === "boolean" && (earlier.mode === "SNAPSHOT" || earlier.mode === "DYNAMIC")
+        ? { isActive: earlier.isActive, startDate: typeof earlier.startDate === "string" ? earlier.startDate : null, mode: earlier.mode } : null,
+      noMixNeeded: noMixNeeded === true
+    }];
   });
 }
 
 /**
- * Undo for Add to the Mix (D46, JITM-08 §2.5). It ends the starts that one bulk action made: the assignments it
- * created or reactivated go inactive, the follow-ups still to come from them are cancelled, and a saved date the
- * start wrote is removed. Completed and skipped follow-ups and all history stay (JITM-00 §2.6). Anything changed
- * since, such as a person started again on their own, is left as it is.
+ * Undo for Add to the Mix (D46, JITM-08 §2.5). It takes back the starts that one bulk action made, and only
+ * those: each assignment goes back to how it was before (ended when the start created it, or restored with
+ * its earlier start when it existed), the follow-ups still to come that the start produced are cancelled, a
+ * saved date the start wrote is removed, and a No Mix needed confirmation the start replaced is put back.
+ * Completed and skipped follow-ups, history, Journey-managed work, a visit's work and other routes' work are
+ * never touched (JITM-00 §2.6, UNDO-01). Anything changed since, such as a person started again on their own,
+ * is left as it is.
  */
 export async function undoBulkMixStartAction(formData: FormData): Promise<void> {
   const returnTo = value(formData, "returnTo");
-  const { workspace, user } = await requireWritableWorkspace((message, viewer) => redirect(withViewerError(contactsReturn(returnTo, {}), message, viewer)));
+  const { workspace, user, session } = await requireWritableWorkspace((message, viewer) => redirect(withViewerError(contactsReturn(returnTo, {}), message, viewer)));
   const undoId = value(formData, "undoId").slice(0, 64);
-  const record = undoId ? await prisma.auditLog.findFirst({ where: { id: undoId, workspaceId: workspace.id, action: BULK_START_ACTION }, select: { id: true, entityId: true, metadata: true } }) : null;
+  const record = undoId ? await prisma.auditLog.findFirst({ where: { id: undoId, workspaceId: workspace.id, action: BULK_START_ACTION }, select: { id: true, entityId: true, metadata: true, createdAt: true } }) : null;
   const starts = recordedStarts(record?.metadata);
   if (!record?.entityId || !starts.length) redirect(contactsReturn(returnTo, { mixUndone: "0" }));
   const mixId = record.entityId;
-  const result = await prisma.$transaction(async (tx) => {
-    // Row locks make a double tap end each start once: the second request waits, then finds nothing unchanged.
-    const rows = await tx.$queryRaw<Array<{ id: string; contactId: string | null; isActive: boolean; updatedAt: Date }>>`
-      SELECT id, "contactId", "isActive", "updatedAt" FROM "MixAssignment"
-      WHERE "workspaceId" = ${workspace.id} AND "mixId" = ${mixId} AND id IN (${Prisma.join(starts.map(start => start.assignmentId))}) ORDER BY id FOR UPDATE`;
-    const byId = new Map(rows.map(row => [row.id, row]));
-    const unchanged = starts.filter(start => {
-      const row = byId.get(start.assignmentId);
-      return row?.isActive && row.contactId === start.contactId && row.updatedAt.getTime() === Date.parse(start.assignmentUpdatedAt);
-    });
-    if (!unchanged.length) return { ended: 0, kept: starts.length, dates: 0 };
-    const contactIds = unchanged.map(start => start.contactId);
-    await tx.mixAssignment.updateMany({ where: { workspaceId: workspace.id, id: { in: unchanged.map(start => start.assignmentId) } }, data: { isActive: false } });
-    // Only follow-ups still to come; done and skipped ones are history. Cancelled as reconciled, so the pass
-    // queued below brings back any that a tag still runs for the person.
-    await tx.jump.updateMany({ where: { workspaceId: workspace.id, mixId, contactId: { in: contactIds }, status: "PENDING" }, data: { status: "CANCELED", completedAt: null, completionMethod: "reconciled" } });
-    let dates = 0;
-    for (const start of unchanged) {
-      if (!start.jumpDateId || !start.jumpDateUpdatedAt) continue;
-      dates += (await tx.jumpDate.updateMany({ where: { id: start.jumpDateId, workspaceId: workspace.id, contactId: start.contactId, isActive: true, updatedAt: new Date(start.jumpDateUpdatedAt) }, data: { isActive: false } })).count;
-    }
-    await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });
-    await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "mix.assignment.bulk-undo", entityType: "Mix", entityId: mixId, source: "contacts.bulk", metadata: { startRecordId: record.id, contactIds, endedDates: dates } } });
-    return { ended: unchanged.length, kept: starts.length - unchanged.length, dates };
-  });
-  redirect(contactsReturn(returnTo, { mixUndone: String(result.ended), mixStartedId: mixId, ...(result.kept ? { mixUndoKept: String(result.kept) } : {}), ...(result.dates ? { mixUndoDates: String(result.dates) } : {}) }));
+  // The scheduler keys a hand-started run by its start day in the owner's time zone, and a planned Beat by the
+  // Beat; a date-based run by the person's dates; a fixed-date Mix by its schedule (src/lib/jump-engine.ts).
+  const [mix, ownerTimezone] = await Promise.all([prisma.mix.findFirst({ where: { id: mixId, workspaceId: workspace.id }, select: { triggerMode: true } }), timezoneForWorkspace(workspace.id)]);
+  const occurrencesOf = (start: RecordedStart, row: { startDate: Date | null; createdAt: Date }) => mix?.triggerMode === "DATE_TRIGGERED"
+    ? [start.jumpDateId ? `jump-date:${start.jumpDateId}:` : "jump-date:"]
+    : mix?.triggerMode === "BROADCAST" ? ["broadcast:"] : [`manual:${logicalDateKey(logicalDateInTimezone(row.startDate ?? row.createdAt, ownerTimezone))}`, "planned:"];
+  let result: { ended: number; kept: number; dates: number; confirmed: number };
+  try {
+    result = await prisma.$transaction(async (tx) => {
+      // Row locks make a double tap end each start once: the second request waits, then finds nothing unchanged.
+      const rows = await tx.$queryRaw<Array<{ id: string; contactId: string | null; isActive: boolean; startDate: Date | null; createdAt: Date; updatedAt: Date }>>`
+        SELECT id, "contactId", "isActive", "startDate", "createdAt", "updatedAt" FROM "MixAssignment"
+        WHERE "workspaceId" = ${workspace.id} AND "mixId" = ${mixId} AND id IN (${Prisma.join(starts.map(start => start.assignmentId))}) ORDER BY id FOR UPDATE`;
+      const byId = new Map(rows.map(row => [row.id, row]));
+      const unchanged = starts.filter(start => {
+        const row = byId.get(start.assignmentId);
+        return row?.isActive && row.contactId === start.contactId && row.updatedAt.getTime() === Date.parse(start.assignmentUpdatedAt);
+      });
+      if (!unchanged.length) return { ended: 0, kept: starts.length, dates: 0, confirmed: 0 };
+      let dates = 0;
+      for (const start of unchanged) {
+        await tx.mixAssignment.update({ where: { id: start.assignmentId }, data: start.previous
+          ? { isActive: start.previous.isActive, startDate: start.previous.startDate ? new Date(start.previous.startDate) : null, mode: start.previous.mode }
+          : { isActive: false } });
+        // The start's own follow-ups still to come: the scheduler's rows keyed to its run, written since it. Done and
+        // skipped rows are history. Cancelled as reconciled, so the pass queued below brings back any row that
+        // another enrollment of the person shares, such as a tag running the Mix from the same day.
+        await tx.jump.updateMany({
+          where: {
+            workspaceId: workspace.id, mixId, contactId: start.contactId, status: "PENDING", workflowManaged: false, appointmentBindingId: null,
+            AND: [
+              { OR: [{ createdAt: { gte: record.createdAt } }, { updatedAt: { gte: record.createdAt } }] },
+              { OR: occurrencesOf(start, byId.get(start.assignmentId)!).map(prefix => ({ templateSnapshot: { path: ["occurrenceKey"], string_starts_with: prefix } })) }
+            ]
+          },
+          data: { status: "CANCELED", completedAt: null, completionMethod: "reconciled" }
+        });
+        if (start.jumpDateId && start.jumpDateUpdatedAt) {
+          dates += (await tx.jumpDate.updateMany({ where: { id: start.jumpDateId, workspaceId: workspace.id, contactId: start.contactId, isActive: true, updatedAt: new Date(start.jumpDateUpdatedAt) }, data: { isActive: false } })).count;
+        }
+      }
+      // A confirmation the start replaced comes back, written after everything above, so it counts again.
+      const confirmed = unchanged.filter(start => start.noMixNeeded).map(start => start.contactId);
+      const confirmedAt = new Date();
+      for (const contactId of confirmed) {
+        await tx.contactRelationshipState.upsert({ where: { contactId }, create: { workspaceId: workspace.id, contactId, noMixNeededAt: confirmedAt }, update: { noMixNeededAt: confirmedAt } });
+      }
+      await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });
+      await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "mix.assignment.bulk-undo", entityType: "Mix", entityId: mixId, source: "contacts.bulk", metadata: { startRecordId: record.id, contactIds: unchanged.map(start => start.contactId), endedDates: dates, restoredConfirmations: confirmed } } });
+      return { ended: unchanged.length, kept: starts.length - unchanged.length, dates, confirmed: confirmed.length };
+    }, { timeout: 30_000 });
+  } catch {
+    // A lock timeout or deadlock comes back to the list with nothing changed, not the error page (ERR-01).
+    redirect(withViewerError(contactsReturn(returnTo, {}), "Nothing was undone. Try again in a moment.", session));
+  }
+  redirect(contactsReturn(returnTo, { mixUndone: String(result.ended), mixStartedId: mixId, ...(result.kept ? { mixUndoKept: String(result.kept) } : {}), ...(result.dates ? { mixUndoDates: String(result.dates) } : {}), ...(result.confirmed ? { mixUndoConfirmed: String(result.confirmed) } : {}) }));
 }
 
 export async function removeMixAssignmentAction(formData: FormData): Promise<void> {

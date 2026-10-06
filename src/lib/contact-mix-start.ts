@@ -1,4 +1,4 @@
-import type { Prisma } from "@/generated/prisma/client";
+import type { AssignmentMode, Prisma } from "@/generated/prisma/client";
 import type { MixStartResult } from "@/lib/contact-mix-status-labels";
 import { logicalDateInTimezone, logicalDateKey, zonedDateTimeToUtc, type LogicalDate } from "@/lib/jump-schedule";
 import { assertMixStartEligible } from "@/lib/mix-start-eligibility";
@@ -19,6 +19,8 @@ export type MixStartOutcome = {
   /** The assignment as this start left it, and the saved date it wrote, if any: a bulk Undo ends only what nothing changed since (D46). */
   assignment: { id: string; updatedAt: Date };
   writtenDate: { id: string; updatedAt: Date } | null;
+  /** The assignment as it was before this start, or null when the start created it; Undo puts it back (UNDO-02). */
+  previous: { isActive: boolean; startDate: Date | null; mode: AssignmentMode } | null;
 };
 
 /**
@@ -33,7 +35,7 @@ export async function startMixForContact(tx: Prisma.TransactionClient, input: { 
   const assignmentKey = `${workspaceId}:${mix.id}:${contactId}`;
   const startAt = zonedDateTimeToUtc(start, 12 * 60, timezone);
   let startedOn: string = logicalDateKey(start);
-  const previous = await tx.mixAssignment.findUnique({ where: { assignmentKey }, select: { isActive: true } });
+  const previous = await tx.mixAssignment.findUnique({ where: { assignmentKey }, select: { isActive: true, startDate: true, mode: true } });
   // A finished or removed plan restarts from the chosen day; one still running keeps its start.
   const restart = !previous || !previous.isActive || !(await tx.jump.count({ where: { workspaceId, contactId, mixId: mix.id, status: "PENDING" } }));
   let result: MixStartResult = restart ? "started" : "already-running";
@@ -82,5 +84,5 @@ export async function startMixForContact(tx: Prisma.TransactionClient, input: { 
       metadata: { contactId, mixId: mix.id, startedOn, result }
     }
   });
-  return { result, startedOn, waitsForVisit: mix.steps.length > 0, assignment: { id: assignment.id, updatedAt: assignment.updatedAt }, writtenDate };
+  return { result, startedOn, waitsForVisit: mix.steps.length > 0, assignment: { id: assignment.id, updatedAt: assignment.updatedAt }, writtenDate, previous };
 }

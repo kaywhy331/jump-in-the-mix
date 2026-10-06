@@ -1,4 +1,4 @@
-/** Mix status words and filter values, safe for client components (JITM-09 §2.76, JITM-05 §2.2). */
+/** Mix status words and filter values, safe for client components (JITM-09 §2.76, JITM-05 §2.3). */
 export type ContactMixStatus = "in-mix" | "no-mix" | "no-mix-needed" | "do-not-contact";
 export const CONTACT_MIX_FILTERS = { "in-mix": "In a Mix", "no-mix": "No Mix", "no-mix-needed": "No Mix needed" } as const;
 export type ContactMixFilter = keyof typeof CONTACT_MIX_FILTERS;
@@ -22,16 +22,29 @@ export type MixStartCounts = Record<MixStartResult, number>;
 const people = (count: number) => count === 1 ? "1 person" : `${count.toLocaleString()} people`;
 
 /**
+ * What the bulk Mix sheet says about the chosen Mix, by how it starts (`Mix.triggerMode`; D46, COPY-02). Only a
+ * hand-started Mix runs again for someone who finished it; a date-based one follows each person's saved date,
+ * and a fixed-date Mix goes out on its own date, so the start day does nothing for it.
+ */
+export function bulkMixSheetSentence(triggerMode: string): string {
+  if (triggerMode === "DATE_TRIGGERED") return "It follows each person’s saved date. Anyone without one gets the start day as their date. Anyone still in it keeps their start.";
+  if (triggerMode === "BROADCAST") return "It goes out on its fixed date. Anyone still in it keeps their start.";
+  return "Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.";
+}
+
+/**
  * The confirmation after Add to the Mix (JITM-04 §2.7): it names the Mix and says what happened to each
  * group of people, so it never promises follow-ups that are not coming. `startDay` is the chosen start day
- * as the owner reads it.
+ * as the owner reads it; a fixed-date Mix (`triggerMode` BROADCAST) goes out on its own date instead.
  */
-export function bulkMixStartNotice(input: { mixName: string; counts: MixStartCounts; startDay: string; startsToday: boolean; waitsForVisit: boolean }): string {
+export function bulkMixStartNotice(input: { mixName: string; triggerMode: string; counts: MixStartCounts; startDay: string; startsToday: boolean; waitsForVisit: boolean }): string {
   const { counts, mixName } = input;
   const started = counts.started + counts["saved-date-kept"] + counts["date-written"];
   const kept = counts["already-running"];
   const sentences: string[] = [];
-  if (started) sentences.push(`${mixName} ${counts.started && !input.startsToday ? `starts on ${input.startDay}` : "started"} for ${people(started)}.`);
+  if (started) sentences.push(input.triggerMode === "BROADCAST"
+    ? `${mixName} goes out to ${people(started)} on its fixed date.`
+    : `${mixName} ${counts.started && !input.startsToday ? `starts on ${input.startDay}` : "started"} for ${people(started)}.`);
   if (kept) sentences.push(started
     ? `${kept === 1 ? "1 was" : `${kept.toLocaleString()} were`} already in it and ${kept === 1 ? "keeps" : "keep"} their start.`
     : `${people(kept)} ${kept === 1 ? "was" : "were"} already in ${mixName} and ${kept === 1 ? "keeps" : "keep"} their start.`);
@@ -41,12 +54,17 @@ export function bulkMixStartNotice(input: { mixName: string; counts: MixStartCou
   return sentences.join(" ");
 }
 
-/** The confirmation after Undo on a bulk start (D46): what ended, and what was left because it changed since. */
-export function bulkMixUndoNotice(input: { mixName: string; ended: number; kept: number; dates: number }): string {
+/**
+ * The confirmation after Undo on a bulk start (D46): who is back to how they were before it, what else it put
+ * back, and who was left because they changed since. Undo puts back an earlier run of the Mix rather than
+ * ending it (UNDO-02), and removes only the start's own follow-ups, so other routes keep theirs (UNDO-01).
+ */
+export function bulkMixUndoNotice(input: { mixName: string; ended: number; kept: number; dates: number; confirmed?: number }): string {
   const sentences = [input.ended
-    ? `Undone. ${input.mixName} ended for ${people(input.ended)}, and its follow-ups still to come for them were removed.`
+    ? `Undone. ${input.mixName} is back to how it was for ${people(input.ended)}, without the follow-ups still to come from this start.`
     : "Nothing was undone: those starts had already ended or changed since."];
   if (input.dates) sentences.push(input.dates === 1 ? "The date saved when it started was removed." : "The dates saved when it started were removed.");
+  if (input.confirmed) sentences.push(`${input.confirmed === 1 ? "1 person is" : `${input.confirmed.toLocaleString()} people are`} marked No Mix needed again.`);
   if (input.ended && input.kept) sentences.push(`${input.kept === 1 ? "1 person" : `${input.kept.toLocaleString()} people`} changed since and ${input.kept === 1 ? "was" : "were"} left as they are.`);
   return sentences.join(" ");
 }

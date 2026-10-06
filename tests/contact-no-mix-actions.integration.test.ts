@@ -153,7 +153,8 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     expect((await prisma.mixAssignment.findFirstOrThrow({ where: { mixId: visitMix.id, contactId: running } })).startDate).toEqual(keptStart);
     expect(await prisma.mixAssignment.count({ where: { mixId: visitMix.id, contactId: { in: fresh }, isActive: true } })).toBe(2);
     const audits = await prisma.auditLog.findMany({ where: { workspaceId, action: "mix.assignment.activate", source: "contacts.bulk", entityId: { in: (await prisma.mixAssignment.findMany({ where: { mixId: visitMix.id }, select: { id: true } })).map(item => item.id) } }, select: { metadata: true } });
-    expect(audits.map(audit => (audit.metadata as { result: string }).result).sort()).toEqual(["already-running", "started", "started"]);
+    // Only the two starts were made; the person already in it was left as they were (BLK-02).
+    expect(audits.map(audit => (audit.metadata as { result: string }).result).sort()).toEqual(["started", "started"]);
   });
 
   it("follows saved dates in a date-based Mix and saves the start day for anyone without one (BLK-01)", async () => {
@@ -180,15 +181,18 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     }
   }
 
-  it("undoes a bulk start: it ends only the starts it made and keeps every completed follow-up (UX-01, D46)", async () => {
+  it("undoes a bulk start: it puts back what each start replaced and keeps every completed follow-up (UX-01, D46, UNDO-02)", async () => {
     const twoBeats = await prisma.mix.create({ data: { workspaceId, name: "Two-step follow-up", status: "ACTIVE", triggerMode: "MANUAL_START" } });
     const first = await prisma.mixStep.create({ data: { mixId: twoBeats.id, stepVersionId: versionId, dayOffset: 0, sortOrder: 1 } });
     await prisma.mixStep.create({ data: { mixId: twoBeats.id, stepVersionId: versionId, dayOffset: 7, sortOrder: 2 } });
     const assignmentKey = (contactId: string) => `${workspaceId}:${twoBeats.id}:${contactId}`;
-    const fresh = await person("Undo fresh"), finished = await person("Undo finished"), running = await person("Undo running"), changed = await person("Undo changed"), tagged = await person("Undo tagged");
+    const fresh = await person("Undo fresh"), finished = await person("Undo finished"), running = await person("Undo running"), changed = await person("Undo changed"), tagged = await person("Undo tagged"), confirmed = await person("Undo confirmed");
     // Finished the Mix a month ago; already in it with a follow-up to come.
-    await prisma.mixAssignment.create({ data: { workspaceId, mixId: twoBeats.id, contactId: finished, assignmentKey: assignmentKey(finished), startDate: new Date(Date.now() - 30 * 86_400_000) } });
+    const finishedStart = new Date(Date.now() - 30 * 86_400_000);
+    await prisma.mixAssignment.create({ data: { workspaceId, mixId: twoBeats.id, contactId: finished, assignmentKey: assignmentKey(finished), startDate: finishedStart } });
     await prisma.mixAssignment.create({ data: { workspaceId, mixId: twoBeats.id, contactId: running, assignmentKey: assignmentKey(running), startDate: new Date(Date.now() - 2 * 86_400_000) } });
+    // Marked No Mix needed before the bulk start.
+    await prisma.contactRelationshipState.create({ data: { workspaceId, contactId: confirmed, noMixNeededAt: new Date(Date.now() - 60_000) } });
     // A tag that runs this Mix from the same day; one of them joins it after the bulk start.
     const group = await prisma.group.create({ data: { workspaceId, name: `Undo tag ${suffix}` } });
     await prisma.mixAssignment.create({ data: { workspaceId, mixId: twoBeats.id, groupId: group.id, assignmentKey: `${workspaceId}:${twoBeats.id}:group:${group.id}`, mode: "DYNAMIC", startDate: new Date(`${today}T12:00:00Z`) } });
@@ -198,20 +202,27 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     const history = await prisma.jump.findMany({ where: { contactId: finished }, select: { id: true, status: true, completedAt: true }, orderBy: { id: "asc" } });
     expect(history).toHaveLength(2);
     const runningBefore = await prisma.jump.findMany({ where: { contactId: running }, select: { id: true, status: true } });
+    expect(await contactMixStatus(workspaceId, confirmed)).toBe("no-mix-needed");
 
-    const started = await redirectOf(bulkAssignMixAction(form({ contactIds: [fresh, finished, running, changed, tagged], mixId: twoBeats.id, startDate: today, returnTo: "/contacts?mix=no-mix" })));
-    expect(Object.fromEntries(started.searchParams)).toMatchObject({ mix: "no-mix", mixStarted: "4", mixKept: "1", mixStartedId: twoBeats.id });
+    const started = await redirectOf(bulkAssignMixAction(form({ contactIds: [fresh, finished, running, changed, tagged, confirmed], mixId: twoBeats.id, startDate: today, returnTo: "/contacts?mix=no-mix" })));
+    expect(Object.fromEntries(started.searchParams)).toMatchObject({ mix: "no-mix", mixStarted: "5", mixKept: "1", mixStartedId: twoBeats.id });
     const undoId = started.searchParams.get("mixUndo")!;
     expect(undoId).toBeTruthy();
     await prepareQueued();
     await prisma.contactGroupMembership.create({ data: { contactId: tagged, groupId: group.id } });
+    // The start's follow-ups replaced the confirmation, and the finished person started again.
+    expect(await contactMixStatus(workspaceId, confirmed)).toBe("in-mix");
+    expect(await prisma.jump.count({ where: { contactId: finished, status: "PENDING" } })).toBe(2);
     // The fresh person has done their first follow-up; someone else started the changed person again on their own.
     await prisma.jump.updateMany({ where: { contactId: fresh, mixStepId: first.id }, data: { status: "DONE", completedAt: new Date(), completionMethod: "outcome:sent" } });
     await prisma.mixAssignment.update({ where: { assignmentKey: assignmentKey(changed) }, data: { startDate: new Date(`${today}T13:00:00Z`) } });
 
     const undone = await redirectOf(undoBulkMixStartAction(form({ undoId, returnTo: "/contacts?mix=no-mix&mixStarted=4&mixUndo=old" })));
-    expect(Object.fromEntries(undone.searchParams)).toEqual({ mix: "no-mix", mixUndone: "3", mixStartedId: twoBeats.id, mixUndoKept: "1" });
-    for (const contactId of [fresh, finished, tagged]) expect((await prisma.mixAssignment.findUniqueOrThrow({ where: { assignmentKey: assignmentKey(contactId) } })).isActive).toBe(false);
+    // A start that created an assignment ends it; one that restarted an earlier run puts that run back as it was.
+    expect(await prisma.mixAssignment.findUniqueOrThrow({ where: { assignmentKey: assignmentKey(finished) }, select: { isActive: true, startDate: true, mode: true } }))
+      .toEqual({ isActive: true, startDate: finishedStart, mode: "SNAPSHOT" });
+    for (const contactId of [fresh, tagged, confirmed]) expect((await prisma.mixAssignment.findUniqueOrThrow({ where: { assignmentKey: assignmentKey(contactId) } })).isActive).toBe(false);
+    expect(Object.fromEntries(undone.searchParams)).toEqual({ mix: "no-mix", mixUndone: "4", mixStartedId: twoBeats.id, mixUndoKept: "1", mixUndoConfirmed: "1" });
     // Completed follow-ups stay done; only those still to come were cancelled.
     expect(await prisma.jump.findMany({ where: { contactId: fresh }, select: { mixStepId: true, status: true }, orderBy: { scheduledAt: "asc" } }))
       .toEqual([{ mixStepId: first.id, status: "DONE" }, { mixStepId: expect.any(String), status: "CANCELED" }]);
@@ -222,17 +233,77 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     expect(await prisma.jump.findMany({ where: { contactId: running }, select: { id: true, status: true } })).toEqual(runningBefore);
     expect((await prisma.mixAssignment.findUniqueOrThrow({ where: { assignmentKey: assignmentKey(changed) } })).isActive).toBe(true);
     expect(await prisma.jump.count({ where: { contactId: changed, status: "PENDING" } })).toBeGreaterThan(0);
-    expect(await Promise.all([fresh, finished].map(contactId => contactMixStatus(workspaceId, contactId)))).toEqual(["no-mix", "no-mix"]);
-    // The tag still runs the Mix for its member, so the worker's next pass brings their follow-ups back.
+    // The confirmation the start replaced is back.
+    expect(await Promise.all([fresh, finished, confirmed].map(contactId => contactMixStatus(workspaceId, contactId)))).toEqual(["no-mix", "no-mix", "no-mix-needed"]);
+    // The worker's next pass: the tag still runs the Mix for its member, so their follow-ups come back; the
+    // restored run has nothing left to bring, and the confirmation holds.
     await prepareQueued();
     expect(await prisma.jump.count({ where: { contactId: tagged, status: "PENDING" } })).toBe(2);
-    expect(await contactMixStatus(workspaceId, tagged)).toBe("in-mix");
+    expect(await Promise.all([tagged, finished, confirmed].map(contactId => contactMixStatus(workspaceId, contactId)))).toEqual(["in-mix", "no-mix", "no-mix-needed"]);
+    expect(await prisma.jump.count({ where: { contactId: finished, status: "PENDING" } })).toBe(0);
 
     // A second tap finds nothing left to end.
     const again = await redirectOf(undoBulkMixStartAction(form({ undoId, returnTo: "/contacts" })));
-    expect(Object.fromEntries(again.searchParams)).toMatchObject({ mixUndone: "0", mixUndoKept: "4" });
+    expect(Object.fromEntries(again.searchParams)).toMatchObject({ mixUndone: "0", mixUndoKept: "5" });
     // Another account's record, or none, undoes nothing.
     expect(Object.fromEntries((await redirectOf(undoBulkMixStartAction(form({ undoId: "unknown", returnTo: "/contacts" })))).searchParams)).toEqual({ mixUndone: "0" });
+  });
+
+  it("cancels only the follow-ups its own starts produced, never a Journey path's, a visit's or another run's (UNDO-01)", async () => {
+    const own = await prisma.mix.create({ data: { workspaceId, name: "Own follow-up", status: "ACTIVE", triggerMode: "MANUAL_START" } });
+    const beat = await prisma.mixStep.create({ data: { mixId: own.id, stepVersionId: versionId, dayOffset: 0, sortOrder: 1 } });
+    await prisma.mixStep.create({ data: { mixId: own.id, stepVersionId: versionId, dayOffset: 7, sortOrder: 2 } });
+    const started = await person("Started in bulk");
+    const result = await redirectOf(bulkAssignMixAction(form({ contactIds: started, mixId: own.id, startDate: today, returnTo: "/contacts" })));
+    await prepareQueued();
+    const ownRows = await prisma.jump.findMany({ where: { contactId: started, mixId: own.id, status: "PENDING" }, select: { id: true } });
+    expect(ownRows).toHaveLength(2);
+    // After the start, other routes bring the same person into the same Mix:
+    // a Journey path, with its own follow-up;
+    const record = await prisma.mixWorkflowInstance.create({ data: { workspaceId, contactId: started, admissionKey: `undo-path:${started}`, label: "Own follow-up", definition: {}, state: {} } });
+    const routed = await prisma.jump.create({ data: { workspaceId, contactId: started, mixId: own.id, mixStepId: beat.id, stepVersionId: versionId, scheduledAt: new Date(Date.now() + 2 * 86_400_000), reason: "Own follow-up", uniquenessKey: `workflow:${record.id}:undo`, templateSnapshot: {}, renderedSnapshot: {}, workflowInstanceId: record.id, workflowManaged: true } });
+    // a tag that runs the Mix from another day;
+    const group = await prisma.group.create({ data: { workspaceId, name: `Earlier tag ${suffix}`, memberships: { create: { contactId: started } } } });
+    await prisma.mixAssignment.create({ data: { workspaceId, mixId: own.id, groupId: group.id, assignmentKey: `${workspaceId}:${own.id}:group:${group.id}`, mode: "DYNAMIC", startDate: new Date(Date.now() - 3 * 86_400_000) } });
+    // and a visit the Mix is lined up with, done yesterday, so the Beats that follow it are released.
+    const visit = await prisma.calendarEntry.create({ data: { workspaceId, contactId: started, kind: "MEETING", title: "Site visit", startsAt: new Date(Date.now() - 86_400_000), endsAt: new Date(Date.now() - 86_400_000 + 3_600_000), timezone: "UTC", outcome: "COMPLETED", outcomeAt: new Date() } });
+    const visitAssignment = await prisma.mixAssignment.create({ data: { workspaceId, mixId: own.id, contactId: started, assignmentKey: `${workspaceId}:${own.id}:appointment:${visit.id}:${started}` } });
+    await prisma.appointmentBinding.create({ data: { workspaceId, contactId: started, calendarEntryId: visit.id, mixId: own.id, assignmentId: visitAssignment.id } });
+    await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { mixId: own.id } } });
+    await prepareQueued();
+    const others = await prisma.jump.findMany({ where: { contactId: started, mixId: own.id, status: "PENDING", id: { notIn: ownRows.map(row => row.id) } }, select: { id: true, appointmentBindingId: true, workflowManaged: true } });
+    // The Journey path's follow-up, the tag run's and the visit's, all written after the start.
+    expect(others.filter(row => row.workflowManaged)).toHaveLength(1);
+    expect(others.filter(row => row.appointmentBindingId)).toHaveLength(2);
+    expect(others.filter(row => !row.workflowManaged && !row.appointmentBindingId).length).toBeGreaterThan(0);
+
+    const undone = await redirectOf(undoBulkMixStartAction(form({ undoId: result.searchParams.get("mixUndo")!, returnTo: "/contacts" })));
+    expect(undone.searchParams.get("mixUndone")).toBe("1");
+    // Only the start's own follow-ups are cancelled; every other route keeps its work, before and after the next pass.
+    expect(await prisma.jump.findMany({ where: { id: { in: ownRows.map(row => row.id) } }, select: { status: true, completionMethod: true } }))
+      .toEqual([{ status: "CANCELED", completionMethod: "reconciled" }, { status: "CANCELED", completionMethod: "reconciled" }]);
+    expect(await prisma.jump.count({ where: { id: { in: others.map(row => row.id) }, status: "PENDING" } })).toBe(others.length);
+    await prepareQueued();
+    expect(await prisma.jump.count({ where: { id: { in: [routed.id, ...others.map(row => row.id)] }, status: "PENDING" } })).toBe(others.length);
+    expect(await prisma.jump.count({ where: { id: { in: ownRows.map(row => row.id) }, status: "PENDING" } })).toBe(0);
+    expect(await contactMixStatus(workspaceId, started)).toBe("in-mix");
+  });
+
+  it("comes back to the list with a message when Undo cannot finish, and changes nothing (ERR-01)", async () => {
+    const blocked = await person("Undo blocked");
+    const started = await redirectOf(bulkAssignMixAction(form({ contactIds: blocked, mixId, startDate: today, returnTo: "/contacts?mix=no-mix" })));
+    // A lock timeout or a deadlock inside the Undo's transaction.
+    const failing = vi.spyOn(prisma, "$transaction").mockRejectedValueOnce(new Error("deadlock detected"));
+    try {
+      const refused = await redirectOf(undoBulkMixStartAction(form({ undoId: started.searchParams.get("mixUndo")!, returnTo: "/contacts?mix=no-mix" })));
+      expect(errorFor(refused)).toBe("Nothing was undone. Try again in a moment.");
+      expect(refused.searchParams.get("mix")).toBe("no-mix");
+      expect(refused.searchParams.has("mixUndone")).toBe(false);
+    } finally { failing.mockRestore(); }
+    expect((await prisma.mixAssignment.findUniqueOrThrow({ where: { assignmentKey: `${workspaceId}:${mixId}:${blocked}` } })).isActive).toBe(true);
+    // A later tap still works.
+    const undone = await redirectOf(undoBulkMixStartAction(form({ undoId: started.searchParams.get("mixUndo")!, returnTo: "/contacts" })));
+    expect(undone.searchParams.get("mixUndone")).toBe("1");
   });
 
   it("removes the date a bulk start saved when it is undone, and keeps dates people already had (D46)", async () => {
@@ -246,6 +317,36 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     expect(Object.fromEntries(undone.searchParams)).toEqual({ mixUndone: "2", mixStartedId: dateMix.id, mixUndoDates: "1" });
     expect(await prisma.jumpDate.findMany({ where: { dateTypeId: dateType.id, isActive: true }, select: { id: true } })).toEqual([{ id: kept.id }]);
     expect(await prisma.mixAssignment.count({ where: { mixId: dateMix.id, isActive: true } })).toBe(0);
+  });
+
+  it("leaves anyone already in the Mix through a tag, its audience, a visit or a Journey path as they are (BLK-02)", async () => {
+    const shared = await prisma.mix.create({ data: { workspaceId, name: "Shared follow-up", status: "ACTIVE", triggerMode: "MANUAL_START" } });
+    const beat = await prisma.mixStep.create({ data: { mixId: shared.id, stepVersionId: versionId, dayOffset: 0, sortOrder: 1 } });
+    const tagged = await person("Through a tag"), audience = await person("In the audience"), visiting = await person("Lined up with a visit"), routed = await person("On a Journey path"), fresh = await person("Not in it");
+    // A tag that runs the Mix, the Mix's own Everyone audience, and a visit the Mix is lined up with.
+    const group = await prisma.group.create({ data: { workspaceId, name: `Shared tag ${suffix}`, memberships: { create: { contactId: tagged } } } });
+    await prisma.mixAssignment.create({ data: { workspaceId, mixId: shared.id, groupId: group.id, assignmentKey: `${workspaceId}:${shared.id}:group:${group.id}`, mode: "DYNAMIC", startDate: new Date() } });
+    await prisma.mixAssignment.create({ data: { workspaceId, mixId: shared.id, contactId: audience, assignmentKey: `${workspaceId}:${shared.id}:audience:${audience}`, mode: "DYNAMIC", startDate: new Date() } });
+    const visit = await prisma.calendarEntry.create({ data: { workspaceId, contactId: visiting, kind: "MEETING", title: "Site visit", startsAt: new Date(Date.now() + 3 * 86_400_000), endsAt: new Date(Date.now() + 3 * 86_400_000 + 3_600_000), timezone: "UTC" } });
+    const visitAssignment = await prisma.mixAssignment.create({ data: { workspaceId, mixId: shared.id, contactId: visiting, assignmentKey: `${workspaceId}:${shared.id}:appointment:${visit.id}:${visiting}` } });
+    await prisma.appointmentBinding.create({ data: { workspaceId, contactId: visiting, calendarEntryId: visit.id, mixId: shared.id, assignmentId: visitAssignment.id } });
+    await prepareQueued();
+    await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { mixId: shared.id } } });
+    await prepareQueued();
+    // A Journey path that brought one person into this Mix, with its follow-up waiting.
+    const record = await prisma.mixWorkflowInstance.create({ data: { workspaceId, contactId: routed, admissionKey: `path:${routed}`, label: "Shared follow-up", definition: {}, state: {} } });
+    await prisma.jump.create({ data: { workspaceId, contactId: routed, mixId: shared.id, mixStepId: beat.id, stepVersionId: versionId, scheduledAt: new Date(Date.now() + 86_400_000), reason: "Shared follow-up", uniquenessKey: `workflow:${record.id}:visit1`, templateSnapshot: {}, renderedSnapshot: {}, workflowInstanceId: record.id, workflowManaged: true } });
+    const pendingBefore = await prisma.jump.count({ where: { mixId: shared.id, status: "PENDING" } });
+    expect(await prisma.jump.count({ where: { mixId: shared.id, status: "PENDING", contactId: { in: [tagged, audience, routed] } } })).toBe(3);
+
+    const result = await redirectOf(bulkAssignMixAction(form({ contactIds: [tagged, audience, visiting, routed, fresh], mixId: shared.id, startDate: today, returnTo: "/contacts" })));
+    // Only the person not in it starts; the notice counts the other four as already in it.
+    expect(Object.fromEntries(result.searchParams)).toMatchObject({ mixStarted: "1", mixKept: "4" });
+    expect(await prisma.mixAssignment.findMany({ where: { mixId: shared.id, assignmentKey: { in: [tagged, audience, visiting, routed, fresh].map(id => `${workspaceId}:${shared.id}:${id}`) } }, select: { contactId: true } })).toEqual([{ contactId: fresh }]);
+    // After the worker's pass, nobody already in it has a second run.
+    await prepareQueued();
+    expect(await prisma.jump.count({ where: { mixId: shared.id, status: "PENDING" } })).toBe(pendingBefore + 1);
+    for (const contactId of [tagged, audience, routed]) expect(await prisma.jump.count({ where: { mixId: shared.id, contactId, status: "PENDING" } })).toBe(1);
   });
 
   it("refuses the whole batch while billing is on and the plan has no room, and keeps no places (TST-01)", async () => {
@@ -297,11 +398,13 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     // A double tap: both requests arrive together and queue on the plan and contact locks.
     const [first, second] = await Promise.all([submit(), submit()]);
     const again = await submit();
-    for (const result of [first, second, again]) expect(result.searchParams.get("mixStarted")).toBe("2");
+    // One submit starts them; the others find them already in the Mix, keep their start and offer no Undo.
+    const results = [first, second, again].map(result => Object.fromEntries(result.searchParams));
+    expect(results.filter(result => result.mixStarted === "2" && result.mixDated === "2" && result.mixUndo)).toHaveLength(1);
+    expect(results.filter(result => result.mixStarted === "0" && result.mixKept === "2" && !result.mixUndo)).toHaveLength(2);
     expect(await prisma.mixAssignment.count({ where: { mixId: dateMix.id, contactId: { in: pair } } })).toBe(2);
     // The start day is saved as their date once, not once per submit.
     expect(await prisma.jumpDate.count({ where: { dateTypeId: dateType.id, contactId: { in: pair } } })).toBe(2);
-    expect([first, second, again].map(result => result.searchParams.has("mixDated") ? "dated" : "saved").sort()).toEqual(["dated", "saved", "saved"]);
   });
 
   it("refuses the whole batch, before saving anything, when one person cannot start", async () => {

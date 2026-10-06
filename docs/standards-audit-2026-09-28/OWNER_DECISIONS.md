@@ -435,6 +435,7 @@ Base a05b189. D44–D47 answer questions 1, 2, 3 and 5 of the WF-05 review of PR
   - The sheet says "Anyone who already finished this Mix starts it again. Anyone still in it keeps their start."
   - People who were already in the Mix keep their start, so Undo has nothing of theirs to end.
   - Implementation readings, for Kevin to confirm: Undo also removes a saved date the start wrote for someone who had none (the start day of a date-based Mix), and it leaves alone any start that changed since, such as a person started again on their own. A second tap ends nothing.
+  - Further readings after the WF-05 re-review (2026-10-06), also agent defaults awaiting Kevin's confirmation (JITM-15 §2.12; defaults 4–6 in `docs/NO_MIX_STATUS_2026-10-05.md`): Undo puts back an assignment's earlier start when the bulk start restarted one that was active before, and writes a No Mix needed confirmation again for anyone who had one; bulk Add leaves anyone the Mix already has work for, by any route, as they are; the sentence above is the sheet's for a Mix started by hand, and a date-based or fixed-date Mix gets its own.
 - **Applied in:** JITM-09 §2.77 (5.0.0), `src/lib/contact-mix-actions.ts`.
 
 ### D47 — Counts and returns on a filtered Contacts list (2026-10-06)
@@ -442,7 +443,8 @@ Base a05b189. D44–D47 answer questions 1, 2, 3 and 5 of the WF-05 review of PR
 - **Question:** "{n} with No Mix" and the Mix filter's counts covered the whole account while sitting beside a searched or filtered list, and the link dropped the search and the tag. Should they follow the current search and filters?
 - **Decision:** yes. The "{n} with No Mix" link and the filter's counts follow the current search and filters, and the link keeps the search and the tag. Return paths are built from the filter parameters only, so old notices don't reappear. The docked profile's Undo keeps the docked person.
 - **Meaning:**
-  - The counts cover the people the list's other filters show (search, tag, priority, Contact permission and an import), and the link keeps all of them, so it opens the people it counted.
+  - The counts cover the people the list's filters show: search, tag, priority, Contact permission and an import.
+  - Agent reading, awaiting Kevin's confirmation (JITM-15 §2.12; default 1 in `docs/NO_MIX_STATUS_2026-10-05.md`): the link keeps all of those filters, not only the search and the tag, so it opens the people it counted. Until he confirms it, the standards cite it as `[SOURCE]`.
   - After any action on the list, the owner returns to the same filters and docked person, without an earlier notice such as "Contact added." or an old Undo.
 - **Applied in:** JITM-09 §2.77 (5.0.0), `src/app/(app)/contacts/page.tsx`.
 
@@ -466,7 +468,7 @@ Question 4 of the same review needed no new decision: the Mix filter's first opt
   - Refusing keeps the Quick Add draft, and the owner can choose "No Mix for now".
   - This applies only while billing is on.
 - **Confirms:** the rest of P5 as built. JITM-09 §2.78 drops [PROPOSED].
-- **Applied in:** JITM-09 §2.77, §2.78 (5.1.0); `docs/MIX_NEXT_STEP_2026-10-06.md`.
+- **Applied in:** JITM-09 §2.77, §2.78 (6.1.0); `docs/MIX_NEXT_STEP_2026-10-06.md`.
 
 ## Still open
 

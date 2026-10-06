@@ -134,9 +134,9 @@ describe.sequential("asking what's next when a Mix ends with nothing after it (J
     expect(await ask(finished)).toBeNull();
   });
 
-  // Known gap until #125's JRN-01 fix: the person's own Journey record still reads ACTIVE until its job runs, so the
-  // shared status says "In a Mix" and nothing is asked. `it.fails` turns red once the fix lands; then make it `it`.
-  it.fails("asks in an account with Journey connections, where the Mix ran as Journey work (JRN-01)", async () => {
+  // The person's own Journey record still reads ACTIVE until its job runs; with only a finished Beat it has no work
+  // to come, so it doesn't keep them "In a Mix" (#125's JRN-01 fix).
+  it("asks in an account with Journey connections, where the Mix ran as Journey work (JRN-01)", async () => {
     // Any Journey rule makes every start Journey work; this rule leads on from another Mix, not from this one.
     const other = await mix("Referral path", 1);
     const rule: WorkflowRule = { id: randomUUID(), name: "After referrals", source: { mixId: other.id, stepId: null }, enabled: true, mode: "PARALLEL", join: null,

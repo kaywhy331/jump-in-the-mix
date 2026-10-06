@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { startMixForContact, visitTimedBeats } from "@/lib/contact-mix-start";
+import { contactIdsInMix } from "@/lib/contact-mix-status";
 import { timezoneForWorkspace } from "@/lib/display-preferences";
 import { logicalDateFromDate, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { assertRoomForPeople } from "@/lib/plan-limits";
@@ -91,6 +92,9 @@ export async function placeNewContacts(tx: Tx, input: {
   const timezone = input.timezone ?? await timezoneForWorkspace(workspaceId);
   const start = logicalDateInTimezone(now, timezone);
   const hiddenTags = (await tx.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
+  // Work to come in this Mix by a visit or Journey work. A newcomer's tag or audience has nothing prepared yet, so
+  // those routes are checked from the enrollment itself below.
+  const alreadyInMix = await contactIdsInMix(tx, workspaceId, mix.id, contactIds, now);
   for (const contactId of contactIds) {
     const [journey, running] = await Promise.all([
       tx.contactJourney.findUnique({ where: { contactId }, select: { stage: { select: { planId: true } } } }),
@@ -102,7 +106,7 @@ export async function placeNewContacts(tx: Tx, input: {
       ? await tx.mixAssignment.findFirst({ where: { workspaceId, contactId, mixId: journey.stage.planId, isActive: true }, select: { id: true } })
       : null;
     // Their Contact stage started its own Mix, or they are already in this one by any route.
-    if (stageMix || running) { result.skipped.push(contactId); continue; }
+    if (stageMix || running || alreadyInMix.has(contactId)) { result.skipped.push(contactId); continue; }
     try {
       await startMixForContact(tx, { workspaceId, userId: input.actorUserId ?? null, contactId, mix: { ...mix, triggerMode: "MANUAL_START", dateTypeId: null, steps: beats }, start, timezone, source: input.source ?? "contacts.new" });
       result.started.push(contactId);
