@@ -11,6 +11,7 @@ import { createOneTimeFollowUp } from "@/lib/one-time-follow-up";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
 import { quickCaptureSchema, type QuickCaptureContact, type QuickCaptureReceipt } from "@/lib/quick-capture-input";
 import { splitContactName } from "@/lib/quick-add-capture";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 export class QuickCaptureError extends Error {
   constructor(message: string, public contacts: QuickCaptureContact[] = [], public receipt?: QuickCaptureReceipt) { super(message); }
@@ -44,6 +45,7 @@ export async function saveQuickCapture(context: { workspaceId: string; actorUser
       return saved.receipt;
     }
     let contactId: string;
+    let mixName: string | null = null;
     const createdPerson = data.person.mode === "new";
     if (data.person.mode === "existing") {
       const person = await tx.contact.findFirst({ where: { id: data.person.id, workspaceId, archivedAt: null } });
@@ -61,7 +63,15 @@ export async function saveQuickCapture(context: { workspaceId: string; actorUser
       const person = await tx.contact.create({ data: { workspaceId, displayName: name, ...names, ...(email ? { emails: { create: { email, normalized: normalizeEmail(email), isPrimary: true } } } : {}), ...(phone ? { phones: { create: { phone, normalized: canonicalPhoneKey(phone, region), isPrimary: true } } } : {}) } });
       contactId = person.id;
       await applyJourneyEvent(tx, { workspaceId, contactId, actorUserId, eventKey: `contact-created:${contactId}`, eventType: "CONTACT_RECEIVED", source: "Quick Add" });
-      await placeNewContacts(tx, { workspaceId, contactIds: [contactId] });
+      // A Mix the owner chose in the review starts for them, or is refused with its reason; with no choice sent,
+      // the New contacts setting decides (JITM-09 §2.78).
+      try {
+        const placed = await placeNewContacts(tx, { workspaceId, contactIds: [contactId], mixId: data.mixId, chosenByOwner: typeof data.mixId === "string", actorUserId, timezone, source: "quick-add" });
+        if (placed.started.length) mixName = placed.mix?.name ?? null;
+      } catch (error) {
+        if (error instanceof UserFacingError) throw new QuickCaptureError(error.message);
+        throw error;
+      }
     }
     let eventId: string | null = null, jumpId: string | null = null, noteId: string | null = null;
     if (data.note) {
@@ -87,7 +97,7 @@ export async function saveQuickCapture(context: { workspaceId: string; actorUser
       try { scheduledAt = parseCalendarTime(followUp.when, timezone); } catch (error) { throw new QuickCaptureError(error instanceof Error ? error.message : "Choose a follow-up date and time."); }
       jumpId = await createOneTimeFollowUp(tx, { workspaceId, contactId, actorUserId, scheduledAt, reason: followUp.reason, channel: followUp.channel, content, key, batchId: data.requestId });
     }
-    const receipt = { contactId, createdPerson, eventId, jumpId, noteId };
+    const receipt = { contactId, createdPerson, eventId, jumpId, noteId, mixName };
     await tx.auditLog.create({ data: { workspaceId, actorType: "USER", actorUserId, action: "quick-capture.save", entityType: "Contact", entityId: contactId, source: "quick-add", metadata: receipt } });
     if (createdPerson) await tx.job.create({ data: { workspaceId, task: "generate-jumps", payload: {} } });
     await tx.idempotencyKey.create({ data: { workspaceId, key, response: { hash, receipt }, expiresAt: new Date(Date.now() + 7 * 86_400_000) } });

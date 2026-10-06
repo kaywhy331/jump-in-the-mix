@@ -1,3 +1,11 @@
+// Where people go when they are added (JITM-09 §2.78, D34): leave them out (No Mix), add them to a chosen Mix,
+// or ask each time.
+enum NewContactPlacement {
+  NONE
+  MIX
+  ASK
+}
+
 enum WeekendScheduling {
   KEEP
   NEXT_MONDAY
@@ -26,6 +34,10 @@ model WorkspacePreference {
   appointmentBufferMinutes Int             @default(0)
   // Reviewed onboarding choices; null preserves existing scheduling behavior.
   journeyPreferences     Json?
+  newContactPlacement    NewContactPlacement @default(NONE)
+  // The Mix new people start when the placement is MIX; one that starts when the owner chooses.
+  newContactMixId        String?
+  newContactMix          Mix?              @relation("NewContactMix", fields: [newContactMixId], references: [id], onDelete: SetNull)
   quietDaysEnabled       Boolean           @default(false)
   quietDays              Int               @default(60)
   nextReconcileAt        DateTime          @default(now())

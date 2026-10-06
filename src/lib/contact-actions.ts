@@ -3,6 +3,7 @@
 import { assertRoomForPeople, peopleLimitRefusal } from "@/lib/plan-limits";
 import { applyJourneyEvent } from "@/lib/journey";
 import { placeNewContacts } from "@/lib/new-contact-placement";
+import { startMixForContact } from "@/lib/contact-mix-start";
 
 import { workflowContinuation } from "@/lib/workflow-continuation";
 import { customerReturnPath } from "@/lib/customer-return-path";
@@ -178,6 +179,8 @@ type InitialFollowUp = {
   dateValue: Date;
   reason: string;
   mixId: string | null;
+  /** Set for a Mix that starts when the owner starts it; it begins on the follow-up date. */
+  startsOn?: { id: string; name: string } | null;
 };
 
 // Wording for the first follow-up of a person added without a plan, on the channel their details allow.
@@ -201,20 +204,20 @@ async function initialFollowUpPayload(workspaceId: string, formData: FormData): 
     select: { id: true }
   });
   if (!dateType) throw new ContactInputError("The selected saved date type is unavailable.");
-  if (!requestedMixId) return { dateTypeId: dateType.id, dateValue, reason, mixId: null };
+  if (!requestedMixId) return { dateTypeId: dateType.id, dateValue, reason, mixId: null, startsOn: null };
+  // A Mix that follows the saved follow-up date, or one that starts when the owner starts it, from this date.
   const mix = await prisma.mix.findFirst({
     where: {
       id: requestedMixId,
       workspaceId,
       status: "ACTIVE",
-      triggerMode: "DATE_TRIGGERED",
-      dateTypeId: dateType.id,
-      source: { not: "ONE_TIME" }
+      source: { not: "ONE_TIME" },
+      OR: [{ triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id }, { triggerMode: "MANUAL_START" }]
     },
-    select: { id: true }
+    select: { id: true, name: true, triggerMode: true }
   });
   if (!mix) throw new ContactInputError("The selected follow-up Mix is no longer active or does not match this saved date.");
-  return { dateTypeId: dateType.id, dateValue, reason, mixId: mix.id };
+  return { dateTypeId: dateType.id, dateValue, reason, mixId: mix.id, startsOn: mix.triggerMode === "MANUAL_START" ? { id: mix.id, name: mix.name } : null };
 }
 
 async function validateContactPayload(workspaceId: string, region: string, payload: ReturnType<typeof contactPayload>, excludeContactId?: string) {
@@ -361,6 +364,11 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
         ...firstFollowUpContent(followUp.reason, payload.phones.length > 0, payload.emails.length > 0),
         key: `contact-first-follow-up:${created.id}`
       });
+    } else if (followUp?.startsOn) {
+      // A Mix that starts when the owner starts it begins on the follow-up date; no saved date is needed.
+      await assertRoomForPeople(tx, workspace.id, [created.id]);
+      const { dateValue } = followUp;
+      await startMixForContact(tx, { workspaceId: workspace.id, userId: user.id, contactId: created.id, mix: { ...followUp.startsOn, triggerMode: "MANUAL_START", dateTypeId: null }, start: { year: dateValue.getUTCFullYear(), month: dateValue.getUTCMonth() + 1, day: dateValue.getUTCDate() }, timezone, source: "contacts.form" });
     } else if (followUp) {
       await tx.jumpDate.create({
         data: {
@@ -406,8 +414,8 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
       }
     });
     await applyJourneyEvent(tx, { workspaceId: workspace.id, contactId: created.id, eventKey: `contact-created:${created.id}`, eventType: "CONTACT_RECEIVED", source: "Contact added", actorUserId: user.id });
-    await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id] });
-    const receipt: CreatedContact = { contactId: created.id, dateCreated: Boolean(followUp?.mixId), mixAssigned: Boolean(followUp?.mixId), followUpScheduled: Boolean(followUp && !followUp.mixId) };
+    await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id], mixId: null });
+    const receipt: CreatedContact = { contactId: created.id, dateCreated: Boolean(followUp?.mixId && !followUp.startsOn), mixAssigned: Boolean(followUp?.mixId), followUpScheduled: Boolean(followUp && !followUp.mixId) };
     if (idempotencyKey) {
       await tx.idempotencyKey.create({ data: { workspaceId: workspace.id, key: idempotencyKey, response: receipt, expiresAt: new Date(Date.now() + 7 * 86_400_000) } });
     }

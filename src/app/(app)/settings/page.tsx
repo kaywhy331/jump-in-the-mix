@@ -9,6 +9,7 @@ export const metadata: Metadata = { title: "Settings" };
 
 const destinations: Array<{ href: string; title: string; description: string; icon: AppIconName }> = [
   { href: "/settings/journey", title: "Contact stages", description: "Optional labels such as Lead or Client, the events that move people between them, and the Mix each stage can start.", icon: "journey" },
+  { href: "/settings/new-contacts", title: "New contacts", description: "Where people go when you add them: a Mix you choose, a question each time, or No Mix.", icon: "userPlus" },
   { href: "/settings/connections", title: "Lead connections", description: "Forms and connections that bring people into your business.", icon: "link" },
   { href: "/calendar", title: "Calendar & time blocks", description: "Meetings, availability, and calendar connections.", icon: "calendar" },
   { href: "/settings/business", title: "My business", description: "Business name, services, contact details, and message signatures.", icon: "business" },

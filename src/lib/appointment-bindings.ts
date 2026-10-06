@@ -113,7 +113,7 @@ async function findOrCreateContact(tx: Prisma.TransactionClient, workspaceId: st
     }
   });
   await applyJourneyEvent(tx, { workspaceId, contactId: created.id, eventKey: `contact-created:${created.id}`, eventType: "CONTACT_RECEIVED", source: "Added with a visit" });
-  await placeNewContacts(tx, { workspaceId, contactIds: [created.id] });
+  await placeNewContacts(tx, { workspaceId, contactIds: [created.id], mixId: null });
   return { id: created.id, created: true };
 }
 

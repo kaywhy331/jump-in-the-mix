@@ -156,12 +156,20 @@ export function ContactImportWizardV2({
   groups,
   customFields,
   dateTypes,
-  initialUsage
+  initialUsage,
+  mixes = [],
+  defaultMixId = null,
+  everyoneMixes = []
 }: {
   groups: ContactImportGroup[];
   customFields: ImportCustomFieldOption[];
   dateTypes: ImportDateTypeOption[];
   initialUsage: ImportUsage;
+  /** Mixes the new people can start; the review asks, with the New contacts setting's Mix preselected (JITM-09 §2.78). */
+  mixes?: Array<{ id: string; name: string }>;
+  defaultMixId?: string | null;
+  /** Names of Mixes for Everyone, which new people join too. */
+  everyoneMixes?: string[];
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [stage, setStage] = useState<Stage>("CHOOSE");
@@ -171,6 +179,7 @@ export function ContactImportWizardV2({
   const [preparedRows, setPreparedRows] = useState<PreparedImportRow[]>([]);
   const [matches, setMatches] = useState<ImportMatch[]>([]);
   const [resolutions, setResolutions] = useState<Record<string, ImportResolution>>({});
+  const [mixChoice, setMixChoice] = useState(defaultMixId ?? "");
   const [usage, setUsage] = useState(initialUsage);
   const [importId, setImportId] = useState(makeImportId);
   const [batch, setBatch] = useState<ImportBatch | null>(null);
@@ -334,7 +343,8 @@ export function ContactImportWizardV2({
         importId: nextImportId,
         sourceFileName: table.fileName,
         items,
-        initialResults
+        initialResults,
+        mixId: mixChoice || null
       });
       setImportId(nextImportId);
       setBatch(response.batch);
@@ -367,6 +377,7 @@ export function ContactImportWizardV2({
     setPreparedRows([]);
     setMatches([]);
     setResolutions({});
+    setMixChoice(defaultMixId ?? "");
     setUsage(initialUsage);
     setImportId(makeImportId());
     setBatch(null);
@@ -453,6 +464,11 @@ export function ContactImportWizardV2({
           })}</div> : <div className="empty-state compact"><h3>No issues need review</h3><p>Every row is ready to create.</p></div>}
 
           <details><summary>Preview mapped contacts ({Math.min(5, validRows.length)} of {validRows.length})</summary>{validRows.slice(0, 5).map(row => <article className="card" key={row.record.rowId}><strong>{contactNameForImport(row.record)}</strong><p>{row.record.company || "No company"}</p><p>Email: {row.record.emails.map(item => item.value).join(", ") || "None"}</p><p>Phone: {row.record.phones.map(item => item.value).join(", ") || "None"}</p></article>)}</details>
+          {planned.create > 0 && (mixes.length > 0 || everyoneMixes.length > 0) && <fieldset className="import-mix-choice">
+            <legend>New people and Mixes</legend>
+            {mixes.length > 0 && <div className="field"><label htmlFor="importMixChoice">Add the {planned.create.toLocaleString()} new {planned.create === 1 ? "person" : "people"} to a Mix</label><select id="importMixChoice" value={mixChoice} onChange={(event) => setMixChoice(event.target.value)} aria-describedby="importMixChoiceHint"><option value="">Don’t add them to a Mix</option>{mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select><small id="importMixChoiceHint">{mixChoice ? "It starts for each of them on the day they’re imported." : "They’ll show as No Mix until you choose one."}</small></div>}
+            {everyoneMixes.length > 0 && <p className="muted-copy">{everyoneMixes.join(", ")} {everyoneMixes.length === 1 ? "is for everyone, so it starts" : "are for everyone, so they start"} for the new people too.</p>}
+          </fieldset>}
           <div className="import-stage-actions"><button className="button" type="button" onClick={reset}>Back</button><button className="button primary" type="button" disabled={busy || !validRows.length} onClick={() => void queueImport()}>{busy ? "Queueing…" : `Queue ${validRows.length} valid row${validRows.length === 1 ? "" : "s"}`}</button></div>
         </section>
       )}

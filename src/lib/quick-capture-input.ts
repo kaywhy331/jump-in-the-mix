@@ -9,8 +9,10 @@ export const quickCaptureSchema = z.object({
   ]),
   note: text(2000).nullable(),
   event: z.object({ title: text(160).min(1, "Give the event a title."), startsAt: text(16), endsAt: text(16), location: text(500), allowOverlap: z.boolean() }).strict().nullable(),
-  followUp: z.object({ reason: text(300).min(1, "Give the follow-up a reason."), when: text(16), channel: z.enum(["PHONE_CALL", "SMS", "EMAIL", "WHATSAPP", "VOICEMAIL"]), subject: text(300), wording: text(5000).min(1, "Add call notes or a draft message.") }).strict().nullable()
+  followUp: z.object({ reason: text(300).min(1, "Give the follow-up a reason."), when: text(16), channel: z.enum(["PHONE_CALL", "SMS", "EMAIL", "WHATSAPP", "VOICEMAIL"]), subject: text(300), wording: text(5000).min(1, "Add call notes or a draft message.") }).strict().nullable(),
+  // The Mix a new person starts (JITM-09 §2.78): an id, null for none, or left out to follow the New contacts setting.
+  mixId: text(100).nullable().optional()
 }).strict();
 export type QuickCaptureInput = z.infer<typeof quickCaptureSchema>;
 export type QuickCaptureContact = { id: string; displayName: string; archived: boolean; email: string | null; phone: string | null };
-export type QuickCaptureReceipt = { contactId: string; createdPerson: boolean; eventId: string | null; jumpId: string | null; noteId: string | null };
+export type QuickCaptureReceipt = { contactId: string; createdPerson: boolean; eventId: string | null; jumpId: string | null; noteId: string | null; mixName?: string | null };

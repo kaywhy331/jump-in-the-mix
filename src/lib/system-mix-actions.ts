@@ -57,7 +57,7 @@ export async function sendSystemInviteAction(formData: FormData): Promise<void> 
             workspaceId: workspace.id, displayName: person.name, firstName: person.name,
             ...(person.email ? { emails: { create: { email: person.email, normalized: person.email, isPrimary: true } } } : { phones: { create: { phone: person.phone!, normalized: person.phoneKeys[0], isPrimary: true } } })
           } })).id;
-          await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [contactId] });
+          await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [contactId], mixId: null });
         }
         if (selectedContacts.has(contactId)) throw new AccessInviteError("Choose each person only once per batch.");
         selectedContacts.add(contactId);

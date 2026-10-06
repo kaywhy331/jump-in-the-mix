@@ -498,6 +498,8 @@ model Mix {
   megaMixMembership MegaMixPipelineMix?
   marketplaceListing MarketplaceListing?
   journeyStages             JourneyStage[]
+  newContactPreferences     WorkspacePreference[] @relation("NewContactMix")
+  newContactConnections     IntakeConnection[]    @relation("IntakeNewContactMix")
   id                        String          @id @default(cuid())
   workspaceId               String
   name                      String

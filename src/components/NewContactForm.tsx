@@ -27,6 +27,6 @@ export function NewContactForm({ draftId, ...props }: { draftId?: string } & Omi
   return <>
     {draft && <Notice type="info">Review the details from Quick Add before saving. The original capture is recoverable in this tab for 10 minutes. Save the contact to keep it; later edits stay in this form until saved.</Notice>}
     {draftId && !draft && <Notice type="info">This temporary draft is no longer available in this tab. You can enter the details here or use Quick Add again.</Notice>}
-    <ContactForm key={draftId ?? "new"} {...props} mode="create" contact={contact} followUp={props.followUp ? { ...props.followUp, defaultDate: draft?.dateValue ?? undefined, defaultReason: draft?.reason.slice(0, 240) || "Follow up" } : null} />
+    <ContactForm key={draftId ?? "new"} {...props} mode="create" contact={contact} followUp={props.followUp ? { ...props.followUp, defaultDate: draft?.dateValue ?? props.followUp.defaultDate, defaultReason: draft?.reason.slice(0, 240) || "Follow up" } : null} />
   </>;
 }

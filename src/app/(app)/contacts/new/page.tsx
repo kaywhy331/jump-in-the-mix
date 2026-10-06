@@ -6,6 +6,9 @@ import { Notice } from "@/components/Notice";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { requireWorkspace } from "@/lib/auth";
 import { mergeGroupActivity } from "@/lib/group-activity";
+import { timezoneForUser } from "@/lib/display-preferences";
+import { logicalDateInTimezone, logicalDateKey } from "@/lib/jump-schedule";
+import { newContactPlacementSetting } from "@/lib/new-contact-placement";
 import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
 
@@ -21,21 +24,23 @@ type SearchParams = {
 };
 
 export default async function NewContactPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
-  const [query, { session, workspace }] = await Promise.all([searchParams, requireWorkspace()]);
-  const [rawGroups, groupStates, customFields, followUpType] = await Promise.all([
+  const [query, { session, workspace, user }] = await Promise.all([searchParams, requireWorkspace()]);
+  const [rawGroups, groupStates, customFields, followUpType, placement, timezone] = await Promise.all([
     prisma.group.findMany({ where: { workspaceId: workspace.id }, orderBy: { name: "asc" } }),
     prisma.contactGroupState.findMany({ where: { workspaceId: workspace.id }, select: { groupId: true, isActive: true } }),
     prisma.contactCustomFieldDefinition.findMany({ where: { workspaceId: workspace.id }, orderBy: [{ createdAt: "asc" }, { name: "asc" }] }),
-    prisma.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true } })
+    prisma.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true } }),
+    newContactPlacementSetting(prisma, workspace.id),
+    timezoneForUser(user.id)
   ]);
+  // Mixes that follow the follow-up date, and Mixes that start when the owner starts them, from that date.
   const matchingMixes = followUpType
     ? await prisma.mix.findMany({
         where: {
           workspaceId: workspace.id,
           status: "ACTIVE",
-          triggerMode: "DATE_TRIGGERED",
-          dateTypeId: followUpType.id,
-          source: { not: "ONE_TIME" }
+          source: { not: "ONE_TIME" },
+          OR: [{ triggerMode: "DATE_TRIGGERED", dateTypeId: followUpType.id }, { triggerMode: "MANUAL_START" }]
         },
         select: { id: true, name: true },
         orderBy: [{ source: "asc" }, { createdAt: "asc" }]
@@ -61,6 +66,10 @@ export default async function NewContactPage({ searchParams }: { searchParams: P
           dateTypeId: followUpType.id,
           dateTypeName: followUpType.name,
           mixes: matchingMixes,
+          // The New contacts setting (JITM-09 §2.78): a chosen Mix or "ask each time" starts with a follow-up ticked for
+          // today. Someone added to start a Mix chosen in Journey goes back there instead.
+          ...(!continuation && (placement.placement === "MIX" && placement.mix || placement.placement === "ASK") ? { defaultDate: logicalDateKey(logicalDateInTimezone(new Date(), timezone)) } : {}),
+          ...(!continuation && placement.placement === "MIX" && placement.mix ? { defaultMixId: placement.mix.id } : {})
         } : null}
       />
     </div>

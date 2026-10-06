@@ -131,7 +131,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
         phones: phones.length ? { create: phones.map((item) => ({ phone: item.value, normalized: item.normalized, label: item.label, isPrimary: item.isPrimary })) } : undefined
       }
     });
-    if (!currentContact) await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [contactId] });
+    if (!currentContact) await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [contactId], mixId: null });
     if (currentContact && privateContext) await tx.contact.update({ where: { id: contactId, workspaceId: workspace.id }, data: { privateNotes: [currentContact.privateNotes, privateContext].filter(Boolean).join("\n\n") } });
     await tx.jumpDate.create({
       data: {

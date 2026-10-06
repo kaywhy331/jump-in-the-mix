@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ContactImportWizardV2 } from "@/components/ContactImportWizardV2";
 import { requireWorkspace } from "@/lib/auth";
 import { mergeGroupActivity } from "@/lib/group-activity";
+import { newContactPlacementSetting, placeableMixWhere } from "@/lib/new-contact-placement";
 import { prisma } from "@/lib/prisma";
 import { BackLink } from "@/components/BackLink";
 
@@ -14,7 +15,7 @@ export default async function ImportContactsPage({ searchParams }: { searchParam
   const onboarding = query.onboarding === "1";
   const returnTo = workflowContinuation(query.returnTo);
   const { workspace } = await requireWorkspace();
-  const [rawGroups, groupStates, customFields, dateTypes, activeContacts] = await Promise.all([
+  const [rawGroups, groupStates, customFields, dateTypes, activeContacts, placement, placeableMixes, everyoneMixes] = await Promise.all([
     prisma.group.findMany({
       where: { workspaceId: workspace.id },
       select: { id: true, name: true, _count: { select: { memberships: true } } },
@@ -34,7 +35,10 @@ export default async function ImportContactsPage({ searchParams }: { searchParam
       select: { id: true, name: true, slug: true, isSystem: true, isActive: true },
       orderBy: [{ isSystem: "asc" }, { name: "asc" }]
     }),
-    prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null } })
+    prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null } }),
+    newContactPlacementSetting(prisma, workspace.id),
+    prisma.mix.findMany({ where: placeableMixWhere(workspace.id), select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 200 }),
+    prisma.mix.findMany({ where: { workspaceId: workspace.id, status: "ACTIVE", audienceEveryone: true, source: { not: "ONE_TIME" } }, select: { name: true }, orderBy: { name: "asc" }, take: 20 })
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates).filter((group) => group.isActive);
 
@@ -51,6 +55,9 @@ export default async function ImportContactsPage({ searchParams }: { searchParam
         customFields={customFields}
         dateTypes={dateTypes}
         initialUsage={{ activeContacts, contactLimit: Number.MAX_SAFE_INTEGER, remainingContacts: Number.MAX_SAFE_INTEGER }}
+        mixes={placeableMixes}
+        defaultMixId={returnTo ? null : placement.mix?.id ?? null}
+        everyoneMixes={everyoneMixes.map((mix) => mix.name)}
       />
     </div>
   );

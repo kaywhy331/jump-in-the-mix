@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { INTAKE_KINDS, intakeKindLabel } from "@/lib/intake-types";
 import { intakeConnectionAction, reviewIntakeAction } from "@/lib/intake-actions";
 import { intakeMatches, parseIntakePayload } from "@/lib/intake";
+import { newContactPlacementSetting, placeableMixWhere } from "@/lib/new-contact-placement";
 import { decryptIntegrationCredentials, integrationEncryptionConfigured } from "@/lib/integration-crypto";
 import { CopyField } from "@/components/CopyField";
 import { Notice } from "@/components/Notice";
@@ -27,12 +28,15 @@ export default async function LeadConnectionsPage({ searchParams }: { searchPara
   const reviewCount = await prisma.intakeReceipt.count({ where: reviewWhere });
   const reviewPages = Math.max(1, Math.ceil(reviewCount / 10)); const reviewPage = Math.min(reviewPages, Math.max(1, Number.parseInt(query.reviewPage ?? "1", 10) || 1));
   const reviewHref = (value: number) => `/settings/connections?${new URLSearchParams({ reviewPage: String(value), reviewQ })}#needs-review`;
-  const [connections, reviews, recent, recentCount] = await Promise.all([
-    prisma.intakeConnection.findMany({ where: { workspaceId: workspace.id }, include: { _count: { select: { receipts: true } } }, orderBy: [{ createdAt: "desc" }, { id: "asc" }] }),
+  const [connections, reviews, recent, recentCount, placement, placeableMixes] = await Promise.all([
+    prisma.intakeConnection.findMany({ where: { workspaceId: workspace.id }, include: { _count: { select: { receipts: true } }, newContactMix: { select: { id: true, name: true } } }, orderBy: [{ createdAt: "desc" }, { id: "asc" }] }),
     prisma.intakeReceipt.findMany({ where: reviewWhere, include: { connection: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 10, skip: (reviewPage - 1) * 10 }),
     prisma.intakeReceipt.findMany({ where: { connection: { workspaceId: workspace.id } }, include: { connection: { select: { name: true } }, contact: { select: { displayName: true } } }, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip: (page-1)*20, take: 20 }),
-    prisma.intakeReceipt.count({ where: { connection: { workspaceId: workspace.id } } })
+    prisma.intakeReceipt.count({ where: { connection: { workspaceId: workspace.id } } }),
+    newContactPlacementSetting(prisma, workspace.id),
+    prisma.mix.findMany({ where: placeableMixWhere(workspace.id), select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 200 })
   ]);
+  const settingChoice = placement.mix ? placement.mix.name : "No Mix";
   const reviewData = await Promise.all(reviews.map(async receipt => { const payload = parseIntakePayload(receipt.payload); return { receipt, payload, matches: await intakeMatches(prisma, workspace.id, receipt.connectionId, payload) }; }));
   return <div className="page connections-page"><BackLink href="/settings" label="Settings" /><header className="page-header"><div><h1>Every inquiry, one place</h1><p>Connect the channels your business already uses.</p></div><Link className="button" href="/contacts/import">Import CSV or vCard</Link></header>
     {query.saved && <Notice>Connection settings saved.</Notice>}<UrlErrorNotice params={query} viewer={session} />{viewOnly && <ViewOnlySupportNotice />}
@@ -46,6 +50,15 @@ export default async function LeadConnectionsPage({ searchParams }: { searchPara
           <details><summary>Fields, business milestones, and responses</summary><p>eventId is required, along with email, phone, or externalId. Names, company, and message are optional. Phone numbers should include a country code. Omit fields your source does not provide.</p><p>Use CONTACT_RECEIVED for inquiries. Trusted sources can also record CONVERSATION_STARTED, MEETING_SCHEDULED, SALE_CONFIRMED, or WORK_COMPLETED to run your journey rules. Sending a message alone does not confirm a sale.</p><p>201 means accepted; 200 means the same event was already received; 202 means a person needs review. 409 means an eventId was reused with changed details. For 429, wait for Retry-After; for 503, retry the same event. Limit: 60 requests per minute per connection.</p><p>Keep this key in your backend or automation tool. A browser form should use your backend or the hosted form; never publish the key in website code.</p></details>
           {!viewOnly && <ConfirmDialog trigger="Replace private key…" title="Replace this connection’s key?" description="Your source tool must be updated with the new key before it can send more inquiries."><form action={intakeConnectionAction}><input type="hidden" name="id" value={connection.id} /><button className="button" name="intent" value="rotate">Replace key</button></form></ConfirmDialog>}</>}
         {env.privateTestMode && <Notice type="info">This private test site also requires its access credentials. External tools must supply Basic authentication as well as X-JITM-Key; shareable forms require the site’s private access.</Notice>}
+        <form action={intakeConnectionAction} className="form-stack connection-new-contacts"><input type="hidden" name="id" value={connection.id} />
+          <div className="field"><label htmlFor={`newContactMix-${connection.id}`}>New people from this connection</label><select id={`newContactMix-${connection.id}`} aria-describedby={`newContactMixHint-${connection.id}`} name="newContactMix" defaultValue={connection.newContactPlacement === "NONE" ? "none" : connection.newContactPlacement === "MIX" && connection.newContactMix ? connection.newContactMix.id : ""}>
+            <option value="">Follow your New contacts setting ({settingChoice})</option>
+            <option value="none">Don’t add them to a Mix</option>
+            {placeableMixes.map(mix => <option key={mix.id} value={mix.id}>Add them to {mix.name}</option>)}
+            {connection.newContactMix && !placeableMixes.some(mix => mix.id === connection.newContactMix?.id) && <option value={connection.newContactMix.id}>Add them to {connection.newContactMix.name} (turned off, so nothing starts)</option>}
+          </select><small id={`newContactMixHint-${connection.id}`}>{connection.newContactPlacement === "MIX" && !connection.newContactMix ? "The Mix chosen here was deleted, so new people from this connection start none. Choose another." : <>People already in your contacts are left as they are. <Link className="inline-action" href="/settings/new-contacts">New contacts setting</Link></>}</small></div>
+          <button className="button" name="intent" value="placement" disabled={viewOnly}>Save for this connection</button>
+        </form>
         <form action={intakeConnectionAction}><input type="hidden" name="id" value={connection.id} /><input type="hidden" name="enabled" value={String(!connection.enabled)} /><button className="button" name="intent" value="toggle" disabled={viewOnly}>{connection.enabled ? "Pause this connection" : "Resume this connection"}</button></form>
       </details>;
     })}</section>

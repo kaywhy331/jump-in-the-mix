@@ -404,6 +404,7 @@ async function createImportedContact(tx: Prisma.TransactionClient, input: {
   timezone: string;
   region: string;
   record: ImportContactRecord;
+  mixId?: string | null;
 }): Promise<{ contactId: string; message: string }> {
   const { workspaceId, actorUserId, timezone, region, record } = input;
   await assertNoMethodConflict(tx, workspaceId, region, record);
@@ -462,7 +463,9 @@ async function createImportedContact(tx: Prisma.TransactionClient, input: {
       metadata: { format: record.source, sourceRow: record.sourceRow, dateCount: dates.length }
     }
   });
-  await placeNewContacts(tx, { workspaceId, contactIds: [contact.id] });
+  // A file import starts the Mix confirmed in its review; phone contacts follow the New contacts setting. Either is
+  // an automatic addition: someone who can't start it is skipped, not refused (JITM-09 §2.75, §2.78).
+  await placeNewContacts(tx, { workspaceId, contactIds: [contact.id], mixId: input.mixId, actorUserId: input.mixId === undefined ? null : actorUserId, timezone, source: "contacts.import" });
   await queueReconciliation(tx, workspaceId, contact.id);
   return {
     contactId: contact.id,
@@ -675,6 +678,8 @@ export async function commitContactImportBatch(input: {
   timezone: string;
   importId: string;
   items: ImportCommitItem[];
+  /** The Mix new people start: confirmed in a file import's review, or left out to follow the New contacts setting. */
+  mixId?: string | null;
   background?: ImportRowLease;
 }): Promise<ImportCommitResult[]> {
   if (!/^[a-zA-Z0-9_-]{8,120}$/.test(input.importId)) throw new ImportRowError("The import identifier is invalid.");
