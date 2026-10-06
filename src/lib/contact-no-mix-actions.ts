@@ -1,16 +1,16 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { requireWorkspace } from "@/lib/auth";
 import { contactMixStatuses } from "@/lib/contact-mix-status";
 import { withViewerError } from "@/lib/form-errors";
 import { prisma } from "@/lib/prisma";
+import { requireWritableWorkspace } from "@/lib/writable-workspace";
 
 const value = (formData: FormData, key: string) => String(formData.get(key) ?? "").trim();
 
-/** The profile or the Contacts list the owner acted from; nothing else is a valid return. */
+/** The profile, the Contacts list or Today, where the owner acted; nothing else is a valid return. */
 function returnPath(raw: string, notice: Record<string, string>): string {
-  const base = /^\/contacts(\/[A-Za-z0-9_-]{1,120})?(\?[^#]*)?$/.test(raw) ? new URL(raw, "http://local") : new URL("/contacts", "http://local");
+  const base = /^\/(?:contacts(\/[A-Za-z0-9_-]{1,120})?|jumps)(\?[^#]*)?$/.test(raw) ? new URL(raw, "http://local") : new URL("/contacts", "http://local");
   for (const key of ["people", "error", "at", "sig", "mixStarted", "noMixNeeded", "noMixCleared", "noMixSkipped", "noMixPeople", "stateUpdated"]) base.searchParams.delete(key);
   for (const [key, item] of Object.entries(notice)) base.searchParams.set(key, item);
   const query = base.searchParams.toString();
@@ -23,10 +23,10 @@ function returnPath(raw: string, notice: Record<string, string>): string {
  * with No Mix can be confirmed; someone already in a Mix, or marked Do not contact, is left as they are.
  */
 export async function setNoMixNeededAction(formData: FormData): Promise<void> {
-  const { workspace, user, session, impersonation } = await requireWorkspace();
   const returnTo = value(formData, "returnTo");
+  // A support view is refused by the shared guard, with its own message, on the page the owner came from (JITM-11 §2.11).
+  const { workspace, user, session } = await requireWritableWorkspace((message, viewer) => redirect(withViewerError(returnPath(returnTo, {}), message, viewer)));
   const refuse: (message: string) => never = (message) => redirect(withViewerError(returnPath(returnTo, {}), message, session));
-  if (impersonation) refuse("Administrator support sessions are view-only.");
   const confirm = value(formData, "intent") !== "clear";
   const contactIds = [...new Set(formData.getAll("contactIds").map(String).filter(Boolean))];
   if (!contactIds.length) refuse("Select at least one Contact.");

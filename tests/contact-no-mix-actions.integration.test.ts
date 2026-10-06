@@ -14,6 +14,7 @@ import { generateJumps } from "../src/lib/jump-engine";
 import { contactMixStatus } from "../src/lib/contact-mix-status";
 import { setNoMixNeededAction } from "../src/lib/contact-no-mix-actions";
 import { viewerErrorMessage } from "../src/lib/form-errors";
+import { VIEW_ONLY_SUPPORT_MESSAGE } from "../src/lib/writable-workspace";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 
@@ -242,16 +243,31 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     expect(errorFor(pastStart)).toBe("Choose a start date from today on.");
   });
 
-  it("is view-only in a support session", async () => {
+  it("is view-only in a support session, with the shared guard's message on the page the owner came from (SEC-01)", async () => {
+    const someone = await person("Viewed");
+    const started = await redirectOf(bulkAssignMixAction(form({ contactIds: someone, mixId, startDate: today, returnTo: "/contacts" })));
     const context = auth.context;
     auth.context = { ...context, impersonation: { id: "support" } };
     try {
-      const someone = await person("Viewed");
-      const refused = await redirectOf(setNoMixNeededAction(form({ contactIds: someone, returnTo: "/contacts" })));
-      expect(errorFor(refused)).toBe("Administrator support sessions are view-only.");
-      const bulk = await redirectOf(bulkAssignMixAction(form({ contactIds: someone, mixId, startDate: today, returnTo: "/contacts" })));
-      expect(errorFor(bulk)).toBe("Administrator support sessions are view-only.");
-      expect(await contactMixStatus(workspaceId, someone)).toBe("no-mix");
+      const refused = await redirectOf(setNoMixNeededAction(form({ contactIds: someone, returnTo: `/contacts/${someone}?noMixCleared=1` })));
+      expect(refused.pathname).toBe(`/contacts/${someone}`);
+      expect(refused.searchParams.has("noMixCleared")).toBe(false);
+      expect(errorFor(refused)).toBe(VIEW_ONLY_SUPPORT_MESSAGE);
+      const bulk = await redirectOf(bulkAssignMixAction(form({ contactIds: someone, mixId, startDate: today, returnTo: "/contacts?mix=no-mix" })));
+      expect(bulk.searchParams.get("mix")).toBe("no-mix");
+      expect(errorFor(bulk)).toBe(VIEW_ONLY_SUPPORT_MESSAGE);
+      const undo = await redirectOf(undoBulkMixStartAction(form({ undoId: started.searchParams.get("mixUndo")!, returnTo: "/contacts" })));
+      expect(errorFor(undo)).toBe(VIEW_ONLY_SUPPORT_MESSAGE);
+      // Nothing was written: the person is still only in the Mix the owner started, and not marked No Mix needed.
+      expect(await prisma.mixAssignment.count({ where: { contactId: someone, isActive: true } })).toBe(1);
+      expect(await prisma.contactRelationshipState.count({ where: { contactId: someone } })).toBe(0);
     } finally { auth.context = context; }
+  });
+
+  it("returns to Today when the owner acted from Today", async () => {
+    const supplier = await person("From Today");
+    const done = await redirectOf(setNoMixNeededAction(form({ contactIds: supplier, returnTo: "/jumps?range=due" })));
+    expect(done.pathname).toBe("/jumps");
+    expect(Object.fromEntries(done.searchParams)).toMatchObject({ range: "due", noMixNeeded: "1" });
   });
 });

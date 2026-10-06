@@ -156,10 +156,10 @@ function contactsReturn(raw: string, notice: Record<string, string>): string {
  * start day, and the plan, Do not contact and stopped-Mix checks refuse the whole batch before anything is saved.
  */
 export async function bulkAssignMixAction(formData: FormData): Promise<void> {
-  const { workspace, user, session, impersonation } = await requireWorkspace();
   const returnTo = value(formData, "returnTo");
+  // A support view is refused by the shared guard, with its own message, back on the list (JITM-11 §2.11).
+  const { workspace, user, session } = await requireWritableWorkspace((message, viewer) => redirect(withViewerError(contactsReturn(returnTo, {}), message, viewer)));
   const refuse: (message: string) => never = (message) => redirect(withViewerError(contactsReturn(returnTo, {}), message, session));
-  if (impersonation) refuse("Administrator support sessions are view-only.");
   const contactIds = [...new Set(formData.getAll("contactIds").map(String).filter(Boolean))];
   if (!contactIds.length) refuse("Select at least one Contact.");
   if (contactIds.length > 100) refuse("Add up to 100 people to a Mix at a time.");
