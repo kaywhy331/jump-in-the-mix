@@ -32,6 +32,13 @@ export function bulkMixSheetSentence(triggerMode: string): string {
   return "Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.";
 }
 
+/** The same for one person, under the start day in What's next: what that day does for the chosen Mix (END-02). */
+export function oneMixStartSentence(triggerMode: string): string {
+  if (triggerMode === "DATE_TRIGGERED") return "It follows their saved date. Without one, the start day is saved as their date.";
+  if (triggerMode === "BROADCAST") return "It goes out on its fixed date, whatever start day you choose.";
+  return "It starts on the day you choose.";
+}
+
 /**
  * The confirmation after Add to the Mix (JITM-04 §2.7): it names the Mix and says what happened to each
  * group of people, so it never promises follow-ups that are not coming. `startDay` is the chosen start day
