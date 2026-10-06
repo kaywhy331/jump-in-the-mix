@@ -2,9 +2,9 @@
 id: JITM-00
 title: Constitution
 status: active
-version: 1.0.1
+version: 2.0.0
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-10-06
 applies_to: [all]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -36,11 +36,11 @@ This constitution is the root of the standards in `docs/standards/`. They apply 
 
 ### Principles no change may break
 
-**2.3** Human review by default. The owner reviews and sends each message in their own voice. Opening a text, email or call app is not delivery, and the product never claims that it is. Automatic sending is an explicit option that is off by default. Automatic customer email is off in production during the beta, and automatic SMS is not configured. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:73,75] [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:6] [SOURCE docs/BETA_READINESS_AUDIT_2026-09-26.md:370] [SHIPPED 9439fd6 src/components/JumpWorkflow.tsx:478]
+**2.3** Human review by default. The owner reviews and sends each message in their own voice. A message the owner's own connected assistant sends from the owner's own number or email account, after the owner says yes to that message, counts as the owner sending it; Jump in the Mix itself never sends it and records it as the assistant reported it, not as delivered. Opening a text, email or call app is not delivery, and the product never claims that it is. Automatic sending is an explicit option that is off by default. Automatic customer email is off in production during the beta, and automatic SMS is not configured. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:73,75] [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:6] [SOURCE docs/BETA_READINESS_AUDIT_2026-09-26.md:370] [SHIPPED 9439fd6 src/components/JumpWorkflow.tsx:478] [OWNER 2026-10-06 D38]
 
 **2.4** Honesty. No one invents product behavior, capabilities, metrics, testimonials, customer evidence, research findings, pricing or decisions, in the product, in marketing or in reports. Unknowns are stated as unknown (JITM-04 §2, JITM-12 §2). [OWNER 2026-09-28 O6] [OWNER 2026-09-28 D11] [SOURCE docs/PRODUCT_COMPLETION.md:24]
 
-**2.5** Tenant isolation. A workspace's data is reachable only through that workspace's authenticated session, in every route, action, job, import, export and support view (JITM-11 §2). [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:91]
+**2.5** Tenant isolation. A workspace's data is reachable only through that workspace's authenticated session, or an access grant its owner gave their own assistant for that workspace, in every route, action, job, import, export, support view and assistant request (JITM-11 §2). [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:91] [OWNER 2026-10-06 D38]
 
 **2.6** Settled work stays settled. Completed or skipped follow-ups never come back. A promised next follow-up creates exactly one follow-up at the chosen time. Scheduling stays timezone-safe and idempotent (JITM-09 §2, JITM-11 §2). [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:7-8] [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:127]
 
@@ -112,3 +112,4 @@ This constitution is the root of the standards in `docs/standards/`. They apply 
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §6: the UI-structure question is answered (D20).
+- 2.0.0 — 2026-10-06 — Base 8bee3b1. §2.3 counts a message the owner's own connected assistant sends from the owner's number or email account, after the owner says yes to it, as the owner sending it; §2.5 lets an access grant an owner gives their own assistant reach that workspace (D38).

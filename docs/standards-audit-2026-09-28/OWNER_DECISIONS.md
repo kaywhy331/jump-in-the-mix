@@ -334,6 +334,46 @@ Base e8692f2. D33–D37 answer the five questions in the analysis recorded in [M
 - **Targeting is unchanged:** JITM-00 §2.1 and JITM-02 §2.1–§2.2 still describe the targets.
 - **Applied in:** JITM-02 §2.20, JITM-01 §2.22. The wording review is P11 in the record.
 
+### D38 — An assistant connector, and sending after a yes (2026-10-06)
+
+- **Request:** "I definitely want the connector that ai agents can connect to in the near future, to allow users that have chatgpt, iOS ai, claude, gemini, or any other capable model be able to utilize their ai assistant with jitm easily providing them with the needed information to be quick and take action on their behalf."
+- **Question:** when an owner's AI assistant acts through Jump in the Mix, may it send customer messages? The options were:
+  - (A) the owner still sends: the assistant prepares the message and hands the owner a one-tap draft for their own Messages, Mail or Phone app;
+  - (B) the assistant sends after a yes: the phone's own assistant sends from the owner's number after the owner confirms each message, and Jump in the Mix records it;
+  - (C) the assistant sends on its own, with no confirmation for each message.
+- **Decision:** "Assistant sends after a yes" (B).
+- **Conflict resolved:** JITM-00 §2.3 said the owner sends each message. It now counts a message the owner's own connected assistant sends from the owner's own number or email account, after the owner says yes to that message, as the owner sending it. Jump in the Mix itself never sends it, records it as the assistant reported it rather than as delivered, and keeps unconfirmed sending an off-by-default option.
+- **Applied in:** JITM-00 §2.3 and §2.5 (2.0.0); JITM-01 §2.20, §2.22, §2.25 and §2.26 (2.5.0); JITM-08 §2.35 (1.1.0); `AGENTS.md`; the `jitm-copy` skill; `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md`.
+
+### D39 — What an assistant may change (2026-10-06)
+
+- **Question:** which changes inside Jump in the Mix may an assistant make for the owner? The options were:
+  - (A) one at a time, undoable: read everything in the owner's own workspace; add people and notes, log outcomes, reschedule, start or stop a Mix, one person per request, each change shown back and undoable; skipping or completing a follow-up asks first; no bulk approvals;
+  - (B) read-only first, with actions in a later release;
+  - (C) any change, including bulk changes.
+- **Decision:** "One at a time, undoable" (A).
+- **Note:** skipping and completing ask first because the scheduler never brings those follow-ups back (JITM-00 §2.6); Reopen from Done stays in the app (JITM-08 §2.4).
+- **Applied in:** JITM-01 §2.25, JITM-08 §2.35.
+
+### D40 — The first iPhone path (2026-10-06)
+
+- **Question:** how should the iPhone's own assistant (Siri) connect first? The options were:
+  - (A) Shortcut now, app later: a Siri Shortcut using the owner's personal key reads Today aloud and logs outcomes by voice, on any iPhone, with no App Store and no fees; a native app that Siri can operate directly waits for the demand signposts;
+  - (B) a native iOS app now, which needs the Apple Developer Program ($99 a year), lifts the native-app deferral and goes through App Store review;
+  - (C) no iPhone-specific work.
+- **Decision:** "Shortcut now, app later" (A).
+- **Unchanged:** native apps stay deferred (JITM-01 §2.7), and no paid service is added (JITM-00 §2.9).
+- **Applied in:** JITM-01 §2.22 and §2.25.
+
+### D41 — When the connector is built (2026-10-06)
+
+- **Question:** when should the connector work start? The options were:
+  - (A) after D33–D35 ship: record and design it now, build it once D33–D35 and the phone checks are done, and give it to the first tester wave;
+  - (B) now, alongside D33–D35;
+  - (C) now, as the top priority.
+- **Decision:** "After D33–D35 ship" (A).
+- **Applied in:** JITM-01 §2.20, §2.22 and §2.25; the design is `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md`.
+
 ## Still open
 
 The standards' §6 sections list the remaining open questions and known deviations. The second packet's product changes are tasks in the audit's [follow-up backlog](../STANDARDS_AUDIT_2026-09-28.md#8-follow-up-backlog).

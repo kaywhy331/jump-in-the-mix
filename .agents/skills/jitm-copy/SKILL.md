@@ -32,7 +32,7 @@ If the text sits in a changed layout, also load `jitm-ui-change`.
 
 ## Must-know rules
 
-- **Sending:** the owner reviews and sends every message. Opening a messaging app is not delivery, and never say it is. Automatic customer email is off in production during the beta, and automatic SMS is not configured (JITM-00 §2.3).
+- **Sending:** the owner reviews and sends every message, or says yes to each one their own connected assistant sends from their number or email. Opening a messaging app is not delivery, and never say it is; a send an assistant reports is not verified delivery either. Automatic customer email is off in production during the beta, and automatic SMS is not configured (JITM-00 §2.3).
 - **Proof:** no invented testimonials, statistics, research, customer quotes or outcomes (JITM-00 §2.4, JITM-04 §2).
 - **Pricing:** state only Kevin's plans and prices: Free $0, Plus $15 a month or $144 a year, Pro $29 a month or $288 a year (JITM-01 §2.9, `src/lib/plans.ts`). Say that paid plans haven't started until charging starts, and never promise a start date, a trial, a discount or what happens to beta accounts. "No card required" stays beside the free-beta and access wording, as in "Free beta. No card required. Join the waitlist." (JITM-02 §2.16, §2.18).
 - **ICPs:** the five ICP profiles are fictional composites. Use them as research inputs only, never as proof or testimony (JITM-02 §2).

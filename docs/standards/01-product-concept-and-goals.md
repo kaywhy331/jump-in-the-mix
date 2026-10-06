@@ -2,9 +2,9 @@
 id: JITM-01
 title: Product concept, goals and non-goals
 status: active
-version: 2.4.0
+version: 2.5.0
 owner: Kevin
-last_reviewed: 2026-10-05
+last_reviewed: 2026-10-06
 applies_to: [product, features, onboarding, access, marketing, agents]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -117,6 +117,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 **2.20** Deferred work MUST be labeled planned or deferred, never available:
 - charging: Stripe's hosted checkout and billing portal are built and stay off until Kevin chooses a start date (§2.9, `docs/BILLING.md`) [OWNER 2026-09-29 docs/PRICING_DECISION_2026-09-29.md:12];
 - native apps;
+- the assistant connector and its Siri Shortcut, which are built after D33–D35 ship (§2.25) [OWNER 2026-10-06 D41];
 - a paid realtime voice assistant, inbox analysis and messaging bridges;
 - multiple paid tiers, discounts and advanced analytics;
 - automatic matching of inbound replies to work.
@@ -149,6 +150,8 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 | Contact stages: optional labels such as Lead or Client, and the Mix each stage can start | Shipped | D16; `src/app/(app)/settings/page.tsx:11` |
 | No Mix status on every contact, with a filter, bulk actions, a Today line and an end-of-Mix question; a setting for where new contacts go | Planned | D33, D34; JITM-09 §2.76–§2.78; `docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md` |
 | Stages set by Mixes and added by Mega-Mixes; stage presets; milestones in the owner's words | Planned | D35, D36; JITM-09 §2.79–§2.80 |
+| Assistant connector: ChatGPT, Claude and other assistants that support the Model Context Protocol read Today, people and history and act for the owner one person at a time; Gemini once Google's assistant accepts such connectors | Planned (after D33–D35) | D38, D39, D41; §2.25; `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md` |
+| Siri Shortcut with the owner's personal key: Today read aloud, outcomes logged by voice, a prepared text sent after the owner says yes | Planned (after D33–D35) | D40; §2.25 |
 | Automatic customer email; automatic SMS | Built but off | §2.4 |
 | Payments: Stripe hosted checkout, billing portal and Plan and billing (`/account/billing`) | Built but off (`BILLING_ENABLED`) | `docs/BILLING.md`; `docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md` |
 | Native apps; paid voice assistant, inbox analysis, messaging bridges | Deferred | §2.7, §2.20 |
@@ -171,6 +174,19 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 If any answer is no or unclear, stop and ask Kevin (JITM-16 §2). [OWNER 2026-09-28 O6] [OWNER 2026-09-25 O4] [PROPOSED]
 
 **2.24** Changes SHOULD preserve the current UI structure: navigation, page hierarchy, workspace, pane and sheet layouts, components and responsive patterns. This is a standing default. Visible structure changes only when a specific workflow, accessibility or responsive-layout problem requires it, or when Kevin asks; the task names that problem or request. [OWNER 2026-09-28 D20] [OWNER 2026-09-22 O7] [SOURCE docs/CONTRACTOR_UX_IMPLEMENTATION_2026-09-22.md:7] [SOURCE local-only f7ea577d837b6b1f docs/CONTRACTOR_UX_APPROACH_2026-09-22.md:5]
+
+### Assistants
+
+**2.25** Owners may connect their own AI assistant, such as ChatGPT, Claude, Gemini or Siri, to their workspace. Jump in the Mix runs no model of its own for this, and the retired AI plan wizard stays retired (§2.19). Through the connector, an assistant:
+- reads the owner's own workspace: Today, people, notes, history, Mixes and the calendar;
+- changes one person per request: adds a person or a note, logs an outcome, reschedules, or starts or stops a Mix, and each change is shown back and can be undone (JITM-08 §2.35);
+- asks the owner before skipping or completing a follow-up, because the scheduler never brings those back (JITM-00 §2.6);
+- sends a prepared message only from the owner's own number or email account, after the owner says yes to that message (JITM-00 §2.3);
+- never makes bulk changes. Jump in the Mix itself still never reads replies or inboxes (§2.3), and an outcome an assistant logs is recorded as the assistant reported it.
+
+On iPhone, the first path is a Siri Shortcut that uses the owner's personal key; native apps stay deferred (§2.7). The connector is built after D33–D35 ship and the phone checks pass. [OWNER 2026-10-06 D38] [OWNER 2026-10-06 D39] [OWNER 2026-10-06 D40] [OWNER 2026-10-06 D41]
+
+**2.26** An assistant may place a call for the owner to speak on. It never holds an AI-generated voice call with a customer: that is not the owner's own voice (JITM-00 §2.3), and the FCC has treated AI-generated voices as artificial under the TCPA since 2024-02-08. [PROPOSED]
 
 ## 3. Canonical implementations
 
@@ -204,6 +220,7 @@ If any answer is no or unclear, stop and ask Kevin (JITM-16 §2). [OWNER 2026-09
 ## 6. Open decisions and known deviations
 
 Open questions for Kevin:
+- The assistant connector (§2.25–§2.26): whether an assistant may place calls at all, and §2.26's line on AI-generated voices; paid items at launch (a paid Claude plan to list the connector in Claude's directory, and a paid Render instance if cold starts break assistant requests); and whether outcomes an assistant logs count toward activation and retention (§2.14–§2.15). See `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md`.
 - Before charging starts (§2.9): the start date; what happens to beta accounts; sales tax; refunds, cancellation timing and the grace period after a failed payment; deleting an account with a paid plan (`docs/PRICING_DECISION_2026-09-29.md` "Still open before charging starts").
 - No numeric time-to-first-value target exists (`docs/PRODUCT_QUALITY_GATES.md:18`).
 - Status of the proposed industry Mix catalog and contact spreadsheet (local-only `fb11e3b1f8847bb3`, line 3).
@@ -225,3 +242,4 @@ Known deviations at 9439fd6:
 - 2.3.0 — 2026-10-05 — Base 9b3f949. §2.22 adds Add from your phone (built, not yet released), the iPhone share shortcut (setup steps hidden until its link is set) and deferred continuous contact sync (D32, docs/PHONE_CONTACTS_2026-10-05.md).
 - 2.3.1 — 2026-10-05 — Base e6b4c6a. §2.22: Add from your phone is shipped, and the iPhone share shortcut is live with its steps hidden until its link is set (docs/PHONE_CONTACTS_RELEASE_2026-10-05.md).
 - 2.4.0 — 2026-10-05 — Base e8692f2. §2.22 adds two Planned rows: No Mix status with the new-contact setting (D33, D34), and stages from Mixes and Mega-Mixes with presets and named milestones (D35, D36) (docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md).
+- 2.5.0 — 2026-10-06 — Base 8bee3b1. §2.25 lets owners connect their own assistant and sets what it may read, change and send (D38–D41); §2.26 proposes that assistants never hold AI-generated voice calls; §2.22 adds two Planned rows, the connector and the Siri Shortcut; §2.20 labels both planned; §6 adds the connector's open questions.
