@@ -84,7 +84,9 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
   it("leaves people already in a Mix or marked Do not contact as they are", async () => {
     const busy = await person("Busy");
     const blocked = await person("Blocked");
+    // Just started: the assignment and the preparation job a start queues (src/lib/contact-mix-actions.ts).
     await prisma.mixAssignment.create({ data: { workspaceId, mixId, contactId: busy, assignmentKey: `${workspaceId}:${mixId}:${busy}`, startDate: new Date() } });
+    await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId: busy, mixId } } });
     await prisma.contactRelationshipState.create({ data: { workspaceId, contactId: blocked, doNotContact: true } });
     const result = await redirectOf(setNoMixNeededAction(form({ contactIds: [busy, blocked], returnTo: "/contacts" })));
     expect(Object.fromEntries(result.searchParams)).toMatchObject({ noMixNeeded: "0", noMixSkipped: "2" });

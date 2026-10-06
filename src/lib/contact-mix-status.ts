@@ -9,34 +9,48 @@ export { CONTACT_MIX_FILTERS, contactMixFilter, noMixTodayLine, type ContactMixC
  * count, the profile, Today and Journey, so they always agree.
  *
  * In a Mix: at least one Mix still has work to come for the person — a pending Beat, running or paused
- * Journey work, a Mix started in the last day whose Beats are still being prepared, or a date-based Mix
- * waiting for their next date. One-time follow-ups don't count, and neither does a finished or stopped Mix.
+ * Journey work, a Mix whose Beats for them are being prepared right now, or a date-based Mix waiting for
+ * their next date. One-time follow-ups don't count, and neither does a finished or stopped Mix.
  * "No Mix needed" is the owner's confirmation; it lapses once any Mix starts for the person after it.
  */
 
-/** A Mix just started gets this long for its Beats to be prepared before the person reads as No Mix. */
-export const PREPARATION_GRACE_MS = 86_400_000;
 /** The filter's id list stays well inside one statement's bind limit. */
 export const MIX_FILTER_LIMIT = 30_000;
 
+/**
+ * Preparation still to run: the account's generate-jumps jobs that have neither completed nor failed
+ * (src/worker/index.ts). Read once per statement, so each person's check looks only at these few rows.
+ */
+function preparingCte(workspaceId: string) {
+  return Prisma.sql`WITH preparing AS MATERIALIZED (
+    SELECT q.payload ->> 'contactId' AS "contactId", q.payload ->> 'mixId' AS "mixId" FROM "Job" q
+    WHERE q."workspaceId" = ${workspaceId} AND q.task = 'generate-jumps' AND q."completedAt" IS NULL AND q."failedAt" IS NULL)`;
+}
+
 function inMixSql(workspaceId: string, now: Date) {
-  const since = new Date(now.getTime() - PREPARATION_GRACE_MS);
   const notStopped = (mix: Prisma.Sql) => Prisma.sql`NOT EXISTS (SELECT 1 FROM "MixStop" s WHERE s."workspaceId" = ${workspaceId} AND s."mixId" = ${mix} AND s."contactId" = c.id)`;
   const tagShown = Prisma.sql`NOT EXISTS (SELECT 1 FROM "ContactGroupState" gs WHERE gs."groupId" = a."groupId" AND gs."isActive" = false)`;
+  // Being prepared (DEF-01): a job still to run covers this person and this Mix. A job that names both is
+  // their own start, a restart included. A job for the whole Mix or the whole account (a save, a new tag
+  // member) counts only while the Mix has prepared nothing for them yet, so editing a Mix never makes
+  // someone who finished it read as in it again.
+  const preparing = Prisma.sql`EXISTS (SELECT 1 FROM preparing p
+    WHERE (p."contactId" IS NULL OR p."contactId" = c.id) AND (p."mixId" IS NULL OR p."mixId" = a."mixId")
+      AND ((p."contactId" = c.id AND p."mixId" = a."mixId")
+        OR NOT EXISTS (SELECT 1 FROM "Jump" j WHERE j."workspaceId" = ${workspaceId} AND j."contactId" = c.id AND j."mixId" = a."mixId")))`;
   return Prisma.sql`(
     EXISTS (SELECT 1 FROM "Jump" j JOIN "Mix" m ON m.id = j."mixId"
       WHERE j."workspaceId" = ${workspaceId} AND j."contactId" = c.id AND j.status = 'PENDING' AND m.source <> 'ONE_TIME')
     OR EXISTS (SELECT 1 FROM "MixWorkflowInstance" w
       WHERE w."workspaceId" = ${workspaceId} AND w."contactId" = c.id AND w.status IN ('ACTIVE', 'PAUSED'))
-    OR EXISTS (SELECT 1 FROM "MixAssignment" a JOIN "Mix" m ON m.id = a."mixId"
-      WHERE a."workspaceId" = ${workspaceId} AND a."contactId" = c.id AND a."isActive" AND m.status = 'ACTIVE' AND m.source <> 'ONE_TIME'
-        AND a."updatedAt" > ${since} AND ${notStopped(Prisma.sql`a."mixId"`)}
-        AND NOT EXISTS (SELECT 1 FROM "Jump" j WHERE j."workspaceId" = ${workspaceId} AND j."contactId" = c.id AND j."mixId" = a."mixId" AND j."createdAt" >= a."updatedAt"))
-    OR EXISTS (SELECT 1 FROM "ContactGroupMembership" gm
-      JOIN "MixAssignment" a ON a."groupId" = gm."groupId" AND a."workspaceId" = ${workspaceId} AND a."isActive"
-      JOIN "Mix" m ON m.id = a."mixId"
-      WHERE gm."contactId" = c.id AND gm."createdAt" > ${since} AND m.status = 'ACTIVE' AND m.source <> 'ONE_TIME' AND ${tagShown} AND ${notStopped(Prisma.sql`a."mixId"`)}
-        AND NOT EXISTS (SELECT 1 FROM "Jump" j WHERE j."workspaceId" = ${workspaceId} AND j."contactId" = c.id AND j."mixId" = a."mixId" AND j."createdAt" >= gm."createdAt"))
+    OR (EXISTS (SELECT 1 FROM preparing) AND (
+      EXISTS (SELECT 1 FROM "MixAssignment" a JOIN "Mix" m ON m.id = a."mixId"
+        WHERE a."workspaceId" = ${workspaceId} AND a."contactId" = c.id AND a."isActive" AND m.status = 'ACTIVE' AND m.source <> 'ONE_TIME'
+          AND ${notStopped(Prisma.sql`a."mixId"`)} AND ${preparing})
+      OR EXISTS (SELECT 1 FROM "ContactGroupMembership" gm
+        JOIN "MixAssignment" a ON a."groupId" = gm."groupId" AND a."workspaceId" = ${workspaceId} AND a."isActive"
+        JOIN "Mix" m ON m.id = a."mixId"
+        WHERE gm."contactId" = c.id AND m.status = 'ACTIVE' AND m.source <> 'ONE_TIME' AND ${tagShown} AND ${notStopped(Prisma.sql`a."mixId"`)} AND ${preparing})))
     OR EXISTS (SELECT 1 FROM "MixAssignment" a JOIN "Mix" m ON m.id = a."mixId"
       JOIN "JumpDate" d ON d."contactId" = c.id AND d."workspaceId" = ${workspaceId} AND d."dateTypeId" = m."dateTypeId" AND d."isActive"
       WHERE a."workspaceId" = ${workspaceId} AND a."isActive" AND m.status = 'ACTIVE' AND m."triggerMode" = 'DATE_TRIGGERED' AND m.source <> 'ONE_TIME'
@@ -68,7 +82,7 @@ export async function contactMixStatuses(workspaceId: string, contactIds: string
   const ids = [...new Set(contactIds)];
   if (!ids.length) return new Map();
   if (ids.length > 200) throw new Error("Read Mix status for at most one page of contacts.");
-  const rows = await prisma.$queryRaw<Array<{ id: string; status: ContactMixStatus }>>(Prisma.sql`
+  const rows = await prisma.$queryRaw<Array<{ id: string; status: ContactMixStatus }>>(Prisma.sql`${preparingCte(workspaceId)}
     SELECT c.id, ${statusSql(workspaceId, now)} AS status ${contactsFrom(workspaceId)} AND c.id IN (${Prisma.join(ids)})`);
   return new Map(rows.map(row => [row.id, row.status]));
 }
@@ -79,14 +93,14 @@ export async function contactMixStatus(workspaceId: string, contactId: string, n
 
 /** Ids of the workspace's people with one status, for the Contacts filter. */
 export async function contactIdsWithMixStatus(workspaceId: string, status: ContactMixFilter, now = new Date()): Promise<string[]> {
-  const rows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`${preparingCte(workspaceId)}
     SELECT id FROM (SELECT c.id, ${statusSql(workspaceId, now)} AS status ${contactsFrom(workspaceId)}) people
     WHERE status = ${status} ORDER BY id LIMIT ${MIX_FILTER_LIMIT}`);
   return rows.map(row => row.id);
 }
 
 export async function contactMixCounts(workspaceId: string, now = new Date()): Promise<ContactMixCounts> {
-  const rows = await prisma.$queryRaw<Array<{ status: ContactMixStatus; count: bigint }>>(Prisma.sql`
+  const rows = await prisma.$queryRaw<Array<{ status: ContactMixStatus; count: bigint }>>(Prisma.sql`${preparingCte(workspaceId)}
     SELECT status, count(*) AS count FROM (SELECT ${statusSql(workspaceId, now)} AS status ${contactsFrom(workspaceId)}) people GROUP BY status`);
   const counts: ContactMixCounts = { "in-mix": 0, "no-mix": 0, "no-mix-needed": 0, "do-not-contact": 0 };
   for (const row of rows) counts[row.status] = Number(row.count);
