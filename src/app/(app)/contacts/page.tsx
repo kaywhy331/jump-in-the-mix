@@ -13,10 +13,10 @@ import { restoreContactAction, restoreContactsAction } from "@/lib/contact-lifec
 import { phoneSearchDigits } from "@/lib/phone-dial";
 import { requireWorkspace } from "@/lib/auth";
 import { contactFollowUpSummary } from "@/lib/contact-follow-up-summary";
-import { contactIdsWithMixStatus, contactMixCounts, contactMixFilter, contactMixStatuses } from "@/lib/contact-mix-status";
+import { bulkMixStartNotice, contactIdsWithMixStatus, contactMixCounts, contactMixFilter, contactMixStatuses } from "@/lib/contact-mix-status";
 import { setNoMixNeededAction } from "@/lib/contact-no-mix-actions";
 import { logicalDateInTimezone, logicalDateKey } from "@/lib/jump-schedule";
-import { formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime } from "@/lib/format";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { mergeGroupActivity } from "@/lib/group-activity";
 import { phoneQueryKeys } from "@/lib/phone-number";
@@ -38,6 +38,12 @@ type SearchParams = {
   permission?: string;
   mix?: string;
   mixStarted?: string;
+  mixKept?: string;
+  mixSaved?: string;
+  mixDated?: string;
+  mixStartedId?: string;
+  mixStartOn?: string;
+  mixVisit?: string;
   noMixNeeded?: string;
   noMixPeople?: string;
   noMixSkipped?: string;
@@ -222,6 +228,17 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
     prisma.mix.findMany({ where: { workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
   ]);
   const todayKey = logicalDateKey(logicalDateInTimezone(new Date(), displayPreferences.timeZone));
+  // After Add to the Mix: what each start did, for the Mix it names (JITM-04 §2.7).
+  const startedMix = params.mixStarted && params.mixStartedId ? await prisma.mix.findFirst({ where: { id: params.mixStartedId.slice(0, 120), workspaceId: workspace.id }, select: { name: true } }) : null;
+  const count = (raw?: string) => Math.max(0, Math.floor(Number(raw) || 0));
+  const startOn = /^\d{4}-\d{2}-\d{2}$/.test(params.mixStartOn ?? "") ? params.mixStartOn! : todayKey;
+  const mixStartNotice = params.mixStarted ? bulkMixStartNotice({
+    mixName: startedMix?.name ?? "The Mix",
+    counts: { started: Math.max(0, count(params.mixStarted) - count(params.mixSaved) - count(params.mixDated)), "already-running": count(params.mixKept), "saved-date-kept": count(params.mixSaved), "date-written": count(params.mixDated) },
+    startDay: formatDate(new Date(`${startOn}T12:00:00Z`), { ...displayPreferences, timeZone: "UTC" }),
+    startsToday: startOn === todayKey,
+    waitsForVisit: params.mixVisit === "1"
+  }) : "";
 
   const contactDtos: ContactBulkDto[] = contacts.map((contact) => {
     const summary = summaries.get(contact.id);
@@ -294,7 +311,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.bulkRemoved && <Notice type="success">Tag removed.</Notice>}
       {params.bulkArchived && <Notice type="success"><span className="notice-with-action">Contacts archived.{bulkArchivedIds.length > 0 && <form action={restoreContactsAction}>{bulkArchivedIds.map(id => <input key={id} type="hidden" name="contactIds" value={id} />)}<FormSubmitButton label="Undo" pendingLabel="Restoring…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
       {params.bulkRestored && <Notice type="success">Contacts restored.</Notice>}
-      {params.mixStarted && <Notice type="success">{Number(params.mixStarted) === 1 ? "1 person was" : `${Number(params.mixStarted).toLocaleString()} people were`} added to the Mix. Their follow-ups are being prepared.</Notice>}
+      {mixStartNotice && <Notice type="success">{mixStartNotice}</Notice>}
       {params.noMixNeeded && <Notice type="success"><span className="notice-with-action">{Number(params.noMixNeeded) === 1 ? "1 person is" : `${Number(params.noMixNeeded).toLocaleString()} people are`} marked No Mix needed.{params.noMixSkipped && ` ${Number(params.noMixSkipped).toLocaleString()} already in a Mix or marked Do not contact ${Number(params.noMixSkipped) === 1 ? "was" : "were"} left as they are.`}{noMixPeople.length > 0 && <form action={setNoMixNeededAction}><input type="hidden" name="intent" value="clear" /><input type="hidden" name="returnTo" value={pageHref({ page, q, groupId, priority, permission, mix: mixFilter, viewId: selectedView?.id ?? "", intent, importBatchId, sort })} />{noMixPeople.map(id => <input key={id} type="hidden" name="contactIds" value={id} />)}<FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
       {params.noMixCleared && <Notice type="success">No Mix needed removed.</Notice>}
       {params.viewSaved && <Notice type="success">View saved.</Notice>}

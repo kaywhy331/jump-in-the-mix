@@ -14,3 +14,29 @@ export function contactMixFilter(value: string | null | undefined): ContactMixFi
 export function noMixTodayLine(count: number): string {
   return `${count === 1 ? "1 person has" : `${count.toLocaleString()} people have`} No Mix, so no Mix will remind you about them.`;
 }
+
+/** What starting a Mix did for one person (src/lib/contact-mix-actions.ts). */
+export type MixStartResult = "started" | "already-running" | "saved-date-kept" | "date-written";
+export type MixStartCounts = Record<MixStartResult, number>;
+
+const people = (count: number) => count === 1 ? "1 person" : `${count.toLocaleString()} people`;
+
+/**
+ * The confirmation after Add to the Mix (JITM-04 §2.7): it names the Mix and says what happened to each
+ * group of people, so it never promises follow-ups that are not coming. `startDay` is the chosen start day
+ * as the owner reads it.
+ */
+export function bulkMixStartNotice(input: { mixName: string; counts: MixStartCounts; startDay: string; startsToday: boolean; waitsForVisit: boolean }): string {
+  const { counts, mixName } = input;
+  const started = counts.started + counts["saved-date-kept"] + counts["date-written"];
+  const kept = counts["already-running"];
+  const sentences: string[] = [];
+  if (started) sentences.push(`${mixName} ${counts.started && !input.startsToday ? `starts on ${input.startDay}` : "started"} for ${people(started)}.`);
+  if (kept) sentences.push(started
+    ? `${kept === 1 ? "1 was" : `${kept.toLocaleString()} were`} already in it and ${kept === 1 ? "keeps" : "keep"} their start.`
+    : `${people(kept)} ${kept === 1 ? "was" : "were"} already in ${mixName} and ${kept === 1 ? "keeps" : "keep"} their start.`);
+  if (counts["saved-date-kept"]) sentences.push(`${counts["saved-date-kept"] === 1 ? "1 follows" : `${counts["saved-date-kept"].toLocaleString()} follow`} their saved date.`);
+  if (counts["date-written"]) sentences.push(`${counts["date-written"] === 1 ? "1 had" : `${counts["date-written"].toLocaleString()} had`} no saved date, so ${input.startDay} was saved for them.`);
+  if (started && input.waitsForVisit) sentences.push("Beats timed from an appointment wait until you line each person up with a visit.");
+  return sentences.join(" ");
+}

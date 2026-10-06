@@ -126,8 +126,10 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     await page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }).click();
     for (const person of list) await page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true }).check();
     await bar.getByRole("button", { name: "Mix", exact: true }).click();
+    const mixName = await sheet.getByRole("combobox", { name: "Choose a Mix", exact: true }).evaluate((select: HTMLSelectElement) => select.selectedOptions[0].text);
     await Promise.all([page.waitForURL(/mixStarted=2/), sheet.getByRole("button", { name: "Add to the Mix", exact: true }).click()]);
-    await expect(page.getByText("2 people were added to the Mix. Their follow-ups are being prepared.", { exact: true })).toBeVisible();
+    // The notice names the Mix and what the start did (BLK-01).
+    await expect(page.locator(".notice.success").filter({ hasText: `${mixName} started for 2 people.` })).toBeVisible();
     await expect(page.locator(".contact-row")).toHaveCount(0);
     expect(await prisma.mixAssignment.count({ where: { workspaceId, contactId: { in: ids }, isActive: true } })).toBe(2);
   } finally {
