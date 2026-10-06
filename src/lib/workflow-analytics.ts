@@ -1,10 +1,11 @@
 import type { WorkflowState } from "@/lib/mix-workflow-types";
 
-export const workflowStatuses = ["active", "waiting", "attention", "paused", "completed", "stopped", "not_started"] as const;
+// "No Mix" belongs to a person, not to a position: no Mix has work to come for them (JITM-09 §2.76).
+export const workflowStatuses = ["active", "waiting", "attention", "paused", "completed", "stopped", "not_started", "no_mix"] as const;
 export type WorkflowStatus = typeof workflowStatuses[number];
-export const workflowStatusLabels: Record<WorkflowStatus, string> = { active: "Active", waiting: "Waiting", attention: "Needs attention", paused: "Paused", completed: "Completed", stopped: "Stopped", not_started: "Not started" };
+export const workflowStatusLabels: Record<WorkflowStatus, string> = { active: "Active", waiting: "Waiting", attention: "Needs attention", paused: "Paused", completed: "Completed", stopped: "Stopped", not_started: "Not started", no_mix: "No Mix" };
 export type WorkflowPosition = { mixId: string; stepId: string | null; instanceId: string | null; status: WorkflowStatus; reason: string; dueAt: string | null; jumpId?: string };
-export type WorkflowPerson = { id: string; displayName: string; stageId: string; stageName: string; positions: WorkflowPosition[] };
+export type WorkflowPerson = { id: string; displayName: string; stageId: string; stageName: string; positions: WorkflowPosition[]; noMix?: boolean };
 export type WorkflowCounts = Record<WorkflowStatus, number> & { total: number; current: number };
 export type WorkflowAnalytics = {
   summary: WorkflowCounts; nodes: Record<string, WorkflowCounts>;
@@ -12,7 +13,7 @@ export type WorkflowAnalytics = {
   roster: Array<WorkflowPerson & { statuses: WorkflowStatus[] }>;
   total: number; offset: number; pageSize: number;
 };
-export const emptyWorkflowCounts = (): WorkflowCounts => ({ total: 0, current: 0, active: 0, waiting: 0, attention: 0, paused: 0, completed: 0, stopped: 0, not_started: 0 });
+export const emptyWorkflowCounts = (): WorkflowCounts => ({ total: 0, current: 0, active: 0, waiting: 0, attention: 0, paused: 0, completed: 0, stopped: 0, not_started: 0, no_mix: 0 });
 const unfinished: WorkflowStatus[] = ["active", "waiting", "attention", "paused"];
 export function positionStatuses(positions: WorkflowPosition[]): WorkflowStatus[] {
   const statuses = new Set(positions.map(position => position.status));
@@ -60,12 +61,13 @@ export function summarizeWorkflowPeople(people: WorkflowPerson[], filter: { node
   const matches: WorkflowAnalytics["roster"] = [];
   for (const person of people) {
     increment(summary, person.positions);
+    if (person.noMix) summary.no_mix++;
     const stage = stages.get(person.stageId) ?? { id: person.stageId, name: person.stageName, count: 0 }; stage.count++; stages.set(stage.id, stage);
     const byNode = new Map<string, WorkflowPosition[]>();
     for (const position of person.positions) for (const key of [`mix:${position.mixId}`, ...(position.stepId ? [`beat:${position.stepId}`] : [])]) { const list = byNode.get(key) ?? []; list.push(position); byNode.set(key, list); }
     for (const [key, positions] of byNode) increment(nodes[key] ??= emptyWorkflowCounts(), positions);
     const positions = filter.node ? byNode.get(filter.node) ?? [] : person.positions;
-    const statuses = positionStatuses(positions);
+    const statuses: WorkflowStatus[] = [...positionStatuses(positions), ...(person.noMix && !filter.node ? ["no_mix" as const] : [])];
     if (filter.node && !positions.length || filter.stage && filter.stage !== person.stageId || filter.status && filter.status !== "all" && !statuses.includes(filter.status as WorkflowStatus) || filter.query && !person.displayName.toLocaleLowerCase().includes(filter.query.trim().toLocaleLowerCase())) continue;
     // Show current positions first; old visits remain available in work history.
     const relevant = positions.filter(position => statuses.includes(position.status));

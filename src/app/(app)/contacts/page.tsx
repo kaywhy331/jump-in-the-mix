@@ -13,6 +13,9 @@ import { restoreContactAction, restoreContactsAction } from "@/lib/contact-lifec
 import { phoneSearchDigits } from "@/lib/phone-dial";
 import { requireWorkspace } from "@/lib/auth";
 import { contactFollowUpSummary } from "@/lib/contact-follow-up-summary";
+import { contactIdsWithMixStatus, contactMixCounts, contactMixFilter, contactMixStatuses } from "@/lib/contact-mix-status";
+import { setNoMixNeededAction } from "@/lib/contact-no-mix-actions";
+import { logicalDateInTimezone, logicalDateKey } from "@/lib/jump-schedule";
 import { formatDateTime } from "@/lib/format";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { mergeGroupActivity } from "@/lib/group-activity";
@@ -33,6 +36,12 @@ type SearchParams = {
   group?: string;
   priority?: string;
   permission?: string;
+  mix?: string;
+  mixStarted?: string;
+  noMixNeeded?: string;
+  noMixPeople?: string;
+  noMixSkipped?: string;
+  noMixCleared?: string;
   view?: string;
   page?: string;
   sort?: string;
@@ -83,6 +92,7 @@ function pageHref(input: {
   groupId: string;
   priority: string;
   permission: string;
+  mix: string;
   viewId: string;
   intent?: string;
   importBatchId: string;
@@ -93,6 +103,7 @@ function pageHref(input: {
   if (input.groupId) params.set("group", input.groupId);
   if (input.priority) params.set("priority", input.priority);
   if (input.permission) params.set("permission", input.permission);
+  if (input.mix) params.set("mix", input.mix);
   if (input.viewId) params.set("view", input.viewId);
   if (input.intent) params.set("intent", input.intent);
   if (input.importBatchId) params.set("importBatch", input.importBatchId);
@@ -119,6 +130,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const priority = ["LOW", "NORMAL", "HIGH", "URGENT"].includes(requestedPriority) ? requestedPriority : "";
   const requestedPermission = (params.permission ?? (selectedView ? savedViewValue(selectedView.query, "permission") : "")).trim().toLowerCase();
   const permission = ["contactable", "do-not-contact"].includes(requestedPermission) ? requestedPermission : "";
+  const mixFilter = contactMixFilter(params.mix ?? (selectedView ? savedViewValue(selectedView.query, "mix") : ""));
   const importBatchId = params.importBatch?.trim() ?? "";
   const requestedPage = Number(params.page ?? "1");
   const requestedSort = params.sort ?? (selectedView ? savedViewValue(selectedView.query, "sort") : "last-name");
@@ -142,6 +154,12 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       : { OR: [{ relationshipState: { is: null } }, { relationshipState: { is: { doNotContact: false } } }] });
   }
   const selectedPeople = [...new Set((params.people ?? "").split(",").filter(id => id && id.length <= 120))].slice(0, 50);
+  // One shared definition decides who is in a Mix (JITM-09 §2.76), so the filter, rows and counts agree.
+  if (mixFilter) {
+    const ids = await contactIdsWithMixStatus(workspace.id, mixFilter);
+    relationshipFilters.push({ id: { in: ids.length ? ids : ["__no-contacts-with-this-mix-status__"] } });
+  }
+  const noMixPeople = [...new Set((params.noMixPeople ?? "").split(",").filter(id => id && id.length <= 120))].slice(0, 100);
   const bulkArchivedIds = [...new Set((params.archivedContacts ?? "").split(",").filter(id => id && id.length <= 120))].slice(0, 50);
   // A number typed with different punctuation than it was saved with still finds the person; a whole
   // number also finds its canonical key in the workspace's region (a national form such as 07911 123456).
@@ -197,7 +215,13 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates);
   const activeByGroupId = new Map(groups.map((group) => [group.id, group.isActive]));
-  const summaries = await contactFollowUpSummary(workspace.id, contacts.map(contact => contact.id));
+  const [summaries, mixStatuses, mixCounts, mixes] = await Promise.all([
+    contactFollowUpSummary(workspace.id, contacts.map(contact => contact.id)),
+    contactMixStatuses(workspace.id, contacts.map(contact => contact.id)),
+    contactMixCounts(workspace.id),
+    prisma.mix.findMany({ where: { workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+  ]);
+  const todayKey = logicalDateKey(logicalDateInTimezone(new Date(), displayPreferences.timeZone));
 
   const contactDtos: ContactBulkDto[] = contacts.map((contact) => {
     const summary = summaries.get(contact.id);
@@ -242,7 +266,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       relationshipType: custom.get("relationship-type") ?? custom.get("relationship") ?? null,
       preferredChannel: contact.relationshipState?.preferredChannel ?? custom.get("preferred-channel") ?? null,
       priority: contact.relationshipState?.priority ?? custom.get("priority") ?? "NORMAL",
-      doNotContact: contact.relationshipState?.doNotContact ?? false
+      doNotContact: contact.relationshipState?.doNotContact ?? false,
+      mixStatus: mixStatuses.get(contact.id) ?? "no-mix"
     };
   });
 
@@ -269,6 +294,9 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.bulkRemoved && <Notice type="success">Tag removed.</Notice>}
       {params.bulkArchived && <Notice type="success"><span className="notice-with-action">Contacts archived.{bulkArchivedIds.length > 0 && <form action={restoreContactsAction}>{bulkArchivedIds.map(id => <input key={id} type="hidden" name="contactIds" value={id} />)}<FormSubmitButton label="Undo" pendingLabel="Restoring…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
       {params.bulkRestored && <Notice type="success">Contacts restored.</Notice>}
+      {params.mixStarted && <Notice type="success">{Number(params.mixStarted) === 1 ? "1 person was" : `${Number(params.mixStarted).toLocaleString()} people were`} added to the Mix. Their follow-ups are being prepared.</Notice>}
+      {params.noMixNeeded && <Notice type="success"><span className="notice-with-action">{Number(params.noMixNeeded) === 1 ? "1 person is" : `${Number(params.noMixNeeded).toLocaleString()} people are`} marked No Mix needed.{params.noMixSkipped && ` ${Number(params.noMixSkipped).toLocaleString()} already in a Mix or marked Do not contact ${Number(params.noMixSkipped) === 1 ? "was" : "were"} left as they are.`}{noMixPeople.length > 0 && <form action={setNoMixNeededAction}><input type="hidden" name="intent" value="clear" /><input type="hidden" name="returnTo" value={pageHref({ page, q, groupId, priority, permission, mix: mixFilter, viewId: selectedView?.id ?? "", intent, importBatchId, sort })} />{noMixPeople.map(id => <input key={id} type="hidden" name="contactIds" value={id} />)}<FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
+      {params.noMixCleared && <Notice type="success">No Mix needed removed.</Notice>}
       {params.viewSaved && <Notice type="success">View saved.</Notice>}
       {params.defaultViewSaved && <Notice type="success">Default view saved.</Notice>}
       {params.viewDeleted && <Notice type="success">View deleted.</Notice>}
@@ -280,7 +308,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         savedViews={<ContactSavedViewsBar
           views={savedViews.map(({ id, name, isDefault }) => ({ id, name, isDefault }))}
           selectedViewId={selectedView?.id ?? ""}
-          filters={{ q, group: groupId, priority, permission, sort }}
+          filters={{ q, group: groupId, priority, permission, mix: mixFilter, sort }}
         />}
         contacts={contactDtos}
         totalCount={totalCount}
@@ -292,14 +320,18 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         groupFilter={groupId}
         priorityFilter={priority}
         permissionFilter={permission}
+        mixFilter={mixFilter}
+        mixCounts={mixCounts}
+        mixes={mixes}
+        todayKey={todayKey}
         intent={intent}
       />
       <nav className="pagination-bar" aria-label="Contact result pages">
         <span>{resultMessage}</span>
         <div className="page-actions">
-          {page > 1 && <Link className="button" href={pageHref({ page: page - 1, q, groupId, priority, permission, viewId: selectedView?.id ?? "", intent, importBatchId, sort })}>Previous</Link>}
+          {page > 1 && <Link className="button" href={pageHref({ page: page - 1, q, groupId, priority, permission, mix: mixFilter, viewId: selectedView?.id ?? "", intent, importBatchId, sort })}>Previous</Link>}
           <span>Page {Math.min(page, totalPages)} of {totalPages}</span>
-          {page < totalPages && <Link className="button" href={pageHref({ page: page + 1, q, groupId, priority, permission, viewId: selectedView?.id ?? "", intent, importBatchId, sort })}>Next</Link>}
+          {page < totalPages && <Link className="button" href={pageHref({ page: page + 1, q, groupId, priority, permission, mix: mixFilter, viewId: selectedView?.id ?? "", intent, importBatchId, sort })}>Next</Link>}
         </div>
       </nav>
       </section>{selectedContactId && <section className="contacts-selected" aria-label="Selected contact"><ContactProfile key={selectedContactId} contactId={selectedContactId} embedded /></section>}</div>

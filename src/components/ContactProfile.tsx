@@ -22,6 +22,8 @@ import { requireWorkspace } from "@/lib/auth";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { restoreContactAction } from "@/lib/contact-lifecycle-actions";
 import { assignMixToContactAction, removeMixAssignmentAction } from "@/lib/contact-mix-actions";
+import { contactMixStatus } from "@/lib/contact-mix-status";
+import { setNoMixNeededAction } from "@/lib/contact-no-mix-actions";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { listGroupStates } from "@/lib/group-activity";
@@ -38,6 +40,7 @@ export type ContactProfileSearchParams = {
   created?: string; followUpScheduled?: string; dateCreated?: string; dateUpdated?: string; dateDeleted?: string; mixAssigned?: string; mixStart?: string; mixRemoved?: string;
   mixStopped?: string; mixResumed?: string; mixStopError?: string; mixResumeError?: string; updated?: string; inlineUpdated?: string;
   stateUpdated?: string; merged?: string; restored?: string; error?: string; at?: string; sig?: string;
+  noMixNeeded?: string; noMixCleared?: string; noMixSkipped?: string;
 };
 
 function addressText(address: { street1: string | null; street2: string | null; city: string | null; state: string | null; postalCode: string | null; country: string | null }): string {
@@ -101,7 +104,10 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
       </div>
     );
   }
-  const pendingCount = await prisma.jump.count({ where: { workspaceId: workspace.id, contactId, status: "PENDING" } });
+  const [pendingCount, mixStatus] = await Promise.all([
+    prisma.jump.count({ where: { workspaceId: workspace.id, contactId, status: "PENDING" } }),
+    contactMixStatus(workspace.id, contactId)
+  ]);
   const followUpType = dateTypes.find((type) => type.slug === "follow-up");
   const stopByMixId = new Map(stops.map((stop) => [stop.mixId, stop]));
   const directPlanIds = new Set(contact.mixAssignments.map((assignment) => assignment.mixId));
@@ -143,12 +149,22 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
     moves.push({ id: "current-stage", workspaceId: workspace.id, contactId, eventKey: "current-stage", eventType: "MANUAL", source: "", resultingStageId: contact.journey.stageId, occurredAt: contact.journey.stageSince });
   }
   const futureStages = journeyStages.filter(stage => stage.isActive && contact.journey && stage.position > contact.journey.stage.position).slice(0, 3);
+  // Where this person goes next: a Mix, a one-time follow-up, or the owner's confirmation that they need no Mix (JITM-09 §2.76).
+  const returnTo = embedded ? `/contacts?person=${encodeURIComponent(contact.id)}` : `/contacts/${contact.id}`;
+  const noMixChoice = mixStatus === "no-mix" || mixStatus === "no-mix-needed" ? <form action={setNoMixNeededAction} className="form-stack contact-no-mix-form"><input type="hidden" name="contactIds" value={contact.id} /><input type="hidden" name="returnTo" value={returnTo} />{mixStatus === "no-mix" ? <><p className="muted-copy">Doesn’t need follow-ups from a Mix, such as a supplier? Confirm it so they leave the No Mix list. It clears itself if they join a Mix later.</p><button className="button" type="submit" disabled={Boolean(impersonation)}>Mark No Mix needed</button></> : <><input type="hidden" name="intent" value="clear" /><p className="muted-copy">You confirmed that {contact.displayName} needs no Mix.</p><button className="button" type="submit" disabled={Boolean(impersonation)}>Remove No Mix needed</button></>}</form> : null;
   const touchpoint = <Sheet trigger={<button type="button" className="contact-inline-action"><AppIcon name="mixes" />Start a follow-up</button>} title={`Start a follow-up for ${contact.displayName}`}>
     <p>Choose an existing Mix or schedule a one-time follow-up.</p>
     {plans.length > 0 && <form action={assignMixToContactAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>Choose a Mix</span><select name="mixId" required>{plans.map(plan => <option value={plan.id} key={plan.id}>{plan.name}</option>)}</select></label>{startDateField}<button className="button primary" disabled={state.doNotContact || Boolean(impersonation)} type="submit">Start Mix</button></form>}
     {!state.doNotContact && <Link className="button" href={`/contacts?intent=one-time-jump&people=${encodeURIComponent(contact.id)}&q=${encodeURIComponent(contact.displayName)}`}>Schedule a one-time follow-up</Link>}
     {state.doNotContact && <p>Do not contact is on. Update this person’s preferences before starting a follow-up.</p>}
+    {noMixChoice}
   </Sheet>;
+  const mixChip = mixStatus === "no-mix" || mixStatus === "no-mix-needed" ? <Sheet trigger={<button type="button" className="contact-mix-chip" data-status={mixStatus} aria-label={`${mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}: choose what's next for ${contact.displayName}`}>{mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}<AppIcon name="chevronDown" /></button>} title={`What’s next for ${contact.displayName}`} description={mixStatus === "no-mix" ? "No Mix has work to come for this person, so nothing will remind you about them." : undefined}>
+    {plans.length > 0 && !state.doNotContact && <form action={assignMixToContactAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>Choose a Mix</span><select name="mixId" required>{plans.map(plan => <option value={plan.id} key={plan.id}>{plan.name}</option>)}</select></label>{startDateField}<button className="button primary" disabled={Boolean(impersonation)} type="submit">Start Mix</button></form>}
+    {plans.length === 0 && <p>Create a Mix first. <Link href="/mixes">Go to Mixes</Link></p>}
+    {!state.doNotContact && <Link className="button" href={`/contacts?intent=one-time-jump&people=${encodeURIComponent(contact.id)}&q=${encodeURIComponent(contact.displayName)}`}>Schedule a one-time follow-up</Link>}
+    {noMixChoice}
+  </Sheet> : null;
   const journeyTrack = <>
     <div className="contact-section-heading"><h2>Journey</h2>{touchpoint}</div>
     {contact.journey ? <div className="contact-journey-track" role="region" tabIndex={0} aria-label="Recorded stage history and possible next stages">
@@ -176,6 +192,8 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
       {query.dateUpdated && <Notice type="success">Date updated.</Notice>}
       {query.dateDeleted && <Notice type="success">Date removed.</Notice>}
       {!query.created && query.mixAssigned && <Notice type="success">{query.mixStart === "saved" ? "Start saved. It follows this person’s saved date." : /^\d{4}-\d{2}-\d{2}$/.test(query.mixStart ?? "") ? `Start saved for ${formatDate(new Date(`${query.mixStart}T12:00:00Z`), { ...displayPreferences, timeZone: "UTC" })}.` : "Start saved."} Follow-ups are being prepared. <Link href="/settings/notifications">Set up reminders for me (optional)</Link>.{query.mixAssigned === "visit" && <> Its Beats timed from an appointment wait until you <Link href={`/calendar?contact=${contact.id}`}>line it up with a visit</Link> from the calendar.</>}</Notice>}
+      {query.noMixNeeded && (Number(query.noMixNeeded) > 0 ? <Notice type="success"><span className="notice-with-action">Marked No Mix needed.<form action={setNoMixNeededAction}><input type="hidden" name="intent" value="clear" /><input type="hidden" name="contactIds" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form></span></Notice> : <Notice type="info">{contact.displayName} is already in a Mix or marked Do not contact, so nothing changed.</Notice>)}
+      {query.noMixCleared && <Notice type="success">No Mix needed removed.</Notice>}
       {query.mixRemoved && <Notice type="success">Mix removed.</Notice>}
       {query.mixStopped && <Notice type="success">Mix stopped.</Notice>}
       {query.mixResumed && <Notice type="success">Mix resumed.</Notice>}
@@ -191,7 +209,8 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
         </div>
         <span className="person-initials profile-avatar" aria-hidden="true">{initials}</span>
         <div className="profile-identity">{heading}
-          <Sheet key={contact.journey?.version ?? 0} trigger={<button type="button" className="contact-stage-chip" aria-label={`Change journey stage: ${contact.journey?.stage.name ?? "No stage"}`}>{contact.journey?.stage.name ?? "No stage"}<AppIcon name="chevronDown" /></button>} title={`Journey stage for ${contact.displayName}`}><ContactJourneyPanel workspaceId={workspace.id} contactId={contact.id} expanded returnToDirectory={embedded} /></Sheet>
+          <div className="contact-identity-chips"><Sheet key={contact.journey?.version ?? 0} trigger={<button type="button" className="contact-stage-chip" aria-label={`Change journey stage: ${contact.journey?.stage.name ?? "No stage"}`}>{contact.journey?.stage.name ?? "No stage"}<AppIcon name="chevronDown" /></button>} title={`Journey stage for ${contact.displayName}`}><ContactJourneyPanel workspaceId={workspace.id} contactId={contact.id} expanded returnToDirectory={embedded} /></Sheet>
+          {mixChip}</div>
         </div>
         <nav className="contact-profile-quick-actions" aria-label={`Contact ${contact.displayName}`}>
           {primaryPhone && !state.doNotContact ? <a className="button" href={`sms:${primaryPhone}`}><AppIcon name="message" />Text</a> : <button className="button" disabled title={state.doNotContact ? "Do not contact is on" : "Add a phone number in Details"}><AppIcon name="message" />Text</button>}

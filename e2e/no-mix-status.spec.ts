@@ -1,0 +1,149 @@
+import { expect, test, type Page } from "@playwright/test";
+import { prisma } from "../src/lib/prisma";
+import { axeInPage } from "./axe-in-page";
+import { applyRenderedTheme } from "./theme-fixture";
+
+// Every contact shows whether they are in a Mix (JITM-09 §2.76–§2.77, D33).
+const userEmail = process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local";
+const userPassword = process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!";
+const workspaceId = "demo_workspace";
+
+async function signIn(page: Page) {
+  await page.goto("/login");
+  await page.getByLabel("Email", { exact: true }).fill(userEmail);
+  await page.getByLabel("Password", { exact: true }).fill(userPassword);
+  await Promise.all([
+    page.waitForURL(/\/(jumps|onboarding)(\?|$)/),
+    page.getByRole("button", { name: "Sign in" }).click()
+  ]);
+}
+
+const unique = () => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+async function people(names: string[]) {
+  const suffix = unique();
+  const data = names.map((name, index) => ({ id: `e2e-no-mix-${index}-${suffix}`, workspaceId, displayName: `${name} ${suffix}`, firstName: name }));
+  await prisma.contact.createMany({ data });
+  // Reachable people, so each row shows its Mix status rather than the missing-method link.
+  await prisma.contactPhone.createMany({ data: data.map((person, index) => ({ contactId: person.id, phone: `(555) 010-0${index}0${index}`, normalized: `+155501000${index}${index}`, isPrimary: true })) });
+  return { suffix, people: data };
+}
+
+async function cleanUp(ids: string[]) {
+  await prisma.mixAssignment.deleteMany({ where: { workspaceId, contactId: { in: ids } } });
+  await prisma.contact.deleteMany({ where: { workspaceId, id: { in: ids } } });
+}
+
+test.beforeEach(async ({ page }) => { await signIn(page); });
+
+// The shared settle step: both frames painted and the body in the chosen theme's text color.
+const setTheme = (page: Page, colorScheme: "light" | "dark") => applyRenderedTheme(page, colorScheme);
+async function audit(page: Page) { expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]); }
+
+test("the No Mix row, chip and sheet pass the accessibility audit in both themes", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Audited at desktop and phone widths in one project, as the sheet suites do.");
+  test.setTimeout(180_000);
+  const { suffix, people: [person] } = await people(["Audit"]);
+  try {
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+      await page.setViewportSize(viewport);
+      await page.goto(`/contacts?mix=no-mix&q=${encodeURIComponent(suffix)}`);
+      await expect(page.locator(".contact-no-mix")).toHaveCount(1);
+      for (const colorScheme of ["light", "dark"] as const) { await setTheme(page, colorScheme); await audit(page); }
+      await page.goto(`/contacts/${person.id}`);
+      const chip = page.getByRole("button", { name: `No Mix: choose what's next for ${person.displayName}` });
+      expect((await chip.boundingBox())!.height).toBeGreaterThanOrEqual(viewport.width < 768 ? 44 : 30);
+      await chip.click();
+      await expect(page.getByRole("dialog", { name: `What’s next for ${person.displayName}` })).toBeVisible();
+      for (const colorScheme of ["light", "dark"] as const) { await setTheme(page, colorScheme); await audit(page); }
+    }
+  } finally {
+    await cleanUp([person.id]);
+  }
+});
+
+test("a contact with no Mix says so, and the owner can confirm it or start one from the profile", async ({ page }) => {
+  const { people: [person] } = await people(["Nomix"]);
+  try {
+    await page.goto(`/contacts/${person.id}`);
+    const chip = page.getByRole("button", { name: `No Mix: choose what's next for ${person.displayName}` });
+    await expect(chip).toBeVisible();
+    await chip.click();
+    const sheet = page.getByRole("dialog", { name: `What’s next for ${person.displayName}` });
+    await expect(sheet.getByText("No Mix has work to come for this person, so nothing will remind you about them.")).toBeVisible();
+    await Promise.all([page.waitForURL(/noMixNeeded=1/), sheet.getByRole("button", { name: "Mark No Mix needed", exact: true }).click()]);
+    await expect(page.locator(".notice.success").filter({ hasText: "Marked No Mix needed." })).toBeVisible();
+    await expect(page.getByRole("button", { name: `No Mix needed: choose what's next for ${person.displayName}` })).toBeVisible();
+
+    // Undo in the notice takes the confirmation back.
+    await Promise.all([page.waitForURL(/noMixCleared=1/), page.getByRole("button", { name: "Undo", exact: true }).click()]);
+    await expect(page.locator(".notice.success").filter({ hasText: "No Mix needed removed." })).toBeVisible();
+    await expect(chip).toBeVisible();
+
+    // Starting a Mix from the same sheet ends No Mix while its Beats are prepared.
+    await chip.click();
+    await Promise.all([page.waitForURL(/mixAssigned=/), sheet.getByRole("button", { name: "Start Mix", exact: true }).click()]);
+    await expect(page.locator(".contact-mix-chip")).toHaveCount(0);
+  } finally {
+    await cleanUp([person.id]);
+  }
+});
+
+test("Contacts finds people with No Mix and handles them in bulk", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Bulk handling is exercised once, in the docked desktop layout.");
+  const { suffix, people: list } = await people(["Ana", "Ben"]);
+  const ids = list.map(person => person.id);
+  try {
+    await page.goto(`/contacts?q=${encodeURIComponent(suffix)}`);
+    for (const person of list) await expect(page.locator(".contact-row").filter({ hasText: person.displayName }).locator(".contact-no-mix")).toHaveText("No Mix");
+
+    // The filter keeps only people with No Mix, and its count matches the summary link.
+    await page.getByRole("button", { name: "Filter contacts", exact: true }).click();
+    const filters = page.getByRole("dialog", { name: "Filter contacts", exact: true });
+    await filters.getByRole("combobox", { name: "Mix", exact: true }).selectOption("no-mix");
+    await expect(page).toHaveURL(/mix=no-mix/);
+    await page.getByLabel("Close Filter contacts").click();
+    await expect(page.locator(".contact-row")).toHaveCount(2);
+
+    await page.getByRole("button", { name: "More contact tools" }).click();
+    await page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }).click();
+    for (const person of list) await page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true }).check();
+    const bar = page.getByRole("complementary", { name: "Actions for selected contacts" });
+    await bar.getByRole("button", { name: "Mix", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "Mix for 2 people" });
+    await Promise.all([page.waitForURL(/noMixNeeded=2/), sheet.getByRole("button", { name: "Mark No Mix needed", exact: true }).click()]);
+    await expect(page.locator(".notice.success").filter({ hasText: "2 people are marked No Mix needed." })).toBeVisible();
+    // They leave the No Mix list, and the filter is kept.
+    expect(new URL(page.url()).searchParams.get("mix")).toBe("no-mix");
+    await expect(page.locator(".contact-row")).toHaveCount(0);
+
+    await Promise.all([page.waitForURL(/noMixCleared=2/), page.getByRole("button", { name: "Undo", exact: true }).click()]);
+    await expect(page.locator(".contact-row")).toHaveCount(2);
+
+    // Adding them to a Mix from the filtered list returns to it, now without them.
+    await page.getByRole("button", { name: "More contact tools" }).click();
+    await page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }).click();
+    for (const person of list) await page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true }).check();
+    await bar.getByRole("button", { name: "Mix", exact: true }).click();
+    await Promise.all([page.waitForURL(/mixStarted=2/), sheet.getByRole("button", { name: "Add to the Mix", exact: true }).click()]);
+    await expect(page.getByText("2 people were added to the Mix. Their follow-ups are being prepared.", { exact: true })).toBeVisible();
+    await expect(page.locator(".contact-row")).toHaveCount(0);
+    expect(await prisma.mixAssignment.count({ where: { workspaceId, contactId: { in: ids }, isActive: true } })).toBe(2);
+  } finally {
+    await cleanUp(ids);
+  }
+});
+
+test("Today points to the people with No Mix", async ({ page }) => {
+  const { people: [person] } = await people(["Today"]);
+  try {
+    await page.goto("/jumps");
+    const line = page.locator(".today-no-mix-line");
+    await expect(line).toContainText(/No Mix, so nothing will remind you about them\./);
+    await Promise.all([page.waitForURL(/\/contacts\?mix=no-mix$/), line.getByRole("link", { name: "Review", exact: true }).click()]);
+    await page.goto(`/contacts?mix=no-mix&q=${encodeURIComponent(person.displayName)}`);
+    await expect(page.locator(".contact-row").filter({ hasText: person.displayName })).toHaveCount(1);
+  } finally {
+    await cleanUp([person.id]);
+  }
+});

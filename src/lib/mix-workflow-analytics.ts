@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { contactIdsWithMixStatus, contactMixStatuses } from "@/lib/contact-mix-status";
 import { workflowState } from "@/lib/mix-workflow";
 import { summarizeWorkflowPeople, workflowPositions, type WorkflowPerson } from "@/lib/workflow-analytics";
 
@@ -30,5 +31,8 @@ export async function readWorkflowAnalytics(workspaceId: string, options: { cont
     }
     if (page.length < 250) break; cursor = page.at(-1)!.id;
   }
+  // The same No Mix definition as Contacts and Today, so the counts agree (JITM-09 §2.77).
+  const noMix = new Set(options.contactId ? (await contactMixStatuses(workspaceId, [options.contactId])).get(options.contactId) === "no-mix" ? [options.contactId] : [] : await contactIdsWithMixStatus(workspaceId, "no-mix"));
+  for (const person of people.values()) if (noMix.has(person.id)) person.noMix = true;
   return summarizeWorkflowPeople([...people.values()], options);
 }

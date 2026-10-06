@@ -14,6 +14,9 @@ model ContactRelationshipState {
   doNotContact       Boolean         @default(false)
   relationshipStatus String?
   nextCommitmentAt   DateTime?
+  // When the owner confirmed this person needs no Mix. It counts only while no Mix has started for them
+  // since; joining a Mix makes it lapse without a write (JITM-09 §2.76).
+  noMixNeededAt      DateTime?
   version            Int             @default(1)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt

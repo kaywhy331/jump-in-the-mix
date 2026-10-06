@@ -40,6 +40,9 @@
 .contact-row-summary > :first-child { flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-summary-separator { flex-shrink: 0; }
 .contact-missing-method { position: relative; z-index: 1; font-weight: 600; color: var(--violet-text); }
+.contact-row-summary > .contact-no-mix { flex-shrink: 0; font-weight: 600; color: var(--status-warning-ink); }
+.contact-row-summary > .contact-no-mix-needed { flex-shrink: 0; color: var(--text-3); }
+.contact-list-summary .contact-no-mix-link { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; color: var(--violet-text); white-space: nowrap; }
 .contacts-page .contact-select-control { display: none; }
 .contacts-page .selection-mode { grid-template-columns: 36px minmax(0, 1fr) auto; }
 .contacts-page .selection-mode .contact-select-control { position: relative; z-index: 1; display: flex; }
@@ -59,6 +62,12 @@
 .contact-profile-header .profile-identity :is(h1, h2) { margin: 0 0 6px; font-size: 28px; font-weight: 600; letter-spacing: -.04em; line-height: 1.2; overflow-wrap: anywhere; }
 .contact-stage-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; max-width: 100%; padding: 4px 10px; border: 0; border-radius: 18px; background: var(--surface); color: var(--text-2); font-size: .8125rem; cursor: pointer; text-align: left; }
 .contact-stage-chip svg { width: 14px; height: 14px; flex-shrink: 0; }
+/* Mix status beside the stage (JITM-09 §2.76): a separate work label, never merged with the stage (§2.71). */
+.contact-identity-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.contact-mix-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; max-width: 100%; padding: 4px 10px; border: 0; border-radius: 18px; background: var(--status-warning-bg); color: var(--status-warning-ink); font-size: .8125rem; font-weight: 600; cursor: pointer; text-align: left; }
+.contact-mix-chip[data-status="no-mix-needed"] { background: var(--surface); color: var(--text-2); font-weight: 400; }
+.contact-mix-chip svg { width: 14px; height: 14px; flex-shrink: 0; }
+.contact-no-mix-form, .bulk-no-mix-form { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
 .contact-profile-header .contact-profile-quick-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 0; padding: 0; }
 .contact-profile-header .contact-profile-quick-actions > .button { display: inline-flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; min-height: 44px; width: auto; margin: 0; padding: 10px 16px; background: transparent; color: var(--text); font-size: .875rem; font-weight: 500; }
 .contact-profile-header .contact-profile-quick-actions > .button svg { width: 18px; height: 18px; padding: 0; border-radius: 0; background: transparent; }

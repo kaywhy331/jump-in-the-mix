@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import type { Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
 import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
+import { contactMixFilter } from "@/lib/contact-mix-status";
 import { prisma } from "@/lib/prisma";
 
 function value(formData: FormData, key: string, maximum = 200): string {
@@ -22,9 +23,10 @@ export async function saveContactViewAction(formData: FormData): Promise<void> {
   const group = value(formData, "group", 120);
   const priority = value(formData, "priority", 40);
   const permission = value(formData, "permission", 40);
+  const mix = contactMixFilter(value(formData, "mix", 40));
   if (!name) fail("Give the saved view a name.", session);
   const sort = ["last-name", "updated", "newest"].includes(value(formData, "sort", 20)) ? value(formData, "sort", 20) : "name";
-  const query = { sort, q: q || null, group: group || null, priority: priority || null, permission: permission || null } satisfies Prisma.InputJsonObject;
+  const query = { sort, q: q || null, group: group || null, priority: priority || null, permission: permission || null, mix: mix || null } satisfies Prisma.InputJsonObject;
   const saved = await prisma.contactSavedView.upsert({
     where: { userId_workspaceId_name: { userId: user.id, workspaceId: workspace.id, name } },
     create: { userId: user.id, workspaceId: workspace.id, name, query },

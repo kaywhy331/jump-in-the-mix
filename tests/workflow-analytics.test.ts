@@ -16,6 +16,15 @@ describe("Journey people analytics", () => {
     expect(result.nodes["mix:a"].completed).toBe(1);
     expect(summarizeWorkflowPeople([person("A", [position({ status: "completed" })])], { node: "beat:beat", status: "completed" }).total).toBe(1);
   });
+  it("counts and filters people with No Mix as a person status, never per Mix", () => {
+    const finished = { ...person("Finished", [position({ status: "completed" })]), noMix: true };
+    const fresh = { ...person("Fresh", []), noMix: true };
+    const result = summarizeWorkflowPeople([finished, fresh, person("Busy", [position()])]);
+    expect(result.summary).toMatchObject({ total: 3, no_mix: 2, completed: 1, not_started: 1, active: 1 });
+    expect(result.nodes["mix:a"].no_mix).toBe(0);
+    expect(summarizeWorkflowPeople([finished, fresh, person("Busy", [position()])], { status: "no_mix" }).roster.map(item => item.id)).toEqual(["Finished", "Fresh"]);
+    expect(summarizeWorkflowPeople([finished], { node: "mix:a", status: "no_mix" }).total).toBe(0);
+  });
   it("filters the full roster before pagination, retaining full counts and custom stages", () => {
     const people = Array.from({ length: 280 }, (_, n) => person(`Person ${String(n).padStart(3, "0")}`, [position()]));
     const result = summarizeWorkflowPeople(people, { offset: 25 });
