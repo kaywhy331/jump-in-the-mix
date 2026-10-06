@@ -28,15 +28,16 @@
 .contacts-page .contact-select-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 65px; margin: 0; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: var(--page); box-shadow: none; }
 .contacts-page .contact-select-row.selected { border-radius: 12px; background: var(--violet-wash); }
 .contacts-page .contact-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.contacts-page .contact-main > div:last-child { display: block; min-width: 0; flex: 1; }
+.contacts-page .contact-main > div:last-child { display: block; min-width: 0; flex: 1; container: contact-row / inline-size; }
 .contacts-page .contact-main .avatar { width: 36px; height: 36px; min-width: 36px; border-radius: 50%; font-size: .875rem; background: var(--surface); }
 .contacts-page .contact-main h3 { margin: 0 0 2px; font-size: 1rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .contact-open { color: var(--text); }
 .contact-open::after { position: absolute; content: ""; inset: 0; border-radius: 12px; }
 .contact-open:focus-visible { outline: none; }
 .contact-open:focus-visible::after { outline: 2px solid var(--violet-mark); outline-offset: -2px; }
-/* One line at normal text sizes; with enlarged text the parts wrap rather than clip or scroll sideways (JITM-10 §2.3–§2.4). */
-.contacts-page .contact-row-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; margin: 0; font-size: .8125rem; line-height: 1.4; color: var(--text-2); }
+/* One line at normal text sizes, as in the export: the stage and the due label shorten with an ellipsis. The rule at
+   the end of this block wraps the parts when the text is enlarged (JITM-10 §2.3–§2.4, LAY-02). */
+.contacts-page .contact-row-summary { display: flex; align-items: baseline; gap: 0 4px; margin: 0; font-size: .8125rem; line-height: 1.4; color: var(--text-2); }
 .contact-row-summary > :last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-row-summary > :first-child { flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-summary-separator { flex-shrink: 0; }
@@ -45,6 +46,13 @@
 .contact-row-summary > .contact-no-mix { font-weight: 600; color: var(--status-warning-ink); }
 .contact-row-summary > .contact-no-mix-needed { color: var(--text-3); }
 .contact-list-summary .contact-no-mix-link { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; color: var(--violet-text); white-space: nowrap; }
+/* Where the row's text has room for fewer than ten of its own em, which happens with enlarged text (about 7em at
+   200% on a 320px phone, 14em at normal size), each part takes the lines it needs and shows whole, the stage
+   included, instead of being shortened or clipped (LAY-02). A narrow column at normal size stays on one line. */
+@container contact-row (max-width: 10em) {
+  .contacts-page .contact-row-summary { flex-wrap: wrap; }
+  .contacts-page .contact-row-summary > * { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+}
 .contacts-page .contact-select-control { display: none; }
 .contacts-page .selection-mode { grid-template-columns: 36px minmax(0, 1fr) auto; }
 .contacts-page .selection-mode .contact-select-control { position: relative; z-index: 1; display: flex; }
