@@ -2,9 +2,9 @@
 id: JITM-08
 title: Interaction and UX patterns
 status: active
-version: 1.0.1
+version: 1.1.0
 owner: Kevin
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-06
 applies_to: [ui, interaction, forms, dialogs, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
@@ -150,6 +150,18 @@ Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21]
 
 **2.34** A single-key shortcut MUST be switchable. N opens Quick Add only outside text fields, with no modifier, not on a held key or during composition, and not while a modal is open. A switch turns it off for the browser, and its hint disappears when it is off. A new single-key shortcut needs Kevin's decision and the same safeguards. [SHIPPED 9439fd6 src/lib/quick-add-shortcut.ts:29-35] [SHIPPED 9439fd6 src/components/Appearance.tsx:92-93] [SHIPPED 9439fd6 src/components/QuickAdd.tsx:24-27,97-103] [SOURCE docs/FULL_AUDIT_2026-09-24.md:46]
 
+### Assistant actions
+
+**2.35** An action an owner's assistant takes through the connector (JITM-01 §2.25) follows the review, outcome and Undo pattern of §2.1–§2.5 as far as the connector can carry it. The assistant's own conversation and permission settings, which Jump in the Mix does not control, do the rest.
+- **Messages:** the connector returns the person, the channel and the exact prepared wording, and marks sending as needing the owner's approval. After the assistant sends from the owner's own number or email account, it logs the outcome. Jump in the Mix records that as sent by the assistant, as reported (§2.2).
+- **Calls:** the connector returns the person, the number and the call's notes. The assistant connects the owner after the owner says yes, and the owner speaks (JITM-01 §2.26).
+- **Changes:** each covers one person. The response says what changed and when the next follow-up is due, and offers Undo, as §2.4 does.
+- **Skipping and completing** are marked as needing the owner's approval (§2.5, §2.7).
+- **Bulk:** the connector offers nothing that approves or changes many people at once.
+- **In the app:** the person's history names the assistant that made each change, and the change can be undone there.
+
+[OWNER 2026-10-06 D38] [OWNER 2026-10-06 D39] [OWNER 2026-10-06 D42] [OWNER 2026-10-06 D43] [PROPOSED]
+
 ## 3. Canonical implementations
 
 | Pattern | Reuse |
@@ -194,3 +206,4 @@ Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21]
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-29 — Base 9f967bc. §2.30: an untouched form never warns; changes count from the person's first action, and status-only fields carry `data-form-guard-ignore` (Kevin's go-ahead, 2026-09-29).
+- 1.1.0 — 2026-10-06 — Base 8bee3b1. §2.35 applies review, outcome and Undo to actions an owner's assistant takes through the connector, with calls in the owner's own voice and permission held in the assistant (D38, D39, D42, D43).

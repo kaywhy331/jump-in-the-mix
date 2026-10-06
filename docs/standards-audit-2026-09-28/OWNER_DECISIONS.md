@@ -334,6 +334,71 @@ Base e8692f2. D33–D37 answer the five questions in the analysis recorded in [M
 - **Targeting is unchanged:** JITM-00 §2.1 and JITM-02 §2.1–§2.2 still describe the targets.
 - **Applied in:** JITM-02 §2.20, JITM-01 §2.22. The wording review is P11 in the record.
 
+### D38 — An assistant connector, and sending after a yes (2026-10-06)
+
+- **Request:** "I definitely want the connector that ai agents can connect to in the near future, to allow users that have chatgpt, iOS ai, claude, gemini, or any other capable model be able to utilize their ai assistant with jitm easily providing them with the needed information to be quick and take action on their behalf."
+- **Question:** when an owner's AI assistant acts through Jump in the Mix, may it send customer messages? The options were:
+  - (A) the owner still sends: the assistant prepares the message and hands the owner a one-tap draft for their own Messages, Mail or Phone app;
+  - (B) the assistant sends after a yes: the phone's own assistant sends from the owner's number after the owner confirms each message, and Jump in the Mix records it;
+  - (C) the assistant sends on its own, with no confirmation for each message.
+- **Decision:** "Assistant sends after a yes" (B).
+- **Conflict resolved:** JITM-00 §2.3 said the owner sends each message. It now counts a message the owner's own connected assistant sends from the owner's own number or email account, after the owner says yes to that message, as the owner sending it. Jump in the Mix itself never sends it, records it as the assistant reported it rather than as delivered, and keeps unconfirmed sending an off-by-default option.
+- **Applied in:** JITM-00 §2.3 and §2.5 (2.0.0); JITM-01 §2.20, §2.22, §2.25 and §2.26 (2.5.0); JITM-08 §2.35 (1.1.0); `AGENTS.md`; the `jitm-copy` skill; `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md`.
+
+### D39 — What an assistant may change (2026-10-06)
+
+- **Question:** which changes inside Jump in the Mix may an assistant make for the owner? The options were:
+  - (A) one at a time, undoable: read everything in the owner's own workspace; add people and notes, log outcomes, reschedule, start or stop a Mix, one person per request, each change shown back and undoable; skipping or completing a follow-up asks first; no bulk approvals;
+  - (B) read-only first, with actions in a later release;
+  - (C) any change, including bulk changes.
+- **Decision:** "One at a time, undoable" (A).
+- **Note:** skipping and completing ask first because the scheduler never brings those follow-ups back (JITM-00 §2.6); Reopen from Done stays in the app (JITM-08 §2.4).
+- **Applied in:** JITM-01 §2.25, JITM-08 §2.35.
+
+### D40 — The first iPhone path (2026-10-06)
+
+- **Question:** how should the iPhone's own assistant (Siri) connect first? The options were:
+  - (A) Shortcut now, app later: a Siri Shortcut using the owner's personal key reads Today aloud and logs outcomes by voice, on any iPhone, with no App Store and no fees; a native app that Siri can operate directly waits for the demand signposts;
+  - (B) a native iOS app now, which needs the Apple Developer Program ($99 a year), lifts the native-app deferral and goes through App Store review;
+  - (C) no iPhone-specific work.
+- **Decision:** "Shortcut now, app later" (A).
+- **Unchanged:** native apps stay deferred (JITM-01 §2.7), and no paid service is added (JITM-00 §2.9).
+- **Applied in:** JITM-01 §2.22 and §2.25.
+
+### D41 — When the connector is built (2026-10-06)
+
+- **Question:** when should the connector work start? The options were:
+  - (A) after D33–D35 ship: record and design it now, build it once D33–D35 and the phone checks are done, and give it to the first tester wave;
+  - (B) now, alongside D33–D35;
+  - (C) now, as the top priority.
+- **Decision:** "After D33–D35 ship" (A).
+- **Applied in:** JITM-01 §2.20, §2.22 and §2.25; the design is `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md`.
+
+### D42 — Calls through an assistant (2026-10-06)
+
+- **Question:** may an assistant place calls, and does JITM-01 §2.26's line against AI-generated voices stand?
+- **Decision:** "no AI calls. It can be AI assistant initiated though to connect users to their contacts. Example: AI assistant can check today and see that there is a call needing to be made to [Name] about [Phone Notes], AI ask user to connect the call, user says 'yes', AI makes the call."
+- **Meaning:** an assistant may start a call that connects the owner to the person, after the owner says yes, and the owner then speaks. Jump in the Mix offers no AI-voice calling.
+- **Applied in:** JITM-01 §2.26 (no longer proposed), JITM-08 §2.35, `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md`.
+
+### D43 — Assistant actions count, and permission lives in the assistant (2026-10-06)
+
+- **Question:** do outcomes an assistant logs count toward activation and retention (JITM-01 §2.14–§2.15)?
+- **Decision:** "yes all assistant should count towards the logs"
+- **Kevin's reasoning, which also settles who controls an assistant's permission:** "How I see the AI assistant working is, there would still be a user's permission on the ai assistant side to allow the ai assistant to act upon their behalf. It is something that will be on their AI assistant side that we don't have control over. Our system only provides the AI agent the items that need action to be taken. If they use a 3rd party agent, we have no control over how they utilize the workflow on their end."
+- **Meaning:**
+  - Actions an owner's connected assistant takes through the connector count as the owner's actions for activation and retention. Jump in the Mix's own automation still never counts.
+  - The owner gives an assistant permission to act on the assistant's side. Jump in the Mix neither controls nor verifies that permission, nor how a third-party assistant runs its workflow.
+  - The connector provides the items that need action, the prepared wording and one-person actions. It marks sending, skipping and completing as needing the owner's approval, and records what the assistant reports.
+- **Refines:** D38 and D39. The yes for each message, and the approval before skipping or completing, are given in the assistant under its own permission settings.
+- **Applied in:**
+  - JITM-00 §2.3;
+  - JITM-01 §2.14, §2.15 and §2.25 (3.0.0);
+  - JITM-08 §2.35;
+  - `AGENTS.md`;
+  - the `jitm-copy` skill;
+  - `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md`.
+
 ## Still open
 
 The standards' §6 sections list the remaining open questions and known deviations. The second packet's product changes are tasks in the audit's [follow-up backlog](../STANDARDS_AUDIT_2026-09-28.md#8-follow-up-backlog).
