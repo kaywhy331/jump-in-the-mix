@@ -2,7 +2,7 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 3.1.0
+version: 4.0.0
 owner: Kevin
 last_reviewed: 2026-10-05
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
@@ -20,6 +20,7 @@ sources:
   - docs/INVITE_PAGE_RELEASE_2026-09-27.md
   - docs/BETA_BLOCKERS_RELEASE_2026-09-26.md
   - docs/design/DEMO_WORKSPACE_2026-09-19.md
+  - docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md
 related_skills: [jitm-feature, jitm-ui-change, jitm-copy, jitm-review]
 related_workflows: [WF-02, WF-03, WF-04]
 ---
@@ -156,6 +157,12 @@ The individual route saves preferences and opens the library without a contact. 
 
 **2.34** Adding a person to a Mix from their profile (Choose a mix) MUST ask for a start date. A date-triggered Mix takes that date when the person has none, and a finished Mix restarts from it. [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:24] [SHIPPED 9439fd6 src/components/ContactProfile.tsx:147,261]
 
+**2.76** Every contact MUST show whether they are in a Mix, so a person with no next action is easy to find. A contact who is not in a Mix shows "No Mix" on their Contacts row and profile. The owner can confirm that someone needs no Mix: "No Mix needed" replaces the label, can be undone, and clears itself when the person joins a Mix. "In a Mix" means at least one Mix still has work to come for the person: a pending Beat, running Journey work, or a date-based Mix waiting for their next date. One-time follow-ups don't count, and neither does a finished or stopped Mix. Do not contact and archived people are left out. No Mix is a work label, kept apart from the stage (§2.71). [OWNER 2026-10-05 D33] [PROPOSED]
+
+**2.77** Contacts MUST offer a Mix filter (Any, In a Mix, No Mix, No Mix needed) with its count. From the filtered list, the owner can add people to a Mix or mark them No Mix needed in bulk. Today shows one line when anyone has No Mix, linking to that filter, and Journey People offers the same status. When a Mix ends without a connection, the last Beat's outcome asks what's next: add to a Mix, schedule a one-time follow-up, or No Mix needed. Closing it leaves the person as No Mix. [OWNER 2026-10-05 D33] [PROPOSED]
+
+**2.78** A business setting in Settings decides where new contacts go: (A) add them to a chosen Mix; (B) ask each time, so Add a contact starts with a follow-up ticked and Quick Add offers a Mix; or (C) leave them out, so they show as No Mix. The default is C. The setting applies to Add a contact, Quick Add, phone contacts and lead connections, and each lead connection can choose its own Mix. Import asks in its review step, with the default preselected, so nothing starts from an import without a confirmation. When a stage's own Mix starts, the default Mix is not added on top. Do not contact and plan limits apply as usual (§2.75). A Mix's "Everyone" audience includes people added later. [OWNER 2026-10-05 D34] [PROPOSED]
+
 ### Mixes, Mega-Mixes and the Marketplace
 
 **2.35** Mixes MUST have three tabs: the owner's Mixes, Mega-Mixes and the Marketplace (labels: JITM-05 §2). [OWNER 2026-09-24 docs/MARKETPLACE_AND_NUMBERING_2026-09-24.md:3,53] [SHIPPED 9439fd6 src/components/MixLibraryNav.tsx:12]
@@ -198,7 +205,11 @@ The individual route saves preferences and opens the library without a contact. 
 
 **2.50** Journey (`/journey`) MUST be a dynamic graph of the account's actual Mixes and Beats, their saved connections and people's progress. It shows missing Beats, dead ends and strong or weak connections from recorded data, and never invents nodes, routes, outcomes or traffic. [OWNER 2026-09-21 docs/MIX_HANDOFF_AND_JOURNEY_PROPOSAL_2026-09-21.md:7] [OWNER 2026-09-28 D4] [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:9,28]
 
-**2.51** Stages (Lead, Prospect, Client, Retention, or the owner's own) are optional contact metadata, managed in Contact stages and used as secondary filters. They MUST NOT create, order or organize the graph. The export's stage-circle Journey is history. [OWNER 2026-09-21 docs/design/DESIGN_GUIDELINES.md:5] [OWNER 2026-09-28 D4] [OWNER 2026-09-28 D16] [SOURCE docs/JOURNEY_CLARITY_AND_ANALYTICS_2026-09-21.md:7] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:215]
+**2.51** Stages (Lead, Prospect, Client, Retention, or the owner's own) are optional contact labels, managed in Contact stages and used as secondary filters. They MUST NOT create, order or organize the graph. The graph may set and create them: a Mix can name the stage its people are in, and adding a Mega-Mix can add its stage labels, which the owner renames, reorders or retires like any other (§2.79). The export's stage-circle Journey is history. [OWNER 2026-09-21 docs/design/DESIGN_GUIDELINES.md:5] [OWNER 2026-09-28 D4] [OWNER 2026-09-28 D16] [OWNER 2026-10-05 D35] [SOURCE docs/JOURNEY_CLARITY_AND_ANALYTICS_2026-09-21.md:7] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:215]
+
+**2.79** A Mix can name a stage. The stage is set when a person starts that Mix, and setting it changes only the label: it never starts or stops another Mix, and the stage's own Mix does not run. When two Mixes set different stages, the latest start wins. A person whose stage changes are paused keeps their stage. Adding a Mega-Mix offers its stage labels, on by default, and links its Mixes to them. A label with the same name is reused, and nothing the owner already has is renamed or removed. Adding the labels turns Contact stages on, and adding a Mega-Mix still starts no one (§2.43). [OWNER 2026-10-05 D35] [PROPOSED]
+
+**2.80** Turning on Contact stages MUST offer presets. The presets are Sales (Lead, Prospect, Client, Retention), Business relationship (Prospect, Awareness, Interest, Qualification, Conversion, Maintain) and Blank. Each preset brings rules written for its own stages, so renaming never leaves a rule pointing at the wrong meaning. The owner can also add milestones in their own words, such as "Qualified" or "Signed". Each one shows on the contact as a button, can drive a stage rule, and can be sent by a lead connection. The built-in events keep neutral wording: an inquiry arrives, a conversation starts, a meeting is scheduled, happens or is missed, the stage's Mix finishes, and time passes. "Sale confirmed" and "Work completed" are renamable milestones of the Sales preset. Stage and milestone wording MUST NOT assume a sale (JITM-02 §2.20). [OWNER 2026-10-05 D36] [PROPOSED]
 
 **2.52** Journey MUST show one graph in three views: Setup (what can happen and what is missing), Progress (who is where and why) and Results (Last 7, 30 or 90 days). It opens on Progress when the account has people and on Setup otherwise. A structured list is always available (JITM-10 §2). [SOURCE docs/JOURNEY_IMPLEMENTATION_2026-09-21.md:9] [SOURCE docs/JOURNEY_CLARITY_AND_ANALYTICS_2026-09-21.md:11,15] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:28,218]
 
@@ -293,6 +304,8 @@ Questions for Kevin:
 - Who is the named backup moderator, once one is needed (§2.70)?
 - Should the other business types get their own journey starts, as Real estate has (§2.20)? They still start on "Follow up about an estimate", which also reaches Insurance & finance owners, and with no business name that text says "my business" (the rest of ONB-10, `docs/REALTOR_JOURNEY_IMPLEMENTATION_2026-09-29.md`).
 
+Decided on 2026-10-05 (D33–D37) but not yet built: §2.51 and §2.76–§2.80. Their proposed defaults (P1–P10) wait for Kevin's confirmation, and the questions, current behavior and build slices are in `docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md`.
+
 Decided on 2026-09-28 (D15, D16, D21, D26, D29) but not yet built or verified; each is a backlog task in `docs/STANDARDS_AUDIT_2026-09-28.md` §8:
 - Report, help and staff wording does not yet say that "verified" means the reporter's email (§2.49; B-09).
 - Journey numbers only the Mixes in the current Mega-Mix view (`src/components/WorkflowJourney.tsx:94`; `src/lib/journey-numbering.ts:68`), against §2.54 (B-13).
@@ -320,3 +333,4 @@ Known deviations:
 - 2.3.0 — 2026-10-01 — Base f1ac84d. New §2.75: plan limits skip automatic additions and refuse direct starts, with a Today notice (O14, docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).
 - 3.0.0 — 2026-10-03 — Base fdb95b6. §2.67 and §4: the public demo hands drafts to the visitor's own text, email and phone apps through ordinary links, a deliberate reversal of the earlier no-handoff rule (D31). Frontmatter version is 3.0.0.
 - 3.1.0 — 2026-10-05 — Base 9b3f949. §2.33: people can also arrive as contact cards shared from a phone. It adds the Android picker on Add a contact, the iPhone shortcut with its personal key, and the saved-card import guide on `/contacts/from-phone` (D32, docs/PHONE_CONTACTS_2026-10-05.md).
+- 4.0.0 — 2026-10-05 — Base e8692f2. Kevin's answers on Mix placement and stages (D33–D36, docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md). §2.51 now lets a Mix set a stage and a Mega-Mix create stage labels (D35, part of D16 replaced). New §2.76–§2.77: every contact shows No Mix or No Mix needed, with a filter, bulk actions, a Today line and an end-of-Mix question (D33). New §2.78: a setting decides where new contacts go, default C (D34). New §2.79: how a Mix sets a stage and a Mega-Mix adds labels (D35). New §2.80: stage presets and milestones in the owner's words (D36). §6 points to the proposed defaults (P1–P10) and the unbuilt work.

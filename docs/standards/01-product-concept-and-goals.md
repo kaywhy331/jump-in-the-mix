@@ -2,7 +2,7 @@
 id: JITM-01
 title: Product concept, goals and non-goals
 status: active
-version: 2.3.1
+version: 2.4.0
 owner: Kevin
 last_reviewed: 2026-10-05
 applies_to: [product, features, onboarding, access, marketing, agents]
@@ -147,6 +147,8 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 | Data controls: export, sessions, account deletion | Shipped | `docs/CANONICAL_PRODUCT_DECISIONS.md:111` |
 | Help and support conversations; staff console | Shipped | `docs/SUPPORT.md:3`; `docs/CANONICAL_PRODUCT_DECISIONS.md:16` |
 | Contact stages: optional labels such as Lead or Client, and the Mix each stage can start | Shipped | D16; `src/app/(app)/settings/page.tsx:11` |
+| No Mix status on every contact, with a filter, bulk actions, a Today line and an end-of-Mix question; a setting for where new contacts go | Planned | D33, D34; JITM-09 §2.76–§2.78; `docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md` |
+| Stages set by Mixes and added by Mega-Mixes; stage presets; milestones in the owner's words | Planned | D35, D36; JITM-09 §2.79–§2.80 |
 | Automatic customer email; automatic SMS | Built but off | §2.4 |
 | Payments: Stripe hosted checkout, billing portal and Plan and billing (`/account/billing`) | Built but off (`BILLING_ENABLED`) | `docs/BILLING.md`; `docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md` |
 | Native apps; paid voice assistant, inbox analysis, messaging bridges | Deferred | §2.7, §2.20 |
@@ -222,3 +224,4 @@ Known deviations at 9439fd6:
 - 2.2.2 — 2026-10-01 — Base f1ac84d. §2.22: the plan limits are built and stay off with billing (docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).
 - 2.3.0 — 2026-10-05 — Base 9b3f949. §2.22 adds Add from your phone (built, not yet released), the iPhone share shortcut (setup steps hidden until its link is set) and deferred continuous contact sync (D32, docs/PHONE_CONTACTS_2026-10-05.md).
 - 2.3.1 — 2026-10-05 — Base e6b4c6a. §2.22: Add from your phone is shipped, and the iPhone share shortcut is live with its steps hidden until its link is set (docs/PHONE_CONTACTS_RELEASE_2026-10-05.md).
+- 2.4.0 — 2026-10-05 — Base e8692f2. §2.22 adds two Planned rows: No Mix status with the new-contact setting (D33, D34), and stages from Mixes and Mega-Mixes with presets and named milestones (D35, D36) (docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md).
