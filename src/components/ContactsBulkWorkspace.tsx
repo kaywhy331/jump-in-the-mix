@@ -65,6 +65,8 @@ export function ContactsBulkWorkspace({
   mixCounts,
   mixes = [],
   todayKey,
+  listHref = "/contacts",
+  noMixHref = "/contacts?mix=no-mix",
   savedViews,
   intent
 }: {
@@ -82,6 +84,10 @@ export function ContactsBulkWorkspace({
   mixCounts?: ContactMixCounts;
   mixes?: { id: string; name: string }[];
   todayKey?: string;
+  /** Where a bulk action returns: this list's filters and docked person, without earlier notices (D47). */
+  listHref?: string;
+  /** The No Mix filter within the current search and filters. */
+  noMixHref?: string;
   savedViews?: ReactNode;
   intent?: "important-date" | "one-time-jump" | "log-note";
 }) {
@@ -102,8 +108,6 @@ export function ContactsBulkWorkspace({
   const inactiveTagCount = groups.length - activeTags.length;
   const allSelected = contacts.length > 0 && selected.size === contacts.length;
   const activeFilterCount = [groupFilter, priorityFilter, permissionFilter, mixFilter].filter(Boolean).length;
-  // Where a bulk action returns: this list with its filters, so the owner keeps working through it.
-  const listHref = `/contacts${searchParams.toString() ? `?${searchParams}` : ""}`;
   const initialSelectionKey = initialSelected.join(",");
 
   useEffect(() => {
@@ -156,7 +160,7 @@ export function ContactsBulkWorkspace({
             <label className="field"><span>Tag</span><select name="group" defaultValue={groupFilter}><option value="">All tags</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.isActive ? group.name : `Hidden · ${group.name}`}</option>)}</select></label>
             <label className="field"><span>Priority</span><select name="priority" defaultValue={priorityFilter}><option value="">All priorities</option><option value="URGENT">Urgent</option><option value="HIGH">High</option><option value="NORMAL">Normal</option><option value="LOW">Low</option></select></label>
             <label className="field"><span>Contact permission</span><select name="permission" defaultValue={permissionFilter}><option value="">Everyone</option><option value="contactable">Can contact</option><option value="do-not-contact">Do not contact</option></select></label>
-            <label className="field"><span>Mix</span><select name="mix" defaultValue={mixFilter}><option value="">Everyone</option>{(Object.keys(CONTACT_MIX_FILTERS) as ContactMixFilter[]).map(value => <option key={value} value={value}>{CONTACT_MIX_FILTERS[value]}{mixCounts ? ` · ${mixCounts[value].toLocaleString()}` : ""}</option>)}</select></label>
+            <label className="field"><span>Mix</span><select name="mix" defaultValue={mixFilter}><option value="">Any</option>{(Object.keys(CONTACT_MIX_FILTERS) as ContactMixFilter[]).map(value => <option key={value} value={value}>{CONTACT_MIX_FILTERS[value]}{mixCounts ? ` · ${mixCounts[value].toLocaleString()}` : ""}</option>)}</select></label>
           </form>
           {(query || activeFilterCount) && <Link className="button" href="/contacts">Clear filters</Link>}
           {savedViews}
@@ -218,7 +222,7 @@ export function ContactsBulkWorkspace({
       {intent === "one-time-jump" && <div className="notice info" role="status"><strong>Choose one or more people.</strong></div>}
       {intent === "log-note" && <div className="notice info" role="status"><strong>Choose a person.</strong> Then add what happened to their notes.</div>}
 
-      <div className="contact-list-summary"><span>{selectionMode ? `${selectedIds.length} selected` : `${(totalCount ?? contacts.length).toLocaleString()} people`}</span>{!selectionMode && !mixFilter && Boolean(mixCounts?.["no-mix"]) && <Link className="contact-no-mix-link" href={`/contacts?mix=no-mix${sort !== "name" ? `&sort=${encodeURIComponent(sort)}` : ""}`}>{mixCounts!["no-mix"].toLocaleString()} with No Mix</Link>}<form action="/contacts">{directoryContext}<input name="q" type="hidden" value={query} />{groupFilter && <input name="group" type="hidden" value={groupFilter} />}{priorityFilter && <input name="priority" type="hidden" value={priorityFilter} />}{permissionFilter && <input name="permission" type="hidden" value={permissionFilter} />}{mixFilter && <input name="mix" type="hidden" value={mixFilter} />}<select name="sort" aria-label="Sort contacts" defaultValue={sort} onChange={event => event.currentTarget.form?.requestSubmit()}><option value="name">Name</option><option value="last-name">Last name</option><option value="updated">Recently updated</option><option value="newest">Recently added</option></select></form>{selectionMode && <button type="button" className="contact-inline-action" onClick={toggleSelectionMode}>Done</button>}</div>
+      <div className="contact-list-summary"><span>{selectionMode ? `${selectedIds.length} selected` : `${(totalCount ?? contacts.length).toLocaleString()} people`}</span>{!selectionMode && !mixFilter && Boolean(mixCounts?.["no-mix"]) && <Link className="contact-no-mix-link" href={noMixHref}>{mixCounts!["no-mix"].toLocaleString()} with No Mix</Link>}<form action="/contacts">{directoryContext}<input name="q" type="hidden" value={query} />{groupFilter && <input name="group" type="hidden" value={groupFilter} />}{priorityFilter && <input name="priority" type="hidden" value={priorityFilter} />}{permissionFilter && <input name="permission" type="hidden" value={permissionFilter} />}{mixFilter && <input name="mix" type="hidden" value={mixFilter} />}<select name="sort" aria-label="Sort contacts" defaultValue={sort} onChange={event => event.currentTarget.form?.requestSubmit()}><option value="name">Name</option><option value="last-name">Last name</option><option value="updated">Recently updated</option><option value="newest">Recently added</option></select></form>{selectionMode && <button type="button" className="contact-inline-action" onClick={toggleSelectionMode}>Done</button>}</div>
       {contacts.length ? <div className="contact-list selectable-contact-list">{contacts.map((contact) => {
         const isSelected = selected.has(contact.id);
         const primaryEmail = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email;
@@ -245,11 +249,13 @@ export function ContactsBulkWorkspace({
         </Sheet>
         <Sheet trigger={<button className="button bulk-action-button" type="button" aria-label="Mix"><AppIcon name="mixes" /><span className="bulk-action-label">Mix</span></button>} title={`Mix for ${selectedIds.length} ${selectedIds.length === 1 ? "person" : "people"}`} description="Start a Mix, or confirm that these people don’t need one.">
           {mixes.length ? <>
-            {selectedDoNotContact.length > 0 && <div className="notice error">Remove {selectedDoNotContact.map((contact) => contact.displayName).join(", ")} because “Do not contact” is on.</div>}
+            {selectedDoNotContact.length > 0 && <div className="notice error" id="bulk-mix-blocked">Remove {selectedDoNotContact.map((contact) => contact.displayName).join(", ")} because “Do not contact” is on.</div>}
             <form action={bulkAssignMixAction} className="form-stack">{contactIdsInputs(selectedIds)}<input type="hidden" name="returnTo" value={listHref} />
               <label className="field"><span>Choose a Mix</span><select name="mixId" required>{mixes.map(mix => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></label>
               <label className="field"><span>Start on</span><input type="date" name="startDate" required min={todayKey} defaultValue={todayKey} /></label>
-              <button className="button primary" type="submit" disabled={selectedDoNotContact.length > 0}>Add to the Mix</button>
+              <p className="muted-copy">Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.</p>
+              {/* The reason a disabled button gives is linked to it, so assistive technology reads it too (JITM-08 §2.6). */}
+              <button className="button primary" type="submit" disabled={selectedDoNotContact.length > 0} aria-describedby={selectedDoNotContact.length > 0 ? "bulk-mix-blocked" : undefined}>Add to the Mix</button>
             </form>
           </> : <p>Create a Mix first. <Link href="/mixes">Go to Mixes</Link></p>}
           <form action={setNoMixNeededAction} className="form-stack bulk-no-mix-form">{contactIdsInputs(selectedIds)}<input type="hidden" name="returnTo" value={listHref} />

@@ -2,7 +2,7 @@ import { WorkflowAttention, UpcomingWorkflowCommitments } from "@/components/Wor
 import { readWorkflowAttention } from "@/lib/workflow-attention";
 import { QuietDaySuggestions } from "@/components/QuietDaySuggestions";
 import { readQuietDays } from "@/lib/quiet-days";
-import { contactMixCounts } from "@/lib/contact-mix-status";
+import { contactMixCounts, noMixTodayLine } from "@/lib/contact-mix-status";
 import { setNoMixNeededAction } from "@/lib/contact-no-mix-actions";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { MixEndPrompt } from "@/components/MixEndPrompt";
@@ -492,7 +492,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       {needsAttention.filter(item => item.scheduledAt >= startToday).length > 0 && <section aria-labelledby="today-follow-ups"><div className="section-label"><h2 id="today-follow-ups">Today</h2><span>{attentionCount - overdueCount}</span></div><div className="jump-list">{needsAttention.filter(item => item.scheduledAt >= startToday).map(renderCard)}</div></section>}
       <WorkflowAttention attention={workflowAttention} />
       <QuietDaySuggestions locale={displayPreferences.locale} initial={quietDays} canResolve={!impersonation} compact />
-      {noMixCount > 0 && <p className="today-no-mix-line"><AppIcon name="people" /><span>{noMixCount === 1 ? "1 person has" : `${noMixCount.toLocaleString()} people have`} No Mix, so nothing will remind you about them.</span><Link href="/contacts?mix=no-mix">Review</Link></p>}
+      {noMixCount > 0 && <p className="today-no-mix-line"><AppIcon name="people" /><span>{noMixTodayLine(noMixCount)}</span><Link href="/contacts?mix=no-mix">Review</Link></p>}
       <details className="today-queue-group" open={upcoming.length > 0 || Boolean(workflowAttention?.future?.length) || undefined}><summary>{range === "due" || range === "week" ? "Next 7 days" : "Upcoming"} <span>{(upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0)}</span></summary><UpcomingWorkflowCommitments attention={workflowAttention} displayPreferences={displayPreferences} />{upcoming.length ? <div className="jump-list">{upcoming.map(renderCard)}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
       <details className="today-queue-group" open={status === "done" || status === "skipped" || pendingCount === 0 || undefined}><summary>Done <span>{doneSummaryCount(range, completed.length, completedTodayCount)}</span></summary>{completed.length ? <div className="jump-list">{completed.map(renderCard)}</div> : <TodayLink className="today-queue-link" href="/jumps?range=due&status=done">View completed follow-ups</TodayLink>}</details>
       {totalCount > 0 && <nav className="pagination-bar today-pagination" aria-label="Follow-up pages">

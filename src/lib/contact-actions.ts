@@ -3,7 +3,7 @@
 import { assertRoomForPeople, peopleLimitRefusal } from "@/lib/plan-limits";
 import { applyJourneyEvent } from "@/lib/journey";
 import { placeNewContacts } from "@/lib/new-contact-placement";
-import { startMixForContact } from "@/lib/contact-mix-start";
+import { startMixForContact, visitTimedBeats } from "@/lib/contact-mix-start";
 
 import { workflowContinuation } from "@/lib/workflow-continuation";
 import { customerReturnPath } from "@/lib/customer-return-path";
@@ -180,7 +180,7 @@ type InitialFollowUp = {
   reason: string;
   mixId: string | null;
   /** Set for a Mix that starts when the owner starts it; it begins on the follow-up date. */
-  startsOn?: { id: string; name: string } | null;
+  startsOn?: { id: string; name: string; steps: { id: string }[] } | null;
 };
 
 // Wording for the first follow-up of a person added without a plan, on the channel their details allow.
@@ -214,10 +214,10 @@ async function initialFollowUpPayload(workspaceId: string, formData: FormData): 
       source: { not: "ONE_TIME" },
       OR: [{ triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id }, { triggerMode: "MANUAL_START" }]
     },
-    select: { id: true, name: true, triggerMode: true }
+    select: { id: true, name: true, triggerMode: true, steps: visitTimedBeats }
   });
   if (!mix) throw new ContactInputError("The selected follow-up Mix is no longer active or does not match this saved date.");
-  return { dateTypeId: dateType.id, dateValue, reason, mixId: mix.id, startsOn: mix.triggerMode === "MANUAL_START" ? { id: mix.id, name: mix.name } : null };
+  return { dateTypeId: dateType.id, dateValue, reason, mixId: mix.id, startsOn: mix.triggerMode === "MANUAL_START" ? { id: mix.id, name: mix.name, steps: mix.steps } : null };
 }
 
 async function validateContactPayload(workspaceId: string, region: string, payload: ReturnType<typeof contactPayload>, excludeContactId?: string) {

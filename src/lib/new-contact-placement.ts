@@ -1,5 +1,5 @@
 import type { Prisma } from "@/generated/prisma/client";
-import { startMixForContact } from "@/lib/contact-mix-start";
+import { startMixForContact, visitTimedBeats } from "@/lib/contact-mix-start";
 import { timezoneForWorkspace } from "@/lib/display-preferences";
 import { logicalDateFromDate, logicalDateInTimezone, zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { assertRoomForPeople } from "@/lib/plan-limits";
@@ -83,6 +83,7 @@ export async function placeNewContacts(tx: Tx, input: {
   const mix = input.mixId === undefined
     ? (await newContactPlacementSetting(tx, workspaceId)).mix
     : input.mixId ? await tx.mix.findFirst({ where: { id: input.mixId, ...placeableMixWhere(workspaceId) }, select: { id: true, name: true } }) : null;
+  const beats = mix ? await tx.mixStep.findMany({ where: { mixId: mix.id, ...visitTimedBeats.where }, select: visitTimedBeats.select, take: visitTimedBeats.take }) : [];
   if (input.mixId && !mix && input.chosenByOwner) throw new UserFacingError("Choose a Mix that is on and starts when you start it for someone.");
   if (!mix) return result;
   result.mix = mix;
@@ -100,7 +101,7 @@ export async function placeNewContacts(tx: Tx, input: {
     // Their Contact stage started its own Mix, or they are already in this one.
     if (stageMix || running) { result.skipped.push(contactId); continue; }
     try {
-      await startMixForContact(tx, { workspaceId, userId: input.actorUserId ?? null, contactId, mix: { ...mix, triggerMode: "MANUAL_START", dateTypeId: null }, start, timezone, source: input.source ?? "contacts.new" });
+      await startMixForContact(tx, { workspaceId, userId: input.actorUserId ?? null, contactId, mix: { ...mix, triggerMode: "MANUAL_START", dateTypeId: null, steps: beats }, start, timezone, source: input.source ?? "contacts.new" });
       result.started.push(contactId);
     } catch (error) {
       if (input.chosenByOwner || !(error instanceof UserFacingError)) throw error;

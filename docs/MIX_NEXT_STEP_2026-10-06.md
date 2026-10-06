@@ -1,6 +1,6 @@
 # What happens next for a person — 2026-10-06
 
-**Status:** built on branch `feat/mix-next-step-20261006`, stacked on PR #125 (the No Mix status). Not merged and not released.
+**Status:** built on branch `feat/mix-next-step-20261006`, stacked on PR #125 (the No Mix status), with #125's review fixes (1e69668) merged in. Not merged and not released.
 
 **Decisions:**
 - **D33** (confirmed 2026-10-05): when a Mix ends without a connection, the last Beat's outcome asks what's next.
@@ -78,7 +78,7 @@ All four are in the [owner decision log](standards-audit-2026-09-28/OWNER_DECISI
   - The queued batch keeps the answer. Batches queued before this release start none.
   - People who can't start the Mix are skipped, like any automatic addition (§2.75).
 - **A Contact stage's own Mix.** When a person's stage starts its Mix, the new-contact Mix is not added on top.
-- **Shared start routine.** Starting one person on a Mix moved into `src/lib/contact-mix-start.ts`, so the profile, bulk Add, Today's question and these paths share it. A start with no user is audited as the system's.
+- **Shared start routine.** Starting one person on a Mix moved into `src/lib/contact-mix-start.ts`, so the profile, bulk Add, Today's question and these paths share it. It returns what the start did (#125's BLK-01 fix, ported unchanged), and a start with no user is audited as the system's.
 
 **Schema:** two additive migrations.
 - `20261006120000_mix_audience_everyone`: `Mix.audienceEveryone`, set for Mixes that still have Everyone assignments.

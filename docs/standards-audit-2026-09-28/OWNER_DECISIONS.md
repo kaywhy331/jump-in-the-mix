@@ -399,6 +399,55 @@ Base e8692f2. D33–D37 answer the five questions in the analysis recorded in [M
   - the `jitm-copy` skill;
   - `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md`.
 
+### D44 — What the No Mix sentences say (2026-10-06)
+
+Base a05b189. D44–D47 answer questions 1, 2, 3 and 5 of the WF-05 review of PR #125, "Show whether each contact is in a Mix (D33)". Kevin's answers were relayed to the implementing agent session by the coordinating session on 2026-10-06; this entry records them in that session's wording, not as a quote.
+
+- **Question:** Today said "{n} people have No Mix, so nothing will remind you about them.", and the profile's What's next sheet said the same, but a pending one-time follow-up from Quick Add or "Schedule the next follow-up" does remind the owner. The options were:
+  - (a) keep D33's definition and change the wording to say that no Mix will remind the owner;
+  - (b) have Today's line count only people with nothing scheduled at all.
+- **Decision:** (a): fix the wording and keep D33's definition.
+- **Meaning:**
+  - One-time follow-ups still don't count as being in a Mix (D33).
+  - Today's line reads "{n} people have No Mix, so no Mix will remind you about them.", or "1 person has No Mix, …" for one.
+  - The What's next sheet reads "No Mix has work to come for this person."
+  - D33 confirmed the labels "No Mix" and "No Mix needed"; the meaning sentence in the glossary is this decision.
+- **Applied in:** JITM-05 §2.3 (2.1.2), JITM-09 §2.77 (5.0.0), `docs/NO_MIX_STATUS_2026-10-05.md`.
+
+### D45 — A paused Mix still counts (2026-10-06)
+
+- **Question:** does work held by a paused Mix count as being in a Mix, and should No Mix needed lapse when a paused Mix resumes? Pausing cancels a Mix's future Beats and leaves overdue ones pending until the worker's next pass, so a paused Mix split its people: some read In a Mix and others No Mix. The options were:
+  - (a) work on hold counts, and a confirmation set during the pause lapses when the Mix resumes;
+  - (b) work on hold doesn't count, and a paused Mix's overdue Beats don't count either.
+- **Decision:** (a): a paused Mix still counts as being in a Mix for all of its people. That covers people with overdue Beats, people with only future Beats held by the pause, and people whose Journey work is paused. A No Mix needed set while the Mix was paused lapses when the Mix resumes.
+- **Meaning:**
+  - "In a Mix" includes running or paused Journey work and the Beats a paused Mix holds for someone still enrolled in it and not stopped. A paused date-based Mix still counts a coming date.
+  - Resuming brings back the same rows rather than creating new ones, so No Mix needed also gives way to a Beat brought back, or done, after it was set.
+- **Applied in:** JITM-09 §2.76 (5.0.0), `src/lib/contact-mix-status.ts`.
+
+### D46 — Undo for Add to the Mix (2026-10-06)
+
+- **Question:** bulk "Add to the Mix" started a Mix for up to 100 people with neither Undo nor a confirmation, and people who had finished the Mix started it again without being told. The options were:
+  - (a) act at once and offer Undo in the notice, as Archive does;
+  - (b) ask first with a confirmation.
+- **Decision:** (a). Undo ends the Mix starts that this bulk action made, meaning the assignments it created or reactivated, and cancels the pending Beats those starts produced. It never touches completed or skipped follow-ups (JITM-00 §2.6) or history. The sheet warns that people who already finished the Mix will start it again.
+- **Meaning:**
+  - The sheet says "Anyone who already finished this Mix starts it again. Anyone still in it keeps their start."
+  - People who were already in the Mix keep their start, so Undo has nothing of theirs to end.
+  - Implementation readings, for Kevin to confirm: Undo also removes a saved date the start wrote for someone who had none (the start day of a date-based Mix), and it leaves alone any start that changed since, such as a person started again on their own. A second tap ends nothing.
+- **Applied in:** JITM-09 §2.77 (5.0.0), `src/lib/contact-mix-actions.ts`.
+
+### D47 — Counts and returns on a filtered Contacts list (2026-10-06)
+
+- **Question:** "{n} with No Mix" and the Mix filter's counts covered the whole account while sitting beside a searched or filtered list, and the link dropped the search and the tag. Should they follow the current search and filters?
+- **Decision:** yes. The "{n} with No Mix" link and the filter's counts follow the current search and filters, and the link keeps the search and the tag. Return paths are built from the filter parameters only, so old notices don't reappear. The docked profile's Undo keeps the docked person.
+- **Meaning:**
+  - The counts cover the people the list's other filters show (search, tag, priority, Contact permission and an import), and the link keeps all of them, so it opens the people it counted.
+  - After any action on the list, the owner returns to the same filters and docked person, without an earlier notice such as "Contact added." or an old Undo.
+- **Applied in:** JITM-09 §2.77 (5.0.0), `src/app/(app)/contacts/page.tsx`.
+
+Question 4 of the same review needed no new decision: the Mix filter's first option is "Any", as JITM-09 §2.77 already said, and the start buttons keep their names.
+
 ### D48–D53 — What happens next for a person (2026-10-06)
 
 - **Context:** slice 2 of the Mix placement work (PR #128, `docs/MIX_NEXT_STEP_2026-10-06.md`) was built with six implementation choices the decisions left open. Kevin asked for the most logical, easiest workflow and adopted the recommendations: "For those questionss, what is the most logical and best user experience? I will go off your recommendations. I want it to be easy for users providing and easy user experience for the users and intilligent to do the right workflow."
@@ -417,7 +466,7 @@ Base e8692f2. D33–D37 answer the five questions in the analysis recorded in [M
   - Refusing keeps the Quick Add draft, and the owner can choose "No Mix for now".
   - This applies only while billing is on.
 - **Confirms:** the rest of P5 as built. JITM-09 §2.78 drops [PROPOSED].
-- **Applied in:** JITM-09 §2.77, §2.78 (4.2.0); `docs/MIX_NEXT_STEP_2026-10-06.md`.
+- **Applied in:** JITM-09 §2.77, §2.78 (5.1.0); `docs/MIX_NEXT_STEP_2026-10-06.md`.
 
 ## Still open
 

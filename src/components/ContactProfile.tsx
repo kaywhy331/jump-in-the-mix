@@ -40,14 +40,14 @@ export type ContactProfileSearchParams = {
   created?: string; followUpScheduled?: string; dateCreated?: string; dateUpdated?: string; dateDeleted?: string; mixAssigned?: string; mixStart?: string; mixRemoved?: string;
   mixStopped?: string; mixResumed?: string; mixStopError?: string; mixResumeError?: string; updated?: string; inlineUpdated?: string;
   stateUpdated?: string; merged?: string; restored?: string; error?: string; at?: string; sig?: string;
-  noMixNeeded?: string; noMixCleared?: string; noMixSkipped?: string;
+  noMixNeeded?: string; noMixCleared?: string; noMixInMix?: string; noMixDnc?: string; noMixAlready?: string;
 };
 
 function addressText(address: { street1: string | null; street2: string | null; city: string | null; state: string | null; postalCode: string | null; country: string | null }): string {
   return [address.street1, address.street2, address.city, address.state, address.postalCode, address.country].filter(Boolean).join(", ");
 }
 
-export async function ContactProfile({ contactId, query = {}, embedded = false }: { contactId: string; query?: ContactProfileSearchParams; embedded?: boolean }) {
+export async function ContactProfile({ contactId, query = {}, embedded = false, directoryHref }: { contactId: string; query?: ContactProfileSearchParams; embedded?: boolean; directoryHref?: string }) {
   const { session, workspace, user, impersonation } = await requireWorkspace();
   const preparation = await readPreparationStatus(workspace.id, contactId);
   const [contact, dateTypes, plans, stops, groupStates, relationshipState, mergeHistory, nextFollowUp, comingUp, journeyStages, journeyEvents] = await Promise.all([
@@ -150,7 +150,8 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
   }
   const futureStages = journeyStages.filter(stage => stage.isActive && contact.journey && stage.position > contact.journey.stage.position).slice(0, 3);
   // Where this person goes next: a Mix, a one-time follow-up, or the owner's confirmation that they need no Mix (JITM-09 §2.76).
-  const returnTo = embedded ? `/contacts?person=${encodeURIComponent(contact.id)}` : `/contacts/${contact.id}`;
+  // Docked beside Contacts, the list's filters and this person come back with the notice (D47).
+  const returnTo = embedded ? directoryHref ?? `/contacts?person=${encodeURIComponent(contact.id)}` : `/contacts/${contact.id}`;
   const noMixChoice = mixStatus === "no-mix" || mixStatus === "no-mix-needed" ? <form action={setNoMixNeededAction} className="form-stack contact-no-mix-form"><input type="hidden" name="contactIds" value={contact.id} /><input type="hidden" name="returnTo" value={returnTo} />{mixStatus === "no-mix" ? <><p className="muted-copy">Doesn’t need follow-ups from a Mix, such as a supplier? Confirm it so they leave the No Mix list. It clears itself if they join a Mix later.</p><button className="button" type="submit" disabled={Boolean(impersonation)}>Mark No Mix needed</button></> : <><input type="hidden" name="intent" value="clear" /><p className="muted-copy">You confirmed that {contact.displayName} needs no Mix.</p><button className="button" type="submit" disabled={Boolean(impersonation)}>Remove No Mix needed</button></>}</form> : null;
   const touchpoint = <Sheet trigger={<button type="button" className="contact-inline-action"><AppIcon name="mixes" />Start a follow-up</button>} title={`Start a follow-up for ${contact.displayName}`}>
     <p>Choose an existing Mix or schedule a one-time follow-up.</p>
@@ -159,7 +160,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
     {state.doNotContact && <p>Do not contact is on. Update this person’s preferences before starting a follow-up.</p>}
     {noMixChoice}
   </Sheet>;
-  const mixChip = mixStatus === "no-mix" || mixStatus === "no-mix-needed" ? <Sheet trigger={<button type="button" className="contact-mix-chip" data-status={mixStatus} aria-label={`${mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}: choose what's next for ${contact.displayName}`}>{mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}<AppIcon name="chevronDown" /></button>} title={`What’s next for ${contact.displayName}`} description={mixStatus === "no-mix" ? "No Mix has work to come for this person, so nothing will remind you about them." : undefined}>
+  const mixChip = mixStatus === "no-mix" || mixStatus === "no-mix-needed" ? <Sheet trigger={<button type="button" className="contact-mix-chip" data-status={mixStatus} aria-label={`${mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}: choose what's next for ${contact.displayName}`}>{mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}<AppIcon name="chevronDown" /></button>} title={`What’s next for ${contact.displayName}`} description={mixStatus === "no-mix" ? "No Mix has work to come for this person." : undefined}>
     {plans.length > 0 && !state.doNotContact && <form action={assignMixToContactAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>Choose a Mix</span><select name="mixId" required>{plans.map(plan => <option value={plan.id} key={plan.id}>{plan.name}</option>)}</select></label>{startDateField}<button className="button primary" disabled={Boolean(impersonation)} type="submit">Start Mix</button></form>}
     {plans.length === 0 && <p>Create a Mix first. <Link href="/mixes">Go to Mixes</Link></p>}
     {!state.doNotContact && <Link className="button" href={`/contacts?intent=one-time-jump&people=${encodeURIComponent(contact.id)}&q=${encodeURIComponent(contact.displayName)}`}>Schedule a one-time follow-up</Link>}
@@ -192,8 +193,8 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
       {query.dateUpdated && <Notice type="success">Date updated.</Notice>}
       {query.dateDeleted && <Notice type="success">Date removed.</Notice>}
       {!query.created && query.mixAssigned && <Notice type="success">{query.mixStart === "saved" ? "Start saved. It follows this person’s saved date." : /^\d{4}-\d{2}-\d{2}$/.test(query.mixStart ?? "") ? `Start saved for ${formatDate(new Date(`${query.mixStart}T12:00:00Z`), { ...displayPreferences, timeZone: "UTC" })}.` : "Start saved."} Follow-ups are being prepared. <Link href="/settings/notifications">Set up reminders for me (optional)</Link>.{query.mixAssigned === "visit" && <> Its Beats timed from an appointment wait until you <Link href={`/calendar?contact=${contact.id}`}>line it up with a visit</Link> from the calendar.</>}</Notice>}
-      {query.noMixNeeded && (Number(query.noMixNeeded) > 0 ? <Notice type="success"><span className="notice-with-action">Marked No Mix needed.<form action={setNoMixNeededAction}><input type="hidden" name="intent" value="clear" /><input type="hidden" name="contactIds" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form></span></Notice> : <Notice type="info">{contact.displayName} is already in a Mix or marked Do not contact, so nothing changed.</Notice>)}
-      {query.noMixCleared && <Notice type="success">No Mix needed removed.</Notice>}
+      {query.noMixNeeded && (Number(query.noMixNeeded) > 0 ? <Notice type="success"><span className="notice-with-action">Marked No Mix needed.<form action={setNoMixNeededAction}><input type="hidden" name="intent" value="clear" /><input type="hidden" name="contactIds" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form></span></Notice> : <Notice type="info">{query.noMixAlready ? `${contact.displayName} is already marked No Mix needed.` : query.noMixDnc ? `${contact.displayName} is marked Do not contact, so nothing changed.` : `${contact.displayName} is already in a Mix, so nothing changed.`}</Notice>)}
+      {query.noMixCleared && (Number(query.noMixCleared) > 0 ? <Notice type="success">No Mix needed removed.</Notice> : <Notice type="info">{contact.displayName} isn’t marked No Mix needed, so nothing changed.</Notice>)}
       {query.mixRemoved && <Notice type="success">Mix removed.</Notice>}
       {query.mixStopped && <Notice type="success">Mix stopped.</Notice>}
       {query.mixResumed && <Notice type="success">Mix resumed.</Notice>}

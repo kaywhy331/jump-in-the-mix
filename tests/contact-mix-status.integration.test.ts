@@ -25,14 +25,19 @@ describe.sequential("whether a person is in a Mix (JITM-09 §2.76)", () => {
   async function person(name: string) {
     return (await prisma.contact.create({ data: { workspaceId, displayName: `${name} ${suffix.slice(0, 6)}` } })).id;
   }
-  async function jump(contactId: string, target: typeof realMix, status: "PENDING" | "DONE" = "PENDING") {
+  async function jump(contactId: string, target: typeof realMix, status: "PENDING" | "DONE" | "CANCELED" = "PENDING", extra: { completionMethod?: string; createdAt?: Date } = {}) {
     return prisma.jump.create({ data: {
       workspaceId, contactId, mixId: target.id, mixStepId: target.stepId, stepVersionId: target.versionId,
       scheduledAt: new Date(), reason: "Check in", status, completedAt: status === "DONE" ? new Date() : null,
-      uniquenessKey: `mix-status-${randomUUID()}`, templateSnapshot: { channel: "SMS", body: "Hi" }, renderedSnapshot: { body: "Hi" }
+      uniquenessKey: `mix-status-${randomUUID()}`, templateSnapshot: { channel: "SMS", body: "Hi" }, renderedSnapshot: { body: "Hi" }, ...extra
     } });
   }
+  /** A row as it stood before this test: created and last written `ago` ms earlier. */
+  const backdate = (jumpId: string, ago: number) => prisma.$executeRaw`UPDATE "Jump" SET "createdAt" = ${new Date(Date.now() - ago)}, "updatedAt" = ${new Date(Date.now() - ago)} WHERE id = ${jumpId}`;
   const status = (contactId: string, now?: Date) => contactMixStatus(workspaceId, contactId, now);
+  /** A preparation job as the app queues it; the worker marks it done once it has run (src/worker/index.ts). */
+  const queue = (payload: { contactId?: string; mixId?: string; contactIds?: string[] }) => prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload } });
+  const prepared = () => prisma.job.updateMany({ where: { workspaceId, completedAt: null }, data: { completedAt: new Date() } });
 
   beforeAll(async () => {
     const user = await prisma.user.create({ data: { email: `mix-status-${suffix}@example.com`, name: "Mix Status", passwordHash: "test-only", emailVerifiedAt: new Date() } });
@@ -69,26 +74,87 @@ describe.sequential("whether a person is in a Mix (JITM-09 §2.76)", () => {
     const finished = await person("Finished");
     await jump(finished, realMix, "DONE");
     await prisma.mixAssignment.create({ data: { workspaceId, mixId: realMix.id, contactId: finished, assignmentKey: `${workspaceId}:${realMix.id}:${finished}`, startDate: new Date() } });
-    // After the preparation grace, a finished Mix is not a Mix the person is in.
-    expect(await status(finished, new Date(Date.now() + 2 * day))).toBe("no-mix");
+    // A finished Mix is not a Mix the person is in, however recently its assignment was written.
+    expect(await status(finished)).toBe("no-mix");
   });
 
-  it("gives a just-started Mix a day for its Beats to be prepared, unless it is stopped", async () => {
+  it("counts a Mix just started while its Beats are being prepared, unless it is stopped (DEF-01)", async () => {
     const started = await person("Started");
     await prisma.mixAssignment.create({ data: { workspaceId, mixId: realMix.id, contactId: started, assignmentKey: `${workspaceId}:${realMix.id}:${started}`, startDate: new Date() } });
+    // An assignment alone is not work to come: nothing is preparing Beats for it.
+    expect(await status(started)).toBe("no-mix");
+    await queue({ contactId: started, mixId: realMix.id });
     expect(await status(started)).toBe("in-mix");
-    expect(await status(started, new Date(Date.now() + 2 * day))).toBe("no-mix");
+    // A failed preparation is shown on Today with Retry; the person no longer reads as being prepared.
+    await prisma.job.updateMany({ where: { workspaceId, completedAt: null }, data: { failedAt: new Date() } });
+    expect(await status(started)).toBe("no-mix");
+    await queue({ contactId: started, mixId: realMix.id });
     await prisma.mixStop.create({ data: { workspaceId, mixId: realMix.id, contactId: started, reason: "plan.limit" } });
     expect(await status(started)).toBe("no-mix");
+    await prepared();
   });
 
-  it("counts a new tag member while the tag's Mix prepares their Beats", async () => {
+  it("gives a restart its grace, but never a save or an edit of a Mix someone finished (DEF-01)", async () => {
+    const finished = await person("Finished again");
+    await jump(finished, realMix, "DONE");
+    const assignment = await prisma.mixAssignment.create({ data: { workspaceId, mixId: realMix.id, contactId: finished, assignmentKey: `${workspaceId}:${realMix.id}:${finished}`, startDate: new Date(Date.now() - 30 * day) } });
+    // A save of the Mix rewrites its assignments and queues the whole Mix; an edit of the person queues them alone.
+    await prisma.mixAssignment.update({ where: { id: assignment.id }, data: { isActive: true, startDate: assignment.startDate } });
+    await queue({ mixId: realMix.id });
+    await queue({ contactId: finished });
+    await queue({});
+    expect(await status(finished)).toBe("no-mix");
+    // Starting them again names them and the Mix, so they read as in it while the new Beats are prepared.
+    await queue({ contactId: finished, mixId: realMix.id });
+    expect(await status(finished)).toBe("in-mix");
+    await prepared();
+    expect(await status(finished)).toBe("no-mix");
+    // A bulk start names its people in one job for the Mix (PERF-01).
+    await queue({ mixId: realMix.id, contactIds: [finished] });
+    expect(await status(finished)).toBe("in-mix");
+    await prepared();
+    expect(await status(finished)).toBe("no-mix");
+  });
+
+  it("counts the people of a tag while the tag's Mix prepares their first Beats (DEF-01)", async () => {
     const group = await prisma.group.create({ data: { workspaceId, name: `Kitchens ${suffix}` } });
+    const longStanding = await person("Long-standing");
+    await prisma.contactGroupMembership.create({ data: { contactId: longStanding, groupId: group.id, createdAt: new Date(Date.now() - 30 * day) } });
+    // The Mix is added to a tag the person has been in for a month.
     await prisma.mixAssignment.create({ data: { workspaceId, mixId: realMix.id, groupId: group.id, assignmentKey: `${workspaceId}:${realMix.id}:group:${group.id}`, startDate: new Date(), mode: "DYNAMIC" } });
+    await queue({ mixId: realMix.id });
+    expect(await status(longStanding)).toBe("in-mix");
+    // Someone joining the tag later is covered by the account-wide preparation that adding a tag member queues.
+    await prepared();
     const tagged = await person("Tagged");
     await prisma.contactGroupMembership.create({ data: { contactId: tagged, groupId: group.id } });
+    expect(await status(tagged)).toBe("no-mix");
+    await queue({});
     expect(await status(tagged)).toBe("in-mix");
-    expect(await status(tagged, new Date(Date.now() + 2 * day))).toBe("no-mix");
+    // A hidden tag runs no Mix.
+    await prisma.contactGroupState.create({ data: { workspaceId, groupId: group.id, isActive: false } });
+    expect(await status(tagged)).toBe("no-mix");
+    await prisma.contactGroupState.deleteMany({ where: { groupId: group.id } });
+    await prepared();
+    expect(await status(tagged)).toBe("no-mix");
+  });
+
+  it("never reads a date-based Mix, or one that waits for a visit, as being prepared for everyone (DEF-01)", async () => {
+    const undated = await person("No renewal date");
+    await prisma.mixAssignment.create({ data: { workspaceId, mixId: dateMix.id, contactId: undated, assignmentKey: `${workspaceId}:${dateMix.id}:${undated}` } });
+    const visitOnly = await mix("Visit follow-up");
+    await prisma.mixStep.updateMany({ where: { mixId: visitOnly.id }, data: { anchor: "APPOINTMENT_END", offsetMinutes: 60 } });
+    const visitor = await person("Waiting for a visit");
+    await prisma.mixAssignment.create({ data: { workspaceId, mixId: visitOnly.id, contactId: visitor, assignmentKey: `${workspaceId}:${visitOnly.id}:${visitor}`, startDate: new Date() } });
+    await queue({});
+    await queue({ mixId: dateMix.id });
+    await queue({ mixId: visitOnly.id });
+    expect(await status(undated)).toBe("no-mix");
+    expect(await status(visitor)).toBe("no-mix");
+    // Their own start still reads as being prepared.
+    await queue({ contactId: visitor, mixId: visitOnly.id });
+    expect(await status(visitor)).toBe("in-mix");
+    await prepared();
   });
 
   it("counts running or paused Journey work", async () => {
@@ -99,6 +165,37 @@ describe.sequential("whether a person is in a Mix (JITM-09 §2.76)", () => {
     expect(await status(working)).toBe("in-mix");
     await prisma.mixWorkflowInstance.update({ where: { id: instance.id }, data: { status: "FINISHED" } });
     expect(await status(working)).toBe("no-mix");
+  });
+
+  it("counts the Beats a paused Mix holds for its people, and only theirs (DEF-02, D45)", async () => {
+    const paused = await mix("Paused for the season", { status: "PAUSED" });
+    const enroll = (contactId: string) => prisma.mixAssignment.create({ data: { workspaceId, mixId: paused.id, contactId, assignmentKey: `${workspaceId}:${paused.id}:${contactId}`, startDate: new Date() } });
+    // Future Beats the pause held, and an overdue one the worker's next pass cancelled while it is paused.
+    const ahead = await person("Held ahead");
+    await enroll(ahead);
+    await jump(ahead, paused, "CANCELED", { completionMethod: "mix_paused" });
+    const overdue = await person("Held overdue");
+    await enroll(overdue);
+    await jump(overdue, paused, "CANCELED", { completionMethod: "reconciled" });
+    expect(await status(ahead)).toBe("in-mix");
+    expect(await status(overdue)).toBe("in-mix");
+    // Someone stopped in the Mix, or taken out of it, has nothing held for them.
+    await prisma.mixStop.create({ data: { workspaceId, mixId: paused.id, contactId: overdue, reason: "Asked to stop" } });
+    expect(await status(overdue)).toBe("no-mix");
+    await prisma.mixAssignment.updateMany({ where: { mixId: paused.id, contactId: ahead }, data: { isActive: false } });
+    expect(await status(ahead)).toBe("no-mix");
+    // An old row a retimed Beat replaced is not held work: this person finished the Mix before the pause.
+    const finished = await person("Finished before the pause");
+    await enroll(finished);
+    await jump(finished, paused, "CANCELED", { completionMethod: "reconciled", createdAt: new Date(Date.now() - 3 * day) });
+    await jump(finished, paused, "DONE", { createdAt: new Date(Date.now() - 2 * day) });
+    expect(await status(finished)).toBe("no-mix");
+    // A paused date-based Mix still holds the next date of a repeating one.
+    const pausedDates = await mix("Paused renewals", { status: "PAUSED", triggerMode: "DATE_TRIGGERED", dateTypeId });
+    const renewing = await person("Renewing");
+    await prisma.jumpDate.create({ data: { workspaceId, contactId: renewing, dateTypeId, timezone: "UTC", recurrence: "YEARLY", month: 6, day: 1 } });
+    await prisma.mixAssignment.create({ data: { workspaceId, mixId: pausedDates.id, contactId: renewing, assignmentKey: `${workspaceId}:${pausedDates.id}:${renewing}` } });
+    expect(await status(renewing)).toBe("in-mix");
   });
 
   it("counts a date-based Mix waiting for a repeating or future date, not a past one", async () => {
@@ -127,6 +224,16 @@ describe.sequential("whether a person is in a Mix (JITM-09 §2.76)", () => {
     expect(await status(vendor)).toBe("in-mix");
     await prisma.jump.update({ where: { id: started.id }, data: { status: "DONE", completedAt: new Date() } });
     expect(await status(vendor)).toBe("no-mix");
+    // A resumed Mix brings back its held rows instead of creating new ones; that also makes it lapse (D45).
+    const resumed = await person("Resumed");
+    const heldRow = await jump(resumed, realMix, "CANCELED", { completionMethod: "mix_paused" });
+    await backdate(heldRow.id, 3 * day);
+    await prisma.contactRelationshipState.create({ data: { workspaceId, contactId: resumed, noMixNeededAt: new Date(Date.now() - day) } });
+    expect(await status(resumed)).toBe("no-mix-needed");
+    await prisma.jump.update({ where: { id: heldRow.id }, data: { status: "PENDING", completionMethod: null } });
+    expect(await status(resumed)).toBe("in-mix");
+    await prisma.jump.update({ where: { id: heldRow.id }, data: { status: "DONE", completedAt: new Date() } });
+    expect(await status(resumed)).toBe("no-mix");
     // A one-time follow-up is not a Mix, so it never clears the confirmation.
     const friend = await person("Friend");
     await prisma.contactRelationshipState.create({ data: { workspaceId, contactId: friend, noMixNeededAt: new Date(Date.now() - 1000) } });
@@ -143,6 +250,12 @@ describe.sequential("whether a person is in a Mix (JITM-09 §2.76)", () => {
       expect(new Set(ids)).toEqual(new Set([...statuses].filter(([, item]) => item === value).map(([id]) => id)));
       expect(counts[value]).toBe(ids.length);
     }
+    // Counted among the people a filtered list shows, the counts cover just them (D47).
+    const among = people.slice(0, 3).map(item => item.id);
+    const scoped = await contactMixCounts(workspaceId, undefined, among);
+    for (const value of ["in-mix", "no-mix", "no-mix-needed", "do-not-contact"] as const) expect(scoped[value]).toBe(among.filter(id => statuses.get(id) === value).length);
+    expect(Object.values(await contactMixCounts(workspaceId, undefined, [])).every(count => count === 0)).toBe(true);
+    expect(Object.values(await contactMixCounts(otherWorkspaceId, undefined, among)).every(count => count === 0)).toBe(true);
     expect(await contactIdsWithMixStatus(otherWorkspaceId, "no-mix")).toEqual([]);
     const archived = await person("Archived");
     await prisma.contact.update({ where: { id: archived }, data: { archivedAt: new Date() } });

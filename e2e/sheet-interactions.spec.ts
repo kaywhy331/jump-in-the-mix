@@ -291,10 +291,17 @@ test("Calendar reveals invalid collapsed fields and focuses returned errors with
 
 test("enlarged text keeps editor actions and public navigation reachable", async ({ page }) => {
   const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId } });
+  // Contacts rows with the Mix status labels beside a stage and a due follow-up (LAY-01): one person with
+  // No Mix and one with No Mix needed, each with a phone so the row shows the label, not the missing-method link.
+  const labelled = await Promise.all(["No Mix", "No Mix needed"].map(async (status, index) => prisma.contact.create({ data: {
+    workspaceId, displayName: `Sheet ${status.toLowerCase()} ${index}`, phones: { create: { phone: `+1555010120${index}`, normalized: `+1555010120${index}`, isPrimary: true } },
+    ...(status === "No Mix needed" ? { relationshipState: { create: { workspaceId, noMixNeededAt: new Date() } } } : {})
+  } })));
+  try {
   for (const theme of ["light", "dark"] as const) {
     await page.setViewportSize({ width: 320, height: 568 }); await setTheme(page, theme);
     // The editor's own address: /mixes/<id>/edit forwards here after loading, which would race the measurements.
-    for (const route of [`/mixes?mix=${mix.id}&view=edit`, "/account/preferences", "/calendar?new=1", "/", "/for/contractors"]) {
+    for (const route of [`/mixes?mix=${mix.id}&view=edit`, "/account/preferences", "/calendar?new=1", "/contacts?q=Sheet", "/", "/for/contractors"]) {
       await page.goto(route); if (route !== "/" && !route.startsWith("/for/")) await ready(page);
       // The app shell is ready before a streamed page replaces its "Loading …" fallback (React reveals
       // Suspense content in batches); measure the page itself, not the navigation beside the fallback.
@@ -302,6 +309,17 @@ test("enlarged text keeps editor actions and public navigation reachable", async
       await page.addStyleTag({ content: "html { font-size: 200% !important; scroll-behavior: auto !important; } * { scroll-behavior: auto !important; }" });
       await page.evaluate(() => document.fonts.ready);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), route).toBe(true);
+      if (route.startsWith("/contacts")) {
+        // Each Mix label is shown whole and inside the row; the summary wraps instead of clipping.
+        for (const label of ["No Mix", "No Mix needed"]) {
+          const box = await page.locator(".contact-row-summary > :is(.contact-no-mix, .contact-no-mix-needed)").filter({ hasText: new RegExp(`^${label}$`) }).first().evaluate(element => {
+            const rect = element.getBoundingClientRect(), row = element.closest(".contact-row")!.getBoundingClientRect();
+            return { whole: element.scrollWidth <= element.clientWidth + 1, inside: rect.left >= row.left - 1 && rect.right <= row.right + 1 };
+          });
+          expect(box, `${theme}: the ${label} label`).toEqual({ whole: true, inside: true });
+        }
+        expect(await page.locator(".contact-row-summary").evaluateAll(rows => rows.every(row => row.scrollWidth <= row.clientWidth + 1)), `${theme}: row summaries`).toBe(true);
+      }
       const controls = page.locator(".sticky-form-actions .button, .form-actions .button, .public-header a, .public-header summary, .profession-grid a, .mobile-nav .nav-link").filter({ visible: true });
       // Hold each control itself: nth() locators re-resolve, so a control appearing earlier in the page
       // would shift every later check onto a different element.
@@ -322,6 +340,9 @@ test("enlarged text keeps editor actions and public navigation reachable", async
         expect(position.reachable, `${route}: ${await control.innerText()} ${JSON.stringify(position)}`).toBe(true);
       }
     }
+  }
+  } finally {
+    await prisma.contact.deleteMany({ where: { id: { in: labelled.map(contact => contact.id) } } });
   }
 });
 
