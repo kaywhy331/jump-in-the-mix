@@ -2,7 +2,7 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 6.1.0
+version: 6.1.1
 owner: Kevin
 last_reviewed: 2026-10-06
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
@@ -128,7 +128,7 @@ The individual route saves preferences and opens the library without a contact. 
 
 ### Today: review, outcome and next step
 
-**2.24** Today (`/jumps`) MUST order its queue: invitations ready to send, the invitations strip, the preparation notice, Overdue, Today, Needs your input, Quiet-day check-ins, the No Mix line (§2.77), Upcoming ("Next 7 days" in the due and week views), then Done. The first open card carries "Next up". The No Mix line is decided and built but not yet released; the rest of the order is shipped. [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:449-464] [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:370] [OWNER 2026-10-05 D33]
+**2.24** Today (`/jumps`) MUST order its queue: invitations ready to send, the invitations strip, the preparation notice, Overdue, Today, Needs your input, Quiet-day check-ins, the No Mix line (§2.77), Upcoming ("Next 7 days" in the due and week views), then Done. The first open card carries "Next up". The whole order is shipped, the No Mix line since `prod-2026-10-06-4a77761`. [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:449-464] [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:370] [SHIPPED 4a77761 src/app/(app)/jumps/page.tsx:484] [OWNER 2026-10-05 D33]
 
 **2.25** Today MUST state only what is true:
 - "You're caught up." only when nothing is due, nothing needs input and every check succeeded; otherwise it says the next steps could not be checked or are awaiting preparation;
@@ -304,10 +304,11 @@ Questions for Kevin:
 - Who is the named backup moderator, once one is needed (§2.70)?
 - Should the other business types get their own journey starts, as Real estate has (§2.20)? They still start on "Follow up about an estimate", which also reaches Insurance & finance owners, and with no business name that text says "my business" (the rest of ONB-10, `docs/REALTOR_JOURNEY_IMPLEMENTATION_2026-09-29.md`).
 
-Decided on 2026-10-05 and 2026-10-06 (D33–D37, D44–D47):
-- §2.76 and §2.77 are built on `feat/no-mix-status-20261005` (PR #125) and not yet released (`docs/NO_MIX_STATUS_2026-10-05.md`), except the end-of-Mix question in §2.77.
-- Not yet built: the end-of-Mix question in §2.77, §2.51 and §2.78–§2.80.
-- Kevin confirmed P1–P4, part of P5, P6 and P7's timing (D33). The rest of P5 and P8–P11 still wait for him; the questions, current behavior and build slices are in `docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md`.
+Decided on 2026-10-05 and 2026-10-06 (D33–D37, D44–D53):
+- §2.76 and §2.77 are shipped in `prod-2026-10-06-4a77761` (`docs/NO_MIX_STATUS_2026-10-05.md`), except the end-of-Mix question in §2.77.
+- The end-of-Mix question in §2.77, and §2.78, are built on `feat/mix-next-step-20261006` (PR #128) and not yet released (`docs/MIX_NEXT_STEP_2026-10-06.md`).
+- Not yet built: §2.51, §2.79 and §2.80.
+- Kevin confirmed P1–P4, part of P5, P6 and P7's timing (D33), and the rest of P5 with D48–D53. P8–P11 still wait for him; the questions, current behavior and build slices are in `docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md`.
 - Open for Kevin: whether a person whose Beats wait for a visit, or for the visit's outcome, should count as being in a Mix (§2.76). Today they read No Mix once their Beats are prepared (`docs/NO_MIX_STATUS_2026-10-05.md`).
 - Open for Kevin: the eight agent defaults behind §2.76–§2.77, each with its question, in `docs/NO_MIX_STATUS_2026-10-05.md` ("Agent defaults for Kevin"), and the deferred review findings there: PAUSE-01 (b), COPY-02 (b) and UNDO-05 (c)–(e).
 
@@ -345,3 +346,4 @@ Known deviations:
 - 6.0.0 — 2026-10-06 — Base 1e69668. The WF-05 re-review of PR #125. §2.76: Journey work counts only through its follow-ups and real waiting state, never a record's status (JRN-01), and a paused Mix also counts people it has prepared nothing for yet (PAUSE-01). §2.77: bulk Add leaves people the Mix already has work for as they are (BLK-02) and words its sheet by the Mix's start type (COPY-02); Undo takes back only what each start did and puts back what it replaced (UNDO-01, UNDO-02); the readings beyond D46–D47 are cited as agent defaults until Kevin confirms them (JITM-15 §2.12). After the third review (base 378d4fd): a wait that cannot move does not count (JRN-02); stopped and Do not contact people are refused, not counted as already in (BLK-03); Undo, like Remove from Mix, ends the run's Journey record (UNDO-04, default 8); and §2.77 says a shared follow-up is brought back by the next pass. §6 points to them.
 - 6.0.1 — 2026-10-06 — Base 378d4fd. §6: the end-of-Mix question (§2.77), the New contacts setting and "Everyone" including people added later (§2.78) are built, not yet released, and six implementation choices are listed as questions for Kevin (docs/MIX_NEXT_STEP_2026-10-06.md). §2.78 keeps [PROPOSED] for the parts of P5 not yet confirmed.
 - 6.1.0 — 2026-10-06 — Base 378d4fd. Kevin adopted the recommendations for slice 2's six open choices (D48–D53). §2.77: the end-of-Mix question asks only when the person is left with no Mix. §2.78 drops [PROPOSED] and states the rest: placeable Mixes, Ask each time sending phone and lead-connection people to the No Mix line, visits, onboarding and invitations, existing Everyone Mixes, and plan limits. §6 no longer lists those questions.
+- 6.1.1 — 2026-10-06 — Base 4a77761. Brings in #125's third-review text (§2.76 JRN-02; §2.77 BLK-03 and default 8) beside D48's wording for the end-of-Mix question in §2.77. §2.24 and §6: the No Mix status is shipped (`prod-2026-10-06-4a77761`). §6 now says what 6.0.1 meant to: the end-of-Mix question and §2.78 are built on PR #128 and not yet released, and D48–D53 confirmed the rest of P5.
