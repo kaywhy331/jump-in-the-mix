@@ -127,7 +127,12 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     const result = await redirectOf(bulkAssignMixAction(form({ contactIds: [first, second], mixId, startDate: today, returnTo: `/contacts?mix=no-mix&people=${first}` })));
     expect(Object.fromEntries(result.searchParams)).toEqual({ mix: "no-mix", mixStarted: "2", mixStartedId: mixId, mixStartOn: today, mixUndo: expect.any(String) });
     expect(await prisma.mixAssignment.count({ where: { workspaceId, mixId, contactId: { in: [first, second] }, isActive: true } })).toBe(2);
-    expect(await prisma.job.count({ where: { workspaceId, task: "generate-jumps", payload: { path: ["mixId"], equals: mixId } } })).toBeGreaterThanOrEqual(2);
+    // One preparation pass for the Mix, listing the people it started (PERF-01).
+    const jobs = await prisma.job.findMany({ where: { workspaceId, task: "generate-jumps", payload: { path: ["contactIds"], array_contains: [first] } }, select: { payload: true } });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].payload).toEqual({ mixId, contactIds: expect.arrayContaining([first, second]) });
+    expect((jobs[0].payload as { contactIds: string[] }).contactIds).toHaveLength(2);
+    expect(await prisma.job.count({ where: { workspaceId, task: "generate-jumps", payload: { path: ["contactId"], equals: first } } })).toBe(0);
     expect(await contactMixStatus(workspaceId, first)).toBe("in-mix");
   });
 

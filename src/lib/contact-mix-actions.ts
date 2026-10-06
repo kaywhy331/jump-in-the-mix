@@ -54,7 +54,7 @@ type MixStartOutcome = {
  * The chosen day is where the plan starts. A plan that starts from a saved date gets that date when
  * the person has none; one they already have is kept. Returns what the confirmation names.
  */
-async function startMixForContact(tx: Prisma.TransactionClient, input: { workspaceId: string; userId: string; contactId: string; mix: StartableMix; start: LogicalDate; timezone: string; source: string }): Promise<MixStartOutcome> {
+async function startMixForContact(tx: Prisma.TransactionClient, input: { workspaceId: string; userId: string; contactId: string; mix: StartableMix; start: LogicalDate; timezone: string; source: string; queuePreparation?: boolean }): Promise<MixStartOutcome> {
   const { workspaceId, contactId, mix, start, timezone } = input;
   await assertMixStartEligible(tx, workspaceId, contactId, mix.id);
   const assignmentKey = `${workspaceId}:${mix.id}:${contactId}`;
@@ -95,7 +95,8 @@ async function startMixForContact(tx: Prisma.TransactionClient, input: { workspa
       if (restart) result = "date-written";
     }
   }
-  await tx.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId, mixId: mix.id } } });
+  // A bulk start queues one job for all of its people instead (PERF-01).
+  if (input.queuePreparation !== false) await tx.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId, mixId: mix.id } } });
   await tx.auditLog.create({
     data: {
       workspaceId,
@@ -180,12 +181,15 @@ export async function bulkAssignMixAction(formData: FormData): Promise<void> {
       const starts: RecordedStart[] = [];
       for (const contact of contacts) {
         let outcome: MixStartOutcome;
-        try { outcome = await startMixForContact(tx, { workspaceId: workspace.id, userId: user.id, contactId: contact.id, mix, start: start!, timezone, source: "contacts.bulk" }); }
+        try { outcome = await startMixForContact(tx, { workspaceId: workspace.id, userId: user.id, contactId: contact.id, mix, start: start!, timezone, source: "contacts.bulk", queuePreparation: false }); }
         catch (error) { throw error instanceof UserFacingError ? new UserFacingError(`${contact.displayName}: ${error.message}`) : error; }
         counts[outcome.result] += 1;
         // Someone already in the Mix keeps their start, so Undo has nothing of theirs to end.
         if (outcome.result !== "already-running") starts.push({ contactId: contact.id, assignmentId: outcome.assignment.id, assignmentUpdatedAt: outcome.assignment.updatedAt.toISOString(), jumpDateId: outcome.writtenDate?.id ?? null, jumpDateUpdatedAt: outcome.writtenDate?.updatedAt.toISOString() ?? null });
       }
+      // One preparation pass for the Mix rather than one per person: the worker reads only mixId, so it prepares
+      // the whole Mix once, as a save of that Mix does, and contactIds lets these people read as being prepared.
+      await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId: mix.id, contactIds: contacts.map(contact => contact.id) } } });
       if (!starts.length) return null;
       // The record of what this action started, which its Undo reads back (D46).
       return (await tx.auditLog.create({ select: { id: true }, data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: BULK_START_ACTION, entityType: "Mix", entityId: mix.id, source: "contacts.bulk", metadata: { mixId: mix.id, starts } } })).id;

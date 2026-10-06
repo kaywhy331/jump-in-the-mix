@@ -36,7 +36,7 @@ describe.sequential("whether a person is in a Mix (JITM-09 §2.76)", () => {
   const backdate = (jumpId: string, ago: number) => prisma.$executeRaw`UPDATE "Jump" SET "createdAt" = ${new Date(Date.now() - ago)}, "updatedAt" = ${new Date(Date.now() - ago)} WHERE id = ${jumpId}`;
   const status = (contactId: string, now?: Date) => contactMixStatus(workspaceId, contactId, now);
   /** A preparation job as the app queues it; the worker marks it done once it has run (src/worker/index.ts). */
-  const queue = (payload: { contactId?: string; mixId?: string }) => prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload } });
+  const queue = (payload: { contactId?: string; mixId?: string; contactIds?: string[] }) => prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload } });
   const prepared = () => prisma.job.updateMany({ where: { workspaceId, completedAt: null }, data: { completedAt: new Date() } });
 
   beforeAll(async () => {
@@ -106,6 +106,11 @@ describe.sequential("whether a person is in a Mix (JITM-09 §2.76)", () => {
     expect(await status(finished)).toBe("no-mix");
     // Starting them again names them and the Mix, so they read as in it while the new Beats are prepared.
     await queue({ contactId: finished, mixId: realMix.id });
+    expect(await status(finished)).toBe("in-mix");
+    await prepared();
+    expect(await status(finished)).toBe("no-mix");
+    // A bulk start names its people in one job for the Mix (PERF-01).
+    await queue({ mixId: realMix.id, contactIds: [finished] });
     expect(await status(finished)).toBe("in-mix");
     await prepared();
     expect(await status(finished)).toBe("no-mix");

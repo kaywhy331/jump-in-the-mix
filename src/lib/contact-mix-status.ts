@@ -21,10 +21,11 @@ export const MIX_FILTER_LIMIT = 30_000;
 /**
  * Preparation still to run: the account's generate-jumps jobs that have neither completed nor failed
  * (src/worker/index.ts). Read once per statement, so each person's check looks only at these few rows.
+ * A bulk start queues one job for its Mix that also lists the people it started (`contactIds`).
  */
 function preparingCte(workspaceId: string) {
   return Prisma.sql`WITH preparing AS MATERIALIZED (
-    SELECT q.payload ->> 'contactId' AS "contactId", q.payload ->> 'mixId' AS "mixId" FROM "Job" q
+    SELECT q.payload ->> 'contactId' AS "contactId", q.payload -> 'contactIds' AS "contactIds", q.payload ->> 'mixId' AS "mixId" FROM "Job" q
     WHERE q."workspaceId" = ${workspaceId} AND q.task = 'generate-jumps' AND q."completedAt" IS NULL AND q."failedAt" IS NULL)`;
 }
 
@@ -38,7 +39,7 @@ function inMixSql(workspaceId: string, now: Date) {
   // (counted by its dates below) or one that waits for a visit is never "being prepared" for everyone.
   const preparing = Prisma.sql`EXISTS (SELECT 1 FROM preparing p
     WHERE (p."contactId" IS NULL OR p."contactId" = c.id) AND (p."mixId" IS NULL OR p."mixId" = a."mixId")
-      AND ((p."contactId" = c.id AND p."mixId" = a."mixId")
+      AND ((p."mixId" = a."mixId" AND (p."contactId" = c.id OR p."contactIds" @> jsonb_build_array(c.id)))
         OR (m."triggerMode" = 'MANUAL_START'
           AND EXISTS (SELECT 1 FROM "MixStep" st WHERE st."mixId" = a."mixId" AND st."isActive" AND st.anchor = 'CALENDAR_DAY')
           AND NOT EXISTS (SELECT 1 FROM "Jump" j WHERE j."workspaceId" = ${workspaceId} AND j."contactId" = c.id AND j."mixId" = a."mixId"))))`;
@@ -73,11 +74,10 @@ function inMixSql(workspaceId: string, now: Date) {
         JOIN "MixAssignment" a ON a."groupId" = gm."groupId" AND a."workspaceId" = ${workspaceId} AND a."isActive"
         JOIN "Mix" m ON m.id = a."mixId"
         WHERE gm."contactId" = c.id AND m.status = 'ACTIVE' AND m.source <> 'ONE_TIME' AND ${tagShown} AND ${notStopped(Prisma.sql`a."mixId"`)} AND ${preparing})))
-    OR EXISTS (SELECT 1 FROM "MixAssignment" a JOIN "Mix" m ON m.id = a."mixId"
-      JOIN "JumpDate" d ON d."contactId" = c.id AND d."workspaceId" = ${workspaceId} AND d."dateTypeId" = m."dateTypeId" AND d."isActive"
-      WHERE a."workspaceId" = ${workspaceId} AND a."isActive" AND m.status IN ('ACTIVE', 'PAUSED') AND m."triggerMode" = 'DATE_TRIGGERED' AND m.source <> 'ONE_TIME'
-        AND (a."contactId" = c.id OR (a."groupId" IS NOT NULL AND ${tagShown} AND EXISTS (SELECT 1 FROM "ContactGroupMembership" gm WHERE gm."groupId" = a."groupId" AND gm."contactId" = c.id)))
-        AND (d.recurrence <> 'NONE' OR d."dateValue" > ${now}) AND ${notStopped(Prisma.sql`a."mixId"`)})
+    OR EXISTS (SELECT 1 FROM "JumpDate" d JOIN "Mix" m ON m."workspaceId" = ${workspaceId} AND m."dateTypeId" = d."dateTypeId"
+      WHERE d."workspaceId" = ${workspaceId} AND d."contactId" = c.id AND d."isActive" AND (d.recurrence <> 'NONE' OR d."dateValue" > ${now})
+        AND m.status IN ('ACTIVE', 'PAUSED') AND m."triggerMode" = 'DATE_TRIGGERED' AND m.source <> 'ONE_TIME'
+        AND ${notStopped(Prisma.sql`m.id`)} AND ${enrolled(Prisma.sql`m.id`)})
   )`;
 }
 

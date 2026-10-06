@@ -236,9 +236,10 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const [summaries, mixStatuses, mixCounts, mixes] = await Promise.all([
     contactFollowUpSummary(workspace.id, contacts.map(contact => contact.id)),
     contactMixStatuses(workspace.id, contacts.map(contact => contact.id)),
-    narrowed
+    // A failed count only drops the counts and the "with No Mix" link, as on Today (PERF-01).
+    (narrowed
       ? prisma.contact.findMany({ where: filteredWhere, select: { id: true }, orderBy: { id: "asc" }, take: MIX_FILTER_LIMIT }).then(rows => contactMixCounts(workspace.id, undefined, rows.map(row => row.id)))
-      : contactMixCounts(workspace.id),
+      : contactMixCounts(workspace.id)).catch(() => null),
     prisma.mix.findMany({ where: { workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
   ]);
   const todayKey = logicalDateKey(logicalDateInTimezone(new Date(), displayPreferences.timeZone));
@@ -360,7 +361,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         priorityFilter={priority}
         permissionFilter={permission}
         mixFilter={mixFilter}
-        mixCounts={mixCounts}
+        mixCounts={mixCounts ?? undefined}
         mixes={mixes}
         todayKey={todayKey}
         listHref={listHref}
