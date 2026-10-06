@@ -58,7 +58,7 @@ describe.sequential("asking what's next when a Mix ends with nothing after it (J
     const second = await beat(casey, estimate, 1, "PENDING");
     expect(await ask(first)).toBeNull();
     await prisma.jump.update({ where: { id: second }, data: { status: "SKIPPED", completedAt: new Date() } });
-    expect(await ask(second)).toEqual({ contactId: casey, contactName: `Casey ${suffix.slice(0, 6)}`, mixId: estimate.id, mixName: "Estimate follow-up", stillInMix: false, oneTimeFollowUp: false });
+    expect(await ask(second)).toEqual({ contactId: casey, contactName: `Casey ${suffix.slice(0, 6)}`, mixId: estimate.id, mixName: "Estimate follow-up", oneTimeFollowUp: false });
     // Reopening the Beat means the Mix hasn't ended.
     await prisma.jump.update({ where: { id: second }, data: { status: "PENDING", completedAt: null } });
     expect(await ask(second)).toBeNull();
@@ -92,18 +92,21 @@ describe.sequential("asking what's next when a Mix ends with nothing after it (J
     await start(kai, welcome);
     const done = await beat(kai, welcome, 0, "DONE");
     await beat(kai, oneTime, 0, "PENDING");
-    expect(await ask(done)).toMatchObject({ stillInMix: false, oneTimeFollowUp: true });
+    expect(await ask(done)).toMatchObject({ oneTimeFollowUp: true });
   });
 
-  it("says when the person is still in another Mix", async () => {
+  it("doesn't interrupt when the person is still in another Mix (D48)", async () => {
     const intro = await mix("Intro", 1);
     const nurture = await mix("Nurture", 1);
     const riley = await person("Riley");
     await start(riley, intro);
     await start(riley, nurture);
     const done = await beat(riley, intro, 0, "DONE");
-    await beat(riley, nurture, 0, "PENDING");
-    expect(await ask(done)).toMatchObject({ mixName: "Intro", stillInMix: true });
+    const other = await beat(riley, nurture, 0, "PENDING");
+    expect(await ask(done)).toBeNull();
+    // Once the other Mix is over too, finishing it asks.
+    await prisma.jump.update({ where: { id: other }, data: { status: "DONE", completedAt: new Date() } });
+    expect(await ask(other)).toMatchObject({ mixName: "Nurture" });
   });
 
   it("never asks about one-time follow-ups, a date that comes back, Do not contact or archived people", async () => {

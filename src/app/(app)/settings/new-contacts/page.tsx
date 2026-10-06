@@ -43,7 +43,7 @@ export default async function NewContactsSettingsPage({ searchParams }: { search
     </section>
     <section className="card"><h2>Where this applies</h2><ul className="new-contacts-rules">
       <li>Add a contact and Quick Add show the Mix before you save, so you can change it.</li>
-      <li>People from your phone and from <Link className="inline-action" href="/settings/connections">lead connections</Link> start the chosen Mix on their own. With Ask each time, they’re left out. Each lead connection can also choose its own Mix.</li>
+      <li>People from your phone and from <Link className="inline-action" href="/settings/connections">lead connections</Link> start the chosen Mix on their own. With Ask each time, they wait on Today’s No Mix line, where you can add them to a Mix together. Each lead connection can also choose its own Mix.</li>
       <li>Imports ask in their review step, with this Mix already chosen.</li>
       <li>If a Contact stage starts its own Mix for someone, this one isn’t added on top.</li>
       <li>Mixes for Everyone include new contacts whatever you choose here.</li>

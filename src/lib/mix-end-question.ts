@@ -2,14 +2,16 @@ import { contactMixStatus } from "@/lib/contact-mix-status";
 import { readWorkflowDefinition } from "@/lib/mix-workflow";
 import { prisma } from "@/lib/prisma";
 
-/** `stillInMix`: another Mix has work to come. `oneTimeFollowUp`: a one-time follow-up is still open for them. */
-export type MixEndQuestion = { contactId: string; contactName: string; mixId: string; mixName: string; stillInMix: boolean; oneTimeFollowUp: boolean };
+/** `oneTimeFollowUp`: a one-time follow-up is still open for them, though no Mix is. */
+export type MixEndQuestion = { contactId: string; contactName: string; mixId: string; mixName: string; oneTimeFollowUp: boolean };
 
 /**
  * Whether the follow-up the owner just finished closed out a Mix that has no connection after it, so Today asks
  * what's next for the person (JITM-09 §2.77). The Mix has ended for them when every one of its Beats has come due
  * and none is still open, and a date-based Mix has no next date waiting. A connection from any Beat of the Mix, or
- * from the whole Mix, decides what follows, so nothing is asked. People marked Do not contact are not asked about.
+ * from the whole Mix, decides what follows, so nothing is asked. It asks only when the person is left with no Mix
+ * (D48): someone still in another Mix isn't falling through, so the owner isn't interrupted. People marked Do not
+ * contact are not asked about.
  */
 export async function mixEndQuestion(workspaceId: string, jumpId: string, now = new Date()): Promise<MixEndQuestion | null> {
   const jump = await prisma.jump.findFirst({
@@ -34,6 +36,6 @@ export async function mixEndQuestion(workspaceId: string, jumpId: string, now = 
     contactMixStatus(workspaceId, contactId, now),
     prisma.jump.count({ where: { workspaceId, contactId, status: "PENDING", mix: { source: "ONE_TIME" } } })
   ]);
-  if (!status || status === "do-not-contact") return null;
-  return { contactId, contactName: jump.contact.displayName, mixId, mixName: mix.name, stillInMix: status === "in-mix", oneTimeFollowUp: oneTime > 0 };
+  if (status !== "no-mix") return null;
+  return { contactId, contactName: jump.contact.displayName, mixId, mixName: mix.name, oneTimeFollowUp: oneTime > 0 };
 }
