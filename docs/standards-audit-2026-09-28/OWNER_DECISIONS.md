@@ -279,6 +279,16 @@ Base e8692f2. D33–D37 answer the five questions in the analysis recorded in [M
   - A Mix that ends without a connection prompts nothing.
 - **Decision:** "Meaning.. there was a text message sent.. but nothing triggered because the user didn't enter a trigger or forgot. Or a contact was added but didn't assign the contact to a mix. If there is no mix assigned to a contact, then the contact should show something that the contat has no mix. This way it could easily be identified that there's no actions on a contact. Ideally everyone should be in the journey OR marked as a status/label/ or confirmation where they are not in a mix."
 - **Applied in:** JITM-09 §2.76 and §2.77, JITM-05 §2.2, JITM-01 §2.22. The detailed defaults are P1–P4 in the record.
+- **Confirmed (2026-10-05):** Kevin was asked to confirm seven of the proposed defaults: P1–P4, P5's import confirmation, P6 and P7's timing. He replied "yes, please proceed". So the following are now owner decisions:
+  - One-time follow-ups and finished or stopped Mixes don't count as being in a Mix.
+  - The labels are "No Mix" and "No Mix needed".
+  - A line on Today links to the Contacts Mix filter.
+  - The last Beat of a Mix with no connection asks what's next.
+  - Imports ask before using the default Mix.
+  - "Everyone" includes people added later.
+  - A Mix sets its stage when the person starts it.
+
+  The rest of P5 and P8–P11 stay proposed.
 
 ### D34 — Where new contacts go (2026-10-05)
 
