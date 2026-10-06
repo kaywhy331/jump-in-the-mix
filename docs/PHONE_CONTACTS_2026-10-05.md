@@ -50,31 +50,27 @@ Migration `20261005120000_contact_share_keys` is additive (one new table); the p
 
 ## Building the shortcut (Kevin, once, on an iPhone)
 
-Apple installs only shortcuts that were shared from an iPhone or Mac, so this has to be made in the Shortcuts app. It takes about five minutes, after the release is live.
+Apple installs only shortcuts that were shared from an iPhone or Mac, so this has to be made in the Shortcuts app; the website cannot add it. Revised on 2026-10-05 after the release to three actions with no Repeat block, so nothing has to be dragged. A shared exported list is one vCard file, so it still adds several people in one request.
 
-1. **Get a key.** On jumpinthemix.com, open `https://jumpinthemix.com/contacts/from-phone?setup=shortcut`, tap Make my key, then Copy key.
-   - The key is hidden; Copy key copies it anyway.
-2. **Create the shortcut.** In the Shortcuts app, tap **+**. Rename it exactly **Add to Jump in the Mix**; the page tells people to tap that name.
-3. **Add a Text action.** Add **Text** as the first action and paste your key into it. Step 8 turns this into the question new users answer.
-4. **Accept shared contacts.** Tap the shortcut's settings (ⓘ) and turn on **Show in Share Sheet**.
-   - At the top, set it to receive **Contacts** and **Files** only, from the Share Sheet.
-   - If there's no input, choose **Ask For** → **Contacts**, if offered; otherwise **Stop and Respond**.
-5. **Handle each item.** Add **Repeat with Each** over **Shortcut Input**.
-6. **Send the card.** Inside the repeat, add **Get Contents of URL**:
+1. **Get a key.** Open `https://jumpinthemix.com/contacts/from-phone?setup=shortcut`, tap Make my key, then Copy key.
+2. **Create the shortcut.** In Shortcuts, tap **+**. Rename it exactly **Add to Jump in the Mix**; the page tells people to tap that name.
+3. **Accept shared contacts.** Tap ⓘ and turn on **Show in Share Sheet**. At the top, set it to receive only **Contacts** and **Files** from the Share Sheet.
+4. **Text** action: paste the key.
+5. **Get Contents of URL** action:
    - URL: `https://jumpinthemix.com/api/webhooks/phone-contacts`
    - Method: **POST**
-   - Headers: add `X-JITM-Key`, with the value set to the **Text** variable from step 3.
-   - Request Body: **File**, set to **Repeat Item**.
-7. **Show the answer.** After **End Repeat**, add **Show Notification** with **Repeat Results**.
-8. **Ask new users for their key.** In the shortcut's details, open **Setup** → **Add New Question**, choose the Text action's text, and enter the question: "Paste your key from Jump in the Mix."
-9. **Test it.**
-   - In Contacts, open a test person, tap **Share Contact**, then **Add to Jump in the Mix**. The notification should read "Added <name> to Jump in the Mix."
-   - Then export a small list (touch and hold a list → Export → Add to Jump in the Mix).
-   - If the notification says "Share a contact from Contacts to add it.", the shortcut didn't send the card as a file. Tell the agent; the endpoint or the recipe needs a change.
-10. **Share it.**
-    - Back on the website, tap **Turn off the shortcut**, so the key inside your copy stops working before you share it.
-    - In Shortcuts, touch and hold the shortcut → Share → **Copy iCloud Link**.
-    - Give the link to the agent, who sets `IPHONE_CONTACTS_SHORTCUT_URL` on the web service. Get the shortcut then appears for everyone.
+   - Header: `X-JITM-Key`, with the value set to the **Text** variable.
+   - Request Body: **File**, set to **Shortcut Input**.
+6. **Show Notification** action with **Contents of URL**.
+7. **Ask new users for their key.** ⓘ → **Setup** → **Add New Question**: tap the key in the Text action and enter the question "Paste your key from Jump in the Mix".
+8. **Test it.**
+   - In Contacts, open a person, tap **Share Contact**, then **Add to Jump in the Mix**. Allow the connection to jumpinthemix.com.
+   - Expect "Added <name> to Jump in the Mix."
+   - "Share a contact from Contacts to add it." means the body did not carry the card.
+9. **Share it.**
+   - Replace the key in the Text action with `PASTE-KEY`.
+   - Touch and hold the shortcut → Share → **Copy iCloud Link**, and send the link so `IPHONE_CONTACTS_SHORTCUT_URL` can be set on the web service.
+   - Then install it from the link, as a user would, and answer the question with a key.
 
 ## Verification
 
