@@ -3,7 +3,7 @@ import { readWorkflowDefinition } from "@/lib/mix-workflow";
 import { prisma } from "@/lib/prisma";
 
 /** `stillInMix`: another Mix has work to come. `oneTimeFollowUp`: a one-time follow-up is still open for them. */
-export type MixEndQuestion = { contactId: string; contactName: string; mixName: string; stillInMix: boolean; oneTimeFollowUp: boolean };
+export type MixEndQuestion = { contactId: string; contactName: string; mixId: string; mixName: string; stillInMix: boolean; oneTimeFollowUp: boolean };
 
 /**
  * Whether the follow-up the owner just finished closed out a Mix that has no connection after it, so Today asks
@@ -35,5 +35,5 @@ export async function mixEndQuestion(workspaceId: string, jumpId: string, now = 
     prisma.jump.count({ where: { workspaceId, contactId, status: "PENDING", mix: { source: "ONE_TIME" } } })
   ]);
   if (!status || status === "do-not-contact") return null;
-  return { contactId, contactName: jump.contact.displayName, mixName: mix.name, stillInMix: status === "in-mix", oneTimeFollowUp: oneTime > 0 };
+  return { contactId, contactName: jump.contact.displayName, mixId, mixName: mix.name, stillInMix: status === "in-mix", oneTimeFollowUp: oneTime > 0 };
 }

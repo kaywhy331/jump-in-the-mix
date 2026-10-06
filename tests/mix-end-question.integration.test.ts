@@ -58,7 +58,7 @@ describe.sequential("asking what's next when a Mix ends with nothing after it (J
     const second = await beat(casey, estimate, 1, "PENDING");
     expect(await ask(first)).toBeNull();
     await prisma.jump.update({ where: { id: second }, data: { status: "SKIPPED", completedAt: new Date() } });
-    expect(await ask(second)).toEqual({ contactId: casey, contactName: `Casey ${suffix.slice(0, 6)}`, mixName: "Estimate follow-up", stillInMix: false, oneTimeFollowUp: false });
+    expect(await ask(second)).toEqual({ contactId: casey, contactName: `Casey ${suffix.slice(0, 6)}`, mixId: estimate.id, mixName: "Estimate follow-up", stillInMix: false, oneTimeFollowUp: false });
     // Reopening the Beat means the Mix hasn't ended.
     await prisma.jump.update({ where: { id: second }, data: { status: "PENDING", completedAt: null } });
     expect(await ask(second)).toBeNull();

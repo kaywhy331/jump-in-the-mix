@@ -65,7 +65,8 @@ async function audit(page: Page) {
 test("finishing the last Beat of a Mix with nothing after it asks what's next, and No Mix needed answers it", async ({ page }) => {
   const { contactId, displayName } = await lastBeat("Casey");
   const question = await finish(page, displayName);
-  await expect(question).toContainText("Nothing else will remind you about them.");
+  await expect(question).toContainText("No Mix will remind you about them.");
+  await expect(question).not.toContainText("one-time follow-up");
   await question.getByRole("button", { name: "What’s next?", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: `What’s next for ${displayName}` });
   await expect(sheet.getByRole("link", { name: "Schedule a one-time follow-up", exact: true })).toHaveAttribute("href", new RegExp(`people=${contactId}`));
@@ -83,7 +84,8 @@ test("the question starts another Mix from a chosen day and comes back to Today"
   const question = await finish(page, displayName);
   await question.getByRole("button", { name: "What’s next?", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: `What’s next for ${displayName}` });
-  await sheet.getByRole("combobox", { name: /^Choose a Mix/ }).selectOption({ label: "Stay in touch" });
+  // The Mix that just finished isn't offered first.
+  await expect(sheet.getByRole("combobox", { name: /^Choose a Mix/ })).toHaveValue(nurtureMixId);
   await Promise.all([page.waitForURL(/\/jumps\?mixAssigned=1/), sheet.getByRole("button", { name: "Start Mix", exact: true }).click()]);
   await expect(page.locator(".notice.success").filter({ hasText: "Start saved for" })).toContainText("Follow-ups are being prepared.");
   await expect(page.locator(".notice.success").getByRole("link", { name: "View person", exact: true })).toHaveAttribute("href", `/contacts/${contactId}`);
@@ -113,8 +115,26 @@ test("the question and the New contacts page pass the accessibility audit in bot
   const close = question.getByRole("button", { name: `Not now: leave ${displayName} as they are`, exact: true });
   expect((await close.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   await question.getByRole("button", { name: "What’s next?", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: `What’s next for ${displayName}` })).toBeVisible();
+  const sheet = page.getByRole("dialog", { name: `What’s next for ${displayName}` });
+  await expect(sheet).toBeVisible();
   for (const colorScheme of ["light", "dark"] as const) { await applyRenderedTheme(page, colorScheme); await audit(page); }
+  // Keyboard: Escape closes the sheet back to its trigger, and Enter opens it again.
+  await page.keyboard.press("Escape");
+  await expect(sheet).toBeHidden();
+  const trigger = question.getByRole("button", { name: "What’s next?", exact: true });
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(sheet).toBeVisible();
+  await page.keyboard.press("Escape");
+  // Enlarged text on the narrowest phone: the question still fits, with no sideways scrolling.
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.evaluate(() => document.fonts.ready);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  const box = (await question.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(321);
+  await expect(trigger).toBeVisible();
   for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport);
     await page.goto("/settings/new-contacts");
@@ -122,6 +142,11 @@ test("the question and the New contacts page pass the accessibility audit in bot
     for (const colorScheme of ["light", "dark"] as const) { await applyRenderedTheme(page, colorScheme); await audit(page); }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto("/settings/new-contacts"); await ready(page);
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.evaluate(() => document.fonts.ready);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
 
 test("the New contacts setting preselects its Mix in Add a contact and Quick Add, and an import asks", async ({ page }) => {
