@@ -13,7 +13,7 @@ import { restoreContactAction, restoreContactsAction } from "@/lib/contact-lifec
 import { phoneSearchDigits } from "@/lib/phone-dial";
 import { requireWorkspace } from "@/lib/auth";
 import { contactFollowUpSummary } from "@/lib/contact-follow-up-summary";
-import { bulkMixStartNotice, bulkMixUndoNotice, contactIdsWithMixStatus, contactMixCounts, contactMixFilter, contactMixStatuses, MIX_FILTER_LIMIT } from "@/lib/contact-mix-status";
+import { bulkMixStartNotice, bulkMixUndoNotice, contactIdsWithMixStatus, contactMixCounts, contactMixFilter, contactMixStatuses, MIX_FILTER_LIMIT, noMixClearedNotice, noMixNeededNotice } from "@/lib/contact-mix-status";
 import { setNoMixNeededAction } from "@/lib/contact-no-mix-actions";
 import { undoBulkMixStartAction } from "@/lib/contact-mix-actions";
 import { logicalDateInTimezone, logicalDateKey } from "@/lib/jump-schedule";
@@ -51,7 +51,9 @@ type SearchParams = {
   mixUndoDates?: string;
   noMixNeeded?: string;
   noMixPeople?: string;
-  noMixSkipped?: string;
+  noMixInMix?: string;
+  noMixDnc?: string;
+  noMixAlready?: string;
   noMixCleared?: string;
   view?: string;
   page?: string;
@@ -332,8 +334,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.bulkRestored && <Notice type="success">Contacts restored.</Notice>}
       {mixStartNotice && <Notice type="success"><span className="notice-with-action">{mixStartNotice}{mixUndoId && <form action={undoBulkMixStartAction}><input type="hidden" name="undoId" value={mixUndoId} /><input type="hidden" name="returnTo" value={listHref} /><FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
       {mixUndoNotice && <Notice type={count(params.mixUndone) ? "success" : "info"}>{mixUndoNotice}</Notice>}
-      {params.noMixNeeded && <Notice type="success"><span className="notice-with-action">{Number(params.noMixNeeded) === 1 ? "1 person is" : `${Number(params.noMixNeeded).toLocaleString()} people are`} marked No Mix needed.{params.noMixSkipped && ` ${Number(params.noMixSkipped).toLocaleString()} already in a Mix or marked Do not contact ${Number(params.noMixSkipped) === 1 ? "was" : "were"} left as they are.`}{noMixPeople.length > 0 && <form action={setNoMixNeededAction}><input type="hidden" name="intent" value="clear" /><input type="hidden" name="returnTo" value={listHref} />{noMixPeople.map(id => <input key={id} type="hidden" name="contactIds" value={id} />)}<FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
-      {params.noMixCleared && <Notice type="success">No Mix needed removed.</Notice>}
+      {params.noMixNeeded && <Notice type={count(params.noMixNeeded) ? "success" : "info"}><span className="notice-with-action">{noMixNeededNotice({ marked: count(params.noMixNeeded), inMix: count(params.noMixInMix), doNotContact: count(params.noMixDnc), already: count(params.noMixAlready) })}{noMixPeople.length > 0 && <form action={setNoMixNeededAction}><input type="hidden" name="intent" value="clear" /><input type="hidden" name="returnTo" value={listHref} />{noMixPeople.map(id => <input key={id} type="hidden" name="contactIds" value={id} />)}<FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
+      {params.noMixCleared && <Notice type={count(params.noMixCleared) ? "success" : "info"}>{noMixClearedNotice(count(params.noMixCleared))}</Notice>}
       {params.viewSaved && <Notice type="success">View saved.</Notice>}
       {params.defaultViewSaved && <Notice type="success">Default view saved.</Notice>}
       {params.viewDeleted && <Notice type="success">View deleted.</Notice>}

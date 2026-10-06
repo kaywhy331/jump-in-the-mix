@@ -11,7 +11,7 @@ import { logicalDateInTimezone, logicalDateKey, zonedDateTimeToUtc, type Logical
 import { prisma } from "@/lib/prisma";
 import { UserFacingError } from "@/lib/user-facing-error";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
-import type { MixStartCounts, MixStartResult } from "@/lib/contact-mix-status-labels";
+import { NO_MIX_NEEDED_NOTICE, type MixStartCounts, type MixStartResult } from "@/lib/contact-mix-status-labels";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -146,7 +146,7 @@ const BULK_START_ACTION = "mix.assignment.bulk-start";
 /** Back to the list the owner acted from, filters kept; anything else returns to Contacts. */
 function contactsReturn(raw: string, notice: Record<string, string>): string {
   const base = /^\/contacts(\?[^#]*)?$/.test(raw) ? new URL(raw, "http://local") : new URL("/contacts", "http://local");
-  for (const key of ["people", "error", "at", "sig", ...BULK_MIX_START_NOTICE, "noMixNeeded", "noMixCleared", "noMixSkipped", "noMixPeople"]) base.searchParams.delete(key);
+  for (const key of ["people", "error", "at", "sig", ...BULK_MIX_START_NOTICE, ...NO_MIX_NEEDED_NOTICE]) base.searchParams.delete(key);
   for (const [key, item] of Object.entries(notice)) base.searchParams.set(key, item);
   return `${base.pathname}?${base.searchParams}`;
 }

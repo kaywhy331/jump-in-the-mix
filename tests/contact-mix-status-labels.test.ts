@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bulkMixStartNotice, bulkMixUndoNotice, noMixTodayLine, type MixStartCounts } from "../src/lib/contact-mix-status-labels";
+import { bulkMixStartNotice, bulkMixUndoNotice, noMixClearedNotice, noMixNeededNotice, noMixTodayLine, type MixStartCounts } from "../src/lib/contact-mix-status-labels";
 
 describe("No Mix wording (JITM-09 §2.76–§2.77)", () => {
   it("says that no Mix will remind the owner, in the singular and the plural (D44)", () => {
@@ -34,5 +34,14 @@ describe("No Mix wording (JITM-09 §2.76–§2.77)", () => {
     expect(bulkMixUndoNotice({ mixName: "Renewal reminder", ended: 1, kept: 0, dates: 1 }))
       .toBe("Undone. Renewal reminder ended for 1 person, and its follow-ups still to come for them were removed. The date saved when it started was removed.");
     expect(bulkMixUndoNotice({ mixName: "Estimate follow-up", ended: 0, kept: 2, dates: 0 })).toBe("Nothing was undone: those starts had already ended or changed since.");
+  });
+
+  it("names each reason someone was left as they are, and says removed only when something was (COPY-01)", () => {
+    expect(noMixNeededNotice({ marked: 2, inMix: 1, doNotContact: 1, already: 0 })).toBe("2 people are marked No Mix needed. Left as they are: 1 already in a Mix, 1 marked Do not contact.");
+    expect(noMixNeededNotice({ marked: 1, inMix: 0, doNotContact: 0, already: 0 })).toBe("1 person is marked No Mix needed.");
+    expect(noMixNeededNotice({ marked: 0, inMix: 0, doNotContact: 0, already: 3 })).toBe("Nothing changed. Left as they are: 3 already marked No Mix needed.");
+    expect(noMixClearedNotice(1)).toBe("No Mix needed removed.");
+    expect(noMixClearedNotice(2)).toBe("No Mix needed removed for 2 people.");
+    expect(noMixClearedNotice(0)).toBe("Nothing changed: no one here was marked No Mix needed.");
   });
 });

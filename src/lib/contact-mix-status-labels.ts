@@ -50,3 +50,25 @@ export function bulkMixUndoNotice(input: { mixName: string; ended: number; kept:
   if (input.ended && input.kept) sentences.push(`${input.kept === 1 ? "1 person" : `${input.kept.toLocaleString()} people`} changed since and ${input.kept === 1 ? "was" : "were"} left as they are.`);
   return sentences.join(" ");
 }
+
+/** Notice parameters of Mark No Mix needed and its Undo; any later return drops them. */
+export const NO_MIX_NEEDED_NOTICE = ["noMixNeeded", "noMixPeople", "noMixInMix", "noMixDnc", "noMixAlready", "noMixCleared"];
+
+/** What Mark No Mix needed did, with each reason someone was left as they are (COPY-01). */
+export type NoMixNeededResult = { marked: number; inMix: number; doNotContact: number; already: number };
+
+export function noMixNeededNotice(result: NoMixNeededResult): string {
+  const left = [
+    result.inMix ? `${result.inMix.toLocaleString()} already in a Mix` : "",
+    result.doNotContact ? `${result.doNotContact.toLocaleString()} marked Do not contact` : "",
+    result.already ? `${result.already.toLocaleString()} already marked No Mix needed` : ""
+  ].filter(Boolean);
+  const lead = result.marked ? `${result.marked === 1 ? "1 person is" : `${result.marked.toLocaleString()} people are`} marked No Mix needed.` : "Nothing changed.";
+  return left.length ? `${lead} Left as they are: ${left.join(", ")}.` : lead;
+}
+
+/** After No Mix needed is taken back: "removed" only when it was removed for someone (COPY-01). */
+export function noMixClearedNotice(cleared: number): string {
+  if (!cleared) return "Nothing changed: no one here was marked No Mix needed.";
+  return cleared === 1 ? "No Mix needed removed." : `No Mix needed removed for ${cleared.toLocaleString()} people.`;
+}

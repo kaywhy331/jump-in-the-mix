@@ -93,9 +93,21 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId: busy, mixId } } });
     await prisma.contactRelationshipState.create({ data: { workspaceId, contactId: blocked, doNotContact: true } });
     const result = await redirectOf(setNoMixNeededAction(form({ contactIds: [busy, blocked], returnTo: "/contacts" })));
-    expect(Object.fromEntries(result.searchParams)).toMatchObject({ noMixNeeded: "0", noMixSkipped: "2" });
+    // Each reason is counted on its own (COPY-01).
+    expect(Object.fromEntries(result.searchParams)).toEqual({ noMixNeeded: "0", noMixInMix: "1", noMixDnc: "1" });
     expect(await contactMixStatus(workspaceId, busy)).toBe("in-mix");
     expect((await prisma.contactRelationshipState.findUnique({ where: { contactId: blocked } }))?.noMixNeededAt).toBeNull();
+  });
+
+  it("says nothing was removed, or newly marked, on a second submit (COPY-01)", async () => {
+    const supplier = await person("Twice");
+    await redirectOf(setNoMixNeededAction(form({ contactIds: supplier, returnTo: "/contacts" })));
+    const again = await redirectOf(setNoMixNeededAction(form({ contactIds: supplier, returnTo: "/contacts" })));
+    expect(Object.fromEntries(again.searchParams)).toEqual({ noMixNeeded: "0", noMixAlready: "1" });
+    expect(Object.fromEntries((await redirectOf(setNoMixNeededAction(form({ contactIds: supplier, intent: "clear", returnTo: "/contacts" })))).searchParams)).toEqual({ noMixCleared: "1" });
+    // A Remove from a stale page changes nothing, and says so.
+    expect(Object.fromEntries((await redirectOf(setNoMixNeededAction(form({ contactIds: supplier, intent: "clear", returnTo: "/contacts?noMixCleared=1" })))).searchParams)).toEqual({ noMixCleared: "0" });
+    expect(await prisma.contactActivity.count({ where: { contactId: supplier } })).toBe(2);
   });
 
   it("returns only to Contacts, and refuses another workspace's people", async () => {

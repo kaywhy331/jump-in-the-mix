@@ -40,7 +40,7 @@ export type ContactProfileSearchParams = {
   created?: string; followUpScheduled?: string; dateCreated?: string; dateUpdated?: string; dateDeleted?: string; mixAssigned?: string; mixStart?: string; mixRemoved?: string;
   mixStopped?: string; mixResumed?: string; mixStopError?: string; mixResumeError?: string; updated?: string; inlineUpdated?: string;
   stateUpdated?: string; merged?: string; restored?: string; error?: string; at?: string; sig?: string;
-  noMixNeeded?: string; noMixCleared?: string; noMixSkipped?: string;
+  noMixNeeded?: string; noMixCleared?: string; noMixInMix?: string; noMixDnc?: string; noMixAlready?: string;
 };
 
 function addressText(address: { street1: string | null; street2: string | null; city: string | null; state: string | null; postalCode: string | null; country: string | null }): string {
@@ -193,8 +193,8 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
       {query.dateUpdated && <Notice type="success">Date updated.</Notice>}
       {query.dateDeleted && <Notice type="success">Date removed.</Notice>}
       {!query.created && query.mixAssigned && <Notice type="success">{query.mixStart === "saved" ? "Start saved. It follows this person’s saved date." : /^\d{4}-\d{2}-\d{2}$/.test(query.mixStart ?? "") ? `Start saved for ${formatDate(new Date(`${query.mixStart}T12:00:00Z`), { ...displayPreferences, timeZone: "UTC" })}.` : "Start saved."} Follow-ups are being prepared. <Link href="/settings/notifications">Set up reminders for me (optional)</Link>.{query.mixAssigned === "visit" && <> Its Beats timed from an appointment wait until you <Link href={`/calendar?contact=${contact.id}`}>line it up with a visit</Link> from the calendar.</>}</Notice>}
-      {query.noMixNeeded && (Number(query.noMixNeeded) > 0 ? <Notice type="success"><span className="notice-with-action">Marked No Mix needed.<form action={setNoMixNeededAction}><input type="hidden" name="intent" value="clear" /><input type="hidden" name="contactIds" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form></span></Notice> : <Notice type="info">{contact.displayName} is already in a Mix or marked Do not contact, so nothing changed.</Notice>)}
-      {query.noMixCleared && <Notice type="success">No Mix needed removed.</Notice>}
+      {query.noMixNeeded && (Number(query.noMixNeeded) > 0 ? <Notice type="success"><span className="notice-with-action">Marked No Mix needed.<form action={setNoMixNeededAction}><input type="hidden" name="intent" value="clear" /><input type="hidden" name="contactIds" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form></span></Notice> : <Notice type="info">{query.noMixAlready ? `${contact.displayName} is already marked No Mix needed.` : query.noMixDnc ? `${contact.displayName} is marked Do not contact, so nothing changed.` : `${contact.displayName} is already in a Mix, so nothing changed.`}</Notice>)}
+      {query.noMixCleared && (Number(query.noMixCleared) > 0 ? <Notice type="success">No Mix needed removed.</Notice> : <Notice type="info">{contact.displayName} isn’t marked No Mix needed, so nothing changed.</Notice>)}
       {query.mixRemoved && <Notice type="success">Mix removed.</Notice>}
       {query.mixStopped && <Notice type="success">Mix stopped.</Notice>}
       {query.mixResumed && <Notice type="success">Mix resumed.</Notice>}
