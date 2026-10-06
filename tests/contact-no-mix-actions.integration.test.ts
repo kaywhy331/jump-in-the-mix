@@ -382,6 +382,35 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     for (const contactId of [tagged, audience, routed]) expect(await prisma.jump.count({ where: { mixId: shared.id, contactId, status: "PENDING" } })).toBe(1);
   });
 
+  it("refuses the batch, naming them, for anyone stopped in the Mix or marked Do not contact, even with work from another route (BLK-03)", async () => {
+    const visits = await prisma.mix.create({ data: { workspaceId, name: "Visit follow-up", status: "ACTIVE", triggerMode: "MANUAL_START" } });
+    await prisma.mixStep.create({ data: { mixId: visits.id, stepVersionId: versionId, dayOffset: 0, sortOrder: 1 } });
+    const stoppedWithVisit = await person("Stopped with a visit"), dnc = await person("Marked do not contact"), fresh = await person("Fresh for visits");
+    // A visit the Mix is lined up with, for someone the owner then stopped in this Mix.
+    const visit = await prisma.calendarEntry.create({ data: { workspaceId, contactId: stoppedWithVisit, kind: "MEETING", title: "Site visit", startsAt: new Date(Date.now() + 3 * 86_400_000), endsAt: new Date(Date.now() + 3 * 86_400_000 + 3_600_000), timezone: "UTC" } });
+    const visitAssignment = await prisma.mixAssignment.create({ data: { workspaceId, mixId: visits.id, contactId: stoppedWithVisit, assignmentKey: `${workspaceId}:${visits.id}:appointment:${visit.id}:${stoppedWithVisit}` } });
+    await prisma.appointmentBinding.create({ data: { workspaceId, contactId: stoppedWithVisit, calendarEntryId: visit.id, mixId: visits.id, assignmentId: visitAssignment.id } });
+    await prisma.mixStop.create({ data: { workspaceId, mixId: visits.id, contactId: stoppedWithVisit, reason: "Asked to stop" } });
+    // Someone in the Mix through a tag, with a follow-up to come, then marked Do not contact on a page already open.
+    const group = await prisma.group.create({ data: { workspaceId, name: `Visit tag ${suffix}`, memberships: { create: { contactId: dnc } } } });
+    await prisma.mixAssignment.create({ data: { workspaceId, mixId: visits.id, groupId: group.id, assignmentKey: `${workspaceId}:${visits.id}:group:${group.id}`, mode: "DYNAMIC", startDate: new Date() } });
+    await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { mixId: visits.id } } });
+    await prepareQueued();
+    expect(await prisma.jump.count({ where: { contactId: dnc, mixId: visits.id, status: "PENDING" } })).toBe(1);
+    await prisma.contactRelationshipState.create({ data: { workspaceId, contactId: dnc, doNotContact: true } });
+    const jobs = await prisma.job.count({ where: { workspaceId } });
+    const direct = (contactId: string) => `${workspaceId}:${visits.id}:${contactId}`;
+
+    // Neither is counted as already in it and keeping their start: the batch is refused before anything is saved.
+    const refused = await redirectOf(bulkAssignMixAction(form({ contactIds: [stoppedWithVisit, fresh], mixId: visits.id, startDate: today, returnTo: "/contacts" })));
+    expect(errorFor(refused)).toBe(`Stopped with a visit ${suffix.slice(0, 6)}: This Mix is stopped for this person. Open More on their contact profile to review and resume the stopped Mix.`);
+    const refusedDnc = await redirectOf(bulkAssignMixAction(form({ contactIds: [dnc, fresh], mixId: visits.id, startDate: today, returnTo: "/contacts" })));
+    expect(errorFor(refusedDnc)).toBe(`Marked do not contact ${suffix.slice(0, 6)}: This person is marked Do not contact. Review their contact preference before starting follow-ups.`);
+    expect(await prisma.mixAssignment.count({ where: { assignmentKey: { in: [stoppedWithVisit, dnc, fresh].map(direct) } } })).toBe(0);
+    expect(await prisma.job.count({ where: { workspaceId } })).toBe(jobs);
+    expect(await prisma.auditLog.count({ where: { workspaceId, action: "mix.assignment.bulk-start", entityId: visits.id } })).toBe(0);
+  });
+
   it("refuses the whole batch while billing is on and the plan has no room, and keeps no places (TST-01)", async () => {
     const saved = { enabled: process.env.BILLING_ENABLED, key: process.env.STRIPE_SECRET_KEY, secret: process.env.STRIPE_WEBHOOK_SECRET };
     Object.assign(process.env, { BILLING_ENABLED: "true", STRIPE_SECRET_KEY: "sk_test_fixture", STRIPE_WEBHOOK_SECRET: "whsec_fixture" });

@@ -189,13 +189,16 @@ export async function contactMixStatus(workspaceId: string, contactId: string, n
  * The people among `contactIds` who already have work to come in this one Mix, by any route: their own
  * start, the Mix's audience or a tag, a visit still ahead or awaiting its outcome, or Journey work. A bulk
  * start leaves them as they are, so nobody gets a second run of the same Mix (BLK-02). Someone who only
- * finished the Mix is not in it, and can start it again.
+ * finished the Mix is not in it, and can start it again. Nobody marked Do not contact, or stopped in this Mix,
+ * has work to come in it, so they are never counted as already in it: a start refuses them, naming them (BLK-03).
  */
 export async function contactIdsInMix(db: Reader, workspaceId: string, mixId: string, contactIds: string[], now = new Date()): Promise<Set<string>> {
   const ids = [...new Set(contactIds)];
   if (!ids.length) return new Set();
   const rows = await db.$queryRaw<Array<{ id: string }>>(Prisma.sql`${preparingCte(workspaceId)}
     SELECT c.id FROM "Contact" c WHERE c."workspaceId" = ${workspaceId} AND c.id = ANY(${ids}::text[])
+      AND NOT EXISTS (SELECT 1 FROM "ContactRelationshipState" rs WHERE rs."contactId" = c.id AND rs."workspaceId" = ${workspaceId} AND rs."doNotContact")
+      AND NOT EXISTS (SELECT 1 FROM "MixStop" s WHERE s."workspaceId" = ${workspaceId} AND s."mixId" = ${mixId} AND s."contactId" = c.id)
       AND (${inMixSql(workspaceId, now, mixId)} OR ${visitInProgressSql(workspaceId, mixId)})`);
   return new Set(rows.map(row => row.id));
 }
