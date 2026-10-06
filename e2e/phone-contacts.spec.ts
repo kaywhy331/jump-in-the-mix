@@ -41,6 +41,7 @@ test.describe("on Android", () => {
       await expect(page.getByRole("heading", { level: 2, name: "Choose from your contacts", exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: /Add from phone contacts/ })).toBeVisible();
       await expect(page.getByRole("heading", { level: 2, name: /contact card/ })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Tips for adding on iPhone" })).toHaveCount(0);
     } finally {
       await prisma.contact.deleteMany({ where: { emails: { some: { normalized: email } } } });
     }
@@ -65,10 +66,23 @@ test.describe("on iPhone", () => {
       await expect(page.getByRole("heading", { level: 2, name: /Android|Choose from your contacts/ })).toHaveCount(0);
       await expect(page.getByRole("link", { name: "Import contacts" })).toHaveAttribute("href", "/contacts/import");
 
+      // The tips open from the (!) row and spell out the hidden two-finger selection.
+      await page.getByRole("button", { name: "Tips for adding on iPhone" }).click();
+      const tips = page.getByRole("dialog", { name: "Tips for adding on iPhone" });
+      await expect(tips.getByRole("heading", { name: "Several people" })).toBeVisible();
+      await expect(tips.getByText("two fingers")).toBeVisible();
+      await expect(tips.getByText("Save to Files").first()).toBeVisible();
+      await expect(tips.getByText("Add to Jump in the Mix")).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await expect(tips).toBeHidden();
+
       // The shortcut steps stay hidden until its link is set, except while the shortcut is being built.
       await page.goto("/contacts/from-phone?setup=shortcut");
       const shortcut = page.getByRole("region", { name: "Share from Contacts", exact: true });
       await expect(page.getByRole("heading", { level: 2, name: "Or save a contact card", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Tips for adding on iPhone" }).click();
+      await expect(page.getByRole("dialog", { name: "Tips for adding on iPhone" }).getByText("Add to Jump in the Mix").first()).toBeVisible();
+      await page.keyboard.press("Escape");
       await shortcut.getByRole("button", { name: "Make my key" }).click();
       const keyField = shortcut.getByLabel("Key", { exact: true });
       await expect(keyField).toHaveValue(/^[A-Za-z0-9_-]{43}$/);
@@ -112,6 +126,7 @@ test("computers see both phones' steps and no phone button on Add a contact", as
   await expect(page.getByRole("heading", { level: 2, name: "On Android", exact: true })).toBeVisible();
   await expect(page.getByText("Open this page in Chrome on your Android phone to choose people from its contacts.")).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "On iPhone: save a contact card", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Tips for adding on iPhone" })).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "On iPhone: share from Contacts", exact: true })).toHaveCount(0);
 });
 

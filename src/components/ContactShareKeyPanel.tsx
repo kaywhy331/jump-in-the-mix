@@ -63,7 +63,7 @@ export function ContactShareKeyPanel({ title, shortcutUrl, keyStatus, viewOnly }
         </li>
         <li>
           <strong>Share a contact</strong>
-          <small>In Contacts, open a person, tap Share Contact, then tap Add to Jump in the Mix. For several people, touch and hold a list and tap Export.</small>
+          <small>In Contacts, open a person, tap Share Contact, then tap Add to Jump in the Mix.</small>
         </li>
       </ol>
       {error && <Notice type="error">{error}</Notice>}

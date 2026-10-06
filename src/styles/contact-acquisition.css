@@ -43,6 +43,13 @@ button.settings-hub-card.device-contact-picker:disabled { cursor: progress; opac
 .phone-share-steps .copy-field .form-actions { margin-top: 6px; }
 .phone-share-card > .text-button { justify-self: start; min-height: 44px; }
 .import-phone-link { margin: 12px 0 0; }
+.iphone-add-tips-trigger { display: inline-flex; align-items: center; gap: 8px; justify-self: start; min-height: 44px; font-size: 15px; }
+.iphone-add-tips-trigger > svg { width: 20px; height: 20px; }
+.iphone-add-tips-body { display: grid; gap: 18px; }
+.iphone-add-tips-body section { display: grid; gap: 8px; }
+.iphone-add-tips-body h3 { margin: 0; font-size: 16px; }
+.iphone-add-tips-body ol { display: grid; gap: 6px; margin: 0; padding-left: 1.3em; line-height: 1.45; }
+.iphone-add-tips-body p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
 
 .field-label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .voice-note-control { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; max-width: 340px; }
