@@ -38,7 +38,10 @@ test.beforeEach(async ({ page }) => { await signIn(page); });
 
 // The shared settle step: both frames painted and the body in the chosen theme's text color.
 const setTheme = (page: Page, colorScheme: "light" | "dark") => applyRenderedTheme(page, colorScheme);
-async function audit(page: Page) { expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]); }
+async function audit(page: Page) {
+  // The theme switch and the sheet's slide finish first, so contrast is measured on the settled colors.
+  await page.waitForFunction(() => document.getAnimations().every(animation => animation.playState !== "running"));
+  expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]); }
 
 test("the No Mix row, chip and sheet pass the accessibility audit in both themes", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Audited at desktop and phone widths in one project, as the sheet suites do.");
