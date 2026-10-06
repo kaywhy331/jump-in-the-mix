@@ -47,11 +47,13 @@
 .contact-row-summary > .contact-no-mix-needed { color: var(--text-3); }
 .contact-list-summary .contact-no-mix-link { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; color: var(--violet-text); white-space: nowrap; }
 /* Where the row's text has room for fewer than ten of its own em, which happens with enlarged text (about 7em at
-   200% on a 320px phone, 14em at normal size), each part takes the lines it needs and shows whole, the stage
-   included, instead of being shortened or clipped (LAY-02). A narrow column at normal size stays on one line. */
+   200% on a 320px phone, 14em at normal size), each part takes a line of its own and shows whole, the stage
+   included, instead of being shortened or clipped (LAY-02). The "·" between parts then has nothing to separate,
+   so it is hidden rather than left alone on a line. A narrow column at normal size stays on one line. */
 @container contact-row (max-width: 10em) {
   .contacts-page .contact-row-summary { flex-wrap: wrap; }
-  .contacts-page .contact-row-summary > * { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .contacts-page .contact-row-summary > * { flex-basis: 100%; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .contacts-page .contact-row-summary > .contact-summary-separator { display: none; }
 }
 .contacts-page .contact-select-control { display: none; }
 .contacts-page .selection-mode { grid-template-columns: 36px minmax(0, 1fr) auto; }
