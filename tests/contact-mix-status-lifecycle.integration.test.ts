@@ -180,11 +180,13 @@ describe.skipIf(!local).sequential("No Mix status as Mixes are saved, paused and
       await prisma.$transaction(db => saveWorkflowConfiguration(db, ws, { ...emptyWorkflow(), rules: [{ id: randomUUID(), name: "After the estimate", source: { mixId: estimate, stepId: null }, enabled: true, mode: "PARALLEL", join: null,
         routes: [{ id: randomUUID(), label: "Continue", when: "FINISHED", outcome: "", delayMinutes: 0, target: { mixId: thanks, stepId: null }, maxVisits: null, replace: false }] }] }, 0, owner.id));
       const contact = async (name: string) => (await prisma.contact.create({ data: { workspaceId: ws, displayName: `${name} ${suffix}` } })).id;
-      const running = await contact("Running"), removed = await contact("Removed"), stopped = await contact("Stopped"), archived = await contact("Archived"), paused = await contact("Paused"), finisher = await contact("Finisher");
+      const running = await contact("Running"), removed = await contact("Removed"), stopped = await contact("Stopped"), archived = await contact("Archived"), paused = await contact("Paused"), finisher = await contact("Finisher"), lone = await contact("Lone");
       const enroll = (mixId: string, contactId: string) => prisma.mixAssignment.create({ data: { workspaceId: ws, mixId, contactId, assignmentKey: `${ws}:${mixId}:${contactId}`, startDate: new Date(Date.now() + day) } });
       for (const person of [running, removed, stopped, finisher]) await enroll(estimate, person);
       await enroll(seasonal, archived);
       await enroll(winter, paused);
+      // A Mix with no connection of its own, in this connected account (PR #128's case).
+      await enroll(thanks, lone);
       // The worker's passes: the scheduler prepares the Beats and records each start as Journey work.
       const workerPass = async (at = new Date()) => {
         await generateJumps({ workspaceId: ws });
@@ -192,8 +194,8 @@ describe.skipIf(!local).sequential("No Mix status as Mixes are saved, paused and
       };
       await workerPass();
       const statusIn = (contactId: string) => contactMixStatus(ws, contactId);
-      expect(await prisma.mixWorkflowInstance.count({ where: { workspaceId: ws, status: "ACTIVE" } })).toBe(6);
-      expect(await Promise.all([running, removed, stopped, archived, paused, finisher].map(statusIn))).toEqual(Array(6).fill("in-mix"));
+      expect(await prisma.mixWorkflowInstance.count({ where: { workspaceId: ws, status: "ACTIVE" } })).toBe(7);
+      expect(await Promise.all([running, removed, stopped, archived, paused, finisher, lone].map(statusIn))).toEqual(Array(7).fill("in-mix"));
 
       // Remove one person, stop another, archive one Mix and pause another, then run the worker again.
       const removedAssignment = await prisma.mixAssignment.findFirstOrThrow({ where: { workspaceId: ws, contactId: removed, mixId: estimate } });
@@ -207,12 +209,14 @@ describe.skipIf(!local).sequential("No Mix status as Mixes are saved, paused and
       expect(await Promise.all([running, removed, stopped, archived, paused].map(statusIn))).toEqual(["in-mix", "no-mix", "no-mix", "no-mix", "in-mix"]);
 
       // The last Beat done: the record is still ACTIVE and its state not yet updated, so nothing waits yet (PR #128's question can be asked).
-      await prisma.jump.updateMany({ where: { workspaceId: ws, contactId: finisher, status: "PENDING" }, data: { status: "DONE", completedAt: new Date(), completionMethod: "outcome:sent" } });
-      expect(await statusIn(finisher)).toBe("no-mix");
-      // Once the Journey pass has run after the undo window, the connection starts B for them.
+      await prisma.jump.updateMany({ where: { workspaceId: ws, contactId: { in: [finisher, lone] }, status: "PENDING" }, data: { status: "DONE", completedAt: new Date(), completionMethod: "outcome:sent" } });
+      expect(await prisma.mixWorkflowInstance.count({ where: { workspaceId: ws, contactId: { in: [finisher, lone] }, status: "ACTIVE" } })).toBe(2);
+      expect(await Promise.all([finisher, lone].map(statusIn))).toEqual(["no-mix", "no-mix"]);
+      // Once the Journey pass has run after the undo window, the connection starts B for the finisher; the Mix
+      // with no connection of its own has nothing more to bring.
       await workerPass(new Date(Date.now() + 60_000));
       expect(await prisma.jump.count({ where: { workspaceId: ws, contactId: finisher, mixId: thanks, status: "PENDING" } })).toBe(1);
-      expect(await statusIn(finisher)).toBe("in-mix");
+      expect(await Promise.all([finisher, lone].map(statusIn))).toEqual(["in-mix", "no-mix"]);
     } finally {
       session.context = previous;
       await prisma.contactActivity.deleteMany({ where: { workspaceId: ws } });
