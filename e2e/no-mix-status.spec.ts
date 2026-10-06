@@ -110,7 +110,8 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     // The filter keeps only people with No Mix, and its count matches the summary link.
     await page.getByRole("button", { name: "Filter contacts", exact: true }).click();
     const filters = page.getByRole("dialog", { name: "Filter contacts", exact: true });
-    await expect(filters.getByRole("combobox", { name: "Mix", exact: true }).locator("option[value='no-mix']")).toHaveText("No Mix · 2");
+    // The options read Any, In a Mix, No Mix, No Mix needed (JITM-09 §2.77, VOC-01).
+    await expect(filters.getByRole("combobox", { name: "Mix", exact: true }).locator("option")).toHaveText(["Any", /^In a Mix · /, "No Mix · 2", "No Mix needed · 0"]);
     await filters.getByRole("combobox", { name: "Mix", exact: true }).selectOption("no-mix");
     await expect(page).toHaveURL(/mix=no-mix/);
     await page.getByLabel("Close Filter contacts").click();

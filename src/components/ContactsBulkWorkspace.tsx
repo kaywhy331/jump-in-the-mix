@@ -160,7 +160,7 @@ export function ContactsBulkWorkspace({
             <label className="field"><span>Tag</span><select name="group" defaultValue={groupFilter}><option value="">All tags</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.isActive ? group.name : `Hidden · ${group.name}`}</option>)}</select></label>
             <label className="field"><span>Priority</span><select name="priority" defaultValue={priorityFilter}><option value="">All priorities</option><option value="URGENT">Urgent</option><option value="HIGH">High</option><option value="NORMAL">Normal</option><option value="LOW">Low</option></select></label>
             <label className="field"><span>Contact permission</span><select name="permission" defaultValue={permissionFilter}><option value="">Everyone</option><option value="contactable">Can contact</option><option value="do-not-contact">Do not contact</option></select></label>
-            <label className="field"><span>Mix</span><select name="mix" defaultValue={mixFilter}><option value="">Everyone</option>{(Object.keys(CONTACT_MIX_FILTERS) as ContactMixFilter[]).map(value => <option key={value} value={value}>{CONTACT_MIX_FILTERS[value]}{mixCounts ? ` · ${mixCounts[value].toLocaleString()}` : ""}</option>)}</select></label>
+            <label className="field"><span>Mix</span><select name="mix" defaultValue={mixFilter}><option value="">Any</option>{(Object.keys(CONTACT_MIX_FILTERS) as ContactMixFilter[]).map(value => <option key={value} value={value}>{CONTACT_MIX_FILTERS[value]}{mixCounts ? ` · ${mixCounts[value].toLocaleString()}` : ""}</option>)}</select></label>
           </form>
           {(query || activeFilterCount) && <Link className="button" href="/contacts">Clear filters</Link>}
           {savedViews}
