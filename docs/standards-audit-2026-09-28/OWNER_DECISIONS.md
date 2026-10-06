@@ -399,6 +399,26 @@ Base e8692f2. D33–D37 answer the five questions in the analysis recorded in [M
   - the `jitm-copy` skill;
   - `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md`.
 
+### D48–D53 — What happens next for a person (2026-10-06)
+
+- **Context:** slice 2 of the Mix placement work (PR #128, `docs/MIX_NEXT_STEP_2026-10-06.md`) was built with six implementation choices the decisions left open. Kevin asked for the most logical, easiest workflow and adopted the recommendations: "For those questionss, what is the most logical and best user experience? I will go off your recommendations. I want it to be easy for users providing and easy user experience for the users and intilligent to do the right workflow."
+- **D48 — The end-of-Mix question asks only when the person is left with no Mix.** Someone still in another Mix isn't falling through, so the owner isn't interrupted. This answers P4's open question.
+- **D49 — Only Mixes that start "When I start it for someone" can be the New contacts Mix.** The same goes for the Mix that Add a contact, Quick Add and an import offer for new people. It is the same rule as a Contact stage's Mix. A date-based, broadcast or after-another-Mix Mix can't sensibly start "today" for a new person.
+- **D50 — With "Ask each time", people from the phone and from lead connections go to Today's No Mix line.** No one is there to ask when they arrive. Review opens them together for one bulk Add. A connection that should start a Mix automatically can choose its own Mix.
+- **D51 — People added with a visit, during onboarding or by an invitation don't take the New contacts Mix.**
+  - A visit is already a next step.
+  - Onboarding starts its own first Mix.
+  - Invitees are peers trying the app.
+
+  They still join Mixes for Everyone, so "Everyone" means everyone in Contacts.
+- **D52 — Mixes already saved with Everyone take in people added after the release.** One meaning everywhere is easiest. The checkbox says "and anyone you add later", and broadcasts whose time has passed are skipped. The release counts the accounts that have such Mixes and reports them to Kevin.
+- **D53 — Over the people limit, an import's Mix skips those people, and a Mix chosen in Quick Add is refused with the reason.**
+  - Skipped people show on Today and can be resumed from their profile (§2.75).
+  - Refusing keeps the Quick Add draft, and the owner can choose "No Mix for now".
+  - This applies only while billing is on.
+- **Confirms:** the rest of P5 as built. JITM-09 §2.78 drops [PROPOSED].
+- **Applied in:** JITM-09 §2.77, §2.78 (4.2.0); `docs/MIX_NEXT_STEP_2026-10-06.md`.
+
 ## Still open
 
 The standards' §6 sections list the remaining open questions and known deviations. The second packet's product changes are tasks in the audit's [follow-up backlog](../STANDARDS_AUDIT_2026-09-28.md#8-follow-up-backlog).
