@@ -6,6 +6,7 @@ const TENANT_ACTION_MODULES = [
   "src/lib/contact-actions.ts",
   "src/lib/contact-lifecycle-actions.ts",
   "src/lib/contact-mix-actions.ts",
+  "src/lib/contact-no-mix-actions.ts",
   "src/lib/custom-field-actions.ts",
   "src/lib/date-type-actions.ts",
   "src/lib/group-actions.ts",
@@ -27,6 +28,7 @@ const WRITABLE_ACTION_MODULES = [
   "src/lib/bulk-contact-actions.ts",
   "src/lib/contact-actions.ts",
   "src/lib/contact-lifecycle-actions.ts",
+  "src/lib/contact-no-mix-actions.ts",
   "src/lib/custom-field-actions.ts",
   "src/lib/date-type-actions.ts",
   "src/lib/group-actions.ts",
@@ -68,6 +70,12 @@ describe("tenant mutation authentication guards", () => {
     const source = readFileSync(path, "utf8");
     expect(source).toContain('from "@/lib/writable-workspace"');
     expect(source, "every mutation in this module uses the writable guard").not.toContain("requireWorkspace(");
+  });
+
+  // The profile's own Mix actions still use requireWorkspace() with a hand check, so this module is checked by action (SEC-01, TST-02).
+  it("refuses support views in the bulk Mix start and its Undo", () => {
+    const functions = exportedAsyncFunctions(readFileSync("src/lib/contact-mix-actions.ts", "utf8"));
+    for (const name of ["bulkAssignMixAction", "undoBulkMixStartAction"]) expect(functions.find(fn => fn.name === name)?.source, name).toMatch(/\brequireWritableWorkspace\(/);
   });
 
   it("keeps the legacy action barrel free of mutation implementations", () => {

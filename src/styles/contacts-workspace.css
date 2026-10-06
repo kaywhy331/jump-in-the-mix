@@ -21,25 +21,40 @@
 .contact-filter-button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 44px; min-height: 44px; padding: 8px; border: 0; background: transparent; color: var(--text-2); cursor: pointer; }
 .contact-filter-button svg { width: 18px; height: 18px; }
 .contact-filter-button span { color: var(--violet-text); font-size: .75rem; }
-.contact-list-summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; margin: 0; font-size: .8125rem; color: var(--text-3); }
+.contact-list-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 8px; min-height: 44px; margin: 0; font-size: .8125rem; color: var(--text-3); }
 .contact-list-summary form { margin: 0 0 0 auto; min-width: 0; }
 .contact-list-summary select { width: auto; max-width: 150px; min-height: 44px; margin: 0; padding: 8px 4px; border: 0; background: transparent; font-size: .8125rem; color: var(--text-2); }
 .contacts-page .contact-list { margin: 6px -12px 0; padding: 0; border: 0; background: var(--page); }
 .contacts-page .contact-select-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 65px; margin: 0; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: var(--page); box-shadow: none; }
 .contacts-page .contact-select-row.selected { border-radius: 12px; background: var(--violet-wash); }
 .contacts-page .contact-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.contacts-page .contact-main > div:last-child { display: block; min-width: 0; flex: 1; }
+.contacts-page .contact-main > div:last-child { display: block; min-width: 0; flex: 1; container: contact-row / inline-size; }
 .contacts-page .contact-main .avatar { width: 36px; height: 36px; min-width: 36px; border-radius: 50%; font-size: .875rem; background: var(--surface); }
 .contacts-page .contact-main h3 { margin: 0 0 2px; font-size: 1rem; font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
 .contact-open { color: var(--text); }
 .contact-open::after { position: absolute; content: ""; inset: 0; border-radius: 12px; }
 .contact-open:focus-visible { outline: none; }
 .contact-open:focus-visible::after { outline: 2px solid var(--violet-mark); outline-offset: -2px; }
+/* One line at normal text sizes, as in the export: the stage and the due label shorten with an ellipsis. The rule at
+   the end of this block wraps the parts when the text is enlarged (JITM-10 §2.3–§2.4, LAY-02). */
 .contacts-page .contact-row-summary { display: flex; align-items: baseline; gap: 0 4px; margin: 0; font-size: .8125rem; line-height: 1.4; color: var(--text-2); }
 .contact-row-summary > :last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-row-summary > :first-child { flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-summary-separator { flex-shrink: 0; }
 .contact-missing-method { position: relative; z-index: 1; font-weight: 600; color: var(--violet-text); }
+.contact-row-summary > :is(.contact-no-mix, .contact-no-mix-needed) { flex-shrink: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contact-row-summary > .contact-no-mix { font-weight: 600; color: var(--status-warning-ink); }
+.contact-row-summary > .contact-no-mix-needed { color: var(--text-3); }
+.contact-list-summary .contact-no-mix-link { display: inline-flex; align-items: center; min-height: 44px; font-weight: 600; color: var(--violet-text); white-space: nowrap; }
+/* Where the row's text has room for fewer than ten of its own em, which happens with enlarged text (about 7em at
+   200% on a 320px phone, 14em at normal size), each part takes a line of its own and shows whole, the stage
+   included, instead of being shortened or clipped (LAY-02). The "·" between parts then has nothing to separate,
+   so it is hidden rather than left alone on a line. A narrow column at normal size stays on one line. */
+@container contact-row (max-width: 10em) {
+  .contacts-page .contact-row-summary { flex-wrap: wrap; }
+  .contacts-page .contact-row-summary > * { flex-basis: 100%; max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .contacts-page .contact-row-summary > .contact-summary-separator { display: none; }
+}
 .contacts-page .contact-select-control { display: none; }
 .contacts-page .selection-mode { grid-template-columns: 36px minmax(0, 1fr) auto; }
 .contacts-page .selection-mode .contact-select-control { position: relative; z-index: 1; display: flex; }
@@ -59,6 +74,12 @@
 .contact-profile-header .profile-identity :is(h1, h2) { margin: 0 0 6px; font-size: 28px; font-weight: 600; letter-spacing: -.04em; line-height: 1.2; overflow-wrap: anywhere; }
 .contact-stage-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; max-width: 100%; padding: 4px 10px; border: 0; border-radius: 18px; background: var(--surface); color: var(--text-2); font-size: .8125rem; cursor: pointer; text-align: left; }
 .contact-stage-chip svg { width: 14px; height: 14px; flex-shrink: 0; }
+/* Mix status beside the stage (JITM-09 §2.76): a separate work label, never merged with the stage (§2.71). */
+.contact-identity-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.contact-mix-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; max-width: 100%; padding: 4px 10px; border: 0; border-radius: 18px; background: var(--status-warning-bg); color: var(--status-warning-ink); font-size: .8125rem; font-weight: 600; cursor: pointer; text-align: left; }
+.contact-mix-chip[data-status="no-mix-needed"] { background: var(--surface); color: var(--text-2); font-weight: 400; }
+.contact-mix-chip svg { width: 14px; height: 14px; flex-shrink: 0; }
+.contact-no-mix-form, .bulk-no-mix-form { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
 .contact-profile-header .contact-profile-quick-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 0; padding: 0; }
 .contact-profile-header .contact-profile-quick-actions > .button { display: inline-flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; min-height: 44px; width: auto; margin: 0; padding: 10px 16px; background: transparent; color: var(--text); font-size: .875rem; font-weight: 500; }
 .contact-profile-header .contact-profile-quick-actions > .button svg { width: 18px; height: 18px; padding: 0; border-radius: 0; background: transparent; }

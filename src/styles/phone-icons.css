@@ -65,7 +65,8 @@
   .contact-detail-page .contact-inline-action,
   .contact-priority-card .contact-section-heading .contact-inline-action,
   .contact-inline-action,
-  .contact-stage-chip { min-height: 44px; }
+  .contact-stage-chip,
+  .contact-mix-chip { min-height: 44px; }
   .today-page .jump-completion-actions > .sheet-trigger > .button,
   .contact-icon-button,
   .icon-button.compact { min-width: 44px; min-height: 44px; }

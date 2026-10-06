@@ -2,9 +2,9 @@
 id: JITM-05
 title: Vocabulary and glossary
 status: active
-version: 2.1.0
+version: 2.1.2
 owner: Kevin
-last_reviewed: 2026-10-05
+last_reviewed: 2026-10-06
 applies_to: [copy, interface-text, help, public-pages, email, onboarding, customer-docs]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md, CONTRIBUTING.md#product-language]
 sources:
@@ -74,7 +74,7 @@ Neighboring topics live elsewhere:
 | note, private note | Context about a person. Private notes never go into messages. | none |
 | stage | An optional label for where a person stands with your business, such as Lead or Client, in your own words. Stages are managed in **Contact stages** in Settings. A Mix can set a person's stage, and a Mega-Mix can add its own stages, which you can rename. Stages do not organize the Journey, which is your connected Mixes and Beats (JITM-09 §2.51, §2.79). [OWNER 2026-10-05 D35] | `JourneyStage` |
 | milestone | Something that happened with a person, recorded on their contact in your own words, such as Qualified or Signed. It can move their stage (JITM-09 §2.80). [OWNER 2026-10-05 D36] [PROPOSED] | `JourneyEventType` today; owner-named milestones are not built |
-| No Mix, No Mix needed | No Mix: no Mix has work to come for this person, so nothing will remind you about them. No Mix needed: you confirmed they don't need one (JITM-09 §2.76). [OWNER 2026-10-05 D33] [PROPOSED] | none yet; not built |
+| No Mix, No Mix needed | No Mix: no Mix has work to come for this person, so no Mix will remind you about them; a one-time follow-up may still be on its way. No Mix needed: you confirmed they don't need one (JITM-09 §2.76). The labels are Kevin's (D33); this meaning is his wording decision (D44). [OWNER 2026-10-05 D33] [OWNER 2026-10-06 D44] | `ContactRelationshipState.noMixNeededAt`; `src/lib/contact-mix-status.ts` |
 | invitation | Two kinds. A member's personal invitation: one of the member's own invitations, which the member sends from Today in their own email or text app (allowance: JITM-09 §2.17). An access invitation: the single-use link the waitlist or staff send (JITM-09 §2.15). | `ReferralAccessInvite` (its `source` tells the kinds apart); System Mix for the member wording |
 | pipeline | A plain word in Mega-Mix copy for the whole path from first inquiry to repeat work, as in "Your pipeline is ready" after a Mega-Mix is added. It is not a feature name; the feature is the Mega-Mix. | none; `MegaMixPipeline` is the Mega-Mix model |
 | connection | Two shipped meanings. In Journey, a saved path from a Beat or a finished Mix to the next Mix or Beat (JITM-09 §2.55). In the feature names Lead connections (Settings, More) and Calendar connections (Calendar), a link to an outside source of people or events. | a rule in `MixWorkflow`; `IntakeConnection`, `CalendarConnection` |
@@ -186,3 +186,5 @@ Known deviations, rechecked at 9f967bc after the copy batch (PR #96) and its cas
 - 2.0.0 — 2026-09-28 — Base 61d4df4. Ready-made content is found in the Marketplace's Jump in the Mix section (§2.5, D29); stage settings are Contact stages (D16); §6 updated for D21.
 - 2.0.1 — 2026-09-29 — Base 9f967bc. §6: the copy batch (PR #96, O8) and PR #99 fixed the glossary sheet, Help's retired words, "plan" for a Mix, the More and Settings labels for Journey and Contact stages, "My Account", `START_HERE.md` and `README.md` "Plans", and most lowercase spellings. Those entries are removed, and standards no longer quote the old casing. The retired words, "customer journey" links and Mega-Mix spellings found by the release review are listed.
 - 2.1.0 — 2026-10-05 — Base e8692f2. §2.2: a stage can be set by a Mix and added by a Mega-Mix (D35); new terms milestone (D36) and No Mix / No Mix needed (D33), proposed wording waiting for Kevin's confirmation (docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md).
+- 2.1.1 — 2026-10-05 — Base 8bee3b1. §2.2: No Mix and No Mix needed are confirmed (D33) and name their implementation (docs/NO_MIX_STATUS_2026-10-05.md).
+- 2.1.2 — 2026-10-06 — Base a05b189. §2.3: the meaning of No Mix says that no Mix will remind you about them, since a one-time follow-up may still be on its way, and is tagged as Kevin's wording decision (D44); D33 confirmed the labels only. The row is in §2.3's table, which 2.1.0 and 2.1.1 cited as §2.2.

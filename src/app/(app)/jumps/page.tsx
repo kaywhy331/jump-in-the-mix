@@ -2,6 +2,7 @@ import { WorkflowAttention, UpcomingWorkflowCommitments } from "@/components/Wor
 import { readWorkflowAttention } from "@/lib/workflow-attention";
 import { QuietDaySuggestions } from "@/components/QuietDaySuggestions";
 import { readQuietDays } from "@/lib/quiet-days";
+import { contactMixCounts, noMixTodayLine } from "@/lib/contact-mix-status";
 import { sameContactSequence } from "@/lib/contact-profile-view";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -193,14 +194,17 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     return skipped ? { skipped, plan: (await planLimits(workspace.id)).plan } : null;
   };
   const planLimitNotice = await readPlanLimitNotice().catch(() => null);
-  const [drafts, failedDeliveryRows, owner, automation, quietDays, workflowAttention] = await Promise.all([
+  const [drafts, failedDeliveryRows, owner, automation, quietDays, workflowAttention, mixCounts] = await Promise.all([
     readJumpDrafts(workspace.id, pendingIds),
     readFailedDeliveries(),
     prisma.user.findUnique({ where: { id: workspace.ownerId }, select: { name: true, email: true } }),
     prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id }, select: { enabled: true, emailEnabled: true, smsEnabled: true, reviewWindowMinutes: true } }),
     readQuietDays({ workspaceId: workspace.id, timezone }),
-    readWorkflowAttention(workspace.id, 30, Math.max(0, Math.min(100000, Math.floor(Number(params.attentionPage) || 0))) * 30, new Date(), Math.max(0, Math.min(100000, Math.floor(Number(params.callbackPage) || 0))) * 30).catch(() => null)
+    readWorkflowAttention(workspace.id, 30, Math.max(0, Math.min(100000, Math.floor(Number(params.attentionPage) || 0))) * 30, new Date(), Math.max(0, Math.min(100000, Math.floor(Number(params.callbackPage) || 0))) * 30).catch(() => null),
+    // People with no Mix have nothing to remind the owner about them (JITM-09 §2.77); a failed count only hides the line.
+    contactMixCounts(workspace.id).catch(() => null)
   ]);
+  const noMixCount = mixCounts?.["no-mix"] ?? 0;
   const failedDeliveries = new Map(failedDeliveryRows.map((row) => [row.jumpId, row] as const));
   // A drafted follow-up is held from automatic delivery; the card says so only where delivery would otherwise apply.
   const automaticFor = (followUpChannel: Channel) => Boolean(automation?.enabled && ((followUpChannel === "EMAIL" && automation.emailEnabled && automaticEmailConfigured()) || (followUpChannel === "SMS" && automation.smsEnabled)));
@@ -477,6 +481,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       {needsAttention.filter(item => item.scheduledAt >= startToday).length > 0 && <section aria-labelledby="today-follow-ups"><div className="section-label"><h2 id="today-follow-ups">Today</h2><span>{attentionCount - overdueCount}</span></div><div className="jump-list">{needsAttention.filter(item => item.scheduledAt >= startToday).map(renderCard)}</div></section>}
       <WorkflowAttention attention={workflowAttention} />
       <QuietDaySuggestions locale={displayPreferences.locale} initial={quietDays} canResolve={!impersonation} compact />
+      {noMixCount > 0 && <p className="today-no-mix-line"><AppIcon name="people" /><span>{noMixTodayLine(noMixCount)}</span><Link href="/contacts?mix=no-mix">Review</Link></p>}
       <details className="today-queue-group" open={upcoming.length > 0 || Boolean(workflowAttention?.future?.length) || undefined}><summary>{range === "due" || range === "week" ? "Next 7 days" : "Upcoming"} <span>{(upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0)}</span></summary><UpcomingWorkflowCommitments attention={workflowAttention} displayPreferences={displayPreferences} />{upcoming.length ? <div className="jump-list">{upcoming.map(renderCard)}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
       <details className="today-queue-group" open={status === "done" || status === "skipped" || pendingCount === 0 || undefined}><summary>Done <span>{doneSummaryCount(range, completed.length, completedTodayCount)}</span></summary>{completed.length ? <div className="jump-list">{completed.map(renderCard)}</div> : <TodayLink className="today-queue-link" href="/jumps?range=due&status=done">View completed follow-ups</TodayLink>}</details>
       {totalCount > 0 && <nav className="pagination-bar today-pagination" aria-label="Follow-up pages">
