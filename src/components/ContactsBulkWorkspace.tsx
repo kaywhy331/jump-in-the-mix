@@ -249,6 +249,7 @@ export function ContactsBulkWorkspace({
             <form action={bulkAssignMixAction} className="form-stack">{contactIdsInputs(selectedIds)}<input type="hidden" name="returnTo" value={listHref} />
               <label className="field"><span>Choose a Mix</span><select name="mixId" required>{mixes.map(mix => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></label>
               <label className="field"><span>Start on</span><input type="date" name="startDate" required min={todayKey} defaultValue={todayKey} /></label>
+              <p className="muted-copy">Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.</p>
               <button className="button primary" type="submit" disabled={selectedDoNotContact.length > 0}>Add to the Mix</button>
             </form>
           </> : <p>Create a Mix first. <Link href="/mixes">Go to Mixes</Link></p>}

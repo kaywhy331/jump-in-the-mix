@@ -2,7 +2,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { ContactMixCounts, ContactMixFilter, ContactMixStatus } from "@/lib/contact-mix-status-labels";
 
-export { bulkMixStartNotice, CONTACT_MIX_FILTERS, contactMixFilter, noMixTodayLine, type ContactMixCounts, type ContactMixFilter, type ContactMixStatus, type MixStartCounts, type MixStartResult } from "@/lib/contact-mix-status-labels";
+export { bulkMixStartNotice, bulkMixUndoNotice, CONTACT_MIX_FILTERS, contactMixFilter, noMixTodayLine, type ContactMixCounts, type ContactMixFilter, type ContactMixStatus, type MixStartCounts, type MixStartResult } from "@/lib/contact-mix-status-labels";
 
 /**
  * Whether a person is in a Mix (JITM-09 §2.76, D33). One definition serves the Contacts row, filter and

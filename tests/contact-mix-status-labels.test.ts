@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bulkMixStartNotice, noMixTodayLine, type MixStartCounts } from "../src/lib/contact-mix-status-labels";
+import { bulkMixStartNotice, bulkMixUndoNotice, noMixTodayLine, type MixStartCounts } from "../src/lib/contact-mix-status-labels";
 
 describe("No Mix wording (JITM-09 §2.76–§2.77)", () => {
   it("says that no Mix will remind the owner, in the singular and the plural (D44)", () => {
@@ -26,5 +26,13 @@ describe("No Mix wording (JITM-09 §2.76–§2.77)", () => {
     expect(notice({ "saved-date-kept": 2, "date-written": 1 }, { startsToday: false }))
       .toBe("Estimate follow-up started for 3 people. 2 follow their saved date. 1 had no saved date, so Oct 9 was saved for them.");
     expect(notice({ "saved-date-kept": 1, "already-running": 2 })).toBe("Estimate follow-up started for 1 person. 2 were already in it and keep their start. 1 follows their saved date.");
+  });
+
+  it("says what Undo ended, and what it left because it changed since (D46)", () => {
+    expect(bulkMixUndoNotice({ mixName: "Estimate follow-up", ended: 3, kept: 1, dates: 0 }))
+      .toBe("Undone. Estimate follow-up ended for 3 people, and its follow-ups still to come for them were removed. 1 person changed since and was left as they are.");
+    expect(bulkMixUndoNotice({ mixName: "Renewal reminder", ended: 1, kept: 0, dates: 1 }))
+      .toBe("Undone. Renewal reminder ended for 1 person, and its follow-ups still to come for them were removed. The date saved when it started was removed.");
+    expect(bulkMixUndoNotice({ mixName: "Estimate follow-up", ended: 0, kept: 2, dates: 0 })).toBe("Nothing was undone: those starts had already ended or changed since.");
   });
 });

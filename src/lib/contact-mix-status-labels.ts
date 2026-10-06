@@ -40,3 +40,13 @@ export function bulkMixStartNotice(input: { mixName: string; counts: MixStartCou
   if (started && input.waitsForVisit) sentences.push("Beats timed from an appointment wait until you line each person up with a visit.");
   return sentences.join(" ");
 }
+
+/** The confirmation after Undo on a bulk start (D46): what ended, and what was left because it changed since. */
+export function bulkMixUndoNotice(input: { mixName: string; ended: number; kept: number; dates: number }): string {
+  const sentences = [input.ended
+    ? `Undone. ${input.mixName} ended for ${people(input.ended)}, and its follow-ups still to come for them were removed.`
+    : "Nothing was undone: those starts had already ended or changed since."];
+  if (input.dates) sentences.push(input.dates === 1 ? "The date saved when it started was removed." : "The dates saved when it started were removed.");
+  if (input.ended && input.kept) sentences.push(`${input.kept === 1 ? "1 person" : `${input.kept.toLocaleString()} people`} changed since and ${input.kept === 1 ? "was" : "were"} left as they are.`);
+  return sentences.join(" ");
+}

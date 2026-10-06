@@ -30,9 +30,12 @@ async function people(names: string[]) {
   return { suffix, people: data };
 }
 
-async function cleanUp(ids: string[]) {
+async function cleanUp(ids: string[], since?: Date) {
   await prisma.mixAssignment.deleteMany({ where: { workspaceId, contactId: { in: ids } } });
   await prisma.contact.deleteMany({ where: { workspaceId, id: { in: ids } } });
+  // No worker runs during the browser suites: settle the preparation this test queued, so the shared demo
+  // account does not read as awaiting preparation, or count its Mix's people as being prepared, afterwards.
+  if (since) await prisma.job.updateMany({ where: { workspaceId, task: "generate-jumps", completedAt: null, failedAt: null, createdAt: { gte: since } }, data: { completedAt: new Date() } });
 }
 
 test.beforeEach(async ({ page }) => { await signIn(page); });
@@ -64,6 +67,7 @@ test("the No Mix row, chip and sheet pass the accessibility audit in both themes
 });
 
 test("a contact with no Mix says so, and the owner can confirm it or start one from the profile", async ({ page }) => {
+  const since = new Date();
   const { people: [person] } = await people(["Nomix"]);
   try {
     await page.goto(`/contacts/${person.id}`);
@@ -86,12 +90,13 @@ test("a contact with no Mix says so, and the owner can confirm it or start one f
     await Promise.all([page.waitForURL(/mixAssigned=/), sheet.getByRole("button", { name: "Start Mix", exact: true }).click()]);
     await expect(page.locator(".contact-mix-chip")).toHaveCount(0);
   } finally {
-    await cleanUp([person.id]);
+    await cleanUp([person.id], since);
   }
 });
 
 test("Contacts finds people with No Mix and handles them in bulk", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Bulk handling is exercised once, in the docked desktop layout.");
+  const since = new Date();
   const { suffix, people: list } = await people(["Ana", "Ben"]);
   const ids = list.map(person => person.id);
   try {
@@ -126,14 +131,21 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     await page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }).click();
     for (const person of list) await page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true }).check();
     await bar.getByRole("button", { name: "Mix", exact: true }).click();
+    // The sheet says that anyone who finished the Mix starts it again (D46).
+    await expect(sheet.getByText("Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.", { exact: true })).toBeVisible();
     const mixName = await sheet.getByRole("combobox", { name: "Choose a Mix", exact: true }).evaluate((select: HTMLSelectElement) => select.selectedOptions[0].text);
     await Promise.all([page.waitForURL(/mixStarted=2/), sheet.getByRole("button", { name: "Add to the Mix", exact: true }).click()]);
-    // The notice names the Mix and what the start did (BLK-01).
-    await expect(page.locator(".notice.success").filter({ hasText: `${mixName} started for 2 people.` })).toBeVisible();
+    // The notice names the Mix and what the start did (BLK-01), and offers Undo (D46).
+    const started = page.locator(".notice.success").filter({ hasText: `${mixName} started for 2 people.` });
+    await expect(started).toBeVisible();
     await expect(page.locator(".contact-row")).toHaveCount(0);
     expect(await prisma.mixAssignment.count({ where: { workspaceId, contactId: { in: ids }, isActive: true } })).toBe(2);
+    await Promise.all([page.waitForURL(/mixUndone=2/), started.getByRole("button", { name: "Undo", exact: true }).click()]);
+    await expect(page.locator(".notice.success").filter({ hasText: `Undone. ${mixName} ended for 2 people` })).toBeVisible();
+    await expect(page.locator(".contact-row")).toHaveCount(2);
+    expect(await prisma.mixAssignment.count({ where: { workspaceId, contactId: { in: ids }, isActive: true } })).toBe(0);
   } finally {
-    await cleanUp(ids);
+    await cleanUp(ids, since);
   }
 });
 
