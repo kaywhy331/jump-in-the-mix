@@ -58,7 +58,7 @@ describe.sequential("asking what's next when a Mix ends with nothing after it (J
     const second = await beat(casey, estimate, 1, "PENDING");
     expect(await ask(first)).toBeNull();
     await prisma.jump.update({ where: { id: second }, data: { status: "SKIPPED", completedAt: new Date() } });
-    expect(await ask(second)).toEqual({ contactId: casey, contactName: `Casey ${suffix.slice(0, 6)}`, mixName: "Estimate follow-up", stillInMix: false });
+    expect(await ask(second)).toEqual({ contactId: casey, contactName: `Casey ${suffix.slice(0, 6)}`, mixName: "Estimate follow-up", stillInMix: false, oneTimeFollowUp: false });
     // Reopening the Beat means the Mix hasn't ended.
     await prisma.jump.update({ where: { id: second }, data: { status: "PENDING", completedAt: null } });
     expect(await ask(second)).toBeNull();
@@ -83,6 +83,16 @@ describe.sequential("asking what's next when a Mix ends with nothing after it (J
     expect(await ask(done)).toBeNull();
     await prisma.mixWorkflow.update({ where: { workspaceId }, data: { configuration: JSON.parse(JSON.stringify({ ...emptyWorkflow(), rules: [{ ...rule, enabled: false }] })) } });
     expect(await ask(done)).not.toBeNull();
+  });
+
+  it("says when a one-time follow-up is still coming, which no Mix counts", async () => {
+    const welcome = await mix("Thanks for the referral", 1);
+    const oneTime = await mix("One-time note", 1, { source: "ONE_TIME" });
+    const kai = await person("Kai");
+    await start(kai, welcome);
+    const done = await beat(kai, welcome, 0, "DONE");
+    await beat(kai, oneTime, 0, "PENDING");
+    expect(await ask(done)).toMatchObject({ stillInMix: false, oneTimeFollowUp: true });
   });
 
   it("says when the person is still in another Mix", async () => {

@@ -34,11 +34,13 @@ export function MixEndPrompt({ mixes, todayKey, address, viewOnly = false }: { m
   }, []);
   if (!question) return null;
 
-  const { contactId, contactName, mixName, stillInMix } = question;
+  const { contactId, contactName, mixName, stillInMix, oneTimeFollowUp } = question;
+  // Only what is true (JITM-09 §2.25): a one-time follow-up still reminds the owner, though it isn't a Mix.
+  const status = stillInMix ? "They’re still in another Mix." : oneTimeFollowUp ? "No Mix has more for them. A one-time follow-up is still coming." : "Nothing else will remind you about them.";
   const card = <section className="mix-end-question" aria-label={`What’s next for ${contactName}`} data-mix-end={contactId}>
-    <p role="status"><strong>{mixName} is finished for {contactName}.</strong><small>{stillInMix ? "They’re still in another Mix." : "Nothing else will remind you about them."}</small></p>
+    <p role="status"><strong>{mixName} is finished for {contactName}.</strong><small>{status}</small></p>
     <div className="mix-end-question-actions">
-      <Sheet trigger={<button type="button" className="button small primary">What’s next?</button>} title={`What’s next for ${contactName}`} description={stillInMix ? undefined : "No Mix has work to come for this person, so nothing will remind you about them."}>
+      <Sheet trigger={<button type="button" className="button small primary">What’s next?</button>} title={`What’s next for ${contactName}`} description={stillInMix ? undefined : "No Mix has work to come for this person."}>
         {mixes.length > 0 ? <form action={assignMixToContactAction} className="form-stack">
           <input type="hidden" name="contactId" value={contactId} /><input type="hidden" name="returnTo" value="/jumps" />
           <label className="field"><span>Choose a Mix</span><select name="mixId" required>{mixes.map(mix => <option value={mix.id} key={mix.id}>{mix.name}</option>)}</select></label>

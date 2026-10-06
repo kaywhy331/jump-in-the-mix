@@ -2,7 +2,8 @@ import { contactMixStatus } from "@/lib/contact-mix-status";
 import { readWorkflowDefinition } from "@/lib/mix-workflow";
 import { prisma } from "@/lib/prisma";
 
-export type MixEndQuestion = { contactId: string; contactName: string; mixName: string; stillInMix: boolean };
+/** `stillInMix`: another Mix has work to come. `oneTimeFollowUp`: a one-time follow-up is still open for them. */
+export type MixEndQuestion = { contactId: string; contactName: string; mixName: string; stillInMix: boolean; oneTimeFollowUp: boolean };
 
 /**
  * Whether the follow-up the owner just finished closed out a Mix that has no connection after it, so Today asks
@@ -29,7 +30,10 @@ export async function mixEndQuestion(workspaceId: string, jumpId: string, now = 
   if (open || nextDate || reached.length < stepIds.length) return null;
   const definition = await readWorkflowDefinition(prisma, workspaceId);
   if (definition.rules.some(rule => rule.enabled && rule.source.mixId === mixId)) return null;
-  const status = await contactMixStatus(workspaceId, contactId, now);
+  const [status, oneTime] = await Promise.all([
+    contactMixStatus(workspaceId, contactId, now),
+    prisma.jump.count({ where: { workspaceId, contactId, status: "PENDING", mix: { source: "ONE_TIME" } } })
+  ]);
   if (!status || status === "do-not-contact") return null;
-  return { contactId, contactName: jump.contact.displayName, mixName: mix.name, stillInMix: status === "in-mix" };
+  return { contactId, contactName: jump.contact.displayName, mixName: mix.name, stillInMix: status === "in-mix", oneTimeFollowUp: oneTime > 0 };
 }
