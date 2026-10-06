@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { createOneTimeFollowUp } from "../src/lib/one-time-follow-up";
 import { prisma } from "../src/lib/prisma";
 import { axeInPage } from "./axe-in-page";
 import { applyRenderedTheme } from "./theme-fixture";
@@ -70,7 +71,7 @@ test("a contact with no Mix says so, and the owner can confirm it or start one f
     await expect(chip).toBeVisible();
     await chip.click();
     const sheet = page.getByRole("dialog", { name: `What’s next for ${person.displayName}` });
-    await expect(sheet.getByText("No Mix has work to come for this person, so nothing will remind you about them.")).toBeVisible();
+    await expect(sheet.getByText("No Mix has work to come for this person.", { exact: true })).toBeVisible();
     await Promise.all([page.waitForURL(/noMixNeeded=1/), sheet.getByRole("button", { name: "Mark No Mix needed", exact: true }).click()]);
     await expect(page.locator(".notice.success").filter({ hasText: "Marked No Mix needed." })).toBeVisible();
     await expect(page.getByRole("button", { name: `No Mix needed: choose what's next for ${person.displayName}` })).toBeVisible();
@@ -139,10 +140,43 @@ test("Today points to the people with No Mix", async ({ page }) => {
   try {
     await page.goto("/jumps");
     const line = page.locator(".today-no-mix-line");
-    await expect(line).toContainText(/No Mix, so nothing will remind you about them\./);
+    await expect(line).toContainText(/No Mix, so no Mix will remind you about them\./);
     await Promise.all([page.waitForURL(/\/contacts\?mix=no-mix$/), line.getByRole("link", { name: "Review", exact: true }).click()]);
     await page.goto(`/contacts?mix=no-mix&q=${encodeURIComponent(person.displayName)}`);
     await expect(page.locator(".contact-row").filter({ hasText: person.displayName })).toHaveCount(1);
+  } finally {
+    await cleanUp([person.id]);
+  }
+});
+
+// D44: a one-time follow-up is outside every Mix, so the person still has No Mix, and every sentence about
+// them stays true: the row shows the follow-up, and nothing says that nothing will remind the owner.
+test("a person with No Mix and a pending one-time follow-up is described truthfully", async ({ page }) => {
+  const { people: [person] } = await people(["Onetime"]);
+  try {
+    const { ownerId } = await prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId }, select: { ownerId: true } });
+    await prisma.$transaction(tx => createOneTimeFollowUp(tx, {
+      workspaceId, contactId: person.id, actorUserId: ownerId, scheduledAt: new Date(Date.now() + 2 * 86_400_000),
+      reason: "Call back about the quote", channel: "PHONE_CALL", content: { subject: null, body: null, script: "Ask whether the quote works for them." },
+      key: `e2e-no-mix-one-time-${person.id}`
+    }));
+    await page.goto(`/contacts?q=${encodeURIComponent(person.displayName)}`);
+    const summary = page.locator(".contact-row").filter({ hasText: person.displayName }).locator(".contact-row-summary");
+    await expect(summary.locator(".contact-no-mix")).toHaveText("No Mix");
+    // "No Mix · {when the follow-up is due}", never "Nothing scheduled".
+    await expect(summary.locator(".contact-no-mix + .contact-summary-separator + span")).not.toHaveText("");
+    await expect(summary).not.toContainText("Nothing scheduled");
+
+    await page.goto(`/contacts/${person.id}`);
+    await page.getByRole("button", { name: `No Mix: choose what's next for ${person.displayName}` }).click();
+    const sheet = page.getByRole("dialog", { name: `What’s next for ${person.displayName}` });
+    await expect(sheet.getByText("No Mix has work to come for this person.", { exact: true })).toBeVisible();
+    await expect(sheet).not.toContainText("nothing will remind you");
+
+    await page.goto("/jumps");
+    const line = page.locator(".today-no-mix-line");
+    await expect(line).toContainText(/(1 person has|people have) No Mix, so no Mix will remind you about them\./);
+    await expect(line).not.toContainText("nothing will remind you");
   } finally {
     await cleanUp([person.id]);
   }

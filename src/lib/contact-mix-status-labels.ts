@@ -6,3 +6,11 @@ export type ContactMixCounts = Record<ContactMixStatus, number>;
 export function contactMixFilter(value: string | null | undefined): ContactMixFilter | "" {
   return value && Object.hasOwn(CONTACT_MIX_FILTERS, value) ? value as ContactMixFilter : "";
 }
+
+/**
+ * Today's line about people with No Mix (JITM-09 §2.77, D44). It says only that no Mix will remind the owner,
+ * which stays true when a one-time follow-up is on its way: those are outside every Mix (JITM-05 §2.3).
+ */
+export function noMixTodayLine(count: number): string {
+  return `${count === 1 ? "1 person has" : `${count.toLocaleString()} people have`} No Mix, so no Mix will remind you about them.`;
+}
