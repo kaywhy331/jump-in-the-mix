@@ -19,6 +19,11 @@ type Tx = Pick<Prisma.TransactionClient, "$queryRaw" | "mixWorkflowInstance">;
 /** The scheduler's own run: the legacy root run it started for an enrollment, not a path the Journey added. */
 const rootRuns = (state: WorkflowState) => (Array.isArray(state.runs) ? state.runs : []).filter(run => run.legacy && !run.parentTransitionId);
 
+/** Whether the owner moved this record on in Journey with a business update, which makes it theirs, not the start's. */
+export function workflowTookUpdate(state: WorkflowState): boolean {
+  return Boolean(state.updates?.length) || (Array.isArray(state.runs) && state.runs.some(run => !run.parentTransitionId && !run.legacy));
+}
+
 /**
  * Ends the enrollment's run in a record's saved state. Returns the status the record should have afterwards, or null
  * when nothing was left to end. The record stops only when nothing else in it is still running or waiting.
@@ -82,7 +87,8 @@ export function reopenEnrollmentRun(state: WorkflowState, status: string): strin
 /**
  * Locks the Journey records one enrollment's run keeps for a person and Mix: the scheduler's legacy records, keyed by
  * the run's trigger (`state.context.occurrenceKey`, by prefix), including one whose run the owner has since moved on
- * with a business update. Lock them before touching their Beats, in the order the Journey pass takes its own locks.
+ * with a business update (see `workflowTookUpdate`). Lock them before touching their Beats, in the order the Journey
+ * pass takes its own locks.
  */
 export async function lockEnrollmentWorkflows(tx: Tx, input: { workspaceId: string; contactId: string; mixId: string; occurrencePrefixes: string[] }): Promise<Array<{ id: string; status: string; state: Prisma.JsonValue }>> {
   if (!input.occurrencePrefixes.length) return [];

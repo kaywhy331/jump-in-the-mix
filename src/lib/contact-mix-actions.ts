@@ -13,7 +13,8 @@ import { UserFacingError } from "@/lib/user-facing-error";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { NO_MIX_NEEDED_NOTICE, type MixStartCounts, type MixStartResult } from "@/lib/contact-mix-status-labels";
 import { contactIdsInMix, contactMixStatuses } from "@/lib/contact-mix-status";
-import { endLockedEnrollmentWorkflows, ENROLLMENT_REMOVED_REASON, ENROLLMENT_UNDONE_REASON, lockEnrollmentWorkflows } from "@/lib/enrollment-workflow";
+import { endLockedEnrollmentWorkflows, ENROLLMENT_REMOVED_REASON, ENROLLMENT_UNDONE_REASON, lockEnrollmentWorkflows, workflowTookUpdate } from "@/lib/enrollment-workflow";
+import type { WorkflowState } from "@/lib/mix-workflow-types";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -148,14 +149,14 @@ const BULK_MIX_START_NOTICE = ["mixStarted", "mixKept", "mixSaved", "mixDated", 
  * How the scheduler keys one enrollment's run (src/lib/jump-engine.ts). `triggers` key its Journey record
  * (`state.context.occurrenceKey`) and its Beats: a hand-started run by its start day in the owner's time zone, a
  * date-based run by the person's dates (only the date a start wrote, when it wrote one), a fixed-date Mix by its
- * schedule, a visit-bound run by its binding. `beats` adds a hand-started run's planned Beats, keyed by Beat.
+ * schedule, a visit-bound run by its binding. `beats` adds the planned Beats, keyed by Beat for every start type.
  */
 function runKeys(input: { triggerMode: string | undefined; startDate: Date | null; createdAt: Date; ownerTimezone: string; jumpDateId?: string | null; bindingId?: string | null }): { triggers: string[]; beats: string[] } {
   if (input.bindingId) return { triggers: [`appointment:${input.bindingId}`], beats: [`appointment:${input.bindingId}`] };
   const triggers = input.triggerMode === "DATE_TRIGGERED" ? [input.jumpDateId ? `jump-date:${input.jumpDateId}:` : "jump-date:"]
     : input.triggerMode === "BROADCAST" ? ["broadcast:"]
     : [`manual:${logicalDateKey(logicalDateInTimezone(input.startDate ?? input.createdAt, input.ownerTimezone))}`];
-  return { triggers, beats: input.triggerMode === "DATE_TRIGGERED" || input.triggerMode === "BROADCAST" ? triggers : [...triggers, "planned:"] };
+  return { triggers, beats: [...triggers, "planned:"] };
 }
 const occurrenceIn = (prefixes: string[]) => ({ OR: prefixes.map(prefix => ({ templateSnapshot: { path: ["occurrenceKey"], string_starts_with: prefix } })) });
 
@@ -292,10 +293,11 @@ export async function undoBulkMixStartAction(formData: FormData): Promise<void> 
         return row?.isActive && row.contactId === start.contactId && row.updatedAt.getTime() === Date.parse(start.assignmentUpdatedAt);
       });
       // In an account with a Journey connection each start also has a Journey record for its run. Lock those first, in
-      // the Journey pass's order (UNDO-04).
+      // the Journey pass's order. A start whose record took a business update since was moved on by the owner in
+      // Journey, so it counts as changed since and is left as it is (UNDO-04, UNDO-05).
       const journeys = new Map<string, Awaited<ReturnType<typeof lockEnrollmentWorkflows>>>();
       for (const start of untouched) journeys.set(start.assignmentId, await lockEnrollmentWorkflows(tx, { workspaceId: workspace.id, contactId: start.contactId, mixId, occurrencePrefixes: keysOf(start, byId.get(start.assignmentId)!).triggers }));
-      const unchanged = untouched;
+      const unchanged = untouched.filter(start => !journeys.get(start.assignmentId)!.some(record => workflowTookUpdate(record.state as unknown as WorkflowState)));
       if (!unchanged.length) return { ended: 0, kept: starts.length, dates: 0, confirmed: 0 };
       const endedAt = new Date();
       let dates = 0, journeysEnded = 0;
@@ -303,7 +305,8 @@ export async function undoBulkMixStartAction(formData: FormData): Promise<void> 
         await tx.mixAssignment.update({ where: { id: start.assignmentId }, data: start.previous
           ? { isActive: start.previous.isActive, startDate: start.previous.startDate ? new Date(start.previous.startDate) : null, mode: start.previous.mode }
           : { isActive: false } });
-        // The start's own follow-ups still to come: the scheduler's rows keyed to its run, written since it. Done and skipped rows are history. Cancelled as reconciled, so the pass queued below
+        // The start's own follow-ups still to come: the scheduler's rows keyed to its run, planned Beats included,
+        // written since it. Done and skipped rows are history. Cancelled as reconciled, so the pass queued below
         // brings back any row that another enrollment of the person shares, such as a tag running the Mix from the
         // same day.
         await tx.jump.updateMany({

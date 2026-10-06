@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { endEnrollmentRun, ENROLLMENT_REMOVED_REASON, reopenEnrollmentRun } from "../src/lib/enrollment-workflow";
+import { endEnrollmentRun, ENROLLMENT_REMOVED_REASON, reopenEnrollmentRun, workflowTookUpdate } from "../src/lib/enrollment-workflow";
 import type { WorkflowState } from "../src/lib/mix-workflow-types";
 
 // Ending an enrollment's Journey run, and picking it back up for a later start of the same occurrence (UNDO-04).
@@ -51,5 +51,11 @@ describe("ending and reopening an enrollment's Journey run", () => {
     expect(state.pendingChoices).toHaveLength(1);
     expect(state.context?.enrollmentEnded).toBeUndefined();
     expect(reopenEnrollmentRun(state, "PAUSED")).toBeNull();
+  });
+
+  it("treats a run the owner moved on with a business update as theirs", () => {
+    expect(workflowTookUpdate(base())).toBe(false);
+    expect(workflowTookUpdate({ ...base(), updates: [{ id: "update" } as never] })).toBe(true);
+    expect(workflowTookUpdate({ ...base(), runs: [run("root", "estimate", { legacy: false })] })).toBe(true);
   });
 });

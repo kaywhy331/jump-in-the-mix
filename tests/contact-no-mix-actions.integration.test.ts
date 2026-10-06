@@ -289,6 +289,39 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     expect(await contactMixStatus(workspaceId, started)).toBe("in-mix");
   });
 
+  it("leaves a start the owner moved on in Journey with a business update (UNDO-05 a)", async () => {
+    // (a) A business update on the start's run, as the Journey pass records it: the run is no longer the
+    // scheduler's, and its Beats became Journey-managed. The start counts as changed since.
+    const moved = await prisma.mix.create({ data: { workspaceId, name: "Moved on", status: "ACTIVE", triggerMode: "MANUAL_START" } });
+    await prisma.mixStep.create({ data: { mixId: moved.id, stepVersionId: versionId, dayOffset: 0, sortOrder: 1 } });
+    const updated = await person("Moved on in Journey"), plain = await person("Not moved on");
+    const started = await redirectOf(bulkAssignMixAction(form({ contactIds: [updated, plain], mixId: moved.id, startDate: today, returnTo: "/contacts" })));
+    await prepareQueued();
+    const record = await prisma.mixWorkflowInstance.create({ data: { workspaceId, contactId: updated, admissionKey: `legacy:moved-${updated}`, label: "Moved on", definition: {},
+      state: { runs: [{ id: "run1", mixId: moved.id, status: "ACTIVE", legacy: false, parentTransitionId: null }], visits: [], evaluations: [], transitions: [], updates: [{ id: "update1", kind: "OUTCOME" }], context: { timezone: "UTC", appointmentBindingId: null, occurrenceKey: `manual:${today}` } } } });
+    await prisma.jump.updateMany({ where: { contactId: updated, mixId: moved.id }, data: { workflowInstanceId: record.id, workflowManaged: true } });
+    const undone = await redirectOf(undoBulkMixStartAction(form({ undoId: started.searchParams.get("mixUndo")!, returnTo: "/contacts" })));
+    expect(Object.fromEntries(undone.searchParams)).toMatchObject({ mixUndone: "1", mixUndoKept: "1" });
+    expect((await prisma.mixAssignment.findUniqueOrThrow({ where: { assignmentKey: `${workspaceId}:${moved.id}:${updated}` } })).isActive).toBe(true);
+    expect(await prisma.jump.count({ where: { contactId: updated, mixId: moved.id, status: "PENDING" } })).toBe(1);
+    expect((await prisma.mixWorkflowInstance.findUniqueOrThrow({ where: { id: record.id } })).status).toBe("ACTIVE");
+    expect(await prisma.jump.count({ where: { contactId: plain, mixId: moved.id, status: "PENDING" } })).toBe(0);
+  });
+
+  it("ends a date-based start's planned Beats at once, as it does a hand-started one's (UNDO-05 b)", async () => {
+    // A planned Beat is keyed by the Beat, not by the date, whatever the Mix's start type.
+    const dateType = await prisma.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: "Move-in", slug: `move-in-${suffix}` } });
+    const dated = await prisma.mix.create({ data: { workspaceId, name: "Move-in note", status: "ACTIVE", triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id } });
+    const planned = await prisma.mixStep.create({ data: { mixId: dated.id, stepVersionId: versionId, dayOffset: 0, sortOrder: 1, plannedAt: new Date(Date.now() + 5 * 86_400_000) } });
+    const mover = await person("Moving in");
+    const datedStart = await redirectOf(bulkAssignMixAction(form({ contactIds: mover, mixId: dated.id, startDate: today, returnTo: "/contacts" })));
+    await prepareQueued();
+    const plannedRows = await prisma.jump.findMany({ where: { contactId: mover, mixStepId: planned.id, status: "PENDING" }, select: { id: true, templateSnapshot: true } });
+    expect(plannedRows.map(row => String((row.templateSnapshot as { occurrenceKey?: string }).occurrenceKey).split(":")[0])).toEqual(["planned"]);
+    await redirectOf(undoBulkMixStartAction(form({ undoId: datedStart.searchParams.get("mixUndo")!, returnTo: "/contacts" })));
+    expect(await prisma.jump.findMany({ where: { id: { in: plannedRows.map(row => row.id) } }, select: { status: true, completionMethod: true } })).toEqual([{ status: "CANCELED", completionMethod: "reconciled" }]);
+  });
+
   it("comes back to the list with a message when Undo cannot finish, and changes nothing (ERR-01)", async () => {
     const blocked = await person("Undo blocked");
     const started = await redirectOf(bulkAssignMixAction(form({ contactIds: blocked, mixId, startDate: today, returnTo: "/contacts?mix=no-mix" })));
