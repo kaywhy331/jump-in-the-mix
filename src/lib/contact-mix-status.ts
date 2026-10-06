@@ -127,9 +127,14 @@ export async function contactIdsWithMixStatus(workspaceId: string, status: Conta
   return rows.map(row => row.id);
 }
 
-export async function contactMixCounts(workspaceId: string, now = new Date()): Promise<ContactMixCounts> {
+/**
+ * How many of the workspace's people have each status. With `among`, only those people count: the
+ * Contacts list passes the people its search and other filters show, so the counts match the list (D47).
+ */
+export async function contactMixCounts(workspaceId: string, now = new Date(), among?: string[]): Promise<ContactMixCounts> {
+  const scope = among ? Prisma.sql`AND c.id = ANY(${among}::text[])` : Prisma.empty;
   const rows = await prisma.$queryRaw<Array<{ status: ContactMixStatus; count: bigint }>>(Prisma.sql`${preparingCte(workspaceId)}
-    SELECT status, count(*) AS count FROM (SELECT ${statusSql(workspaceId, now)} AS status ${contactsFrom(workspaceId)}) people GROUP BY status`);
+    SELECT status, count(*) AS count FROM (SELECT ${statusSql(workspaceId, now)} AS status ${contactsFrom(workspaceId)} ${scope}) people GROUP BY status`);
   const counts: ContactMixCounts = { "in-mix": 0, "no-mix": 0, "no-mix-needed": 0, "do-not-contact": 0 };
   for (const row of rows) counts[row.status] = Number(row.count);
   return counts;

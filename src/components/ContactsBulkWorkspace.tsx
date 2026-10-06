@@ -65,6 +65,8 @@ export function ContactsBulkWorkspace({
   mixCounts,
   mixes = [],
   todayKey,
+  listHref = "/contacts",
+  noMixHref = "/contacts?mix=no-mix",
   savedViews,
   intent
 }: {
@@ -82,6 +84,10 @@ export function ContactsBulkWorkspace({
   mixCounts?: ContactMixCounts;
   mixes?: { id: string; name: string }[];
   todayKey?: string;
+  /** Where a bulk action returns: this list's filters and docked person, without earlier notices (D47). */
+  listHref?: string;
+  /** The No Mix filter within the current search and filters. */
+  noMixHref?: string;
   savedViews?: ReactNode;
   intent?: "important-date" | "one-time-jump" | "log-note";
 }) {
@@ -102,8 +108,6 @@ export function ContactsBulkWorkspace({
   const inactiveTagCount = groups.length - activeTags.length;
   const allSelected = contacts.length > 0 && selected.size === contacts.length;
   const activeFilterCount = [groupFilter, priorityFilter, permissionFilter, mixFilter].filter(Boolean).length;
-  // Where a bulk action returns: this list with its filters, so the owner keeps working through it.
-  const listHref = `/contacts${searchParams.toString() ? `?${searchParams}` : ""}`;
   const initialSelectionKey = initialSelected.join(",");
 
   useEffect(() => {
@@ -218,7 +222,7 @@ export function ContactsBulkWorkspace({
       {intent === "one-time-jump" && <div className="notice info" role="status"><strong>Choose one or more people.</strong></div>}
       {intent === "log-note" && <div className="notice info" role="status"><strong>Choose a person.</strong> Then add what happened to their notes.</div>}
 
-      <div className="contact-list-summary"><span>{selectionMode ? `${selectedIds.length} selected` : `${(totalCount ?? contacts.length).toLocaleString()} people`}</span>{!selectionMode && !mixFilter && Boolean(mixCounts?.["no-mix"]) && <Link className="contact-no-mix-link" href={`/contacts?mix=no-mix${sort !== "name" ? `&sort=${encodeURIComponent(sort)}` : ""}`}>{mixCounts!["no-mix"].toLocaleString()} with No Mix</Link>}<form action="/contacts">{directoryContext}<input name="q" type="hidden" value={query} />{groupFilter && <input name="group" type="hidden" value={groupFilter} />}{priorityFilter && <input name="priority" type="hidden" value={priorityFilter} />}{permissionFilter && <input name="permission" type="hidden" value={permissionFilter} />}{mixFilter && <input name="mix" type="hidden" value={mixFilter} />}<select name="sort" aria-label="Sort contacts" defaultValue={sort} onChange={event => event.currentTarget.form?.requestSubmit()}><option value="name">Name</option><option value="last-name">Last name</option><option value="updated">Recently updated</option><option value="newest">Recently added</option></select></form>{selectionMode && <button type="button" className="contact-inline-action" onClick={toggleSelectionMode}>Done</button>}</div>
+      <div className="contact-list-summary"><span>{selectionMode ? `${selectedIds.length} selected` : `${(totalCount ?? contacts.length).toLocaleString()} people`}</span>{!selectionMode && !mixFilter && Boolean(mixCounts?.["no-mix"]) && <Link className="contact-no-mix-link" href={noMixHref}>{mixCounts!["no-mix"].toLocaleString()} with No Mix</Link>}<form action="/contacts">{directoryContext}<input name="q" type="hidden" value={query} />{groupFilter && <input name="group" type="hidden" value={groupFilter} />}{priorityFilter && <input name="priority" type="hidden" value={priorityFilter} />}{permissionFilter && <input name="permission" type="hidden" value={permissionFilter} />}{mixFilter && <input name="mix" type="hidden" value={mixFilter} />}<select name="sort" aria-label="Sort contacts" defaultValue={sort} onChange={event => event.currentTarget.form?.requestSubmit()}><option value="name">Name</option><option value="last-name">Last name</option><option value="updated">Recently updated</option><option value="newest">Recently added</option></select></form>{selectionMode && <button type="button" className="contact-inline-action" onClick={toggleSelectionMode}>Done</button>}</div>
       {contacts.length ? <div className="contact-list selectable-contact-list">{contacts.map((contact) => {
         const isSelected = selected.has(contact.id);
         const primaryEmail = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email;

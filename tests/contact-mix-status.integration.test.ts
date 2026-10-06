@@ -227,6 +227,12 @@ describe.sequential("whether a person is in a Mix (JITM-09 §2.76)", () => {
       expect(new Set(ids)).toEqual(new Set([...statuses].filter(([, item]) => item === value).map(([id]) => id)));
       expect(counts[value]).toBe(ids.length);
     }
+    // Counted among the people a filtered list shows, the counts cover just them (D47).
+    const among = people.slice(0, 3).map(item => item.id);
+    const scoped = await contactMixCounts(workspaceId, undefined, among);
+    for (const value of ["in-mix", "no-mix", "no-mix-needed", "do-not-contact"] as const) expect(scoped[value]).toBe(among.filter(id => statuses.get(id) === value).length);
+    expect(Object.values(await contactMixCounts(workspaceId, undefined, [])).every(count => count === 0)).toBe(true);
+    expect(Object.values(await contactMixCounts(otherWorkspaceId, undefined, among)).every(count => count === 0)).toBe(true);
     expect(await contactIdsWithMixStatus(otherWorkspaceId, "no-mix")).toEqual([]);
     const archived = await person("Archived");
     await prisma.contact.update({ where: { id: archived }, data: { archivedAt: new Date() } });

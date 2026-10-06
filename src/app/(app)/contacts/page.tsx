@@ -13,7 +13,7 @@ import { restoreContactAction, restoreContactsAction } from "@/lib/contact-lifec
 import { phoneSearchDigits } from "@/lib/phone-dial";
 import { requireWorkspace } from "@/lib/auth";
 import { contactFollowUpSummary } from "@/lib/contact-follow-up-summary";
-import { bulkMixStartNotice, bulkMixUndoNotice, contactIdsWithMixStatus, contactMixCounts, contactMixFilter, contactMixStatuses } from "@/lib/contact-mix-status";
+import { bulkMixStartNotice, bulkMixUndoNotice, contactIdsWithMixStatus, contactMixCounts, contactMixFilter, contactMixStatuses, MIX_FILTER_LIMIT } from "@/lib/contact-mix-status";
 import { setNoMixNeededAction } from "@/lib/contact-no-mix-actions";
 import { undoBulkMixStartAction } from "@/lib/contact-mix-actions";
 import { logicalDateInTimezone, logicalDateKey } from "@/lib/jump-schedule";
@@ -107,6 +107,8 @@ function pageHref(input: {
   viewId: string;
   intent?: string;
   importBatchId: string;
+  /** The person docked beside the list, kept so a return reopens them. */
+  person?: string;
 }): string {
   const params = new URLSearchParams();
   if (input.sort && input.sort !== "name") params.set("sort", input.sort);
@@ -119,6 +121,7 @@ function pageHref(input: {
   if (input.intent) params.set("intent", input.intent);
   if (input.importBatchId) params.set("importBatch", input.importBatchId);
   if (input.page > 1) params.set("page", String(input.page));
+  if (input.person) params.set("person", input.person);
   const query = params.toString();
   return `/contacts${query ? `?${query}` : ""}`;
 }
@@ -165,17 +168,13 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       : { OR: [{ relationshipState: { is: null } }, { relationshipState: { is: { doNotContact: false } } }] });
   }
   const selectedPeople = [...new Set((params.people ?? "").split(",").filter(id => id && id.length <= 120))].slice(0, 50);
-  // One shared definition decides who is in a Mix (JITM-09 §2.76), so the filter, rows and counts agree.
-  if (mixFilter) {
-    const ids = await contactIdsWithMixStatus(workspace.id, mixFilter);
-    relationshipFilters.push({ id: { in: ids.length ? ids : ["__no-contacts-with-this-mix-status__"] } });
-  }
   const noMixPeople = [...new Set((params.noMixPeople ?? "").split(",").filter(id => id && id.length <= 120))].slice(0, 100);
   const bulkArchivedIds = [...new Set((params.archivedContacts ?? "").split(",").filter(id => id && id.length <= 120))].slice(0, 50);
   // A number typed with different punctuation than it was saved with still finds the person; a whole
   // number also finds its canonical key in the workspace's region (a national form such as 07911 123456).
   const phoneFilters: Prisma.ContactWhereInput[] = [...new Set([...phoneSearchDigits(q), ...await phoneQueryKeys(prisma, workspace.id, q)])].map((digits) => ({ phones: { some: { normalized: { contains: digits } } } }));
-  const contactWhere: Prisma.ContactWhereInput = {
+  // Every filter but Mix: the Mix filter's counts and the "with No Mix" link are taken within it (D47).
+  const filteredWhere: Prisma.ContactWhereInput = {
     workspaceId: workspace.id,
     archivedAt: null,
     ...((relationshipFilters.length || selectedPeople.length) ? { AND: [...relationshipFilters, ...(selectedPeople.length ? [{ id: { in: selectedPeople } }] : [])] } : {}),
@@ -194,6 +193,12 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       ]
     } : {})
   };
+  const narrowed = Boolean(relationshipFilters.length || selectedPeople.length || importBatchId || groupId || q);
+  // One shared definition decides who is in a Mix (JITM-09 §2.76), so the filter, rows and counts agree.
+  const mixIds = mixFilter ? await contactIdsWithMixStatus(workspace.id, mixFilter) : [];
+  const contactWhere: Prisma.ContactWhereInput = mixFilter
+    ? { AND: [filteredWhere, { id: { in: mixIds.length ? mixIds : ["__no-contacts-with-this-mix-status__"] } }] }
+    : filteredWhere;
 
   const totalCount = await prisma.contact.count({ where: contactWhere });
   page = Math.min(page, Math.max(1, Math.ceil(totalCount / PAGE_SIZE)));
@@ -229,7 +234,9 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const [summaries, mixStatuses, mixCounts, mixes] = await Promise.all([
     contactFollowUpSummary(workspace.id, contacts.map(contact => contact.id)),
     contactMixStatuses(workspace.id, contacts.map(contact => contact.id)),
-    contactMixCounts(workspace.id),
+    narrowed
+      ? prisma.contact.findMany({ where: filteredWhere, select: { id: true }, orderBy: { id: "asc" }, take: MIX_FILTER_LIMIT }).then(rows => contactMixCounts(workspace.id, undefined, rows.map(row => row.id)))
+      : contactMixCounts(workspace.id),
     prisma.mix.findMany({ where: { workspaceId: workspace.id, status: "ACTIVE", source: { not: "ONE_TIME" } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
   ]);
   const todayKey = logicalDateKey(logicalDateInTimezone(new Date(), displayPreferences.timeZone));
@@ -298,6 +305,11 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const retainedSelection = params.person && !contacts.some(contact => contact.id === params.person)
     ? await prisma.contact.findFirst({ where: { AND: [contactWhere, { id: params.person.slice(0, 120) }] }, select: { id: true } }) : null;
   const selectedContactId = contacts.find(contact => contact.id === params.person)?.id ?? retainedSelection?.id ?? contacts[0]?.id;
+  // Where actions on this list return: its filters and the person docked beside it, never an earlier
+  // notice, so an old Undo or "Contact added" cannot reappear (D47).
+  const filters = { q, groupId, priority, permission, mix: mixFilter, viewId: selectedView?.id ?? "", importBatchId, sort };
+  const listHref = pageHref({ ...filters, page, person: params.person?.slice(0, 120) || undefined });
+  const noMixHref = pageHref({ ...filters, mix: "no-mix", page: 1 });
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
   const resultStart = totalCount ? (page - 1) * PAGE_SIZE + 1 : 0;
   const resultEnd = Math.min(page * PAGE_SIZE, totalCount);
@@ -318,9 +330,9 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.bulkRemoved && <Notice type="success">Tag removed.</Notice>}
       {params.bulkArchived && <Notice type="success"><span className="notice-with-action">Contacts archived.{bulkArchivedIds.length > 0 && <form action={restoreContactsAction}>{bulkArchivedIds.map(id => <input key={id} type="hidden" name="contactIds" value={id} />)}<FormSubmitButton label="Undo" pendingLabel="Restoring…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
       {params.bulkRestored && <Notice type="success">Contacts restored.</Notice>}
-      {mixStartNotice && <Notice type="success"><span className="notice-with-action">{mixStartNotice}{mixUndoId && <form action={undoBulkMixStartAction}><input type="hidden" name="undoId" value={mixUndoId} /><input type="hidden" name="returnTo" value={pageHref({ page, q, groupId, priority, permission, mix: mixFilter, viewId: selectedView?.id ?? "", intent, importBatchId, sort })} /><FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
+      {mixStartNotice && <Notice type="success"><span className="notice-with-action">{mixStartNotice}{mixUndoId && <form action={undoBulkMixStartAction}><input type="hidden" name="undoId" value={mixUndoId} /><input type="hidden" name="returnTo" value={listHref} /><FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
       {mixUndoNotice && <Notice type={count(params.mixUndone) ? "success" : "info"}>{mixUndoNotice}</Notice>}
-      {params.noMixNeeded && <Notice type="success"><span className="notice-with-action">{Number(params.noMixNeeded) === 1 ? "1 person is" : `${Number(params.noMixNeeded).toLocaleString()} people are`} marked No Mix needed.{params.noMixSkipped && ` ${Number(params.noMixSkipped).toLocaleString()} already in a Mix or marked Do not contact ${Number(params.noMixSkipped) === 1 ? "was" : "were"} left as they are.`}{noMixPeople.length > 0 && <form action={setNoMixNeededAction}><input type="hidden" name="intent" value="clear" /><input type="hidden" name="returnTo" value={pageHref({ page, q, groupId, priority, permission, mix: mixFilter, viewId: selectedView?.id ?? "", intent, importBatchId, sort })} />{noMixPeople.map(id => <input key={id} type="hidden" name="contactIds" value={id} />)}<FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
+      {params.noMixNeeded && <Notice type="success"><span className="notice-with-action">{Number(params.noMixNeeded) === 1 ? "1 person is" : `${Number(params.noMixNeeded).toLocaleString()} people are`} marked No Mix needed.{params.noMixSkipped && ` ${Number(params.noMixSkipped).toLocaleString()} already in a Mix or marked Do not contact ${Number(params.noMixSkipped) === 1 ? "was" : "were"} left as they are.`}{noMixPeople.length > 0 && <form action={setNoMixNeededAction}><input type="hidden" name="intent" value="clear" /><input type="hidden" name="returnTo" value={listHref} />{noMixPeople.map(id => <input key={id} type="hidden" name="contactIds" value={id} />)}<FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
       {params.noMixCleared && <Notice type="success">No Mix needed removed.</Notice>}
       {params.viewSaved && <Notice type="success">View saved.</Notice>}
       {params.defaultViewSaved && <Notice type="success">Default view saved.</Notice>}
@@ -349,6 +361,8 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         mixCounts={mixCounts}
         mixes={mixes}
         todayKey={todayKey}
+        listHref={listHref}
+        noMixHref={noMixHref}
         intent={intent}
       />
       <nav className="pagination-bar" aria-label="Contact result pages">
@@ -359,7 +373,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
           {page < totalPages && <Link className="button" href={pageHref({ page: page + 1, q, groupId, priority, permission, mix: mixFilter, viewId: selectedView?.id ?? "", intent, importBatchId, sort })}>Next</Link>}
         </div>
       </nav>
-      </section>{selectedContactId && <section className="contacts-selected" aria-label="Selected contact"><ContactProfile key={selectedContactId} contactId={selectedContactId} embedded /></section>}</div>
+      </section>{selectedContactId && <section className="contacts-selected" aria-label="Selected contact"><ContactProfile key={selectedContactId} contactId={selectedContactId} embedded directoryHref={pageHref({ ...filters, page, person: selectedContactId })} /></section>}</div>
     </div>
   );
 }

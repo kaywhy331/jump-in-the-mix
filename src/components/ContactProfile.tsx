@@ -47,7 +47,7 @@ function addressText(address: { street1: string | null; street2: string | null; 
   return [address.street1, address.street2, address.city, address.state, address.postalCode, address.country].filter(Boolean).join(", ");
 }
 
-export async function ContactProfile({ contactId, query = {}, embedded = false }: { contactId: string; query?: ContactProfileSearchParams; embedded?: boolean }) {
+export async function ContactProfile({ contactId, query = {}, embedded = false, directoryHref }: { contactId: string; query?: ContactProfileSearchParams; embedded?: boolean; directoryHref?: string }) {
   const { session, workspace, user, impersonation } = await requireWorkspace();
   const preparation = await readPreparationStatus(workspace.id, contactId);
   const [contact, dateTypes, plans, stops, groupStates, relationshipState, mergeHistory, nextFollowUp, comingUp, journeyStages, journeyEvents] = await Promise.all([
@@ -150,7 +150,8 @@ export async function ContactProfile({ contactId, query = {}, embedded = false }
   }
   const futureStages = journeyStages.filter(stage => stage.isActive && contact.journey && stage.position > contact.journey.stage.position).slice(0, 3);
   // Where this person goes next: a Mix, a one-time follow-up, or the owner's confirmation that they need no Mix (JITM-09 §2.76).
-  const returnTo = embedded ? `/contacts?person=${encodeURIComponent(contact.id)}` : `/contacts/${contact.id}`;
+  // Docked beside Contacts, the list's filters and this person come back with the notice (D47).
+  const returnTo = embedded ? directoryHref ?? `/contacts?person=${encodeURIComponent(contact.id)}` : `/contacts/${contact.id}`;
   const noMixChoice = mixStatus === "no-mix" || mixStatus === "no-mix-needed" ? <form action={setNoMixNeededAction} className="form-stack contact-no-mix-form"><input type="hidden" name="contactIds" value={contact.id} /><input type="hidden" name="returnTo" value={returnTo} />{mixStatus === "no-mix" ? <><p className="muted-copy">Doesn’t need follow-ups from a Mix, such as a supplier? Confirm it so they leave the No Mix list. It clears itself if they join a Mix later.</p><button className="button" type="submit" disabled={Boolean(impersonation)}>Mark No Mix needed</button></> : <><input type="hidden" name="intent" value="clear" /><p className="muted-copy">You confirmed that {contact.displayName} needs no Mix.</p><button className="button" type="submit" disabled={Boolean(impersonation)}>Remove No Mix needed</button></>}</form> : null;
   const touchpoint = <Sheet trigger={<button type="button" className="contact-inline-action"><AppIcon name="mixes" />Start a follow-up</button>} title={`Start a follow-up for ${contact.displayName}`}>
     <p>Choose an existing Mix or schedule a one-time follow-up.</p>

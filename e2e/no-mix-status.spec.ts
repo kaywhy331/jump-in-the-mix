@@ -102,15 +102,23 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
   try {
     await page.goto(`/contacts?q=${encodeURIComponent(suffix)}`);
     for (const person of list) await expect(page.locator(".contact-row").filter({ hasText: person.displayName }).locator(".contact-no-mix")).toHaveText("No Mix");
+    // The summary link and the filter count only the people this search shows, and the link keeps the search (D47).
+    const noMixLink = page.getByRole("link", { name: "2 with No Mix", exact: true });
+    await expect(noMixLink).toBeVisible();
+    expect(Object.fromEntries(new URL(await noMixLink.getAttribute("href") ?? "", page.url()).searchParams)).toMatchObject({ q: suffix, mix: "no-mix" });
 
     // The filter keeps only people with No Mix, and its count matches the summary link.
     await page.getByRole("button", { name: "Filter contacts", exact: true }).click();
     const filters = page.getByRole("dialog", { name: "Filter contacts", exact: true });
+    await expect(filters.getByRole("combobox", { name: "Mix", exact: true }).locator("option[value='no-mix']")).toHaveText("No Mix · 2");
     await filters.getByRole("combobox", { name: "Mix", exact: true }).selectOption("no-mix");
     await expect(page).toHaveURL(/mix=no-mix/);
     await page.getByLabel("Close Filter contacts").click();
     await expect(page.locator(".contact-row")).toHaveCount(2);
 
+    // An earlier notice in the address must not come back after the bulk actions below (D47).
+    await page.goto(`/contacts?q=${encodeURIComponent(suffix)}&mix=no-mix&created=1`);
+    await expect(page.locator(".notice.success").filter({ hasText: "Contact added." })).toBeVisible();
     await page.getByRole("button", { name: "More contact tools" }).click();
     await page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }).click();
     for (const person of list) await page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true }).check();
@@ -119,8 +127,10 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     const sheet = page.getByRole("dialog", { name: "Mix for 2 people" });
     await Promise.all([page.waitForURL(/noMixNeeded=2/), sheet.getByRole("button", { name: "Mark No Mix needed", exact: true }).click()]);
     await expect(page.locator(".notice.success").filter({ hasText: "2 people are marked No Mix needed." })).toBeVisible();
-    // They leave the No Mix list, and the filter is kept.
+    // They leave the No Mix list, and the filter is kept; the earlier notice is not.
     expect(new URL(page.url()).searchParams.get("mix")).toBe("no-mix");
+    expect(new URL(page.url()).searchParams.has("created")).toBe(false);
+    await expect(page.locator(".notice.success").filter({ hasText: "Contact added." })).toHaveCount(0);
     await expect(page.locator(".contact-row")).toHaveCount(0);
 
     await Promise.all([page.waitForURL(/noMixCleared=2/), page.getByRole("button", { name: "Undo", exact: true }).click()]);
@@ -144,6 +154,16 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     await expect(page.locator(".notice.success").filter({ hasText: `Undone. ${mixName} ended for 2 people` })).toBeVisible();
     await expect(page.locator(".contact-row")).toHaveCount(2);
     expect(await prisma.mixAssignment.count({ where: { workspaceId, contactId: { in: ids }, isActive: true } })).toBe(0);
+
+    // Docked beside the list, the profile's confirmation and the notice's Undo keep the list and that person (D47).
+    const [first] = list;
+    await page.locator(".contact-row").filter({ hasText: first.displayName }).getByRole("link", { name: first.displayName, exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(`person=${first.id}`));
+    await page.getByRole("region", { name: "Selected contact" }).getByRole("button", { name: `No Mix: choose what's next for ${first.displayName}` }).click();
+    await Promise.all([page.waitForURL(/noMixNeeded=1/), page.getByRole("dialog", { name: `What’s next for ${first.displayName}` }).getByRole("button", { name: "Mark No Mix needed", exact: true }).click()]);
+    expect(Object.fromEntries(new URL(page.url()).searchParams)).toMatchObject({ q: suffix, mix: "no-mix", person: first.id });
+    await Promise.all([page.waitForURL(/noMixCleared=1/), page.locator(".notice.success").getByRole("button", { name: "Undo", exact: true }).click()]);
+    expect(Object.fromEntries(new URL(page.url()).searchParams)).toMatchObject({ q: suffix, mix: "no-mix", person: first.id });
   } finally {
     await cleanUp(ids, since);
   }
