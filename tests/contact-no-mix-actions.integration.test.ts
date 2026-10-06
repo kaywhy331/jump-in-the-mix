@@ -289,6 +289,23 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     expect(await contactMixStatus(workspaceId, started)).toBe("in-mix");
   });
 
+  it("comes back to the list with a message when Undo cannot finish, and changes nothing (ERR-01)", async () => {
+    const blocked = await person("Undo blocked");
+    const started = await redirectOf(bulkAssignMixAction(form({ contactIds: blocked, mixId, startDate: today, returnTo: "/contacts?mix=no-mix" })));
+    // A lock timeout or a deadlock inside the Undo's transaction.
+    const failing = vi.spyOn(prisma, "$transaction").mockRejectedValueOnce(new Error("deadlock detected"));
+    try {
+      const refused = await redirectOf(undoBulkMixStartAction(form({ undoId: started.searchParams.get("mixUndo")!, returnTo: "/contacts?mix=no-mix" })));
+      expect(errorFor(refused)).toBe("Nothing was undone. Try again in a moment.");
+      expect(refused.searchParams.get("mix")).toBe("no-mix");
+      expect(refused.searchParams.has("mixUndone")).toBe(false);
+    } finally { failing.mockRestore(); }
+    expect((await prisma.mixAssignment.findUniqueOrThrow({ where: { assignmentKey: `${workspaceId}:${mixId}:${blocked}` } })).isActive).toBe(true);
+    // A later tap still works.
+    const undone = await redirectOf(undoBulkMixStartAction(form({ undoId: started.searchParams.get("mixUndo")!, returnTo: "/contacts" })));
+    expect(undone.searchParams.get("mixUndone")).toBe("1");
+  });
+
   it("removes the date a bulk start saved when it is undone, and keeps dates people already had (D46)", async () => {
     const dateType = await prisma.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: "Service date", slug: `service-${suffix}` } });
     const dateMix = await prisma.mix.create({ data: { workspaceId, name: "Service reminder", status: "ACTIVE", triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id } });

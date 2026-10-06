@@ -255,7 +255,7 @@ function recordedStarts(metadata: Prisma.JsonValue | null | undefined): Recorded
  */
 export async function undoBulkMixStartAction(formData: FormData): Promise<void> {
   const returnTo = value(formData, "returnTo");
-  const { workspace, user } = await requireWritableWorkspace((message, viewer) => redirect(withViewerError(contactsReturn(returnTo, {}), message, viewer)));
+  const { workspace, user, session } = await requireWritableWorkspace((message, viewer) => redirect(withViewerError(contactsReturn(returnTo, {}), message, viewer)));
   const undoId = value(formData, "undoId").slice(0, 64);
   const record = undoId ? await prisma.auditLog.findFirst({ where: { id: undoId, workspaceId: workspace.id, action: BULK_START_ACTION }, select: { id: true, entityId: true, metadata: true, createdAt: true } }) : null;
   const starts = recordedStarts(record?.metadata);
@@ -267,49 +267,55 @@ export async function undoBulkMixStartAction(formData: FormData): Promise<void> 
   const occurrencesOf = (start: RecordedStart, row: { startDate: Date | null; createdAt: Date }) => mix?.triggerMode === "DATE_TRIGGERED"
     ? [start.jumpDateId ? `jump-date:${start.jumpDateId}:` : "jump-date:"]
     : mix?.triggerMode === "BROADCAST" ? ["broadcast:"] : [`manual:${logicalDateKey(logicalDateInTimezone(row.startDate ?? row.createdAt, ownerTimezone))}`, "planned:"];
-  const result = await prisma.$transaction(async (tx) => {
-    // Row locks make a double tap end each start once: the second request waits, then finds nothing unchanged.
-    const rows = await tx.$queryRaw<Array<{ id: string; contactId: string | null; isActive: boolean; startDate: Date | null; createdAt: Date; updatedAt: Date }>>`
-      SELECT id, "contactId", "isActive", "startDate", "createdAt", "updatedAt" FROM "MixAssignment"
-      WHERE "workspaceId" = ${workspace.id} AND "mixId" = ${mixId} AND id IN (${Prisma.join(starts.map(start => start.assignmentId))}) ORDER BY id FOR UPDATE`;
-    const byId = new Map(rows.map(row => [row.id, row]));
-    const unchanged = starts.filter(start => {
-      const row = byId.get(start.assignmentId);
-      return row?.isActive && row.contactId === start.contactId && row.updatedAt.getTime() === Date.parse(start.assignmentUpdatedAt);
-    });
-    if (!unchanged.length) return { ended: 0, kept: starts.length, dates: 0, confirmed: 0 };
-    let dates = 0;
-    for (const start of unchanged) {
-      await tx.mixAssignment.update({ where: { id: start.assignmentId }, data: start.previous
-        ? { isActive: start.previous.isActive, startDate: start.previous.startDate ? new Date(start.previous.startDate) : null, mode: start.previous.mode }
-        : { isActive: false } });
-      // The start's own follow-ups still to come: the scheduler's rows keyed to its run, written since it. Done and
-      // skipped rows are history. Cancelled as reconciled, so the pass queued below brings back any row that
-      // another enrollment of the person shares, such as a tag running the Mix from the same day.
-      await tx.jump.updateMany({
-        where: {
-          workspaceId: workspace.id, mixId, contactId: start.contactId, status: "PENDING", workflowManaged: false, appointmentBindingId: null,
-          AND: [
-            { OR: [{ createdAt: { gte: record.createdAt } }, { updatedAt: { gte: record.createdAt } }] },
-            { OR: occurrencesOf(start, byId.get(start.assignmentId)!).map(prefix => ({ templateSnapshot: { path: ["occurrenceKey"], string_starts_with: prefix } })) }
-          ]
-        },
-        data: { status: "CANCELED", completedAt: null, completionMethod: "reconciled" }
+  let result: { ended: number; kept: number; dates: number; confirmed: number };
+  try {
+    result = await prisma.$transaction(async (tx) => {
+      // Row locks make a double tap end each start once: the second request waits, then finds nothing unchanged.
+      const rows = await tx.$queryRaw<Array<{ id: string; contactId: string | null; isActive: boolean; startDate: Date | null; createdAt: Date; updatedAt: Date }>>`
+        SELECT id, "contactId", "isActive", "startDate", "createdAt", "updatedAt" FROM "MixAssignment"
+        WHERE "workspaceId" = ${workspace.id} AND "mixId" = ${mixId} AND id IN (${Prisma.join(starts.map(start => start.assignmentId))}) ORDER BY id FOR UPDATE`;
+      const byId = new Map(rows.map(row => [row.id, row]));
+      const unchanged = starts.filter(start => {
+        const row = byId.get(start.assignmentId);
+        return row?.isActive && row.contactId === start.contactId && row.updatedAt.getTime() === Date.parse(start.assignmentUpdatedAt);
       });
-      if (start.jumpDateId && start.jumpDateUpdatedAt) {
-        dates += (await tx.jumpDate.updateMany({ where: { id: start.jumpDateId, workspaceId: workspace.id, contactId: start.contactId, isActive: true, updatedAt: new Date(start.jumpDateUpdatedAt) }, data: { isActive: false } })).count;
+      if (!unchanged.length) return { ended: 0, kept: starts.length, dates: 0, confirmed: 0 };
+      let dates = 0;
+      for (const start of unchanged) {
+        await tx.mixAssignment.update({ where: { id: start.assignmentId }, data: start.previous
+          ? { isActive: start.previous.isActive, startDate: start.previous.startDate ? new Date(start.previous.startDate) : null, mode: start.previous.mode }
+          : { isActive: false } });
+        // The start's own follow-ups still to come: the scheduler's rows keyed to its run, written since it. Done and
+        // skipped rows are history. Cancelled as reconciled, so the pass queued below brings back any row that
+        // another enrollment of the person shares, such as a tag running the Mix from the same day.
+        await tx.jump.updateMany({
+          where: {
+            workspaceId: workspace.id, mixId, contactId: start.contactId, status: "PENDING", workflowManaged: false, appointmentBindingId: null,
+            AND: [
+              { OR: [{ createdAt: { gte: record.createdAt } }, { updatedAt: { gte: record.createdAt } }] },
+              { OR: occurrencesOf(start, byId.get(start.assignmentId)!).map(prefix => ({ templateSnapshot: { path: ["occurrenceKey"], string_starts_with: prefix } })) }
+            ]
+          },
+          data: { status: "CANCELED", completedAt: null, completionMethod: "reconciled" }
+        });
+        if (start.jumpDateId && start.jumpDateUpdatedAt) {
+          dates += (await tx.jumpDate.updateMany({ where: { id: start.jumpDateId, workspaceId: workspace.id, contactId: start.contactId, isActive: true, updatedAt: new Date(start.jumpDateUpdatedAt) }, data: { isActive: false } })).count;
+        }
       }
-    }
-    // A confirmation the start replaced comes back, written after everything above, so it counts again.
-    const confirmed = unchanged.filter(start => start.noMixNeeded).map(start => start.contactId);
-    const confirmedAt = new Date();
-    for (const contactId of confirmed) {
-      await tx.contactRelationshipState.upsert({ where: { contactId }, create: { workspaceId: workspace.id, contactId, noMixNeededAt: confirmedAt }, update: { noMixNeededAt: confirmedAt } });
-    }
-    await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });
-    await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "mix.assignment.bulk-undo", entityType: "Mix", entityId: mixId, source: "contacts.bulk", metadata: { startRecordId: record.id, contactIds: unchanged.map(start => start.contactId), endedDates: dates, restoredConfirmations: confirmed } } });
-    return { ended: unchanged.length, kept: starts.length - unchanged.length, dates, confirmed: confirmed.length };
-  }, { timeout: 30_000 });
+      // A confirmation the start replaced comes back, written after everything above, so it counts again.
+      const confirmed = unchanged.filter(start => start.noMixNeeded).map(start => start.contactId);
+      const confirmedAt = new Date();
+      for (const contactId of confirmed) {
+        await tx.contactRelationshipState.upsert({ where: { contactId }, create: { workspaceId: workspace.id, contactId, noMixNeededAt: confirmedAt }, update: { noMixNeededAt: confirmedAt } });
+      }
+      await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });
+      await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "mix.assignment.bulk-undo", entityType: "Mix", entityId: mixId, source: "contacts.bulk", metadata: { startRecordId: record.id, contactIds: unchanged.map(start => start.contactId), endedDates: dates, restoredConfirmations: confirmed } } });
+      return { ended: unchanged.length, kept: starts.length - unchanged.length, dates, confirmed: confirmed.length };
+    }, { timeout: 30_000 });
+  } catch {
+    // A lock timeout or deadlock comes back to the list with nothing changed, not the error page (ERR-01).
+    redirect(withViewerError(contactsReturn(returnTo, {}), "Nothing was undone. Try again in a moment.", session));
+  }
   redirect(contactsReturn(returnTo, { mixUndone: String(result.ended), mixStartedId: mixId, ...(result.kept ? { mixUndoKept: String(result.kept) } : {}), ...(result.dates ? { mixUndoDates: String(result.dates) } : {}), ...(result.confirmed ? { mixUndoConfirmed: String(result.confirmed) } : {}) }));
 }
 
