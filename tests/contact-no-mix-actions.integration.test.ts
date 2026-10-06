@@ -248,6 +248,62 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     expect(await prisma.mixAssignment.count({ where: { mixId: dateMix.id, isActive: true } })).toBe(0);
   });
 
+  it("refuses the whole batch while billing is on and the plan has no room, and keeps no places (TST-01)", async () => {
+    const saved = { enabled: process.env.BILLING_ENABLED, key: process.env.STRIPE_SECRET_KEY, secret: process.env.STRIPE_WEBHOOK_SECRET };
+    Object.assign(process.env, { BILLING_ENABLED: "true", STRIPE_SECRET_KEY: "sk_test_fixture", STRIPE_WEBHOOK_SECRET: "whsec_fixture" });
+    try {
+      const { PLANS } = await import("../src/lib/plans");
+      const room = PLANS.find(plan => plan.id === "FREE")!.people;
+      // Fill the Free plan to one place short of its limit.
+      const filler = Array.from({ length: room - 1 - await prisma.planPerson.count({ where: { workspaceId } }) }, (_, index) => ({ id: `plan-filler-${index}-${suffix}`, workspaceId, displayName: `Filler ${index}` }));
+      await prisma.contact.createMany({ data: filler });
+      await prisma.planPerson.createMany({ data: filler.map(contact => ({ workspaceId, contactId: contact.id })) });
+      const pair = [await person("Over one"), await person("Over two")];
+      const jobs = await prisma.job.count({ where: { workspaceId } });
+      const refused = await redirectOf(bulkAssignMixAction(form({ contactIds: pair, mixId, startDate: today, returnTo: "/contacts?mix=no-mix" })));
+      expect(errorFor(refused)).toMatch(/^Your Free plan has room for /);
+      expect(refused.searchParams.get("mix")).toBe("no-mix");
+      // Nothing was kept: no assignment, no place on the plan, no preparation, no Undo record.
+      expect(await prisma.mixAssignment.count({ where: { contactId: { in: pair } } })).toBe(0);
+      expect(await prisma.planPerson.count({ where: { contactId: { in: pair } } })).toBe(0);
+      expect(await prisma.job.count({ where: { workspaceId } })).toBe(jobs);
+      // One person still fits, and takes the last place.
+      const fits = await redirectOf(bulkAssignMixAction(form({ contactIds: pair[0], mixId, startDate: today, returnTo: "/contacts" })));
+      expect(fits.searchParams.get("mixStarted")).toBe("1");
+      expect(await prisma.planPerson.count({ where: { workspaceId } })).toBe(room);
+    } finally {
+      for (const [name, value] of [["BILLING_ENABLED", saved.enabled], ["STRIPE_SECRET_KEY", saved.key], ["STRIPE_WEBHOOK_SECRET", saved.secret]] as const) {
+        if (value === undefined) delete process.env[name]; else process.env[name] = value;
+      }
+    }
+  });
+
+  it("refuses the whole batch when the Mix is stopped for one of them, naming them (TST-01)", async () => {
+    const willing = await person("Willing"), stoppedPerson = await person("Asked to stop");
+    await prisma.mixStop.create({ data: { workspaceId, mixId, contactId: stoppedPerson, reason: "Asked to stop" } });
+    const refused = await redirectOf(bulkAssignMixAction(form({ contactIds: [willing, stoppedPerson], mixId, startDate: today, returnTo: "/contacts" })));
+    expect(errorFor(refused)).toBe(`Asked to stop ${suffix.slice(0, 6)}: This Mix is stopped for this person. Open More on their contact profile to review and resume the stopped Mix.`);
+    expect(await prisma.mixAssignment.count({ where: { contactId: { in: [willing, stoppedPerson] } } })).toBe(0);
+    // The stop is never cleared by a start.
+    expect(await prisma.mixStop.count({ where: { contactId: stoppedPerson } })).toBe(1);
+  });
+
+  it("starts each person once when the same bulk start is submitted twice (TST-01)", async () => {
+    const dateType = await prisma.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: "Anniversary", slug: `anniversary-${suffix}` } });
+    const dateMix = await prisma.mix.create({ data: { workspaceId, name: "Anniversary note", status: "ACTIVE", triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id } });
+    await prisma.mixStep.create({ data: { mixId: dateMix.id, stepVersionId: versionId, dayOffset: 0, sortOrder: 1 } });
+    const pair = [await person("Double one"), await person("Double two")];
+    const submit = () => redirectOf(bulkAssignMixAction(form({ contactIds: pair, mixId: dateMix.id, startDate: today, returnTo: "/contacts" })));
+    // A double tap: both requests arrive together and queue on the plan and contact locks.
+    const [first, second] = await Promise.all([submit(), submit()]);
+    const again = await submit();
+    for (const result of [first, second, again]) expect(result.searchParams.get("mixStarted")).toBe("2");
+    expect(await prisma.mixAssignment.count({ where: { mixId: dateMix.id, contactId: { in: pair } } })).toBe(2);
+    // The start day is saved as their date once, not once per submit.
+    expect(await prisma.jumpDate.count({ where: { dateTypeId: dateType.id, contactId: { in: pair } } })).toBe(2);
+    expect([first, second, again].map(result => result.searchParams.has("mixDated") ? "dated" : "saved").sort()).toEqual(["dated", "saved", "saved"]);
+  });
+
   it("refuses the whole batch, before saving anything, when one person cannot start", async () => {
     const ready = await person("Ready");
     const blocked = await person("Do not contact");
