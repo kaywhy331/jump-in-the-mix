@@ -2,9 +2,9 @@
 id: JITM-02
 title: ICP and positioning
 status: active
-version: 2.1.1
+version: 2.2.0
 owner: Kevin
-last_reviewed: 2026-09-30
+last_reviewed: 2026-10-05
 applies_to: [marketing, public-pages, profession-pages, onboarding, copy, product-decisions]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -51,6 +51,8 @@ Neighboring topics live elsewhere:
 **2.2** When the audiences' needs conflict, product and marketing decisions MUST favor trades owners and solo real-estate agents: the owner's reference users are a self-employed plumber and a solo real-estate agent with no marketing experience. [OWNER 2026-09-28 D2] [OWNER 2026-09-04 O1]
 
 **2.3** The five audiences illustrate uses; they do not limit who may join. Personal-connection and networking uses stay available in the product and in Help. The nine business types in onboarding classify accounts; they are not a target list. [SOURCE docs/HOMEPAGE_EXPERIENCE_ROADMAP_2026-09-10.md:18] [SHIPPED 9439fd6 src/components/ProfessionMarks.tsx:23] [SHIPPED 9439fd6 src/lib/business-taxonomy.ts:1-4]
+
+**2.20** The product's structure MUST work for anyone who manages their own follow-ups, not only owner-operators. That includes other business types and individual representatives inside larger companies, such as a business development rep managing their own book. Stages, milestones, presets, setup choices and product wording MUST NOT assume a self-owned business or that every relationship ends in a sale. These users are supported, not marketed to: §2.1–§2.2 still set targeting and marketing, §2.6 still keeps teams replacing a full CRM from driving design, and JITM-00 §2.1 is unchanged. [OWNER 2026-10-05 D37]
 
 ### Using the ICP profiles
 
@@ -196,3 +198,4 @@ Known deviations at 9439fd6:
 - 2.0.1 — 2026-09-29 — Base 9f967bc. §6: asks whether §2.18 allows the approved FAQ sentence about prices after the beta (O8).
 - 2.1.0 — 2026-09-29 — Base dc81d10. §2.16 adds the plans; §2.18 lets copy state Kevin's prices and says what it still must not promise. §6: the O8 question about the FAQ price sentence is answered (docs/PRICING_DECISION_2026-09-29.md).
 - 2.1.1 — 2026-09-30 — Base 94b9539. §2.16: Kevin approved the plans wording (O13).
+- 2.2.0 — 2026-10-05 — Base e8692f2. New §2.20: the product's structure supports other business types and individual representatives without marketing to them (D37, docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md).

@@ -269,6 +269,71 @@ Kevin answered the 18 questions in §7 of the [audit](../STANDARDS_AUDIT_2026-09
 - **Deferred:** continuous sync, either from Google Contacts or through an App Store app, until beta users ask for automatic syncing. iCloud contacts are not pursued: the only route needs an Apple app-specific password.
 - **Applied in:** JITM-09 §2.33 (3.1.0), JITM-01 §2.22 (2.3.0), JITM-11 §2.38 (1.2.1), `docs/PHONE_CONTACTS_2026-10-05.md`.
 
+### D33 — Contacts with no Mix (2026-10-05)
+
+Base e8692f2. D33–D37 answer the five questions in the analysis recorded in [Mix placement and contact stages](../MIX_PLACEMENT_AND_STAGES_2026-10-05.md).
+
+- **Question:** what counts as a contact left in limbo, and how should the app show it?
+- **Gap:**
+  - No setting, filter or label finds a contact who is not in a Mix.
+  - A Mix that ends without a connection prompts nothing.
+- **Decision:** "Meaning.. there was a text message sent.. but nothing triggered because the user didn't enter a trigger or forgot. Or a contact was added but didn't assign the contact to a mix. If there is no mix assigned to a contact, then the contact should show something that the contat has no mix. This way it could easily be identified that there's no actions on a contact. Ideally everyone should be in the journey OR marked as a status/label/ or confirmation where they are not in a mix."
+- **Applied in:** JITM-09 §2.76 and §2.77, JITM-05 §2.2, JITM-01 §2.22. The detailed defaults are P1–P4 in the record.
+- **Confirmed (2026-10-05):** Kevin was asked to confirm seven of the proposed defaults: P1–P4, P5's import confirmation, P6 and P7's timing. He replied "yes, please proceed". So the following are now owner decisions:
+  - One-time follow-ups and finished or stopped Mixes don't count as being in a Mix.
+  - The labels are "No Mix" and "No Mix needed".
+  - A line on Today links to the Contacts Mix filter.
+  - The last Beat of a Mix with no connection asks what's next.
+  - Imports ask before using the default Mix.
+  - "Everyone" includes people added later.
+  - A Mix sets its stage when the person starts it.
+
+  The rest of P5 and P8–P11 stay proposed.
+
+### D34 — Where new contacts go (2026-10-05)
+
+- **Question:** should new contacts go into a Mix by default? The options were:
+  - (A) a default Mix for each source;
+  - (B) the add-contact form starts with a follow-up ticked;
+  - (C) contacts stay manual and appear in the No Mix list.
+- **Decision:** "A, B, and C. There should be a setting for newly added contacts to default to one of those settings. Default can be C."
+- **Owner control:** the owner chooses the setting, which is the explicit action JITM-01 §2.23 asks for. This works the same way as a stage's Mix on entry and a tag's Mix.
+- **Applied in:** JITM-09 §2.78, JITM-01 §2.22. The detailed defaults are P5 and P6 in the record.
+
+### D35 — Stages from Mixes and Mega-Mixes (2026-10-05)
+
+- **Question:** should stages stay separate from Mixes? The options were:
+  - (A) stages stay labels, but a Mix can set the stage;
+  - (B) Mega-Mix positions become the stages;
+  - (C) no change.
+- **Conflict:** D16 and JITM-09 §2.51 kept stages as optional information that the owner manages, apart from the Journey.
+- **Decision:** "A and/or B. Mega-mixes could create the labels, but users could always customize and change the labels."
+- **Replaces:** D16 in part.
+  - Stages stay optional and are still called Contact stages.
+  - They still never create, order or organize the Journey graph.
+  - The graph can now set a person's stage, and a Mega-Mix can create stage labels.
+- **Applied in:** JITM-09 §2.51 and §2.79, JITM-05 §2.2, JITM-01 §2.22. The detailed defaults are P7 and P8 in the record.
+
+### D36 — Stage wording (2026-10-05)
+
+- **Question:** how do owners use their own pipeline words? The options were:
+  - (A) milestones the owner names;
+  - (B) presets only;
+  - (C) both.
+- **Decision:** "C", both.
+- **Applied in:** JITM-09 §2.80, JITM-05 §2.2, JITM-01 §2.22. The detailed defaults are P9 and P10 in the record.
+
+### D37 — Other business types and individual representatives (2026-10-05)
+
+- **Context:** "for scalability and foundational structure, it should allow for other business types to utilize the app or even representatives of a larger company that want to use the app for their own personal managment (example: business development rep)."
+- **Question:** how far does the product go for them? The options were:
+  - (A) support them without marketing to them;
+  - (B) make them a target audience;
+  - (C) not now.
+- **Decision:** "A".
+- **Targeting is unchanged:** JITM-00 §2.1 and JITM-02 §2.1–§2.2 still describe the targets.
+- **Applied in:** JITM-02 §2.20, JITM-01 §2.22. The wording review is P11 in the record.
+
 ## Still open
 
 The standards' §6 sections list the remaining open questions and known deviations. The second packet's product changes are tasks in the audit's [follow-up backlog](../STANDARDS_AUDIT_2026-09-28.md#8-follow-up-backlog).
