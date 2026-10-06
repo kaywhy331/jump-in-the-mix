@@ -42,7 +42,15 @@ test.beforeEach(async ({ page }) => { await signIn(page); });
 
 // The shared settle step: both frames painted and the body in the chosen theme's text color.
 const setTheme = (page: Page, colorScheme: "light" | "dark") => applyRenderedTheme(page, colorScheme);
-async function audit(page: Page) { expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]); }
+async function audit(page: Page) {
+  // A theme switch can leave colour transitions running, and axe would sample a mid-transition palette and report
+  // a contrast failure that no one sees. Wait for running animations to finish, for at most two seconds.
+  await page.evaluate(() => Promise.race([
+    Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => undefined))),
+    new Promise(resolve => setTimeout(resolve, 2_000))
+  ]));
+  expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+}
 
 test("the No Mix row, chip and sheet pass the accessibility audit in both themes", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Audited at desktop and phone widths in one project, as the sheet suites do.");
