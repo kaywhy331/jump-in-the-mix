@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma";
 import { UserFacingError } from "@/lib/user-facing-error";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
 import { NO_MIX_NEEDED_NOTICE, type MixStartCounts, type MixStartResult } from "@/lib/contact-mix-status-labels";
+import { contactIdsInMix } from "@/lib/contact-mix-status";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -178,8 +179,12 @@ export async function bulkAssignMixAction(formData: FormData): Promise<void> {
   try {
     undoId = await prisma.$transaction(async (tx) => {
       await assertRoomForPeople(tx, workspace.id, contacts.map(contact => contact.id));
+      // Anyone this Mix already has work for, by any route (their own start, its audience or a tag, a visit or
+      // Journey work), keeps their start and gets no second run (BLK-02).
+      const alreadyIn = await contactIdsInMix(tx, workspace.id, mix.id, contacts.map(contact => contact.id));
       const starts: RecordedStart[] = [];
       for (const contact of contacts) {
+        if (alreadyIn.has(contact.id)) { counts["already-running"] += 1; continue; }
         let outcome: MixStartOutcome;
         try { outcome = await startMixForContact(tx, { workspaceId: workspace.id, userId: user.id, contactId: contact.id, mix, start: start!, timezone, source: "contacts.bulk", queuePreparation: false }); }
         catch (error) { throw error instanceof UserFacingError ? new UserFacingError(`${contact.displayName}: ${error.message}`) : error; }
