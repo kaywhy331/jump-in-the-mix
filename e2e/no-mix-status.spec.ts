@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { createOneTimeFollowUp } from "../src/lib/one-time-follow-up";
 import { prisma } from "../src/lib/prisma";
 import { axeInPage } from "./axe-in-page";
@@ -185,6 +185,56 @@ test("the disabled Add to the Mix gives its reason to assistive technology (A11Y
     await expect(add).toHaveAccessibleDescription(`Remove ${list[1].displayName} because “Do not contact” is on.`);
   } finally {
     await cleanUp(list.map(person => person.id));
+  }
+});
+
+test("the chip, the What's next sheet and the bulk Mix sheet work from the keyboard alone (LAY-01)", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "One keyboard pass, in the docked desktop layout; the phone layout has the same controls.");
+  test.setTimeout(120_000);
+  const { suffix, people: [person] } = await people(["Keys"]);
+  /** Presses Tab until the control has focus, at most `limit` times. */
+  async function tabTo(control: Locator, limit = 60) {
+    for (let index = 0; index < limit; index++) {
+      if (await control.evaluate(element => element === document.activeElement)) return;
+      await page.keyboard.press("Tab");
+    }
+    throw new Error(`Tab never reached ${await control.evaluate(element => element.outerHTML.slice(0, 160))}`);
+  }
+  try {
+    await page.goto(`/contacts/${person.id}`);
+    const chip = page.getByRole("button", { name: `No Mix: choose what's next for ${person.displayName}` });
+    await tabTo(chip);
+    expect(await chip.evaluate(element => element.matches(":focus-visible"))).toBe(true);
+    await page.keyboard.press("Enter");
+    const sheet = page.getByRole("dialog", { name: `What’s next for ${person.displayName}` });
+    await expect(sheet).toBeVisible();
+    for (const control of [sheet.getByRole("combobox", { name: "Choose a Mix" }), sheet.getByLabel("Start on"), sheet.getByRole("button", { name: "Start Mix", exact: true }), sheet.getByRole("link", { name: "Schedule a one-time follow-up" }), sheet.getByRole("button", { name: "Mark No Mix needed", exact: true })]) await tabTo(control, 20);
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+    await expect(chip).toBeFocused();
+
+    // Select, open the bulk Mix sheet, reach every control, mark No Mix needed and Undo it, all with keys.
+    await page.goto(`/contacts?q=${encodeURIComponent(suffix)}`);
+    await tabTo(page.getByRole("button", { name: "More contact tools" }));
+    await page.keyboard.press("Enter");
+    await tabTo(page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }), 30);
+    await page.keyboard.press("Enter");
+    const checkbox = page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true });
+    await tabTo(checkbox);
+    await page.keyboard.press("Space");
+    await expect(checkbox).toBeChecked();
+    await tabTo(page.getByRole("complementary", { name: "Actions for selected contacts" }).getByRole("button", { name: "Mix", exact: true }), 30);
+    await page.keyboard.press("Enter");
+    const bulk = page.getByRole("dialog", { name: "Mix for 1 person" });
+    await expect(bulk).toBeVisible();
+    for (const control of [bulk.getByRole("combobox", { name: "Choose a Mix" }), bulk.getByLabel("Start on"), bulk.getByRole("button", { name: "Add to the Mix", exact: true }), bulk.getByRole("button", { name: "Mark No Mix needed", exact: true })]) await tabTo(control, 20);
+    await Promise.all([page.waitForURL(/noMixNeeded=1/), page.keyboard.press("Enter")]);
+    const undo = page.locator(".notice.success").getByRole("button", { name: "Undo", exact: true });
+    await tabTo(undo);
+    await Promise.all([page.waitForURL(/noMixCleared=1/), page.keyboard.press("Enter")]);
+    await expect(page.locator(".contact-row").filter({ hasText: person.displayName }).locator(".contact-no-mix")).toHaveText("No Mix");
+  } finally {
+    await cleanUp([person.id]);
   }
 });
 
