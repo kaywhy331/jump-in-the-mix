@@ -126,15 +126,23 @@ test("the question and the New contacts page pass the accessibility audit in bot
   await page.keyboard.press("Enter");
   await expect(sheet).toBeVisible();
   await page.keyboard.press("Escape");
-  // Enlarged text on the narrowest phone: the question still fits, with no sideways scrolling.
-  await page.setViewportSize({ width: 320, height: 568 });
+  // Enlarged text on phones: the question keeps a readable text column, its actions wrap below it, and the stack
+  // scrolls inside the screen rather than growing past its top (LAY-01). No sideways scrolling either.
   await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
-  await page.evaluate(() => document.fonts.ready);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-  const box = (await question.boundingBox())!;
-  expect(box.x).toBeGreaterThanOrEqual(0);
-  expect(box.x + box.width).toBeLessThanOrEqual(321);
-  await expect(trigger).toBeVisible();
+  for (const viewport of [{ width: 320, height: 568 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    await page.evaluate(() => document.fonts.ready);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+    const box = (await question.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+    expect((await page.locator("#follow-up-confirmations").boundingBox())!.y).toBeGreaterThanOrEqual(0);
+    expect((await question.locator(":scope > p").boundingBox())!.width).toBeGreaterThanOrEqual(viewport.width - 120);
+    await trigger.scrollIntoViewIfNeeded();
+    const action = (await trigger.boundingBox())!;
+    expect(action.y).toBeGreaterThanOrEqual(0);
+    expect(action.y + action.height).toBeLessThanOrEqual(viewport.height);
+  }
   for (const viewport of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
     await page.setViewportSize(viewport);
     await page.goto("/settings/new-contacts");
