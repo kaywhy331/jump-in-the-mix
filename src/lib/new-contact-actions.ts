@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { withViewerError } from "@/lib/form-errors";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
-import { placeableMixWhere } from "@/lib/new-contact-placement";
+import { placeableMixFilter } from "@/lib/new-contact-placement";
 import { prisma } from "@/lib/prisma";
 
 const PLACEMENTS = ["NONE", "MIX", "ASK"] as const;
@@ -16,7 +16,7 @@ export async function saveNewContactPlacementAction(formData: FormData): Promise
   if (!placement) refuse("Choose where new contacts go.");
   const mixId = placement === "MIX" ? String(formData.get("mixId") ?? "").trim() : "";
   if (placement === "MIX" && !mixId) refuse("Choose the Mix new contacts start.");
-  if (mixId && !await prisma.mix.findFirst({ where: { id: mixId, ...placeableMixWhere(workspace.id) }, select: { id: true } })) refuse("Choose a Mix that is on and starts when you start it for someone.");
+  if (mixId && !await prisma.mix.findFirst({ where: { id: mixId, ...await placeableMixFilter(prisma, workspace.id) }, select: { id: true } })) refuse("Choose a Mix that is on and starts when you start it for someone.");
   await prisma.$transaction([
     prisma.workspacePreference.upsert({
       where: { workspaceId: workspace.id },

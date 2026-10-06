@@ -5,7 +5,10 @@ vi.mock("@/lib/auth", () => ({ requireWorkspace: async () => session.context }))
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`redirect:${path}`); } }));
 import { prisma } from "../src/lib/prisma";
 import { saveMixAction } from "../src/lib/mix-editor-actions";
-import { placeNewContacts } from "../src/lib/new-contact-placement";
+import { newContactPlacementSetting, placeNewContacts } from "../src/lib/new-contact-placement";
+import { saveContactFormAction } from "../src/lib/contact-actions";
+import { activateMixAction } from "../src/lib/mix-lifecycle-actions";
+import { queueContactImportBatch } from "../src/lib/contact-import-jobs";
 import { saveQuickCapture } from "../src/lib/quick-capture";
 import { saveNewContactPlacementAction } from "../src/lib/new-contact-actions";
 import { receiveIntake } from "../src/lib/intake";
@@ -104,7 +107,7 @@ describe.skipIf(!local).sequential("where new people go (JITM-09 §2.78)", () =>
     let otherMix = { id: "", name: "" };
     const setting = (fields: Record<string, string>) => { const data = new FormData(); for (const [key, value] of Object.entries(fields)) data.set(key, value); return saveNewContactPlacementAction(data); };
     const directStart = (contactId: string, mixId: string) => prisma.mixAssignment.findUnique({ where: { assignmentKey: `${workspaceId}:${mixId}:${contactId}` }, select: { isActive: true, startDate: true } });
-    const place = (contactIds: string[], options: { mixId?: string | null; chosenByOwner?: boolean } = {}) => prisma.$transaction(tx => placeNewContacts(tx, { workspaceId, contactIds, timezone: "UTC", ...options }));
+    const place = (contactIds: string[], options: { mixId?: string | null; chosenByOwner?: boolean; explicit?: boolean } = {}) => prisma.$transaction(tx => placeNewContacts(tx, { workspaceId, contactIds, timezone: "UTC", ...options }));
 
     beforeAll(async () => {
       defaultMix = await mix("New lead welcome");
@@ -229,6 +232,139 @@ describe.skipIf(!local).sequential("where new people go (JITM-09 §2.78)", () =>
       expect(await directStart(none.contactId, defaultMix.id)).toBeNull();
       const followed = await capture("Followed");
       expect(followed.mixName).toBe(defaultMix.name);
+    });
+
+    // The first review of #128: the stage's Mix comes first everywhere, a Mix starts once, Mixes that start after
+    // another Mix are never offered, and imports queue one preparation job per person.
+    describe("after the first review", () => {
+      const row = (name: string) => {
+        const rowId = `row-${randomUUID()}`;
+        return { record: { rowId, sourceRow: 1, source: "CSV" as const, firstName: name, lastName: null, displayName: `${name} ${suffix}`, company: null, publicNotes: null, emails: [{ value: `${name.toLowerCase()}-${suffix}@example.test`, label: null, isPrimary: true }], phones: [], addresses: [], groupIds: [], customFields: [], jumpDates: [] }, resolution: { rowId, action: "CREATE" as const, targetContactId: null } };
+      };
+      const commit = async (name: string, mixId?: string | null) => (await commitContactImportBatch({ workspaceId, actorUserId: userId, timezone: "UTC", importId: `import-${randomUUID()}`, items: [row(name)], ...(mixId === undefined ? {} : { mixId }) }))[0].contactId!;
+      const addForm = (fields: Record<string, string>) => { const data = new FormData(); for (const [key, value] of Object.entries({ requestId: randomUUID(), ...fields })) data.append(key, value); return data; };
+      const created = (error: unknown) => /\/contacts\/([^/?]+)\?/.exec(String(error))?.[1] ?? "";
+      const inDays = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+      let followUpTypeId = "";
+
+      beforeAll(async () => {
+        followUpTypeId = (await prisma.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true }, select: { id: true } }))?.id
+          ?? (await prisma.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: "Follow-up", slug: `follow-up-${suffix}` } })).id;
+      });
+      async function withStage(run: (stageMix: { id: string; name: string }) => Promise<void>) {
+        const stageMix = await mix(`Stage start ${randomUUID().slice(0, 6)}`);
+        await prisma.journeyPreference.create({ data: { workspaceId } });
+        const stage = await prisma.journeyStage.create({ data: { workspaceId, name: `Lead ${suffix}`, position: 0, planId: stageMix.id } });
+        try { await run(stageMix); }
+        finally {
+          await prisma.journeyPreference.delete({ where: { workspaceId } });
+          await prisma.contactJourney.deleteMany({ where: { workspaceId } });
+          await prisma.journeyEvent.deleteMany({ where: { workspaceId } });
+          await prisma.journeyStage.delete({ where: { id: stage.id } });
+        }
+      }
+
+      it("doesn't add the setting's Mix on top of the Mix a stage will start for imported and phone contacts (PLC-01)", async () => {
+        await withStage(async () => {
+          // Phone contacts follow the setting, which the stage's Mix takes the place of; the worker's stage pass starts it.
+          const phone = await commit("StagedPhone");
+          expect(await directStart(phone, defaultMix.id)).toBeNull();
+          // A Mix the owner picked in the import's review is their own choice, so it starts.
+          const picked = await commit("StagedPick", otherMix.id);
+          expect(await directStart(picked, otherMix.id)).toMatchObject({ isActive: true });
+          // The same for a placement with no stage event yet, and an explicit choice.
+          const later = await person("Later stage");
+          expect(await place([later])).toMatchObject({ started: [], skipped: [later], skippedBecause: { [later]: "stage" } });
+          expect(await place([later], { mixId: otherMix.id, explicit: true })).toMatchObject({ started: [later] });
+        });
+      });
+
+      it("runs Add a contact's stage first, so the stage manages its Mix and the form's own choice starts beside it (PLC-01)", async () => {
+        await withStage(async stageMix => {
+          await expect(saveContactFormAction({}, addForm({ firstName: "Stagey", lastName: suffix, scheduleFollowUp: "on", followUpDateTypeId: followUpTypeId, followUpDate: inDays(0), followUpReason: "Follow up", followUpMixId: otherMix.id }))).rejects.toThrow(/redirect:\/contacts\/[^?]+\?created=1&mixAssigned=1/);
+          const staged = await prisma.contact.findFirstOrThrow({ where: { workspaceId, firstName: "Stagey" } });
+          expect((await assignmentsOf(staged.id)).map(item => item.mixId).sort()).toEqual([otherMix.id, stageMix.id].sort());
+          // Choosing the stage's own Mix keeps one enrollment, which the stage manages.
+          let error: unknown;
+          try { await saveContactFormAction({}, addForm({ firstName: "Samestage", lastName: suffix, scheduleFollowUp: "on", followUpDateTypeId: followUpTypeId, followUpDate: inDays(2), followUpReason: "Follow up", followUpMixId: stageMix.id })); } catch (caught) { error = caught; }
+          const same = created(error);
+          const enrollments = await prisma.mixAssignment.findMany({ where: { contactId: same, isActive: true }, select: { id: true, mixId: true } });
+          expect(enrollments.map(item => item.mixId)).toEqual([stageMix.id]);
+          expect((await prisma.contactJourney.findUniqueOrThrow({ where: { contactId: same } })).managedAssignmentId).toBe(enrollments[0].id);
+        });
+      });
+
+      it("starts Add a contact's Mix once, even when it is for Everyone or a tag runs it (PLC-02)", async () => {
+        const everyone = await mix("Everyone check-in", { audienceEveryone: true });
+        try {
+          let error: unknown;
+          try { await saveContactFormAction({}, addForm({ firstName: "Fran", lastName: suffix, scheduleFollowUp: "on", followUpDateTypeId: followUpTypeId, followUpDate: inDays(7), followUpReason: "Follow up", followUpMixId: everyone.id })); } catch (caught) { error = caught; }
+          const fran = created(error);
+          const runs = await prisma.mixAssignment.findMany({ where: { contactId: fran, mixId: everyone.id, isActive: true }, select: { assignmentKey: true, startDate: true } });
+          // One run, from the day the owner chose, and no second one from the Everyone audience.
+          expect(runs.map(item => item.assignmentKey)).toEqual([`${workspaceId}:${everyone.id}:${fran}`]);
+          expect(runs[0].startDate?.toISOString().slice(0, 10)).toBe(inDays(7));
+        } finally { await prisma.mix.update({ where: { id: everyone.id }, data: { status: "PAUSED" } }); }
+
+        const tag = await prisma.group.create({ data: { workspaceId, name: `Runs it ${suffix}` } });
+        await prisma.mixAssignment.create({ data: { workspaceId, mixId: otherMix.id, groupId: tag.id, assignmentKey: `${workspaceId}:${otherMix.id}:group:${tag.id}`, mode: "DYNAMIC", startDate: new Date() } });
+        try {
+          await expect(saveContactFormAction({}, addForm({ firstName: "Tagg", lastName: suffix, groupIds: tag.id, scheduleFollowUp: "on", followUpDateTypeId: followUpTypeId, followUpDate: inDays(1), followUpReason: "Follow up", followUpMixId: otherMix.id }))).rejects.toThrow(/created=1&mixKept=1/);
+          const tagged = await prisma.contact.findFirstOrThrow({ where: { workspaceId, firstName: "Tagg" } });
+          expect(await directStart(tagged.id, otherMix.id)).toBeNull();
+        } finally {
+          await prisma.mixAssignment.deleteMany({ where: { groupId: tag.id } });
+          await prisma.contactGroupMembership.deleteMany({ where: { groupId: tag.id } });
+          await prisma.group.delete({ where: { id: tag.id } });
+        }
+      });
+
+      it("never offers or starts a Mix set to start after another Mix (D49)", async () => {
+        const after = await mix("Thank-you after the job");
+        const rule = { id: `mix-start:${after.id}`, name: "Start Thank-you", source: { mixId: otherMix.id, stepId: null }, enabled: true, mode: "PARALLEL", join: null,
+          routes: [{ id: `mix-start:${after.id}:next`, label: "After this Mix finishes", when: "FINISHED", outcome: "", delayMinutes: 0, target: { mixId: after.id, stepId: null }, maxVisits: null, replace: false }] };
+        await prisma.mixWorkflow.create({ data: { workspaceId, configuration: { rules: [rule], gatedStepIds: [], intentionalEnds: [] } } });
+        try {
+          await expect(setting({ placement: "MIX", mixId: after.id })).rejects.toThrow(/redirect:\/settings\/new-contacts\?.*error/);
+          await prisma.workspacePreference.update({ where: { workspaceId }, data: { newContactMixId: after.id } });
+          expect((await newContactPlacementSetting(prisma, workspaceId)).mix).toBeNull();
+          await expect(place([await person("After")], { mixId: after.id, chosenByOwner: true })).rejects.toThrow("Choose a Mix that is on");
+        } finally {
+          await prisma.workspacePreference.update({ where: { workspaceId }, data: { newContactMixId: defaultMix.id } });
+          await prisma.mixWorkflow.delete({ where: { workspaceId } });
+        }
+      });
+
+      it("queues one preparation job for each imported person (PERF-01), and a retried queue returns its batch (IMP-01)", async () => {
+        const everyone = await mix("Everyone import", { audienceEveryone: true });
+        try {
+          const phone = await commit("OneJob");
+          expect(await directStart(phone, defaultMix.id)).toMatchObject({ isActive: true });
+          expect(await prisma.job.count({ where: { workspaceId, task: "generate-jumps", payload: { path: ["contactId"], equals: phone } } })).toBe(1);
+        } finally { await prisma.mix.update({ where: { id: everyone.id }, data: { status: "PAUSED" } }); }
+
+        const importId = `import-${randomUUID()}`;
+        const queued = await queueContactImportBatch({ workspaceId, actorUserId: userId, importId, items: [row("Queued")], mixId: otherMix.id });
+        await prisma.mix.update({ where: { id: otherMix.id }, data: { status: "PAUSED" } });
+        try {
+          // The response was lost and the owner retries after turning that Mix off: the queued batch comes back.
+          expect((await queueContactImportBatch({ workspaceId, actorUserId: userId, importId, items: [row("Queued")], mixId: otherMix.id })).id).toBe(queued.id);
+        } finally {
+          await prisma.mix.update({ where: { id: otherMix.id }, data: { status: "ACTIVE" } });
+          await prisma.job.deleteMany({ where: { workspaceId, task: "contact-import" } });
+          await prisma.contactImportBatch.deleteMany({ where: { workspaceId, importId } });
+        }
+      });
+
+      it("brings people added while an Everyone Mix was off into it when it is turned back on (EVR-01)", async () => {
+        const paused = await mix("Paused for everyone", { audienceEveryone: true, status: "PAUSED" });
+        await prisma.userPreference.upsert({ where: { userId }, create: { userId, timezone: "UTC", reviewMixActivation: false }, update: { reviewMixActivation: false } });
+        const newcomer = await person("Added while off");
+        const data = new FormData(); data.set("mixId", paused.id);
+        await expect(activateMixAction(data)).rejects.toThrow("redirect:/mixes?activated=1");
+        expect(await prisma.mixAssignment.findUnique({ where: { assignmentKey: `${workspaceId}:${paused.id}:audience:${newcomer}` }, select: { isActive: true, mode: true } })).toEqual({ isActive: true, mode: "DYNAMIC" });
+        await prisma.mix.update({ where: { id: paused.id }, data: { status: "PAUSED" } });
+      });
     });
   });
 });

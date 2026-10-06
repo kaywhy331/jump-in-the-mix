@@ -7,7 +7,7 @@ import { lockAccess, lockWorkspaceImport } from "@/lib/access-lock";
 import { importResults as resultArray, importCounts as counts } from "@/lib/contact-import-state";
 import { ImportInterruptedError, lockImportJob, lockRunningImport, type ImportJobLease } from "@/lib/contact-import-lease";
 import { timezoneForUser } from "@/lib/display-preferences";
-import { placeableMixWhere } from "@/lib/new-contact-placement";
+import { placeableMixFilter } from "@/lib/new-contact-placement";
 
 export const CONTACT_IMPORT_JOB_TASK = "contact-import";
 const MAX_IMPORT_ROWS = 5000;
@@ -121,9 +121,10 @@ export async function queueContactImportBatch(input: {
     await lockAccess(tx);
     await lockWorkspaceImport(tx, input.workspaceId);
     if (!await tx.workspace.findFirst({ where: { id: input.workspaceId, ownerId: input.actorUserId, owner: { suspendedAt: null } }, select: { id: true } })) throw new ContactImportInputError("This account cannot import contacts right now.");
-    if (input.mixId && !await tx.mix.findFirst({ where: { id: input.mixId, ...placeableMixWhere(input.workspaceId) }, select: { id: true } })) throw new ContactImportInputError("That Mix is no longer on. Choose another Mix, or don’t add the new people to a Mix.");
+    // A retry after a lost response gets the batch already queued, even if its Mix was turned off since (IMP-01).
     const existing = await tx.contactImportBatch.findUnique({ where: { workspaceId_importId: { workspaceId: input.workspaceId, importId: input.importId } } });
     if (existing) return existing;
+    if (input.mixId && !await tx.mix.findFirst({ where: { id: input.mixId, ...await placeableMixFilter(tx, input.workspaceId) }, select: { id: true } })) throw new ContactImportInputError("That Mix is no longer on. Choose another Mix, or don’t add the new people to a Mix.");
     const batch = await tx.contactImportBatch.create({
       data: {
         workspaceId: input.workspaceId,

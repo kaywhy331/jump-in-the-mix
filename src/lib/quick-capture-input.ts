@@ -15,4 +15,5 @@ export const quickCaptureSchema = z.object({
 }).strict();
 export type QuickCaptureInput = z.infer<typeof quickCaptureSchema>;
 export type QuickCaptureContact = { id: string; displayName: string; archived: boolean; email: string | null; phone: string | null };
-export type QuickCaptureReceipt = { contactId: string; createdPerson: boolean; eventId: string | null; jumpId: string | null; noteId: string | null; mixName?: string | null };
+/** `mixName`: the Mix that started for the new person; `mixKept`: the one chosen that already ran for them, so it didn't start again. */
+export type QuickCaptureReceipt = { contactId: string; createdPerson: boolean; eventId: string | null; jumpId: string | null; noteId: string | null; mixName?: string | null; mixKept?: string };

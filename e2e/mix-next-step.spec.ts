@@ -213,6 +213,46 @@ test("the New contacts setting preselects its Mix in Add a contact and Quick Add
   await prisma.workspacePreference.update({ where: { workspaceId }, data: { newContactPlacement: "NONE", newContactMixId: null } });
 });
 
+test("Add a contact and Quick Add open as each setting means, and a stage's Mix is never preselected over (UX-01, PLC-01)", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const preference = (data: { newContactPlacement: "NONE" | "MIX" | "ASK"; newContactMixId?: string | null }) => prisma.workspacePreference.upsert({ where: { workspaceId }, create: { workspaceId, ...data }, update: data });
+  const scheduled = page.getByRole("checkbox", { name: /Schedule a follow-up now/ });
+  // Leave them out: as before the setting, the follow-up opens unticked.
+  await preference({ newContactPlacement: "NONE", newContactMixId: null });
+  await page.goto("/contacts/new"); await ready(page);
+  await expect(scheduled).not.toBeChecked();
+  // Ask each time: ticked for today, with no Mix chosen, as Quick Add and imports open.
+  await preference({ newContactPlacement: "ASK", newContactMixId: null });
+  await page.goto("/contacts/new"); await ready(page);
+  await expect(scheduled).toBeChecked();
+  await expect(page.locator("#followUpMixId")).toHaveValue("");
+  await page.goto("/contacts"); await ready(page);
+  await page.getByRole("heading", { name: "Contacts", exact: true }).click(); await page.keyboard.press("n");
+  await page.locator("#quick-add-capture").fill(`Met Kit ${suffix} at the open house`);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const proposal = page.locator(".quick-add-proposal");
+  await proposal.getByLabel("Name or search for someone", { exact: true }).fill(`Kit ${suffix}`);
+  await expect(proposal.getByRole("combobox", { name: /^Add to a Mix/ })).toHaveValue("");
+  await page.getByRole("button", { name: "Close Quick Add", exact: true }).click();
+  await page.getByRole("dialog", { name: "Discard this Quick Add draft?" }).getByRole("button", { name: "Discard draft", exact: true }).click();
+
+  // A Contact stage that starts its own Mix: the setting's Mix isn't preselected on top of it, and the form says so.
+  await preference({ newContactPlacement: "MIX", newContactMixId: nurtureMixId });
+  await prisma.journeyPreference.create({ data: { workspaceId } });
+  const stage = await prisma.journeyStage.create({ data: { workspaceId, name: "Lead", position: 0, planId: estimateMixId } });
+  try {
+    await page.goto("/contacts/new"); await ready(page);
+    await expect(scheduled).not.toBeChecked();
+    await scheduled.check();
+    await expect(page.locator("#followUpMixId")).toHaveValue("");
+    await expect(page.getByText("Your Lead stage starts Estimate follow-up for new people.")).toBeVisible();
+  } finally {
+    await prisma.journeyStage.delete({ where: { id: stage.id } });
+    await prisma.journeyPreference.delete({ where: { workspaceId } });
+    await preference({ newContactPlacement: "NONE", newContactMixId: null });
+  }
+});
+
 test("each lead connection can choose its own Mix for new people", async ({ page }) => {
   const connection = await prisma.intakeConnection.create({ data: { workspaceId, name: `Website ${suffix}`, kind: "HOSTED_FORM", tokenHash: randomUUID(), tokenEncrypted: "unused" } });
   try {

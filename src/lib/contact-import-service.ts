@@ -463,9 +463,10 @@ async function createImportedContact(tx: Prisma.TransactionClient, input: {
       metadata: { format: record.source, sourceRow: record.sourceRow, dateCount: dates.length }
     }
   });
-  // A file import starts the Mix confirmed in its review; phone contacts follow the New contacts setting. Either is
-  // an automatic addition: someone who can't start it is skipped, not refused (JITM-09 §2.75, §2.78).
-  await placeNewContacts(tx, { workspaceId, contactIds: [contact.id], mixId: input.mixId, actorUserId: input.mixId === undefined ? null : actorUserId, timezone, source: "contacts.import" });
+  // A file import starts the Mix confirmed in its review, the owner's own choice; phone contacts follow the New contacts
+  // setting, which isn't added on top of a Mix their Contact stage will start. Either is an automatic addition: someone
+  // who can't start it is skipped, not refused (JITM-09 §2.75, §2.78). The person's one preparation job follows.
+  await placeNewContacts(tx, { workspaceId, contactIds: [contact.id], mixId: input.mixId, explicit: typeof input.mixId === "string", queuePreparation: false, actorUserId: input.mixId === undefined ? null : actorUserId, timezone, source: "contacts.import" });
   await queueReconciliation(tx, workspaceId, contact.id);
   return {
     contactId: contact.id,

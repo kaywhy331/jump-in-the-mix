@@ -2,8 +2,8 @@
 
 import { assertRoomForPeople, peopleLimitRefusal } from "@/lib/plan-limits";
 import { applyJourneyEvent } from "@/lib/journey";
-import { placeNewContacts } from "@/lib/new-contact-placement";
-import { startMixForContact, visitTimedBeats } from "@/lib/contact-mix-start";
+import { afterAnotherMixIds, placeNewContacts } from "@/lib/new-contact-placement";
+import { visitTimedBeats } from "@/lib/contact-mix-start";
 
 import { workflowContinuation } from "@/lib/workflow-continuation";
 import { customerReturnPath } from "@/lib/customer-return-path";
@@ -205,14 +205,16 @@ async function initialFollowUpPayload(workspaceId: string, formData: FormData): 
   });
   if (!dateType) throw new ContactInputError("The selected saved date type is unavailable.");
   if (!requestedMixId) return { dateTypeId: dateType.id, dateValue, reason, mixId: null, startsOn: null };
-  // A Mix that follows the saved follow-up date, or one that starts when the owner starts it, from this date.
+  // A Mix that follows the saved follow-up date, or one that starts when the owner starts it, from this date. A Mix
+  // set to start after another Mix is not one the owner starts (D49).
+  const afterAnotherMix = await afterAnotherMixIds(prisma, workspaceId);
   const mix = await prisma.mix.findFirst({
     where: {
       id: requestedMixId,
       workspaceId,
       status: "ACTIVE",
       source: { not: "ONE_TIME" },
-      OR: [{ triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id }, { triggerMode: "MANUAL_START" }]
+      OR: [{ triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id }, { triggerMode: "MANUAL_START", ...(afterAnotherMix.length ? { NOT: { id: { in: afterAnotherMix } } } : {}) }]
     },
     select: { id: true, name: true, triggerMode: true, steps: visitTimedBeats }
   });
@@ -271,13 +273,14 @@ async function queueContactReconciliation(workspaceId: string, contactId: string
   await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId } } });
 }
 
-type CreatedContact = { contactId: string; dateCreated: boolean; mixAssigned: boolean; followUpScheduled?: boolean };
+/** `mixKept`: the chosen Mix already ran for them (through a tag they were given), so it wasn't started a second time. */
+type CreatedContact = { contactId: string; dateCreated: boolean; mixAssigned: boolean; followUpScheduled?: boolean; mixKept?: boolean };
 
 function storedCreation(response: Prisma.JsonValue | null | undefined): CreatedContact | null {
   if (!response || typeof response !== "object" || Array.isArray(response)) return null;
   const saved = response as Record<string, unknown>;
   if (typeof saved.contactId !== "string" || !saved.contactId) return null;
-  return { contactId: saved.contactId, dateCreated: saved.dateCreated === true, mixAssigned: saved.mixAssigned === true, followUpScheduled: saved.followUpScheduled === true };
+  return { contactId: saved.contactId, dateCreated: saved.dateCreated === true, mixAssigned: saved.mixAssigned === true, followUpScheduled: saved.followUpScheduled === true, mixKept: saved.mixKept === true };
 }
 
 /** The contact an earlier submission of the same Add form already created, if any. */
@@ -292,6 +295,7 @@ function createdContactPath(returnTo: string, created: CreatedContact): string {
   if (created.dateCreated) result.set("dateCreated", "1");
   if (created.mixAssigned) result.set("mixAssigned", "1");
   if (created.followUpScheduled) result.set("followUpScheduled", "1");
+  if (created.mixKept) result.set("mixKept", "1");
   return workflowContinuation(returnTo, created.contactId) ?? `/contacts/${created.contactId}?${result.toString()}`;
 }
 
@@ -347,6 +351,10 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
         customFieldValues: payload.customFields.length ? { create: payload.customFields.map((item) => ({ definitionId: item.definitionId, value: item.value })) } : undefined
       }
     });
+    // The person's Contact stage comes first, so the stage manages its own Mix and the New contacts Mix that the form
+    // preselects is never added on top of it (JITM-09 §2.78).
+    await applyJourneyEvent(tx, { workspaceId: workspace.id, contactId: created.id, eventKey: `contact-created:${created.id}`, eventType: "CONTACT_RECEIVED", source: "Contact added", actorUserId: user.id });
+    let mixKept = false;
     if (followUp && !followUp.mixId) {
       // Without a plan the owner still asked to see this person on Today on that day: one
       // follow-up at their default follow-up time, not a saved date that no plan reads.
@@ -365,10 +373,12 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
         key: `contact-first-follow-up:${created.id}`
       });
     } else if (followUp?.startsOn) {
-      // A Mix that starts when the owner starts it begins on the follow-up date; no saved date is needed.
-      await assertRoomForPeople(tx, workspace.id, [created.id]);
+      // A Mix that starts when the owner starts it begins on the follow-up date; no saved date is needed. It is the
+      // owner's choice, so it starts even beside the stage's Mix, but never a second time for someone a tag they
+      // were just given already runs it for; Everyone Mixes follow without doubling it (PLC-02).
       const { dateValue } = followUp;
-      await startMixForContact(tx, { workspaceId: workspace.id, userId: user.id, contactId: created.id, mix: { ...followUp.startsOn, triggerMode: "MANUAL_START", dateTypeId: null }, start: { year: dateValue.getUTCFullYear(), month: dateValue.getUTCMonth() + 1, day: dateValue.getUTCDate() }, timezone, source: "contacts.form" });
+      const placed = await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id], mixId: followUp.mixId, chosenByOwner: true, explicit: true, start: { year: dateValue.getUTCFullYear(), month: dateValue.getUTCMonth() + 1, day: dateValue.getUTCDate() }, actorUserId: user.id, timezone, source: "contacts.form" });
+      mixKept = !placed.started.length;
     } else if (followUp) {
       await tx.jumpDate.create({
         data: {
@@ -413,9 +423,10 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
         }
       }
     });
-    await applyJourneyEvent(tx, { workspaceId: workspace.id, contactId: created.id, eventKey: `contact-created:${created.id}`, eventType: "CONTACT_RECEIVED", source: "Contact added", actorUserId: user.id });
-    await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id], mixId: null });
-    const receipt: CreatedContact = { contactId: created.id, dateCreated: Boolean(followUp?.mixId && !followUp.startsOn), mixAssigned: Boolean(followUp?.mixId), followUpScheduled: Boolean(followUp && !followUp.mixId) };
+    // Mixes for Everyone take the new person in too, except one they are already in. The New contacts Mix is not
+    // applied here: the page preselects it in the form, so it is the owner's own choice.
+    if (!followUp?.startsOn) await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id], mixId: null });
+    const receipt: CreatedContact = { contactId: created.id, dateCreated: Boolean(followUp?.mixId && !followUp.startsOn), mixAssigned: Boolean(followUp?.mixId) && !mixKept, followUpScheduled: Boolean(followUp && !followUp.mixId), ...(mixKept ? { mixKept } : {}) };
     if (idempotencyKey) {
       await tx.idempotencyKey.create({ data: { workspaceId: workspace.id, key: idempotencyKey, response: receipt, expiresAt: new Date(Date.now() + 7 * 86_400_000) } });
     }

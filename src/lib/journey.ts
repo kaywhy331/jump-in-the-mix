@@ -55,6 +55,31 @@ async function changeManagedPlan(tx: Tx, input: JourneyEventInput, previousAssig
   return created.id;
 }
 
+/** The stage someone with no stage yet joins on this event: the first active stage, or where its switched-on rule for the event leads. */
+async function initialStageId(db: Pick<Tx, "journeyStage" | "journeyRule">, workspaceId: string, eventType: JourneyEventType): Promise<string | undefined> {
+  const first = await db.journeyStage.findFirst({ where: { workspaceId, isActive: true }, orderBy: [{ position: "asc" }, { id: "asc" }] });
+  if (!first) return undefined;
+  if (eventType === "TIME_IN_STAGE" || eventType === "PLAN_COMPLETED") return first.id;
+  const initialRule = await db.journeyRule.findFirst({ where: { workspaceId, fromStageId: first.id, eventType, enabled: true, toStage: { isActive: true } } });
+  return initialRule?.toStageId ?? first.id;
+}
+
+/**
+ * The Contact stage a newly added person joins, and the Mix that stage starts for them, if any. It is what the "Contact
+ * received" event does on Add a contact and Quick Add, and what the worker's stage pass does minutes later for imported
+ * and phone contacts. The New contacts Mix is not added on top of that Mix by default (JITM-09 §2.78).
+ */
+export async function newContactStage(db: Pick<Tx, "journeyPreference" | "journeyStage" | "journeyRule" | "mix">, workspaceId: string): Promise<{ name: string; mix: { id: string; name: string } | null } | null> {
+  const preference = await db.journeyPreference.findUnique({ where: { workspaceId }, select: { enabled: true } });
+  if (!preference?.enabled) return null;
+  const stageId = await initialStageId(db, workspaceId, "CONTACT_RECEIVED");
+  const stage = stageId ? await db.journeyStage.findFirst({ where: { id: stageId, workspaceId, isActive: true }, select: { name: true, planId: true } }) : null;
+  if (!stage) return null;
+  // The same Mixes changeManagedPlan starts: on, started when the owner starts them, and not one-time.
+  const mix = stage.planId ? await db.mix.findFirst({ where: { id: stage.planId, workspaceId, status: "ACTIVE", triggerMode: "MANUAL_START", source: { not: "ONE_TIME" } }, select: { id: true, name: true } }) : null;
+  return { name: stage.name, mix };
+}
+
 /** Another change moved this customer's stage first; the maintenance pass skips it and a person sees the sentence. */
 export class JourneyStageChanged extends UserFacingError {
   constructor() { super("This customer’s stage changed. Refresh before trying again."); }
@@ -79,16 +104,9 @@ export async function applyJourneyEvent(tx: Tx, input: JourneyEventInput) {
   let targetId = input.eventType === "MANUAL" ? input.targetStageId : undefined;
   if (!targetId && preference?.enabled && (!current || current.automatic)) {
     if (!current) {
-      const first = await tx.journeyStage.findFirst({ where: { workspaceId: input.workspaceId, isActive: true }, orderBy: [{ position: "asc" }, { id: "asc" }] });
-      if (first) {
-        // An existing person joins only through an explicit event or manual choice;
-        // background initialization is limited to contacts created after enablement.
-        targetId = first.id;
-        if (input.eventType !== "TIME_IN_STAGE" && input.eventType !== "PLAN_COMPLETED") {
-          const initialRule = await tx.journeyRule.findFirst({ where: { workspaceId: input.workspaceId, fromStageId: first.id, eventType: input.eventType, enabled: true, toStage: { isActive: true } } });
-          if (initialRule) targetId = initialRule.toStageId;
-        }
-      }
+      // An existing person joins only through an explicit event or manual choice;
+      // background initialization is limited to contacts created after enablement.
+      targetId = await initialStageId(tx, input.workspaceId, input.eventType);
     } else {
       const rule = await tx.journeyRule.findFirst({ where: { workspaceId: input.workspaceId, fromStageId: current.stageId, eventType: input.eventType, enabled: true, toStage: { isActive: true } } });
       if (rule && (input.eventType !== "TIME_IN_STAGE" || (rule.afterDays !== null && now.getTime() - current.stageSince.getTime() >= rule.afterDays * 86_400_000))) targetId = rule.toStageId;

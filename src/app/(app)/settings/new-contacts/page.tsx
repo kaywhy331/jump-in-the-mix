@@ -7,7 +7,8 @@ import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { ViewOnlySupportNotice } from "@/components/ViewOnlySupportNotice";
 import { requireWorkspace } from "@/lib/auth";
 import { saveNewContactPlacementAction } from "@/lib/new-contact-actions";
-import { placeableMixWhere } from "@/lib/new-contact-placement";
+import { NewContactsMixSelect } from "@/components/NewContactsMixSelect";
+import { placeableMixFilter } from "@/lib/new-contact-placement";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "New contacts" };
@@ -18,7 +19,7 @@ export default async function NewContactsSettingsPage({ searchParams }: { search
   const viewOnly = Boolean(impersonation);
   const [preference, mixes] = await Promise.all([
     prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id }, select: { newContactPlacement: true, newContactMixId: true } }),
-    prisma.mix.findMany({ where: placeableMixWhere(workspace.id), select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 200 })
+    prisma.mix.findMany({ where: await placeableMixFilter(prisma, workspace.id), select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 200 })
   ]);
   const placement = preference?.newContactPlacement ?? "NONE";
   const chosen = mixes.find(mix => mix.id === preference?.newContactMixId) ?? null;
@@ -28,13 +29,13 @@ export default async function NewContactsSettingsPage({ searchParams }: { search
     {params.saved && <Notice type="success">New contacts setting saved.</Notice>}
     <UrlErrorNotice params={params} viewer={session} />
     {viewOnly && <ViewOnlySupportNotice />}
-    {placement === "MIX" && !chosen && <Notice type="info">The Mix you chose is turned off or removed, so new contacts are left out until you choose another.</Notice>}
+    {placement === "MIX" && !chosen && <Notice type="info">The Mix you chose is turned off, removed or now starts after another Mix, so new contacts are left out until you choose another.</Notice>}
     <section className="card">
       <form action={saveNewContactPlacementAction} className="form-stack">
         <fieldset className="form-stack"><legend>Where new contacts go</legend>
           {option("NONE", "Leave them out", "They show as No Mix until you add them to a Mix.")}
           {option("MIX", "Add them to a Mix", "They start it on the day you add them.")}
-          {mixes.length ? <div className="field new-contacts-mix"><label htmlFor="newContactMixId">Mix for new contacts</label><select id="newContactMixId" name="mixId" defaultValue={chosen?.id ?? ""} aria-describedby="newContactMixHint"><option value="">Choose a Mix</option>{mixes.map(mix => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select><small id="newContactMixHint">Mixes that start when you start them for someone.</small></div>
+          {mixes.length ? <div className="field new-contacts-mix"><label htmlFor="newContactMixId">Mix for new contacts</label><NewContactsMixSelect mixes={mixes} defaultValue={chosen?.id ?? ""} /><small id="newContactMixHint">Mixes that start when you start them for someone.</small></div>
             : <p className="muted-copy new-contacts-mix">No Mix can be chosen yet. <Link className="inline-action" href="/mixes/new?custom=1">Create a Mix</Link> that starts when you start it for someone.</p>}
           {option("ASK", "Ask each time", "Add a contact starts with a follow-up ticked, and Quick Add offers a Mix.")}
         </fieldset>

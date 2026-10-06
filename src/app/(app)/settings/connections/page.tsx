@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { INTAKE_KINDS, intakeKindLabel } from "@/lib/intake-types";
 import { intakeConnectionAction, reviewIntakeAction } from "@/lib/intake-actions";
 import { intakeMatches, parseIntakePayload } from "@/lib/intake";
-import { newContactPlacementSetting, placeableMixWhere } from "@/lib/new-contact-placement";
+import { newContactPlacementSetting, placeableMixFilter } from "@/lib/new-contact-placement";
 import { decryptIntegrationCredentials, integrationEncryptionConfigured } from "@/lib/integration-crypto";
 import { CopyField } from "@/components/CopyField";
 import { Notice } from "@/components/Notice";
@@ -34,7 +34,7 @@ export default async function LeadConnectionsPage({ searchParams }: { searchPara
     prisma.intakeReceipt.findMany({ where: { connection: { workspaceId: workspace.id } }, include: { connection: { select: { name: true } }, contact: { select: { displayName: true } } }, orderBy: [{ createdAt: "desc" }, { id: "asc" }], skip: (page-1)*20, take: 20 }),
     prisma.intakeReceipt.count({ where: { connection: { workspaceId: workspace.id } } }),
     newContactPlacementSetting(prisma, workspace.id),
-    prisma.mix.findMany({ where: placeableMixWhere(workspace.id), select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 200 })
+    prisma.mix.findMany({ where: await placeableMixFilter(prisma, workspace.id), select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 200 })
   ]);
   const settingChoice = placement.mix ? placement.mix.name : "No Mix";
   const reviewData = await Promise.all(reviews.map(async receipt => { const payload = parseIntakePayload(receipt.payload); return { receipt, payload, matches: await intakeMatches(prisma, workspace.id, receipt.connectionId, payload) }; }));
@@ -55,7 +55,7 @@ export default async function LeadConnectionsPage({ searchParams }: { searchPara
             <option value="">Follow your New contacts setting ({settingChoice})</option>
             <option value="none">Don’t add them to a Mix</option>
             {placeableMixes.map(mix => <option key={mix.id} value={mix.id}>Add them to {mix.name}</option>)}
-            {connection.newContactMix && !placeableMixes.some(mix => mix.id === connection.newContactMix?.id) && <option value={connection.newContactMix.id}>Add them to {connection.newContactMix.name} (turned off, so nothing starts)</option>}
+            {connection.newContactMix && !placeableMixes.some(mix => mix.id === connection.newContactMix?.id) && <option value={connection.newContactMix.id}>Add them to {connection.newContactMix.name} (turned off or starts after another Mix, so nothing starts)</option>}
           </select><small id={`newContactMixHint-${connection.id}`}>{connection.newContactPlacement === "MIX" && !connection.newContactMix ? "The Mix chosen here was deleted, so new people from this connection start none. Choose another." : <>People already in your contacts are left as they are. <Link className="inline-action" href="/settings/new-contacts">New contacts setting</Link></>}</small></div>
           <button className="button" name="intent" value="placement" disabled={viewOnly}>Save for this connection</button>
         </form>
