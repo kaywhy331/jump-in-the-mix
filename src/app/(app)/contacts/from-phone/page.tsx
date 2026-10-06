@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { BackLink } from "@/components/BackLink";
 import { ContactShareKeyPanel } from "@/components/ContactShareKeyPanel";
 import { DeviceContactQuickAdd } from "@/components/DeviceContactQuickAdd";
+import { IphoneAddTips } from "@/components/IphoneAddTips";
 import { Notice } from "@/components/Notice";
 import { requireWorkspace } from "@/lib/auth";
 import { contactShareKeyStatus } from "@/lib/contact-share-keys";
@@ -30,6 +31,7 @@ export default async function AddFromPhonePage({ searchParams }: { searchParams:
       <BackLink href="/contacts/new" label="Add a contact" />
       <header className="page-header"><div><h1>Add from your phone</h1><p>Only the people you choose are added. Someone already saved with the same email or phone isn&apos;t added twice.</p></div></header>
       {!owner && <Notice type="info">Only the account owner can add people from a phone.</Notice>}
+      {!android && <IphoneAddTips shortcut={owner && shortcutReady} />}
       {!iphone && (
         <section className="card phone-share-card" aria-labelledby="phone-share-android">
           <h2 id="phone-share-android">{android ? "Choose from your contacts" : "On Android"}</h2>
@@ -48,7 +50,7 @@ export default async function AddFromPhonePage({ searchParams }: { searchParams:
         <section className="card phone-share-card" aria-labelledby="phone-share-file">
           <h2 id="phone-share-file">{!iphone ? "On iPhone: save a contact card" : shortcutReady ? "Or save a contact card" : "Save a contact card"}</h2>
           <ol className="phone-share-steps">
-            <li><strong>Share the contact</strong><small>In Contacts, open a person and tap Share Contact. For several people, touch and hold a list and tap Export.</small></li>
+            <li><strong>Share the contact</strong><small>In Contacts, open a person and tap Share Contact.</small></li>
             <li><strong>Save it</strong><small>Tap Save to Files.</small></li>
             <li><strong>Import it</strong><small>Choose the file in Import contacts.</small><div className="form-actions"><Link className="button" href="/contacts/import">Import contacts</Link></div></li>
           </ol>
