@@ -28,12 +28,13 @@ describe.sequential("asking what's next when a Mix ends with nothing after it (J
   async function start(contactId: string, target: TestMix) {
     await prisma.mixAssignment.create({ data: { workspaceId, mixId: target.id, contactId, assignmentKey: `${workspaceId}:${target.id}:${contactId}`, startDate: new Date(Date.now() - 60_000) } });
   }
-  async function beat(contactId: string, target: TestMix, index: number, status: "PENDING" | "DONE" | "SKIPPED") {
+  /** One follow-up, keyed to its run as the scheduler keys it: a start day here unless `run` says otherwise. */
+  async function beat(contactId: string, target: TestMix, index: number, status: "PENDING" | "DONE" | "SKIPPED", run = "manual:2026-10-01") {
     const step = target.steps[index];
     return (await prisma.jump.create({ data: {
       workspaceId, contactId, mixId: target.id, mixStepId: step.id, stepVersionId: step.versionId,
       scheduledAt: new Date(), reason: "Check in", status, completedAt: status === "PENDING" ? null : new Date(),
-      uniquenessKey: `mix-end-${randomUUID()}`, templateSnapshot: { channel: "SMS", body: "Hi" }, renderedSnapshot: { body: "Hi" }
+      uniquenessKey: `mix-end-${randomUUID()}`, templateSnapshot: { channel: "SMS", body: "Hi", ...(run.startsWith("workflow:") ? { workflowRunKey: run.slice("workflow:".length) } : { occurrenceKey: run }) }, renderedSnapshot: { body: "Hi" }
     } })).id;
   }
   const ask = (jumpId: string) => mixEndQuestion(workspaceId, jumpId);
@@ -151,6 +152,45 @@ describe.sequential("asking what's next when a Mix ends with nothing after it (J
     // The Journey pass that closes the record runs later, as a job; the last Beat is done, so the Mix has ended.
     try { expect(await ask(done)).toMatchObject({ mixName: "Quote follow-up" }); }
     finally { await prisma.mixWorkflow.delete({ where: { workspaceId } }); }
+  });
+
+  // END-01: what came due in an earlier run of the Mix doesn't finish this one.
+  it("counts only this run's Beats: an earlier visit or start doesn't finish the Mix", async () => {
+    const visit = await mix("Visit follow-up", 2);
+    const pat = await person("Pat");
+    await start(pat, visit);
+    // The first visit: both Beats done.
+    await beat(pat, visit, 0, "DONE", "appointment:first-visit");
+    await beat(pat, visit, 1, "DONE", "appointment:first-visit");
+    // The second visit: the reminder is done, and the thank-you waits for this visit's outcome.
+    const reminder = await beat(pat, visit, 0, "DONE", "appointment:second-visit");
+    expect(await ask(reminder)).toBeNull();
+    const thanks = await beat(pat, visit, 1, "DONE", "appointment:second-visit");
+    expect(await ask(thanks)).toMatchObject({ mixName: "Visit follow-up" });
+
+    // A restart: the earlier run's Beats don't count for the new start day either.
+    const check = await mix("Check-in", 2);
+    const lou = await person("Lou");
+    await start(lou, check);
+    await beat(lou, check, 0, "DONE", "manual:2026-09-01");
+    await beat(lou, check, 1, "DONE", "manual:2026-09-01");
+    expect(await ask(await beat(lou, check, 0, "DONE", "manual:2026-10-01"))).toBeNull();
+  });
+
+  it("takes a planned Beat, which goes out once, as part of every run, and asks nothing of a follow-up with no run", async () => {
+    const seasonal = await mix("Seasonal", 2);
+    const val = await person("Val");
+    await start(val, seasonal);
+    // The planned Beat went out during an earlier run; this run's other Beat finishes the Mix.
+    await beat(val, seasonal, 1, "DONE", `planned:${seasonal.steps[1].id}`);
+    expect(await ask(await beat(val, seasonal, 0, "DONE", "manual:2026-10-01"))).toMatchObject({ mixName: "Seasonal" });
+
+    const legacy = await mix("Legacy", 1);
+    const ash = await person("Ash");
+    await start(ash, legacy);
+    const unkeyed = await beat(ash, legacy, 0, "DONE");
+    await prisma.jump.update({ where: { id: unkeyed }, data: { templateSnapshot: { channel: "SMS", body: "Hi" } } });
+    expect(await ask(unkeyed)).toBeNull();
   });
 
   it("only reads the workspace's own follow-ups", async () => {

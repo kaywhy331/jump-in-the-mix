@@ -35,7 +35,7 @@ async function lastBeat(first: string) {
   const displayName = `${first} Lane`;
   const contact = await prisma.contact.create({ data: { workspaceId, displayName, firstName: first, lastName: "Lane", phones: { create: { phone: "+15550100300", normalized: `+1555010${Math.floor(1000 + Math.random() * 8999)}`, isPrimary: true } } } });
   await prisma.mixAssignment.create({ data: { workspaceId, mixId: estimateMixId, contactId: contact.id, assignmentKey: `${workspaceId}:${estimateMixId}:${contact.id}`, startDate: new Date(Date.now() - 2 * 86_400_000) } });
-  const jump = await prisma.jump.create({ data: { workspaceId, contactId: contact.id, mixId: estimateMixId, mixStepId: stepId, stepVersionId: versionId, scheduledAt: new Date(Date.now() - 86_400_000), uniquenessKey: randomUUID(), reason: "Estimate check-in", templateSnapshot: { channel: "SMS", body: "Hi {{First Name}}, any questions about the estimate?" }, renderedSnapshot: { body: `Hi ${first}, any questions about the estimate?` } } });
+  const jump = await prisma.jump.create({ data: { workspaceId, contactId: contact.id, mixId: estimateMixId, mixStepId: stepId, stepVersionId: versionId, scheduledAt: new Date(Date.now() - 86_400_000), uniquenessKey: randomUUID(), reason: "Estimate check-in", templateSnapshot: { channel: "SMS", body: "Hi {{First Name}}, any questions about the estimate?", occurrenceKey: `manual:${new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10)}` }, renderedSnapshot: { body: `Hi ${first}, any questions about the estimate?` } } });
   return { contactId: contact.id, displayName, jumpId: jump.id };
 }
 
