@@ -157,14 +157,50 @@ describe.sequential("whether a person is in a Mix (JITM-09 §2.76)", () => {
     await prepared();
   });
 
-  it("counts running or paused Journey work", async () => {
-    const working = await person("Working");
-    const instance = await prisma.mixWorkflowInstance.create({ data: { workspaceId, contactId: working, admissionKey: `manual:${working}:${suffix}`, label: "Estimate", definition: {}, state: {} } });
-    expect(await status(working)).toBe("in-mix");
-    await prisma.mixWorkflowInstance.update({ where: { id: instance.id }, data: { status: "PAUSED" } });
-    expect(await status(working)).toBe("in-mix");
-    await prisma.mixWorkflowInstance.update({ where: { id: instance.id }, data: { status: "FINISHED" } });
-    expect(await status(working)).toBe("no-mix");
+  it("counts Journey work through its follow-ups and real waiting state, never its status alone (JRN-01)", async () => {
+    // As the scheduler records a start in an account with a Journey connection: a record that starts as {}.
+    const record = async (contactId: string, data: { status?: string; state?: object } = {}) => prisma.mixWorkflowInstance.create({ data: { workspaceId, contactId, admissionKey: `legacy:${contactId}:${randomUUID()}`, label: "Estimate", definition: {}, state: {}, ...data } });
+    const linked = async (contactId: string, instanceId: string, status: "PENDING" | "DONE" | "CANCELED", extra: { completionMethod?: string; workflowManaged?: boolean; target?: typeof realMix } = {}) =>
+      prisma.jump.update({ where: { id: (await jump(contactId, extra.target ?? realMix, status, { completionMethod: extra.completionMethod })).id }, data: { workflowInstanceId: instanceId, workflowManaged: extra.workflowManaged ?? false } });
+    // The last Beat was just done: the record is still ACTIVE and its saved state not yet updated (#128's case).
+    const justDone = await person("Just done");
+    const doneRecord = await record(justDone);
+    await linked(justDone, doneRecord.id, "DONE");
+    expect(await status(justDone)).toBe("no-mix");
+    // A follow-up still to come counts.
+    const running = await person("Journey running");
+    await linked(running, (await record(running)).id, "PENDING");
+    expect(await status(running)).toBe("in-mix");
+    // Journey work the owner paused, held as the Journey pass holds it, counts; once the record finishes it does not (D45).
+    const paused = await person("Journey paused");
+    const pausedRecord = await record(paused, { status: "PAUSED" });
+    await prisma.mixAssignment.create({ data: { workspaceId, mixId: realMix.id, contactId: paused, assignmentKey: `${workspaceId}:${realMix.id}:${paused}`, startDate: new Date() } });
+    await linked(paused, pausedRecord.id, "CANCELED", { completionMethod: "workflow_held" });
+    expect(await status(paused)).toBe("in-mix");
+    await prisma.mixWorkflowInstance.update({ where: { id: pausedRecord.id }, data: { status: "FINISHED" } });
+    expect(await status(paused)).toBe("no-mix");
+    // A Journey follow-up held because its Mix is paused counts (D45); one cancelled because the Mix was stopped does not.
+    const pausedMix = await mix("Paused Journey Mix", { status: "PAUSED" });
+    const held = await person("Journey held by a pause");
+    await linked(held, (await record(held)).id, "CANCELED", { completionMethod: "workflow_held", workflowManaged: true, target: pausedMix });
+    expect(await status(held)).toBe("in-mix");
+    const stopped = await person("Journey stopped");
+    await linked(stopped, (await record(stopped)).id, "CANCELED", { completionMethod: "mix_stopped_for_contact", workflowManaged: true });
+    expect(await status(stopped)).toBe("no-mix");
+    // A decision waiting for the owner counts while its Mix is open to the person, and not once it is stopped for them.
+    const deciding = await person("Decision waiting");
+    await record(deciding, { state: { runs: [{ id: "run1", mixId: realMix.id, status: "FINISHED" }], evaluations: [{ id: "decision1", runId: "run1", status: "WAITING" }] } });
+    expect(await status(deciding)).toBe("in-mix");
+    await prisma.mixStop.create({ data: { workspaceId, mixId: realMix.id, contactId: deciding, reason: "Asked to stop" } });
+    expect(await status(deciding)).toBe("no-mix");
+    // A path waiting to start another Mix counts while that Mix is open, and not once it is archived.
+    const archivedMix = await mix("Archived destination", { status: "ARCHIVED" });
+    const routed = await person("Path waiting");
+    const path = (target: string) => ({ runs: [{ id: "run1", mixId: realMix.id, status: "FINISHED" }], evaluations: [{ id: "decision1", runId: "run1", status: "ROUTED" }], transitions: [{ id: "path1", evaluationId: "decision1", status: "WAITING", target: { mixId: target, stepId: null } }] });
+    const routedRecord = await record(routed, { state: path(dateMix.id) });
+    expect(await status(routed)).toBe("in-mix");
+    await prisma.mixWorkflowInstance.update({ where: { id: routedRecord.id }, data: { state: path(archivedMix.id) } });
+    expect(await status(routed)).toBe("no-mix");
   });
 
   it("counts the Beats a paused Mix holds for its people, and only theirs (DEF-02, D45)", async () => {
