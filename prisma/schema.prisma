@@ -510,6 +510,8 @@ model Mix {
   status                    MixStatus       @default(DRAFT)
   durationDays              Int?
   includeFutureGroupMembers Boolean         @default(false)
+  // "Everyone" was chosen as the audience: people added later join too (JITM-09 §2.78, D34).
+  audienceEveryone          Boolean         @default(false)
   source                    String          @default("USER")
   workspace                 Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   dateType                  DateType?       @relation(fields: [dateTypeId], references: [id], onDelete: SetNull)

@@ -56,7 +56,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates);
   const groupIds = mix.assignments.flatMap((assignment) => assignment.groupId ? [assignment.groupId] : []);
-  const assignAllContacts = mix.assignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:"));
+  const assignAllContacts = mix.audienceEveryone;
 
 
   const [members, memberCount, stages, shareEffect] = await Promise.all([

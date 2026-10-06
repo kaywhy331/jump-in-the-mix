@@ -277,7 +277,9 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
         dateTypeId: triggerMode === "DATE_TRIGGERED" ? dateTypeId : null,
         status,
         durationDays,
-        includeFutureGroupMembers: groupIds.length > 0
+        includeFutureGroupMembers: groupIds.length > 0,
+        // People added later join an "Everyone" Mix too (JITM-09 §2.78).
+        audienceEveryone: assignAllContacts
       };
       if (existingMix) await tx.mix.update({ where: { id: mixId }, data: mixData });
       else await tx.mix.create({ data: { id: mixId, workspaceId: workspace.id, ...mixData, source: "USER" } });

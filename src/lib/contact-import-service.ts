@@ -16,6 +16,7 @@ import { canonicalPhoneKey, phoneLookupKeys, phoneRowKeys, workspacePhoneRegion 
 import { prisma } from "@/lib/prisma";
 import { lockWorkspaceImport } from "@/lib/access-lock";
 import { lockImportJob, lockRunningImport, type ImportRowLease } from "@/lib/contact-import-lease";
+import { placeNewContacts } from "@/lib/new-contact-placement";
 
 class ImportRowError extends ContactImportInputError {}
 
@@ -461,6 +462,7 @@ async function createImportedContact(tx: Prisma.TransactionClient, input: {
       metadata: { format: record.source, sourceRow: record.sourceRow, dateCount: dates.length }
     }
   });
+  await placeNewContacts(tx, { workspaceId, contactIds: [contact.id] });
   await queueReconciliation(tx, workspaceId, contact.id);
   return {
     contactId: contact.id,

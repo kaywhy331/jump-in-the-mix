@@ -14,6 +14,7 @@ import { buildEmailInputs, buildPhoneInputs } from "@/lib/contact-input";
 import { DEFAULT_PHONE_REGION, canonicalPhoneKey, workspacePhoneRegion } from "@/lib/phone-number";
 import { onboardingUses, onboardingReasons } from "@/lib/onboarding-options";
 import { storedMarketingScenario } from "@/lib/marketing-scenarios";
+import { placeNewContacts } from "@/lib/new-contact-placement";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -130,6 +131,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
         phones: phones.length ? { create: phones.map((item) => ({ phone: item.value, normalized: item.normalized, label: item.label, isPrimary: item.isPrimary })) } : undefined
       }
     });
+    if (!currentContact) await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [contactId] });
     if (currentContact && privateContext) await tx.contact.update({ where: { id: contactId, workspaceId: workspace.id }, data: { privateNotes: [currentContact.privateNotes, privateContext].filter(Boolean).join("\n\n") } });
     await tx.jumpDate.create({
       data: {

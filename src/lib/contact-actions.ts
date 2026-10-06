@@ -2,6 +2,7 @@
 
 import { assertRoomForPeople, peopleLimitRefusal } from "@/lib/plan-limits";
 import { applyJourneyEvent } from "@/lib/journey";
+import { placeNewContacts } from "@/lib/new-contact-placement";
 
 import { workflowContinuation } from "@/lib/workflow-continuation";
 import { customerReturnPath } from "@/lib/customer-return-path";
@@ -405,6 +406,7 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
       }
     });
     await applyJourneyEvent(tx, { workspaceId: workspace.id, contactId: created.id, eventKey: `contact-created:${created.id}`, eventType: "CONTACT_RECEIVED", source: "Contact added", actorUserId: user.id });
+    await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id] });
     const receipt: CreatedContact = { contactId: created.id, dateCreated: Boolean(followUp?.mixId), mixAssigned: Boolean(followUp?.mixId), followUpScheduled: Boolean(followUp && !followUp.mixId) };
     if (idempotencyKey) {
       await tx.idempotencyKey.create({ data: { workspaceId: workspace.id, key: idempotencyKey, response: receipt, expiresAt: new Date(Date.now() + 7 * 86_400_000) } });

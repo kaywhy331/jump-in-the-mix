@@ -6,6 +6,7 @@ import { parseCalendarTime } from "@/lib/calendar-time";
 import { isValidEmail, normalizeEmail, normalizePhone } from "@/lib/contact-input";
 import { canonicalPhoneKey, phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
 import { applyJourneyEvent } from "@/lib/journey";
+import { placeNewContacts } from "@/lib/new-contact-placement";
 import { createOneTimeFollowUp } from "@/lib/one-time-follow-up";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
 import { quickCaptureSchema, type QuickCaptureContact, type QuickCaptureReceipt } from "@/lib/quick-capture-input";
@@ -60,6 +61,7 @@ export async function saveQuickCapture(context: { workspaceId: string; actorUser
       const person = await tx.contact.create({ data: { workspaceId, displayName: name, ...names, ...(email ? { emails: { create: { email, normalized: normalizeEmail(email), isPrimary: true } } } : {}), ...(phone ? { phones: { create: { phone, normalized: canonicalPhoneKey(phone, region), isPrimary: true } } } : {}) } });
       contactId = person.id;
       await applyJourneyEvent(tx, { workspaceId, contactId, actorUserId, eventKey: `contact-created:${contactId}`, eventType: "CONTACT_RECEIVED", source: "Quick Add" });
+      await placeNewContacts(tx, { workspaceId, contactIds: [contactId] });
     }
     let eventId: string | null = null, jumpId: string | null = null, noteId: string | null = null;
     if (data.note) {

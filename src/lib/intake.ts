@@ -4,6 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeEmail, normalizePhone, isValidEmail } from "@/lib/contact-input";
 import { applyJourneyEvent } from "@/lib/journey";
+import { placeNewContacts } from "@/lib/new-contact-placement";
 import { canonicalPhoneKey, phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
 
 const short = (max: number) => z.string().trim().max(max).optional().default("");
@@ -56,6 +57,7 @@ async function acceptIntake(tx: Prisma.TransactionClient, connection: { id: stri
   if (data.externalId) await tx.intakeIdentity.upsert({ where: { connectionId_externalId: { connectionId: connection.id, externalId: data.externalId } }, create: { connectionId: connection.id, externalId: data.externalId, contactId: contact.id }, update: { contactId: contact.id } });
   await tx.contactActivity.create({ data: { workspaceId: connection.workspaceId, contactId: contact.id, kind: "SYSTEM", visibility: "WORKSPACE", summary: `${existingId ? "New inquiry" : "Contact received"} from ${connection.name}.${data.message ? ` ${data.message}` : ""}`, metadata: { intakeConnectionId: connection.id, eventId: data.eventId, sourceKind: connection.kind, ...(connection.kind === "HOSTED_FORM" ? { permissionToRespond: true } : {}), submittedName: data.displayName || [data.firstName,data.lastName].filter(Boolean).join(" "), submittedEmail: data.email, submittedPhone: data.phone, submittedCompany: data.company } } });
   await applyJourneyEvent(tx, { workspaceId: connection.workspaceId, contactId: contact.id, eventKey: `intake:${connection.id}:${data.eventId}`, eventType: data.eventType, source: connection.name });
+  if (!existingId) await placeNewContacts(tx, { workspaceId: connection.workspaceId, contactIds: [contact.id] });
   return contact;
 }
 
