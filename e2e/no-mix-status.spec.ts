@@ -326,3 +326,48 @@ test("a person with No Mix and a pending one-time follow-up is described truthfu
     await cleanUp([person.id]);
   }
 });
+
+// LAY-02: at normal text a row stays on one line beside a real stage and due label, shortening them as the export
+// does; with enlarged text each part takes its own line and shows whole, with no "·" left alone on a line.
+test("a contact row keeps one line at normal text and gives each part its own line when enlarged (LAY-02)", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile-chromium", "Measured once, on the phone project, at the narrowest widths.");
+  const since = new Date();
+  const { suffix, people: list } = await people(["Rowan", "Sage"]);
+  const stage = await prisma.journeyStage.create({ data: { workspaceId, name: `Waiting on a decision ${suffix}`, position: 990 } });
+  const mix = await prisma.mix.create({ data: { workspaceId, name: `Row check ${suffix}`, status: "ACTIVE", triggerMode: "MANUAL_START", steps: { create: { stepVersionId: "demo_step_sms_v1", dayOffset: 0, sortOrder: 1 } } }, include: { steps: true } });
+  try {
+    await prisma.contactJourney.createMany({ data: list.map(person => ({ contactId: person.id, workspaceId, stageId: stage.id, automatic: false })) });
+    // A follow-up due an hour ago beside the stage, the longest kind of row; the other person has No Mix.
+    await prisma.jump.create({ data: { workspaceId, contactId: list[0].id, mixId: mix.id, mixStepId: mix.steps[0].id, stepVersionId: "demo_step_sms_v1", scheduledAt: new Date(Date.now() - 3_600_000), reason: mix.name, uniquenessKey: `e2e-row-check:${list[0].id}`, templateSnapshot: { channel: "SMS", body: "Checking in" }, renderedSnapshot: { body: "Checking in" } } });
+    const rows = () => page.locator(".contact-row-summary").evaluateAll(summaries => summaries.map(summary => {
+      const parts = [...summary.children].filter(part => getComputedStyle(part).display !== "none");
+      return {
+        lines: Math.round(summary.getBoundingClientRect().height / parseFloat(getComputedStyle(summary).lineHeight)),
+        whole: parts.every(part => part.scrollWidth <= part.clientWidth + 1),
+        separators: parts.filter(part => part.classList.contains("contact-summary-separator")).length,
+        overflow: summary.scrollWidth - summary.clientWidth
+      };
+    }));
+    // Polled, so a measurement taken while the list is still settling is retried rather than trusted.
+    for (const width of [320, 390]) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(`/contacts?q=${encodeURIComponent(suffix)}`);
+      await expect(page.locator(".contact-row")).toHaveCount(2);
+      await page.evaluate(() => document.fonts.ready);
+      await expect.poll(rows, { message: `${width}px: one line, with its separator` }).toEqual([0, 1].map(() => expect.objectContaining({ lines: 1, separators: 1, overflow: 0 })));
+    }
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto(`/contacts?q=${encodeURIComponent(suffix)}`);
+    await expect(page.locator(".contact-row")).toHaveCount(2);
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    await page.evaluate(() => document.fonts.ready);
+    await expect.poll(rows, { message: "200% text: each part whole on its own line, no separator left" }).toEqual([0, 1].map(() => expect.objectContaining({ lines: expect.any(Number), whole: true, separators: 0, overflow: 0 })));
+    for (const row of await rows()) expect(row.lines).toBeGreaterThanOrEqual(2);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  } finally {
+    await prisma.jump.deleteMany({ where: { contactId: { in: list.map(person => person.id) } } });
+    await cleanUp(list.map(person => person.id), since);
+    await prisma.mix.deleteMany({ where: { id: mix.id } });
+    await prisma.journeyStage.deleteMany({ where: { id: stage.id } });
+  }
+});
