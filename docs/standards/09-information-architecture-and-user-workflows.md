@@ -2,9 +2,9 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 4.1.0
+version: 4.1.1
 owner: Kevin
-last_reviewed: 2026-10-05
+last_reviewed: 2026-10-06
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
 supersedes: [docs/UX_WORKFLOW_OPTIMIZATION.md]
 sources:
@@ -302,6 +302,7 @@ Shipped Journey still numbers per Mega-Mix view (§6). [OWNER 2026-09-28 D21] [O
 
 Questions for Kevin:
 - Who is the named backup moderator, once one is needed (§2.70)?
+- Six implementation choices in the end-of-Mix question and the New contacts setting (§2.77–§2.78) are built as written and wait for Kevin's answer. They cover: asking even when the person is still in another Mix; only Mixes that start "When I start it for someone" as the default; Ask each time leaving phone contacts and lead connections out; visits, onboarding and invitations following only Everyone; existing Everyone Mixes taking in newcomers; and an import's Mix being skipped, not refused, over the plan's limit. See `docs/MIX_NEXT_STEP_2026-10-06.md`, Questions for Kevin.
 - Should the other business types get their own journey starts, as Real estate has (§2.20)? They still start on "Follow up about an estimate", which also reaches Insurance & finance owners, and with no business name that text says "my business" (the rest of ONB-10, `docs/REALTOR_JOURNEY_IMPLEMENTATION_2026-09-29.md`).
 
 Decided on 2026-10-05 (D33–D37) but not yet built: §2.51 and §2.76–§2.80. Their proposed defaults (P1–P10) wait for Kevin's confirmation, and the questions, current behavior and build slices are in `docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md`.
@@ -336,3 +337,4 @@ Known deviations:
 - 4.0.0 — 2026-10-05 — Base e8692f2. Kevin's answers on Mix placement and stages (D33–D36, docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md). §2.51 now lets a Mix set a stage and a Mega-Mix create stage labels (D35, part of D16 replaced). New §2.76–§2.77: every contact shows No Mix or No Mix needed, with a filter, bulk actions, a Today line and an end-of-Mix question (D33). New §2.78: a setting decides where new contacts go, default C (D34). New §2.79: how a Mix sets a stage and a Mega-Mix adds labels (D35). New §2.80: stage presets and milestones in the owner's words (D36). §6 points to the proposed defaults (P1–P10) and the unbuilt work.
 - 4.0.1 — 2026-10-05 — Base e8692f2. §2.76–§2.77 drop [PROPOSED]: Kevin confirmed their defaults (D33 confirmation). §2.78–§2.80 keep [PROPOSED] where their details are unconfirmed.
 - 4.1.0 — 2026-10-05 — Base 8bee3b1. §2.24: Today's order includes the No Mix line after Quiet-day check-ins (§2.77). The No Mix status, filter, bulk actions, Today line and Journey People status are built (docs/NO_MIX_STATUS_2026-10-05.md); the end-of-Mix question in §2.77 is not, and comes with the next build slice.
+- 4.1.1 — 2026-10-06 — Base a05b189. §6: the end-of-Mix question (§2.77), the New contacts setting and "Everyone" including people added later (§2.78) are built, not yet released, and six implementation choices are listed as questions for Kevin (docs/MIX_NEXT_STEP_2026-10-06.md). §2.78 keeps [PROPOSED] for the parts of P5 not yet confirmed.
