@@ -27,7 +27,11 @@ export const MIX_FILTER_LIMIT = 30_000;
 function preparingCte(workspaceId: string) {
   return Prisma.sql`WITH preparing AS MATERIALIZED (
     SELECT q.payload ->> 'contactId' AS "contactId", q.payload -> 'contactIds' AS "contactIds", q.payload ->> 'mixId' AS "mixId" FROM "Job" q
-    WHERE q."workspaceId" = ${workspaceId} AND q.task = 'generate-jumps' AND q."completedAt" IS NULL AND q."failedAt" IS NULL)`;
+    WHERE q."workspaceId" = ${workspaceId} AND q.task = 'generate-jumps' AND q."completedAt" IS NULL AND q."failedAt" IS NULL),
+  connections AS MATERIALIZED (
+    SELECT lr ->> 'id' AS id FROM "MixWorkflow" mw
+      CROSS JOIN jsonb_array_elements(CASE WHEN jsonb_typeof(mw.configuration -> 'rules') = 'array' THEN mw.configuration -> 'rules' ELSE '[]'::jsonb END) lr
+    WHERE mw."workspaceId" = ${workspaceId})`;
 }
 
 /** Cancellation reasons a pause leaves on rows that resuming brings back (src/lib/jump-engine.ts, src/lib/mix-workflow.ts). */
@@ -83,6 +87,10 @@ function inMixSql(workspaceId: string, now: Date, mixId?: string) {
   // A Mix the person can still get work from: running or paused (D45), and not stopped for them.
   const mixOpen = (mix: Prisma.Sql) => Prisma.sql`(EXISTS (SELECT 1 FROM "Mix" om WHERE om.id = ${mix} AND om."workspaceId" = ${workspaceId}
     AND om.status IN ('ACTIVE', 'PAUSED') AND om.source <> 'ONE_TIME') AND ${notStopped(mix)})`;
+  // A wait on a connection still in the account's Journey, whether on or paused, which the owner can resume. One on a
+  // connection that was removed can never move, so it keeps no one in a Mix (JRN-02), and neither does a path held at
+  // its repeat limit.
+  const connected = (rule: Prisma.Sql) => Prisma.sql`EXISTS (SELECT 1 FROM connections cn WHERE cn.id = ${rule})`;
   // Journey work (JRN-01). In an account with any Journey connection, every Mix start also gets a Journey record,
   // and that record stays ACTIVE after the person is stopped, removed or undone, or the Mix is archived, and
   // for a moment after its last Beat is done (its state is brought up to date by a job about ten seconds
@@ -101,16 +109,19 @@ function inMixSql(workspaceId: string, now: Date, mixId?: string) {
           AND (j."workflowManaged" OR ${enrolled(Prisma.sql`j."mixId"`)}))))
       ${mixId ? Prisma.empty : Prisma.sql`OR EXISTS (SELECT 1 FROM jsonb_array_elements(${stateArray("evaluations")}) e
         JOIN jsonb_array_elements(${stateArray("runs")}) r ON r ->> 'id' = e ->> 'runId'
-        WHERE e ->> 'status' = 'WAITING' AND r ->> 'status' <> 'CANCELED' AND ${mixOpen(Prisma.sql`r ->> 'mixId'`)})`}
+        WHERE e ->> 'status' = 'WAITING' AND r ->> 'status' <> 'CANCELED' AND ${connected(Prisma.sql`e ->> 'ruleId'`)} AND ${mixOpen(Prisma.sql`r ->> 'mixId'`)})`}
       OR EXISTS (SELECT 1 FROM jsonb_array_elements(${stateArray("transitions")}) t
         JOIN jsonb_array_elements(${stateArray("evaluations")}) e ON e ->> 'id' = t ->> 'evaluationId'
         JOIN jsonb_array_elements(${stateArray("runs")}) r ON r ->> 'id' = e ->> 'runId'
         WHERE t ->> 'status' IN ('WAITING', 'HELD') AND e ->> 'status' <> 'CANCELED' AND jsonb_typeof(t -> 'target') = 'object' ${only(Prisma.sql`t -> 'target' ->> 'mixId'`)}
+          AND ${connected(Prisma.sql`e ->> 'ruleId'`)} AND NOT (t ->> 'status' = 'HELD' AND starts_with(COALESCE(t ->> 'reason', ''), 'Repeat limit'))
           AND ${mixOpen(Prisma.sql`t -> 'target' ->> 'mixId'`)} AND ${mixOpen(Prisma.sql`r ->> 'mixId'`)})
       OR EXISTS (SELECT 1 FROM jsonb_array_elements(${stateArray("commitments")}) k
         JOIN jsonb_array_elements(${stateArray("runs")}) r ON r ->> 'id' = k ->> 'runId'
         WHERE k ->> 'status' = 'OPEN' ${only(Prisma.sql`r ->> 'mixId'`)} AND ${mixOpen(Prisma.sql`r ->> 'mixId'`)})
-      ${mixId ? Prisma.empty : Prisma.sql`OR jsonb_array_length(${stateArray("pendingChoices")}) > 0
+      ${mixId ? Prisma.empty : Prisma.sql`OR EXISTS (SELECT 1 FROM jsonb_array_elements(${stateArray("pendingChoices")}) pc
+        WHERE NOT EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(pc -> 'decisions') = 'array' THEN pc -> 'decisions' ELSE '[]'::jsonb END) d
+          WHERE NOT ${connected(Prisma.sql`d ->> 'ruleId'`)}))
       OR jsonb_typeof(w.state -> 'pendingBusinessUpdate') = 'object'`}))`;
   return Prisma.sql`(
     EXISTS (SELECT 1 FROM "Jump" j JOIN "Mix" m ON m.id = j."mixId"

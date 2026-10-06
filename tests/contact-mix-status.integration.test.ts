@@ -187,20 +187,45 @@ describe.sequential("whether a person is in a Mix (JITM-09 §2.76)", () => {
     const stopped = await person("Journey stopped");
     await linked(stopped, (await record(stopped)).id, "CANCELED", { completionMethod: "mix_stopped_for_contact", workflowManaged: true });
     expect(await status(stopped)).toBe("no-mix");
+    // The account's Journey connections: one on, one paused by the owner (JRN-02).
+    await prisma.mixWorkflow.upsert({ where: { workspaceId }, create: { workspaceId, configuration: { rules: [{ id: "rule-on", enabled: true }, { id: "rule-paused", enabled: false }] } }, update: { configuration: { rules: [{ id: "rule-on", enabled: true }, { id: "rule-paused", enabled: false }] } } });
     // A decision waiting for the owner counts while its Mix is open to the person, and not once it is stopped for them.
     const deciding = await person("Decision waiting");
-    await record(deciding, { state: { runs: [{ id: "run1", mixId: realMix.id, status: "FINISHED" }], evaluations: [{ id: "decision1", runId: "run1", status: "WAITING" }] } });
+    await record(deciding, { state: { runs: [{ id: "run1", mixId: realMix.id, status: "FINISHED" }], evaluations: [{ id: "decision1", ruleId: "rule-on", runId: "run1", status: "WAITING" }] } });
     expect(await status(deciding)).toBe("in-mix");
     await prisma.mixStop.create({ data: { workspaceId, mixId: realMix.id, contactId: deciding, reason: "Asked to stop" } });
     expect(await status(deciding)).toBe("no-mix");
     // A path waiting to start another Mix counts while that Mix is open, and not once it is archived.
     const archivedMix = await mix("Archived destination", { status: "ARCHIVED" });
     const routed = await person("Path waiting");
-    const path = (target: string) => ({ runs: [{ id: "run1", mixId: realMix.id, status: "FINISHED" }], evaluations: [{ id: "decision1", runId: "run1", status: "ROUTED" }], transitions: [{ id: "path1", evaluationId: "decision1", status: "WAITING", target: { mixId: target, stepId: null } }] });
+    const path = (target: string) => ({ runs: [{ id: "run1", mixId: realMix.id, status: "FINISHED" }], evaluations: [{ id: "decision1", ruleId: "rule-on", runId: "run1", status: "ROUTED" }], transitions: [{ id: "path1", evaluationId: "decision1", status: "WAITING", target: { mixId: target, stepId: null } }] });
     const routedRecord = await record(routed, { state: path(dateMix.id) });
     expect(await status(routed)).toBe("in-mix");
     await prisma.mixWorkflowInstance.update({ where: { id: routedRecord.id }, data: { state: path(archivedMix.id) } });
     expect(await status(routed)).toBe("no-mix");
+  });
+
+  it("counts a Journey wait only while it can still move: never on a removed connection or at a repeat limit (JRN-02)", async () => {
+    await prisma.mixWorkflow.upsert({ where: { workspaceId }, create: { workspaceId, configuration: { rules: [{ id: "rule-on", enabled: true }, { id: "rule-paused", enabled: false }] } }, update: { configuration: { rules: [{ id: "rule-on", enabled: true }, { id: "rule-paused", enabled: false }] } } });
+    const record = async (name: string, state: object) => {
+      const contactId = await person(name);
+      await prisma.mixWorkflowInstance.create({ data: { workspaceId, contactId, admissionKey: `waits:${contactId}`, label: "Estimate", definition: {}, state } });
+      return contactId;
+    };
+    const finished = [{ id: "run1", mixId: realMix.id, status: "FINISHED" }];
+    const decision = (ruleId: string) => ({ runs: finished, evaluations: [{ id: "decision1", ruleId, runId: "run1", status: "WAITING" }] });
+    const path = (ruleId: string, status: string, reason: string | null) => ({ runs: finished, evaluations: [{ id: "decision1", ruleId, runId: "run1", status: "ROUTED" }], transitions: [{ id: "path1", evaluationId: "decision1", status, reason, target: { mixId: dateMix.id, stepId: null } }] });
+    const choice = (ruleIds: string[]) => ({ runs: finished, pendingChoices: [{ requestId: "choice1", visitId: "visit1", sourceCompletedAt: new Date().toISOString(), decisions: ruleIds.map(ruleId => ({ ruleId, outcome: "Booked" })) }] });
+    // A decision on a connection that is on, or that the owner paused and can resume, can still move; one on a
+    // removed connection never can.
+    expect(await Promise.all([decision("rule-on"), decision("rule-paused"), decision("rule-removed")].map((state, index) => record(`Decision ${index}`, state).then(status)))).toEqual(["in-mix", "in-mix", "no-mix"]);
+    // The same for a path; and a path held at its repeat limit never moves.
+    expect(await Promise.all([
+      path("rule-on", "WAITING", null), path("rule-removed", "HELD", "This connection is paused or has been removed. Enable it in Journey or stop this instance."),
+      path("rule-on", "HELD", "Repeat limit reached (2). Finish this instance or start new work deliberately."), path("rule-on", "HELD", "The destination Mix is paused, stopped or unavailable.")
+    ].map((state, index) => record(`Path ${index}`, state).then(status)))).toEqual(["in-mix", "no-mix", "no-mix", "in-mix"]);
+    // A choice being applied counts while every connection it uses is still there.
+    expect(await Promise.all([choice(["rule-on"]), choice(["rule-on", "rule-removed"])].map((state, index) => record(`Choice ${index}`, state).then(status)))).toEqual(["in-mix", "no-mix"]);
   });
 
   it("counts the Beats a paused Mix holds for its people, and only theirs (DEF-02, D45)", async () => {
