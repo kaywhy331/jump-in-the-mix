@@ -249,12 +249,13 @@ export function ContactsBulkWorkspace({
         </Sheet>
         <Sheet trigger={<button className="button bulk-action-button" type="button" aria-label="Mix"><AppIcon name="mixes" /><span className="bulk-action-label">Mix</span></button>} title={`Mix for ${selectedIds.length} ${selectedIds.length === 1 ? "person" : "people"}`} description="Start a Mix, or confirm that these people don’t need one.">
           {mixes.length ? <>
-            {selectedDoNotContact.length > 0 && <div className="notice error">Remove {selectedDoNotContact.map((contact) => contact.displayName).join(", ")} because “Do not contact” is on.</div>}
+            {selectedDoNotContact.length > 0 && <div className="notice error" id="bulk-mix-blocked">Remove {selectedDoNotContact.map((contact) => contact.displayName).join(", ")} because “Do not contact” is on.</div>}
             <form action={bulkAssignMixAction} className="form-stack">{contactIdsInputs(selectedIds)}<input type="hidden" name="returnTo" value={listHref} />
               <label className="field"><span>Choose a Mix</span><select name="mixId" required>{mixes.map(mix => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></label>
               <label className="field"><span>Start on</span><input type="date" name="startDate" required min={todayKey} defaultValue={todayKey} /></label>
               <p className="muted-copy">Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.</p>
-              <button className="button primary" type="submit" disabled={selectedDoNotContact.length > 0}>Add to the Mix</button>
+              {/* The reason a disabled button gives is linked to it, so assistive technology reads it too (JITM-08 §2.6). */}
+              <button className="button primary" type="submit" disabled={selectedDoNotContact.length > 0} aria-describedby={selectedDoNotContact.length > 0 ? "bulk-mix-blocked" : undefined}>Add to the Mix</button>
             </form>
           </> : <p>Create a Mix first. <Link href="/mixes">Go to Mixes</Link></p>}
           <form action={setNoMixNeededAction} className="form-stack bulk-no-mix-form">{contactIdsInputs(selectedIds)}<input type="hidden" name="returnTo" value={listHref} />

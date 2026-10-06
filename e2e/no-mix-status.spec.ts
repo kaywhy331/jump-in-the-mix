@@ -170,6 +170,24 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
   }
 });
 
+test("the disabled Add to the Mix gives its reason to assistive technology (A11Y-01)", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "The bulk bar is exercised once, in the docked desktop layout.");
+  const { suffix, people: list } = await people(["Able", "Blocked"]);
+  try {
+    await prisma.contactRelationshipState.create({ data: { workspaceId, contactId: list[1].id, doNotContact: true } });
+    await page.goto(`/contacts?q=${encodeURIComponent(suffix)}`);
+    await page.getByRole("button", { name: "More contact tools" }).click();
+    await page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }).click();
+    for (const person of list) await page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true }).check();
+    await page.getByRole("complementary", { name: "Actions for selected contacts" }).getByRole("button", { name: "Mix", exact: true }).click();
+    const add = page.getByRole("dialog", { name: "Mix for 2 people" }).getByRole("button", { name: "Add to the Mix", exact: true });
+    await expect(add).toBeDisabled();
+    await expect(add).toHaveAccessibleDescription(`Remove ${list[1].displayName} because “Do not contact” is on.`);
+  } finally {
+    await cleanUp(list.map(person => person.id));
+  }
+});
+
 test("Today points to the people with No Mix", async ({ page }) => {
   const { people: [person] } = await people(["Today"]);
   try {
