@@ -2,7 +2,7 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 6.3.1
+version: 6.4.0
 owner: Kevin
 last_reviewed: 2026-10-07
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
@@ -207,7 +207,9 @@ The individual route saves preferences and opens the library without a contact. 
 
 **2.51** Stages (Lead, Prospect, Client, Retention, or the owner's own) are optional contact labels, managed in Contact stages and used as secondary filters. They MUST NOT create, order or organize the graph. The graph may set and create them: a Mix can name the stage its people are in, and adding a Mega-Mix can add its stage labels, which the owner renames, reorders or retires like any other (§2.79). The export's stage-circle Journey is history. [OWNER 2026-09-21 docs/design/DESIGN_GUIDELINES.md:5] [OWNER 2026-09-28 D4] [OWNER 2026-09-28 D16] [OWNER 2026-10-05 D35] [SOURCE docs/JOURNEY_CLARITY_AND_ANALYTICS_2026-09-21.md:7] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:215]
 
-**2.79** A Mix can name a stage. The stage is set when a person starts that Mix, and setting it changes only the label: it never starts or stops another Mix, and the stage's own Mix does not run. When two Mixes set different stages, the latest start wins. A person whose stage changes are paused keeps their stage. Adding a Mega-Mix offers its stage labels, on by default, and links its Mixes to them. A label with the same name is reused, and nothing the owner already has is renamed or removed. Adding the labels turns Contact stages on, and adding a Mega-Mix still starts no one (§2.43). [OWNER 2026-10-05 D35] [PROPOSED]
+**2.79** A Mix can name a stage. The stage is set when a person starts that Mix, and setting it changes only the label: it never starts or stops another Mix, and the stage's own Mix does not run. When two Mixes set different stages, the latest start wins. A person whose stage changes are paused keeps their stage. Adding a Mega-Mix offers its stage labels, on by default, and links its Mixes to them. A label with the same name is reused, and nothing the owner already has is renamed or removed. Adding the labels turns Contact stages on, and adding a Mega-Mix still starts no one (§2.43). [OWNER 2026-10-05 D35] [OWNER 2026-10-05 D33 confirmation: set at the start] [PROPOSED]
+
+  Every way a Mix starts for someone sets its stage: a start the owner makes (from the profile, by bulk Add, from Today's question or a Journey Start), the New contacts setting, an Everyone Mix, a saved audience, a tag given later, a saved date, a visit, and a Journey connection. The stage's own Mix starting on entry, resuming a paused Mix and a second start of a running Mix are not starts. Nothing is set while the business has paused automatic transitions, for a retired stage, or for people the Mix doesn't run for (archived, Do not contact, stopped in it). The previous stage's Mix keeps running, no longer managed by the stage. Changing a Mix's stage moves no one already in it. Bulk Add's Undo puts the earlier stage back while nothing has changed it since. Retiring a stage stops the Mixes that set it. Mega-Mix labels match without regard to case, a retired one comes back, and when they don't all fit under the stage limit none are added. Onboarding and Mega-Mixes from a file, a copy or the Marketplace add no labels. These are agent defaults 1–12 in `docs/MIX_STAGES_2026-10-07.md`. [SOURCE docs/MIX_STAGES_2026-10-07.md]
 
 **2.80** Turning on Contact stages MUST offer presets. The presets are Sales (Lead, Prospect, Client, Retention), Business relationship (Prospect, Awareness, Interest, Qualification, Conversion, Maintain) and Blank. Each preset brings rules written for its own stages, so renaming never leaves a rule pointing at the wrong meaning. The owner can also add milestones in their own words, such as "Qualified" or "Signed". Each one shows on the contact as a button, can drive a stage rule, and can be sent by a lead connection. The built-in events keep neutral wording: an inquiry arrives, a conversation starts, a meeting is scheduled, happens or is missed, the stage's Mix finishes, and time passes. "Sale confirmed" and "Work completed" are renamable milestones of the Sales preset. Stage and milestone wording MUST NOT assume a sale (JITM-02 §2.20). [OWNER 2026-10-05 D36] [PROPOSED]
 
@@ -307,7 +309,8 @@ Questions for Kevin:
 Decided on 2026-10-05 and 2026-10-06 (D33–D37, D44–D53):
 - §2.76 and §2.77 are shipped in `prod-2026-10-06-4a77761` (`docs/NO_MIX_STATUS_2026-10-05.md`), and the end-of-Mix question in §2.77 and §2.78 in `prod-2026-10-07-501841e` (`docs/MIX_NEXT_STEP_2026-10-06.md`, `docs/MIX_NEXT_STEP_RELEASE_2026-10-07.md`).
 - Kevin confirmed the seven readings from PR #128's reviews as D54–D60 (2026-10-07).
-- Not yet built: §2.51, §2.79 and §2.80.
+- §2.51 and §2.79 are built on `feat/mix-stages-20261007` and not yet released (`docs/MIX_STAGES_2026-10-07.md`). Its twelve agent defaults, and the ready-made Mega-Mix label lists that P8 asks Kevin to review before release, are listed there.
+- Not yet built: §2.80.
 - Kevin confirmed P1–P4, part of P5, P6 and P7's timing (D33), and the rest of P5 with D48–D53. P8–P11 still wait for him; the questions, current behavior and build slices are in `docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md`.
 - Open for Kevin: whether a person whose Beats wait for a visit, or for the visit's outcome, should count as being in a Mix (§2.76). Today they read No Mix once their Beats are prepared (`docs/NO_MIX_STATUS_2026-10-05.md`).
 - Open for Kevin: the eight agent defaults behind §2.76–§2.77, each with its question, in `docs/NO_MIX_STATUS_2026-10-05.md` ("Agent defaults for Kevin"), and the deferred review findings there: PAUSE-01 (b), COPY-02 (b) and UNDO-05 (c)–(e).
@@ -352,3 +355,4 @@ Known deviations:
 - 6.2.2 — 2026-10-06 — Base b431f3b; the record's line citations are as of fb7db31. The third WF-05 review of PR #128 approved with notes. §2.78 states agent default 7: someone added from a Journey Start is left to the Start for the Mix it starts (EVR-03).
 - 6.3.0 — 2026-10-07 — Base 13aaa93. Kevin confirmed the seven readings from PR #128's reviews (D54–D60, "Accept all 7"). §2.77 and §2.78 cite them as [OWNER] instead of agent defaults, and §6 no longer lists them as open.
 - 6.3.1 — 2026-10-07 — Base 501841e. §6: the end-of-Mix question in §2.77 and §2.78 are shipped (`prod-2026-10-07-501841e`).
+- 6.4.0 — 2026-10-07 — Base 501841e (with #131 merged in). §2.79: how every route that starts a Mix sets its stage, what is not a start, who is left as they are, Undo, retiring a stage and the Mega-Mix labels, as agent defaults 1–12 (docs/MIX_STAGES_2026-10-07.md). §6: §2.51 and §2.79 are built, not yet released; §2.80 is not built.

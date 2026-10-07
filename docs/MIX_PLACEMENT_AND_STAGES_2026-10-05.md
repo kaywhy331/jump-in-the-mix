@@ -1,6 +1,6 @@
 # Mix placement and contact stages — 2026-10-05
 
-**Status:** decisions recorded (D33–D37). Product work is not started. Each build slice below is a separate WF-04 task.
+**Status:** decisions recorded (D33–D37). Each build slice below is a separate WF-04 task. Slice 1 shipped in `prod-2026-10-06-4a77761` ([record](NO_MIX_STATUS_2026-10-05.md)) and slice 2 in `prod-2026-10-07-501841e` ([record](MIX_NEXT_STEP_2026-10-06.md)). Slice 3 is built, not yet released ([record](MIX_STAGES_2026-10-07.md)). Slice 4 is not started.
 
 **Base:** `origin/main` e8692f2, whose `src` and `prisma` match production fd14b9a. Line numbers refer to that commit.
 
