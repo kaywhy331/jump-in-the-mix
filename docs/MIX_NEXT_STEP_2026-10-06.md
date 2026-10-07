@@ -1,6 +1,6 @@
 # What happens next for a person — 2026-10-06
 
-**Status:** built on branch `feat/mix-next-step-20261006` (PR #128), which targets `main`. It contains #125 as released (`prod-2026-10-06-4a77761`, merged in as 3c399b6), with all three rounds of its review fixes. Its first two WF-05 reviews requested changes; the fixes are listed under "Reviews" below and wait for the next one. Not merged and not released.
+**Status:** built on branch `feat/mix-next-step-20261006` (PR #128), which targets `main`. It contains #125 as released (`prod-2026-10-06-4a77761`, merged in as 3c399b6), with all three rounds of its review fixes. Its first two WF-05 reviews requested changes, and the third approved it with four LOW notes, fixed in f68647e; all are listed under "Reviews" below. Not merged and not released.
 
 **Decisions:**
 - **D33** (confirmed 2026-10-05): when a Mix ends without a connection, the last Beat's outcome asks what's next.
@@ -30,7 +30,7 @@ All four are in the [owner decision log](standards-audit-2026-09-28/OWNER_DECISI
 - The person is marked Do not contact, or is archived.
 - A Beat still waits for a visit, for a visit's outcome or for a connection. On a repeat visit, the first visit's Beats don't count for the second (END-01).
 
-**Where it appears.** The question waits in the stack of confirmations at the bottom of Today, like the export's sent confirmation (`TodaySent`), below the timed confirmations such as "Follow-up completed", so their 10-second Undo stays in view (LAY-02). It lives outside the list, so Today's refresh after the outcome doesn't remove it. It names the Mix that finished and says "No Mix will remind you about them.", plus "A one-time follow-up is still coming." when one is pending (D44, §2.25). With enlarged text its actions take their own row, and while it shows, the stack scrolls inside the screen instead of growing past its top (LAY-01).
+**Where it appears.** The question waits in the stack of confirmations at the bottom of Today, like the export's sent confirmation (`TodaySent`), after the timed confirmations such as "Follow-up completed", on screen and in reading order, so their 10-second Undo stays first and in view (LAY-02, A11Y-02). It lives outside the list, so Today's refresh after the outcome doesn't remove it. It names the Mix that finished and says "No Mix will remind you about them.", plus "A one-time follow-up is still coming." when one is pending (D44, §2.25). With enlarged text its actions take their own row, and while it shows, the stack scrolls inside the screen instead of growing past its top (LAY-01).
 
 **What the owner can do:**
 - **What's next?** opens a sheet with the same three answers as the profile's What's next sheet:
@@ -55,7 +55,7 @@ All four are in the [owner decision log](standards-audit-2026-09-28/OWNER_DECISI
   - onboarding;
   - invitations.
 
-  It gives each newcomer an audience assignment, as the Mix's own save does, except in a Mix they are already in by their own start or a shown tag, so nobody runs the same Mix twice (PLC-02). Someone added from a Journey Start isn't given one in the Mix the Start is about to start for them (EVR-02). It reads the Everyone Mixes with a share lock, so a save that unticks Everyone at the same moment can't leave a stray place behind (REL-03).
+  It gives each newcomer an audience assignment, as the Mix's own save does, except in a Mix they are already in by their own start or a shown tag, so nobody runs the same Mix twice (PLC-02). Someone added from a Journey Start isn't given one in the Mix the Start is about to start for them (EVR-02, agent default 7). It reads the Everyone Mixes with a share lock, so a save that unticks Everyone at the same moment can't leave a stray place behind (REL-03).
   - A Mix that starts when the owner starts it begins from the moment they were added.
   - A broadcast whose time has passed is left out, so nobody receives it late as an overdue follow-up.
   - Do not contact and the plan's limit hold these follow-ups as they hold any audience's (§2.75).
@@ -113,7 +113,7 @@ The decisions were silent on six implementation choices. Kevin asked for the mos
 
 ## Agent defaults for Kevin
 
-The first review needed these readings to fix its findings. Each is reversible. Until Kevin confirms one, the standards cite it as `[SOURCE]` (JITM-15 §2.12).
+The reviews needed these readings to fix their findings. Each is reversible. Until Kevin confirms one, the standards cite it as `[SOURCE]` (JITM-15 §2.12).
 
 1. **A stage's Mix comes before the setting's, but not before the owner's own pick (PLC-01, the review's question 1a).** When the stage new people join starts a Mix, the setting's Mix, or one a lead connection set up in advance, is not added on top of it, and no form preselects it. A Mix the owner picks while adding someone, in Add a contact, Quick Add or an import's review, still starts beside the stage's Mix. Should the owner's own pick start too, or should the stage's Mix always be the only one?
 2. **Imported and phone contacts keep getting their stage from the worker (the review's question 1b).** They are placed knowing which stage they will join, rather than getting that stage inside the import. The worker's stage pass takes about 25 new people a minute, so the end state arrives over about 40 minutes for a 1,000-row import, and those people count on Today's No Mix line until then (PLC-03). Should imports and phone contacts get their stage at once, as Quick Add and lead connections do?
@@ -121,6 +121,7 @@ The first review needed these readings to fix its findings. Each is reversible. 
 4. **Which Mixes D49 covers (D49-01, question 2).** Mixes set to start after another Mix are left out of the setting, Quick Add, imports, lead connections and Add a contact. Add a contact still offers the Mixes that follow the follow-up date, such as the starter Mix, although D49's entry in the decision log names Add a contact too, so this default departs from a logged decision and needs Kevin's answer logged before it is relied on (D49-02). Should Add a contact keep them?
 5. **An Everyone Mix turned back on takes in the people added while it was off, from that moment (EVR-01, question 4).** While it is paused, newcomers are not placed in it, so they show No Mix until it is back on. Should newcomers join a paused Everyone Mix at once instead, held like its other people (D45)?
 6. **The question's sheet (END-02, question 6).** Mixes the owner starts come first, and only one of those is preselected. Date-based and fixed-date Mixes can be chosen, and the start day says what it does for them. Should they be left out of this sheet instead?
+7. **A Journey Start's own Mix is left to the Start (EVR-02, EVR-03).** Someone added from a Journey Start is not given an Everyone place in the Mix the Start then starts for them, so they don't run it twice. If the owner abandons the Start, they show No Mix until a Mix is started. Should they join that Everyone Mix anyway, with the Start refusing to start it a second time?
 
 ## Reviews
 
@@ -166,6 +167,17 @@ A second independent review of dd5710c found 13 of the 17 findings resolved and 
 | D49-02 | LOW | Agent default 4 departs from D49's logged text. | For Kevin, with default 4. |
 | COPY-03 | LOW | The import's hint said "It" with the stage's Mix just named. | Fixed (aa987a3). |
 
+### Third review (2026-10-06)
+
+The third review of b431f3b approved: no finding above LOW (`REVIEW-3.md`, private). It confirmed END-03 and the other round-2 fixes, and withdrew REL-03 as unable to happen: an import's Contact insert already waits on the Workspace row with the editor's save. Its four LOW notes are fixed in f68647e and this record.
+
+| ID | Severity | Finding | Now |
+|---|---|---|---|
+| A11Y-02 | LOW | CSS order showed the question below the Undo, but Tab reached it first. | Fixed: the question goes into the stack after the confirmations already showing. |
+| LAY-03 | LOW | At 320px with 200% text the timed confirmation's Undo ran past the card, and the scroll area cut it. | Fixed: the card wraps; a browser test checks the order and that Undo fits. |
+| EVR-03 | LOW | The Journey Start exclusion wasn't a listed default, and Add a contact's own Mix start didn't apply it. | Fixed, and listed as agent default 7. |
+| DOC-03 | LOW | The PR body cited `validate:static` and `standards:check` at a head they hadn't run on. | Both re-run on the final head and cited. |
+
 ## Release notes
 
 - **Order:** backup, both migrations, worker, web (JITM-14 §2.13–§2.14). Both migrations are additive, and 4a77761 ignores the new columns.
@@ -177,16 +189,17 @@ A second independent review of dd5710c found 13 of the 17 findings resolved and 
 
 ## Verification
 
-All of it ran on TrixBot at aa987a3 unless a row says otherwise, against fresh local databases (`jitm_design_mns1006_*`), with the environment of CI's validate job. Logs, JSON reports and the ledger are in `.artifacts/mix-next-step-release-20261006/verification/` (private); step numbers refer to its ledger.
+All of it ran on TrixBot at aa987a3 unless a row says otherwise (f68647e changes only the question's placement in the stack, the timed card's wrapping and one argument in Add a contact; the rows naming it re-ran), against fresh local databases (`jitm_design_mns1006_*`), with the environment of CI's validate job. Logs, JSON reports and the ledger are in `.artifacts/mix-next-step-release-20261006/verification/` (private); step numbers refer to its ledger.
 
 | Check | Label | Result |
 |---|---|---|
-| Typecheck, `validate:static`, `standards:check` | VERIFIED | Passed (steps 50, 70). `standards:check` has one existing warning: JITM-09 is over 300 lines. |
+| Typecheck, `validate:static`, `standards:check` | VERIFIED | Passed on the final head (steps A1, A12); `standards:check` has one existing warning: JITM-09 is over 300 lines. |
 | Full Vitest, in nine chunks on a fresh database | VERIFIED; four suites BLOCKED | 311 files, 2,393 tests: 2,328 passed and 41 skipped (steps 97, 99). The 24 failures are all `spawn pg_dump ENOENT` in `backup-database`, `recovery-bundle`, `recovery-cutoff` and `recovery-state`: TrixBot has no `pg_dump` (JITM-12 §2.17), and this change touches no backup code. The new and changed suites: `new-contact-placement` 20/20 and `mix-end-question` 10/10. |
 | `worker-runtime` and `npm run worker:qualify` | VERIFIED | Both 10/10 (steps 98, 99). |
 | Migrations | VERIFIED | At 5efafb3: `db:rehearse-migration` passed and `db:verify-release` reported `{"status":"ready","required":77,"missing":0,"mismatched":0}` (step 04). The fixes change no migration. |
-| Production build | VERIFIED | Passed (step 80). |
-| Browser specs against the standalone build, desktop and phone, in batches of six, no retries | VERIFIED | 36 specs on desktop: 222 passed, 11 skipped. 29 on the phone project: 158 passed, 49 skipped (steps 82–94). One failure on each, `journey-connections.spec.ts:312` ("Selected path" didn't appear), only inside its batch: it passed alone twice on each project, and the whole file passed 17/17 on desktop (steps 87, 90). #125's record shows the same order-dependent failure, compared with a baseline build then, and this change touches no Journey editing. `mix-next-step` passed 7/7 on desktop and 5 on the phone project (its audit runs on desktop). `voice-capture` and `system-mix-administration` ran with their switches on. |
+| Production build | VERIFIED | Passed (step 80), and again with f68647e (step A3). |
+| Browser specs against the standalone build, desktop and phone, in batches of six, no retries | VERIFIED | 36 specs on desktop: 222 passed, 11 skipped. 29 on the phone project: 158 passed, 49 skipped (steps 82–94). One failure on each, `journey-connections.spec.ts:312` ("Selected path" didn't appear), only inside its batch: it passed alone twice on each project, and the whole file passed 17/17 on desktop (steps 87, 90). #125's record shows the same order-dependent failure, compared with a baseline build then, and this change touches no Journey editing. `mix-next-step` passed 7/7 on desktop and 5 on the phone project (its audit runs on desktop). With f68647e, on a fresh database: `mix-next-step`, `no-mix-status` and `core-flows` passed, 19 on desktop including the new Undo test and 13 on the phone project (step A11). |
+| Baseline comparison (JITM-12 §2.14) | VERIFIED, with one test not settled | Production, 4a77761, built and served beside the candidate with its own fresh database (steps B01–B11). Batch C passed in all 4 baseline runs (3 desktop, 1 phone). On the candidate, `journey-connections.spec.ts:312` failed inside batch C in 2 of 5 desktop runs and 1 of 3 phone runs, including once on a fresh database. It always passed alone and as its own file. The failure is a race in unchanged code: after a path is deleted, the Journey map focuses its canvas on the next animation frame (`src/components/WorkflowJourney.tsx:157`), and the test can focus the next path before that frame and lose it. The component has not changed since before 4a77761, and the Journey page renders nothing this change touches. Also once, on a database reused for a third batch, `quiet-days.spec.ts:117` found 20 results where it expects 1, because people accumulate across runs. Nothing in this change touches quiet days. | `voice-capture` and `system-mix-administration` ran with their switches on. |
 | Accessibility | VERIFIED | Axe (WCAG 2.0, 2.1 and 2.2 AA) passes on the question, its sheet and the New contacts page, light and dark, at 1280 and 390 (`mix-next-step`). At 320 and 390 with 200% text, the question's text keeps the card's width, the stack stays inside the screen and "What's next?" can be reached; nothing scrolls sideways. |
 | Screenshots | VERIFIED, inspected | The question at 320 and 390, at 100% and 200% text, in light and dark, before and after LAY-01 (`screens-before/`, `screens-after/`), and the timed Undo above the question at 320 with 200% text (LAY-02). |
 
@@ -202,7 +215,6 @@ Not run again after 5efafb3: the migration rehearsal (no migration changed).
 - **Phone shares and the device picker** don't say that the setting's Mix started (COPY-01 d).
 - **An import opened from a Journey Start** still gives new people an Everyone place in the Start's Mix, and the page says "Importing does not start this Mix". A visit whose plan is an Everyone Mix keeps the earlier Everyone enrollment beside the visit's run (EVR-02).
 - **The commit 6d2e6ec** has a 98-character subject and no trailer. It is already pushed, so it stays.
-- **The timed "Follow-up completed" card clips its Undo button** at 320px with 200% text: the button runs past the card's right edge. It is existing styling in `src/components/JumpWorkflow.module.css`, which this change doesn't touch. Letting the card wrap would fix it.
 
 ## NOT RUN
 
