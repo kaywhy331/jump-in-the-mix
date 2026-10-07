@@ -75,7 +75,7 @@ export async function startMixForContact(tx: Prisma.TransactionClient, input: { 
     }
   }
   // A Mix that names a stage sets it when it starts; one already running keeps the stage as it is.
-  const [stage = null] = result === "already-running" ? [] : await setStagesFromMixStarts(tx, { workspaceId, starts: [{ contactId, mixId: mix.id }], actorUserId: input.userId });
+  const [stage = null] = result === "already-running" ? [] : await setStagesFromMixStarts(tx, { workspaceId, starts: [{ contactId, mixId: mix.id, assignmentId: assignment.id }], actorUserId: input.userId });
   // A bulk start queues one job for all of its people instead (PERF-01).
   if (input.queuePreparation !== false) await tx.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId, mixId: mix.id } } });
   await tx.auditLog.create({

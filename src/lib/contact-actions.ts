@@ -358,6 +358,7 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
     // A tag's Mix that names a Contact stage starts for them, so it sets that stage (JITM-09 §2.79).
     await setStagesFromTagJoins(tx, { workspaceId: workspace.id, joins: payload.groupIds.map(groupId => ({ contactId: created.id, groupId })), actorUserId: user.id });
     let mixKept = false;
+    let datedAssignmentId: string | undefined;
     // Added from a Journey Start, the Start starts its Mix for them next, so that Mix's Everyone place is left to it
     // (EVR-02, agent default 7).
     const starting = workflowContinuation(returnTo) ? new URL(returnTo, "https://return.invalid").searchParams : null;
@@ -402,7 +403,7 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
       });
       if (followUp.mixId) {
         await assertRoomForPeople(tx, workspace.id, [created.id]);
-        await tx.mixAssignment.create({
+        datedAssignmentId = (await tx.mixAssignment.create({
           data: {
             assignmentKey: `${workspace.id}:${followUp.mixId}:${created.id}`,
             workspaceId: workspace.id,
@@ -410,7 +411,7 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
             contactId: created.id,
             isActive: true
           }
-        });
+        })).id;
       }
     }
     await tx.auditLog.create({
@@ -434,7 +435,7 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
     // applied here: the page preselects it in the form, so it is the owner's own choice.
     if (!followUp?.startsOn) await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id], mixId: null, exceptEveryone });
     // The date-based Mix the owner picked sets its stage after Everyone Mixes do, so the owner's pick wins (ORD-01).
-    if (followUp?.mixId && !followUp.startsOn) await setStagesFromMixStarts(tx, { workspaceId: workspace.id, starts: [{ contactId: created.id, mixId: followUp.mixId }], actorUserId: user.id });
+    if (followUp?.mixId && !followUp.startsOn) await setStagesFromMixStarts(tx, { workspaceId: workspace.id, starts: [{ contactId: created.id, mixId: followUp.mixId, assignmentId: datedAssignmentId }], actorUserId: user.id });
     const receipt: CreatedContact = { contactId: created.id, dateCreated: Boolean(followUp?.mixId && !followUp.startsOn), mixAssigned: Boolean(followUp?.mixId) && !mixKept, followUpScheduled: Boolean(followUp && !followUp.mixId), ...(mixKept ? { mixKept } : {}) };
     if (idempotencyKey) {
       await tx.idempotencyKey.create({ data: { workspaceId: workspace.id, key: idempotencyKey, response: receipt, expiresAt: new Date(Date.now() + 7 * 86_400_000) } });

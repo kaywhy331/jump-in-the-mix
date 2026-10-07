@@ -116,6 +116,11 @@ export async function placeNewContacts(tx: Tx, input: {
   const hiddenTags = (await tx.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
   const skip = (contactId: string, because: PlacementResult["skippedBecause"][string]) => { result.skipped.push(contactId); result.skippedBecause[contactId] = because; };
 
+  // A save that unticks Everyone and this placement wait for each other on the Mix's row, so neither leaves an
+  // Everyone place on a Mix that is no longer for Everyone (REL-03). Shared before any start here sets a stage, so a
+  // stage being retired, which locks its Mixes before the stage, can't wait on this the other way round (LCK-02).
+  const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Mix" WHERE "workspaceId" = ${workspaceId} AND status = 'ACTIVE' AND "audienceEveryone" AND source <> 'ONE_TIME' ORDER BY id FOR SHARE`;
+  const lockedIds = new Set(locked.map(row => row.id));
   const mix = input.mixId === undefined
     ? (await newContactPlacementSetting(tx, workspaceId)).mix
     : input.mixId ? await tx.mix.findFirst({ where: { id: input.mixId, ...await placeableMixFilter(tx, workspaceId) }, select: { id: true, name: true } }) : null;
@@ -157,10 +162,6 @@ export async function placeNewContacts(tx: Tx, input: {
     }
   }
 
-  // A save that unticks Everyone and this placement wait for each other on the Mix's row, so neither leaves an
-  // Everyone place on a Mix that is no longer for Everyone (REL-03).
-  const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Mix" WHERE "workspaceId" = ${workspaceId} AND status = 'ACTIVE' AND "audienceEveryone" AND source <> 'ONE_TIME' ORDER BY id FOR SHARE`;
-  const lockedIds = new Set(locked.map(row => row.id));
   const audiences = (await everyoneMixesForNewPeople(tx, workspaceId, now)).filter(item => lockedIds.has(item.id) && !input.exceptEveryone?.includes(item.id));
   if (!audiences.length) return result;
   // People already in one of these Mixes, by their own start (just above, or the one Add a contact made) or a shown

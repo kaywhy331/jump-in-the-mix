@@ -7,8 +7,12 @@ import { MAX_CONTACT_STAGES, newStageLabels } from "@/lib/mix-stage-labels";
 
 type Tx = Prisma.TransactionClient;
 
-/** One person starting one Mix. When one call starts several Mixes for the same person, the last entry wins. */
-export type MixStart = { contactId: string; mixId: string };
+/**
+ * One person starting one Mix. When one call starts several Mixes for the same person, the last entry wins.
+ * `assignmentId` is the person's own enrollment this start created or restarted, for a start the owner made for them;
+ * only that one can come under a stage's management (STG-04).
+ */
+export type MixStart = { contactId: string; mixId: string; assignmentId?: string };
 
 /** What a start did to one person's Contact stage, recorded so an Undo can put it back (UNDO-02). */
 export type StageSet = {
@@ -61,8 +65,9 @@ export async function setStagesFromMixStarts(tx: Tx, input: { workspaceId: strin
   if (!candidates.length) return [];
   // A start the person is stopped in can't set the stage, so an earlier start that can still wins (ORD-01).
   const stopped = new Set((await tx.mixStop.findMany({ where: { workspaceId, contactId: { in: candidates }, mixId: { in: [...mixes.keys()] } }, select: { contactId: true, mixId: true } })).map(stop => `${stop.contactId}:${stop.mixId}`));
-  const latest = new Map<string, string>();
-  for (const start of input.starts) if (mixes.has(start.mixId) && !stopped.has(`${start.contactId}:${start.mixId}`)) { latest.delete(start.contactId); latest.set(start.contactId, start.mixId); }
+  const latestStart = new Map<string, MixStart>();
+  for (const start of input.starts) if (mixes.has(start.mixId) && !stopped.has(`${start.contactId}:${start.mixId}`)) { latestStart.delete(start.contactId); latestStart.set(start.contactId, start); }
+  const latest = new Map([...latestStart].map(([contactId, start]) => [contactId, start.mixId]));
   if (!latest.size) return [];
   const now = input.now ?? new Date();
 
@@ -82,7 +87,14 @@ export async function setStagesFromMixStarts(tx: Tx, input: { workspaceId: strin
 
   const changes: Array<StageSet & { mixName: string; stageName: string; previousName: string | null; managedAssignmentId: string | null }> = [];
   // People already in the stage whose own Mix they just started, with nothing managed: the stage takes it on.
-  const adopting: Array<{ contactId: string; mixId: string }> = [];
+  const adopting: Array<{ contactId: string; assignmentId: string }> = [];
+  // The stage's own Mix, started by a start the owner made for the person (STG-01), is the one the stage manages, as
+  // when they enter the stage. A start through a tag, an audience or Journey work has no own enrollment to take over,
+  // and an earlier run of theirs isn't taken over either (STG-04, as entering the stage wouldn't take it over).
+  const ownRun = (contactId: string, stage: { planId: string | null }) => {
+    const start = latestStart.get(contactId)!;
+    return stage.planId === start.mixId ? start.assignmentId ?? null : null;
+  };
   for (const contactId of eligible) {
     const mixId = latest.get(contactId)!;
     const mix = mixes.get(mixId)!;
@@ -90,27 +102,17 @@ export async function setStagesFromMixStarts(tx: Tx, input: { workspaceId: strin
     const record = records.get(contactId);
     if (record && (record.workspaceId !== workspaceId || !record.automatic)) continue;
     if (record?.stageId === mix.stageId) {
-      if (stage.planId === mixId && !record.managedAssignmentId) adopting.push({ contactId, mixId });
+      const assignmentId = ownRun(contactId, stage);
+      if (assignmentId && !record.managedAssignmentId) adopting.push({ contactId, assignmentId });
       continue;
     }
     changes.push({
       contactId, mixId, stageId: mix.stageId!, eventKey: `mix-stage:${randomUUID()}`, version: (record?.version ?? 0) + 1,
       previous: record ? { stageId: record.stageId, stageSince: record.stageSince.toISOString(), managedAssignmentId: record.managedAssignmentId } : null,
-      mixName: mix.name, stageName: stage.name, previousName: record?.stage.name ?? null, managedAssignmentId: null
+      mixName: mix.name, stageName: stage.name, previousName: record?.stage.name ?? null, managedAssignmentId: ownRun(contactId, stage)
     });
   }
-  // The stage's own Mix, started by the person's own start, is the one the stage manages, as when they enter the stage
-  // (STG-01). A start through a tag or an audience isn't taken over, as entering the stage wouldn't take it over either.
-  const ownMix = [...changes.filter(change => stages.get(change.stageId)!.planId === change.mixId), ...adopting];
-  const managed = ownMix.length ? new Map((await tx.mixAssignment.findMany({
-    where: { workspaceId, isActive: true, appointmentBinding: null, assignmentKey: { in: ownMix.map(start => `${workspaceId}:${start.mixId}:${start.contactId}`) } },
-    select: { id: true, contactId: true }
-  })).map(assignment => [assignment.contactId, assignment.id])) : new Map<string | null, string>();
-  for (const change of changes) if (stages.get(change.stageId)!.planId === change.mixId) change.managedAssignmentId = managed.get(change.contactId) ?? null;
-  for (const { contactId } of adopting) {
-    const assignmentId = managed.get(contactId);
-    if (assignmentId) await tx.contactJourney.updateMany({ where: { workspaceId, contactId, managedAssignmentId: null }, data: { managedAssignmentId: assignmentId } });
-  }
+  for (const { contactId, assignmentId } of adopting) await tx.contactJourney.updateMany({ where: { workspaceId, contactId, managedAssignmentId: null }, data: { managedAssignmentId: assignmentId } });
   if (!changes.length) return [];
 
   const created = changes.filter(change => !change.previous);
