@@ -51,7 +51,10 @@ export async function saveJourneyStageAction(data: FormData) {
       }
       if (value(data, "intent") === "archive") {
         // The stage's row lock comes before the count, so a Mix start setting this stage right now finishes first and
-        // is counted, and one that comes later finds the stage retired (JITM-09 §2.79).
+        // is counted, and one that comes later finds the stage retired (JITM-09 §2.79). The Mixes that name it are
+        // locked first, the order a placement takes them in (it shares an Everyone Mix's row, then the stage's), so
+        // the two can't wait on each other.
+        if (stage) await tx.$queryRaw`SELECT id FROM "Mix" WHERE "workspaceId" = ${workspace.id} AND "stageId" = ${id} ORDER BY id FOR UPDATE`;
         if (stage) await tx.$queryRaw`SELECT id FROM "JourneyStage" WHERE id = ${id} AND "workspaceId" = ${workspace.id} FOR UPDATE`;
         if (!stage || await tx.contactJourney.count({ where: { workspaceId: workspace.id, stageId: id } })) throw new JourneyRefusal("Move the people in this stage before retiring it.");
         if (stages.filter(item => item.isActive).length <= 1) throw new JourneyRefusal("Keep at least one stage.");

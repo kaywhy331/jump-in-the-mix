@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { UserFacingError } from "@/lib/user-facing-error";
+import { joinArrivalStage } from "@/lib/journey";
 import { MAX_CONTACT_STAGES, newStageLabels } from "@/lib/mix-stage-labels";
 
 type Tx = Prisma.TransactionClient;
@@ -24,18 +25,21 @@ export type StageSet = {
 
 /** The words a stage change set by a Mix leaves in the person's activity. */
 export function mixStageSummary(previousStage: string | null, stage: string, mixName: string): string {
-  return `${previousStage ? `${previousStage} → ${stage}` : `Joined ${stage}`}, set by the ${mixName} Mix.`;
+  return `${previousStage ? `${previousStage} → ${stage}` : `Joined ${stage}`}, set by the Mix “${mixName}”.`;
 }
 
 /**
  * A Mix can name the Contact stage its people are in (JITM-09 §2.79, D35). Starting the Mix sets that stage. Callers
  * pass every person who starts a Mix, by any route; Mixes that name no stage are ignored.
  *
- * - Setting the stage changes only the label. It never starts or stops another Mix, and the stage's own Mix does not
- *   run. The previous stage's Mix keeps running as the person's own (detached from the stage), so a later stage move
- *   does not stop it either.
- * - The latest start wins. Nothing is set while automatic transitions are paused for the business, or for a person
- *   whose own stage changes are paused, or when the stage is retired.
+ * - Setting the stage changes only the label. It never starts or stops another Mix, and the new stage's own Mix does
+ *   not start. The previous stage's Mix keeps running as the person's own (detached from the stage), so a later stage
+ *   move does not stop it either. When the Mix that sets the stage is that stage's own Mix, the stage manages it, as if
+ *   the person had entered the stage, so the stage's "Mix completed" rule applies (STG-01).
+ * - Someone still waiting for the worker's stage pass first joins the stage new people join, with its Mix, as the pass
+ *   would have done (`joinArrivalStage`, STG-02). Every way of adding people then ends the same way.
+ * - The latest start wins, among the starts that can set a stage. Nothing is set while automatic transitions are
+ *   paused for the business, or for a person whose own stage changes are paused, or when the stage is retired.
  * - A person the Mix doesn't run for is left as they are: archived, Do not contact, or stopped in that Mix.
  * - Each change is a stage history entry (a manual move whose source names the Mix) and an activity line.
  *
@@ -46,15 +50,19 @@ export function mixStageSummary(previousStage: string | null, stage: string, mix
 export async function setStagesFromMixStarts(tx: Tx, input: { workspaceId: string; starts: readonly MixStart[]; actorUserId?: string | null; now?: Date }): Promise<StageSet[]> {
   const { workspaceId } = input;
   if (!input.starts.length) return [];
-  const preference = await tx.journeyPreference.findUnique({ where: { workspaceId }, select: { enabled: true } });
+  const preference = await tx.journeyPreference.findUnique({ where: { workspaceId }, select: { enabled: true, enabledAt: true } });
   if (!preference?.enabled) return [];
   const mixes = new Map((await tx.mix.findMany({
     where: { workspaceId, id: { in: [...new Set(input.starts.map(start => start.mixId))] }, stageId: { not: null } },
     select: { id: true, name: true, stageId: true }
   })).map(mix => [mix.id, mix]));
   if (!mixes.size) return [];
+  const candidates = [...new Set(input.starts.filter(start => mixes.has(start.mixId)).map(start => start.contactId))];
+  if (!candidates.length) return [];
+  // A start the person is stopped in can't set the stage, so an earlier start that can still wins (ORD-01).
+  const stopped = new Set((await tx.mixStop.findMany({ where: { workspaceId, contactId: { in: candidates }, mixId: { in: [...mixes.keys()] } }, select: { contactId: true, mixId: true } })).map(stop => `${stop.contactId}:${stop.mixId}`));
   const latest = new Map<string, string>();
-  for (const start of input.starts) if (mixes.has(start.mixId)) { latest.delete(start.contactId); latest.set(start.contactId, start.mixId); }
+  for (const start of input.starts) if (mixes.has(start.mixId) && !stopped.has(`${start.contactId}:${start.mixId}`)) { latest.delete(start.contactId); latest.set(start.contactId, start.mixId); }
   if (!latest.size) return [];
   const now = input.now ?? new Date();
 
@@ -62,39 +70,57 @@ export async function setStagesFromMixStarts(tx: Tx, input: { workspaceId: strin
   const locked = new Set((await tx.$queryRaw<Array<{ id: string }>>`
     SELECT id FROM "Contact" WHERE "workspaceId" = ${workspaceId} AND "archivedAt" IS NULL AND id IN (${Prisma.join(people)}) ORDER BY id FOR NO KEY UPDATE`).map(row => row.id));
   const stageIds = [...new Set([...latest.values()].map(mixId => mixes.get(mixId)!.stageId!))].sort();
-  const stages = new Map((await tx.$queryRaw<Array<{ id: string; name: string }>>`
-    SELECT id, name FROM "JourneyStage" WHERE "workspaceId" = ${workspaceId} AND "isActive" AND id IN (${Prisma.join(stageIds)}) ORDER BY id FOR SHARE`).map(row => [row.id, row.name]));
-  const [restricted, stops, current] = await Promise.all([
-    tx.contactRelationshipState.findMany({ where: { workspaceId, contactId: { in: people }, doNotContact: true }, select: { contactId: true } }),
-    tx.mixStop.findMany({ where: { workspaceId, contactId: { in: people }, mixId: { in: [...mixes.keys()] } }, select: { contactId: true, mixId: true } }),
-    tx.contactJourney.findMany({ where: { contactId: { in: people } }, select: { contactId: true, workspaceId: true, stageId: true, stageSince: true, managedAssignmentId: true, automatic: true, version: true, stage: { select: { name: true } } } })
-  ]);
+  const stages = new Map((await tx.$queryRaw<Array<{ id: string; name: string; planId: string | null }>>`
+    SELECT id, name, "planId" FROM "JourneyStage" WHERE "workspaceId" = ${workspaceId} AND "isActive" AND id IN (${Prisma.join(stageIds)}) ORDER BY id FOR SHARE`).map(row => [row.id, row]));
+  const restricted = await tx.contactRelationshipState.findMany({ where: { workspaceId, contactId: { in: people }, doNotContact: true }, select: { contactId: true } });
   const doNotContact = new Set(restricted.map(row => row.contactId));
-  const stopped = new Set(stops.map(stop => `${stop.contactId}:${stop.mixId}`));
+  const eligible = people.filter(contactId => locked.has(contactId) && !doNotContact.has(contactId) && stages.has(mixes.get(latest.get(contactId)!)!.stageId!));
+  if (!eligible.length) return [];
+  await joinArrivalStage(tx, { workspaceId, contactIds: eligible, enabledAt: preference.enabledAt, now });
+  const current = await tx.contactJourney.findMany({ where: { contactId: { in: eligible } }, select: { contactId: true, workspaceId: true, stageId: true, stageSince: true, managedAssignmentId: true, automatic: true, version: true, stage: { select: { name: true } } } });
   const records = new Map(current.map(record => [record.contactId, record]));
 
-  const changes: Array<StageSet & { mixName: string; stageName: string; previousName: string | null }> = [];
-  for (const contactId of people) {
+  const changes: Array<StageSet & { mixName: string; stageName: string; previousName: string | null; managedAssignmentId: string | null }> = [];
+  // People already in the stage whose own Mix they just started, with nothing managed: the stage takes it on.
+  const adopting: Array<{ contactId: string; mixId: string }> = [];
+  for (const contactId of eligible) {
     const mixId = latest.get(contactId)!;
     const mix = mixes.get(mixId)!;
-    const stageName = stages.get(mix.stageId!);
+    const stage = stages.get(mix.stageId!)!;
     const record = records.get(contactId);
-    if (!stageName || !locked.has(contactId) || doNotContact.has(contactId) || stopped.has(`${contactId}:${mixId}`)) continue;
-    if (record && (record.workspaceId !== workspaceId || !record.automatic || record.stageId === mix.stageId)) continue;
+    if (record && (record.workspaceId !== workspaceId || !record.automatic)) continue;
+    if (record?.stageId === mix.stageId) {
+      if (stage.planId === mixId && !record.managedAssignmentId) adopting.push({ contactId, mixId });
+      continue;
+    }
     changes.push({
       contactId, mixId, stageId: mix.stageId!, eventKey: `mix-stage:${randomUUID()}`, version: (record?.version ?? 0) + 1,
       previous: record ? { stageId: record.stageId, stageSince: record.stageSince.toISOString(), managedAssignmentId: record.managedAssignmentId } : null,
-      mixName: mix.name, stageName, previousName: record?.stage.name ?? null
+      mixName: mix.name, stageName: stage.name, previousName: record?.stage.name ?? null, managedAssignmentId: null
     });
+  }
+  // The stage's own Mix, started by the person's own start, is the one the stage manages, as when they enter the stage
+  // (STG-01). A start through a tag or an audience isn't taken over, as entering the stage wouldn't take it over either.
+  const ownMix = [...changes.filter(change => stages.get(change.stageId)!.planId === change.mixId), ...adopting];
+  const managed = ownMix.length ? new Map((await tx.mixAssignment.findMany({
+    where: { workspaceId, isActive: true, appointmentBinding: null, assignmentKey: { in: ownMix.map(start => `${workspaceId}:${start.mixId}:${start.contactId}`) } },
+    select: { id: true, contactId: true }
+  })).map(assignment => [assignment.contactId, assignment.id])) : new Map<string | null, string>();
+  for (const change of changes) if (stages.get(change.stageId)!.planId === change.mixId) change.managedAssignmentId = managed.get(change.contactId) ?? null;
+  for (const { contactId } of adopting) {
+    const assignmentId = managed.get(contactId);
+    if (assignmentId) await tx.contactJourney.updateMany({ where: { workspaceId, contactId, managedAssignmentId: null }, data: { managedAssignmentId: assignmentId } });
   }
   if (!changes.length) return [];
 
   const created = changes.filter(change => !change.previous);
-  if (created.length) await tx.contactJourney.createMany({ data: created.map(change => ({ workspaceId, contactId: change.contactId, stageId: change.stageId, stageSince: now, lastCheckedAt: now })) });
-  for (const stageId of new Set(changes.filter(change => change.previous).map(change => change.stageId))) {
+  if (created.length) await tx.contactJourney.createMany({ data: created.map(change => ({ workspaceId, contactId: change.contactId, stageId: change.stageId, stageSince: now, lastCheckedAt: now, managedAssignmentId: change.managedAssignmentId })) });
+  const moved = changes.filter(change => change.previous);
+  for (const key of new Set(moved.map(change => `${change.stageId}:${change.managedAssignmentId ?? ""}`))) {
+    const group = moved.filter(change => `${change.stageId}:${change.managedAssignmentId ?? ""}` === key);
     await tx.contactJourney.updateMany({
-      where: { workspaceId, contactId: { in: changes.filter(change => change.previous && change.stageId === stageId).map(change => change.contactId) } },
-      data: { stageId, stageSince: now, lastCheckedAt: now, managedAssignmentId: null, version: { increment: 1 } }
+      where: { workspaceId, contactId: { in: group.map(change => change.contactId) } },
+      data: { stageId: group[0].stageId, stageSince: now, lastCheckedAt: now, managedAssignmentId: group[0].managedAssignmentId, version: { increment: 1 } }
     });
   }
   await tx.journeyEvent.createMany({ data: changes.map(change => ({
@@ -133,12 +159,14 @@ export async function setStagesFromTagJoins(tx: Tx, input: { workspaceId: string
 
 /**
  * The people a Mix's audience starts it for when it begins for them all at once: the people its own assignments name
- * and the members of its tags, among the given assignments. Archived people are left out by the stage step itself.
+ * and the members of its shown tags, among the given assignments; a hidden tag runs nothing, as in the scheduler.
+ * Archived people are left out by the stage step itself.
  */
 export async function audienceOf(tx: Tx, workspaceId: string, assignmentIds: readonly string[]): Promise<string[]> {
   if (!assignmentIds.length) return [];
+  const hidden = (await tx.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
   const assignments = await tx.mixAssignment.findMany({
-    where: { workspaceId, id: { in: [...assignmentIds] }, isActive: true },
+    where: { workspaceId, id: { in: [...assignmentIds] }, isActive: true, OR: [{ groupId: null }, { groupId: { notIn: hidden } }] },
     select: { contactId: true, group: { select: { memberships: { select: { contactId: true } } } } }
   });
   return [...new Set(assignments.flatMap(assignment => assignment.contactId ? [assignment.contactId] : (assignment.group?.memberships ?? []).map(member => member.contactId)))];
@@ -228,3 +256,4 @@ export async function contactStageChoices(workspaceId: string, db: Pick<Tx, "jou
   ]);
   return preference && stages.length ? stages : null;
 }
+

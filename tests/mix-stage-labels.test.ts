@@ -34,8 +34,8 @@ describe("Mega-Mix stage labels (JITM-09 §2.79, P8)", () => {
   });
 
   it("words the activity line and reads a recorded change back", () => {
-    expect(mixStageSummary("Lead", "Estimate", "Estimate follow-up")).toBe("Lead → Estimate, set by the Estimate follow-up Mix.");
-    expect(mixStageSummary(null, "Inquiry", "New inquiry")).toBe("Joined Inquiry, set by the New inquiry Mix.");
+    expect(mixStageSummary("Lead", "Estimate", "Estimate follow-up")).toBe("Lead → Estimate, set by the Mix “Estimate follow-up”.");
+    expect(mixStageSummary(null, "Inquiry", "New inquiry")).toBe("Joined Inquiry, set by the Mix “New inquiry”.");
     const set = { contactId: "c", mixId: "m", stageId: "s", eventKey: "mix-stage:x", version: 2, previous: { stageId: "p", stageSince: "2026-10-01T00:00:00.000Z", managedAssignmentId: null } };
     expect(stageSetFrom(JSON.parse(JSON.stringify(set)))).toEqual(set);
     expect(stageSetFrom({ ...set, previous: null })).toEqual({ ...set, previous: null });

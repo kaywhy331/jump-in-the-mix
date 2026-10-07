@@ -411,7 +411,6 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
             isActive: true
           }
         });
-        await setStagesFromMixStarts(tx, { workspaceId: workspace.id, starts: [{ contactId: created.id, mixId: followUp.mixId }], actorUserId: user.id });
       }
     }
     await tx.auditLog.create({
@@ -434,6 +433,8 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
     // Mixes for Everyone take the new person in too, except one they are already in. The New contacts Mix is not
     // applied here: the page preselects it in the form, so it is the owner's own choice.
     if (!followUp?.startsOn) await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id], mixId: null, exceptEveryone });
+    // The date-based Mix the owner picked sets its stage after Everyone Mixes do, so the owner's pick wins (ORD-01).
+    if (followUp?.mixId && !followUp.startsOn) await setStagesFromMixStarts(tx, { workspaceId: workspace.id, starts: [{ contactId: created.id, mixId: followUp.mixId }], actorUserId: user.id });
     const receipt: CreatedContact = { contactId: created.id, dateCreated: Boolean(followUp?.mixId && !followUp.startsOn), mixAssigned: Boolean(followUp?.mixId) && !mixKept, followUpScheduled: Boolean(followUp && !followUp.mixId), ...(mixKept ? { mixKept } : {}) };
     if (idempotencyKey) {
       await tx.idempotencyKey.create({ data: { workspaceId: workspace.id, key: idempotencyKey, response: receipt, expiresAt: new Date(Date.now() + 7 * 86_400_000) } });

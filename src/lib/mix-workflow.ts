@@ -109,6 +109,9 @@ export async function startWorkflowInstance(input: { workspaceId: string; contac
   return prisma.$transaction(async db => {
     // The plan's lock comes before the contact row's (src/lib/plan-limits.ts).
     await assertRoomForPeople(db, input.workspaceId, [input.contactId]);
+    // The workspace's key share comes before the contact row: a Mix save holds the workspace row and then locks the
+    // people whose stage it sets, so taking them the other way round could deadlock with it (LCK-01).
+    await db.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${input.workspaceId} FOR KEY SHARE`;
     await db.$queryRaw`SELECT id FROM "Contact" WHERE id = ${input.contactId} AND "workspaceId" = ${input.workspaceId} FOR UPDATE`;
     const contact = await db.contact.findFirst({ where: { id: input.contactId, workspaceId: input.workspaceId, archivedAt: null } });
     if (!contact) throw new UserFacingError("Choose a person in this account.");
@@ -134,6 +137,8 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
   await prisma.$transaction(async db => {
     const identity = await db.mixWorkflowInstance.findFirst({ where: { id: instanceId, workspaceId }, select: { contactId: true } });
     if (!identity) throw new UserFacingError("This piece of work is unavailable.");
+    // Workspace before contact, as in startWorkflowInstance (LCK-01).
+    await db.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR KEY SHARE`;
     await db.$queryRaw`SELECT id FROM "Contact" WHERE id = ${identity.contactId} AND "workspaceId" = ${workspaceId} FOR UPDATE`;
     await db.$queryRaw`SELECT id FROM "MixWorkflowInstance" WHERE id = ${instanceId} AND "workspaceId" = ${workspaceId} FOR UPDATE`;
     const instance = await db.mixWorkflowInstance.findFirst({ where: { id: instanceId, workspaceId }, include: { contact: { include: { emails: true, phones: true, addresses: true, customFieldValues: { include: { definition: true } } } }, workspace: { include: { profile: true, owner: true } } } });

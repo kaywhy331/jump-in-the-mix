@@ -139,8 +139,11 @@ export async function placeNewContacts(tx: Tx, input: {
       ]);
       if (running || alreadyInMix.has(contactId)) { skip(contactId, "already-in"); continue; }
       if (!input.explicit) {
+        // The stage they joined on arrival may already be behind them: a Mix that names a stage, started by a tag, moves
+        // them on and their arrival stage's Mix keeps running as their own. Either Mix counts (D54, STG-02).
+        const stageMixIds = [...new Set([journey?.stage.planId, stageAhead?.mix?.id].filter((id): id is string => Boolean(id)))];
         const stageMix = journey
-          ? journey.stage.planId ? await tx.mixAssignment.findFirst({ where: { workspaceId, contactId, mixId: journey.stage.planId, isActive: true }, select: { id: true } }) : null
+          ? stageMixIds.length ? await tx.mixAssignment.findFirst({ where: { workspaceId, contactId, mixId: { in: stageMixIds }, isActive: true }, select: { id: true } }) : null
           : stageAhead?.mix ?? null;
         if (stageMix) { skip(contactId, "stage"); continue; }
       }
@@ -182,7 +185,9 @@ export async function placeNewContacts(tx: Tx, input: {
       starts.push({ contactId, mixId: audience.id });
     }
   }
-  // An Everyone Mix that names a Contact stage sets it, as any start does (JITM-09 §2.79).
+  // An Everyone Mix that names a Contact stage sets it, as any start does (JITM-09 §2.79). A Mix the owner picked while
+  // adding them comes last, so its stage wins over an Everyone Mix's (ORD-01).
+  if (input.explicit && mix) starts.push(...result.started.map(contactId => ({ contactId, mixId: mix.id })));
   await setStagesFromMixStarts(tx, { workspaceId, starts, actorUserId: input.actorUserId, now });
   if (placed.size && queuePreparation) {
     await tx.job.createMany({ data: [...placed].map(contactId => ({ workspaceId, task: "generate-jumps", payload: { contactId } })) });

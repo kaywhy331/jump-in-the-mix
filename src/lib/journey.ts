@@ -80,6 +80,34 @@ export async function newContactStage(db: Pick<Tx, "journeyPreference" | "journe
   return { name: stage.name, mix };
 }
 
+/**
+ * Puts people who are waiting for the worker's stage pass into the stage new people join, as the pass would and with
+ * its event key, because a Mix is about to set their stage in this transaction (JITM-09 §2.78–§2.79). Otherwise the
+ * Mix's stage would come first, the pass would skip them, and the stage new people join, with its Mix, would never
+ * start. Only people the pass would take: added after Contact stages were turned on, with no stage and no arrival
+ * event yet. The caller holds their row locks and has checked that automatic transitions are on. Returns who joined.
+ */
+export async function joinArrivalStage(tx: Tx, input: { workspaceId: string; contactIds: readonly string[]; enabledAt: Date; now: Date }): Promise<string[]> {
+  const { workspaceId, now } = input;
+  if (!input.contactIds.length) return [];
+  const waiting = await tx.contact.findMany({ where: { workspaceId, id: { in: [...input.contactIds] }, archivedAt: null, createdAt: { gte: input.enabledAt }, journey: null }, select: { id: true }, orderBy: { id: "asc" } });
+  if (!waiting.length) return [];
+  const recorded = new Set((await tx.journeyEvent.findMany({ where: { workspaceId, eventKey: { in: waiting.map(contact => `journey-new:${contact.id}`) } }, select: { contactId: true } })).map(event => event.contactId));
+  const people = waiting.map(contact => contact.id).filter(id => !recorded.has(id));
+  const stageId = people.length ? await initialStageId(tx, workspaceId, "CONTACT_RECEIVED") : undefined;
+  // Shared so the stage can't be retired underneath, as for the stage the Mix sets.
+  const [stage] = stageId ? await tx.$queryRaw<Array<{ id: string; name: string; planId: string | null }>>`SELECT id, name, "planId" FROM "JourneyStage" WHERE id = ${stageId} AND "workspaceId" = ${workspaceId} AND "isActive" FOR SHARE` : [];
+  if (!stage) return [];
+  for (const contactId of people) {
+    const event: JourneyEventInput = { workspaceId, contactId, eventKey: `journey-new:${contactId}`, eventType: "CONTACT_RECEIVED", source: "New contact", now };
+    const managedAssignmentId = await changeManagedPlan(tx, event, null, stage.planId, now);
+    await tx.contactJourney.create({ data: { workspaceId, contactId, stageId: stage.id, stageSince: now, lastCheckedAt: now, managedAssignmentId } });
+    await tx.contactActivity.create({ data: { workspaceId, contactId, kind: "SYSTEM", visibility: "WORKSPACE", summary: `Joined ${stage.name}. ${journeyEventLabel(event.eventType)} · ${event.source}.${managedAssignmentId ? " The stage’s follow-up Mix is assigned." : ""}`, metadata: { eventType: event.eventType, previousStageId: null, stageId: stage.id, source: event.source } } });
+    await tx.journeyEvent.create({ data: { workspaceId, contactId, eventKey: event.eventKey, eventType: event.eventType, source: event.source, resultingStageId: stage.id, occurredAt: now } });
+  }
+  return people;
+}
+
 /** Another change moved this customer's stage first; the maintenance pass skips it and a person sees the sentence. */
 export class JourneyStageChanged extends UserFacingError {
   constructor() { super("This customer’s stage changed. Refresh before trying again."); }
