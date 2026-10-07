@@ -18,7 +18,7 @@
 
 /* The words take the room first; the Undo wraps below them only when enlarged text leaves too little (LAY-03). */
 .completedPlaceholder > span {
-  flex: 1 1 12rem;
+  flex: 1 1 10rem;
   min-width: 0;
 }
 

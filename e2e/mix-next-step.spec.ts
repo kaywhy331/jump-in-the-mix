@@ -184,12 +184,14 @@ test("at normal text size the 10-second Undo stays beside its words", async ({ p
   test.skip(testInfo.project.name !== "desktop-chromium", "Checked once, at a phone width.");
   const { displayName } = await lastBeat("Morgan");
   await finish(page, displayName);
-  await page.setViewportSize({ width: 390, height: 844 });
   const card = page.locator("#follow-up-confirmations [data-follow-up-undo] [role=status]");
-  const words = (await card.locator(":scope > span").boundingBox())!;
-  const undo = (await card.getByRole("button", { name: "Undo", exact: true }).boundingBox())!;
-  expect(undo.x).toBeGreaterThanOrEqual(words.x + words.width - 1);
-  expect(undo.y).toBeLessThan(words.y + words.height);
+  for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 568 }]) {
+    await page.setViewportSize(viewport);
+    const words = (await card.locator(":scope > span").boundingBox())!;
+    const undo = (await card.getByRole("button", { name: "Undo", exact: true }).boundingBox())!;
+    expect(undo.x).toBeGreaterThanOrEqual(words.x + words.width - 1);
+    expect(undo.y).toBeLessThan(words.y + words.height);
+  }
 });
 
 test("the New contacts setting preselects its Mix in Add a contact and Quick Add, and an import asks", async ({ page }) => {
