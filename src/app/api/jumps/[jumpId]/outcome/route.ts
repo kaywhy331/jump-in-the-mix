@@ -11,6 +11,7 @@ import { createOneTimeFollowUp } from "@/lib/one-time-follow-up";
 import { prisma } from "@/lib/prisma";
 import { queueWorkflowForJump, workflowDefinition, workflowState } from "@/lib/mix-workflow";
 import { workflowDecisionRulesForVisit } from "@/lib/mix-workflow-engine";
+import { mixEndQuestion } from "@/lib/mix-end-question";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getRequestMetadata } from "@/lib/request-context";
 
@@ -101,6 +102,18 @@ function jsonResponse(value: Prisma.JsonValue | null): StoredResponse | null {
   };
 }
 
+/**
+ * A Mix that ended here with nothing after it asks what's next for the person (JITM-09 §2.77). A promised next
+ * follow-up already answers that. A replay asks again, since its caller lost the first answer. The question is
+ * advisory: if it can't be read, the outcome stands.
+ */
+async function withMixEnd(workspaceId: string, jumpId: string, result: StoredResponse) {
+  const mixEnd = !result.nextJumpId && (result.status === "DONE" || result.status === "SKIPPED")
+    ? await mixEndQuestion(workspaceId, jumpId).catch(() => null)
+    : null;
+  return { ...result, mixEnd };
+}
+
 function responseJson(value: StoredResponse): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
@@ -141,7 +154,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
     select: { response: true }
   });
   const replay = jsonResponse(existingResponse?.response ?? null);
-  if (replay) return NextResponse.json({ ...replay, duplicate: true });
+  if (replay) return NextResponse.json({ ...await withMixEnd(membership.workspaceId, jumpId, replay), duplicate: true });
 
   const jump = await prisma.jump.findFirst({
     where: { id: jumpId, workspaceId: membership.workspaceId },
@@ -329,14 +342,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
       return response;
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(await withMixEnd(membership.workspaceId, jump.id, result));
   } catch (error) {
     const duplicate = await prisma.idempotencyKey.findUnique({
       where: { workspaceId_key: { workspaceId: membership.workspaceId, key: idempotencyKey } },
       select: { response: true }
     });
     const replayAfterRace = jsonResponse(duplicate?.response ?? null);
-    if (replayAfterRace) return NextResponse.json({ ...replayAfterRace, duplicate: true });
+    if (replayAfterRace) return NextResponse.json({ ...await withMixEnd(membership.workspaceId, jump.id, replayAfterRace), duplicate: true });
     // The status read before the transaction can be stale when another request finished first; the
     // refusal reports what the follow-up is now, falling back to that read if the lookup fails.
     const current = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: membership.workspaceId }, select: { status: true } }).catch(() => null);

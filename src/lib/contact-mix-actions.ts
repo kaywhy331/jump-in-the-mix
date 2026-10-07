@@ -2,11 +2,11 @@
 
 import { Prisma, type AssignmentMode } from "@/generated/prisma/client";
 import { assertRoomForPeople } from "@/lib/plan-limits";
-import { assertMixStartEligible } from "@/lib/mix-start-eligibility";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { timezoneForUser, timezoneForWorkspace } from "@/lib/display-preferences";
+import { startMixForContact, visitTimedBeats, type MixStartOutcome } from "@/lib/contact-mix-start";
 import { logicalDateInTimezone, logicalDateKey, zonedDateTimeToUtc, type LogicalDate } from "@/lib/jump-schedule";
 import { prisma } from "@/lib/prisma";
 import { UserFacingError } from "@/lib/user-facing-error";
@@ -20,8 +20,13 @@ function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
 }
 
-function fail(contactId: string, message: string, viewer: ErrorViewer): never {
-  redirect(withViewerError(`/contacts/${encodeURIComponent(contactId)}`, message, viewer));
+/** Today asks what's next at the end of a Mix (JITM-09 §2.77) and gets the answer back there; anything else is the profile. */
+function fromToday(formData: FormData): boolean {
+  return value(formData, "returnTo") === "/jumps";
+}
+
+function fail(contactId: string, message: string, viewer: ErrorViewer, today = false): never {
+  redirect(withViewerError(today ? "/jumps" : `/contacts/${encodeURIComponent(contactId)}`, message, viewer));
 }
 
 function startLogicalDate(raw: string, timezone: string): LogicalDate | null {
@@ -34,112 +39,32 @@ function startLogicalDate(raw: string, timezone: string): LogicalDate | null {
   return logicalDateKey({ year, month, day }) < logicalDateKey(today) ? null : { year, month, day };
 }
 
-/** `steps` holds the Mix's active Beats timed from an appointment (at most one is needed). */
-type StartableMix = { id: string; name: string; triggerMode: string; dateTypeId: string | null; steps: { id: string }[] };
-/** The Beats that tell whether a Mix waits for a visit: active ones timed from an appointment. */
-const visitTimedBeats = { where: { isActive: true, anchor: { not: "CALENDAR_DAY" as const } }, select: { id: true }, take: 1 };
-
-/** What one start did, for the confirmation (JITM-04 §2.7). */
-type MixStartOutcome = {
-  /** started, already running (keeps its start), saved date kept, or date written. */
-  result: MixStartResult;
-  /** The day the confirmation names (YYYY-MM-DD): the chosen day, or the start a running Mix keeps; "saved" when it follows the person's saved date. */
-  startedOn: string;
-  /** Whether any of the Mix's Beats is timed from an appointment, so it waits until the person is lined up with a visit. */
-  waitsForVisit: boolean;
-  /** The assignment as this start left it, and the saved date it wrote, if any: a bulk Undo ends only what nothing changed since (D46). */
-  assignment: { id: string; updatedAt: Date };
-  writtenDate: { id: string; updatedAt: Date } | null;
-  /** The assignment as it was before this start, or null when the start created it; Undo puts it back (UNDO-02). */
-  previous: { isActive: boolean; startDate: Date | null; mode: AssignmentMode } | null;
-};
-
-/**
- * Starts one person on a Mix inside the caller's transaction, after the plan and eligibility checks.
- * The chosen day is where the plan starts. A plan that starts from a saved date gets that date when
- * the person has none; one they already have is kept. Returns what the confirmation names.
- */
-async function startMixForContact(tx: Prisma.TransactionClient, input: { workspaceId: string; userId: string; contactId: string; mix: StartableMix; start: LogicalDate; timezone: string; source: string; queuePreparation?: boolean }): Promise<MixStartOutcome> {
-  const { workspaceId, contactId, mix, start, timezone } = input;
-  await assertMixStartEligible(tx, workspaceId, contactId, mix.id);
-  const assignmentKey = `${workspaceId}:${mix.id}:${contactId}`;
-  const startAt = zonedDateTimeToUtc(start, 12 * 60, timezone);
-  let startedOn: string = logicalDateKey(start);
-  const previous = await tx.mixAssignment.findUnique({ where: { assignmentKey }, select: { isActive: true, startDate: true, mode: true } });
-  // A finished or removed plan restarts from the chosen day; one still running keeps its start.
-  const restart = !previous || !previous.isActive || !(await tx.jump.count({ where: { workspaceId, contactId, mixId: mix.id, status: "PENDING" } }));
-  let result: MixStartResult = restart ? "started" : "already-running";
-  const assignment = await tx.mixAssignment.upsert({
-    where: { assignmentKey },
-    create: {
-      assignmentKey,
-      workspaceId,
-      mixId: mix.id,
-      contactId,
-      startDate: mix.triggerMode === "MANUAL_START" ? startAt : null,
-      isActive: true
-    },
-    update: { isActive: true, ...(mix.triggerMode === "MANUAL_START" && restart ? { startDate: startAt } : {}) }
-  });
-  if (mix.triggerMode === "MANUAL_START" && !restart && previous) {
-    const current = await tx.mixAssignment.findUnique({ where: { assignmentKey }, select: { startDate: true } });
-    if (current?.startDate) startedOn = logicalDateKey(logicalDateInTimezone(current.startDate, timezone));
-  }
-  let writtenDate: MixStartOutcome["writtenDate"] = null;
-  if (mix.triggerMode === "DATE_TRIGGERED" && mix.dateTypeId) {
-    const saved = await tx.jumpDate.findFirst({ where: { workspaceId, contactId, dateTypeId: mix.dateTypeId, isActive: true }, select: { id: true } });
-    if (saved) {
-      startedOn = "saved";
-      if (restart) result = "saved-date-kept";
-    } else {
-      writtenDate = await tx.jumpDate.create({ select: { id: true, updatedAt: true }, data: {
-        workspaceId, contactId, dateTypeId: mix.dateTypeId,
-        dateValue: new Date(Date.UTC(start.year, start.month - 1, start.day, 12)), month: start.month, day: start.day,
-        recurrence: "NONE", timezone, label: mix.name
-      } });
-      if (restart) result = "date-written";
-    }
-  }
-  // A bulk start queues one job for all of its people instead (PERF-01).
-  if (input.queuePreparation !== false) await tx.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId, mixId: mix.id } } });
-  await tx.auditLog.create({
-    data: {
-      workspaceId,
-      actorType: "USER",
-      actorUserId: input.userId,
-      action: "mix.assignment.activate",
-      entityType: "MixAssignment",
-      entityId: assignment.id,
-      source: input.source,
-      metadata: { contactId, mixId: mix.id, startedOn, result }
-    }
-  });
-  return { result, startedOn, waitsForVisit: mix.steps.length > 0, assignment: { id: assignment.id, updatedAt: assignment.updatedAt }, writtenDate, previous };
-}
-
 export async function assignMixToContactAction(formData: FormData): Promise<void> {
   const { workspace, user, session, impersonation } = await requireWorkspace();
   const mixId = value(formData, "mixId");
   const contactId = value(formData, "contactId");
-  if (impersonation) fail(contactId, "Administrator support sessions are view-only.", session);
+  const today = fromToday(formData);
+  if (impersonation) fail(contactId, "Administrator support sessions are view-only.", session, today);
   const timezone = await timezoneForUser(user.id);
   const start = startLogicalDate(value(formData, "startDate"), timezone);
-  if (!start) fail(contactId, "Choose a start date from today on.", session);
+  if (!start) fail(contactId, "Choose a start date from today on.", session, today);
   const [mix, contact] = await Promise.all([
     prisma.mix.findFirst({ where: { id: mixId, workspaceId: workspace.id, status: "ACTIVE" }, select: { id: true, name: true, triggerMode: true, dateTypeId: true, steps: visitTimedBeats } }),
     prisma.contact.findFirst({ where: { id: contactId, workspaceId: workspace.id, archivedAt: null }, select: { id: true } })
   ]);
-  if (!mix || !contact) fail(contactId, "Choose an active Mix.", session);
+  if (!mix || !contact) fail(contactId, "Choose an active Mix.", session, today);
 
   let startedOn = logicalDateKey(start);
   try { await prisma.$transaction(async (tx) => {
     await assertRoomForPeople(tx, workspace.id, [contact.id]);
-    ({ startedOn } = await startMixForContact(tx, { workspaceId: workspace.id, userId: user.id, contactId: contact.id, mix, start, timezone, source: "contacts.detail" }));
+    ({ startedOn } = await startMixForContact(tx, { workspaceId: workspace.id, userId: user.id, contactId: contact.id, mix, start, timezone, source: today ? "today.mix-end" : "contacts.detail" }));
   });
-  } catch (error) { fail(contactId, error instanceof UserFacingError ? error.message : "This Mix could not be started.", session); }
+  } catch (error) { fail(contactId, error instanceof UserFacingError ? error.message : "This Mix could not be started.", session, today); }
   // Beats timed from an appointment have nothing to count from here; the confirmation says so
   // rather than presenting them as scheduled. The visit is chosen explicitly on the calendar.
-  redirect(`/contacts/${contact.id}?${new URLSearchParams({ mixAssigned: mix.steps.length ? "visit" : "1", mixStart: startedOn })}`);
+  const notice = new URLSearchParams({ mixAssigned: mix.steps.length ? "visit" : "1", mixStart: startedOn });
+  if (today) redirect(`/jumps?${notice}&mixPerson=${encodeURIComponent(contact.id)}`);
+  redirect(`/contacts/${contact.id}?${notice}`);
 }
 
 /** The notice parameters a bulk start returns with; a later return drops them so the notice never repeats. */

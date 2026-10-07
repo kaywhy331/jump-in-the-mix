@@ -27,7 +27,7 @@ export async function activateMixAction(formData: FormData): Promise<void> {
   const mixId = value(formData, "mixId");
   const mix = await prisma.mix.findFirst({
     where: { id: mixId, workspaceId: workspace.id, status: { in: ["DRAFT", "PAUSED"] }, source: { not: "ONE_TIME" } },
-    select: { id: true, name: true }
+    select: { id: true, name: true, triggerMode: true, audienceEveryone: true }
   });
   if (!mix) fail("Mix not found or already active.", session);
   const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
@@ -36,8 +36,16 @@ export async function activateMixAction(formData: FormData): Promise<void> {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR UPDATE`;
     const limit = await activeMixLimitRefusal(workspace.id, { mixIds: [mix.id] }, tx);
     if (limit) return limit;
-    await startDraftMix(tx, { workspaceId: workspace.id, mixId: mix.id, now: new Date() });
+    const now = new Date();
+    await startDraftMix(tx, { workspaceId: workspace.id, mixId: mix.id, now });
     await tx.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } });
+    // "Everyone" includes people added while the Mix was off, as the editor's save does (JITM-09 §2.78, EVR-01). They
+    // start from now; everyone already in it keeps their start.
+    if (mix.audienceEveryone) {
+      const contacts = await tx.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true } });
+      const startDate = mix.triggerMode === "MANUAL_START" ? now : null;
+      await tx.mixAssignment.createMany({ data: contacts.map(contact => ({ assignmentKey: `${workspace.id}:${mix.id}:audience:${contact.id}`, workspaceId: workspace.id, mixId: mix.id, contactId: contact.id, mode: "DYNAMIC" as const, startDate })), skipDuplicates: true });
+    }
     const definition = await readWorkflowDefinition(tx, workspace.id);
     const connectionId = `mix-start:${mix.id}`;
     if (definition.rules.some(rule => rule.id === connectionId && !rule.enabled)) await saveWorkflowConfiguration(tx, workspace.id, { rules: definition.rules.map(rule => rule.id === connectionId ? { ...rule, enabled: true } : rule), gatedStepIds: definition.gatedStepIds, intentionalEnds: definition.intentionalEnds }, definition.revision, user.id);

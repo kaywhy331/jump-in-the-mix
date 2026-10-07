@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { QuickCaptureError, saveQuickCapture, searchQuickCaptureContacts } from "@/lib/quick-capture";
+import { newContactStage } from "@/lib/journey";
+import { newContactPlacementSetting, placeableMixFilter } from "@/lib/new-contact-placement";
+import { prisma } from "@/lib/prisma";
 import { consumeRateLimit } from "@/lib/rate-limit";
 
 const headers = { "Cache-Control": "private, no-store" };
@@ -9,6 +12,17 @@ export async function GET(request: Request) {
   const session = await getCurrentSession();
   const workspaceId = session?.user.memberships[0]?.workspaceId;
   if (!workspaceId) return NextResponse.json({ error: "Sign in again to find a person." }, { status: 401, headers });
+  // What the review offers a new person: the New contacts setting and the Mixes they can start (JITM-09 §2.78).
+  if (new URL(request.url).searchParams.get("placement") === "1") {
+    const [setting, mixes, stage] = await Promise.all([
+      newContactPlacementSetting(prisma, workspaceId),
+      prisma.mix.findMany({ where: await placeableMixFilter(prisma, workspaceId), select: { id: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }], take: 200 }),
+      newContactStage(prisma, workspaceId)
+    ]);
+    // The Mix a new person's Contact stage starts; the setting's Mix is not preselected on top of it.
+    const stageMix = stage?.mix ? { stage: stage.name, id: stage.mix.id, name: stage.mix.name } : null;
+    return NextResponse.json({ placement: setting.placement, mixId: setting.mix?.id ?? null, mixes, stageMix }, { headers });
+  }
   const contacts = await searchQuickCaptureContacts(workspaceId, new URL(request.url).searchParams.get("q") ?? "");
   return NextResponse.json({ contacts }, { headers });
 }

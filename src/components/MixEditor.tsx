@@ -201,7 +201,7 @@ export function MixEditor({
       {triggerMode === "AFTER_MIX" && <p className="muted-copy">For the person who finishes {workflowSources.find(item => item.id === sourceMixId)?.name ?? "the selected Mix"}. This connection starts future runs; it does not enroll everyone or replay previous completions.</p>}
       <div className="audience-options" hidden={triggerMode === "AFTER_MIX" && !mix?.id}>
         <h3>Who is this Mix for?</h3>
-        <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" checked={assignAllContacts} onChange={(event) => setAssignAllContacts(event.target.checked)} /><span><strong>Everyone</strong><small>{activeContactCount.toLocaleString()} active people</small></span></label>
+        <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" checked={assignAllContacts} onChange={(event) => setAssignAllContacts(event.target.checked)} /><span><strong>Everyone</strong><small>{activeContactCount.toLocaleString()} active {activeContactCount === 1 ? "person" : "people"}, and anyone you add later</small></span></label>
         {groups.length > 0 && <div className="group-choice-grid">{groups.map((group) => {
           const selected = selectedGroupIds.has(group.id);
           return <label className={`checkbox-card ${group.isActive ? "" : "inactive"}`} key={group.id}><input type="checkbox" name={group.isActive ? "groupIds" : undefined} value={group.id} checked={selected} onChange={() => toggleGroup(group.id)} disabled={!group.isActive} /><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} /><span><strong>{group.name}</strong><small>{group.contactCount} {group.contactCount === 1 ? "person" : "people"}</small></span></label>;

@@ -5,6 +5,7 @@
 
 .completedPlaceholder {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
@@ -13,6 +14,12 @@
   border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
   border-radius: 0.8rem;
   background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+}
+
+/* The words take the room first; the Undo wraps below them only when enlarged text leaves too little (LAY-03). */
+.completedPlaceholder > span {
+  flex: 1 1 10rem;
+  min-width: 0;
 }
 
 .completedPlaceholder strong {

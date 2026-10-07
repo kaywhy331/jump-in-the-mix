@@ -96,6 +96,7 @@ export async function useSharedMixTemplate(input: {
         status: input.status,
         durationDays: Math.max(...steps.map((step) => step.dayOffset)) - Math.min(...steps.map((step) => step.dayOffset)),
         includeFutureGroupMembers: groupIds.length > 0,
+        audienceEveryone: input.assignAllContacts,
         source: `SHARED_MIX:${shared.id}`
       }
     });

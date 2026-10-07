@@ -45,7 +45,7 @@ export async function setNoMixNeededAction(formData: FormData): Promise<void> {
         });
       }
       await tx.contactActivity.createMany({ data: changing.map(contactId => ({ workspaceId: workspace.id, contactId, actorUserId: user.id, kind: "SYSTEM" as const, visibility: "WORKSPACE" as const, summary: confirm ? "Marked No Mix needed." : "No Mix needed removed.", metadata: { noMixNeeded: confirm } })) });
-      await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: confirm ? "contact.no-mix-needed.set" : "contact.no-mix-needed.clear", entityType: "Contact", entityId: changing.length === 1 ? changing[0] : workspace.id, source: returnTo.startsWith("/contacts/") ? "contacts.detail" : "contacts.bulk", metadata: { contactIds: changing } } });
+      await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: confirm ? "contact.no-mix-needed.set" : "contact.no-mix-needed.clear", entityType: "Contact", entityId: changing.length === 1 ? changing[0] : workspace.id, source: returnTo === "/jumps" ? "today.mix-end" : returnTo.startsWith("/contacts/") ? "contacts.detail" : "contacts.bulk", metadata: { contactIds: changing } } });
     });
   }
   // Each reason someone was left as they are is counted on its own, so the notice names it (COPY-01).

@@ -92,6 +92,10 @@ model IntakeConnection {
   tokenHash      String           @unique
   tokenEncrypted String
   enabled        Boolean          @default(true)
+  // Null follows the business's New contacts setting; MIX starts newContactMixId; NONE starts nothing.
+  newContactPlacement NewContactPlacement?
+  newContactMixId String?
+  newContactMix  Mix?             @relation("IntakeNewContactMix", fields: [newContactMixId], references: [id], onDelete: SetNull)
   createdAt      DateTime         @default(now())
   workspace      Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   receipts       IntakeReceipt[]

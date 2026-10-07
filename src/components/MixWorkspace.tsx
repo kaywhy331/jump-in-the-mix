@@ -56,7 +56,9 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates);
   const groupIds = mix.assignments.flatMap((assignment) => assignment.groupId ? [assignment.groupId] : []);
-  const assignAllContacts = mix.assignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:"));
+  // Everyone is the saved choice, or, for a Mix the previous release saved, the people it gave an Everyone place;
+  // either way a save here keeps the audience rather than dropping it (REL-01).
+  const assignAllContacts = mix.audienceEveryone || mix.assignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:"));
 
 
   const [members, memberCount, stages, shareEffect] = await Promise.all([

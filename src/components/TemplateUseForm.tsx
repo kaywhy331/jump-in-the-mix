@@ -95,7 +95,7 @@ export function TemplateUseForm({
 
       <section className="card mix-editor-section" data-setup-step="1" hidden={setupStep !== 1}>
         <div className="card-header"><div><h2 tabIndex={-1}>Choose people</h2><p>Choose everyone or one or more tags.</p></div></div>
-        <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" checked={assignAll} onChange={(event) => setAssignAll(event.target.checked)} /><span><strong>Everyone</strong><small>{activeContactCount.toLocaleString()} active people</small></span></label>
+        <label className="checkbox-card"><input type="checkbox" name="assignAllContacts" checked={assignAll} onChange={(event) => setAssignAll(event.target.checked)} /><span><strong>Everyone</strong><small>{activeContactCount.toLocaleString()} active {activeContactCount === 1 ? "person" : "people"}, and anyone you add later</small></span></label>
         {!assignAll && groups.length > 0 && <div><h3>Or choose tags</h3><div className="group-choice-grid">{groups.map((group) => <label className="checkbox-card" key={group.id}><input type="checkbox" name="groupIds" value={group.id} checked={selectedGroups.has(group.id)} onChange={() => toggleGroup(group.id)} /><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} /><span><strong>{group.name}</strong><small>{group.contactCount} {group.contactCount === 1 ? "person" : "people"}</small></span></label>)}</div></div>}
         {!hasAudience && <p className="notice info">You can choose people later when you keep this as a draft.</p>}
       </section>

@@ -3,6 +3,7 @@ import { assertRoomForPeople } from "@/lib/plan-limits";
 import { queueBoundReconciliation, saveCalendarEntryIn, type CalendarEntryInput } from "@/lib/calendar";
 import { isValidEmail, normalizeEmail, normalizePhone } from "@/lib/contact-input";
 import { applyJourneyEvent } from "@/lib/journey";
+import { placeNewContacts } from "@/lib/new-contact-placement";
 import { phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
 import { boundPlanOutlook, type BoundPlanOutlook } from "@/lib/step-timing";
@@ -112,6 +113,7 @@ async function findOrCreateContact(tx: Prisma.TransactionClient, workspaceId: st
     }
   });
   await applyJourneyEvent(tx, { workspaceId, contactId: created.id, eventKey: `contact-created:${created.id}`, eventType: "CONTACT_RECEIVED", source: "Added with a visit" });
+  await placeNewContacts(tx, { workspaceId, contactIds: [created.id], mixId: null });
   return { id: created.id, created: true };
 }
 

@@ -74,14 +74,17 @@ const requestSchema = z.discriminatedUnion("mode", [
   z.object({
     mode: z.literal("commit"),
     importId: z.string().regex(/^[a-zA-Z0-9_-]{8,120}$/),
-    items: z.array(commitItemSchema).min(1).max(50)
+    items: z.array(commitItemSchema).min(1).max(50),
+    mixId: z.string().max(100).nullable().optional()
   }).strict(),
   z.object({
     mode: z.literal("queue"),
     importId: z.string().regex(/^[a-zA-Z0-9_-]{8,120}$/),
     sourceFileName: z.string().max(240).nullable().optional(),
     items: z.array(commitItemSchema).max(5000),
-    initialResults: z.array(resultSchema).max(5000).default([])
+    initialResults: z.array(resultSchema).max(5000).default([]),
+    // The Mix the new people start, confirmed in the review step (JITM-09 §2.78); left out, none starts.
+    mixId: z.string().max(100).nullable().optional()
   }).strict()
 ]);
 
@@ -199,7 +202,8 @@ export async function POST(request: Request) {
         importId: parsed.data.importId,
         sourceFileName: parsed.data.sourceFileName,
         items,
-        initialResults: parsed.data.initialResults
+        initialResults: parsed.data.initialResults,
+        mixId: parsed.data.mixId ?? null
       });
       return NextResponse.json({ batch }, { status: batch.status === "QUEUED" ? 202 : 200 });
     }
@@ -208,7 +212,8 @@ export async function POST(request: Request) {
       actorUserId: scoped.session.authUser.id,
       timezone: await timezoneForUser(scoped.session.user.id),
       importId: parsed.data.importId,
-      items
+      items,
+      mixId: parsed.data.mixId ?? null
     });
     return NextResponse.json({ results });
   } catch (error) {

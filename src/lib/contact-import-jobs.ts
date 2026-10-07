@@ -7,6 +7,7 @@ import { lockAccess, lockWorkspaceImport } from "@/lib/access-lock";
 import { importResults as resultArray, importCounts as counts } from "@/lib/contact-import-state";
 import { ImportInterruptedError, lockImportJob, lockRunningImport, type ImportJobLease } from "@/lib/contact-import-lease";
 import { timezoneForUser } from "@/lib/display-preferences";
+import { placeableMixFilter } from "@/lib/new-contact-placement";
 
 export const CONTACT_IMPORT_JOB_TASK = "contact-import";
 const MAX_IMPORT_ROWS = 5000;
@@ -30,6 +31,8 @@ export class ImportPausedError extends ImportInterruptedError {
 type ContactImportBatchPayload = {
   items: ImportCommitItem[];
   initialResults: ImportCommitResult[];
+  /** The Mix the new people start, confirmed in the review step. Batches queued before it existed start none. */
+  mixId: string | null;
 };
 
 export type ContactImportBatchView = {
@@ -62,7 +65,8 @@ function payloadValue(value: Prisma.JsonValue): ContactImportBatchPayload {
   if (!Array.isArray(object.items) || !Array.isArray(object.initialResults)) throw new Error("The Contact import batch payload is incomplete.");
   return {
     items: object.items as unknown as ImportCommitItem[],
-    initialResults: resultArray(object.initialResults as Prisma.JsonValue)
+    initialResults: resultArray(object.initialResults as Prisma.JsonValue),
+    mixId: typeof object.mixId === "string" ? object.mixId : null
   };
 }
 
@@ -101,6 +105,7 @@ export async function queueContactImportBatch(input: {
   sourceFileName?: string | null;
   items: ImportCommitItem[];
   initialResults?: ImportCommitResult[];
+  mixId?: string | null;
 }): Promise<ContactImportBatchView> {
   if (!/^[a-zA-Z0-9_-]{8,120}$/.test(input.importId)) throw new ContactImportInputError("The import identifier is invalid.");
   const initialResults = input.initialResults ?? [];
@@ -116,8 +121,10 @@ export async function queueContactImportBatch(input: {
     await lockAccess(tx);
     await lockWorkspaceImport(tx, input.workspaceId);
     if (!await tx.workspace.findFirst({ where: { id: input.workspaceId, ownerId: input.actorUserId, owner: { suspendedAt: null } }, select: { id: true } })) throw new ContactImportInputError("This account cannot import contacts right now.");
+    // A retry after a lost response gets the batch already queued, even if its Mix was turned off since (IMP-01).
     const existing = await tx.contactImportBatch.findUnique({ where: { workspaceId_importId: { workspaceId: input.workspaceId, importId: input.importId } } });
     if (existing) return existing;
+    if (input.mixId && !await tx.mix.findFirst({ where: { id: input.mixId, ...await placeableMixFilter(tx, input.workspaceId) }, select: { id: true } })) throw new ContactImportInputError("That Mix is no longer on. Choose another Mix, or don’t add the new people to a Mix.");
     const batch = await tx.contactImportBatch.create({
       data: {
         workspaceId: input.workspaceId,
@@ -128,7 +135,7 @@ export async function queueContactImportBatch(input: {
         totalRows,
         processedRows: initialResults.length,
         ...initialCounts,
-        payload: inputJson({ items: input.items, initialResults }),
+        payload: inputJson({ items: input.items, initialResults, mixId: input.mixId ?? null }),
         results: inputJson(initialResults)
       }
     });
@@ -225,7 +232,7 @@ export async function runContactImportBatch(batchId: string, lease: ContactImpor
     for (let index = 0; index < pendingItems.length; index += PROCESSING_BATCH_SIZE) {
       // Stop only between chunks: each finished chunk is saved below before the next one starts.
       if (lease.shouldStop?.()) throw new ImportPausedError();
-      const chunkResults = await commitContactImportBatch({ workspaceId, actorUserId, timezone, importId: batch.importId, items: pendingItems.slice(index, index + PROCESSING_BATCH_SIZE), background: { jobId: lease.jobId, leaseId: lease.leaseId, batchId } });
+      const chunkResults = await commitContactImportBatch({ workspaceId, actorUserId, timezone, importId: batch.importId, items: pendingItems.slice(index, index + PROCESSING_BATCH_SIZE), mixId: payload.mixId, background: { jobId: lease.jobId, leaseId: lease.leaseId, batchId } });
       await prisma.$transaction(async tx => {
         await lockWorkspaceImport(tx, workspaceId);
         await lockImportJob(tx, batchId, lease, workspaceId);

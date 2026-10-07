@@ -4,6 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeEmail, normalizePhone, isValidEmail } from "@/lib/contact-input";
 import { applyJourneyEvent } from "@/lib/journey";
+import { placeNewContacts } from "@/lib/new-contact-placement";
 import { canonicalPhoneKey, phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
 
 const short = (max: number) => z.string().trim().max(max).optional().default("");
@@ -42,7 +43,9 @@ export async function intakeMatches(tx: Prisma.TransactionClient, workspaceId: s
   return conditions.length ? tx.contact.findMany({ where: { workspaceId, OR: conditions }, select: { id: true, displayName: true, archivedAt: true }, take: 21 }) : [];
 }
 
-async function acceptIntake(tx: Prisma.TransactionClient, connection: { id: string; workspaceId: string; name: string; kind: string }, data: IntakePayload, existingId?: string) {
+type IntakeSource = { id: string; workspaceId: string; name: string; kind: string; newContactPlacement: "NONE" | "MIX" | "ASK" | null; newContactMixId: string | null };
+
+async function acceptIntake(tx: Prisma.TransactionClient, connection: IntakeSource, data: IntakePayload, existingId?: string) {
   const phoneKey = !existingId && data.phone ? canonicalPhoneKey(data.phone, await workspacePhoneRegion(tx, connection.workspaceId)) : null;
   const contact = existingId ? await tx.contact.findFirst({ where: { id: existingId, workspaceId: connection.workspaceId, archivedAt: null } }) : await tx.contact.create({ data: {
     workspaceId: connection.workspaceId, displayName: data.displayName || [data.firstName, data.lastName].filter(Boolean).join(" ") || data.company || data.email || data.phone || "New contact",
@@ -56,6 +59,10 @@ async function acceptIntake(tx: Prisma.TransactionClient, connection: { id: stri
   if (data.externalId) await tx.intakeIdentity.upsert({ where: { connectionId_externalId: { connectionId: connection.id, externalId: data.externalId } }, create: { connectionId: connection.id, externalId: data.externalId, contactId: contact.id }, update: { contactId: contact.id } });
   await tx.contactActivity.create({ data: { workspaceId: connection.workspaceId, contactId: contact.id, kind: "SYSTEM", visibility: "WORKSPACE", summary: `${existingId ? "New inquiry" : "Contact received"} from ${connection.name}.${data.message ? ` ${data.message}` : ""}`, metadata: { intakeConnectionId: connection.id, eventId: data.eventId, sourceKind: connection.kind, ...(connection.kind === "HOSTED_FORM" ? { permissionToRespond: true } : {}), submittedName: data.displayName || [data.firstName,data.lastName].filter(Boolean).join(" "), submittedEmail: data.email, submittedPhone: data.phone, submittedCompany: data.company } } });
   await applyJourneyEvent(tx, { workspaceId: connection.workspaceId, contactId: contact.id, eventKey: `intake:${connection.id}:${data.eventId}`, eventType: data.eventType, source: connection.name });
+  // A new person goes where this connection says: the New contacts setting unless it chose its own Mix, or none.
+  // A Mix it chose that has since been deleted starts nothing (JITM-09 §2.78).
+  const mixId = connection.newContactPlacement === "MIX" ? connection.newContactMixId : connection.newContactPlacement === "NONE" ? null : undefined;
+  if (!existingId) await placeNewContacts(tx, { workspaceId: connection.workspaceId, contactIds: [contact.id], mixId, source: "intake" });
   return contact;
 }
 

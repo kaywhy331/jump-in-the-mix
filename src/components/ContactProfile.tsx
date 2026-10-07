@@ -37,7 +37,7 @@ import { readPreparationStatus } from "@/lib/preparation";
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
 
 export type ContactProfileSearchParams = {
-  created?: string; followUpScheduled?: string; dateCreated?: string; dateUpdated?: string; dateDeleted?: string; mixAssigned?: string; mixStart?: string; mixRemoved?: string;
+  created?: string; followUpScheduled?: string; mixKept?: string; dateCreated?: string; dateUpdated?: string; dateDeleted?: string; mixAssigned?: string; mixStart?: string; mixRemoved?: string;
   mixStopped?: string; mixResumed?: string; mixStopError?: string; mixResumeError?: string; updated?: string; inlineUpdated?: string;
   stateUpdated?: string; merged?: string; restored?: string; error?: string; at?: string; sig?: string;
   noMixNeeded?: string; noMixCleared?: string; noMixInMix?: string; noMixDnc?: string; noMixAlready?: string;
@@ -183,7 +183,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
   return (
     <div className={`page contact-detail-page${embedded ? " contact-profile-embedded" : ""}`}>
       <ContactAnchorReveal contactId={contact.id} />
-      {query.created && <Notice type="success">Contact added.{query.followUpScheduled && nextFollowUp && <> Their first follow-up is on Today for {formatDateTime(nextFollowUp.scheduledAt, displayPreferences)}.</>}</Notice>}
+      {query.created && <Notice type="success">Contact added.{query.followUpScheduled && nextFollowUp && <> Their first follow-up is on Today for {formatDateTime(nextFollowUp.scheduledAt, displayPreferences)}.</>}{query.mixKept && <> They were already in the Mix you chose, so it didn’t start a second time.</>}</Notice>}
       {query.updated && <Notice type="success">Contact updated.</Notice>}
       {query.inlineUpdated && <Notice type="success">Contact saved.</Notice>}
       {query.stateUpdated && <Notice type="success">Saved.</Notice>}

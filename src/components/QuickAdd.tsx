@@ -55,6 +55,9 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
   const [allowDuplicate, setAllowDuplicate] = useState(false);
   const [recoveryReceipt, setRecoveryReceipt] = useState<QuickCaptureReceipt | null>(null);
   const [receipt, setReceipt] = useState<QuickCaptureReceipt | null>(null);
+  // The New contacts setting (JITM-09 §2.78): with a chosen Mix or "ask each time", a new person's review offers a Mix.
+  const [placement, setPlacement] = useState<{ placement: "NONE" | "MIX" | "ASK"; mixId: string | null; mixes: Array<{ id: string; name: string }>; stageMix?: { stage: string; id: string; name: string } | null } | null>(null);
+  const [mixChoice, setMixChoice] = useState("");
   const shortcutEnabled = useQuickAddShortcut();
 
   useEffect(() => { if (dialogRef.current?.open) { dialogRef.current.scrollTop = 0; (preview || receipt ? reviewRef.current : inputRef.current)?.focus({ preventScroll: true }); } }, [Boolean(preview), Boolean(receipt)]);
@@ -76,6 +79,18 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
   }, [search, Boolean(preview), person]);
 
   useEffect(() => {
+    if (!preview || placement) return;
+    const controller = new AbortController();
+    fetch("/api/quick-capture?placement=1", { signal: controller.signal })
+      .then(response => response.ok ? response.json() : null)
+      // The setting's Mix is preselected, except over a Mix the person's Contact stage starts (JITM-09 §2.78).
+      .then(result => { if (result?.placement) { setPlacement(result); setMixChoice(result.placement === "MIX" && result.mixId && !result.stageMix ? result.mixId : ""); } })
+      // Without the setting the review offers no Mix, and the server still applies the setting.
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [Boolean(preview), placement]);
+
+  useEffect(() => {
     if (!capture.trim() || receipt) return;
     const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
     window.addEventListener("beforeunload", unload);
@@ -83,7 +98,7 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
   }, [capture, receipt]);
   useEffect(() => () => saveController.current?.abort(), []);
 
-  const reset = () => { setCapture(""); setPreview(null); setError(""); setReceipt(null); setRecoveryReceipt(null); setPerson(null); setContacts([]); setSearch(""); setAllowDuplicate(false); setSaveNote(true); requestId.current = ""; };
+  const reset = () => { setCapture(""); setPreview(null); setError(""); setReceipt(null); setRecoveryReceipt(null); setPerson(null); setContacts([]); setSearch(""); setAllowDuplicate(false); setSaveNote(true); setPlacement(null); setMixChoice(""); requestId.current = ""; };
   const closeDialog = async () => {
     if (saving) return false;
     if (!receipt && capture.trim() && !(await confirm(recoveryReceipt
@@ -102,6 +117,7 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
     return () => { window.removeEventListener("keydown", shortcut); window.removeEventListener(OPEN_QUICK_ADD, open); };
   }, [shortcutEnabled]);
 
+  const offersMix = Boolean(!person && placement && placement.placement !== "NONE" && placement.mixes.length);
   const save = async () => {
     if (!preview || saving || recoveryReceipt) return;
     setSaving(true); setError("");
@@ -114,7 +130,8 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
       person: person ? { mode: "existing", id: person.id } : { mode: "new", name: preview.name, phone: preview.phone ?? "", email: preview.email ?? "", allowDuplicate },
       note: saveNote ? preview.note : null,
       event: preview.event.enabled ? { title: preview.event.title, startsAt: start, endsAt: Number.isFinite(end.getTime()) ? end.toISOString().slice(0, 16) : "", location: preview.event.location, allowOverlap: preview.event.allowOverlap } : null,
-      followUp: preview.followUp.enabled ? { reason: preview.followUp.reason, when: `${preview.followUp.date}T${preview.followUp.time}`, channel: preview.followUp.channel as NonNullable<QuickCaptureInput["followUp"]>["channel"], subject: preview.followUp.subject, wording: preview.followUp.wording } : null
+      followUp: preview.followUp.enabled ? { reason: preview.followUp.reason, when: `${preview.followUp.date}T${preview.followUp.time}`, channel: preview.followUp.channel as NonNullable<QuickCaptureInput["followUp"]>["channel"], subject: preview.followUp.subject, wording: preview.followUp.wording } : null,
+      ...(offersMix ? { mixId: mixChoice || null } : {})
     };
     const controller = new AbortController();
     saveController.current = controller;
@@ -145,7 +162,7 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
       <VoiceNoteButton targetId="quick-add-capture" label="Speak" /><button className="button primary quick-add-review" type="submit" disabled={!capture.trim()}>Continue</button>
     </form>
     {error && <div ref={errorRef} tabIndex={-1} role="alert" className={`notice ${recoveryReceipt ? "info" : "error"}`}><p>{error}{recoveryReceipt && " Your later edits are still shown below. Open the saved person to continue editing."}</p>{recoveryReceipt && <Link className="button" href={`/contacts/${recoveryReceipt.contactId}`} onClick={leaveTo(`/contacts/${recoveryReceipt.contactId}`)}>Open saved person</Link>}</div>}
-    {receipt && <section className="quick-add-proposal"><strong ref={reviewRef} tabIndex={-1}>Saved together</strong><p>{[receipt.createdPerson && "Person", receipt.noteId && "private note", receipt.eventId && "event", receipt.jumpId && "follow-up"].filter(Boolean).join(", ")} saved.</p><div className="card-actions"><Link className="button" href={`/contacts/${receipt.contactId}`} onClick={closeDialog}>View person</Link>{receipt.jumpId && <Link className="button" href={`/jumps?jump=${receipt.jumpId}&range=all`} onClick={closeDialog}>View follow-up</Link>}<button type="button" className="button primary" onClick={closeDialog}>Done</button></div></section>}
+    {receipt && <section className="quick-add-proposal"><strong ref={reviewRef} tabIndex={-1}>Saved together</strong><p>{[receipt.createdPerson && "Person", receipt.noteId && "private note", receipt.eventId && "event", receipt.jumpId && "follow-up"].filter(Boolean).join(", ")} saved.{receipt.mixName && ` Started ${receipt.mixName}.`}{receipt.mixKept && ` ${receipt.mixKept} was already running for them, so it didn’t start again.`}</p><div className="card-actions"><Link className="button" href={`/contacts/${receipt.contactId}`} onClick={closeDialog}>View person</Link>{receipt.jumpId && <Link className="button" href={`/jumps?jump=${receipt.jumpId}&range=all`} onClick={closeDialog}>View follow-up</Link>}<button type="button" className="button primary" onClick={closeDialog}>Done</button></div></section>}
     {preview && event && followUp && <section className="quick-add-proposal"><blockquote className="quick-add-original">{capture}</blockquote><strong ref={reviewRef} tabIndex={-1}>Saving as</strong><p>Check each item. Dates and times use {timezone}.</p>
       <form className="quick-capture-form" onSubmit={e => { e.preventDefault(); void save(); }} onInvalid={e => { const details = (e.target as HTMLElement).closest("details"); if (details) details.open = true; }}>
       <fieldset disabled={saving} className="quick-capture-fields">
@@ -157,6 +174,7 @@ export function QuickAddDialog({ timezone }: { timezone: string }) {
             <details><summary>{[preview.phone, preview.email].filter(Boolean).join(" · ") || "Add phone or email (optional)"}</summary><div className="form-grid"><label className="field"><span>Phone</span><input type="tel" value={preview.phone ?? ""} maxLength={80} onChange={e => { setPreview({ ...preview, phone: e.target.value }); setAllowDuplicate(false); }} /></label><label className="field"><span>Email</span><input type="email" value={preview.email ?? ""} maxLength={254} onChange={e => { setPreview({ ...preview, email: e.target.value }); setAllowDuplicate(false); }} /></label></div>{(preview.phone || preview.email) && <small>Recognized details are included when you save.</small>}</details>
           </>}
         </section>
+        {offersMix && placement && <section className="quick-add-item" aria-label="Mix"><label className="field"><span>Add to a Mix</span><select value={mixChoice} onChange={e => setMixChoice(e.target.value)}><option value="">No Mix for now</option>{placement.mixes.map(mix => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></label><small className="muted">{placement.stageMix ? `Your ${placement.stageMix.stage} stage starts ${placement.stageMix.name} for them.${mixChoice && mixChoice !== placement.stageMix.id ? " The Mix you choose here starts today too." : ""}` : mixChoice ? "It starts today." : "They’ll show as No Mix until you choose one."}</small></section>}
         <section className="quick-add-item"><label className="quick-capture-toggle"><input type="checkbox" checked={saveNote} onChange={e => setSaveNote(e.target.checked)} /><strong>Private note</strong></label>{saveNote && <details><summary>Keep the original capture · edit note</summary><label className="field"><span>Note</span><textarea value={preview.note} maxLength={2000} required rows={3} onChange={e => setPreview({ ...preview, note: e.target.value })}/></label></details>}</section>
         <section className="quick-add-item"><label className="quick-capture-toggle"><input type="checkbox" checked={event.enabled} onChange={e => updateEvent({ enabled: e.target.checked })} /><strong>Event</strong></label>{event.enabled && <CaptureDetails initialOpen={!event.date || !event.time || !event.title}><summary>{event.title || "Add event details"} <span>{event.date} {event.time} · {event.duration} min{event.location ? ` · ${event.location}` : ""} · Edit</span></summary><div className="form-grid"><label className="field full"><span>Event title</span><input required maxLength={160} value={event.title} onChange={e => updateEvent({ title: e.target.value })}/></label><label className="field"><span>Event date</span><input type="date" required value={event.date} onChange={e => updateEvent({ date: e.target.value })}/></label><label className="field"><span>Start time</span><input type="time" required value={event.time} onChange={e => updateEvent({ time: e.target.value })}/></label><label className="field"><span>Duration</span><select value={event.duration} onChange={e => updateEvent({ duration: e.target.value })}><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="90">1½ hours</option><option value="120">2 hours</option></select></label><label className="field"><span>Location</span><input maxLength={500} value={event.location} onChange={e => updateEvent({ location: e.target.value })}/></label><label className="checkbox-label full"><input type="checkbox" checked={event.allowOverlap} onChange={e => updateEvent({ allowOverlap: e.target.checked })}/>Allow this event to overlap my calendar or appointment buffer</label></div></CaptureDetails>}</section>
         <section className="quick-add-item"><label className="quick-capture-toggle"><input type="checkbox" checked={followUp.enabled} onChange={e => updateFollowUp({ enabled: e.target.checked })}/><strong>Follow-up</strong></label>{followUp.enabled && <CaptureDetails initialOpen={!followUp.date || !followUp.time || !followUp.wording}><summary>{followUp.reason} <span>{followUp.date} {followUp.time} · Edit</span></summary><div className="form-grid"><label className="field full"><span>Reason</span><input maxLength={300} required value={followUp.reason} onChange={e => updateFollowUp({ reason: e.target.value })}/></label><label className="field"><span>Follow-up date</span><input type="date" required value={followUp.date} onChange={e => updateFollowUp({ date: e.target.value })}/></label><label className="field"><span>Follow-up time</span><input type="time" required value={followUp.time} onChange={e => updateFollowUp({ time: e.target.value })}/></label><label className="field full"><span>How to follow up</span><select required value={followUp.channel} onChange={e => updateFollowUp({ channel: e.target.value, wording: ["PHONE_CALL", "VOICEMAIL"].includes(e.target.value) ? followUp.reason : "" })}><option value="" disabled>Choose a method</option><option value="PHONE_CALL">Call</option><option value="SMS">Text</option><option value="EMAIL">Email</option><option value="WHATSAPP">WhatsApp</option><option value="VOICEMAIL">Voicemail</option></select></label>{followUp.channel === "EMAIL" && <label className="field full"><span>Email subject</span><input value={followUp.subject} maxLength={300} required onChange={e => updateFollowUp({ subject: e.target.value })}/></label>}<label className="field full"><span>{["PHONE_CALL", "VOICEMAIL"].includes(followUp.channel) ? "Call notes" : "Draft message"}</span><textarea value={followUp.wording} required rows={3} maxLength={5000} onChange={e => updateFollowUp({ wording: e.target.value })}/></label></div><p className="muted">Saved for you to review and complete. This follow-up is not sent automatically.</p></CaptureDetails>}</section>

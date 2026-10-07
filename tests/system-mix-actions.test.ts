@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), rate: vi.fn(), allocate: vi.fn(), update: vi.fn(), cancel: vi.fn(), cancelReminder: vi.fn(), contacts: vi.fn(), createContact: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), rate: vi.fn(), allocate: vi.fn(), update: vi.fn(), cancel: vi.fn(), cancelReminder: vi.fn(), contacts: vi.fn(), createContact: vi.fn(), place: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`REDIRECT ${url}`); } }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireWorkspace: mocks.auth }));
@@ -11,6 +11,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   $transaction: (fn: any) => fn({ $executeRaw: vi.fn(), referralAccessInvite: { updateMany: mocks.update }, waitlistDelivery: { updateMany: mocks.cancel }, jump: { updateMany: mocks.cancelReminder }, contact: { findMany: mocks.contacts, create: mocks.createContact } })
 } }));
 vi.mock("@/lib/rate-limit", () => ({ consumeRateLimit: mocks.rate }));
+vi.mock("@/lib/new-contact-placement", () => ({ placeNewContacts: mocks.place }));
 import { sendSystemInviteAction, revokeSystemInviteAction } from "../src/lib/system-mix-actions";
 import { UNVERIFIED_ERROR_MESSAGE, viewerErrorMessage } from "../src/lib/form-errors";
 const owner = { authUser: { id: "owner" } };
@@ -37,6 +38,8 @@ describe("personal invitation reminders", () => {
     await expect(sendSystemInviteAction(data)).rejects.toThrow("invitations=1");
     expect(mocks.contacts).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ phones: { some: { normalized: { in: ["+15550100124", "5550100124"] } } } }) }));
     expect(mocks.createContact).toHaveBeenCalledWith({ data: expect.objectContaining({ phones: { create: { phone: "5550100124", normalized: "+15550100124", isPrimary: true } } }) });
+    // A new invitee joins the Mixes for Everyone, and no other Mix (JITM-09 §2.78).
+    expect(mocks.place).toHaveBeenCalledWith(expect.anything(), { workspaceId: expect.any(String), contactIds: ["created-contact"], mixId: null });
     expect((await refusal(sendSystemInviteAction(form(["(555) 010-0125", "+1 555 010 0125"])))).message).toBe("Each invitation needs a different email address or text number.");
   });
   it.each([

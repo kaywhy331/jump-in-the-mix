@@ -2,9 +2,9 @@
 id: JITM-01
 title: Product concept, goals and non-goals
 status: active
-version: 3.0.2
+version: 3.0.3
 owner: Kevin
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-07
 applies_to: [product, features, onboarding, access, marketing, agents]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -149,7 +149,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 | Help and support conversations; staff console | Shipped | `docs/SUPPORT.md:3`; `docs/CANONICAL_PRODUCT_DECISIONS.md:16` |
 | Contact stages: optional labels such as Lead or Client, and the Mix each stage can start | Shipped | D16; `src/app/(app)/settings/page.tsx:11` |
 | No Mix status on every contact: the label, No Mix needed, the Contacts filter and bulk actions, the Today line and the Journey People status | Shipped (`prod-2026-10-06-4a77761`; devices NOT RUN) | D33; JITM-09 §2.76–§2.77; `docs/NO_MIX_STATUS_2026-10-05.md`; `docs/NO_MIX_STATUS_RELEASE_2026-10-06.md` |
-| The end-of-Mix question; a setting for where new contacts go | Planned | D33, D34; JITM-09 §2.77–§2.78; `docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md` |
+| The end-of-Mix question; a setting for where new contacts go; "Everyone" including people added later | Built, not yet released | D33, D34; JITM-09 §2.77–§2.78; `docs/MIX_NEXT_STEP_2026-10-06.md` |
 | Stages set by Mixes and added by Mega-Mixes; stage presets; milestones in the owner's words | Planned | D35, D36; JITM-09 §2.79–§2.80 |
 | Assistant connector: ChatGPT, Claude and other assistants that support the Model Context Protocol read Today, people and history and act for the owner one person at a time; Gemini once Google's assistant accepts such connectors | Planned (after D33–D35) | D38, D39, D41; §2.25; `docs/ASSISTANT_CONNECTOR_PROPOSAL_2026-10-06.md` |
 | Siri Shortcut with the owner's personal key: Today read aloud, outcomes logged by voice, a prepared text sent and a due call connected after the owner says yes | Planned (after D33–D35) | D40, D42; §2.25–§2.26 |
@@ -247,3 +247,4 @@ Known deviations at 9439fd6:
 - 3.0.0 — 2026-10-06 — Base 8bee3b1. §2.25 lets owners connect their own assistant and sets what it may read, change and send, with its permission held in the assistant (D38–D41, D43); §2.26 keeps calls in the owner's own voice, with assistant-started calls after a yes (D42); §2.14–§2.15 count an assistant's actions as the owner's (D43); §2.22 adds two Planned rows, the connector and the Siri Shortcut; §2.20 labels both planned; §6 adds the connector's paid items.
 - 3.0.1 — 2026-10-06 — Base 262892e. §2.22: the No Mix status is built, not yet released; the end-of-Mix question and the new-contact setting stay Planned (docs/NO_MIX_STATUS_2026-10-05.md). This carries PR #125's 2.4.1 entry, which reached main after 3.0.0.
 - 3.0.2 — 2026-10-06 — Base 4a77761. §2.22: the No Mix status is shipped (`prod-2026-10-06-4a77761`, docs/NO_MIX_STATUS_RELEASE_2026-10-06.md).
+- 3.0.3 — 2026-10-07 — Base 3b3ec58. §2.22: the end-of-Mix question, the New contacts setting and "Everyone" including people added later are built, not yet released (docs/MIX_NEXT_STEP_2026-10-06.md). This carries PR #128's own 3.0.2 entry, renumbered after PR #129's 3.0.2.

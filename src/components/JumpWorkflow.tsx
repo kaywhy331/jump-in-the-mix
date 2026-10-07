@@ -11,6 +11,7 @@ import { readOpenedJump, readUnresolvedAttempts, resolveOpenedJump, validOpenedJ
 import { WhenPicker } from "@/components/WhenPicker";
 import { useConfirmDialog } from "@/components/useConfirmDialog";
 import { addDays, dateKeyOf } from "@/lib/when-picker";
+import type { MixEndQuestion } from "@/lib/mix-end-question";
 export type { OpenedJumpDetail } from "@/lib/opened-jump-state";
 
 type Outcome =
@@ -31,6 +32,8 @@ type OutcomeResponse = {
   jumpDateId: string | null;
   nextJumpId?: string | null;
   attempt?: { id: string; evidence: "attempt" | "unavailable" | "mismatch" };
+  /** Set when this outcome finished a Mix with nothing after it; Today asks what's next for the person. */
+  mixEnd?: MixEndQuestion | null;
   duplicate?: boolean;
   error?: string;
 };
@@ -51,13 +54,14 @@ type OutcomeDetails = {
 // server can create or acknowledge it; this is logging only and never sends anything.
 type OutcomeAttempt = { attemptId: string; payload?: OpenedAttemptPayload };
 
-type JumpStateDetail = {
+export type JumpStateDetail = {
   jumpId: string;
   status: OutcomeResponse["status"];
   /** Shown in the card's confirmation when a retry found the outcome already recorded. */
   notice?: string;
   /** The follow-up this outcome scheduled, named in the confirmation instead of the plan's next step. */
   nextFollowUpAt?: string | null;
+  mixEnd?: MixEndQuestion | null;
 };
 
 type SaveResult =
@@ -165,7 +169,7 @@ async function saveOutcome(
   if (response.status === 409 && FINISHING_OUTCOMES.has(outcome) && (payload.status === "DONE" || payload.status === "SKIPPED")) return { recorded: false, status: payload.status };
   if (!response.ok) throw new Error(payload.error || "The follow-up outcome could not be saved.");
   const stored = payload as OutcomeResponse;
-  dispatchJumpState({ jumpId, status: stored.status, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null });
+  dispatchJumpState({ jumpId, status: stored.status, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null, mixEnd: stored.mixEnd ?? null });
   return { recorded: true, response: stored };
 }
 

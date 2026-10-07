@@ -13,6 +13,7 @@ import { lockAccess, lockWorkspaceImport } from "@/lib/access-lock";
 import { REFERRAL_INVITE_LIMIT, SystemMixError } from "@/lib/system-mix";
 import { isValidEmail, normalizePhone } from "@/lib/contact-input";
 import { phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
+import { placeNewContacts } from "@/lib/new-contact-placement";
 
 const path = "/mixes/system";
 function fail(message: string, viewer: ErrorViewer): never { redirect(withViewerError(path, message, viewer)); }
@@ -50,10 +51,14 @@ export async function sendSystemInviteAction(formData: FormData): Promise<void> 
       for (const person of recipients) {
         const matches = person.contactId ? [] : await tx.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null, ...(person.email ? { emails: { some: { normalized: person.email } } } : { phones: { some: { normalized: { in: person.phoneKeys } } } }) }, select: { id: true }, take: 2 });
         if (matches.length > 1) throw new AccessInviteError("More than one contact has these details. Choose a saved contact.");
-        const contactId = person.contactId || matches[0]?.id || (await tx.contact.create({ data: {
-          workspaceId: workspace.id, displayName: person.name, firstName: person.name,
-          ...(person.email ? { emails: { create: { email: person.email, normalized: person.email, isPrimary: true } } } : { phones: { create: { phone: person.phone!, normalized: person.phoneKeys[0], isPrimary: true } } })
-        } })).id;
+        let contactId = person.contactId || matches[0]?.id;
+        if (!contactId) {
+          contactId = (await tx.contact.create({ data: {
+            workspaceId: workspace.id, displayName: person.name, firstName: person.name,
+            ...(person.email ? { emails: { create: { email: person.email, normalized: person.email, isPrimary: true } } } : { phones: { create: { phone: person.phone!, normalized: person.phoneKeys[0], isPrimary: true } } })
+          } })).id;
+          await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [contactId], mixId: null });
+        }
         if (selectedContacts.has(contactId)) throw new AccessInviteError("Choose each person only once per batch.");
         selectedContacts.add(contactId);
         await allocateAccessInvite(tx, { userId: user.id, workspaceId: workspace.id, contactId, recipientEmail: person.email ?? undefined, recipientPhone: person.phone ?? undefined, expectedVersion, expectedSender });
