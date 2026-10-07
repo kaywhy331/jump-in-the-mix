@@ -26,5 +26,5 @@ export async function GET(request: Request) {
     prisma.contact.count({ where: { ...where, phones: { none: {} } } }),
     stageId ? stageMovesForAudience(prisma, { workspaceId: membership.workspaceId, stageId, all: stageAll, groupIds: stageGroups, mixId }) : Promise.resolve(null)
   ]);
-  return NextResponse.json({ total, missingEmail, missingPhone, ...(stage ? { stageMoves: stage.moving, stageMovesFromOtherStages: stage.fromOtherStages } : {}) }, { headers });
+  return NextResponse.json({ total, missingEmail, missingPhone, ...(stage ? { stageMoves: stage.moving, stageMovesFromOtherStages: stage.fromOtherStages, stageStarts: stage.starting } : {}) }, { headers });
 }

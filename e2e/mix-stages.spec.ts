@@ -160,11 +160,12 @@ test("ticking Everyone on an active Mix that names a stage says who moves before
   await page.goto(`/mixes?mix=${mix.id}&view=edit`);
   await page.locator("summary").filter({ hasText: "Name and start" }).click();
   await page.getByRole("checkbox", { name: /^Everyone/ }).check();
-  await page.getByRole("button", { name: "Review and start", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Start this Mix?" });
+  // The review preference is off for this owner; the save still opens a review of the people it adds (COPY-02).
+  await page.getByRole("button", { name: "Review and save", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Save these changes?" });
   await expect(dialog.getByText("Saving moves 2 people to Prospect, including 1 now in another stage. Pausing, removing or stopping the Mix doesn’t move them back.")).toBeVisible();
-  await audit(page, "dialog[open]");
-  await dialog.getByRole("button", { name: "Start the Mix", exact: true }).click();
+  await capture(page, "stage-review-active-390", "dialog[open]");
+  await dialog.getByRole("button", { name: "Save the Mix", exact: true }).click();
   await expect(page.getByText("Mix saved.")).toBeVisible();
   expect((await prisma.contactJourney.findMany({ where: { contactId: { in: people.map(person => person.id) } } })).map(record => record.stageId)).toEqual([prospect.id, prospect.id]);
 });

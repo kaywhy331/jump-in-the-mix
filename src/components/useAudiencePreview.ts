@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 
 /** `stageMoves`: with a Contact stage, how many of the people the save starts (`stage.all`, `stage.groupIds`) would move to it (UX-01). */
-type Audience = { total: number; missingEmail: number; missingPhone: number; stageMoves?: number; stageMovesFromOtherStages?: number };
+type Audience = { total: number; missingEmail: number; missingPhone: number; stageMoves?: number; stageMovesFromOtherStages?: number; stageStarts?: number };
 export function useAudiencePreview(all: boolean, groupIds: string[], stage: { stageId: string; mixId?: string; all: boolean; groupIds: string[] } | null = null) {
   const key = JSON.stringify([all, [...groupIds].sort(), stage?.stageId ?? "", stage?.mixId ?? "", stage?.all ?? false, [...(stage?.groupIds ?? [])].sort()]);
   const [retry, setRetry] = useState(0);

@@ -269,10 +269,10 @@ export async function contactStageChoices(workspaceId: string, db: Pick<Tx, "jou
  * are in another stage now, for the review before turning the Mix on (UX-01). It counts as the start decides: nobody
  * while automatic transitions are paused or the stage is retired, and never people who are archived, Do not contact,
  * stopped in this Mix, whose own stage changes are paused, or who are in the stage already. Hidden tags run nothing.
+ * `starting` is everyone the save starts, for the review's own count on a Mix already on (COPY-02).
  */
-export async function stageMovesForAudience(db: Pick<Tx, "journeyPreference" | "journeyStage" | "contactGroupState" | "mixStop" | "contact">, input: { workspaceId: string; stageId: string; all: boolean; groupIds: readonly string[]; mixId?: string | null }): Promise<{ moving: number; fromOtherStages: number }> {
+export async function stageMovesForAudience(db: Pick<Tx, "journeyPreference" | "journeyStage" | "contactGroupState" | "mixStop" | "contact">, input: { workspaceId: string; stageId: string; all: boolean; groupIds: readonly string[]; mixId?: string | null }): Promise<{ moving: number; fromOtherStages: number; starting: number }> {
   const { workspaceId, stageId } = input;
-  const none = { moving: 0, fromOtherStages: 0 };
   const [preference, stage, hidden, stops] = await Promise.all([
     db.journeyPreference.findUnique({ where: { workspaceId }, select: { enabled: true } }),
     db.journeyStage.findFirst({ where: { id: stageId, workspaceId, isActive: true }, select: { id: true } }),
@@ -281,10 +281,15 @@ export async function stageMovesForAudience(db: Pick<Tx, "journeyPreference" | "
   ]);
   const hiddenIds = new Set(hidden.map(state => state.groupId));
   const groupIds = input.groupIds.filter(id => !hiddenIds.has(id));
-  if (!preference?.enabled || !stage || (!input.all && !groupIds.length)) return none;
-  const where: Prisma.ContactWhereInput = { AND: [
+  if (!input.all && !groupIds.length) return { moving: 0, fromOtherStages: 0, starting: 0 };
+  const audience: Prisma.ContactWhereInput = { AND: [
     { workspaceId, archivedAt: null },
-    input.all ? {} : { groupMemberships: { some: { groupId: { in: groupIds }, group: { workspaceId } } } },
+    input.all ? {} : { groupMemberships: { some: { groupId: { in: groupIds }, group: { workspaceId } } } }
+  ] };
+  const starting = await db.contact.count({ where: audience });
+  if (!preference?.enabled || !stage) return { moving: 0, fromOtherStages: 0, starting };
+  const where: Prisma.ContactWhereInput = { AND: [
+    audience,
     { NOT: { relationshipState: { is: { doNotContact: true } } } },
     stops.length ? { id: { notIn: stops.map(stop => stop.contactId) } } : {},
     { OR: [{ journey: { is: null } }, { journey: { is: { automatic: true, stageId: { not: stageId } } } }] }
@@ -293,5 +298,5 @@ export async function stageMovesForAudience(db: Pick<Tx, "journeyPreference" | "
     db.contact.count({ where }),
     db.contact.count({ where: { AND: [where, { journey: { isNot: null } }] } })
   ]);
-  return { moving, fromOtherStages };
+  return { moving, fromOtherStages, starting };
 }

@@ -244,6 +244,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   // whatever the review preference says: turning the Mix on starts its whole audience (UX-01), and on one already on,
   // ticking Everyone or adding a tag starts everyone they cover (UX-02).
   const turningOn = status === "ACTIVE" && (!existingMix || existingMix.status === "DRAFT");
+  const resuming = status === "ACTIVE" && existingMix?.status === "PAUSED";
   const activeAssignments = (existingMix?.assignments ?? []).filter((assignment) => assignment.isActive);
   const hadEveryone = Boolean(existingMix?.audienceEveryone || activeAssignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:")));
   const widens = status === "ACTIVE" && ((assignAllContacts && !hadEveryone) || groupIds.some((groupId) => !activeAssignments.some((assignment) => assignment.groupId === groupId)));
@@ -372,7 +373,11 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
         const existing = existingAssignmentByKey.get(assignmentKey);
         const startDate = triggerMode === "MANUAL_START" ? freshStart ? now : existing?.startDate ?? now : null;
         const saved = await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, contactId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
-        if (turningOn || !existing?.isActive) starting.push(saved.id);
+        // Only a save that turns the Mix on or newly ticks Everyone starts Everyone, as its review says, and resuming a
+        // paused one starts the people added while it was off (D58), as Resume on the Mixes list does. Re-saving an
+        // Everyone Mix re-syncs its places, and that moves no one: not someone the owner removed, nor someone a tag or
+        // their own start already put in it (UX-03).
+        if (turningOn || (!hadEveryone && !existing?.isActive) || (resuming && !existing)) starting.push(saved.id);
       }
       // A Mix that names a Contact stage sets it for the people it starts now (JITM-09 §2.79); changing the stage
       // doesn't move people already in the Mix.

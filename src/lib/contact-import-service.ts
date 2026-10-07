@@ -16,7 +16,7 @@ import { canonicalPhoneKey, phoneLookupKeys, phoneRowKeys, workspacePhoneRegion 
 import { prisma } from "@/lib/prisma";
 import { lockWorkspaceImport } from "@/lib/access-lock";
 import { lockImportJob, lockRunningImport, type ImportRowLease } from "@/lib/contact-import-lease";
-import { placeNewContacts } from "@/lib/new-contact-placement";
+import { placeNewContacts, shareEveryoneMixes } from "@/lib/new-contact-placement";
 import { setStagesFromTagJoins } from "@/lib/mix-stage";
 
 class ImportRowError extends ContactImportInputError {}
@@ -464,7 +464,9 @@ async function createImportedContact(tx: Prisma.TransactionClient, input: {
       metadata: { format: record.source, sourceRow: record.sourceRow, dateCount: dates.length }
     }
   });
-  // A tag's Mix that names a Contact stage starts for them, so it sets that stage (JITM-09 §2.79).
+  // A tag's Mix that names a Contact stage starts for them, so it sets that stage (JITM-09 §2.79). The placement below
+  // shares the Everyone Mixes; taking them first keeps Mixes before stages in this transaction (LCK-03).
+  await shareEveryoneMixes(tx, workspaceId);
   await setStagesFromTagJoins(tx, { workspaceId, joins: [...new Set(record.groupIds)].map((groupId) => ({ contactId: contact.id, groupId })), actorUserId });
   // A file import starts the Mix confirmed in its review, the owner's own choice; phone contacts follow the New contacts
   // setting, which isn't added on top of a Mix their Contact stage will start. Either is an automatic addition: someone

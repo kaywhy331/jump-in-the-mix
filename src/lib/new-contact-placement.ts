@@ -92,6 +92,17 @@ export type PlacementResult = { mix: { id: string; name: string } | null; starte
  * Call it inside the transaction that created the people, after their stage event when the path has one. It queues
  * their preparation unless the caller does (`queuePreparation: false`).
  */
+/**
+ * Shares the rows of the business's active Everyone Mixes. A save that unticks Everyone and a placement wait for each
+ * other on the Mix's row, so neither leaves an Everyone place on a Mix that is no longer for Everyone (REL-03). Taken
+ * before anything in the transaction sets a stage, so a stage being retired, which locks its Mixes before the stage,
+ * can't wait on it the other way round (LCK-02, LCK-03). Returns their ids.
+ */
+export async function shareEveryoneMixes(tx: Tx, workspaceId: string): Promise<Set<string>> {
+  const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Mix" WHERE "workspaceId" = ${workspaceId} AND status = 'ACTIVE' AND "audienceEveryone" AND source <> 'ONE_TIME' ORDER BY id FOR SHARE`;
+  return new Set(locked.map(row => row.id));
+}
+
 export async function placeNewContacts(tx: Tx, input: {
   workspaceId: string;
   contactIds: readonly string[];
@@ -116,11 +127,7 @@ export async function placeNewContacts(tx: Tx, input: {
   const hiddenTags = (await tx.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
   const skip = (contactId: string, because: PlacementResult["skippedBecause"][string]) => { result.skipped.push(contactId); result.skippedBecause[contactId] = because; };
 
-  // A save that unticks Everyone and this placement wait for each other on the Mix's row, so neither leaves an
-  // Everyone place on a Mix that is no longer for Everyone (REL-03). Shared before any start here sets a stage, so a
-  // stage being retired, which locks its Mixes before the stage, can't wait on this the other way round (LCK-02).
-  const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Mix" WHERE "workspaceId" = ${workspaceId} AND status = 'ACTIVE' AND "audienceEveryone" AND source <> 'ONE_TIME' ORDER BY id FOR SHARE`;
-  const lockedIds = new Set(locked.map(row => row.id));
+  const lockedIds = await shareEveryoneMixes(tx, workspaceId);
   const mix = input.mixId === undefined
     ? (await newContactPlacementSetting(tx, workspaceId)).mix
     : input.mixId ? await tx.mix.findFirst({ where: { id: input.mixId, ...await placeableMixFilter(tx, workspaceId) }, select: { id: true, name: true } }) : null;
