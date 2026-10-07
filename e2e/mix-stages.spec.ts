@@ -146,6 +146,29 @@ test("turning on a draft that names a stage says who moves before it starts (UX-
   expect((await prisma.contactJourney.findMany({ where: { contactId: { in: people.map(person => person.id) } } })).map(record => record.stageId)).toEqual([prospect.id, prospect.id]);
 });
 
+test("ticking Everyone on an active Mix that names a stage says who moves before saving (UX-02)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/settings/journey");
+  await page.getByRole("button", { name: "Use these starting stages", exact: true }).click();
+  await expect(page.getByText("Contact stages saved.")).toBeVisible();
+  const [lead, prospect] = await prisma.journeyStage.findMany({ where: { workspaceId }, orderBy: { position: "asc" } });
+  const people = await Promise.all(["Cal Moves", "Dot Moves"].map(displayName => prisma.contact.create({ data: { workspaceId, displayName } })));
+  await prisma.contactJourney.create({ data: { workspaceId, contactId: people[0].id, stageId: lead.id } });
+  const mix = await mixWithBeat("Monthly tips");
+  await prisma.mix.update({ where: { id: mix.id }, data: { stageId: prospect.id } });
+
+  await page.goto(`/mixes?mix=${mix.id}&view=edit`);
+  await page.locator("summary").filter({ hasText: "Name and start" }).click();
+  await page.getByRole("checkbox", { name: /^Everyone/ }).check();
+  await page.getByRole("button", { name: "Review and start", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Start this Mix?" });
+  await expect(dialog.getByText("Saving moves 2 people to Prospect, including 1 now in another stage. Pausing, removing or stopping the Mix doesn’t move them back.")).toBeVisible();
+  await audit(page, "dialog[open]");
+  await dialog.getByRole("button", { name: "Start the Mix", exact: true }).click();
+  await expect(page.getByText("Mix saved.")).toBeVisible();
+  expect((await prisma.contactJourney.findMany({ where: { contactId: { in: people.map(person => person.id) } } })).map(record => record.stageId)).toEqual([prospect.id, prospect.id]);
+});
+
 test("the stage choices fit 320px with 200% text and work from the keyboard (EVD-01)", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const style = document.createElement("style"); style.textContent = "html { font-size: 200% !important; }"; document.head.append(style); }));

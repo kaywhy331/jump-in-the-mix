@@ -240,10 +240,14 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
     if (unavailableNewGroup) fail(path, "Hidden tags cannot be added to a Mix.", session);
   }
   const assignAllContacts = formData.get("assignAllContacts") === "on";
-  // Turning on a Mix that names a Contact stage moves its audience to that stage, so it is reviewed first whatever
-  // the review preference says (UX-01).
+  // A save that starts people on a Mix that names a Contact stage moves them to that stage, so it is reviewed first
+  // whatever the review preference says: turning the Mix on starts its whole audience (UX-01), and on one already on,
+  // ticking Everyone or adding a tag starts everyone they cover (UX-02).
   const turningOn = status === "ACTIVE" && (!existingMix || existingMix.status === "DRAFT");
-  if (turningOn && (stageId === undefined ? existingMix?.stageId : stageId) && (assignAllContacts || groupIds.length) && value(formData, "activationConfirmed", 4) !== "1") fail(path, "Review who moves to the Mix’s stage before turning it on.", session);
+  const activeAssignments = (existingMix?.assignments ?? []).filter((assignment) => assignment.isActive);
+  const hadEveryone = Boolean(existingMix?.audienceEveryone || activeAssignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:")));
+  const widens = status === "ACTIVE" && ((assignAllContacts && !hadEveryone) || groupIds.some((groupId) => !activeAssignments.some((assignment) => assignment.groupId === groupId)));
+  if ((turningOn ? assignAllContacts || groupIds.length > 0 : widens) && (stageId === undefined ? existingMix?.stageId : stageId) && value(formData, "activationConfirmed", 4) !== "1") fail(path, turningOn ? "Review who moves to the Mix’s stage before turning it on." : "Review who moves to the Mix’s stage before adding them.", session);
   // A mix that starts when the owner chooses needs no audience to be on: it is started from one
   // person's page or lined up with a visit from the calendar. Elapsed beats never count as scheduled
   // for an enrollment without an appointment, so the projection below counts calendar-day beats only.
