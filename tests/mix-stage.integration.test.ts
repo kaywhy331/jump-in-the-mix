@@ -623,4 +623,43 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       expect(await prisma.job.count({ where: { workspaceId, task: "generate-jumps", payload: { equals: { contactId: lapsed, mixId: newLead.id } } } })).toBe(1);
     });
   });
+
+  describe("resuming an Everyone Mix (round 4 fixes)", () => {
+    async function pausedEveryone() {
+      const tag = await prisma.group.create({ data: { workspaceId, name: "Regulars" } });
+      const tips = await mix("Monthly tips", { stageId: prospect, audienceEveryone: true, status: "PAUSED" });
+      await prisma.mixAssignment.create({ data: { workspaceId, mixId: tips.id, groupId: tag.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${tips.id}:group:${tag.id}`, startDate: new Date() } });
+      // Sid joined the Mix through a tag, so no Everyone place was made for him; Tia was added while it was off.
+      const sid = await person("Sid"), tia = await person("Tia");
+      await prisma.contactGroupMembership.create({ data: { contactId: sid, groupId: tag.id } });
+      await placeIn(sid, retention);
+      await placeIn(tia, lead);
+      await prisma.userPreference.upsert({ where: { userId }, create: { userId, reviewMixActivation: false }, update: { reviewMixActivation: false } });
+      return { tips, tag, sid, tia };
+    }
+
+    it("Resume on the Mixes list moves the people added while it was off, not people in it by a tag (UX-04)", async () => {
+      const { tips, sid, tia } = await pausedEveryone();
+      const done = await redirectOf(activateMixAction(form({ mixId: tips.id })));
+      expect(done.searchParams.get("error")).toBeNull();
+      expect((await prisma.mix.findUniqueOrThrow({ where: { id: tips.id } })).status).toBe("ACTIVE");
+      expect([await stageOf(sid), await stageOf(tia)]).toEqual([retention, prospect]);
+    });
+
+    it("resuming in the editor moves the same people (UX-04)", async () => {
+      const { tips, tag, sid, tia } = await pausedEveryone();
+      const step = await prisma.mixStep.findFirstOrThrow({ where: { mixId: tips.id, isActive: true } });
+      const saved = await redirectOf(saveMixAction(form({ name: "Monthly tips", mixId: tips.id, mixStepId: step.id, mixUpdatedAt: tips.updatedAt.toISOString(), status: "ACTIVE", triggerMode: "MANUAL_START", dayOffset: "0", sendTimeMinutes: "", plannedAt: "", anchor: "CALENDAR_DAY", offsetMinutes: "", "inlineName-0": "Check in", "inlineChannel-0": "PHONE_CALL", "inlineScript-0": "Ask how it went.", groupIds: tag.id, assignAllContacts: "on", stageId: prospect })));
+      expect(saved.searchParams.get("error")).toBeNull();
+      expect([await stageOf(sid), await stageOf(tia)]).toEqual([retention, prospect]);
+    });
+
+    it("Start Mix on the list reviews a draft Everyone Mix that names a stage even before it has places (UX-05)", async () => {
+      const draft = await mix("Spring check-in", { stageId: prospect, audienceEveryone: true, status: "DRAFT" });
+      await prisma.userPreference.upsert({ where: { userId }, create: { userId, reviewMixActivation: false }, update: { reviewMixActivation: false } });
+      const review = await redirectOf(activateMixAction(form({ mixId: draft.id })));
+      expect(`${review.pathname}${review.search}`).toBe(`/mixes/${draft.id}/edit?activate=1`);
+      expect((await prisma.mix.findUniqueOrThrow({ where: { id: draft.id } })).status).toBe("DRAFT");
+    });
+  });
 });

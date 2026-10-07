@@ -8,6 +8,7 @@ import { unshareForArchivedMix } from "@/lib/marketplace-service";
 import { startDraftMix } from "@/lib/mix-start";
 import { audienceOf, setStagesFromMixStarts } from "@/lib/mix-stage";
 import { activeMixLimitRefusal } from "@/lib/plan-limits";
+import { peopleInMixByOtherRoutes } from "@/lib/new-contact-placement";
 import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
 
 function value(formData: FormData, key: string): string {
@@ -33,7 +34,7 @@ export async function activateMixAction(formData: FormData): Promise<void> {
   if (!mix) fail("Mix not found or already active.", session);
   const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
   // Turning on a draft that names a Contact stage moves its audience, so it is always reviewed first (UX-01).
-  const movesAudience = mix.status === "DRAFT" && Boolean(mix.stageId) && await prisma.mixAssignment.count({ where: { workspaceId: workspace.id, mixId: mix.id, isActive: true, mode: "DYNAMIC" } }) > 0;
+  const movesAudience = mix.status === "DRAFT" && Boolean(mix.stageId) && (mix.audienceEveryone || await prisma.mixAssignment.count({ where: { workspaceId: workspace.id, mixId: mix.id, isActive: true, mode: "DYNAMIC" } }) > 0);
   if (preference?.reviewMixActivation !== false || movesAudience) redirect(`/mixes/${mix.id}/edit?activate=1`);
   const refusal = await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR UPDATE`;
@@ -53,7 +54,9 @@ export async function activateMixAction(formData: FormData): Promise<void> {
       const keys = contacts.map(contact => `${workspace.id}:${mix.id}:audience:${contact.id}`);
       const already = new Set((await tx.mixAssignment.findMany({ where: { assignmentKey: { in: keys } }, select: { contactId: true } })).map(item => item.contactId));
       await tx.mixAssignment.createMany({ data: contacts.map(contact => ({ assignmentKey: `${workspace.id}:${mix.id}:audience:${contact.id}`, workspaceId: workspace.id, mixId: mix.id, contactId: contact.id, mode: "DYNAMIC" as const, startDate })), skipDuplicates: true });
-      starting.push(...contacts.filter(contact => !already.has(contact.id)).map(contact => contact.id));
+      // On a resume, people in the Mix by another route (a tag, their own start) keep their stage (UX-04).
+      const elsewhere = mix.status === "PAUSED" ? await peopleInMixByOtherRoutes(tx, workspace.id, mix.id) : new Set<string>();
+      starting.push(...contacts.filter(contact => !already.has(contact.id) && !elsewhere.has(contact.id)).map(contact => contact.id));
     }
     // A Mix that names a Contact stage sets it for the people it starts now (JITM-09 §2.79).
     await setStagesFromMixStarts(tx, { workspaceId: workspace.id, starts: starting.map(contactId => ({ contactId, mixId: mix.id })), actorUserId: user.id, now });

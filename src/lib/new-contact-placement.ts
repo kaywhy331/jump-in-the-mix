@@ -71,6 +71,31 @@ export async function everyoneMixesForNewPeople(db: Pick<Tx, "mix" | "mixBroadca
 export type PlacementResult = { mix: { id: string; name: string } | null; started: string[]; skipped: string[]; skippedBecause: Record<string, "stage" | "already-in" | "refused"> };
 
 /**
+ * Shares the rows of the business's active Everyone Mixes. A save that unticks Everyone and a placement wait for each
+ * other on the Mix's row, so neither leaves an Everyone place on a Mix that is no longer for Everyone (REL-03). Taken
+ * before anything in the transaction sets a stage, so a stage being retired, which locks its Mixes before the stage,
+ * can't wait on it the other way round (LCK-02, LCK-03). Returns their ids.
+ */
+export async function shareEveryoneMixes(tx: Tx, workspaceId: string): Promise<Set<string>> {
+  const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Mix" WHERE "workspaceId" = ${workspaceId} AND status = 'ACTIVE' AND "audienceEveryone" AND source <> 'ONE_TIME' ORDER BY id FOR SHARE`;
+  return new Set(locked.map(row => row.id));
+}
+
+/**
+ * People in a Mix by another route than its Everyone audience: their own enrollment (a start the owner made, a visit,
+ * Journey's own enrollment) or a shown tag the Mix runs for. An Everyone Mix that comes back on leaves them where they
+ * are, as the placement does for newcomers (UX-04).
+ */
+export async function peopleInMixByOtherRoutes(tx: Tx, workspaceId: string, mixId: string): Promise<Set<string>> {
+  const hidden = (await tx.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
+  const assignments = await tx.mixAssignment.findMany({
+    where: { workspaceId, mixId, isActive: true, OR: [{ contactId: { not: null }, NOT: { assignmentKey: { contains: ":audience:" } } }, { groupId: { not: null, notIn: hidden } }] },
+    select: { contactId: true, group: { select: { memberships: { select: { contactId: true } } } } }
+  });
+  return new Set(assignments.flatMap(assignment => assignment.contactId ? [assignment.contactId] : (assignment.group?.memberships ?? []).map(member => member.contactId)));
+}
+
+/**
  * Puts people who were just added where the owner said new people go (JITM-09 §2.78, D34).
  *
  * One Mix can start for them from today, or from `start`: the one the owner chose for these people (`mixId`), or,
@@ -92,17 +117,6 @@ export type PlacementResult = { mix: { id: string; name: string } | null; starte
  * Call it inside the transaction that created the people, after their stage event when the path has one. It queues
  * their preparation unless the caller does (`queuePreparation: false`).
  */
-/**
- * Shares the rows of the business's active Everyone Mixes. A save that unticks Everyone and a placement wait for each
- * other on the Mix's row, so neither leaves an Everyone place on a Mix that is no longer for Everyone (REL-03). Taken
- * before anything in the transaction sets a stage, so a stage being retired, which locks its Mixes before the stage,
- * can't wait on it the other way round (LCK-02, LCK-03). Returns their ids.
- */
-export async function shareEveryoneMixes(tx: Tx, workspaceId: string): Promise<Set<string>> {
-  const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Mix" WHERE "workspaceId" = ${workspaceId} AND status = 'ACTIVE' AND "audienceEveryone" AND source <> 'ONE_TIME' ORDER BY id FOR SHARE`;
-  return new Set(locked.map(row => row.id));
-}
-
 export async function placeNewContacts(tx: Tx, input: {
   workspaceId: string;
   contactIds: readonly string[];
