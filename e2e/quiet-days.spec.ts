@@ -121,6 +121,8 @@ test("search and pagination stay consistent when the last result on a page is re
     await page.goto("/journey?touchpoint=quiet-days&q=Pagination");
     const panel = page.getByRole("region", { name: "Quiet-day check-ins", exact: true });
     await expect(panel.getByRole("listitem")).toHaveCount(20);
+    // The list renders on the server before it answers clicks; Next works once the page is interactive.
+    await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 });
     await panel.getByRole("button", { name: "Next", exact: true }).click();
     await expect(panel.getByRole("listitem")).toHaveCount(1);
     await panel.getByRole("button", { name: "Skip", exact: true }).click();
