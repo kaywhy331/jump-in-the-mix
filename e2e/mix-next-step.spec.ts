@@ -167,6 +167,11 @@ test("the 10-second Undo stays first and whole beside the question with enlarged
   await page.setViewportSize({ width: 320, height: 568 });
   const stack = page.locator("#follow-up-confirmations");
   expect(await stack.evaluate(element => [...element.querySelectorAll("[data-follow-up-undo], [data-mix-end]")].map(node => node.hasAttribute("data-mix-end") ? "question" : "undo"))).toEqual(["undo", "question"]);
+  // The question keeps the raised card surface the other confirmations have, so nothing on Today shows through it (LAY-04).
+  const surface = await stack.locator("[data-mix-end]").evaluate(card => { const style = getComputedStyle(card); return { background: style.backgroundColor, radius: style.borderTopLeftRadius, shadow: style.boxShadow }; });
+  expect(surface.background).not.toBe("rgba(0, 0, 0, 0)");
+  expect(surface.radius).toBe("20px");
+  expect(surface.shadow).not.toBe("none");
   const undo = stack.locator("[data-follow-up-undo]").getByRole("button", { name: "Undo", exact: true });
   const box = (await undo.boundingBox())!;
   expect(box.x).toBeGreaterThanOrEqual(0);

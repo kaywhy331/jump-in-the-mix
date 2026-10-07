@@ -263,7 +263,8 @@
 }
 
 .follow-up-confirmations { position: fixed; z-index: 150; bottom: 24px; left: 50%; transform: translateX(-50%); width: min(540px, calc(100vw - 32px)); display: grid; gap: 10px; pointer-events: none; }
-.follow-up-confirmations > * { pointer-events: auto; background: var(--raised); color: var(--text); border-radius: 20px; box-shadow: var(--shadow); }
+/* The question sits in a box-less slot (MixEndPrompt), so its card takes the same raised surface as the other cards (LAY-04). */
+.follow-up-confirmations > :not(.mix-end-slot), .mix-end-slot > * { pointer-events: auto; background: var(--raised); color: var(--text); border-radius: 20px; box-shadow: var(--shadow); }
 .follow-up-confirmations:empty { display: none; }
 @media (max-width: 900px) { .follow-up-confirmations { bottom: calc(96px + env(safe-area-inset-bottom)); } }
 /* The end-of-Mix question (JITM-09 §2.77) waits in the same stack until the owner answers or closes it, after the timed
