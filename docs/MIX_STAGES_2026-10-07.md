@@ -1,6 +1,6 @@
 # Stages from the work — 2026-10-07
 
-**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. The first WF-05 review requested changes (1 HIGH, 4 MEDIUM, 6 LOW). The fixes are in 49794bc, e1320d5 and e3d4e1e ("First review" below), and a second review is next. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
+**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. Three WF-05 reviews have requested changes: round 1 (1 HIGH, 4 MEDIUM, 6 LOW), round 2 (2 MEDIUM, 5 LOW) and round 3 (1 MEDIUM, 5 LOW). Each round's fixes are listed below ("First review", "Second review", "Third review"), and a fourth review is next. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
 
 **Decisions:**
 - **D35** (2026-10-05): a Mix can set a person's stage, and a Mega-Mix can create stage labels that the owner can still change.
@@ -36,7 +36,7 @@ One function does it: `setStagesFromMixStarts` in `src/lib/mix-stage.ts`. Every 
 | A Journey Start | `startWorkflowInstance` (`src/lib/mix-workflow.ts`) | Always. |
 | A Journey connection, or the owner's update in Journey, starts the next Mix | `processWorkflowInstance` | Each run that pass adds. |
 
-Not a start: the stage's own Mix starting when someone enters the stage, resuming a paused Mix or one stopped for a person (`mix-stop-actions.ts`), a second start while the Mix is still running, saving a Mix again, onboarding's first Mix (`onboarding-actions.ts`), and a tag shown again or gained in a contact merge (`contact-merge-actions.ts`). A tag newly added to a Mix starts it for all its members, including people already running that Mix by their own start: that is a second assignment the scheduler runs, so it counts.
+Not a start: the stage's own Mix starting when someone enters the stage, resuming a paused Mix or one stopped for a person (`mix-stop-actions.ts`), a second start while the Mix is still running, saving a Mix again (including an Everyone Mix's re-sync of its places, UX-03), a tag added while the Mix is paused (its members start when it resumes, with no stage set: STG-05, a question for Kevin), onboarding's first Mix (`onboarding-actions.ts`), and a tag shown again or gained in a contact merge (`contact-merge-actions.ts`). A tag newly added to a Mix starts it for all its members, including people already running that Mix by their own start: that is a second assignment the scheduler runs, so it counts.
 
 **What setting the stage does.**
 - It changes only the label. No other Mix starts or stops, and the new stage's own Mix does not run. The one exception is the arrival stage's Mix for someone who hadn't joined a stage yet (next bullet).
@@ -52,7 +52,7 @@ Not a start: the stage's own Mix starting when someone enters the stage, resumin
 
 **When nothing changes.** The business has no Contact stages, or has paused automatic transitions; the person's own stage changes are paused; the stage is retired; the person is archived, marked Do not contact, or stopped in that Mix; the person is already in the stage.
 
-**Locks.** It takes the people's rows in id order, the lock a recorded milestone takes, and then shares the stages' rows (the arrival stage's too). Retiring a stage now takes the rows of the Mixes that name it (NO KEY UPDATE, which lets enrollments keep referring to them), then the stage's row, before counting its people: a start setting that stage right now finishes first and is counted, and a later one finds the stage retired. A placement shares the Everyone Mixes' rows before anything it starts sets a stage, so it and a retire take Mixes before the stage and can't wait on each other the other way round (LCK-02). Bulk Undo takes the people's rows before the enrollments, in the order a start takes them. The Journey Start (from the web) and connection (in the worker) paths take the workspace's key share before the contact row, so they wait behind a Mix save, which holds the workspace row and then locks the people it moves, instead of deadlocking with it (LCK-01).
+**Locks.** It takes the people's rows in id order, the lock a recorded milestone takes, and then shares the stages' rows (the arrival stage's too). Retiring a stage now takes the rows of the Mixes that name it (NO KEY UPDATE, which lets enrollments keep referring to them), then the stage's row, before counting its people: a start setting that stage right now finishes first and is counted, and a later one finds the stage retired. A placement shares the Everyone Mixes' rows before anything it starts sets a stage, and an import row shares them before its tag join (`shareEveryoneMixes`), so these and a retire all take Mixes before stages and can't wait on each other the other way round (LCK-02, LCK-03). Bulk Undo takes the people's rows before the enrollments, in the order a start takes them. The Journey Start (from the web) and connection (in the worker) paths take the workspace's key share before the contact row, so they wait behind a Mix save, which holds the workspace row and then locks the people it moves, instead of deadlocking with it (LCK-01).
 
 ### Saves that move people to a stage (UX-01, UX-02)
 
@@ -60,6 +60,8 @@ A save that starts people on a Mix that names a stage moves them all: turning th
 - The editor's button reads "Review and start", and the review adds: "Starting moves {n} people to {stage}, including {m} now in another stage. Pausing, removing or stopping the Mix doesn’t move them back." ("Saving moves …" on a Mix already on.) While transitions are paused it reads "No one moves to {stage}: automatic transitions are paused."
 - The count covers only the people the save starts: the whole audience when it turns the Mix on, all people when it ticks Everyone, or the members of the tags it adds. It comes from `stageMovesForAudience` (`src/lib/mix-stage.ts`) through `/api/contacts/audience?stage=…&mix=…&stageAll=1&stageGroup=…`, and leaves out what the start leaves out: archived, Do not contact, stopped in this Mix, paused stage changes, already in the stage, and hidden tags. A test checks that it equals the people the confirmed save moves.
 - The server refuses such a save without the review ("Review who moves to the Mix’s stage before turning it on." or "… before adding them."), and Start Mix on the Mixes list opens the review instead of starting.
+- On a Mix already on, the review reads "Save these changes?", counts only the people the save starts, and its buttons are "Review and save" and "Save the Mix" (COPY-02).
+- Re-saving an Everyone Mix re-syncs its places but moves no one: not someone the owner removed from the Mix, nor someone a tag, their own start or a Journey Start already put in it (UX-03). Resuming a paused Everyone Mix, from the editor or from the Mixes list, moves the people added while it was off (D58).
 - Not reviewed: resuming a paused Mix, which starts only the people "Everyone" took in since, and saves that start no one.
 
 ### Retiring a stage
@@ -167,6 +169,21 @@ Round 2 (`REVIEW-2.md`, private) at 6591a82: changes requested, 2 MEDIUM and 5 L
 | DOC-02 | LOW | Stale "stops" in default 7 and a test title, "no other Mix starts", Journey Start called a worker path, the §2.39 exception unstated, and the PR body. | Reworded here and in JITM-09 6.6.0 (§2.79 and §6); the PR body is refreshed. |
 | TST-02 | LOW | No tests for UX-02, STG-03, STG-04, the dated Add a contact pick, the pass after an arrival join, or count against moves. | Added, and a browser test for UX-02. Still not covered: the real import commit and phone webhook (the helpers they call are tested), Edit a contact's tags, saved dates, resume, defaults 3 and 4, retire racing a start. |
 
+## Third review
+
+Round 3 (`REVIEW-3.md`, private) at de58501: changes requested, 1 MEDIUM and 5 LOW. Every round-2 finding was fixed or answered, and round 1's partly fixed ones were closed.
+
+| ID | Severity | Finding | Fix |
+|---|---|---|---|
+| UX-03 | MEDIUM | Any save of an active Everyone Mix that names a stage moved everyone without an active Everyone place, unreviewed: people the owner had removed, and people a tag or their own start had put in the Mix. In the PR since 537a62d. | A save starts Everyone only when it turns the Mix on, newly ticks Everyone, or resumes it (people added while it was off, as the Mixes list does). A test removes someone, moves them on and re-saves. |
+| STG-05 | LOW | A tag added while a Mix is paused never sets its members' stage. | Disclosed as a non-start in §2.79 and above; a question for Kevin. |
+| COPY-02 | LOW | On a Mix already on, the review still read "Start this Mix?" and counted the whole audience. | "Save these changes?", "Review and save", "Save the Mix", and the count of the people the save starts. |
+| LCK-03 | LOW | An import row's tag join shared a stage before its placement shared the Everyone Mixes. | The row shares the Everyone Mixes first (`shareEveryoneMixes`). |
+| TST-03 | LOW | A refusal assertion passed either way; no tests for UX-03, STG-05 or the batched join's skip rules. | The refusals check the error and the person's stage; tests for UX-03 with D58's resume and for the batched join's four skip rules. The review also said the UX-02 browser test ran with the review preference on; the spec's setup turns it off for that owner (`e2e/mix-stages.spec.ts`, `beforeEach`), so the preference-off path is the one tested. STG-05 is disclosed, not built, so it has no test. |
+| DOC-03 | LOW | The status line and NOT RUN named the second review; the PR body said "defaults 1–12" and gave old sizes; the Contact stages footer was incomplete; the active-Mix review was audited in one theme. | Refreshed here and in the PR body; the footer names every start the rule follows and the ones it doesn't; the UX-02 browser test audits both themes. |
+
+Questions from round 3 for Kevin: should saving an Everyone Mix re-enroll people the owner removed at all (older than this change; recommended no)? Should a tag added while a Mix is paused move its members when it resumes (recommended yes, with the review)?
+
 ## Verification
 
 The run after the second review is at 501f2f1 (code) and 7c1b058, which changes only one sentence the browser spec looks for. It ran on TrixBot, against fresh local databases (`jitm_design_mst1007_r3*`), with the environment of CI's validate job. Every ledger step records its head; only this section changed after 7c1b058. Logs, JSON reports and the ledger are in `.artifacts/mix-stages-20261007/verification/` (private); step names refer to its ledger. The round-1 run (steps 01–13, at 7c01d56) and round-2 run (steps R2-*, at 9a0433e and e3d4e1e) are kept there.
@@ -193,7 +210,7 @@ The run after the second review is at 501f2f1 (code) and 7c1b058, which changes 
 
 ## NOT RUN
 
-- **The second WF-05 review**, at the head after these fixes.
+- **The fourth WF-05 review**, at the head after the third review's fixes.
 - **Physical devices.**
 - **Production:** nothing released; no production data read. How many accounts have Everyone Mixes, or stages with their own Mix, is unknown.
 - **CI jobs**, which GitHub Actions can't run (billing, JITM-12 §2.12). Run here: schema, syntax and import validation, typecheck, the standards check, the migration rehearsal and release check, Vitest, `worker:qualify`, the production build and the browser batches below. Not run:
