@@ -1,6 +1,6 @@
 # Stages from the work — 2026-10-07
 
-**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. The first WF-05 review requested changes (1 HIGH, 4 MEDIUM, 6 LOW). The fixes are in 49794bc and e1320d5 ("First review" below), and a second review is next. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
+**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. The first WF-05 review requested changes (1 HIGH, 4 MEDIUM, 6 LOW). The fixes are in 49794bc, e1320d5 and e3d4e1e ("First review" below), and a second review is next. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
 
 **Decisions:**
 - **D35** (2026-10-05): a Mix can set a person's stage, and a Mega-Mix can create stage labels that the owner can still change.
@@ -140,7 +140,7 @@ Round 1 (`.artifacts/mix-stages-20261007/REVIEW.md`, private) at 20f86a0: change
 | STG-02 | HIGH | People added without a stage event (imports, phone contacts, invitations, onboarding) never joined the arrival stage or got its Mix once an Everyone or tag Mix set their stage, and phone contacts lost the New contacts Mix too (D54, D55). | 49794bc: they join the arrival stage first (default 13); the New contacts check counts the arrival stage's Mix. |
 | STG-01 | MEDIUM | A stage's "Mix completed" rule never fired for someone that stage's own Mix moved in. | 49794bc: the stage manages it (default 14). |
 | UX-01 | MEDIUM | Turning on a Mix with an audience moved them all, unannounced, with no Undo. | e1320d5: always reviewed, with the count (default 15). Whether Everyone should move people already in a stage is Kevin's (Q3). |
-| A11Y-01 | MEDIUM | The preview's "Stage:" line was 12px. | e1320d5: 13px, and "Suggested starting point" beside it; the readable-text check covers `/templates/journeys`. |
+| A11Y-01 | MEDIUM | The preview's "Stage:" line was 12px. | e1320d5: 13px, and "Suggested starting point" beside it; the readable-text check covers `/templates/journeys`, and e3d4e1e raised the library's eyebrow it then found. |
 | EVD-01 | MEDIUM | The record didn't name the CI jobs and specs left out, or 320px, 200% text, keyboard and dark axe. | This record's NOT RUN list; `mix-stages` now audits both themes and checks 320px with 200% text and the keyboard; the import, contacts and calendar specs ran. |
 | LCK-01 | LOW | A Mix save could deadlock with the worker's Journey paths. | 49794bc: the worker paths take the workspace's key share first. |
 | ORD-01 | LOW | An Everyone Mix's stage beat the owner's pick; a stopped latest start hid an earlier one; hidden tags counted. | 49794bc (default 16). |
@@ -153,26 +153,38 @@ Found while fixing: retiring a stage locked the stage and then the Mixes naming 
 
 ## Verification
 
-The full run is at 7c01d56, on TrixBot, against fresh local databases (`jitm_design_mst1007_*`), with the environment of CI's validate job. Every ledger step records that head; only this section changed after it. Logs, JSON reports, screenshots and the ledger are in `.artifacts/mix-stages-20261007/verification/` (private); step names refer to its ledger.
+The run after the first review is at 9a0433e, on TrixBot, against fresh local databases (`jitm_design_mst1007_r2*`), with the environment of CI's validate job. e3d4e1e then raised one more 12px line to 13px, which the extended readable-text check had found; batch A and `mix-stages` re-ran at that head. Every ledger step records its head; only this section changed after e3d4e1e. Logs, JSON reports, screenshots and the ledger are in `.artifacts/mix-stages-20261007/verification/` (private); step names refer to its ledger, and the round-1 run at 7c01d56 is kept there as steps 01–13.
 
 | Check | Label | Result |
 |---|---|---|
-| `db:generate`, typecheck, `validate:static`, `standards:check` | VERIFIED | Passed (steps 01a–02b). `standards:check` has one existing warning: JITM-09 is over 300 lines. |
-| Full Vitest, in eight chunks on a fresh database | VERIFIED; four suites BLOCKED | 312 files, 2,410 tests: 2,345 passed and 41 skipped (steps 03c-0 to 03c-7). The 24 failures are all `spawn pg_dump ENOENT` in `backup-database`, `recovery-bundle`, `recovery-cutoff` and `recovery-state`: TrixBot has no `pg_dump` (JITM-12 §2.17), and this change touches no backup code. The new suites: `mix-stage.integration` 19/19 and `mix-stage-labels` 8/8. Neighbors: `new-contact-placement` 20/20, `mega-mix-installation` 13/13, `mega-mix-pipelines` 11/11, `mega-mixes` 14/14. |
-| `worker-runtime` | VERIFIED | 10/10 (step 03d). |
-| Migration | VERIFIED | `db:rehearse-migration` passed, and `db:verify-release` reported `{"status":"ready","required":78,"missing":0,"mismatched":0}` (steps 04a–04d). |
-| Production build | VERIFIED | Passed (step 05a). |
-| Browser specs against the standalone build, desktop and phone, in batches of five to seven, no retries | VERIFIED | 25 spec files on desktop: 159 passed, 5 skipped. 23 on the phone project: 126 passed, 24 skipped. No failures (steps 06–13). `mix-stages` passed 3/3 on each project. The batches covered the Mix editor and library, Mega-Mixes and their pipelines, the customer journey, Journey rules and connections, onboarding, No Mix status, "What's next?", contacts, Marketplace, visits, accessibility and fitment. |
-| Accessibility | VERIFIED, light theme | Axe (WCAG 2.0, 2.1 and 2.2 AA) passes on the editor's stage choice and the open stage on Contact stages at 390 and 1280, and on the Mega-Mix label choice at 390 (`mix-stages`). The stage choice has a short label, with its hint as `aria-describedby`. Dark was screenshotted, not audited. |
-| Screenshots | VERIFIED, inspected | At 7c01d56 (`verification/screens/`): the editor's stage choice, Contact stages with "Set when someone starts {Mix}." and the profile's "Joined Prospect, set by the Qualify the lead Mix." at 390 and 1280, light and dark; the Mega-Mix label choice at 390, light and dark. |
-| Baseline comparison (JITM-12 §2.14) | NOT RUN | No browser test failed, so none needed one. |
+| `db:generate`, typecheck, `validate:static`, `standards:check` | VERIFIED | Passed (steps R2-20a–R2-21b). `standards:check` has one existing warning: JITM-09 is over 300 lines. |
+| Full Vitest, in eight chunks on a fresh database | VERIFIED; four suites BLOCKED | 312 files, 2,416 tests: 2,351 passed and 41 skipped (steps R2-23, totals from the JSON). The 24 failures are all `spawn pg_dump ENOENT` in `backup-database`, `recovery-bundle`, `recovery-cutoff` and `recovery-state` (R2-26, R2-27 show the cause for the two that fail before any test): TrixBot has no `pg_dump` (JITM-12 §2.17), and this change touches no backup code. `mix-stage.integration` 25/25 and `mix-stage-labels` 8/8; neighbors `new-contact-placement` 20/20, `mega-mix-installation` 13/13, `mix-activation-preference` 5/5, `mix-workflow` 20/20. While fixing, 36 neighboring files passed 316/316 (R2-03). |
+| `npm run worker:qualify` | VERIFIED | 10/10 (R2-24). |
+| Migration | VERIFIED | `db:rehearse-migration` passed, and `db:verify-release` reported `{"status":"ready","required":78,"missing":0,"mismatched":0}` (R2-25a–d). |
+| Production build | VERIFIED | Passed at 9a0433e (R2-30a) and e3d4e1e (R2-43a). |
+| Browser specs against the standalone build, desktop and phone, in batches of five to seven, no retries | VERIFIED | Desktop: 39 spec files, 245 passed, 9 skipped. Phone: 37 files, 197 passed, 43 skipped. No failures in the final runs (R2-31–R2-45). Batches: S (stages, Mega-Mixes, journeys, onboarding), M (Mix authoring, library, list, timing), C (No Mix, What's next, core flows, Journey connections, Marketplace, Quick Add), A (accessibility, fitment, sheets, contacts, analytics, visits), I (imports, phone contacts, contacts, the contractor journey, invitations, Today) and J (search, friction, workflows, phone clarity, save recovery, quiet days). One failure on the way: the readable-text check, newly covering `/templates/journeys`, found the library's eyebrow at 12px (R2-38); e3d4e1e fixed it, and batch A passed on both projects at that head (R2-44, R2-45). `mix-stages` passed 5/5 on each project. |
+| Accessibility | VERIFIED | Axe (WCAG 2.0, 2.1 and 2.2 AA) passes in light and dark on the editor's stage choice, the open stage on Contact stages, the Mega-Mix label choice and the "Start this Mix?" review (`mix-stages`). At 320px with 200% text, the editor, Contact stages and the label choice don't scroll sideways; Tab moves from the stage choice to "Manage Contact stages", the Mix link takes focus, and Space ticks and unticks the label choice. The readable-text check covers `/templates/journeys`. |
+| Screenshots | VERIFIED, inspected | At e3d4e1e (`screens-r2b/`) and the uncommitted build before it (`screens-r2/`): the review's stage line at 390, light and dark; the editor, Contact stages and the label choice at 320 with 200% text, light and dark; the earlier set at 390 and 1280. |
+| Baseline comparison (JITM-12 §2.14) | NOT RUN | No browser test failed in the final runs, and the one failure on the way was this branch's new check. |
 
 ## Found, not fixed
 
 - **"Everyone" runs into its count in the Mix editor.** The audience checkbox reads "Everyone1 active person, and anyone you add later": the title and the count share a line with no space. The text came with #128 (074bf15) and is live. The New contacts page stacks them (`.new-contacts-settings .checkbox-card`); the Mix editor and `TemplateUseForm` have no such rule. It belongs in its own fix.
+- **The editor's sticky buttons at 320px with 200% text.** "Review first", "Cancel" and "Save and activate" are cut off ("Cance", "Save and activa") in `.sticky-form-actions`, which this change doesn't touch (screenshot `screens-r2/editor-stage-320-200-light.png`).
+- **The library's tab reads "Mega-mixes"** (`MegaMixLibrary.tsx`), older than this change (JITM-05).
+- **Other paths that lock a person and then write rows of the business** could still wait on a Mix save the other way round, as LCK-01 did; only the two Journey worker paths the review named take the workspace's key share first. Postgres ends such a wait by failing one side, which then retries or shows its error. JITM-11 §2.25's lock list doesn't cover the workspace and contact rows yet.
+- **Bulk Add locks people in name order and its Undo in id order.** Two overlapping bulk actions could wait on each other; this is older than this change, and the error is handled.
 
 ## NOT RUN
 
-- No WF-05 review yet.
-- No physical device.
-- Production: nothing released; no production data read.
+- **The second WF-05 review**, at the head after these fixes.
+- **Physical devices.**
+- **Production:** nothing released; no production data read. How many accounts have Everyone Mixes, or stages with their own Mix, is unknown.
+- **CI jobs**, which GitHub Actions can't run (billing, JITM-12 §2.12). Run here: schema, syntax and import validation, typecheck, the standards check, the migration rehearsal and release check, Vitest, `worker:qualify`, the production build and the browser batches below. Not run:
+  - the production dependency audit and the committed baseline SQL check;
+  - the optional scheduler type and package check;
+  - the encrypted backup and restore rehearsal: BLOCKED, TrixBot has no `pg_dump`, which also blocks four Vitest suites;
+  - restored-database isolation, authenticated load qualification, the hosted fixture rehearsal and the restricted-credential browser flows;
+  - the browser fixture preflight, invited registration with captured mail, the staff onboarding, library, admission and voice flows with MFA, and the staff and waitlist flows;
+  - mobile Lighthouse budgets and the production web and worker images.
+- **Browser specs left out:** the batches below ran 39 of the 90 spec files. The rest cover pages and flows this change doesn't touch: public, marketing and profession pages, registration, the waitlist, staff and administration, support, email and push, billing, privacy, data retention, the demo and staging smoke.
