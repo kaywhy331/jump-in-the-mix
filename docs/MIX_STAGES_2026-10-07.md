@@ -1,6 +1,6 @@
 # Stages from the work — 2026-10-07
 
-**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. Four WF-05 reviews: rounds 1–3 requested changes (round 1: 1 HIGH, 4 MEDIUM, 6 LOW; round 2: 2 MEDIUM, 5 LOW; round 3: 1 MEDIUM, 5 LOW), and round 4 approved with 5 LOW, fixed or answered under "Fourth review". A fifth review of those fixes is next. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
+**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. Four WF-05 reviews: rounds 1–3 requested changes (round 1: 1 HIGH, 4 MEDIUM, 6 LOW; round 2: 2 MEDIUM, 5 LOW; round 3: 1 MEDIUM, 5 LOW), and round 4 approved with 5 LOW, fixed or answered under "Fourth review". Round 5 approved too, with 3 LOW ("Fifth review"); a sixth review of those fixes is next. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
 
 **Decisions:**
 - **D35** (2026-10-05): a Mix can set a person's stage, and a Mega-Mix can create stage labels that the owner can still change.
@@ -212,18 +212,18 @@ The review confirmed the nine questions above and refined the first: D58 already
 
 ## Verification
 
-The run after the fourth review is at 6a92fc4, on TrixBot, against fresh local databases (`jitm_design_mst1007_r5*`), with the environment of CI's validate job. Every ledger step records its head; only this section changed after 6a92fc4. Logs, JSON reports and the ledger are in `.artifacts/mix-stages-20261007/verification/` (private); step names refer to its ledger. Earlier runs are kept there: round 1 (steps 01–13), round 2 (R2-*), round 3 (R3-*) and round 4 (R4-*, at 1270f53, all 12 browser batches).
+The run after the fifth review is at a7ad2b4, on TrixBot, against fresh local databases (`jitm_design_mst1007_r6*`), with the environment of CI's validate job. Every ledger step records its head; only this section changed after a7ad2b4. Logs, JSON reports and the ledger are in `.artifacts/mix-stages-20261007/verification/` (private); step names refer to its ledger. Earlier runs are kept there: round 1 (steps 01–13), round 2 (R2-*), round 3 (R3-*), round 4 (R4-*, all 12 browser batches at 1270f53) and round 5 (R5-*, batches S, M, C and A at 6a92fc4).
 
 | Check | Label | Result |
 |---|---|---|
-| `db:generate`, typecheck, `validate:static`, `standards:check` | VERIFIED | Passed (R5-20a–R5-21b). `standards:check` has one existing warning: JITM-09 is over 300 lines. |
-| Full Vitest, in eight chunks on a fresh database | VERIFIED; four suites BLOCKED | 312 files, 2,427 tests: 2,362 passed and 41 skipped (R5-23, totals from the JSON). The 24 failures are all `spawn pg_dump ENOENT` in `backup-database`, `recovery-bundle`, `recovery-cutoff` and `recovery-state` (`logs/R5-23-*.full.log`): TrixBot has no `pg_dump` (JITM-12 §2.17), and this change touches no backup code. `mix-stage.integration` 36/36. While fixing, seven neighboring files passed 103/103 (R5-03). |
-| `npm run worker:qualify` | VERIFIED | 10/10 (R5-24). |
+| `db:generate`, typecheck, `validate:static`, `standards:check` | VERIFIED | Passed (R6-20a–R6-21b). `standards:check` has one existing warning: JITM-09 is over 300 lines. |
+| Full Vitest, in eight chunks on a fresh database | VERIFIED; four suites BLOCKED | 312 files, 2,428 tests: 2,363 passed and 41 skipped (R6-23, totals from the JSON). The 24 failures are all `spawn pg_dump ENOENT` in `backup-database`, `recovery-bundle`, `recovery-cutoff` and `recovery-state` (`logs/R6-23-*.full.log`): TrixBot has no `pg_dump` (JITM-12 §2.17), and this change touches no backup code. `mix-stage.integration` 37/37. |
+| `npm run worker:qualify` | VERIFIED | 10/10 (R6-24). |
 | Migration | VERIFIED at 9a0433e; not changed since | `db:rehearse-migration` passed, and `db:verify-release` reported `{"status":"ready","required":78,"missing":0,"mismatched":0}` (R2-25a–d). |
-| Production build | VERIFIED | Passed at 6a92fc4 (R5-30a). |
-| Browser specs against the standalone build, desktop and phone, no retries | VERIFIED | Batches S (stages, Mega-Mixes, journeys, onboarding), M (Mix authoring, library, list), C (No Mix, What's next, core flows, Journey connections, Marketplace, Quick Add) and A (accessibility, fitment, sheets, contacts, analytics, visits), which cover everything this round changed: desktop 26 spec files, 163 passed, 5 skipped; phone 24 files, 130 passed, 24 skipped; no failures (R5-31–R5-38). Batches I (imports, phone contacts, contacts, invitations) and J (search, friction, workflows, save recovery, quiet days) last ran at 1270f53 (R4-41–R4-44, passing); this round changes no code they exercise (the resume paths, the review's wording, the Contact stages footer and a placement helper the import doesn't call). |
-| Accessibility | VERIFIED | Axe (WCAG 2.0, 2.1 and 2.2 AA) passes in light and dark on the editor's stage choice, the open stage on Contact stages, the Mega-Mix label choice, and both review variants (`mix-stages`). 320px with 200% text and the keyboard pass. The readable-text check covers `/templates/journeys`. |
-| Screenshots | VERIFIED, inspected | `screens-r4/` (the "Save these changes?" review, dark, inspected) and `screens-r2b/` (the rest, inspected in round 2). This round changes the review's warning wording and a resume's title only; `screens-r5/` holds the same set at 6a92fc4. |
+| Production build | VERIFIED | Passed at a7ad2b4 (R6-30a). |
+| Browser specs against the standalone build, desktop and phone, no retries | VERIFIED | This round changes only the resume paths' helper and comments, so batches S (stages, Mega-Mixes, journeys, onboarding) and M (Mix authoring, library and the Mixes list) ran: desktop 14 spec files, 72 passed; phone 13 files, 64 passed, 3 skipped; no failures (R6-31–R6-34). Batches C and A last passed at 6a92fc4 (R5-35–R5-38), and I and J at 1270f53 (R4-41–R4-44); nothing they exercise changed since. |
+| Accessibility | VERIFIED | Axe (WCAG 2.0, 2.1 and 2.2 AA) passes in light and dark on the editor's stage choice, the open stage on Contact stages, the Mega-Mix label choice, and both review variants (`mix-stages`, in batch S). 320px with 200% text and the keyboard pass. |
+| Screenshots | VERIFIED, inspected | `screens-r4/` (the "Save these changes?" review) and `screens-r2b/` (the rest), inspected; no layout changed since. `screens-r6/` holds the same set at a7ad2b4. |
 | Baseline comparison (JITM-12 §2.14) | NOT RUN | No browser test failed. |
 
 ## Found, not fixed
@@ -236,7 +236,7 @@ The run after the fourth review is at 6a92fc4, on TrixBot, against fresh local d
 
 ## NOT RUN
 
-- **The fifth WF-05 review**, at the head after the fourth review's fixes.
+- **The sixth WF-05 review**, at the head after the fifth review's fixes.
 - **Physical devices.**
 - **Production:** nothing released; no production data read. How many accounts have Everyone Mixes, or stages with their own Mix, is unknown.
 - **CI jobs**, which GitHub Actions can't run (billing, JITM-12 §2.12). Run here: schema, syntax and import validation, typecheck, the standards check, the migration rehearsal and release check, Vitest, `worker:qualify`, the production build and the browser batches below. Not run:
@@ -246,4 +246,4 @@ The run after the fourth review is at 6a92fc4, on TrixBot, against fresh local d
   - restored-database isolation, authenticated load qualification, the hosted fixture rehearsal and the restricted-credential browser flows;
   - the browser fixture preflight, invited registration with captured mail, the staff onboarding, library, admission and voice flows with MFA, and the staff and waitlist flows;
   - mobile Lighthouse budgets and the production web and worker images.
-- **Browser specs left out:** the round-4 batches ran 39 of the 90 spec files (round 5 re-ran 26 of them). The rest cover pages and flows this change doesn't touch: public, marketing and profession pages, registration, the waitlist, staff and administration, support, email and push, billing, privacy, data retention, the demo and staging smoke.
+- **Browser specs left out:** the round-4 batches ran 39 of the 90 spec files (round 5 re-ran 26 of them, round 6 14). The rest cover pages and flows this change doesn't touch: public, marketing and profession pages, registration, the waitlist, staff and administration, support, email and push, billing, privacy, data retention, the demo and staging smoke.
