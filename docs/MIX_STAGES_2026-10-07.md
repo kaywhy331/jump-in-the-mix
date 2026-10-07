@@ -28,7 +28,7 @@ One function does it: `setStagesFromMixStarts` in `src/lib/mix-stage.ts`. Every 
 | The New contacts setting's Mix, a lead connection's Mix, an import's chosen Mix | `placeNewContacts` → `startMixForContact` | The same. |
 | An Everyone Mix takes in a newcomer | `placeNewContacts` (`src/lib/new-contact-placement.ts`) | Each Everyone place it adds. |
 | Saving a Mix | `saveMixAction` | The Mix is on after the save, and its audience (Everyone or a tag) newly takes the person in, or the save turns a draft on. |
-| Turning a Mix on from the Mixes list | `activateMixAction` (`src/lib/mix-lifecycle-actions.ts`) | A draft: its whole audience. A paused Everyone Mix: the people added while it was off. |
+| Turning a Mix on from the Mixes list | `activateMixAction` (`src/lib/mix-lifecycle-actions.ts`) | A draft: its whole audience. A paused Everyone Mix: the people it has no place for and who aren't in it by another route (a tag, their own start, a visit or a Journey run), mostly people added while it was off. |
 | A tag given later | Add a contact, Edit a contact, both bulk tag actions, imports (`setStagesFromTagJoins`) | A shown tag that an active Mix runs for, newly given to the person. |
 | A saved date adds its date-based Mix | `createImportantDateAction` (`src/lib/important-date-actions.ts`) | The Mix was not already on for the person. |
 | Add a contact's follow-up date with a date-based Mix | `createContact` (`src/lib/contact-actions.ts`) | Always: the person is new. |
@@ -61,7 +61,7 @@ A save that starts people on a Mix that names a stage moves them all: turning th
 - The count covers only the people the save starts: the whole audience when it turns the Mix on, all people when it ticks Everyone, or the members of the tags it adds. It comes from `stageMovesForAudience` (`src/lib/mix-stage.ts`) through `/api/contacts/audience?stage=…&mix=…&stageAll=1&stageGroup=…`, and leaves out what the start leaves out: archived, Do not contact, stopped in this Mix, paused stage changes, already in the stage, and hidden tags. A test checks that it equals the people the confirmed save moves.
 - The server refuses such a save without the review ("Review who moves to the Mix’s stage before turning it on." or "… before adding them."), and Start Mix on the Mixes list opens the review instead of starting.
 - On a Mix already on, the review reads "Save these changes?", counts only the people the save starts, and its buttons are "Review and save" and "Save the Mix" (COPY-02).
-- Re-saving an Everyone Mix re-syncs its places but moves no one: not someone the owner removed from the Mix, nor someone a tag, their own start or a Journey Start already put in it (UX-03). Resuming a paused Everyone Mix, from the editor or from the Mixes list, moves the people it takes in then: those it had no place for and who aren't in it by another route (a tag, their own start). That is the people added while it was off (D58), unless a save while it was paused already gave them a place; their stage is then not set (UX-04, a question for Kevin).
+- Re-saving an Everyone Mix re-syncs its places but moves no one: not someone the owner removed from the Mix, nor someone a tag, their own start or a Journey Start already put in it (UX-03). Resuming a paused Everyone Mix, from the editor or from the Mixes list, moves the people it takes in then: those it had no place for and who aren't in it by another route (a tag, their own start, a visit, or a Journey Start or connection, D60). That is mostly the people added while it was off (D58). A "Keep paused" save gives newcomers a place, so after one, resume moves none of them and their stage isn't set; D58 says newcomers aren't placed while a Mix is paused, so this is partly whether the editor should follow D58 (UX-04, a question for Kevin).
 - Not reviewed: resuming a paused Mix, which starts only the people "Everyone" took in since, and saves that start no one.
 
 ### Retiring a stage
@@ -197,6 +197,18 @@ Round 4 (`REVIEW-4.md`, private) at 5f5ada8: **approve**, 5 LOW. Round 3's findi
 | DOC-04 | "Added while it was off"; resume both a start and a non-start; `placeNewContacts` lost its docblock; the footer omitted imports, the New contacts setting and visits. | Reworded here and in JITM-09 6.8.0; the docblock is back; the footer names them. |
 
 **Questions from the reviews for Kevin**, with the reviewers' recommended answers: (1) when an Everyone Mix that names a stage resumes, should a save while it was paused stop placing newcomers, so resume moves them (yes)? (2) should Remove on an Everyone Mix count as a stop for that Mix, so no later save re-enrolls the person (yes; older than this change)? (3) should a tag added while a Mix is paused move its members when it resumes (yes, reviewed)? (4) do you accept default 15's exception to §2.39 (yes)? (5) should ticking Everyone move only people with no stage yet (yes, unless confirmed in the review)? (6) should a stage's "Mix completed" rule follow its Mix run from Journey (later, slice 4)? (7) should every way of adding people put them in the first stage at once (yes, later)? (8) defaults 14 and 16 as built (yes)? (9) the P8 label lists (keep the trade's milestones) and labels after the fact (slice 4)?
+
+## Fifth review
+
+Round 5 (`REVIEW-5.md`, private) at 6f8a7f9: **approve**, 3 LOW. Round 4's findings were fixed, with two leftovers:
+
+| ID | Finding | Fix |
+|---|---|---|
+| UX-06 | Resume still moved people a Journey Start or connection had put in the Mix: Journey work has no enrollment, and the helper read only enrollments. | `peopleInMixByOtherRoutes` also reads active Journey runs of the Mix (legacy runs excepted, as they mirror enrollments); tested with a run that predates the `legacy` flag. |
+| DOC-05 | The start-path table, the resume sentence and a code comment still said "the people added while it was off"; the helper's docblock claimed Journey enrollments; visits were left out. | Reworded here, in the code comments and the docblock; visits named. The PR body's sizes are refreshed. |
+| TST-05 | Only the tag route of the helper was tested; no test for UX-06. | A resume test covers a person's own start, a Journey run and a hidden tag's member. Still no browser assertion of the review's people count or COPY-03's wording. |
+
+The review confirmed the nine questions above and refined the first: D58 already says newcomers aren't placed while a Mix is paused.
 
 ## Verification
 
