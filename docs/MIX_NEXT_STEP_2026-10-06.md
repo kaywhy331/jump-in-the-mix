@@ -1,6 +1,6 @@
 # What happens next for a person — 2026-10-06
 
-**Status:** built on branch `feat/mix-next-step-20261006` (PR #128), which targets `main`. It contains #125 as released (`prod-2026-10-06-4a77761`, merged in as 3c399b6), with all three rounds of its review fixes. Its first two WF-05 reviews requested changes, the third approved it with four LOW notes, and a final check of their fixes found one MEDIUM, fixed in 7db76fe and 9d59127; all are listed under "Reviews" below. Not merged and not released.
+**Status:** released on 2026-10-07 as `prod-2026-10-07-501841e` (PR #128, merged as d29a1a0); the release record is [`MIX_NEXT_STEP_RELEASE_2026-10-07.md`](MIX_NEXT_STEP_RELEASE_2026-10-07.md). It contains #125 as released (`prod-2026-10-06-4a77761`). Five WF-05 reviews ran; all findings and what each became are listed under "Reviews" below.
 
 **Decisions:**
 - **D33** (confirmed 2026-10-05): when a Mix ends without a connection, the last Beat's outcome asks what's next.
