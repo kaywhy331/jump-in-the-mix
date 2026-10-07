@@ -16,6 +16,12 @@
   background: color-mix(in srgb, Canvas 94%, currentColor 6%);
 }
 
+/* The words take the room first; the Undo wraps below them only when enlarged text leaves too little (LAY-03). */
+.completedPlaceholder > span {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
 .completedPlaceholder strong {
   display: block;
 }
