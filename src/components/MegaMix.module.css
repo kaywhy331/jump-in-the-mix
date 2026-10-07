@@ -24,8 +24,8 @@
 .node { min-width: 0; flex: 1; }
 .node h3 { font-size: 18px; line-height: 1.4; margin: 0; }
 .node > p { color: var(--text-2); font-size: 14px; line-height: 1.6; margin: 10px 0; }
-.root { display: inline-block; margin-top: 6px; color: var(--violet-ink); font-size: 12px; }
-.stage { display: inline-block; margin-top: 6px; margin-inline-start: 0; color: var(--text-2); font-size: 12px; }
+.root { display: inline-block; margin-top: 6px; color: var(--violet-ink); font-size: 13px; }
+.stage { display: inline-block; margin-top: 6px; margin-inline-start: 0; color: var(--text-2); font-size: 13px; }
 .root + .stage { margin-inline-start: 12px; }
 .node summary { cursor: pointer; min-height: 44px; padding: 12px 0; }
 .beats li { margin: 12px 0 20px; }

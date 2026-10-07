@@ -185,6 +185,8 @@ test("meaningful text remains readable on phone-sized screens", async ({ page },
     "/contacts/custom-fields",
     "/mixes",
     "/templates",
+    // The Mega-Mix library and its preview, including each Mix's "Stage:" line (A11Y-01).
+    "/templates/journeys",
     "/settings",
     "/settings/business",
     "/settings/jump-date-types",

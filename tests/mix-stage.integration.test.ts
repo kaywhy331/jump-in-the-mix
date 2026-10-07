@@ -10,7 +10,7 @@ vi.mock("@/lib/env", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/lib/env")>();
   return { ...actual, env: { ...actual.env, authRateLimitSecret: "mix-stage-integration-test-secret-1" } };
 });
-import { setStagesFromMixStarts, undoStageSet, addStageLabels, StageLimitRefusal } from "../src/lib/mix-stage";
+import { setStagesFromMixStarts, setStagesFromTagJoins, undoStageSet, addStageLabels, StageLimitRefusal, stageMovesForAudience } from "../src/lib/mix-stage";
 import { assignMixToContactAction, bulkAssignMixAction, undoBulkMixStartAction } from "../src/lib/contact-mix-actions";
 import { placeNewContacts } from "../src/lib/new-contact-placement";
 import { saveMixAction } from "../src/lib/mix-editor-actions";
@@ -87,21 +87,32 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       expect(await prisma.mixStop.count({ where: { workspaceId } })).toBe(0);
       expect(await prisma.mixAssignment.count({ where: { workspaceId, mixId: prospectMix.id } })).toBe(0);
       expect(await prisma.journeyEvent.findFirstOrThrow({ where: { workspaceId, contactId: ana } })).toMatchObject({ eventType: "MANUAL", source: "Mix: Qualify", resultingStageId: prospect, eventKey: change.eventKey });
-      expect((await prisma.contactActivity.findFirstOrThrow({ where: { workspaceId, contactId: ana } })).summary).toBe("Lead → Prospect, set by the Qualify Mix.");
+      expect((await prisma.contactActivity.findFirstOrThrow({ where: { workspaceId, contactId: ana } })).summary).toBe("Lead → Prospect, set by the Mix “Qualify”.");
       // Starting it again while already in that stage changes nothing.
       expect(await set(ana, qualify.id)).toEqual([]);
       expect(await prisma.journeyEvent.count({ where: { workspaceId, contactId: ana } })).toBe(1);
     });
 
-    it("gives a person with no stage the Mix's stage, and the latest start wins", async () => {
+    it("gives someone added before stages were on the Mix's stage, and the latest start wins", async () => {
       const first = await mix("First", { stageId: prospect });
       const second = await mix("Second", { stageId: client });
-      const ben = await person("Ben");
+      // Added before Contact stages were turned on, so the worker's stage pass never takes them.
+      const ben = (await prisma.contact.create({ data: { workspaceId, displayName: "Ben", createdAt: new Date(Date.now() - 86_400_000) } })).id;
       await prisma.$transaction(tx => setStagesFromMixStarts(tx, { workspaceId, starts: [{ contactId: ben, mixId: first.id }, { contactId: ben, mixId: second.id }] }));
       expect(await stageOf(ben)).toBe(client);
-      expect((await prisma.contactActivity.findFirstOrThrow({ where: { workspaceId, contactId: ben } })).summary).toBe("Joined Client, set by the Second Mix.");
+      expect((await prisma.contactActivity.findMany({ where: { workspaceId, contactId: ben } })).map(item => item.summary)).toEqual(["Joined Client, set by the Mix “Second”."]);
       await set(ben, first.id);
       expect(await stageOf(ben)).toBe(prospect);
+    });
+
+    it("an earlier start sets the stage when the person is stopped in the latest one (ORD-01)", async () => {
+      const first = await mix("First", { stageId: prospect });
+      const second = await mix("Second", { stageId: client });
+      const cleo = await person("Cleo");
+      await placeIn(cleo, lead);
+      await prisma.mixStop.create({ data: { workspaceId, contactId: cleo, mixId: second.id, reason: "Owner stopped this" } });
+      await prisma.$transaction(tx => setStagesFromMixStarts(tx, { workspaceId, starts: [{ contactId: cleo, mixId: first.id }, { contactId: cleo, mixId: second.id }] }));
+      expect(await stageOf(cleo)).toBe(prospect);
     });
 
     it("leaves people alone when stage changes are paused, the stage is retired, or the Mix doesn't run for them", async () => {
@@ -146,11 +157,17 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       expect(await prisma.$transaction(tx => undoStageSet(tx, { workspaceId, set: change }))).toBe(true);
       expect(await prisma.contactJourney.findUniqueOrThrow({ where: { contactId: dee } })).toMatchObject({ stageId: lead, stageSince: since });
       expect(await prisma.journeyEvent.count({ where: { workspaceId, contactId: dee } })).toBe(0);
-      // A start that gave someone their first stage leaves them with none again.
-      const eve = await person("Eve");
+      // A start that gave someone their first stage leaves them with none again: here someone added before stages.
+      const eve = (await prisma.contact.create({ data: { workspaceId, displayName: "Eve", createdAt: new Date(Date.now() - 86_400_000) } })).id;
       const [created] = await set(eve, qualify.id);
       expect(await prisma.$transaction(tx => undoStageSet(tx, { workspaceId, set: created }))).toBe(true);
       expect(await stageOf(eve)).toBeNull();
+      // Someone new joined the first stage on the way, as the worker's pass would have put them there; Undo keeps that.
+      const fay = await person("Fay");
+      const [joined] = await set(fay, qualify.id);
+      expect(joined.previous).toMatchObject({ stageId: lead });
+      expect(await prisma.$transaction(tx => undoStageSet(tx, { workspaceId, set: joined }))).toBe(true);
+      expect(await stageOf(fay)).toBe(lead);
       // Moved by hand since: Undo leaves them where they are.
       const [again] = await set(dee, qualify.id);
       await prisma.$transaction(tx => applyJourneyEvent(tx, { workspaceId, contactId: dee, eventKey: `manual:${randomUUID()}`, eventType: "MANUAL", targetStageId: client, source: "Recorded by you" }));
@@ -180,7 +197,8 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       expect([await stageOf(gil), await stageOf(hal)]).toEqual([prospect, prospect]);
       const undone = await redirectOf(undoBulkMixStartAction(form({ undoId: added.searchParams.get("mixUndo")!, returnTo: "/contacts" })));
       expect(undone.searchParams.get("mixUndone")).toBe("2");
-      expect([await stageOf(gil), await stageOf(hal)]).toEqual([lead, null]);
+      // Hal was new, so he joined the first stage on the way, as the worker's pass would have put him there.
+      expect([await stageOf(gil), await stageOf(hal)]).toEqual([lead, lead]);
       const record = await prisma.auditLog.findFirstOrThrow({ where: { workspaceId, action: "mix.assignment.bulk-undo" } });
       expect(record.metadata).toMatchObject({ restoredStages: 2 });
     });
@@ -215,15 +233,28 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       expect(await prisma.mix.count({ where: { workspaceId, name: "Other" } })).toBe(0);
     });
 
-    it("turning on a draft starts it for its whole audience; a tag given later starts it too", async () => {
+    it("turning on a draft that names a stage is always reviewed, then moves its whole audience; a tag given later moves them too", async () => {
       const tag = await prisma.group.create({ data: { workspaceId, name: "Clients" } });
-      const kim = await person("Kim"), lou = await person("Lou");
-      await prisma.contactGroupMembership.create({ data: { contactId: kim, groupId: tag.id } });
+      const quiet = await prisma.group.create({ data: { workspaceId, name: "Quiet" } });
+      const kim = await person("Kim"), lou = await person("Lou"), max = await person("Max");
+      await prisma.contactGroupMembership.createMany({ data: [{ contactId: kim, groupId: tag.id }, { contactId: max, groupId: quiet.id }] });
+      await prisma.contactGroupState.create({ data: { workspaceId, groupId: quiet.id, isActive: false } });
       const care = await mix("Client care", { stageId: client, status: "DRAFT" });
-      await prisma.mixAssignment.create({ data: { workspaceId, mixId: care.id, groupId: tag.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${care.id}:group:${tag.id}` } });
+      for (const group of [tag, quiet]) await prisma.mixAssignment.create({ data: { workspaceId, mixId: care.id, groupId: group.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${care.id}:group:${group.id}` } });
       await prisma.userPreference.upsert({ where: { userId }, create: { userId, reviewMixActivation: false }, update: { reviewMixActivation: false } });
-      await redirectOf(activateMixAction(form({ mixId: care.id })));
+      // With the review preference off, Start Mix still opens the review, and the save refuses to skip it (UX-01).
+      const review = await redirectOf(activateMixAction(form({ mixId: care.id })));
+      expect(`${review.pathname}${review.search}`).toBe(`/mixes/${care.id}/edit?activate=1`);
+      const step = await prisma.mixStep.findFirstOrThrow({ where: { mixId: care.id, isActive: true } });
+      const editor = (fields: Record<string, string>) => form({ name: "Client care", mixId: care.id, mixStepId: step.id, mixUpdatedAt: care.updatedAt.toISOString(), status: "ACTIVE", triggerMode: "MANUAL_START", dayOffset: "0", sendTimeMinutes: "", plannedAt: "", anchor: "CALENDAR_DAY", offsetMinutes: "", "inlineName-0": "Check in", "inlineChannel-0": "PHONE_CALL", "inlineScript-0": "Ask how it went.", groupIds: [tag.id, quiet.id], stageId: client, ...fields });
+      const refused = await redirectOf(saveMixAction(editor({})));
+      expect(refused.pathname).toBe(`/mixes/${care.id}/edit`);
+      expect((await prisma.mix.findUniqueOrThrow({ where: { id: care.id } })).status).toBe("DRAFT");
+      expect(await stageOf(kim)).toBeNull();
+      await redirectOf(saveMixAction(editor({ activationConfirmed: "1" })));
       expect(await stageOf(kim)).toBe(client);
+      // A hidden tag runs nothing, so it moves no one.
+      expect(await stageOf(max)).toBeNull();
       expect(await stageOf(lou)).toBeNull();
       await redirectOf(bulkAssignGroupAction(form({ groupId: tag.id, contactIds: [lou] })));
       expect(await stageOf(lou)).toBe(client);
@@ -345,6 +376,92 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       expect(await prisma.mix.count({ where: { workspaceId } })).toBe(0);
       expect(await prisma.journeyStage.count({ where: { workspaceId } })).toBe(18);
       await expect(prisma.$transaction(tx => addStageLabels(tx, workspaceId, ["Extra 0", "Extra 1"]))).resolves.toBeInstanceOf(Map);
+    });
+  });
+
+  describe("new people, the stage's own Mix and the review (round 1 fixes)", () => {
+    it("someone waiting for the stage pass joins the first stage, with its Mix, before an Everyone Mix sets theirs (STG-02)", async () => {
+      const newLead = await mix("New lead");
+      await prisma.journeyStage.update({ where: { id: lead }, data: { planId: newLead.id } });
+      const welcome = await mix("Welcome");
+      await prisma.workspacePreference.upsert({ where: { workspaceId }, create: { workspaceId, newContactPlacement: "MIX", newContactMixId: welcome.id }, update: { newContactPlacement: "MIX", newContactMixId: welcome.id } });
+      const tips = await mix("Monthly tips", { stageId: retention, audienceEveryone: true });
+      // A phone contact: added without a stage event, placed by the setting.
+      const pat = await person("Pat");
+      await prisma.$transaction(tx => placeNewContacts(tx, { workspaceId, contactIds: [pat] }));
+      expect(await stageOf(pat)).toBe(retention);
+      const running = await prisma.mixAssignment.findMany({ where: { workspaceId, contactId: pat, isActive: true }, select: { mixId: true } });
+      expect(running.map(item => item.mixId).sort()).toEqual([newLead.id, tips.id].sort());
+      // The arrival used the stage pass's own key, so the pass has nothing left to do for Pat.
+      expect((await prisma.journeyEvent.findMany({ where: { workspaceId, contactId: pat }, orderBy: { occurredAt: "asc" } })).map(event => [event.eventKey.split(":")[0], event.resultingStageId])).toEqual([["journey-new", lead], ["mix-stage", retention]]);
+      // The first stage's Mix keeps running as Pat's own, so a later move doesn't stop it.
+      expect((await prisma.contactJourney.findUniqueOrThrow({ where: { contactId: pat } })).managedAssignmentId).toBeNull();
+    });
+
+    it("an imported person whose tag's Mix names a stage doesn't also get the New contacts Mix (STG-02, D54)", async () => {
+      const newLead = await mix("New lead");
+      await prisma.journeyStage.update({ where: { id: lead }, data: { planId: newLead.id } });
+      const welcome = await mix("Welcome");
+      await prisma.workspacePreference.upsert({ where: { workspaceId }, create: { workspaceId, newContactPlacement: "MIX", newContactMixId: welcome.id }, update: { newContactPlacement: "MIX", newContactMixId: welcome.id } });
+      const tag = await prisma.group.create({ data: { workspaceId, name: "Referrals" } });
+      const intro = await mix("Referral intro", { stageId: prospect });
+      await prisma.mixAssignment.create({ data: { workspaceId, mixId: intro.id, groupId: tag.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${intro.id}:group:${tag.id}`, startDate: new Date() } });
+      const ray = await person("Ray");
+      await prisma.contactGroupMembership.create({ data: { contactId: ray, groupId: tag.id } });
+      const placed = await prisma.$transaction(async tx => {
+        await setStagesFromTagJoins(tx, { workspaceId, joins: [{ contactId: ray, groupId: tag.id }] });
+        return placeNewContacts(tx, { workspaceId, contactIds: [ray] });
+      });
+      expect(await stageOf(ray)).toBe(prospect);
+      expect(placed.skippedBecause[ray]).toBe("stage");
+      expect(await prisma.mixAssignment.count({ where: { workspaceId, contactId: ray, mixId: newLead.id, isActive: true } })).toBe(1);
+      expect(await prisma.mixAssignment.count({ where: { workspaceId, contactId: ray, mixId: welcome.id } })).toBe(0);
+    });
+
+    it("a stage manages its own Mix when that Mix moves someone into it (STG-01)", async () => {
+      const qualify = await mix("Qualify", { stageId: prospect });
+      await prisma.journeyStage.update({ where: { id: prospect }, data: { planId: qualify.id } });
+      const dana = await person("Dana");
+      await placeIn(dana, lead);
+      await redirectOf(assignMixToContactAction(form({ contactId: dana, mixId: qualify.id, startDate: today() })));
+      const assignment = await prisma.mixAssignment.findUniqueOrThrow({ where: { assignmentKey: `${workspaceId}:${qualify.id}:${dana}` } });
+      expect(await prisma.contactJourney.findUniqueOrThrow({ where: { contactId: dana } })).toMatchObject({ stageId: prospect, managedAssignmentId: assignment.id });
+      // As for anyone the stage manages a Mix for, moving on stops it.
+      await prisma.$transaction(tx => applyJourneyEvent(tx, { workspaceId, contactId: dana, eventKey: `manual:${randomUUID()}`, eventType: "MANUAL", targetStageId: client, source: "Recorded by you" }));
+      expect((await prisma.mixAssignment.findUniqueOrThrow({ where: { id: assignment.id } })).isActive).toBe(false);
+      // Someone new who starts the first stage's own Mix joins that stage, and the stage manages the Mix.
+      const newLead = await mix("New lead", { stageId: lead });
+      await prisma.journeyStage.update({ where: { id: lead }, data: { planId: newLead.id } });
+      const eli = await person("Eli");
+      await redirectOf(assignMixToContactAction(form({ contactId: eli, mixId: newLead.id, startDate: today() })));
+      const started = await prisma.mixAssignment.findUniqueOrThrow({ where: { assignmentKey: `${workspaceId}:${newLead.id}:${eli}` } });
+      expect(await prisma.contactJourney.findUniqueOrThrow({ where: { contactId: eli } })).toMatchObject({ stageId: lead, managedAssignmentId: started.id });
+    });
+
+    it("the Mix the owner picks while adding someone sets the stage over an Everyone Mix (ORD-01)", async () => {
+      const qualify = await mix("Qualify", { stageId: prospect });
+      await mix("Monthly tips", { stageId: retention, audienceEveryone: true });
+      const uma = await person("Uma");
+      await prisma.$transaction(tx => placeNewContacts(tx, { workspaceId, contactIds: [uma], mixId: qualify.id, chosenByOwner: true, explicit: true }));
+      expect(await stageOf(uma)).toBe(prospect);
+    });
+
+    it("counts who turning a Mix on would move, as the start decides (UX-01)", async () => {
+      const care = await mix("Client care", { stageId: client, status: "DRAFT" });
+      const tag = await prisma.group.create({ data: { workspaceId, name: "Clients" } });
+      const [inLead, fresh, already, restricted, paused, stopped] = await Promise.all(["In lead", "Fresh", "Already", "Restricted", "Paused", "Stopped"].map(person));
+      await prisma.contactGroupMembership.createMany({ data: [inLead, fresh, already, restricted, paused, stopped].map(contactId => ({ contactId, groupId: tag.id })) });
+      await placeIn(inLead, lead);
+      await placeIn(already, client);
+      await placeIn(paused, lead, { automatic: false });
+      await prisma.contactRelationshipState.create({ data: { workspaceId, contactId: restricted, doNotContact: true } });
+      await prisma.mixStop.create({ data: { workspaceId, contactId: stopped, mixId: care.id, reason: "Owner stopped this" } });
+      const outsider = await person("Not tagged");
+      await placeIn(outsider, lead);
+      expect(await stageMovesForAudience(prisma, { workspaceId, stageId: client, all: false, groupIds: [tag.id], mixId: care.id })).toEqual({ moving: 2, fromOtherStages: 1 });
+      expect(await stageMovesForAudience(prisma, { workspaceId, stageId: client, all: true, groupIds: [], mixId: care.id })).toEqual({ moving: 3, fromOtherStages: 2 });
+      await prisma.journeyPreference.update({ where: { workspaceId }, data: { enabled: false } });
+      expect(await stageMovesForAudience(prisma, { workspaceId, stageId: client, all: true, groupIds: [], mixId: care.id })).toEqual({ moving: 0, fromOtherStages: 0 });
     });
   });
 });

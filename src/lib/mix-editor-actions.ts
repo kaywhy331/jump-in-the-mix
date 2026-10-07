@@ -240,6 +240,10 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
     if (unavailableNewGroup) fail(path, "Hidden tags cannot be added to a Mix.", session);
   }
   const assignAllContacts = formData.get("assignAllContacts") === "on";
+  // Turning on a Mix that names a Contact stage moves its audience to that stage, so it is reviewed first whatever
+  // the review preference says (UX-01).
+  const turningOn = status === "ACTIVE" && (!existingMix || existingMix.status === "DRAFT");
+  if (turningOn && (stageId === undefined ? existingMix?.stageId : stageId) && (assignAllContacts || groupIds.length) && value(formData, "activationConfirmed", 4) !== "1") fail(path, "Review who moves to the Mix’s stage before turning it on.", session);
   // A mix that starts when the owner chooses needs no audience to be on: it is started from one
   // person's page or lined up with a visit from the calendar. Elapsed beats never count as scheduled
   // for an enrollment without an appointment, so the projection below counts calendar-day beats only.
@@ -351,21 +355,20 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
       await tx.mixAssignment.updateMany({ where: { workspaceId: workspace.id, mixId, mode: "DYNAMIC" }, data: { isActive: false } });
       // The Mix starts at this save for the people its audience newly takes in, or for all of them when the save turns
       // on a draft. Resuming a paused Mix starts no one again.
-      const turnedOn = status === "ACTIVE" && (!existingMix || existingMix.status === "DRAFT");
       const starting: string[] = [];
       for (const groupId of groupIds) {
         const assignmentKey = `${workspace.id}:${mixId}:group:${groupId}`;
         const existing = existingAssignmentByKey.get(assignmentKey);
         const startDate = triggerMode === "MANUAL_START" ? freshStart ? now : existing?.startDate ?? now : null;
         const saved = await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, groupId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
-        if (turnedOn || !existing?.isActive) starting.push(saved.id);
+        if (turningOn || !existing?.isActive) starting.push(saved.id);
       }
       for (const contactId of allContactIds) {
         const assignmentKey = `${workspace.id}:${mixId}:audience:${contactId}`;
         const existing = existingAssignmentByKey.get(assignmentKey);
         const startDate = triggerMode === "MANUAL_START" ? freshStart ? now : existing?.startDate ?? now : null;
         const saved = await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, contactId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
-        if (turnedOn || !existing?.isActive) starting.push(saved.id);
+        if (turningOn || !existing?.isActive) starting.push(saved.id);
       }
       // A Mix that names a Contact stage sets it for the people it starts now (JITM-09 §2.79); changing the stage
       // doesn't move people already in the Mix.

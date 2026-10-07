@@ -28,11 +28,13 @@ export async function activateMixAction(formData: FormData): Promise<void> {
   const mixId = value(formData, "mixId");
   const mix = await prisma.mix.findFirst({
     where: { id: mixId, workspaceId: workspace.id, status: { in: ["DRAFT", "PAUSED"] }, source: { not: "ONE_TIME" } },
-    select: { id: true, name: true, status: true, triggerMode: true, audienceEveryone: true }
+    select: { id: true, name: true, status: true, triggerMode: true, audienceEveryone: true, stageId: true }
   });
   if (!mix) fail("Mix not found or already active.", session);
   const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
-  if (preference?.reviewMixActivation !== false) redirect(`/mixes/${mix.id}/edit?activate=1`);
+  // Turning on a draft that names a Contact stage moves its audience, so it is always reviewed first (UX-01).
+  const movesAudience = mix.status === "DRAFT" && Boolean(mix.stageId) && await prisma.mixAssignment.count({ where: { workspaceId: workspace.id, mixId: mix.id, isActive: true, mode: "DYNAMIC" } }) > 0;
+  if (preference?.reviewMixActivation !== false || movesAudience) redirect(`/mixes/${mix.id}/edit?activate=1`);
   const refusal = await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR UPDATE`;
     const limit = await activeMixLimitRefusal(workspace.id, { mixIds: [mix.id] }, tx);

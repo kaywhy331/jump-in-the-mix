@@ -16,7 +16,7 @@ export default async function MegaMixPage({ searchParams }: { searchParams: Prom
     prisma.mix.findMany({ where: { workspaceId: workspace.id, source: { startsWith: "MEGA_MIX:" } }, select: { id: true, name: true, status: true } }),
     prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } }), timezoneForUser(user.id),
     prisma.journeyStage.findMany({ where: { workspaceId: workspace.id }, select: { name: true } }),
-    prisma.journeyPreference.findUnique({ where: { workspaceId: workspace.id }, select: { workspaceId: true } })
+    prisma.journeyPreference.findUnique({ where: { workspaceId: workspace.id }, select: { enabled: true } })
   ]);
   const installed = receipts.map(receipt => {
     const ids = receipt.mixIds as Record<string, string>;
@@ -24,5 +24,5 @@ export default async function MegaMixPage({ searchParams }: { searchParams: Prom
     return { blueprintId: receipt.blueprintId, version: receipt.version,
       mixes: keys.flatMap(key => { const mix = mixes.find(item => item.id === ids[key]); return mix ? [mix] : []; }) };
   });
-  return <div className="page mix-workspace-page"><MegaMixLibrary initialSetup={initialJourneySetup(scheduling, timezone)} key={`${selectedId}:${query.added ?? ""}`} selectedId={selectedId} installed={installed} added={query.added === "1"} canEdit={!impersonation} contactStages={{ names: stages.map(stage => stage.name), on: Boolean(stagePreference) }} /></div>;
+  return <div className="page mix-workspace-page"><MegaMixLibrary initialSetup={initialJourneySetup(scheduling, timezone)} key={`${selectedId}:${query.added ?? ""}`} selectedId={selectedId} installed={installed} added={query.added === "1"} canEdit={!impersonation} contactStages={{ names: stages.map(stage => stage.name), on: Boolean(stagePreference), paused: stagePreference?.enabled === false }} /></div>;
 }
