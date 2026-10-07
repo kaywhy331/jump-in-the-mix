@@ -311,7 +311,9 @@ test("select a canvas line, cancel deletion, then delete and reload without remo
 
 test("delete an individual branch and a shared join while preserving other paths", async ({ page }) => {
   const rule = await seedRemovablePaths(page, true, true);
-  await selectSavedPath(page, rule.routes[0].id); await confirmPathDeletion(page);
+  // Deleting a path moves focus to the canvas a frame later (WorkflowJourney's clearPath); wait for it, as the
+  // test above does, so the next path's focus isn't taken back.
+  await selectSavedPath(page, rule.routes[0].id); await confirmPathDeletion(page); await expect(canvas(page)).toBeFocused();
   await expect(page.locator(`[data-workflow-path="${rule.routes[0].id}"]`)).toHaveCount(0);
   await expect(page.locator(`[data-workflow-path="${rule.routes[1].id}"]`)).toHaveCount(1);
   const joinedId = `${rule.id}:join:${rule.routes[1].id}`; await selectSavedPath(page, joinedId);
