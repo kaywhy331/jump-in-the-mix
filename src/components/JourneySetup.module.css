@@ -12,3 +12,7 @@
 .review h3{margin-top:0}
 .review button{margin-top:16px}
 @media(max-width:600px){.summary>div{grid-template-columns:1fr;gap:4px}.review{padding:14px}}
+/* Add its stage labels (JITM-09 §2.79): the box keeps its size beside a long list, and the list sits under its title. */
+.stageLabels{align-items:flex-start}
+.stageLabels>input{flex:none;margin-top:3px}
+.stageLabels>span{display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}

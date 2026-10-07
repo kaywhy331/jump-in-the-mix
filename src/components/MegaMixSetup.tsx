@@ -61,7 +61,7 @@ function StageLabelsChoice({ labels, contactStages }: { labels: string[]; contac
   const added = newStageLabels(contactStages.names, labels);
   const room = MAX_CONTACT_STAGES - contactStages.names.length;
   const fits = added.length <= room;
-  return <label className="checkbox-card"><input type="checkbox" name="addStages" defaultChecked={fits} disabled={!fits} /><span>
+  return <label className={`checkbox-card ${styles.stageLabels}`}><input type="checkbox" name="addStages" defaultChecked={fits} disabled={!fits} /><span>
     <strong>Add its stage labels</strong>
     <small>{labels.join(", ")}. Starting one of these Mixes moves the person to its stage.{contactStages.on ? " Labels you already have are reused; nothing is renamed or removed." : " This turns on Contact stages."}</small>
     {!fits && <small>Contact stages has room for {Math.max(0, room)} more {room === 1 ? "label" : "labels"}, and this Mega-Mix adds {added.length}.</small>}

@@ -357,6 +357,9 @@
 .journey-stage-settings > summary > span { display: block; margin: 6px 0; color: var(--muted); font-size: .875rem; }
 .journey-stage-settings[open] > form { margin-top: 20px; }
 .journey-stage-settings .form-actions { flex-wrap: wrap; }
+/* Which Mixes set this stage (JITM-09 §2.79), across the form's full width. */
+.journey-stage-settings .journey-stage-mixes { grid-column: 1 / -1; margin: 0; }
+.journey-stage-mixes a, .mix-stage-choice a { color: var(--violet-text); text-decoration: underline; text-underline-offset: 2px; }
 .journey-stage-settings details > summary, .contact-journey-panel summary, .inline-action { min-height: 44px; display: inline-flex; align-items: center; cursor: pointer; }
 .journey-rule-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .journey-rule-row > div { flex: 1; min-width: 0; }
