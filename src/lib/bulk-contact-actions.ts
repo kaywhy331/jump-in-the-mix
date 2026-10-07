@@ -8,6 +8,7 @@ import { addLogicalDays, daysInMonth, logicalDateInTimezone, zonedDateTimeToUtc,
 import { renderJumpSnapshot } from "@/lib/jump-render";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
 import { prisma } from "@/lib/prisma";
+import { setStagesFromTagJoins } from "@/lib/mix-stage";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
 
 function value(formData: FormData, key: string): string {
@@ -49,7 +50,7 @@ async function queueWorkspaceReconciliation(workspaceId: string): Promise<void> 
 }
 
 export async function bulkAssignGroupAction(formData: FormData): Promise<void> {
-  const { workspace, session } = await requireWritableWorkspace();
+  const { workspace, user, session } = await requireWritableWorkspace();
   const contactIds = selectedContactIds(formData);
   const groupId = value(formData, "groupId");
   const [contacts, group] = await Promise.all([
@@ -57,7 +58,12 @@ export async function bulkAssignGroupAction(formData: FormData): Promise<void> {
     prisma.group.findFirst({ where: { id: groupId, workspaceId: workspace.id }, select: { id: true } })
   ]);
   if (!group) fail("Choose an available tag.", session);
-  await prisma.contactGroupMembership.createMany({ data: contacts.map((contact) => ({ contactId: contact.id, groupId: group.id })), skipDuplicates: true });
+  await prisma.$transaction(async (tx) => {
+    const tagged = new Set((await tx.contactGroupMembership.findMany({ where: { groupId: group.id, contactId: { in: contacts.map((contact) => contact.id) } }, select: { contactId: true } })).map((item) => item.contactId));
+    await tx.contactGroupMembership.createMany({ data: contacts.map((contact) => ({ contactId: contact.id, groupId: group.id })), skipDuplicates: true });
+    // A tag's Mix that names a Contact stage starts for the people newly given the tag, so it sets that stage (JITM-09 §2.79).
+    await setStagesFromTagJoins(tx, { workspaceId: workspace.id, joins: contacts.filter((contact) => !tagged.has(contact.id)).map((contact) => ({ contactId: contact.id, groupId: group.id })), actorUserId: user.id });
+  });
   await queueWorkspaceReconciliation(workspace.id);
   redirect(`/contacts?bulkAssigned=${contacts.length}`);
 }

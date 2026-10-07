@@ -24,6 +24,7 @@ export async function installMegaMixAction(_previous: FormResult, data: FormData
   try {
     await installMegaMix({ workspaceId: workspace.id, actorUserId: user.id, blueprintId: blueprint.id, expectedVersion: Number(data.get("version")),
       ...(data.get("tailored") === "1" ? { setup: parseJourneySetup(data) } : {}),
+      addStages: !onboarding && data.get("addStages") === "on",
       ...(onboarding ? { onboarding: { timezone, company: String(data.get("company") ?? "").trim().slice(0, 200),
         smsSignature: String(data.get("smsSignature") ?? "").trim().slice(0, 160) || user.name, userName: user.name } } : {}) });
   } catch (error) {

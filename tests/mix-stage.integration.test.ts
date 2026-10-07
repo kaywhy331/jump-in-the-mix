@@ -1,0 +1,350 @@
+import { randomUUID } from "node:crypto";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { prisma } from "../src/lib/prisma";
+
+const auth = vi.hoisted(() => ({ context: {} as Record<string, unknown> }));
+vi.mock("@/lib/auth", () => ({ requireWorkspace: async () => auth.context }));
+vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`REDIRECT ${url}`); } }));
+vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+vi.mock("@/lib/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/lib/env")>();
+  return { ...actual, env: { ...actual.env, authRateLimitSecret: "mix-stage-integration-test-secret-1" } };
+});
+import { setStagesFromMixStarts, undoStageSet, addStageLabels, StageLimitRefusal } from "../src/lib/mix-stage";
+import { assignMixToContactAction, bulkAssignMixAction, undoBulkMixStartAction } from "../src/lib/contact-mix-actions";
+import { placeNewContacts } from "../src/lib/new-contact-placement";
+import { saveMixAction } from "../src/lib/mix-editor-actions";
+import { activateMixAction } from "../src/lib/mix-lifecycle-actions";
+import { bulkAssignGroupAction } from "../src/lib/bulk-contact-actions";
+import { saveJourneyStageAction } from "../src/lib/journey-actions";
+import { applyJourneyEvent, enableJourney } from "../src/lib/journey";
+import { installMegaMix } from "../src/lib/mega-mix-service";
+import { MEGA_MIXES, megaMixStageOf } from "../src/lib/mega-mixes";
+import { processWorkflowInstance, startWorkflowInstance, workflowState } from "../src/lib/mix-workflow";
+import { emptyWorkflow, type WorkflowRule } from "../src/lib/mix-workflow-types";
+import { generateJumps } from "../src/lib/jump-engine";
+import { saveContactFormAction } from "../src/lib/contact-actions";
+import { scheduleVisit } from "../src/lib/appointment-bindings";
+
+const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
+
+function form(entries: Record<string, string | string[]>): FormData {
+  const data = new FormData();
+  for (const [key, value] of Object.entries(entries)) for (const item of Array.isArray(value) ? value : [value]) data.append(key, item);
+  return data;
+}
+async function redirectOf(action: Promise<unknown>): Promise<URL> {
+  try { await action; } catch (error) { if (error instanceof Error && error.message.startsWith("REDIRECT ")) return new URL(error.message.slice("REDIRECT ".length), "https://app.invalid"); throw error; }
+  throw new Error("The action finished without redirecting.");
+}
+
+describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are in (JITM-09 §2.79)", () => {
+  let userId = "", workspaceId = "";
+  let lead = "", prospect = "", client = "", retention = "";
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  async function mix(name: string, data: Record<string, unknown> = {}) {
+    const created = await prisma.mix.create({ data: { workspaceId, name, status: "ACTIVE", triggerMode: "MANUAL_START", ...data } });
+    const template = await prisma.stepTemplate.create({ data: { workspaceId, name: `${name} beat`, channel: "SMS", versions: { create: { version: 1, body: "Checking in" } } }, include: { versions: true } });
+    await prisma.mixStep.create({ data: { mixId: created.id, stepVersionId: template.versions[0].id, dayOffset: 0, sortOrder: 1 } });
+    return created;
+  }
+  const person = async (name: string) => (await prisma.contact.create({ data: { workspaceId, displayName: name } })).id;
+  const stageOf = async (contactId: string) => (await prisma.contactJourney.findUnique({ where: { contactId } }))?.stageId ?? null;
+  const placeIn = async (contactId: string, stageId: string, data: Record<string, unknown> = {}) => prisma.contactJourney.create({ data: { workspaceId, contactId, stageId, ...data } });
+  const set = (contactId: string, mixId: string) => prisma.$transaction(tx => setStagesFromMixStarts(tx, { workspaceId, starts: [{ contactId, mixId }] }));
+
+  beforeEach(async () => {
+    const user = await prisma.user.create({ data: { email: `mix-stage-${randomUUID()}@example.test`, name: "Stage fixture", passwordHash: "fixture-only" } }); userId = user.id;
+    const workspace = await prisma.workspace.create({ data: { ownerId: userId, slug: `mix-stage-${randomUUID()}`, name: "Stage fixture", profile: { create: {} } }, include: { profile: true } }); workspaceId = workspace.id;
+    auth.context = { session: { authUser: user }, user, workspace, impersonation: null };
+    await enableJourney(workspaceId);
+    const stages = await prisma.journeyStage.findMany({ where: { workspaceId }, orderBy: { position: "asc" } });
+    [lead, prospect, client, retention] = stages.map(stage => stage.id);
+  });
+  afterAll(async () => {
+    await prisma.workspace.deleteMany({ where: { name: "Stage fixture", slug: { startsWith: "mix-stage-" } } });
+    await prisma.userPreference.deleteMany({ where: { user: { email: { startsWith: "mix-stage-" }, name: "Stage fixture" } } });
+    await prisma.user.deleteMany({ where: { email: { startsWith: "mix-stage-" }, name: "Stage fixture" } });
+    await prisma.$disconnect();
+  });
+
+  describe("the rule", () => {
+    it("sets the stage, writes history and an activity line, and starts or stops no other Mix", async () => {
+      const qualify = await mix("Qualify", { stageId: prospect });
+      const prospectMix = await mix("Prospect care");
+      await prisma.journeyStage.update({ where: { id: prospect }, data: { planId: prospectMix.id } });
+      const leadMix = await mix("Lead care");
+      const ana = await person("Ana");
+      const managed = await prisma.mixAssignment.create({ data: { workspaceId, contactId: ana, mixId: leadMix.id, assignmentKey: `${workspaceId}:${leadMix.id}:${ana}`, isActive: true } });
+      await placeIn(ana, lead, { managedAssignmentId: managed.id, version: 3 });
+      const [change] = await set(ana, qualify.id);
+      const record = await prisma.contactJourney.findUniqueOrThrow({ where: { contactId: ana } });
+      expect(record).toMatchObject({ stageId: prospect, managedAssignmentId: null, version: 4, automatic: true });
+      expect(change).toMatchObject({ contactId: ana, mixId: qualify.id, stageId: prospect, version: 4, previous: { stageId: lead, managedAssignmentId: managed.id } });
+      // The previous stage's Mix keeps running, and the new stage's own Mix does not start.
+      expect((await prisma.mixAssignment.findUniqueOrThrow({ where: { id: managed.id } })).isActive).toBe(true);
+      expect(await prisma.mixStop.count({ where: { workspaceId } })).toBe(0);
+      expect(await prisma.mixAssignment.count({ where: { workspaceId, mixId: prospectMix.id } })).toBe(0);
+      expect(await prisma.journeyEvent.findFirstOrThrow({ where: { workspaceId, contactId: ana } })).toMatchObject({ eventType: "MANUAL", source: "Mix: Qualify", resultingStageId: prospect, eventKey: change.eventKey });
+      expect((await prisma.contactActivity.findFirstOrThrow({ where: { workspaceId, contactId: ana } })).summary).toBe("Lead → Prospect, set by the Qualify Mix.");
+      // Starting it again while already in that stage changes nothing.
+      expect(await set(ana, qualify.id)).toEqual([]);
+      expect(await prisma.journeyEvent.count({ where: { workspaceId, contactId: ana } })).toBe(1);
+    });
+
+    it("gives a person with no stage the Mix's stage, and the latest start wins", async () => {
+      const first = await mix("First", { stageId: prospect });
+      const second = await mix("Second", { stageId: client });
+      const ben = await person("Ben");
+      await prisma.$transaction(tx => setStagesFromMixStarts(tx, { workspaceId, starts: [{ contactId: ben, mixId: first.id }, { contactId: ben, mixId: second.id }] }));
+      expect(await stageOf(ben)).toBe(client);
+      expect((await prisma.contactActivity.findFirstOrThrow({ where: { workspaceId, contactId: ben } })).summary).toBe("Joined Client, set by the Second Mix.");
+      await set(ben, first.id);
+      expect(await stageOf(ben)).toBe(prospect);
+    });
+
+    it("leaves people alone when stage changes are paused, the stage is retired, or the Mix doesn't run for them", async () => {
+      const qualify = await mix("Qualify", { stageId: prospect });
+      const paused = await person("Paused person");
+      await placeIn(paused, lead, { automatic: false });
+      const restricted = await person("Do not contact");
+      await prisma.contactRelationshipState.create({ data: { workspaceId, contactId: restricted, doNotContact: true } });
+      const stopped = await person("Stopped");
+      await prisma.mixStop.create({ data: { workspaceId, contactId: stopped, mixId: qualify.id, reason: "Owner stopped this" } });
+      const archived = (await prisma.contact.create({ data: { workspaceId, displayName: "Archived", archivedAt: new Date() } })).id;
+      const plain = await mix("No stage");
+      const unnamed = await person("Unnamed");
+      expect(await prisma.$transaction(tx => setStagesFromMixStarts(tx, { workspaceId, starts: [paused, restricted, stopped, archived].map(contactId => ({ contactId, mixId: qualify.id })).concat({ contactId: unnamed, mixId: plain.id }) }))).toEqual([]);
+      expect(await stageOf(paused)).toBe(lead);
+      for (const contactId of [restricted, stopped, archived, unnamed]) expect(await stageOf(contactId)).toBeNull();
+      // Paused for the whole business.
+      const someone = await person("Someone");
+      await prisma.journeyPreference.update({ where: { workspaceId }, data: { enabled: false } });
+      expect(await set(someone, qualify.id)).toEqual([]);
+      await prisma.journeyPreference.update({ where: { workspaceId }, data: { enabled: true } });
+      // A retired stage.
+      await prisma.journeyStage.update({ where: { id: prospect }, data: { isActive: false } });
+      expect(await set(someone, qualify.id)).toEqual([]);
+      expect(await stageOf(someone)).toBeNull();
+    });
+
+    it("does nothing in a business without Contact stages", async () => {
+      await prisma.journeyPreference.delete({ where: { workspaceId } });
+      const qualify = await mix("Qualify", { stageId: prospect });
+      const cara = await person("Cara");
+      expect(await set(cara, qualify.id)).toEqual([]);
+      expect(await stageOf(cara)).toBeNull();
+    });
+
+    it("puts the earlier stage back on Undo only while nothing changed it since", async () => {
+      const qualify = await mix("Qualify", { stageId: prospect });
+      const dee = await person("Dee");
+      const since = new Date("2026-09-01T10:00:00Z");
+      await placeIn(dee, lead, { stageSince: since });
+      const [change] = await set(dee, qualify.id);
+      expect(await prisma.$transaction(tx => undoStageSet(tx, { workspaceId, set: change }))).toBe(true);
+      expect(await prisma.contactJourney.findUniqueOrThrow({ where: { contactId: dee } })).toMatchObject({ stageId: lead, stageSince: since });
+      expect(await prisma.journeyEvent.count({ where: { workspaceId, contactId: dee } })).toBe(0);
+      // A start that gave someone their first stage leaves them with none again.
+      const eve = await person("Eve");
+      const [created] = await set(eve, qualify.id);
+      expect(await prisma.$transaction(tx => undoStageSet(tx, { workspaceId, set: created }))).toBe(true);
+      expect(await stageOf(eve)).toBeNull();
+      // Moved by hand since: Undo leaves them where they are.
+      const [again] = await set(dee, qualify.id);
+      await prisma.$transaction(tx => applyJourneyEvent(tx, { workspaceId, contactId: dee, eventKey: `manual:${randomUUID()}`, eventType: "MANUAL", targetStageId: client, source: "Recorded by you" }));
+      expect(await prisma.$transaction(tx => undoStageSet(tx, { workspaceId, set: again }))).toBe(false);
+      expect(await stageOf(dee)).toBe(client);
+    });
+  });
+
+  describe("every way a Mix starts", () => {
+    it("a start from the profile sets the stage; a Mix already running keeps the stage as it is", async () => {
+      const qualify = await mix("Qualify", { stageId: prospect });
+      const fay = await person("Fay");
+      await redirectOf(assignMixToContactAction(form({ mixId: qualify.id, contactId: fay, startDate: today() })));
+      expect(await stageOf(fay)).toBe(prospect);
+      // Once its follow-ups are prepared the Mix is running, and a second start keeps it, and the stage, as they are.
+      await generateJumps({ workspaceId });
+      await prisma.$transaction(tx => applyJourneyEvent(tx, { workspaceId, contactId: fay, eventKey: `manual:${randomUUID()}`, eventType: "MANUAL", targetStageId: retention, source: "Recorded by you" }));
+      await redirectOf(assignMixToContactAction(form({ mixId: qualify.id, contactId: fay, startDate: today() })));
+      expect(await stageOf(fay)).toBe(retention);
+    });
+
+    it("bulk Add sets each person's stage, and its Undo puts each one back", async () => {
+      const qualify = await mix("Qualify", { stageId: prospect });
+      const gil = await person("Gil"), hal = await person("Hal");
+      await placeIn(gil, lead);
+      const added = await redirectOf(bulkAssignMixAction(form({ mixId: qualify.id, contactIds: [gil, hal], startDate: today(), returnTo: "/contacts" })));
+      expect([await stageOf(gil), await stageOf(hal)]).toEqual([prospect, prospect]);
+      const undone = await redirectOf(undoBulkMixStartAction(form({ undoId: added.searchParams.get("mixUndo")!, returnTo: "/contacts" })));
+      expect(undone.searchParams.get("mixUndone")).toBe("2");
+      expect([await stageOf(gil), await stageOf(hal)]).toEqual([lead, null]);
+      const record = await prisma.auditLog.findFirstOrThrow({ where: { workspaceId, action: "mix.assignment.bulk-undo" } });
+      expect(record.metadata).toMatchObject({ restoredStages: 2 });
+    });
+
+    it("an Everyone Mix sets the stage of a newcomer it takes in", async () => {
+      const welcome = await mix("Welcome", { stageId: lead, audienceEveryone: true });
+      const ivy = await person("Ivy");
+      await prisma.$transaction(tx => placeNewContacts(tx, { workspaceId, contactIds: [ivy] }));
+      expect(await prisma.mixAssignment.count({ where: { workspaceId, mixId: welcome.id, contactId: ivy, isActive: true } })).toBe(1);
+      expect(await stageOf(ivy)).toBe(lead);
+    });
+
+    it("saving a Mix starts it for the people its audience newly takes in; changing its stage moves no one", async () => {
+      const jo = await person("Jo");
+      const editor = (fields: Record<string, string>) => form({ status: "ACTIVE", activationConfirmed: "1", triggerMode: "MANUAL_START", dayOffset: "0", mixStepId: "", sendTimeMinutes: "", plannedAt: "", anchor: "CALENDAR_DAY", offsetMinutes: "", "inlineName-0": "Check in", "inlineChannel-0": "PHONE_CALL", "inlineScript-0": "Ask how it went.", ...fields });
+      await redirectOf(saveMixAction(editor({ name: "Welcome", assignAllContacts: "on", stageId: prospect })));
+      const saved = await prisma.mix.findFirstOrThrow({ where: { workspaceId, name: "Welcome" } });
+      expect(saved.stageId).toBe(prospect);
+      expect(await stageOf(jo)).toBe(prospect);
+      const stepId = (await prisma.mixStep.findFirstOrThrow({ where: { mixId: saved.id, isActive: true } })).id;
+      await redirectOf(saveMixAction(editor({ name: "Welcome", mixId: saved.id, mixStepId: stepId, mixUpdatedAt: saved.updatedAt.toISOString(), assignAllContacts: "on", stageId: client })));
+      expect((await prisma.mix.findUniqueOrThrow({ where: { id: saved.id } })).stageId).toBe(client);
+      expect(await stageOf(jo)).toBe(prospect);
+      // A form without the field keeps the saved stage; another business's stage is refused.
+      const kept = await prisma.mix.findUniqueOrThrow({ where: { id: saved.id } });
+      await redirectOf(saveMixAction(editor({ name: "Welcome", mixId: saved.id, mixStepId: stepId, mixUpdatedAt: kept.updatedAt.toISOString(), assignAllContacts: "on" })));
+      expect((await prisma.mix.findUniqueOrThrow({ where: { id: saved.id } })).stageId).toBe(client);
+      const elsewhere = await prisma.workspace.create({ data: { ownerId: userId, slug: `mix-stage-${randomUUID()}`, name: "Stage fixture" } });
+      const foreign = await prisma.journeyStage.create({ data: { workspaceId: elsewhere.id, name: "Elsewhere", position: 0 } });
+      const refused = await redirectOf(saveMixAction(editor({ name: "Other", stageId: foreign.id })));
+      expect(refused.pathname).toBe("/mixes/new");
+      expect(await prisma.mix.count({ where: { workspaceId, name: "Other" } })).toBe(0);
+    });
+
+    it("turning on a draft starts it for its whole audience; a tag given later starts it too", async () => {
+      const tag = await prisma.group.create({ data: { workspaceId, name: "Clients" } });
+      const kim = await person("Kim"), lou = await person("Lou");
+      await prisma.contactGroupMembership.create({ data: { contactId: kim, groupId: tag.id } });
+      const care = await mix("Client care", { stageId: client, status: "DRAFT" });
+      await prisma.mixAssignment.create({ data: { workspaceId, mixId: care.id, groupId: tag.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${care.id}:group:${tag.id}` } });
+      await prisma.userPreference.upsert({ where: { userId }, create: { userId, reviewMixActivation: false }, update: { reviewMixActivation: false } });
+      await redirectOf(activateMixAction(form({ mixId: care.id })));
+      expect(await stageOf(kim)).toBe(client);
+      expect(await stageOf(lou)).toBeNull();
+      await redirectOf(bulkAssignGroupAction(form({ groupId: tag.id, contactIds: [lou] })));
+      expect(await stageOf(lou)).toBe(client);
+    });
+
+    it("Add a contact with a tag whose Mix names a stage puts them there, after the first stage's event", async () => {
+      const tag = await prisma.group.create({ data: { workspaceId, name: "Referrals" } });
+      const intro = await mix("Referral intro", { stageId: prospect });
+      await prisma.mixAssignment.create({ data: { workspaceId, mixId: intro.id, groupId: tag.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${intro.id}:group:${tag.id}`, startDate: new Date() } });
+      const location = await redirectOf(saveContactFormAction({}, form({ requestId: randomUUID(), firstName: "Ola", lastName: "Tagged", groupIds: tag.id })));
+      const ola = /\/contacts\/([^/?]+)/.exec(location.pathname)?.[1] ?? "";
+      expect(await stageOf(ola)).toBe(prospect);
+      // Joined Lead as a new contact first, then the tag's Mix moved them on.
+      expect((await prisma.journeyEvent.findMany({ where: { workspaceId, contactId: ola }, orderBy: { occurredAt: "asc" } })).map(event => event.resultingStageId)).toEqual([lead, prospect]);
+    });
+
+    it("a Mix lined up with a visit sets the stage once", async () => {
+      const visitMix = await mix("Visit follow-up", { stageId: client });
+      const pia = await person("Pia");
+      const startsAt = new Date(Date.now() + 2 * 86_400_000);
+      const visit = await scheduleVisit({ workspaceId, actorUserId: userId, title: "Site visit", kind: "MEETING", contactId: pia, startsAt, endsAt: new Date(startsAt.getTime() + 3_600_000), timezone: "UTC", planId: visitMix.id });
+      expect(await stageOf(pia)).toBe(client);
+      await prisma.$transaction(tx => applyJourneyEvent(tx, { workspaceId, contactId: pia, eventKey: `manual:${randomUUID()}`, eventType: "MANUAL", targetStageId: lead, source: "Recorded by you" }));
+      const entry = await prisma.calendarEntry.findUniqueOrThrow({ where: { id: visit.entryId } });
+      await scheduleVisit({ workspaceId, actorUserId: userId, id: entry.id, version: entry.version, title: "Site visit, moved", kind: "MEETING", contactId: pia, startsAt, endsAt: new Date(startsAt.getTime() + 3_600_000), timezone: "UTC", planId: visitMix.id });
+      expect(await stageOf(pia)).toBe(lead);
+    });
+
+    it("a Journey Start and a connection that starts the next Mix each set its stage", async () => {
+      const estimate = await mix("Estimate", { stageId: prospect });
+      const booked = await mix("Booked", { stageId: client });
+      const rule: WorkflowRule = { id: randomUUID(), name: "What happened?", source: { mixId: estimate.id, stepId: null }, enabled: true, mode: "CHOICE", join: null,
+        routes: [{ id: randomUUID(), label: "Accepted", when: "OUTCOME", outcome: "Accepted", delayMinutes: 0, target: { mixId: booked.id, stepId: null }, maxVisits: null, replace: false }] };
+      await prisma.mixWorkflow.create({ data: { workspaceId, configuration: JSON.parse(JSON.stringify({ ...emptyWorkflow(), rules: [rule] })) } });
+      const max = await person("Max");
+      const start = new Date(Date.now() - 3 * 86_400_000);
+      const instanceId = await startWorkflowInstance({ workspaceId, contactId: max, mixId: estimate.id, requestId: randomUUID(), now: start });
+      expect(await stageOf(max)).toBe(prospect);
+      await processWorkflowInstance(workspaceId, instanceId, start);
+      await prisma.jump.updateMany({ where: { workflowInstanceId: instanceId }, data: { status: "DONE", completedAt: new Date(start.getTime() + 1000) } });
+      const now = new Date();
+      await processWorkflowInstance(workspaceId, instanceId, now);
+      const instance = await prisma.mixWorkflowInstance.findUniqueOrThrow({ where: { id: instanceId } });
+      expect(await stageOf(max)).toBe(prospect);
+      // The route was due once the Beats were done, so recording the decision starts the next Mix.
+      await processWorkflowInstance(workspaceId, instanceId, now, { requestId: randomUUID(), expectedRevision: instance.revision, evaluationId: workflowState(instance.state).evaluations[0].id, outcome: "Accepted" });
+      expect(workflowState((await prisma.mixWorkflowInstance.findUniqueOrThrow({ where: { id: instanceId } })).state).runs.map(run => run.mixId)).toEqual([estimate.id, booked.id]);
+      expect(await stageOf(max)).toBe(client);
+      // Processing again starts nothing new, so nothing moves.
+      await prisma.$transaction(tx => applyJourneyEvent(tx, { workspaceId, contactId: max, eventKey: `manual:${randomUUID()}`, eventType: "MANUAL", targetStageId: retention, source: "Recorded by you" }));
+      await processWorkflowInstance(workspaceId, instanceId, new Date(now.getTime() + 20_000));
+      expect(await stageOf(max)).toBe(retention);
+    });
+  });
+
+  describe("Contact stages", () => {
+    it("retiring a stage stops the Mixes that set it", async () => {
+      const qualify = await mix("Qualify", { stageId: retention });
+      await redirectOf(saveJourneyStageAction(form({ stageId: retention, intent: "archive" })));
+      expect((await prisma.journeyStage.findUniqueOrThrow({ where: { id: retention } })).isActive).toBe(false);
+      expect((await prisma.mix.findUniqueOrThrow({ where: { id: qualify.id } })).stageId).toBeNull();
+    });
+
+    it("refuses to retire a stage someone is in", async () => {
+      const nia = await person("Nia");
+      await placeIn(nia, retention);
+      const refused = await redirectOf(saveJourneyStageAction(form({ stageId: retention, intent: "archive" })));
+      expect(refused.searchParams.get("error")).toBeTruthy();
+      expect((await prisma.journeyStage.findUniqueOrThrow({ where: { id: retention } })).isActive).toBe(true);
+    });
+  });
+
+  describe("adding a Mega-Mix with its stage labels (P8)", () => {
+    const realEstate = MEGA_MIXES.find(item => item.id === "real-estate")!;
+    const install = (addStages: boolean) => installMegaMix({ workspaceId, actorUserId: userId, blueprintId: realEstate.id, expectedVersion: realEstate.version, addStages });
+
+    it("turns Contact stages on with only its labels, links each Mix and starts no one", async () => {
+      await prisma.journeyRule.deleteMany({ where: { workspaceId } });
+      await prisma.journeyStage.deleteMany({ where: { workspaceId } });
+      await prisma.journeyPreference.delete({ where: { workspaceId } });
+      await person("Existing person");
+      const result = await install(true);
+      const stages = await prisma.journeyStage.findMany({ where: { workspaceId }, orderBy: { position: "asc" } });
+      expect(stages.map(stage => stage.name)).toEqual(realEstate.stages.map(stage => stage.name));
+      expect(await prisma.journeyRule.count({ where: { workspaceId } })).toBe(0);
+      expect(await prisma.journeyPreference.findUnique({ where: { workspaceId } })).toMatchObject({ enabled: true });
+      for (const node of realEstate.nodes) {
+        const label = megaMixStageOf(realEstate, node.key);
+        const saved = await prisma.mix.findUniqueOrThrow({ where: { id: result.mixIds[node.key] }, include: { stage: true } });
+        expect(saved.stage?.name ?? null).toBe(label);
+      }
+      expect(await prisma.mixAssignment.count({ where: { workspaceId } })).toBe(0);
+      expect(await prisma.contactJourney.count({ where: { workspaceId } })).toBe(0);
+    });
+
+    it("reuses labels the business has, under any case, and renames or removes nothing", async () => {
+      const own = await prisma.journeyStage.create({ data: { workspaceId, name: "new lead", position: 9 } });
+      const retired = await prisma.journeyStage.create({ data: { workspaceId, name: "Closed", position: 10, isActive: false } });
+      const result = await install(true);
+      const stages = await prisma.journeyStage.findMany({ where: { workspaceId }, orderBy: [{ position: "asc" }, { id: "asc" }] });
+      expect(stages.slice(0, 4).map(stage => stage.name)).toEqual(["Lead", "Prospect", "Client", "Retention"]);
+      expect(stages.find(stage => stage.id === own.id)).toMatchObject({ name: "new lead", position: 9, isActive: true });
+      expect(stages.find(stage => stage.id === retired.id)).toMatchObject({ name: "Closed", isActive: true });
+      expect(stages).toHaveLength(4 + realEstate.stages.length);
+      expect((await prisma.mix.findUniqueOrThrow({ where: { id: result.mixIds.buyer } })).stageId).toBe(own.id);
+      expect((await prisma.mix.findUniqueOrThrow({ where: { id: result.mixIds.closing } })).stageId).toBe(retired.id);
+      expect(await prisma.journeyRule.count({ where: { workspaceId } })).toBe(7);
+    });
+
+    it("adds no labels when the owner leaves them out", async () => {
+      const result = await install(false);
+      expect(await prisma.journeyStage.count({ where: { workspaceId } })).toBe(4);
+      expect(await prisma.mix.count({ where: { id: { in: Object.values(result.mixIds) }, stageId: { not: null } } })).toBe(0);
+    });
+
+    it("refuses labels that would pass the stage limit, adding nothing", async () => {
+      for (let index = 0; index < 14; index++) await prisma.journeyStage.create({ data: { workspaceId, name: `Extra ${index}`, position: 10 + index } });
+      await expect(install(true)).rejects.toBeInstanceOf(StageLimitRefusal);
+      expect(await prisma.mix.count({ where: { workspaceId } })).toBe(0);
+      expect(await prisma.journeyStage.count({ where: { workspaceId } })).toBe(18);
+      await expect(prisma.$transaction(tx => addStageLabels(tx, workspaceId, ["Extra 0", "Extra 1"]))).resolves.toBeInstanceOf(Map);
+    });
+  });
+});

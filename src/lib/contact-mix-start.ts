@@ -2,6 +2,7 @@ import type { AssignmentMode, Prisma } from "@/generated/prisma/client";
 import type { MixStartResult } from "@/lib/contact-mix-status-labels";
 import { logicalDateInTimezone, logicalDateKey, zonedDateTimeToUtc, type LogicalDate } from "@/lib/jump-schedule";
 import { assertMixStartEligible } from "@/lib/mix-start-eligibility";
+import { setStagesFromMixStarts, type StageSet } from "@/lib/mix-stage";
 
 /** `steps` holds the Mix's active Beats timed from an appointment (at most one is needed). */
 export type StartableMix = { id: string; name: string; triggerMode: string; dateTypeId: string | null; steps: { id: string }[] };
@@ -21,13 +22,16 @@ export type MixStartOutcome = {
   writtenDate: { id: string; updatedAt: Date } | null;
   /** The assignment as it was before this start, or null when the start created it; Undo puts it back (UNDO-02). */
   previous: { isActive: boolean; startDate: Date | null; mode: AssignmentMode } | null;
+  /** The Contact stage the start set, when the Mix names one (JITM-09 §2.79); Undo puts the earlier one back. */
+  stage: StageSet | null;
 };
 
 /**
  * Starts one person on a Mix inside the caller's transaction, after the plan and eligibility checks.
  * The chosen day is where the plan starts. A plan that starts from a saved date gets that date when
- * the person has none; one they already have is kept. Returns what the confirmation names. With no
- * user, the start is recorded as the system's, for a placement the owner set up in advance.
+ * the person has none; one they already have is kept. A Mix that names a Contact stage sets it.
+ * Returns what the confirmation names. With no user, the start is recorded as the system's, for a
+ * placement the owner set up in advance.
  */
 export async function startMixForContact(tx: Prisma.TransactionClient, input: { workspaceId: string; userId: string | null; contactId: string; mix: StartableMix; start: LogicalDate; timezone: string; source: string; queuePreparation?: boolean }): Promise<MixStartOutcome> {
   const { workspaceId, contactId, mix, start, timezone } = input;
@@ -70,6 +74,8 @@ export async function startMixForContact(tx: Prisma.TransactionClient, input: { 
       if (restart) result = "date-written";
     }
   }
+  // A Mix that names a stage sets it when it starts; one already running keeps the stage as it is.
+  const [stage = null] = result === "already-running" ? [] : await setStagesFromMixStarts(tx, { workspaceId, starts: [{ contactId, mixId: mix.id }], actorUserId: input.userId });
   // A bulk start queues one job for all of its people instead (PERF-01).
   if (input.queuePreparation !== false) await tx.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId, mixId: mix.id } } });
   await tx.auditLog.create({
@@ -84,5 +90,5 @@ export async function startMixForContact(tx: Prisma.TransactionClient, input: { 
       metadata: { contactId, mixId: mix.id, startedOn, result }
     }
   });
-  return { result, startedOn, waitsForVisit: mix.steps.length > 0, assignment: { id: assignment.id, updatedAt: assignment.updatedAt }, writtenDate, previous };
+  return { result, startedOn, waitsForVisit: mix.steps.length > 0, assignment: { id: assignment.id, updatedAt: assignment.updatedAt }, writtenDate, previous, stage };
 }

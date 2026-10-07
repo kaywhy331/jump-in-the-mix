@@ -3,6 +3,7 @@ import { startMixForContact, visitTimedBeats } from "@/lib/contact-mix-start";
 import { contactIdsInMix } from "@/lib/contact-mix-status";
 import { timezoneForWorkspace } from "@/lib/display-preferences";
 import { newContactStage } from "@/lib/journey";
+import { setStagesFromMixStarts } from "@/lib/mix-stage";
 import { logicalDateFromDate, logicalDateInTimezone, zonedDateTimeToUtc, type LogicalDate } from "@/lib/jump-schedule";
 import { assertRoomForPeople } from "@/lib/plan-limits";
 import { UserFacingError } from "@/lib/user-facing-error";
@@ -86,7 +87,7 @@ export type PlacementResult = { mix: { id: string; name: string } | null; starte
  * saved, except a Mix they are already in by their own start or a shown tag. A Mix that starts when the owner
  * chooses starts for the newcomer from the moment they were added. A broadcast whose time has passed is left out, so
  * nobody receives it late as an overdue follow-up. Do not contact and the plan's people limit hold these follow-ups
- * exactly as they hold any audience's.
+ * exactly as they hold any audience's. A Mix that names a Contact stage sets it for the people it starts.
  *
  * Call it inside the transaction that created the people, after their stage event when the path has one. It queues
  * their preparation unless the caller does (`queuePreparation: false`).
@@ -166,6 +167,7 @@ export async function placeNewContacts(tx: Tx, input: {
     select: { mixId: true, contactId: true, group: { select: { memberships: { where: { contactId: { in: contactIds } }, select: { contactId: true } } } } }
   })).flatMap(assignment => assignment.contactId ? [`${assignment.mixId}:${assignment.contactId}`] : (assignment.group?.memberships ?? []).map(member => `${assignment.mixId}:${member.contactId}`)));
   const placed = new Set<string>();
+  const starts: Array<{ contactId: string; mixId: string }> = [];
   for (const audience of audiences) {
     for (const contactId of contactIds) {
       if (enrolled.has(`${audience.id}:${contactId}`)) continue;
@@ -177,8 +179,11 @@ export async function placeNewContacts(tx: Tx, input: {
         update: { isActive: true, mode: "DYNAMIC", startDate }
       });
       placed.add(contactId);
+      starts.push({ contactId, mixId: audience.id });
     }
   }
+  // An Everyone Mix that names a Contact stage sets it, as any start does (JITM-09 §2.79).
+  await setStagesFromMixStarts(tx, { workspaceId, starts, actorUserId: input.actorUserId, now });
   if (placed.size && queuePreparation) {
     await tx.job.createMany({ data: [...placed].map(contactId => ({ workspaceId, task: "generate-jumps", payload: { contactId } })) });
   }

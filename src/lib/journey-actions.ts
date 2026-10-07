@@ -10,6 +10,7 @@ import { enableJourney, recordJourneyEvent } from "@/lib/journey";
 import { JOURNEY_EVENTS, type JourneyRuleFormState } from "@/lib/journey-types";
 import { configureJourneyRule, JourneyConfigurationError, JourneyRuleConflict } from "@/lib/journey-configuration";
 import { prisma } from "@/lib/prisma";
+import { MAX_CONTACT_STAGES } from "@/lib/mix-stage-labels";
 import { UserFacingError } from "@/lib/user-facing-error";
 
 const value = (data: FormData, name: string) => String(data.get(name) ?? "").trim();
@@ -49,15 +50,20 @@ export async function saveJourneyStageAction(data: FormData) {
         return;
       }
       if (value(data, "intent") === "archive") {
-        if (!stage || stage._count.contacts) throw new JourneyRefusal("Move the people in this stage before retiring it.");
+        // The stage's row lock comes before the count, so a Mix start setting this stage right now finishes first and
+        // is counted, and one that comes later finds the stage retired (JITM-09 §2.79).
+        if (stage) await tx.$queryRaw`SELECT id FROM "JourneyStage" WHERE id = ${id} AND "workspaceId" = ${workspace.id} FOR UPDATE`;
+        if (!stage || await tx.contactJourney.count({ where: { workspaceId: workspace.id, stageId: id } })) throw new JourneyRefusal("Move the people in this stage before retiring it.");
         if (stages.filter(item => item.isActive).length <= 1) throw new JourneyRefusal("Keep at least one stage.");
         await tx.journeyStage.update({ where: { id }, data: { isActive: false } });
         await tx.journeyRule.updateMany({ where: { workspaceId: workspace.id, OR: [{ fromStageId: id }, { toStageId: id }] }, data: { enabled: false } });
+        // Mixes that named it stop setting a stage; the confirmation lists them.
+        await tx.mix.updateMany({ where: { workspaceId: workspace.id, stageId: id }, data: { stageId: null } });
         return;
       }
       if (!name || name.length > 60) throw new JourneyRefusal("Use a stage name between 1 and 60 characters.");
       if (stages.some(item => item.name.toLowerCase() === name.toLowerCase() && item.id !== id)) throw new JourneyRefusal("Give each stage a different name.");
-      if (!id && stages.length >= 20) throw new JourneyRefusal("You can have up to 20 contact stages.");
+      if (!id && stages.length >= MAX_CONTACT_STAGES) throw new JourneyRefusal(`You can have up to ${MAX_CONTACT_STAGES} contact stages.`);
       if (planId && !await tx.mix.findFirst({ where: { id: planId, workspaceId: workspace.id, status: "ACTIVE", triggerMode: "MANUAL_START", source: { not: "ONE_TIME" } } })) throw new JourneyRefusal("Choose an active Mix that starts for each person.");
       if (stage) await tx.journeyStage.update({ where: { id }, data: { name, planId, isActive: true } });
       else await tx.journeyStage.create({ data: { workspaceId: workspace.id, name, planId, position: Math.max(-1, ...stages.map(item => item.position)) + 1 } });

@@ -2,6 +2,7 @@
 
 import { assertRoomForPeople, peopleLimitRefusal } from "@/lib/plan-limits";
 import { applyJourneyEvent } from "@/lib/journey";
+import { setStagesFromMixStarts, setStagesFromTagJoins } from "@/lib/mix-stage";
 import { afterAnotherMixIds, placeNewContacts } from "@/lib/new-contact-placement";
 import { visitTimedBeats } from "@/lib/contact-mix-start";
 
@@ -354,6 +355,8 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
     // The person's Contact stage comes first, so the stage manages its own Mix and the New contacts Mix that the form
     // preselects is never added on top of it (JITM-09 §2.78).
     await applyJourneyEvent(tx, { workspaceId: workspace.id, contactId: created.id, eventKey: `contact-created:${created.id}`, eventType: "CONTACT_RECEIVED", source: "Contact added", actorUserId: user.id });
+    // A tag's Mix that names a Contact stage starts for them, so it sets that stage (JITM-09 §2.79).
+    await setStagesFromTagJoins(tx, { workspaceId: workspace.id, joins: payload.groupIds.map(groupId => ({ contactId: created.id, groupId })), actorUserId: user.id });
     let mixKept = false;
     // Added from a Journey Start, the Start starts its Mix for them next, so that Mix's Everyone place is left to it
     // (EVR-02, agent default 7).
@@ -408,6 +411,7 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
             isActive: true
           }
         });
+        await setStagesFromMixStarts(tx, { workspaceId: workspace.id, starts: [{ contactId: created.id, mixId: followUp.mixId }], actorUserId: user.id });
       }
     }
     await tx.auditLog.create({
@@ -522,6 +526,8 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
     }
     await tx.contactAddress.deleteMany({ where: { contactId, ...(retainedAddressIds.length ? { id: { notIn: retainedAddressIds } } : {}) } });
 
+    // A tag's Mix that names a Contact stage starts for someone newly given the tag, so it sets that stage (§2.79).
+    const joins = payload.groupIds.filter(groupId => !current.groupMemberships.some(item => item.groupId === groupId)).map(groupId => ({ contactId, groupId }));
     for (const groupId of payload.groupIds) {
       await tx.contactGroupMembership.upsert({
         where: { contactId_groupId: { contactId, groupId } },
@@ -530,6 +536,7 @@ async function updateContact(formData: FormData): Promise<ContactFormState> {
       });
     }
     await tx.contactGroupMembership.deleteMany({ where: { contactId, ...(payload.groupIds.length ? { groupId: { notIn: payload.groupIds } } : {}) } });
+    await setStagesFromTagJoins(tx, { workspaceId: workspace.id, joins, actorUserId: user.id });
 
     for (const item of payload.customFields) {
       await tx.contactCustomFieldValue.upsert({

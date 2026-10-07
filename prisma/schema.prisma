@@ -497,7 +497,7 @@ model Mix {
   favorites MixFavorite[]
   megaMixMembership MegaMixPipelineMix?
   marketplaceListing MarketplaceListing?
-  journeyStages             JourneyStage[]
+  journeyStages             JourneyStage[]  @relation("StageEntryMix")
   newContactPreferences     WorkspacePreference[] @relation("NewContactMix")
   newContactConnections     IntakeConnection[]    @relation("IntakeNewContactMix")
   id                        String          @id @default(cuid())
@@ -514,6 +514,9 @@ model Mix {
   includeFutureGroupMembers Boolean         @default(false)
   // "Everyone" was chosen as the audience: people added later join too (JITM-09 §2.78, D34).
   audienceEveryone          Boolean         @default(false)
+  // The Contact stage people move to when they start this Mix. It changes only the label (JITM-09 §2.79, D35).
+  stageId                   String?
+  stage                     JourneyStage?   @relation("MixSetsStage", fields: [stageId], references: [id], onDelete: SetNull)
   source                    String          @default("USER")
   workspace                 Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   dateType                  DateType?       @relation(fields: [dateTypeId], references: [id], onDelete: SetNull)
@@ -526,6 +529,7 @@ model Mix {
 
   @@index([workspaceId, status])
   @@index([workspaceId, dateTypeId])
+  @@index([stageId])
 }
 
 model MixStep {

@@ -18,6 +18,7 @@ import { DEFAULT_PERSONAL_SCHEDULING, outsideQuietHours, shiftWeekend } from "@/
 import { anchoredStepInstant, anchoredStepIsPreparation } from "@/lib/step-timing";
 import { UserFacingError } from "@/lib/user-facing-error";
 import { reopenEnrollmentRun } from "@/lib/enrollment-workflow";
+import { setStagesFromMixStarts } from "@/lib/mix-stage";
 
 type DB = Prisma.TransactionClient;
 export const workflowJson = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
@@ -120,6 +121,8 @@ export async function startWorkflowInstance(input: { workspaceId: string; contac
     if (!mix) throw new UserFacingError("Choose an active Mix.");
     const instance = await db.mixWorkflowInstance.upsert({ where: { workspaceId_admissionKey: { workspaceId: input.workspaceId, admissionKey: `manual:${input.contactId}:${input.mixId}:${input.requestId}` } },
       create: { workspaceId: input.workspaceId, contactId: input.contactId, admissionKey: `manual:${input.contactId}:${input.mixId}:${input.requestId}`, label: input.label?.trim().slice(0, 160) || mix.name, definition: workflowJson(definition), state: workflowJson(startWorkflow(definition, { mixId: mix.id, stepId: null }, now.toISOString())), createdAt: now }, update: {} });
+    // A Mix that names a Contact stage sets it when it starts (JITM-09 §2.79).
+    await setStagesFromMixStarts(db, { workspaceId: input.workspaceId, starts: [{ contactId: input.contactId, mixId: mix.id }], now });
     await db.job.create({ data: { workspaceId: input.workspaceId, task: "mix-workflow", payload: { instanceId: instance.id } } });
     return instance.id;
   });
@@ -137,6 +140,7 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
     if (!instance) throw new UserFacingError("This journey instance is unavailable.");
     const state = workflowState(instance.state), definition = workflowDefinition(instance.definition);
     const originalState = JSON.stringify(state);
+    const earlierRuns = new Set(state.runs.map(run => run.id));
     if (command && state.commands.includes(command.requestId)) return;
     if (instance.status === "STOPPED" && command) throw new UserFacingError("This instance has stopped. Start a new instance to begin new work.");
     if (command?.expectedRevision !== undefined && command.expectedRevision !== instance.revision) throw new UserFacingError("This person's progress changed. Refresh before changing the decision.");
@@ -296,6 +300,9 @@ export async function processWorkflowInstance(workspaceId: string, instanceId: s
     if (businessRecord) businessRecord.afterFingerprint = workflowFingerprint(state);
     if (command && !state.commands.includes(command.requestId)) state.commands.push(command.requestId);
     if (status === "ACTIVE" && workflowFinished(state)) status = "FINISHED";
+    // A connection, or the owner's update, that started a Mix here sets the Contact stage that Mix names (JITM-09
+    // §2.79). The person's row is already locked above; the latest start wins.
+    await setStagesFromMixStarts(db, { workspaceId, starts: state.runs.filter(run => !earlierRuns.has(run.id) && run.status !== "CANCELED").map(run => ({ contactId: instance.contactId, mixId: run.mixId })), now });
     const changed = originalState !== JSON.stringify(state) || status !== instance.status;
     await db.mixWorkflowInstance.update({ where: { id: instanceId }, data: { status, state: workflowJson(state), ...(changed ? { revision: { increment: 1 } } : { updatedAt: instance.updatedAt }), nextCheckAt: new Date(now.getTime() + 60_000) } });
     if (businessRecord?.kind === "OUTCOME") await db.job.create({ data: { workspaceId, task: "mix-workflow", runAt: new Date(now.getTime() + 10050), payload: { instanceId } } });
