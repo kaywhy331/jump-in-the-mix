@@ -8,7 +8,8 @@ export type MixEndQuestion = { contactId: string; contactName: string; mixId: st
 
 /**
  * The run a follow-up belongs to: the scheduler's occurrence (a start day, a saved date, a fixed date or a visit), or
- * the Journey record's run. Planned Beats are keyed by the Beat and belong to every run of the Mix.
+ * the Journey record's run. Planned Beats are keyed by the Beat and belong to every run of the Mix, and follow-ups the
+ * scheduler wrote before it recorded runs (before 2026-09-26) have no key: for those, every run's Beats count.
  */
 function runKeyOf(snapshot: Prisma.JsonValue): string | null {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return null;
@@ -33,19 +34,20 @@ export async function mixEndQuestion(workspaceId: string, jumpId: string, now = 
   });
   if (!jump || jump.mix.source === "ONE_TIME" || jump.contact.archivedAt) return null;
   const { contactId, mixId, mix } = jump;
-  // A follow-up whose run can't be told apart, such as a planned Beat, says nothing about whether a run is over.
   const runKey = runKeyOf(jump.templateSnapshot);
-  if (!runKey) return null;
   const stepIds = mix.steps.map(step => step.id);
+  // This run's Beats, planned ones included. A follow-up with no run of its own counts every run's Beats; the check
+  // for anything still to come below keeps a repeat visit from looking finished (END-03).
+  const inRun = runKey ? { OR: [
+    { templateSnapshot: { path: ["occurrenceKey"], equals: runKey } },
+    { templateSnapshot: { path: ["workflowRunKey"], equals: runKey } },
+    { templateSnapshot: { path: ["occurrenceKey"], string_starts_with: "planned:" } }
+  ] } : {};
   const [open, reached, nextDate, inMix] = await Promise.all([
     prisma.jump.count({ where: { workspaceId, contactId, mixId, status: "PENDING" } }),
     // A Beat still waiting for a visit, for a visit's outcome or for a connection has no follow-up in this run yet,
     // so the Mix isn't over.
-    prisma.jump.groupBy({ by: ["mixStepId"], where: { workspaceId, contactId, mixId, mixStepId: { in: stepIds }, OR: [
-      { templateSnapshot: { path: ["occurrenceKey"], equals: runKey } },
-      { templateSnapshot: { path: ["workflowRunKey"], equals: runKey } },
-      { templateSnapshot: { path: ["occurrenceKey"], string_starts_with: "planned:" } }
-    ] } }),
+    prisma.jump.groupBy({ by: ["mixStepId"], where: { workspaceId, contactId, mixId, mixStepId: { in: stepIds }, ...inRun } }),
     mix.triggerMode === "DATE_TRIGGERED" && mix.dateTypeId
       ? prisma.jumpDate.count({ where: { workspaceId, contactId, dateTypeId: mix.dateTypeId, isActive: true, OR: [{ recurrence: { not: "NONE" } }, { dateValue: { gt: now } }] } })
       : 0,

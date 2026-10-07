@@ -177,7 +177,7 @@ describe.sequential("asking what's next when a Mix ends with nothing after it (J
     expect(await ask(await beat(lou, check, 0, "DONE", "manual:2026-10-01"))).toBeNull();
   });
 
-  it("takes a planned Beat, which goes out once, as part of every run, and asks nothing of a follow-up with no run", async () => {
+  it("takes a planned Beat, which goes out once, as part of every run, and counts every run for a follow-up written before runs were recorded", async () => {
     const seasonal = await mix("Seasonal", 2);
     const val = await person("Val");
     await start(val, seasonal);
@@ -185,12 +185,23 @@ describe.sequential("asking what's next when a Mix ends with nothing after it (J
     await beat(val, seasonal, 1, "DONE", `planned:${seasonal.steps[1].id}`);
     expect(await ask(await beat(val, seasonal, 0, "DONE", "manual:2026-10-01"))).toMatchObject({ mixName: "Seasonal" });
 
-    const legacy = await mix("Legacy", 1);
+    // Runs started before 2026-09-26 have no run key on their follow-ups (END-03): every run's Beats count for them.
+    const legacy = await mix("Legacy", 2);
     const ash = await person("Ash");
     await start(ash, legacy);
-    const unkeyed = await beat(ash, legacy, 0, "DONE");
-    await prisma.jump.update({ where: { id: unkeyed }, data: { templateSnapshot: { channel: "SMS", body: "Hi" } } });
-    expect(await ask(unkeyed)).toBeNull();
+    const unkeyed = async (index: number, status: "PENDING" | "DONE") => {
+      const id = await beat(ash, legacy, index, status);
+      await prisma.jump.update({ where: { id }, data: { templateSnapshot: { channel: "SMS", body: "Hi" } } });
+      return id;
+    };
+    expect(await ask(await unkeyed(0, "DONE"))).toBeNull();
+    expect(await ask(await unkeyed(1, "DONE"))).toMatchObject({ mixName: "Legacy" });
+    // The planned Beat itself finishing the Mix asks too.
+    const yearly = await mix("Yearly", 2);
+    const rae = await person("Rae");
+    await start(rae, yearly);
+    await beat(rae, yearly, 0, "DONE", "manual:2026-10-01");
+    expect(await ask(await beat(rae, yearly, 1, "DONE", `planned:${yearly.steps[1].id}`))).toMatchObject({ mixName: "Yearly" });
   });
 
   it("only reads the workspace's own follow-ups", async () => {
