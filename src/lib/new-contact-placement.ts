@@ -99,6 +99,8 @@ export async function placeNewContacts(tx: Tx, input: {
   explicit?: boolean;
   start?: LogicalDate;
   queuePreparation?: boolean;
+  /** Everyone Mixes not to take them in, such as the one a Journey Start is about to start for them (EVR-02). */
+  exceptEveryone?: readonly string[];
   actorUserId?: string | null;
   timezone?: string;
   source?: string;
@@ -151,7 +153,11 @@ export async function placeNewContacts(tx: Tx, input: {
     }
   }
 
-  const audiences = await everyoneMixesForNewPeople(tx, workspaceId, now);
+  // A save that unticks Everyone and this placement wait for each other on the Mix's row, so neither leaves an
+  // Everyone place on a Mix that is no longer for Everyone (REL-03).
+  const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Mix" WHERE "workspaceId" = ${workspaceId} AND status = 'ACTIVE' AND "audienceEveryone" AND source <> 'ONE_TIME' ORDER BY id FOR SHARE`;
+  const lockedIds = new Set(locked.map(row => row.id));
+  const audiences = (await everyoneMixesForNewPeople(tx, workspaceId, now)).filter(item => lockedIds.has(item.id) && !input.exceptEveryone?.includes(item.id));
   if (!audiences.length) return result;
   // People already in one of these Mixes, by their own start (just above, or the one Add a contact made) or a shown
   // tag, are left as they are, so nobody runs the same Mix twice.

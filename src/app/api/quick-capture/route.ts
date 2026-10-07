@@ -20,7 +20,7 @@ export async function GET(request: Request) {
       newContactStage(prisma, workspaceId)
     ]);
     // The Mix a new person's Contact stage starts; the setting's Mix is not preselected on top of it.
-    const stageMix = stage?.mix ? { stage: stage.name, name: stage.mix.name } : null;
+    const stageMix = stage?.mix ? { stage: stage.name, id: stage.mix.id, name: stage.mix.name } : null;
     return NextResponse.json({ placement: setting.placement, mixId: setting.mix?.id ?? null, mixes, stageMix }, { headers });
   }
   const contacts = await searchQuickCaptureContacts(workspaceId, new URL(request.url).searchParams.get("q") ?? "");

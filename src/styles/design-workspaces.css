@@ -266,10 +266,12 @@
 .follow-up-confirmations > * { pointer-events: auto; background: var(--raised); color: var(--text); border-radius: 20px; box-shadow: var(--shadow); }
 .follow-up-confirmations:empty { display: none; }
 @media (max-width: 900px) { .follow-up-confirmations { bottom: calc(96px + env(safe-area-inset-bottom)); } }
-/* The end-of-Mix question (JITM-09 §2.77) waits in the same stack until the owner answers or closes it. With enlarged
-   text its actions take their own row, and the stack scrolls rather than growing past the top of the screen (LAY-01). */
+/* The end-of-Mix question (JITM-09 §2.77) waits in the same stack until the owner answers or closes it, below the timed
+   confirmations so their Undo stays in view (LAY-02). With enlarged text its actions take their own row, and the stack
+   scrolls rather than growing past the top of the screen (LAY-01). */
 .follow-up-confirmations:has(.mix-end-question) { max-height: calc(100dvh - 48px); overflow-y: auto; overscroll-behavior: contain; pointer-events: auto; }
 @media (max-width: 900px) { .follow-up-confirmations:has(.mix-end-question) { max-height: calc(100dvh - 112px - env(safe-area-inset-bottom) - env(safe-area-inset-top)); } }
+.follow-up-confirmations > .mix-end-question { order: 1; }
 .mix-end-question { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 12px 12px 12px 18px; border: 1px solid var(--line); }
 .mix-end-question > p { flex: 1 1 12rem; min-width: 0; margin: 0; }
 .mix-end-question strong, .mix-end-question small { display: block; overflow-wrap: break-word; }

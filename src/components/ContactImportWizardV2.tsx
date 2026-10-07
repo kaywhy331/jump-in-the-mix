@@ -165,6 +165,7 @@ export function ContactImportWizardV2({
   mixes = [],
   defaultMixId = null,
   stageNote = null,
+  stageMixId = null,
   everyoneMixes = []
 }: {
   groups: ContactImportGroup[];
@@ -176,6 +177,7 @@ export function ContactImportWizardV2({
   defaultMixId?: string | null;
   /** The Mix the new people's Contact stage starts, said beside the choice. */
   stageNote?: string | null;
+  stageMixId?: string | null;
   /** Names of Mixes for Everyone, which new people join too. */
   everyoneMixes?: string[];
 }) {
@@ -474,7 +476,7 @@ export function ContactImportWizardV2({
           <details><summary>Preview mapped contacts ({Math.min(5, validRows.length)} of {validRows.length})</summary>{validRows.slice(0, 5).map(row => <article className="card" key={row.record.rowId}><strong>{contactNameForImport(row.record)}</strong><p>{row.record.company || "No company"}</p><p>Email: {row.record.emails.map(item => item.value).join(", ") || "None"}</p><p>Phone: {row.record.phones.map(item => item.value).join(", ") || "None"}</p></article>)}</details>
           {planned.create > 0 && (mixes.length > 0 || everyoneMixes.length > 0) && <fieldset className="import-mix-choice">
             <legend>New people and Mixes</legend>
-            {mixes.length > 0 && <div className="field"><label htmlFor="importMixChoice">Add the {planned.create.toLocaleString()} new {planned.create === 1 ? "person" : "people"} to a Mix</label><select id="importMixChoice" value={mixChoice} onChange={(event) => setMixChoice(event.target.value)} aria-describedby="importMixChoiceHint"><option value="">Don’t add them to a Mix</option>{mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select><small id="importMixChoiceHint">{[stageNote, mixChoice ? "It starts for each of them on the day they’re imported." : stageNote ? "" : "They’ll show as No Mix until you choose one."].filter(Boolean).join(" ")}</small></div>}
+            {mixes.length > 0 && <div className="field"><label htmlFor="importMixChoice">Add the {planned.create.toLocaleString()} new {planned.create === 1 ? "person" : "people"} to a Mix</label><select id="importMixChoice" value={mixChoice} onChange={(event) => setMixChoice(event.target.value)} aria-describedby="importMixChoiceHint"><option value="">Don’t add them to a Mix</option>{mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select><small id="importMixChoiceHint">{[stageNote, mixChoice ? (stageNote ? (mixChoice === stageMixId ? "" : "The Mix you choose here starts too, on the day they’re imported.") : "It starts for each of them on the day they’re imported.") : stageNote ? "" : "They’ll show as No Mix until you choose one."].filter(Boolean).join(" ")}</small></div>}
             {everyoneMixes.length > 0 && <p className="muted-copy">{everyoneMixNames(everyoneMixes)} {everyoneMixes.length === 1 ? "is for everyone, so it starts" : "are for everyone, so they start"} for the new people too.</p>}
           </fieldset>}
           <div className="import-stage-actions"><button className="button" type="button" onClick={reset}>Back</button><button className="button primary" type="button" disabled={busy || !validRows.length} onClick={() => void queueImport()}>{busy ? "Queueing…" : `Queue ${validRows.length} valid row${validRows.length === 1 ? "" : "s"}`}</button></div>

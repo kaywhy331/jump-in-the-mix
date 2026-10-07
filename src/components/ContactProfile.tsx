@@ -183,7 +183,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
   return (
     <div className={`page contact-detail-page${embedded ? " contact-profile-embedded" : ""}`}>
       <ContactAnchorReveal contactId={contact.id} />
-      {query.created && <Notice type="success">Contact added.{query.followUpScheduled && nextFollowUp && <> Their first follow-up is on Today for {formatDateTime(nextFollowUp.scheduledAt, displayPreferences)}.</>}{query.mixKept && <> A tag you gave them already runs the Mix you chose, so it didn’t start a second time.</>}</Notice>}
+      {query.created && <Notice type="success">Contact added.{query.followUpScheduled && nextFollowUp && <> Their first follow-up is on Today for {formatDateTime(nextFollowUp.scheduledAt, displayPreferences)}.</>}{query.mixKept && <> They were already in the Mix you chose, so it didn’t start a second time.</>}</Notice>}
       {query.updated && <Notice type="success">Contact updated.</Notice>}
       {query.inlineUpdated && <Notice type="success">Contact saved.</Notice>}
       {query.stateUpdated && <Notice type="success">Saved.</Notice>}

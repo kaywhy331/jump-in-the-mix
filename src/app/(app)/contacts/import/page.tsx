@@ -63,6 +63,7 @@ export default async function ImportContactsPage({ searchParams }: { searchParam
         mixes={placeableMixes}
         defaultMixId={returnTo || stageMix ? null : placement.mix?.id ?? null}
         stageNote={stageMix}
+        stageMixId={stage?.mix?.id ?? null}
         everyoneMixes={everyoneMixes.map((mix) => mix.name)}
       />
     </div>

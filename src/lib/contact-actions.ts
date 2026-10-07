@@ -273,7 +273,7 @@ async function queueContactReconciliation(workspaceId: string, contactId: string
   await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId } } });
 }
 
-/** `mixKept`: the chosen Mix already ran for them (through a tag they were given), so it wasn't started a second time. */
+/** `mixKept`: they were already in the chosen Mix (through their stage or a tag they were given), so it wasn't started a second time. */
 type CreatedContact = { contactId: string; dateCreated: boolean; mixAssigned: boolean; followUpScheduled?: boolean; mixKept?: boolean };
 
 function storedCreation(response: Prisma.JsonValue | null | undefined): CreatedContact | null {
@@ -425,7 +425,10 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
     });
     // Mixes for Everyone take the new person in too, except one they are already in. The New contacts Mix is not
     // applied here: the page preselects it in the form, so it is the owner's own choice.
-    if (!followUp?.startsOn) await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id], mixId: null });
+    // Added from a Journey Start, the Start starts its Mix for them next, so that Mix's Everyone place is left to it (EVR-02).
+    const starting = workflowContinuation(returnTo) ? new URL(returnTo, "https://return.invalid").searchParams : null;
+    const exceptEveryone = starting?.get("start") === "1" && starting.get("mix") ? [starting.get("mix")!] : [];
+    if (!followUp?.startsOn) await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id], mixId: null, exceptEveryone });
     const receipt: CreatedContact = { contactId: created.id, dateCreated: Boolean(followUp?.mixId && !followUp.startsOn), mixAssigned: Boolean(followUp?.mixId) && !mixKept, followUpScheduled: Boolean(followUp && !followUp.mixId), ...(mixKept ? { mixKept } : {}) };
     if (idempotencyKey) {
       await tx.idempotencyKey.create({ data: { workspaceId: workspace.id, key: idempotencyKey, response: receipt, expiresAt: new Date(Date.now() + 7 * 86_400_000) } });

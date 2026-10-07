@@ -287,6 +287,7 @@ describe.skipIf(!local).sequential("where new people go (JITM-09 §2.78)", () =>
           // Choosing the stage's own Mix keeps one enrollment, which the stage manages.
           let error: unknown;
           try { await saveContactFormAction({}, addForm({ firstName: "Samestage", lastName: suffix, scheduleFollowUp: "on", followUpDateTypeId: followUpTypeId, followUpDate: inDays(2), followUpReason: "Follow up", followUpMixId: stageMix.id })); } catch (caught) { error = caught; }
+          expect(String(error)).toMatch(/created=1&mixKept=1/);
           const same = created(error);
           const enrollments = await prisma.mixAssignment.findMany({ where: { contactId: same, isActive: true }, select: { id: true, mixId: true } });
           expect(enrollments.map(item => item.mixId)).toEqual([stageMix.id]);
@@ -316,6 +317,19 @@ describe.skipIf(!local).sequential("where new people go (JITM-09 §2.78)", () =>
           await prisma.mixAssignment.deleteMany({ where: { groupId: tag.id } });
           await prisma.contactGroupMembership.deleteMany({ where: { groupId: tag.id } });
           await prisma.group.delete({ where: { id: tag.id } });
+        }
+      });
+
+      it("leaves a Journey Start's Mix to the Start for someone added from it, so it runs once (EVR-02)", async () => {
+        const everyone = await mix("Everyone start", { audienceEveryone: true });
+        const other = await mix("Everyone other", { audienceEveryone: true });
+        try {
+          await expect(saveContactFormAction({}, addForm({ firstName: "Startee", lastName: suffix, returnTo: `/journey?mix=${everyone.id}&start=1` }))).rejects.toThrow(/redirect:\/journey\?mix=.*contactId=/);
+          const startee = await prisma.contact.findFirstOrThrow({ where: { workspaceId, firstName: "Startee" } });
+          const places = await prisma.mixAssignment.findMany({ where: { contactId: startee.id, isActive: true }, select: { mixId: true } });
+          expect(places.map(item => item.mixId)).toEqual([other.id]);
+        } finally {
+          await prisma.mix.updateMany({ where: { id: { in: [everyone.id, other.id] } }, data: { status: "PAUSED" } });
         }
       });
 
