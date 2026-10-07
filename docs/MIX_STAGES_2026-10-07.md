@@ -101,7 +101,23 @@ Each is reversible and in force until Kevin confirms or changes it (JITM-15 §2.
 
 ## Verification
 
-Filled in from the run ledger (`.artifacts/mix-stages-20261007/verification/ledger.tsv`, private).
+The full run is at 7c01d56, on TrixBot, against fresh local databases (`jitm_design_mst1007_*`), with the environment of CI's validate job. Every ledger step records that head; only this section changed after it. Logs, JSON reports, screenshots and the ledger are in `.artifacts/mix-stages-20261007/verification/` (private); step names refer to its ledger.
+
+| Check | Label | Result |
+|---|---|---|
+| `db:generate`, typecheck, `validate:static`, `standards:check` | VERIFIED | Passed (steps 01a–02b). `standards:check` has one existing warning: JITM-09 is over 300 lines. |
+| Full Vitest, in eight chunks on a fresh database | VERIFIED; four suites BLOCKED | 312 files, 2,410 tests: 2,345 passed and 41 skipped (steps 03c-0 to 03c-7). The 24 failures are all `spawn pg_dump ENOENT` in `backup-database`, `recovery-bundle`, `recovery-cutoff` and `recovery-state`: TrixBot has no `pg_dump` (JITM-12 §2.17), and this change touches no backup code. The new suites: `mix-stage.integration` 19/19 and `mix-stage-labels` 8/8. Neighbors: `new-contact-placement` 20/20, `mega-mix-installation` 13/13, `mega-mix-pipelines` 11/11, `mega-mixes` 14/14. |
+| `worker-runtime` | VERIFIED | 10/10 (step 03d). |
+| Migration | VERIFIED | `db:rehearse-migration` passed, and `db:verify-release` reported `{"status":"ready","required":78,"missing":0,"mismatched":0}` (steps 04a–04d). |
+| Production build | VERIFIED | Passed (step 05a). |
+| Browser specs against the standalone build, desktop and phone, in batches of five to seven, no retries | VERIFIED | 25 spec files on desktop: 159 passed, 5 skipped. 23 on the phone project: 126 passed, 24 skipped. No failures (steps 06–13). `mix-stages` passed 3/3 on each project. The batches covered the Mix editor and library, Mega-Mixes and their pipelines, the customer journey, Journey rules and connections, onboarding, No Mix status, "What's next?", contacts, Marketplace, visits, accessibility and fitment. |
+| Accessibility | VERIFIED, light theme | Axe (WCAG 2.0, 2.1 and 2.2 AA) passes on the editor's stage choice and the open stage on Contact stages at 390 and 1280, and on the Mega-Mix label choice at 390 (`mix-stages`). The stage choice has a short label, with its hint as `aria-describedby`. Dark was screenshotted, not audited. |
+| Screenshots | VERIFIED, inspected | At 7c01d56 (`verification/screens/`): the editor's stage choice, Contact stages with "Set when someone starts {Mix}." and the profile's "Joined Prospect, set by the Qualify the lead Mix." at 390 and 1280, light and dark; the Mega-Mix label choice at 390, light and dark. |
+| Baseline comparison (JITM-12 §2.14) | NOT RUN | No browser test failed, so none needed one. |
+
+## Found, not fixed
+
+- **"Everyone" runs into its count in the Mix editor.** The audience checkbox reads "Everyone1 active person, and anyone you add later": the title and the count share a line with no space. The text came with #128 (074bf15) and is live. The New contacts page stacks them (`.new-contacts-settings .checkbox-card`); the Mix editor and `TemplateUseForm` have no such rule. It belongs in its own fix.
 
 ## NOT RUN
 
