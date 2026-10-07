@@ -65,7 +65,7 @@ for (const width of [390, 1280]) test(`a Mix's stage moves the person who starts
   await expect(stage).toHaveValue("");
   await stage.selectOption({ label: "Prospect" });
   await stage.focus();
-  await expect(page.getByText("People who start this Mix move to this stage.")).toBeVisible();
+  await expect(page.getByText("People who start this Mix move to this stage, and only the label changes.", { exact: false })).toBeVisible();
   await capture(page, `editor-stage-${width}`, ".mix-stage-choice");
   await page.getByRole("button", { name: "Save and activate", exact: true }).click();
   await expect(page.getByText("Mix saved.")).toBeVisible();
