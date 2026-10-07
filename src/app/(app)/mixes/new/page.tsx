@@ -8,6 +8,7 @@ import { getPlatformStringList } from "@/lib/platform-settings";
 import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { workflowEditorData } from "@/lib/mix-workflow";
+import { contactStageChoices } from "@/lib/mix-stage";
 
 export const metadata: Metadata = { title: "Create a Mix" };
 
@@ -27,7 +28,7 @@ export default async function NewMixPage({ searchParams }: { searchParams: Promi
     prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null, phones: { none: {} } } })
   ]);
   const groups = mergeGroupActivity(rawGroups, groupStates);
-  const workflow = await workflowEditorData(workspace.id);
+  const [workflow, contactStages] = await Promise.all([workflowEditorData(workspace.id), contactStageChoices(workspace.id)]);
 
   return (
     <div className="page">
@@ -45,6 +46,7 @@ export default async function NewMixPage({ searchParams }: { searchParams: Promi
         activeContactCount={activeContactCount}
         missingEmailCount={missingEmailCount}
         missingPhoneCount={missingPhoneCount}
+        contactStages={contactStages}
       />
     </div>
   );

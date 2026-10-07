@@ -28,7 +28,7 @@ type Variants = { textBody: string; emailSubject: string; emailBody: string; cal
 // An elapsed beat is edited as a positive number of minutes plus before/after; the stored offset keeps its sign.
 type SequenceItem = { key: string; id?: string; name: string; channel: Channel; subject: string; body: string; script: string; dayOffset: number; sendTimeMinutes: number | null; plannedAt: string; anchor: StepAnchor; offsetMinutes: string; before: boolean; variants: Variants };
 type StoredVariant = { family: PreparationFamily; subject: string | null; body: string | null; script: string | null };
-type MixValue = { id?: string; name?: string; description?: string | null; framework?: string | null; category?: string | null; industry?: string | null; triggerMode?: TriggerMode; dateTypeId?: string | null; updatedAt?: string | null; status?: MixStatus; groupIds?: string[]; assignAllContacts?: boolean; broadcastDate?: string | null; broadcastTime?: string | null; broadcastTimezone?: string | null; steps?: Array<{ id: string; stepTemplateId: string; templateActive: boolean; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null; dayOffset: number; sendTimeMinutes: number | null; plannedAt?: string | null; anchor?: StepAnchor; offsetMinutes?: number | null; variants?: StoredVariant[] }> };
+type MixValue = { id?: string; name?: string; stageId?: string | null; description?: string | null; framework?: string | null; category?: string | null; industry?: string | null; triggerMode?: TriggerMode; dateTypeId?: string | null; updatedAt?: string | null; status?: MixStatus; groupIds?: string[]; assignAllContacts?: boolean; broadcastDate?: string | null; broadcastTime?: string | null; broadcastTimezone?: string | null; steps?: Array<{ id: string; stepTemplateId: string; templateActive: boolean; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null; dayOffset: number; sendTimeMinutes: number | null; plannedAt?: string | null; anchor?: StepAnchor; offsetMinutes?: number | null; variants?: StoredVariant[] }> };
 type LegacyMessageOption = { id: string; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null };
 
 const MAX_STEP_OFFSET_DAYS = 365;
@@ -86,7 +86,8 @@ export function MixEditor({
   workflowRevision = 0,
   activeContactCount,
   missingEmailCount,
-  missingPhoneCount
+  missingPhoneCount,
+  contactStages = null
 }: {
   mix?: MixValue;
   jumps: LegacyMessageOption[];
@@ -102,6 +103,8 @@ export function MixEditor({
   activeContactCount: number;
   missingEmailCount: number;
   missingPhoneCount: number;
+  /** The business's active Contact stages, or null when it has none: the stage field is shown only with stages. */
+  contactStages?: Array<{ id: string; name: string }> | null;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const activationInputRef = useRef<HTMLInputElement>(null);
@@ -208,6 +211,8 @@ export function MixEditor({
         })}</div>}
         <small>{triggerMode === "MANUAL_START" ? "You can also start it from one person’s page, or line it up with a visit from the calendar. No one needs to be enrolled here first." : "You can also start a Mix from one person’s page."}</small>
       </div>
+
+      {contactStages && <div className="form-grid mix-stage-choice"><label className="field"><span>Contact stage</span><select name="stageId" defaultValue={mix?.stageId && contactStages.some((stage) => stage.id === mix.stageId) ? mix.stageId : ""}><option value="">None</option>{contactStages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select><small>People who start this Mix move to this stage. Only the label changes, and people already in the Mix keep theirs. <Link href="/settings/journey">Manage Contact stages</Link></small></label></div>}
 
       <details className="plan-advanced-settings"><summary>Advanced Mix settings</summary><div className="form-grid">
         <label className="field full"><span>Description (optional)</span><textarea name="description" maxLength={1200} defaultValue={mix?.description ?? ""} placeholder="What this Mix helps you remember" /></label>
