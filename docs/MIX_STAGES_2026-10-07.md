@@ -1,6 +1,6 @@
 # Stages from the work — 2026-10-07
 
-**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. Four WF-05 reviews: rounds 1–3 requested changes (round 1: 1 HIGH, 4 MEDIUM, 6 LOW; round 2: 2 MEDIUM, 5 LOW; round 3: 1 MEDIUM, 5 LOW), and round 4 approved with 5 LOW, fixed or answered under "Fourth review". Round 5 approved too, with 3 LOW ("Fifth review"); a sixth review of those fixes is next. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
+**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. Six WF-05 reviews: rounds 1–3 requested changes (round 1: 1 HIGH, 4 MEDIUM, 6 LOW; round 2: 2 MEDIUM, 5 LOW; round 3: 1 MEDIUM, 5 LOW), and rounds 4, 5 and 6 approved with LOW findings only. Each round's findings and fixes are below; round 6's LOW fixes came after its approval and weren't reviewed again, as with #128's last LOW. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
 
 **Decisions:**
 - **D35** (2026-10-05): a Mix can set a person's stage, and a Mega-Mix can create stage labels that the owner can still change.
@@ -204,11 +204,22 @@ Round 5 (`REVIEW-5.md`, private) at 6f8a7f9: **approve**, 3 LOW. Round 4's findi
 
 | ID | Finding | Fix |
 |---|---|---|
-| UX-06 | Resume still moved people a Journey Start or connection had put in the Mix: Journey work has no enrollment, and the helper read only enrollments. | `peopleInMixByOtherRoutes` also reads active Journey runs of the Mix (legacy runs excepted, as they mirror enrollments); tested with a run that predates the `legacy` flag. |
+| UX-06 | Resume still moved people a Journey Start or connection had put in the Mix: Journey work has no enrollment, and the helper read only enrollments. | `peopleInMixByOtherRoutes` also reads active Journey runs of the Mix (legacy runs excepted, as they mirror enrollments); tested with a run that has no `legacy` flag. |
 | DOC-05 | The start-path table, the resume sentence and a code comment still said "the people added while it was off"; the helper's docblock claimed Journey enrollments; visits were left out. | Reworded here, in the code comments and the docblock; visits named. The PR body's sizes are refreshed. |
 | TST-05 | Only the tag route of the helper was tested; no test for UX-06. | A resume test covers a person's own start, a Journey run and a hidden tag's member. Still no browser assertion of the review's people count or COPY-03's wording. |
 
 The review confirmed the nine questions above and refined the first: D58 already says newcomers aren't placed while a Mix is paused.
+
+## Sixth review
+
+Round 6 (`REVIEW-6.md`, private) at 758f46e: **approve**, 4 LOW. Round 5's findings were fixed; the review confirmed that the JSON containment matches runs with or without a `legacy` key, that leaving legacy runs out is right, and that no enrollment changes.
+
+| ID | Finding | Fix |
+|---|---|---|
+| UX-07 | The Journey read counted only work that is going, so a resume moved back people whose Journey work had been paused; §2.76 counts going and paused work. | It counts both. |
+| PERF-02 | The read loaded each matching Journey record's whole state to filter it in code. | The test runs in SQL (`jsonb_array_elements`), and only the people come back. |
+| TST-06 | The legacy-run and record-status branches weren't tested. | A test covers paused, stopped, legacy and finished runs. |
+| DOC-06 | Small record and comment slips. | Reworded. |
 
 ## Verification
 
@@ -236,7 +247,7 @@ The run after the fifth review is at a7ad2b4, on TrixBot, against fresh local da
 
 ## NOT RUN
 
-- **The sixth WF-05 review**, at the head after the fifth review's fixes.
+- **A review of round 6's LOW fixes** (UX-07, PERF-02, TST-06, DOC-06), which came after round 6's approval; #128's last LOW fix (LAY-05) was released the same way.
 - **Physical devices.**
 - **Production:** nothing released; no production data read. How many accounts have Everyone Mixes, or stages with their own Mix, is unknown.
 - **CI jobs**, which GitHub Actions can't run (billing, JITM-12 §2.12). Run here: schema, syntax and import validation, typecheck, the standards check, the migration rehearsal and release check, Vitest, `worker:qualify`, the production build and the browser batches below. Not run:
