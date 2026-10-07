@@ -1,6 +1,6 @@
 # Stages from the work — 2026-10-07
 
-**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. Three WF-05 reviews have requested changes: round 1 (1 HIGH, 4 MEDIUM, 6 LOW), round 2 (2 MEDIUM, 5 LOW) and round 3 (1 MEDIUM, 5 LOW). Each round's fixes are listed below ("First review", "Second review", "Third review"; round 3's are in b2b850f and 1270f53), and a fourth review is next. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
+**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. Four WF-05 reviews: rounds 1–3 requested changes (round 1: 1 HIGH, 4 MEDIUM, 6 LOW; round 2: 2 MEDIUM, 5 LOW; round 3: 1 MEDIUM, 5 LOW), and round 4 approved with 5 LOW, fixed or answered under "Fourth review". A fifth review of those fixes is next. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
 
 **Decisions:**
 - **D35** (2026-10-05): a Mix can set a person's stage, and a Mega-Mix can create stage labels that the owner can still change.
@@ -36,7 +36,7 @@ One function does it: `setStagesFromMixStarts` in `src/lib/mix-stage.ts`. Every 
 | A Journey Start | `startWorkflowInstance` (`src/lib/mix-workflow.ts`) | Always. |
 | A Journey connection, or the owner's update in Journey, starts the next Mix | `processWorkflowInstance` | Each run that pass adds. |
 
-Not a start: the stage's own Mix starting when someone enters the stage, resuming a paused Mix or one stopped for a person (`mix-stop-actions.ts`), a second start while the Mix is still running, saving a Mix again (including an Everyone Mix's re-sync of its places, UX-03), a tag added while the Mix is paused (its members start when it resumes, with no stage set: STG-05, a question for Kevin), onboarding's first Mix (`onboarding-actions.ts`), and a tag shown again or gained in a contact merge (`contact-merge-actions.ts`). A tag newly added to a Mix starts it for all its members, including people already running that Mix by their own start: that is a second assignment the scheduler runs, so it counts.
+Not a start: the stage's own Mix starting when someone enters the stage, resuming a paused Mix (apart from the people an Everyone Mix takes in then, below) or one stopped for a person (`mix-stop-actions.ts`), a second start while the Mix is still running, saving a Mix again (including an Everyone Mix's re-sync of its places, UX-03), a tag added while the Mix is paused (its members start when it resumes, with no stage set: STG-05, a question for Kevin), onboarding's first Mix (`onboarding-actions.ts`), and a tag shown again or gained in a contact merge (`contact-merge-actions.ts`). A tag newly added to a Mix starts it for all its members, including people already running that Mix by their own start: that is a second assignment the scheduler runs, so it counts.
 
 **What setting the stage does.**
 - It changes only the label. No other Mix starts or stops, and the new stage's own Mix does not run. The one exception is the arrival stage's Mix for someone who hadn't joined a stage yet (next bullet).
@@ -61,7 +61,7 @@ A save that starts people on a Mix that names a stage moves them all: turning th
 - The count covers only the people the save starts: the whole audience when it turns the Mix on, all people when it ticks Everyone, or the members of the tags it adds. It comes from `stageMovesForAudience` (`src/lib/mix-stage.ts`) through `/api/contacts/audience?stage=…&mix=…&stageAll=1&stageGroup=…`, and leaves out what the start leaves out: archived, Do not contact, stopped in this Mix, paused stage changes, already in the stage, and hidden tags. A test checks that it equals the people the confirmed save moves.
 - The server refuses such a save without the review ("Review who moves to the Mix’s stage before turning it on." or "… before adding them."), and Start Mix on the Mixes list opens the review instead of starting.
 - On a Mix already on, the review reads "Save these changes?", counts only the people the save starts, and its buttons are "Review and save" and "Save the Mix" (COPY-02).
-- Re-saving an Everyone Mix re-syncs its places but moves no one: not someone the owner removed from the Mix, nor someone a tag, their own start or a Journey Start already put in it (UX-03). Resuming a paused Everyone Mix, from the editor or from the Mixes list, moves the people added while it was off (D58).
+- Re-saving an Everyone Mix re-syncs its places but moves no one: not someone the owner removed from the Mix, nor someone a tag, their own start or a Journey Start already put in it (UX-03). Resuming a paused Everyone Mix, from the editor or from the Mixes list, moves the people it takes in then: those it had no place for and who aren't in it by another route (a tag, their own start). That is the people added while it was off (D58), unless a save while it was paused already gave them a place; their stage is then not set (UX-04, a question for Kevin).
 - Not reviewed: resuming a paused Mix, which starts only the people "Everyone" took in since, and saves that start no one.
 
 ### Retiring a stage
@@ -184,6 +184,20 @@ Round 3 (`REVIEW-3.md`, private) at de58501: changes requested, 1 MEDIUM and 5 L
 
 Questions from round 3 for Kevin: should saving an Everyone Mix re-enroll people the owner removed at all (older than this change; recommended no)? Should a tag added while a Mix is paused move its members when it resumes (recommended yes, with the review)?
 
+## Fourth review
+
+Round 4 (`REVIEW-4.md`, private) at 5f5ada8: **approve**, 5 LOW. Round 3's findings were fixed or answered; the review confirmed that the UX-02 browser test runs with the review preference off and that the fixes change who moves stage, not who is enrolled.
+
+| ID | Finding | Fix |
+|---|---|---|
+| UX-04 | Resuming an Everyone Mix moved people who had no Everyone place, including people in it by a tag or their own start; and people added during the pause got a place from a "Keep paused" save, so resume never set their stage. | Both resume paths leave out people in the Mix by another route (`peopleInMixByOtherRoutes`); tests for the list and the editor. The "Keep paused" half changes #128's enrollment, so it is disclosed above and asked of Kevin. |
+| UX-05 | A draft Everyone Mix with no places yet turned on from the Mixes list without its review. | Start Mix reviews a draft that names a stage and is for Everyone or has an audience; tested. |
+| COPY-03 | On a Mix already on, the email and phone warnings counted the whole audience; a resume read "Save these changes?". | The warnings say "people in this Mix’s audience"; a resume reads as a start. |
+| TST-04 | The UX-03 test hid UX-04; the list's resume with a stage was untested. | The resume tests pause the Mix directly, so the tag member has no Everyone place, and run both paths. |
+| DOC-04 | "Added while it was off"; resume both a start and a non-start; `placeNewContacts` lost its docblock; the footer omitted imports, the New contacts setting and visits. | Reworded here and in JITM-09 6.8.0; the docblock is back; the footer names them. |
+
+**Questions from the reviews for Kevin**, with the reviewers' recommended answers: (1) when an Everyone Mix that names a stage resumes, should a save while it was paused stop placing newcomers, so resume moves them (yes)? (2) should Remove on an Everyone Mix count as a stop for that Mix, so no later save re-enrolls the person (yes; older than this change)? (3) should a tag added while a Mix is paused move its members when it resumes (yes, reviewed)? (4) do you accept default 15's exception to §2.39 (yes)? (5) should ticking Everyone move only people with no stage yet (yes, unless confirmed in the review)? (6) should a stage's "Mix completed" rule follow its Mix run from Journey (later, slice 4)? (7) should every way of adding people put them in the first stage at once (yes, later)? (8) defaults 14 and 16 as built (yes)? (9) the P8 label lists (keep the trade's milestones) and labels after the fact (slice 4)?
+
 ## Verification
 
 The run after the third review is at 1270f53, on TrixBot, against fresh local databases (`jitm_design_mst1007_r4*`), with the environment of CI's validate job. Every ledger step records its head; only this section changed after 1270f53. Logs, JSON reports and the ledger are in `.artifacts/mix-stages-20261007/verification/` (private); step names refer to its ledger. Earlier runs are kept there: round 1 (steps 01–13, 7c01d56), round 2 (R2-*, 9a0433e and e3d4e1e) and round 3 (R3-*, 501f2f1 and 7c1b058). Another project's test suite was running on the host during the browser batches (load average 4–7), which slowed some batches to twice their usual time.
@@ -210,7 +224,7 @@ The run after the third review is at 1270f53, on TrixBot, against fresh local da
 
 ## NOT RUN
 
-- **The fourth WF-05 review**, at the head after the third review's fixes.
+- **The fifth WF-05 review**, at the head after the fourth review's fixes.
 - **Physical devices.**
 - **Production:** nothing released; no production data read. How many accounts have Everyone Mixes, or stages with their own Mix, is unknown.
 - **CI jobs**, which GitHub Actions can't run (billing, JITM-12 §2.12). Run here: schema, syntax and import validation, typecheck, the standards check, the migration rehearsal and release check, Vitest, `worker:qualify`, the production build and the browser batches below. Not run:
