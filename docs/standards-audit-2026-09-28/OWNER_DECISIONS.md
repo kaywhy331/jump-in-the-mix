@@ -454,7 +454,7 @@ Question 4 of the same review needed no new decision: the Mix filter's first opt
 
 - **Context:** slice 2 of the Mix placement work (PR #128, `docs/MIX_NEXT_STEP_2026-10-06.md`) was built with six implementation choices the decisions left open. Kevin asked for the most logical, easiest workflow and adopted the recommendations: "For those questionss, what is the most logical and best user experience? I will go off your recommendations. I want it to be easy for users providing and easy user experience for the users and intilligent to do the right workflow."
 - **D48 — The end-of-Mix question asks only when the person is left with no Mix.** Someone still in another Mix isn't falling through, so the owner isn't interrupted. This answers P4's open question.
-- **D49 — Only Mixes that start "When I start it for someone" can be the New contacts Mix.** The same goes for the Mix that Add a contact, Quick Add and an import offer for new people. It is the same rule as a Contact stage's Mix. A date-based, broadcast or after-another-Mix Mix can't sensibly start "today" for a new person.
+- **D49 — Only Mixes that start "When I start it for someone" can be the New contacts Mix.** The same goes for the Mix that Add a contact, Quick Add and an import offer for new people. It is the same rule as a Contact stage's Mix. A date-based, broadcast or after-another-Mix Mix can't sensibly start "today" for a new person. Clarified by D57 (2026-10-07): Add a contact keeps the Mixes that follow the follow-up date.
 - **D50 — With "Ask each time", people from the phone and from lead connections go to Today's No Mix line.** No one is there to ask when they arrive. Review opens them together for one bulk Add. A connection that should start a Mix automatically can choose its own Mix.
 - **D51 — People added with a visit, during onboarding or by an invitation don't take the New contacts Mix.**
   - A visit is already a next step.
@@ -469,6 +469,18 @@ Question 4 of the same review needed no new decision: the Mix filter's first opt
   - This applies only while billing is on.
 - **Confirms:** the rest of P5 as built. JITM-09 §2.78 drops [PROPOSED].
 - **Applied in:** JITM-09 §2.77, §2.78 (6.1.0); `docs/MIX_NEXT_STEP_2026-10-06.md`.
+
+### D54–D60 — Readings from the reviews of PR #128 (2026-10-07)
+
+- **Context:** the WF-05 reviews of PR #128 (`docs/MIX_NEXT_STEP_2026-10-06.md`, "Reviews") needed seven readings that the decisions left open. The agent took them as reversible defaults (JITM-15 §2.12) and asked Kevin to confirm them with the merge. Kevin chose "Accept all 7 (Recommended)" on 2026-10-07, together with "Merge and release".
+- **D54 — A Contact stage's Mix comes first, but not before the owner's own pick.** When the stage new people join starts a Mix, the New contacts Mix, or one a lead connection set up in advance, is not added on top of it, and no form preselects it. A Mix the owner picks while adding someone, in Add a contact, Quick Add or an import's review, still starts beside it.
+- **D55 — Imported and phone contacts get their stage from the worker's stage pass,** about 25 new people a minute, and are placed knowing which stage they will join.
+- **D56 — How Add a contact opens.** With Ask each time, the First follow-up is ticked for today with no Mix chosen, as Quick Add and imports open. With Leave them out, or under a stage's Mix, it opens as it always has: unticked, with the first Mix that follows the follow-up date.
+- **D57 — D49 clarified.** Mixes set to start after another Mix are never offered or started for new people. Add a contact keeps offering the Mixes that follow the follow-up date, such as the starter Mix.
+- **D58 — An Everyone Mix turned back on takes in the people added while it was off,** from that moment. While it is paused, newcomers are not placed in it.
+- **D59 — The end-of-Mix question's sheet** lists Mixes the owner starts first and preselects only one of those; date-based and fixed-date Mixes can be chosen, with the start day's meaning shown.
+- **D60 — A Journey Start's own Mix is left to the Start.** Someone added from a Journey Start is not given an Everyone place in the Mix the Start then starts for them.
+- **Applied in:** JITM-09 §2.77–§2.78 (6.3.0); `docs/MIX_NEXT_STEP_2026-10-06.md`.
 
 ## Still open
 

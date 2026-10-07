@@ -8,7 +8,7 @@
 - **D44** (2026-10-06, recorded on #125): the wording "No Mix will remind you about them".
 - **D48–D53** (2026-10-06, JITM-09 6.1.0): Kevin adopted the recommendations for this slice's six open choices. They are listed under "Decisions made during the build" below.
 
-All four are in the [owner decision log](standards-audit-2026-09-28/OWNER_DECISIONS.md). The readings the first review needed are agent defaults, listed under "Agent defaults for Kevin" until he confirms them (JITM-15 §2.12).
+All four are in the [owner decision log](standards-audit-2026-09-28/OWNER_DECISIONS.md). The readings the reviews needed were agent defaults until Kevin confirmed all seven on 2026-10-07 as D54–D60; they are listed under "Agent defaults, confirmed as D54–D60".
 
 **Rules:** JITM-09 §2.77, §2.78, §2.75 (plan limits) and §2.25 (Today states only what is true). This is the second build slice in [Mix placement and contact stages](MIX_PLACEMENT_AND_STAGES_2026-10-05.md).
 
@@ -111,9 +111,11 @@ The decisions were silent on six implementation choices. Kevin asked for the mos
 | D52 | Mixes already saved with Everyone take in people added after the release. | One meaning everywhere. The checkbox says "and anyone you add later", and past broadcasts are skipped. |
 | D53 | Over the people limit, an import's Mix skips those people, and a Mix chosen in Quick Add is refused with the reason. | A large import isn't blocked by a few people. Quick Add keeps the draft and offers "No Mix for now". This applies only while billing is on. |
 
-## Agent defaults for Kevin
+## Agent defaults, confirmed as D54–D60
 
-The reviews needed these readings to fix their findings. Each is reversible. Until Kevin confirms one, the standards cite it as `[SOURCE]` (JITM-15 §2.12).
+Kevin chose "Accept all 7 (Recommended)" on 2026-10-07, so defaults 1–7 are D54–D60 in the decision log. The questions below are kept as asked.
+
+The reviews needed these readings to fix their findings. Each is reversible. The standards cited each as `[SOURCE]` until then (JITM-15 §2.12).
 
 1. **A stage's Mix comes before the setting's, but not before the owner's own pick (PLC-01, the review's question 1a).** When the stage new people join starts a Mix, the setting's Mix, or one a lead connection set up in advance, is not added on top of it, and no form preselects it. A Mix the owner picks while adding someone, in Add a contact, Quick Add or an import's review, still starts beside the stage's Mix. Should the owner's own pick start too, or should the stage's Mix always be the only one?
 2. **Imported and phone contacts keep getting their stage from the worker (the review's question 1b).** They are placed knowing which stage they will join, rather than getting that stage inside the import. The worker's stage pass takes about 25 new people a minute, so the end state arrives over about 40 minutes for a 1,000-row import, and those people count on Today's No Mix line until then (PLC-03). Should imports and phone contacts get their stage at once, as Quick Add and lead connections do?
