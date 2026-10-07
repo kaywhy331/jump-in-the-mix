@@ -54,7 +54,8 @@ export async function activateMixAction(formData: FormData): Promise<void> {
       const keys = contacts.map(contact => `${workspace.id}:${mix.id}:audience:${contact.id}`);
       const already = new Set((await tx.mixAssignment.findMany({ where: { assignmentKey: { in: keys } }, select: { contactId: true } })).map(item => item.contactId));
       await tx.mixAssignment.createMany({ data: contacts.map(contact => ({ assignmentKey: `${workspace.id}:${mix.id}:audience:${contact.id}`, workspaceId: workspace.id, mixId: mix.id, contactId: contact.id, mode: "DYNAMIC" as const, startDate })), skipDuplicates: true });
-      // On a resume, people in the Mix by another route (a tag, their own start) keep their stage (UX-04).
+      // On a resume, people in the Mix by another route (a tag, their own start, a visit, a Journey run) keep their stage
+      // (UX-04, UX-06).
       const elsewhere = mix.status === "PAUSED" ? await peopleInMixByOtherRoutes(tx, workspace.id, mix.id) : new Set<string>();
       starting.push(...contacts.filter(contact => !already.has(contact.id) && !elsewhere.has(contact.id)).map(contact => contact.id));
     }

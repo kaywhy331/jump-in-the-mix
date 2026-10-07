@@ -654,6 +654,22 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       expect([await stageOf(sid), await stageOf(tia)]).toEqual([retention, prospect]);
     });
 
+    it("Resume leaves people in the Mix by their own start or a Journey run, and moves a hidden tag's members (UX-04, UX-06)", async () => {
+      const { tips, sid, tia } = await pausedEveryone();
+      const quiet = await prisma.group.create({ data: { workspaceId, name: "Quiet" } });
+      await prisma.contactGroupState.create({ data: { workspaceId, groupId: quiet.id, isActive: false } });
+      await prisma.mixAssignment.create({ data: { workspaceId, mixId: tips.id, groupId: quiet.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${tips.id}:group:${quiet.id}`, startDate: new Date() } });
+      const [own, journey, hiddenMember] = await Promise.all(["Own start", "Journey start", "Hidden tag"].map(person));
+      for (const contactId of [own, journey, hiddenMember]) await placeIn(contactId, lead);
+      await prisma.contactGroupMembership.create({ data: { contactId: hiddenMember, groupId: quiet.id } });
+      await prisma.mixAssignment.create({ data: { workspaceId, contactId: own, mixId: tips.id, assignmentKey: `${workspaceId}:${tips.id}:${own}`, isActive: true, startDate: new Date() } });
+      await prisma.mixWorkflowInstance.create({ data: { workspaceId, contactId: journey, admissionKey: `start:${randomUUID()}`, label: "Start", definition: {}, state: { runs: [{ id: "run-1", mixId: tips.id, startedAt: new Date().toISOString(), completedAt: null, status: "ACTIVE", parentTransitionId: null }] } } });
+      await redirectOf(activateMixAction(form({ mixId: tips.id })));
+      expect([await stageOf(own), await stageOf(journey), await stageOf(sid)]).toEqual([lead, lead, retention]);
+      // A hidden tag runs nothing, so its member is a newcomer to the Mix like Tia.
+      expect([await stageOf(hiddenMember), await stageOf(tia)]).toEqual([prospect, prospect]);
+    });
+
     it("Start Mix on the list reviews a draft Everyone Mix that names a stage even before it has places (UX-05)", async () => {
       const draft = await mix("Spring check-in", { stageId: prospect, audienceEveryone: true, status: "DRAFT" });
       await prisma.userPreference.upsert({ where: { userId }, create: { userId, reviewMixActivation: false }, update: { reviewMixActivation: false } });

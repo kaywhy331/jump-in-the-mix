@@ -369,7 +369,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
         const saved = await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, groupId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
         if (turningOn || !existing?.isActive) starting.push(saved.id);
       }
-      // Resuming leaves out people in the Mix by another route (a tag, their own start), as the placement does (UX-04).
+      // Resuming leaves out people in the Mix by another route, as the placement does (UX-04, UX-06).
       const elsewhere = resuming && hadEveryone ? await peopleInMixByOtherRoutes(tx, workspace.id, mixId) : new Set<string>();
       for (const contactId of allContactIds) {
         const assignmentKey = `${workspace.id}:${mixId}:audience:${contactId}`;
@@ -377,10 +377,10 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
         const startDate = triggerMode === "MANUAL_START" ? freshStart ? now : existing?.startDate ?? now : null;
         const saved = await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, contactId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
         // Only a save that turns the Mix on or newly ticks Everyone starts Everyone, as its review says. Resuming a paused
-        // one starts the people it had no place for and who aren't in it by another route, as Resume on the Mixes list
-        // does: people added while it was off (D58), unless a save while paused already gave them a place. Re-saving an
-        // Everyone Mix re-syncs its places, and that moves no one: not someone the owner removed, nor someone a tag or
-        // their own start already put in it (UX-03).
+        // one starts the people it had no place for and who aren't in it by another route (a tag, their own start, a
+        // visit or a Journey run), as Resume on the Mixes list does. A "Keep paused" save gives newcomers a place, so a
+        // resume after one starts nobody new (UX-04, a question for Kevin). Re-saving an Everyone Mix re-syncs its
+        // places, and that moves no one: not someone the owner removed, nor someone another route put in it (UX-03).
         if (turningOn || (!hadEveryone && !existing?.isActive) || (resuming && !existing && !elsewhere.has(contactId))) starting.push(saved.id);
       }
       // A Mix that names a Contact stage sets it for the people it starts now (JITM-09 §2.79); changing the stage
