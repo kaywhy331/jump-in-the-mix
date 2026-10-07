@@ -355,6 +355,10 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
     // preselects is never added on top of it (JITM-09 §2.78).
     await applyJourneyEvent(tx, { workspaceId: workspace.id, contactId: created.id, eventKey: `contact-created:${created.id}`, eventType: "CONTACT_RECEIVED", source: "Contact added", actorUserId: user.id });
     let mixKept = false;
+    // Added from a Journey Start, the Start starts its Mix for them next, so that Mix's Everyone place is left to it
+    // (EVR-02, agent default 7).
+    const starting = workflowContinuation(returnTo) ? new URL(returnTo, "https://return.invalid").searchParams : null;
+    const exceptEveryone = starting?.get("start") === "1" && starting.get("mix") ? [starting.get("mix")!] : [];
     if (followUp && !followUp.mixId) {
       // Without a plan the owner still asked to see this person on Today on that day: one
       // follow-up at their default follow-up time, not a saved date that no plan reads.
@@ -377,7 +381,7 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
       // owner's choice, so it starts even beside the stage's Mix, but never a second time for someone a tag they
       // were just given already runs it for; Everyone Mixes follow without doubling it (PLC-02).
       const { dateValue } = followUp;
-      const placed = await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id], mixId: followUp.mixId, chosenByOwner: true, explicit: true, start: { year: dateValue.getUTCFullYear(), month: dateValue.getUTCMonth() + 1, day: dateValue.getUTCDate() }, actorUserId: user.id, timezone, source: "contacts.form" });
+      const placed = await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id], mixId: followUp.mixId, chosenByOwner: true, explicit: true, exceptEveryone, start: { year: dateValue.getUTCFullYear(), month: dateValue.getUTCMonth() + 1, day: dateValue.getUTCDate() }, actorUserId: user.id, timezone, source: "contacts.form" });
       mixKept = !placed.started.length;
     } else if (followUp) {
       await tx.jumpDate.create({
@@ -425,9 +429,6 @@ async function createContact(formData: FormData): Promise<ContactFormState> {
     });
     // Mixes for Everyone take the new person in too, except one they are already in. The New contacts Mix is not
     // applied here: the page preselects it in the form, so it is the owner's own choice.
-    // Added from a Journey Start, the Start starts its Mix for them next, so that Mix's Everyone place is left to it (EVR-02).
-    const starting = workflowContinuation(returnTo) ? new URL(returnTo, "https://return.invalid").searchParams : null;
-    const exceptEveryone = starting?.get("start") === "1" && starting.get("mix") ? [starting.get("mix")!] : [];
     if (!followUp?.startsOn) await placeNewContacts(tx, { workspaceId: workspace.id, contactIds: [created.id], mixId: null, exceptEveryone });
     const receipt: CreatedContact = { contactId: created.id, dateCreated: Boolean(followUp?.mixId && !followUp.startsOn), mixAssigned: Boolean(followUp?.mixId) && !mixKept, followUpScheduled: Boolean(followUp && !followUp.mixId), ...(mixKept ? { mixKept } : {}) };
     if (idempotencyKey) {

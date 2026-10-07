@@ -328,6 +328,10 @@ describe.skipIf(!local).sequential("where new people go (JITM-09 §2.78)", () =>
           const startee = await prisma.contact.findFirstOrThrow({ where: { workspaceId, firstName: "Startee" } });
           const places = await prisma.mixAssignment.findMany({ where: { contactId: startee.id, isActive: true }, select: { mixId: true } });
           expect(places.map(item => item.mixId)).toEqual([other.id]);
+          // The same when the form also starts a Mix of its own (EVR-03).
+          await expect(saveContactFormAction({}, addForm({ firstName: "Startown", lastName: suffix, returnTo: `/journey?mix=${everyone.id}&start=1`, scheduleFollowUp: "on", followUpDateTypeId: followUpTypeId, followUpDate: inDays(0), followUpReason: "Follow up", followUpMixId: otherMix.id }))).rejects.toThrow(/redirect:\/journey\?mix=.*contactId=/);
+          const startown = await prisma.contact.findFirstOrThrow({ where: { workspaceId, firstName: "Startown" } });
+          expect((await prisma.mixAssignment.findMany({ where: { contactId: startown.id, isActive: true }, select: { mixId: true } })).map(item => item.mixId).sort()).toEqual([other.id, otherMix.id].sort());
         } finally {
           await prisma.mix.updateMany({ where: { id: { in: [everyone.id, other.id] } }, data: { status: "PAUSED" } });
         }

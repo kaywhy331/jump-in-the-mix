@@ -21,8 +21,7 @@ import type { MixEndQuestion } from "@/lib/mix-end-question";
 export function MixEndPrompt({ mixes, todayKey, address, viewOnly = false }: { mixes: Array<{ id: string; name: string; triggerMode: string; startedByOwner: boolean }>; todayKey: string; address: string; viewOnly?: boolean }) {
   const [question, setQuestion] = useState<(MixEndQuestion & { jumpId: string }) | null>(null);
   const [choice, setChoice] = useState("");
-  const [target, setTarget] = useState<HTMLElement | null>(null);
-  useEffect(() => setTarget(document.getElementById("follow-up-confirmations")), []);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
   // An answer returns to Today with its notice in the address; the question has been dealt with.
   useEffect(() => setQuestion(null), [address]);
   useEffect(() => {
@@ -42,6 +41,18 @@ export function MixEndPrompt({ mixes, todayKey, address, viewOnly = false }: { m
     window.addEventListener("jitm:jump-state", onState);
     return () => window.removeEventListener("jitm:jump-state", onState);
   }, [mixes]);
+  // The question goes after the confirmations already showing, such as the 10-second Undo for the same outcome, so
+  // they stay in view above it and come first to keyboard and screen-reader users too (LAY-02, A11Y-02).
+  const questionId = question?.jumpId;
+  useEffect(() => {
+    const target = questionId ? document.getElementById("follow-up-confirmations") : null;
+    if (!target) return;
+    const element = document.createElement("div");
+    element.className = "mix-end-slot";
+    target.append(element);
+    setSlot(element);
+    return () => { element.remove(); setSlot(null); };
+  }, [questionId]);
   if (!question) return null;
 
   const { contactId, contactName, mixName, oneTimeFollowUp } = question;
@@ -74,5 +85,5 @@ export function MixEndPrompt({ mixes, todayKey, address, viewOnly = false }: { m
       <button type="button" className="icon-button" aria-label={`Not now: leave ${contactName} as they are`} onClick={close}><AppIcon name="close" /></button>
     </div>
   </section>;
-  return target ? createPortal(card, target) : card;
+  return slot ? createPortal(card, slot) : null;
 }

@@ -157,6 +157,24 @@ test("the question and the New contacts page pass the accessibility audit in bot
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
 
+// The timed Undo for the same outcome comes before the question, on screen and in Tab order, and fits at 320px with
+// 200% text (LAY-02, LAY-03, A11Y-02).
+test("the 10-second Undo stays first and whole beside the question with enlarged text", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Checked once, at the narrowest phone width.");
+  await page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const style = document.createElement("style"); style.textContent = "html { font-size: 200% !important; }"; document.head.append(style); }));
+  const { displayName } = await lastBeat("Jordan");
+  await finish(page, displayName);
+  await page.setViewportSize({ width: 320, height: 568 });
+  const stack = page.locator("#follow-up-confirmations");
+  expect(await stack.evaluate(element => [...element.querySelectorAll("[data-follow-up-undo], [data-mix-end]")].map(node => node.hasAttribute("data-mix-end") ? "question" : "undo"))).toEqual(["undo", "question"]);
+  const undo = stack.locator("[data-follow-up-undo]").getByRole("button", { name: "Undo", exact: true });
+  const box = (await undo.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(320);
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.y + box.height).toBeLessThanOrEqual(568);
+});
+
 test("the New contacts setting preselects its Mix in Add a contact and Quick Add, and an import asks", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/settings");
