@@ -88,19 +88,21 @@ export async function shareEveryoneMixes(tx: Tx, workspaceId: string): Promise<S
  */
 export async function peopleInMixByOtherRoutes(tx: Tx, workspaceId: string, mixId: string): Promise<Set<string>> {
   const hidden = (await tx.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
-  const [assignments, journeys] = await Promise.all([
-    tx.mixAssignment.findMany({
-      where: { workspaceId, mixId, isActive: true, OR: [{ contactId: { not: null }, NOT: { assignmentKey: { contains: ":audience:" } } }, { groupId: { not: null, notIn: hidden } }] },
-      select: { contactId: true, group: { select: { memberships: { select: { contactId: true } } } } }
-    }),
-    // A Journey Start or connection runs the Mix as Journey work, with no enrollment.
-    tx.mixWorkflowInstance.findMany({ where: { workspaceId, status: "ACTIVE", state: { path: ["runs"], array_contains: [{ mixId, status: "ACTIVE" }] } }, select: { contactId: true, state: true } })
-  ]);
-  // Legacy runs mirror the enrollments read above; older runs may not say either way.
-  const journeyRun = (state: unknown) => ((state as { runs?: Array<{ mixId?: string; status?: string; legacy?: boolean }> })?.runs ?? []).some(run => run.mixId === mixId && run.status === "ACTIVE" && run.legacy !== true);
+  const assignments = await tx.mixAssignment.findMany({
+    where: { workspaceId, mixId, isActive: true, OR: [{ contactId: { not: null }, NOT: { assignmentKey: { contains: ":audience:" } } }, { groupId: { not: null, notIn: hidden } }] },
+    select: { contactId: true, group: { select: { memberships: { select: { contactId: true } } } } }
+  });
+  // A Journey Start or connection runs the Mix as Journey work, with no enrollment: an active run of it, in work that
+  // is going or paused, as the No Mix status counts it (§2.76). Legacy runs mirror the enrollments read above. The
+  // test runs in the database, so only the people come back (UX-07, PERF-02).
+  const journeys = await tx.$queryRaw<Array<{ contactId: string }>>`
+    SELECT DISTINCT i."contactId" FROM "MixWorkflowInstance" i
+    CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(i.state->'runs') = 'array' THEN i.state->'runs' ELSE '[]'::jsonb END) AS run
+    WHERE i."workspaceId" = ${workspaceId} AND i.status IN ('ACTIVE', 'PAUSED')
+      AND run->>'mixId' = ${mixId} AND run->>'status' = 'ACTIVE' AND COALESCE(run->>'legacy', 'false') <> 'true'`;
   return new Set([
     ...assignments.flatMap(assignment => assignment.contactId ? [assignment.contactId] : (assignment.group?.memberships ?? []).map(member => member.contactId)),
-    ...journeys.filter(instance => journeyRun(instance.state)).map(instance => instance.contactId)
+    ...journeys.map(row => row.contactId)
   ]);
 }
 

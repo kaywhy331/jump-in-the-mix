@@ -670,6 +670,20 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       expect([await stageOf(hiddenMember), await stageOf(tia)]).toEqual([prospect, prospect]);
     });
 
+    it("a Journey run counts while its work is going or paused, not when stopped or when it mirrors an enrollment (UX-07)", async () => {
+      const { tips } = await pausedEveryone();
+      const run = (legacy?: boolean) => ({ id: randomUUID(), mixId: tips.id, startedAt: new Date().toISOString(), completedAt: null, status: "ACTIVE", parentTransitionId: null, ...(legacy === undefined ? {} : { legacy }) });
+      const [paused, stopped, mirrored, finished] = await Promise.all(["Paused work", "Stopped work", "Mirrored run", "Finished run"].map(person));
+      for (const contactId of [paused, stopped, mirrored, finished]) await placeIn(contactId, lead);
+      const instance = (contactId: string, status: string, runs: unknown[]) => prisma.mixWorkflowInstance.create({ data: { workspaceId, contactId, status, admissionKey: `start:${randomUUID()}`, label: "Start", definition: {}, state: { runs } as object } });
+      await instance(paused, "PAUSED", [run(false)]);
+      await instance(stopped, "STOPPED", [run(false)]);
+      await instance(mirrored, "ACTIVE", [run(true)]);
+      await instance(finished, "ACTIVE", [{ ...run(false), status: "FINISHED" }]);
+      await redirectOf(activateMixAction(form({ mixId: tips.id })));
+      expect([await stageOf(paused), await stageOf(stopped), await stageOf(mirrored), await stageOf(finished)]).toEqual([lead, prospect, prospect, prospect]);
+    });
+
     it("Start Mix on the list reviews a draft Everyone Mix that names a stage even before it has places (UX-05)", async () => {
       const draft = await mix("Spring check-in", { stageId: prospect, audienceEveryone: true, status: "DRAFT" });
       await prisma.userPreference.upsert({ where: { userId }, create: { userId, reviewMixActivation: false }, update: { reviewMixActivation: false } });
