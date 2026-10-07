@@ -1,6 +1,6 @@
 # Stages from the work — 2026-10-07
 
-**Status:** built on `feat/mix-stages-20261007`, not released. No WF-05 review has run yet. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
+**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. The first WF-05 review requested changes (1 HIGH, 4 MEDIUM, 6 LOW). The fixes are in 49794bc and e1320d5 ("First review" below), and a second review is next. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
 
 **Decisions:**
 - **D35** (2026-10-05): a Mix can set a person's stage, and a Mega-Mix can create stage labels that the owner can still change.
@@ -13,9 +13,9 @@
 
 ### A Mix names a stage
 
-- **Mix editor.** "Name and start" gets a **Contact stage** choice, below "Who is this Mix for?". It lists the business's active stages and "None", the default. The hint says: "People who start this Mix move to this stage. Only the label changes, and people already in the Mix keep theirs." It links to Contact stages. The choice appears only when the business has Contact stages. A form without it, such as an older open tab or a business without stages, keeps the saved choice (`src/components/MixEditor.tsx`, `src/lib/mix-editor-actions.ts`).
-- **The Mix's pane** says "Moves people to the {stage} stage." under Starts (`src/components/MixWorkspace.tsx`).
-- **Contact stages** lists, inside each active stage, the Mixes that set it: "Set when someone starts {Mix}, {Mix}." or "No Mix sets this stage. Choose one in a Mix's settings." Each Mix name links to the Mix (`src/app/(app)/settings/journey/page.tsx`).
+- **Mix editor.** "Name and start" gets a **Contact stage** choice, below "Who is this Mix for?". It lists the business's active stages and "None", the default. The hint says: "People who start this Mix move to this stage. Only the label changes, and people already in the Mix keep theirs." It links to Contact stages. While the business has paused automatic transitions, the hint adds "Automatic transitions are paused, so no one moves until you turn them back on." The choice appears only when the business has Contact stages. A form without it, such as an older open tab or a business without stages, keeps the saved choice (`src/components/MixEditor.tsx`, `src/lib/mix-editor-actions.ts`).
+- **The Mix's pane** says "Moves people to the {stage} stage." under Starts, for an active stage only, and adds the paused sentence while transitions are paused (`src/components/MixWorkspace.tsx`).
+- **Contact stages** lists, inside each active stage, the Mixes that set it: "Set when someone starts {Mix}, {Mix}." or "No Mix sets this stage. Choose one in a Mix's settings." Each Mix name links to the Mix. The page's footer adds that while transitions are paused, starting a Mix doesn't set a stage either (`src/app/(app)/settings/journey/page.tsx`).
 
 ### Starting a Mix sets the stage (§2.79)
 
@@ -36,34 +36,45 @@ One function does it: `setStagesFromMixStarts` in `src/lib/mix-stage.ts`. Every 
 | A Journey Start | `startWorkflowInstance` (`src/lib/mix-workflow.ts`) | Always. |
 | A Journey connection, or the owner's update in Journey, starts the next Mix | `processWorkflowInstance` | Each run that pass adds. |
 
-Not a start: the stage's own Mix starting when someone enters the stage, resuming a paused Mix, a second start while the Mix is still running, or saving a Mix again.
+Not a start: the stage's own Mix starting when someone enters the stage, resuming a paused Mix or one stopped for a person (`mix-stop-actions.ts`), a second start while the Mix is still running, saving a Mix again, onboarding's first Mix (`onboarding-actions.ts`), and a tag shown again or gained in a contact merge (`contact-merge-actions.ts`). A tag newly added to a Mix starts it for all its members, including people already running that Mix by their own start: that is a second assignment the scheduler runs, so it counts.
 
 **What setting the stage does.**
 - It changes only the label. No other Mix starts or stops, and the new stage's own Mix does not run.
 - The previous stage's own Mix keeps running, as the person's own: the stage record no longer manages it, so a later stage move doesn't stop it either.
 - It writes a stage history entry, so the profile's stage track shows the move. The entry is a manual move whose source is "Mix: {name}".
-- It adds an activity line: "Lead → Prospect, set by the Qualify Mix." or "Joined Prospect, set by the Qualify Mix."
-- The latest start wins. When one action starts several Mixes for the same person at once, the last one in its order wins.
+- It adds an activity line: "Lead → Prospect, set by the Mix “Qualify”." or "Joined Prospect, set by the Mix “Qualify”."
+- **Someone still waiting for the worker's stage pass joins the arrival stage first** (STG-02, `joinArrivalStage` in `src/lib/journey.ts`). A person added after Contact stages were turned on, without a stage event (an import, a phone contact, an invitation, onboarding), normally joins the stage new people join a few minutes later, through the worker's pass (D55). When a Mix sets their stage before that, they first join the arrival stage, with its Mix and the pass's own event key, so the pass has nothing left to do. Then the Mix's stage applies, and the arrival stage's Mix keeps running as their own. Every way of adding people now ends as Add a contact and Quick Add do. For people no Mix moves, D55 is unchanged.
+- **A stage manages its own Mix when that Mix moves someone into it** (STG-01). When the Mix that sets stage S is S's own Mix ("Follow-up Mix on entry"), and the person started it by their own start, S manages it, as if they had entered S. S's "The stage's Mix is completed" rule then applies, and a later move out of S stops it. Someone new who starts the arrival stage's own Mix gets the same. A start through a tag or an audience isn't taken over, as entering the stage wouldn't take it over either.
+- The latest start wins, among starts that can set a stage: a start the person is stopped in doesn't hide an earlier one. When one action starts several Mixes for the same person at once, the last one in its order wins. On Add a contact, the Mix the owner picks sets its stage after any Everyone Mix, so the owner's pick wins (ORD-01).
+- The New contacts Mix is not added for someone running the arrival stage's Mix, even after a tag's Mix moved them to another stage (D54).
 
 **When nothing changes.** The business has no Contact stages, or has paused automatic transitions; the person's own stage changes are paused; the stage is retired; the person is archived, marked Do not contact, or stopped in that Mix; the person is already in the stage.
 
-**Locks.** It takes the people's rows in id order, the lock a recorded milestone takes, and then shares the stages' rows. Retiring a stage now takes the stage's row before counting its people, so a start setting that stage right now finishes first and is counted, and a later one finds the stage retired. Bulk Undo takes the people's rows before the enrollments, in the order a start takes them.
+**Locks.** It takes the people's rows in id order, the lock a recorded milestone takes, and then shares the stages' rows (the arrival stage's too). Retiring a stage now takes the rows of the Mixes that name it, then the stage's row, before counting its people: a start setting that stage right now finishes first and is counted, a later one finds the stage retired, and a placement holding an Everyone Mix's row can't wait on the retire the other way round. Bulk Undo takes the people's rows before the enrollments, in the order a start takes them. The worker's Journey Start and connection paths take the workspace's key share before the contact row, so they wait behind a Mix save, which holds the workspace row and then locks the people it moves, instead of deadlocking with it (LCK-01).
+
+### Turning on a Mix that names a stage (UX-01)
+
+Turning a Mix on starts it for its whole audience, so a Mix that names a stage moves them all. That save is always reviewed, whatever Personal preferences → Starting mixes says:
+- The editor's button reads "Review and start", and the "Start this Mix?" review adds: "Starting moves {n} people to {stage}, including {m} now in another stage. Pausing, removing or stopping the Mix doesn’t move them back." While transitions are paused it reads "No one moves to {stage}: automatic transitions are paused."
+- The count comes from `stageMovesForAudience` (`src/lib/mix-stage.ts`) through `/api/contacts/audience?stage=…&mix=…`. It leaves out what the start leaves out: archived, Do not contact, stopped in this Mix, paused stage changes, already in the stage, and hidden tags.
+- The server refuses to turn such a Mix on without the review ("Review who moves to the Mix’s stage before turning it on."), and Start Mix on the Mixes list opens the review instead of starting.
+- It applies when a draft or a new Mix is turned on with an audience. Resuming a paused Mix (only people "Everyone" took in since) and adding a tag to an active Mix are not reviewed; the editor's hint covers them.
 
 ### Retiring a stage
 
-Retiring stops the Mixes that set the stage: their stage becomes None. The confirmation says so: "The Mix that sets it will stop setting a stage." (or "The {n} Mixes that set it …").
+Retiring unlinks the Mixes that set the stage: their stage becomes None. The confirmation says so: "The Mix that sets it will stop setting a stage." (or "The {n} Mixes that set it …").
 
 ### Mega-Mix stage labels (P8)
 
-- **Where.** Adding a ready-made Mega-Mix from the library (`/templates/journeys`) offers **"Add its stage labels"**, ticked, beside the review checkbox. It lists the labels and says: "Starting one of these Mixes moves the person to its stage." A business without Contact stages also reads "This turns on Contact stages."; one with stages reads "Labels you already have are reused; nothing is renamed or removed." (`src/components/MegaMixSetup.tsx`).
-- **When they don't fit.** A business has at most 20 stages, retired ones included. When the new labels would pass that, the choice is off, and says "Contact stages has room for {n} more labels, and this Mega-Mix adds {m}." The server refuses the same case with the same words, and nothing is added.
+- **Where.** Adding a ready-made Mega-Mix from the library (`/templates/journeys`) offers **"Add its stage labels"**, ticked, beside the review checkbox. It lists the labels and says: "Starting one of these Mixes moves the person to its stage." A business without Contact stages also reads "This turns on Contact stages."; one with stages reads "Labels you already have are reused, and a retired one comes back; nothing is renamed or removed." While transitions are paused it adds the paused sentence (`src/components/MegaMixSetup.tsx`).
+- **When they don't fit.** A business has at most 20 stages, retired ones included. When the new labels would pass that, the choice is off, and says "Contact stages has room for {n} more labels, and this Mega-Mix adds {m}." The server refuses the same case with the same words, followed by "Add it without its stage labels.", and nothing is added.
 - **What adding does** (`addStageLabels` in `src/lib/mix-stage.ts`, `installMegaMix` in `src/lib/mega-mix-service.ts`):
   - a label the business already has, in any case, is reused; a retired one comes back;
   - new labels follow the existing stages, in the Mega-Mix's order;
   - a business without Contact stages gets these labels only: no Lead, Prospect, Client or Retention, and no starter rules;
   - a business that paused automatic transitions stays paused;
   - each Mix is created naming its label; nobody is started (§2.43).
-- **The preview** shows "Stage: {label}" under each Mix that has one (`src/components/MegaMixPreview.tsx`).
+- **The preview** shows "Stage: {label}" under each Mix that has one, at 13px, in the library and the setup step; onboarding's preview leaves it out, as onboarding adds no labels (`src/components/MegaMixPreview.tsx`).
 - Onboarding's Mega-Mix doesn't offer or add labels (agent default 9).
 
 ### Mega-Mix label lists for review
@@ -82,6 +93,18 @@ Drafted from each Mega-Mix's own Mixes (`src/lib/mega-mixes.ts`). The Mixes for 
 
 One additive migration, `20261007120000_mix_stage`: `Mix.stageId` (nullable text), its index, and a foreign key to `JourneyStage` with `ON DELETE SET NULL`. The previous release's code never reads it. The stage history reuses the existing `MANUAL` event type, so no enum value is added and a rollback reads every row the new code writes (agent default 11).
 
+### Rollback
+
+Rollback is a redeploy of the previous release (`prod-2026-10-07-501841e`), web first and then the worker; the migration stays (JITM-14 §2.23). What the previous code finds:
+- `Mix.stageId` values: it never reads the column.
+- Stage history entries of type `MANUAL` with the source "Mix: {name}", activity lines, and arrival entries with the stage pass's own key: it reads them as any manual move or pass entry.
+- People whose previous stage's Mix was released, and people whose stage manages its own Mix: ordinary stage records.
+- Stages and journey preferences a Mega-Mix created: ordinary stages.
+
+One drift on promoting again: under the previous code, retiring a stage doesn't unlink the Mixes that name it. Those Mixes keep a retired stage, which this code never applies, and the pane names only an active stage. The editor shows None for them, so the next save clears it. Before promoting again after a rollback, clear `stageId` where the stage is retired.
+
+Deploy order: with the new worker and the old web for a few minutes, only Journey connections set stages; with the old worker and the new web, connections don't set them in that window.
+
 ## Agent defaults for Kevin
 
 Each is reversible and in force until Kevin confirms or changes it (JITM-15 §2.12).
@@ -98,6 +121,35 @@ Each is reversible and in force until Kevin confirms or changes it (JITM-15 §2.
 10. **File, copy and Marketplace Mega-Mixes carry no labels yet.** Carrying them needs a change to the Mega-Mix file. A ready-made single Mix names no stage either. *Should a Mega-Mix file carry its stage names?*
 11. **The history entry is a manual move named after the Mix**, not a new event type, so a rollback stays safe. *Fine?*
 12. **The editor shows the stage choice only when the business has Contact stages.** *Or should it always show, with a link to set stages up?*
+
+Added after the first review:
+
+13. **Someone waiting for the stage pass joins the arrival stage first** (STG-02), as described above, so D55's timing changes only for people a Mix moves at once. *Should every way of adding people put them in the arrival stage at once, as Add a contact does, instead of waiting for the worker (the review's Q2)?*
+14. **A stage manages its own Mix when that Mix moves someone into it** by their own start (STG-01). *Agreed (the review's Q1)?*
+15. **Turning on a Mix that names a stage is always reviewed**, and the review gives the count. Saved audiences still move people already in another stage, as default 1 says. *Should an Everyone Mix move only people who have no stage yet (the review's Q3)?*
+16. **The Mix you pick while adding someone sets the stage over an Everyone Mix's** (ORD-01). *Agreed (the review's Q4)?*
+
+Other questions from the review, with the recommended answers: the real estate labels "Offer", "Under contract" and "Closed", and the photographer's "Booking decision", are transaction words; keep them where they are the trade's own milestones (Q5). A Mega-Mix added without its labels can't add them later; offer that in slice 4 (Q6). Resuming a Mix stopped for a person sets no stage (Q7, now in the list of non-starts).
+
+## First review
+
+Round 1 (`.artifacts/mix-stages-20261007/REVIEW.md`, private) at 20f86a0: changes requested. Every finding is fixed or answered:
+
+| ID | Severity | Finding | Fix |
+|---|---|---|---|
+| STG-02 | HIGH | People added without a stage event (imports, phone contacts, invitations, onboarding) never joined the arrival stage or got its Mix once an Everyone or tag Mix set their stage, and phone contacts lost the New contacts Mix too (D54, D55). | 49794bc: they join the arrival stage first (default 13); the New contacts check counts the arrival stage's Mix. |
+| STG-01 | MEDIUM | A stage's "Mix completed" rule never fired for someone that stage's own Mix moved in. | 49794bc: the stage manages it (default 14). |
+| UX-01 | MEDIUM | Turning on a Mix with an audience moved them all, unannounced, with no Undo. | e1320d5: always reviewed, with the count (default 15). Whether Everyone should move people already in a stage is Kevin's (Q3). |
+| A11Y-01 | MEDIUM | The preview's "Stage:" line was 12px. | e1320d5: 13px, and "Suggested starting point" beside it; the readable-text check covers `/templates/journeys`. |
+| EVD-01 | MEDIUM | The record didn't name the CI jobs and specs left out, or 320px, 200% text, keyboard and dark axe. | This record's NOT RUN list; `mix-stages` now audits both themes and checks 320px with 200% text and the keyboard; the import, contacts and calendar specs ran. |
+| LCK-01 | LOW | A Mix save could deadlock with the worker's Journey paths. | 49794bc: the worker paths take the workspace's key share first. |
+| ORD-01 | LOW | An Everyone Mix's stage beat the owner's pick; a stopped latest start hid an earlier one; hidden tags counted. | 49794bc (default 16). |
+| COPY-01 | LOW | Paused businesses, onboarding's preview, the history wording, revived labels. | e1320d5. |
+| REL-01 | LOW | No rollback plan; the pane named a retired stage. | "Rollback" above; e1320d5. |
+| DOC-01 | LOW | JITM-09 said retiring "stops" Mixes; the non-starts list was short; "the same words"; D55 against STG-02. | JITM-09 6.5.0 and this record. c998a01's subject is 77 characters, over the 72 limit; it is pushed, so it stays. |
+| TST-01 | LOW | The tests would pass with these bugs. | Tests for STG-02 (an Everyone Mix, and a tag before the New contacts Mix), STG-01, ORD-01, the review's count and its forced review, and an Undo that keeps the arrival stage. |
+
+Found while fixing: retiring a stage locked the stage and then the Mixes naming it, while a placement shares an Everyone Mix's row and then the stage's; the two could wait on each other. Retiring now locks the Mixes first (49794bc).
 
 ## Verification
 
