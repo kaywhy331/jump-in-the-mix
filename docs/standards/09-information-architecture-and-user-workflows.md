@@ -2,7 +2,7 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 6.3.0
+version: 6.3.1
 owner: Kevin
 last_reviewed: 2026-10-07
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
@@ -305,8 +305,7 @@ Questions for Kevin:
 - Should the other business types get their own journey starts, as Real estate has (§2.20)? They still start on "Follow up about an estimate", which also reaches Insurance & finance owners, and with no business name that text says "my business" (the rest of ONB-10, `docs/REALTOR_JOURNEY_IMPLEMENTATION_2026-09-29.md`).
 
 Decided on 2026-10-05 and 2026-10-06 (D33–D37, D44–D53):
-- §2.76 and §2.77 are shipped in `prod-2026-10-06-4a77761` (`docs/NO_MIX_STATUS_2026-10-05.md`), except the end-of-Mix question in §2.77.
-- The end-of-Mix question in §2.77, and §2.78, are built on `feat/mix-next-step-20261006` (PR #128) and not yet released (`docs/MIX_NEXT_STEP_2026-10-06.md`).
+- §2.76 and §2.77 are shipped in `prod-2026-10-06-4a77761` (`docs/NO_MIX_STATUS_2026-10-05.md`), and the end-of-Mix question in §2.77 and §2.78 in `prod-2026-10-07-501841e` (`docs/MIX_NEXT_STEP_2026-10-06.md`, `docs/MIX_NEXT_STEP_RELEASE_2026-10-07.md`).
 - Kevin confirmed the seven readings from PR #128's reviews as D54–D60 (2026-10-07).
 - Not yet built: §2.51, §2.79 and §2.80.
 - Kevin confirmed P1–P4, part of P5, P6 and P7's timing (D33), and the rest of P5 with D48–D53. P8–P11 still wait for him; the questions, current behavior and build slices are in `docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md`.
@@ -352,3 +351,4 @@ Known deviations:
 - 6.2.1 — 2026-10-06 — Base dd5710c. The second WF-05 review of PR #128. §2.77: follow-ups written before runs were recorded count every run's Beats (END-03). §2.78: the worker's stage pass is not "a few minutes" for a large import (PLC-03).
 - 6.2.2 — 2026-10-06 — Base b431f3b; the record's line citations are as of fb7db31. The third WF-05 review of PR #128 approved with notes. §2.78 states agent default 7: someone added from a Journey Start is left to the Start for the Mix it starts (EVR-03).
 - 6.3.0 — 2026-10-07 — Base 13aaa93. Kevin confirmed the seven readings from PR #128's reviews (D54–D60, "Accept all 7"). §2.77 and §2.78 cite them as [OWNER] instead of agent defaults, and §6 no longer lists them as open.
+- 6.3.1 — 2026-10-07 — Base 501841e. §6: the end-of-Mix question in §2.77 and §2.78 are shipped (`prod-2026-10-07-501841e`).
