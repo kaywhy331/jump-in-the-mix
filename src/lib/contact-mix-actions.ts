@@ -299,6 +299,17 @@ export async function removeMixAssignmentAction(formData: FormData): Promise<voi
     if (everyonePlace) await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR KEY SHARE`;
     // The run's Journey record, locked before its Beats in the Journey pass's order (UNDO-04).
     const journeys = await lockEnrollmentWorkflows(tx, { workspaceId: workspace.id, contactId, mixId: assignment.mixId, occurrencePrefixes: keys.triggers });
+    if (everyonePlace) {
+      // A stop, as Stop Mix writes it, and taken before any follow-up, in Stop Mix's and a stage exit's order (LCK-05). A
+      // stop the owner or the plan limit wrote is kept; one a stage wrote on exit becomes this one, as re-entering that
+      // stage would lift it (STOP-01).
+      await tx.mixStop.updateMany({ where: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, reason: "journey.stage.exit" }, data: { reason: EVERYONE_PLACE_REMOVED_STOP, stoppedByUserId: user.id, stoppedAt: new Date() } });
+      await tx.mixStop.upsert({
+        where: { workspaceId_mixId_contactId: { workspaceId: workspace.id, mixId: assignment.mixId, contactId } },
+        create: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, stoppedByUserId: user.id, reason: EVERYONE_PLACE_REMOVED_STOP },
+        update: {}
+      });
+    }
     await tx.mixAssignment.update({ where: { id: assignment.id }, data: { isActive: false } });
     // The run's follow-ups still to come end now, cancelled as reconciled as the scheduler's next pass would have
     // done, so that pass brings back any row another enrollment of the person still wants.
@@ -309,15 +320,8 @@ export async function removeMixAssignmentAction(formData: FormData): Promise<voi
     // Its Journey record's run ends too, so Today, the morning email and Journey People don't ask about those Beats
     // and the record keeps no plan place; a later start of the same Mix and day picks it back up.
     const journeysEnded = await endLockedEnrollmentWorkflows(tx, journeys, ENROLLMENT_REMOVED_REASON, new Date());
+    // The stop ends the person's other follow-ups from this Mix too.
     if (everyonePlace) {
-      // A stop, as Stop Mix writes it: the person's other follow-ups from this Mix end too. A stop the owner or the plan
-      // limit wrote is kept; one a stage wrote on exit becomes this one, as re-entering that stage would lift it (STOP-01).
-      await tx.mixStop.updateMany({ where: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, reason: "journey.stage.exit" }, data: { reason: EVERYONE_PLACE_REMOVED_STOP, stoppedByUserId: user.id, stoppedAt: new Date() } });
-      await tx.mixStop.upsert({
-        where: { workspaceId_mixId_contactId: { workspaceId: workspace.id, mixId: assignment.mixId, contactId } },
-        create: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, stoppedByUserId: user.id, reason: EVERYONE_PLACE_REMOVED_STOP },
-        update: {}
-      });
       await tx.jump.updateMany({
         where: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, status: "PENDING" },
         data: { status: "CANCELED", completedAt: null, completionMethod: "mix_stopped_for_contact" }

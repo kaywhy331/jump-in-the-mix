@@ -241,8 +241,10 @@ test("Remove on a paused Everyone Mix says it stops the Mix for the person, and 
   await openMore();
   const stopped = page.locator(".stopped-mix-section");
   await expect(stopped.getByText("Monthly tips", { exact: true })).toBeVisible();
+  // The list says the Mix is paused, and Resume says nothing is prepared until it is on (COPY-01).
+  await expect(stopped.getByText("Paused", { exact: true })).toBeVisible();
   await stopped.getByRole("button", { name: "Resume", exact: true }).click();
-  await expect(page.getByText("Mix resumed.")).toBeVisible();
+  await expect(page.getByText("Mix resumed. It isn’t on, so nothing is prepared until you turn it on.", { exact: true })).toBeVisible();
   await expect(page.locator(".assigned-mix-row").getByRole("link", { name: "Monthly tips", exact: true })).toBeAttached();
   expect((await prisma.mixAssignment.findUniqueOrThrow({ where: { assignmentKey: `${workspaceId}:${mix.id}:audience:${rae.id}` } })).isActive).toBe(true);
 });

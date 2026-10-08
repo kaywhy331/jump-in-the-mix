@@ -38,7 +38,7 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 
 export type ContactProfileSearchParams = {
   created?: string; followUpScheduled?: string; mixKept?: string; dateCreated?: string; dateUpdated?: string; dateDeleted?: string; mixAssigned?: string; mixStart?: string; mixRemoved?: string;
-  mixStopped?: string; mixResumed?: string; mixStopError?: string; mixResumeError?: string; updated?: string; inlineUpdated?: string;
+  mixStopped?: string; mixResumed?: string; mixResumedOff?: string; mixStopError?: string; mixResumeError?: string; updated?: string; inlineUpdated?: string;
   stateUpdated?: string; merged?: string; restored?: string; error?: string; at?: string; sig?: string;
   noMixNeeded?: string; noMixCleared?: string; noMixInMix?: string; noMixDnc?: string; noMixAlready?: string;
 };
@@ -109,7 +109,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
     contactMixStatus(workspace.id, contactId),
     // A Mix the person is stopped in offers Resume whether it is on, paused or a draft, as removing them from an
     // Everyone Mix says (UX-10).
-    stops.length ? prisma.mix.findMany({ where: { workspaceId: workspace.id, id: { in: stops.map((stop) => stop.mixId) }, status: { not: "ARCHIVED" }, source: { not: "ONE_TIME" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([])
+    stops.length ? prisma.mix.findMany({ where: { workspaceId: workspace.id, id: { in: stops.map((stop) => stop.mixId) }, status: { not: "ARCHIVED" }, source: { not: "ONE_TIME" } }, orderBy: { name: "asc" }, select: { id: true, name: true, status: true } }) : Promise.resolve([])
   ]);
   const followUpType = dateTypes.find((type) => type.slug === "follow-up");
   const stopByMixId = new Map(stops.map((stop) => [stop.mixId, stop]));
@@ -201,6 +201,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
       {query.mixRemoved && <Notice type="success">Mix removed.</Notice>}
       {query.mixStopped && <Notice type="success">Mix stopped.</Notice>}
       {query.mixResumed && <Notice type="success">Mix resumed.</Notice>}
+      {query.mixResumedOff && <Notice type="success">Mix resumed. It isn’t on, so nothing is prepared until you turn it on.</Notice>}
       {query.mixStopError && <Notice type="error">Mix could not be stopped.</Notice>}
       {query.mixResumeError && <Notice type="error">Mix could not be resumed.</Notice>}
       <UrlErrorNotice params={query} viewer={session} />
@@ -287,7 +288,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
               const stop = stopByMixId.get(assignment.mix.id);
               return <div className="assigned-mix-row" key={assignment.id}><div><Link href={`/mixes/${assignment.mix.id}/edit`}>{assignment.mix.name}</Link>{stop && <small className="stopped-mix-label">{stop.reason === PLAN_LIMIT_STOP ? "Not started: plan limit" : "Stopped"}</small>}</div><div className="assigned-mix-actions">{stop ? <form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small primary" type="submit">Resume</button></form> : <ConfirmDialog trigger="Stop…" triggerAriaLabel={`Stop the ${assignment.mix.name} Mix`} title={`Stop ${assignment.mix.name}?`} description="Future follow-ups from this Mix will be removed."><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={assignment.mix.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small danger" type="submit">Stop Mix</button></form></ConfirmDialog>}<ConfirmDialog trigger="Remove…" triggerAriaLabel={`Remove the ${assignment.mix.name} Mix`} title={`Remove ${assignment.mix.name}?`} description={assignment.assignmentKey.includes(":audience:") ? `This Mix is for Everyone, so removing stops it for ${contact.displayName}. Saving or starting the Mix again won’t add them back, but you can resume it here. Completed history stays available.` : "Completed history stays available."} danger><form action={removeMixAssignmentAction}><input type="hidden" name="assignmentId" value={assignment.id} /><input type="hidden" name="contactId" value={contact.id} /><button className="button small danger" type="submit">Remove</button></form></ConfirmDialog></div></div>;
             })}</div>}
-            {additionalStoppedPlans.length > 0 && <div className="stopped-mix-section"><h3>Other stopped Mixes</h3>{additionalStoppedPlans.map((plan) => <div className="assigned-mix-row" key={plan.id}><span>{plan.name}</span><form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={plan.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small" type="submit">Resume</button></form></div>)}</div>}
+            {additionalStoppedPlans.length > 0 && <div className="stopped-mix-section"><h3>Other stopped Mixes</h3>{additionalStoppedPlans.map((plan) => <div className="assigned-mix-row" key={plan.id}><div><span>{plan.name}</span>{plan.status !== "ACTIVE" && <small className="stopped-mix-label">{plan.status === "PAUSED" ? "Paused" : "Draft"}</small>}</div><form action={resumeMixForContactAction}><input type="hidden" name="mixId" value={plan.id} /><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="returnTo" value={`/contacts/${contact.id}`} /><button className="button small" type="submit">Resume</button></form></div>)}</div>}
           </section>
 
           {contact.customFieldValues.length > 0 && <section><div className="card-header"><div><h2>Custom fields</h2></div><Link className="button small" href="/contacts/custom-fields">Manage</Link></div><div className="contact-method-sections">{contact.customFieldValues.map((item) => <div className="contact-method-row" key={item.id}><span>{item.value}</span><small>{item.definition.name} · {customFieldPlaceholder(item.definition.key)}</small></div>)}</div></section>}

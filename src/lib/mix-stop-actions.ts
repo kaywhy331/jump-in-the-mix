@@ -80,13 +80,14 @@ export async function resumeMixForContactAction(formData: FormData): Promise<voi
   const refusal = await reservePeople(workspace.id, [contactId]);
   if (refusal) redirect(withViewerError(returnTo, refusal, session));
 
-  await prisma.$transaction(async (tx) => {
+  const status = await prisma.$transaction(async (tx) => {
     await tx.mixStop.delete({ where: { id: stop.id } });
     // Someone removed from a Mix for Everyone was stopped in it (D64); resuming gives them their place back. Read under
     // a share of the Mix's row, so a save that unticks Everyone at the same moment either finishes first or waits, and
     // no place is left on a Mix that is no longer for Everyone (as placement does, REL-03).
-    const [everyone] = await tx.$queryRaw<Array<{ triggerMode: string }>>`
-      SELECT "triggerMode" FROM "Mix" WHERE id = ${mixId} AND "workspaceId" = ${workspace.id} AND "audienceEveryone" AND status <> 'ARCHIVED' AND source <> 'ONE_TIME' FOR SHARE`;
+    const [mix] = await tx.$queryRaw<Array<{ triggerMode: string; status: string; everyone: boolean }>>`
+      SELECT "triggerMode", status::text AS status, ("audienceEveryone" AND status <> 'ARCHIVED' AND source <> 'ONE_TIME') AS everyone FROM "Mix" WHERE id = ${mixId} AND "workspaceId" = ${workspace.id} FOR SHARE`;
+    const everyone = mix?.everyone ? mix : null;
     // A Mix the owner starts runs from today again; a date-based or fixed-date one follows its own dates.
     if (everyone) await tx.mixAssignment.updateMany({
       where: { workspaceId: workspace.id, mixId, contactId, assignmentKey: `${workspace.id}:${mixId}:audience:${contactId}`, isActive: false, contact: { archivedAt: null } },
@@ -105,6 +106,8 @@ export async function resumeMixForContactAction(formData: FormData): Promise<voi
         metadata: { contactId }
       }
     });
+    return mix?.status ?? null;
   });
-  redirect(withFlag(returnTo, "mixResumed"));
+  // A paused Mix or a draft prepares nothing until it is on, so the notice says so (COPY-01).
+  redirect(withFlag(returnTo, status === "PAUSED" || status === "DRAFT" ? "mixResumedOff" : "mixResumed"));
 }

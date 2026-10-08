@@ -48,9 +48,11 @@ export async function activateMixAction(formData: FormData): Promise<void> {
   if (preference?.reviewMixActivation !== false || await movesToStage(prisma, workspace.id, mix)) redirect(`/mixes/${mix.id}/edit?activate=1`);
   const outcome = await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR UPDATE`;
-    // Checked again under the lock: a save from another device may have added a tag or a stage since (LCK-04).
-    const current = await tx.mix.findFirst({ where: { id: mix.id, workspaceId: workspace.id }, select: { id: true, status: true, audienceEveryone: true, stageId: true } });
-    if (current && await movesToStage(tx, workspace.id, current)) return { review: true };
+    // Read again under the lock, and used from here on: another device may have turned the Mix on, or added a tag or a
+    // stage, since (LCK-04).
+    const mix = await tx.mix.findFirst({ where: { id: mixId, workspaceId: workspace.id, status: { in: ["DRAFT", "PAUSED"] }, source: { not: "ONE_TIME" } }, select: { id: true, status: true, triggerMode: true, audienceEveryone: true, stageId: true } });
+    if (!mix) return { refusal: "Mix not found or already active." };
+    if (await movesToStage(tx, workspace.id, mix)) return { review: true };
     const limit = await activeMixLimitRefusal(workspace.id, { mixIds: [mix.id] }, tx);
     if (limit) return { refusal: limit };
     const now = new Date();
