@@ -2,7 +2,8 @@ import { tailorMegaMix, validateJourneySetup, type JourneySetupValues } from "@/
 import { saveJourneySetup } from "@/lib/journey-preference-service";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { megaMixById, megaMixConfiguration } from "@/lib/mega-mixes";
+import { megaMixById, megaMixConfiguration, megaMixStageOf } from "@/lib/mega-mixes";
+import { addStageLabels } from "@/lib/mix-stage";
 import { readWorkflowDefinition, saveWorkflowConfiguration, workflowJson } from "@/lib/mix-workflow";
 import { availableMegaMixName, cleanMegaMixName } from "@/lib/mega-mix-pipeline-service";
 import { activeMixLimitRefusal } from "@/lib/plan-limits";
@@ -13,6 +14,8 @@ export async function installMegaMix(input: {
   /** The Mega-Mix name; the ready-made name (numbered if taken) when omitted. */
   name?: string;
   setup?: JourneySetupValues;
+  /** Add the Mega-Mix's stage labels to Contact stages and let its Mixes set them (JITM-09 §2.79, P8). */
+  addStages?: boolean;
   onboarding?: { timezone: string; company: string; smsSignature: string; userName: string };
 }) {
   const original = megaMixById(input.blueprintId);
@@ -41,13 +44,16 @@ export async function installMegaMix(input: {
     if (limit) throw new UserFacingError(limit);
 
     if (input.setup) await saveJourneySetup(db, input.workspaceId, input.actorUserId, input.setup);
+    // Labels first, so each Mix is created naming its stage. Adding them starts no one (§2.43).
+    const stageIds = input.addStages && blueprint.stages.length ? await addStageLabels(db, input.workspaceId, blueprint.stages.map(stage => stage.name)) : null;
     const id = randomUUID(), mixIds: Record<string, string> = {};
     for (const node of blueprint.nodes) {
       const mix = await db.mix.create({ data: {
         workspaceId: input.workspaceId, name: node.name, description: node.purpose,
         industry: blueprint.industry, category: "Customer journey", framework: "Mega-mix",
         triggerMode: "MANUAL_START", status: "ACTIVE", source: `MEGA_MIX:${blueprint.id}:${node.key}`,
-        durationDays: Math.max(...node.steps.map(step => step.dayOffset)), includeFutureGroupMembers: false
+        durationDays: Math.max(...node.steps.map(step => step.dayOffset)), includeFutureGroupMembers: false,
+        stageId: stageIds?.get(megaMixStageOf(blueprint, node.key) ?? "") ?? null
       } });
       mixIds[node.key] = mix.id;
       for (const [index, step] of node.steps.entries()) {
@@ -71,7 +77,7 @@ export async function installMegaMix(input: {
       members: { create: blueprint.nodes.map((node, position) => ({ mixId: mixIds[node.key], position })) } } });
     await db.auditLog.create({ data: { workspaceId: input.workspaceId, actorType: "USER", actorUserId: input.actorUserId,
       action: "mega-mix.install", entityType: "MegaMixInstallation", entityId: id, source: input.onboarding ? "onboarding" : "templates.journeys",
-      metadata: { blueprintId: blueprint.id, version: blueprint.version, mixCount: blueprint.nodes.length, enrolledContacts: 0 } } });
+      metadata: { blueprintId: blueprint.id, version: blueprint.version, mixCount: blueprint.nodes.length, enrolledContacts: 0, stageLabels: stageIds ? [...stageIds.keys()] : [] } } });
     await finishOnboarding();
     // No assignment or workflow instance is created by installation. Starting people is explicit.
     return { id, repeated: false, mixIds };

@@ -11,7 +11,7 @@
 .center { padding: 36px clamp(20px, 3vw, 48px); }
 .preview { max-width: 850px; margin-inline: auto; }
 .preview h2 { font-size: clamp(24px, 2.4vw, 32px); line-height: 1.2; margin: 4px 0 16px; }
-.preview .eyebrow { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.preview .eyebrow { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
 .facts { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 12px 0; font-size: 14px; color: var(--violet-ink); }
 .explanation, .boundary { font-size: 14px; line-height: 1.6; color: var(--text-2); }
 .how { font-size: 14px; line-height: 1.6; color: var(--text-2); }
@@ -24,7 +24,9 @@
 .node { min-width: 0; flex: 1; }
 .node h3 { font-size: 18px; line-height: 1.4; margin: 0; }
 .node > p { color: var(--text-2); font-size: 14px; line-height: 1.6; margin: 10px 0; }
-.root { display: inline-block; margin-top: 6px; color: var(--violet-ink); font-size: 12px; }
+.root { display: inline-block; margin-top: 6px; color: var(--violet-ink); font-size: 13px; }
+.stage { display: inline-block; margin-top: 6px; margin-inline-start: 0; color: var(--text-2); font-size: 13px; }
+.root + .stage { margin-inline-start: 12px; }
 .node summary { cursor: pointer; min-height: 44px; padding: 12px 0; }
 .beats li { margin: 12px 0 20px; }
 .beats small { display: block; color: var(--text-3); margin: 6px 0 12px; }

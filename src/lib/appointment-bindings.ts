@@ -6,6 +6,7 @@ import { applyJourneyEvent } from "@/lib/journey";
 import { placeNewContacts } from "@/lib/new-contact-placement";
 import { phoneLookupKeys, workspacePhoneRegion } from "@/lib/phone-number";
 import { prisma } from "@/lib/prisma";
+import { setStagesFromMixStarts } from "@/lib/mix-stage";
 import { boundPlanOutlook, type BoundPlanOutlook } from "@/lib/step-timing";
 import { UserFacingError } from "@/lib/user-facing-error";
 
@@ -155,6 +156,8 @@ export async function scheduleVisit(input: ScheduleVisitInput): Promise<Schedule
       });
       bindingId = (await tx.appointmentBinding.create({ data: { workspaceId: input.workspaceId, contactId, calendarEntryId: entry.id, mixId: plan.id, assignmentId: assignment.id } })).id;
     }
+    // A Mix newly lined up with a visit starts for the person, so a Mix that names a Contact stage sets it (JITM-09 §2.79).
+    if (!bound) await setStagesFromMixStarts(tx, { workspaceId: input.workspaceId, starts: [{ contactId, mixId: plan.id }], actorUserId: input.actorUserId ?? null });
     await tx.job.create({ data: { workspaceId: input.workspaceId, task: "generate-jumps", payload: { contactId, mixId: plan.id } } });
     // The plan is attached to this appointment and no other: the owner chose it on this visit, and
     // nothing here looks for the person's latest or next visit.

@@ -1,6 +1,7 @@
 "use server";
 
 import { activeMixLimitRefusal } from "@/lib/plan-limits";
+import { peopleInMixByOtherRoutes } from "@/lib/new-contact-placement";
 import { randomUUID } from "node:crypto";
 import { MAX_STEP_OFFSET_DAYS, validateStepTiming } from "@/lib/step-timing";
 import type { Channel, MixStatus, MixTriggerMode } from "@/generated/prisma/client";
@@ -16,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
 import { refreshSharesOf } from "@/lib/marketplace-service";
 import { startDraftMix } from "@/lib/mix-start";
+import { audienceStarts, setStagesFromMixStarts } from "@/lib/mix-stage";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { UserFacingError } from "@/lib/user-facing-error";
@@ -130,6 +132,9 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   const triggerMode = (afterMix ? previousCue?.triggerMode ?? "MANUAL_START" : value(formData, "triggerMode", 40)) as MixTriggerMode;
   const status = value(formData, "status", 40) as MixStatus;
   const dateTypeId = afterMix ? previousCue?.dateTypeId ?? "" : value(formData, "dateTypeId", 100);
+  // The Contact stage people move to when they start this Mix (JITM-09 §2.79). The field is on the form only when the
+  // business has Contact stages; without it the saved choice is kept. Blank names no stage.
+  const stageId = formData.has("stageId") ? value(formData, "stageId", 100) || null : undefined;
   const path = mixIdRaw ? `/mixes/${mixIdRaw}/edit` : "/mixes/new";
   const allowedTriggers: MixTriggerMode[] = ["DATE_TRIGGERED", "MANUAL_START", "BROADCAST"];
   const allowedStatuses: MixStatus[] = ["DRAFT", "ACTIVE", "PAUSED"];
@@ -236,6 +241,15 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
     if (unavailableNewGroup) fail(path, "Hidden tags cannot be added to a Mix.", session);
   }
   const assignAllContacts = formData.get("assignAllContacts") === "on";
+  // A save that starts people on a Mix that names a Contact stage moves them to that stage, so it is reviewed first
+  // whatever the review preference says: turning the Mix on starts its whole audience (UX-01), and on one already on,
+  // ticking Everyone or adding a tag starts everyone they cover (UX-02).
+  const turningOn = status === "ACTIVE" && (!existingMix || existingMix.status === "DRAFT");
+  const resuming = status === "ACTIVE" && existingMix?.status === "PAUSED";
+  const activeAssignments = (existingMix?.assignments ?? []).filter((assignment) => assignment.isActive);
+  const hadEveryone = Boolean(existingMix?.audienceEveryone || activeAssignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:")));
+  const widens = status === "ACTIVE" && ((assignAllContacts && !hadEveryone) || groupIds.some((groupId) => !activeAssignments.some((assignment) => assignment.groupId === groupId)));
+  if ((turningOn ? assignAllContacts || groupIds.length > 0 : widens) && (stageId === undefined ? existingMix?.stageId : stageId) && value(formData, "activationConfirmed", 4) !== "1") fail(path, turningOn ? "Review who moves to the Mix’s stage before turning it on." : "Review who moves to the Mix’s stage before adding them.", session);
   // A mix that starts when the owner chooses needs no audience to be on: it is started from one
   // person's page or lined up with a visit from the calendar. Elapsed beats never count as scheduled
   // for an enrollment without an appointment, so the projection below counts calendar-day beats only.
@@ -267,6 +281,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
       }
       const freshStart = Boolean(existingMix && status === "ACTIVE" && triggerMode === "MANUAL_START"
         && await startDraftMix(tx, { workspaceId: workspace.id, mixId, now }));
+      if (stageId && !await tx.journeyStage.findFirst({ where: { id: stageId, workspaceId: workspace.id, isActive: true }, select: { id: true } })) throw new MixSaveRefusal("Choose one of your Contact stages, or none.");
       const mixData = {
         name,
         description: description || null,
@@ -279,7 +294,8 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
         durationDays,
         includeFutureGroupMembers: groupIds.length > 0,
         // People added later join an "Everyone" Mix too (JITM-09 §2.78).
-        audienceEveryone: assignAllContacts
+        audienceEveryone: assignAllContacts,
+        ...(stageId === undefined ? {} : { stageId })
       };
       if (existingMix) await tx.mix.update({ where: { id: mixId }, data: mixData });
       else await tx.mix.create({ data: { id: mixId, workspaceId: workspace.id, ...mixData, source: "USER" } });
@@ -343,18 +359,33 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
       }
 
       await tx.mixAssignment.updateMany({ where: { workspaceId: workspace.id, mixId, mode: "DYNAMIC" }, data: { isActive: false } });
+      // The Mix starts at this save for the people its audience newly takes in, or for all of them when the save turns
+      // on a draft. Resuming a paused Mix starts no one again.
+      const starting: string[] = [];
       for (const groupId of groupIds) {
         const assignmentKey = `${workspace.id}:${mixId}:group:${groupId}`;
         const existing = existingAssignmentByKey.get(assignmentKey);
         const startDate = triggerMode === "MANUAL_START" ? freshStart ? now : existing?.startDate ?? now : null;
-        await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, groupId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
+        const saved = await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, groupId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
+        if (turningOn || !existing?.isActive) starting.push(saved.id);
       }
+      // Resuming leaves out people in the Mix by another route, as the placement does (UX-04, UX-06).
+      const elsewhere = resuming && hadEveryone ? await peopleInMixByOtherRoutes(tx, workspace.id, mixId) : new Set<string>();
       for (const contactId of allContactIds) {
         const assignmentKey = `${workspace.id}:${mixId}:audience:${contactId}`;
         const existing = existingAssignmentByKey.get(assignmentKey);
         const startDate = triggerMode === "MANUAL_START" ? freshStart ? now : existing?.startDate ?? now : null;
-        await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, contactId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
+        const saved = await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, contactId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
+        // Only a save that turns the Mix on or newly ticks Everyone starts Everyone, as its review says. Resuming a paused
+        // one starts the people it had no place for and who aren't in it by another route (a tag, their own start, a
+        // visit or a Journey run), as Resume on the Mixes list does. A "Keep paused" save gives the people added during the
+        // pause a place, so a resume after one doesn't move them (UX-04; D63 will stop that save placing them). Re-saving an Everyone Mix re-syncs its
+        // places, and that moves no one: not someone the owner removed, nor someone another route put in it (UX-03).
+        if (turningOn || (!hadEveryone && !existing?.isActive) || (resuming && !existing && !elsewhere.has(contactId))) starting.push(saved.id);
       }
+      // A Mix that names a Contact stage sets it for the people it starts now (JITM-09 §2.79); changing the stage
+      // doesn't move people already in the Mix.
+      if (status === "ACTIVE") await setStagesFromMixStarts(tx, { workspaceId: workspace.id, starts: await audienceStarts(tx, workspace.id, mixId, starting), actorUserId: user.id, now });
 
       if (afterMix) {
         const sourceId = value(formData, "completionSourceId", 160);

@@ -7,10 +7,20 @@ export type MegaMixNode = {
   key: string; name: string; purpose: string; steps: ReadyMadePlanStep[];
   paths: MegaMixPath[]; sourcePlanId?: string;
 };
+/**
+ * A Contact stage label the Mega-Mix offers when it is added, and the Mixes (by node key) that set it when someone
+ * starts them (JITM-09 §2.79, P8). Mixes for a concern, a quiet conversation or an agreed later time name no stage, so
+ * the person keeps the one they had. Drafted in the build for Kevin's review before release.
+ */
+export type MegaMixStage = { name: string; nodes: string[] };
 export type MegaMix = {
   id: string; version: number; name: string; industry: string; description: string;
   coverage: string; boundary: string; roots: string[]; nodes: MegaMixNode[];
+  /** In the order they are added to Contact stages. */
+  stages: MegaMixStage[];
 };
+/** The stage label a Mega-Mix gives one of its Mixes, if any. */
+export const megaMixStageOf = (blueprint: MegaMix, nodeKey: string): string | null => blueprint.stages.find(stage => stage.nodes.includes(nodeKey))?.name ?? null;
 
 const text = (name: string, body: string, dayOffset = 0): ReadyMadePlanStep => ({ name, channel: "SMS", dayOffset, sendTimeMinutes: 600, body: `Hi {{First Name}}, ${body} {{SMS Signature}}` });
 const email = (name: string, body: string, dayOffset = 0): ReadyMadePlanStep => ({ name, channel: "EMAIL", dayOffset, sendTimeMinutes: 540, subject: name, body: `Hi {{First Name}},\n\n${body}\n\n{{Email Signature}}` });
@@ -47,6 +57,11 @@ const contractor: MegaMix = {
     node("referral", "Referral follow-up", "Make it easy to pass your details along without sharing anyone’s information without permission.", [text("Keep us in mind", "if someone you know is planning work, you’re welcome to pass on my details. I’d be happy to hear what they have in mind.")], [finished("nurture", 180)]),
     node("nurture", "Past customer and next project", "A personal check-in about the completed work and any future plans.", [text("Check back on the work", "how is everything holding up since the project? If something needs attention or another project is on your mind, I’m here to help.")], [path("New estimate sent", "estimate", 0, 3), path("Aftercare needed", "concern", 0, 3), path("Another check-in welcome in six months", "nurture", 180, 3), stop()]),
     { ...later("estimate"), paths: [path("Ready to discuss the project", "inquiry", 0, 3), path("Estimate sent; ready to revisit", "estimate", 0, 3), path("Booked job ready to resume", "booked", 0, 3), stop()] }, quiet("estimate")
+  ],
+  stages: [
+    { name: "Inquiry", nodes: ["inquiry"] }, { name: "Site visit", nodes: ["visit"] }, { name: "Estimate", nodes: ["estimate"] },
+    { name: "Booked", nodes: ["booked"] }, { name: "In progress", nodes: ["progress"] },
+    { name: "Completed", nodes: ["handover", "aftercare", "review", "referral"] }, { name: "Past customer", nodes: ["nurture"] }
   ]
 };
 
@@ -55,6 +70,8 @@ function serviceJourney(input: {
   inquiry: string; discoveryName: string; discovery: string; proposalName: string; proposal: string;
   accepted: string; deliveryName: string; delivery: string; completed: string; handoverName: string; handover: string; aftercare: string;
   proposalPlan?: string;
+  /** Stage labels for the discovery, proposal, delivery and handover Mixes. */
+  stageNames: { discovery: string; proposal: string; delivery: string; handover: string };
 }): MegaMix {
   return { id: input.id, version: 1, name: input.name, industry: input.industry, description: input.description, boundary: input.boundary,
     coverage: `${input.discoveryName}, ${input.proposalName.toLowerCase()}, ${input.deliveryName.toLowerCase()}, ${input.handoverName.toLowerCase()}, aftercare, referrals and future work. Includes later follow-up, quiet conversations and concerns.`, roots: ["inquiry"], nodes: [
@@ -67,6 +84,9 @@ function serviceJourney(input: {
       node("referral", "Review and referral invitation", "Invite honest feedback and let them share your details if they wish.", [email("Thank you for working with me", "If you would like to share an honest review of working together, I can send you the link. And if someone you know could use my help, you’re welcome to pass on my details.")], [finished("nurture", 90)]),
       node("nurture", "Stay in touch", "Keep a useful connection between projects.", [email("Keeping in touch", "How have things been since we last worked together? If there’s something new you would like to discuss, I’d be glad to hear about it.")], [path("New conversation agreed", "discovery", 0, 3), path("Another check-in welcome in six months", "nurture", 180, 3), stop()]),
       node("concern", "Resolve a concern", "Agree on a response before returning to the appropriate part of the journey.", [call("Listen and agree on a response", "Review the concern in the person's own words. Agree on the response, keep the reminder open while it is unresolved, and record the appropriate return point once settled.")], [path("Resolved; return to the decision", "proposal", 0, 3), path("Resolved; continue delivery", "delivery", 0, 3), path("Resolved; check aftercare", "aftercare", 0, 3), stop()]), later("discovery"), quiet("discovery")
+    ], stages: [
+      { name: "Inquiry", nodes: ["inquiry"] }, { name: input.stageNames.discovery, nodes: ["discovery"] }, { name: input.stageNames.proposal, nodes: ["proposal"] },
+      { name: input.stageNames.delivery, nodes: ["delivery"] }, { name: input.stageNames.handover, nodes: ["handover"] }, { name: "Past client", nodes: ["aftercare", "referral", "nurture"] }
     ] };
 }
 
@@ -86,6 +106,10 @@ const recruiting: MegaMix = {
     node("client-nurture", "Client relationship", "Review the hiring experience and future needs.", [email("Checking in on your plans", "How are things going with the team? If another hiring need is taking shape, I’d be glad to compare notes.", 30)], [path("New search agreed", "search", 0, 3), path("Client asked for later contact", "client-later", 0, 3), stop()]),
     node("candidate-later", "Candidate’s agreed timing", "Keep the candidate’s requested date and preferred channel.", [call("Review candidate timing", "Check the candidate's requested date and channel. Snooze until then. Record Ready to reconnect only when that time arrives and the contact is welcome.")], [path("Ready to reconnect", "candidate", 0, 3), stop()]),
     node("client-later", "Client’s agreed timing", "Keep the hiring client’s requested date.", [call("Review client timing", "Check the client's requested date. Snooze until then and confirm whether the hiring conversation is useful.")], [path("Ready to reconnect", "client", 0, 3), stop()])
+  ],
+  stages: [
+    { name: "New conversation", nodes: ["candidate", "client"] }, { name: "Search", nodes: ["search"] }, { name: "Interviewing", nodes: ["interview"] },
+    { name: "Offer", nodes: ["offer"] }, { name: "Placed", nodes: ["onboarding"] }, { name: "Staying in touch", nodes: ["candidate-nurture", "client-nurture"] }
   ]
 };
 
@@ -113,13 +137,18 @@ const realEstate: MegaMix = {
     node("concern", "Resolve a concern", "Listen, agree on a response and return to the right part of the move.", [call("Listen and agree on a response", "Review the concern in the person's own words. Listen, agree on what you’ll do, and keep this reminder open or snoozed until it’s resolved. Then choose where to return.")], [path("Resolved; continue the search", "search", 0, 3), path("Resolved; back to the listing", "listed", 0, 3), path("Resolved; continue to closing", "contract", 0, 3), path("Resolved; after-closing check-in", "closing", 0, 3), stop()]),
     { ...later("buyer-consult"), paths: [path("Ready to talk about buying", "buyer-consult", 0, 3), path("Ready to talk about selling", "listing-consult", 0, 3), stop()] },
     { ...quiet("buyer-consult"), paths: [path("Buyer conversation reopened", "buyer-consult", 0, 3), path("Seller conversation reopened", "listing-consult", 0, 3), path("Agreed to revisit later", "later"), stop()] }
+  ],
+  stages: [
+    { name: "New lead", nodes: ["buyer", "seller"] }, { name: "Consultation", nodes: ["buyer-consult", "listing-consult"] },
+    { name: "Home search", nodes: ["search", "showings"] }, { name: "Listed", nodes: ["listed"] }, { name: "Offer", nodes: ["buyer-offer", "seller-offer"] },
+    { name: "Under contract", nodes: ["contract"] }, { name: "Closed", nodes: ["closing", "referral"] }, { name: "Past client", nodes: ["past-client"] }
   ]
 };
 
 export const MEGA_MIXES: MegaMix[] = [contractor,
   realEstate,
-  serviceJourney({ id: "consultant", name: "Consultant", industry: "Professional services", description: "Keep future-client conversations alive while you deliver the work already on your desk.", boundary: "Plans client follow-through. Project management, agreements, invoices and payments stay in your existing tools.", inquiry: "What would you like to change in the way your business operates, and what timing are you working toward?", discoveryName: "Discovery and fit", discovery: "Discuss the operational problem, its impact and the people involved. Agree whether there is a useful fit and prepare a proposal only when appropriate.", proposalName: "Proposal follow-up", proposal: "Clarify scope, responsibilities and the decision process.", proposalPlan: "plan_sales_professional_proposal", accepted: "Proposal accepted", deliveryName: "Engagement kickoff and progress", delivery: "Let’s confirm the outcomes, responsibilities and first milestone for our work together. What should we make clear before starting?", completed: "Delivery complete", handoverName: "Handover and adoption", handover: "Let’s review what has been delivered, who owns each next step and any support needed to put it into use.", aftercare: "How is the handover working in practice? Is anything proving harder to use or maintain than expected?" }),
-  serviceJourney({ id: "photographer", name: "Photographer", industry: "Professional services", description: "Connect the inquiry, booking, shoot and gallery with thoughtful follow-through.", boundary: "Plans client communication. Bookings, deposits, contracts and galleries stay in your existing tools. Record the shoot and gallery milestones when they actually happen.", inquiry: "What are you planning, and do you have a date or style in mind? I’d be happy to talk through what would suit you.", discoveryName: "Coverage and fit", discovery: "Discuss the actual date, occasion, coverage and priorities. Check availability before sharing a quote.", proposalName: "Pricing and booking decision", proposal: "Is there anything I can clarify about the coverage options? I’m happy to help you compare them against what matters for your plans.", accepted: "Booking confirmed", deliveryName: "Shoot preparation", delivery: "Let’s confirm the arrangements for your shoot and anything you would like me to know. Are there priorities or practical details we should go through together?", completed: "Shoot completed", handoverName: "Gallery delivery", handover: "I’m preparing the next step for your images. Let’s confirm the delivery arrangements and anything you need help with. I’ll share the gallery through our agreed channel when it is ready.", aftercare: "Have you had a chance to look through your images? If you need help with selections, downloads or another detail, just let me know." }), recruiting
+  serviceJourney({ id: "consultant", name: "Consultant", industry: "Professional services", description: "Keep future-client conversations alive while you deliver the work already on your desk.", boundary: "Plans client follow-through. Project management, agreements, invoices and payments stay in your existing tools.", inquiry: "What would you like to change in the way your business operates, and what timing are you working toward?", discoveryName: "Discovery and fit", discovery: "Discuss the operational problem, its impact and the people involved. Agree whether there is a useful fit and prepare a proposal only when appropriate.", proposalName: "Proposal follow-up", proposal: "Clarify scope, responsibilities and the decision process.", proposalPlan: "plan_sales_professional_proposal", stageNames: { discovery: "Discovery", proposal: "Proposal", delivery: "Working together", handover: "Handover" }, accepted: "Proposal accepted", deliveryName: "Engagement kickoff and progress", delivery: "Let’s confirm the outcomes, responsibilities and first milestone for our work together. What should we make clear before starting?", completed: "Delivery complete", handoverName: "Handover and adoption", handover: "Let’s review what has been delivered, who owns each next step and any support needed to put it into use.", aftercare: "How is the handover working in practice? Is anything proving harder to use or maintain than expected?" }),
+  serviceJourney({ id: "photographer", name: "Photographer", stageNames: { discovery: "Consultation", proposal: "Booking decision", delivery: "Booked", handover: "Gallery" }, industry: "Professional services", description: "Connect the inquiry, booking, shoot and gallery with thoughtful follow-through.", boundary: "Plans client communication. Bookings, deposits, contracts and galleries stay in your existing tools. Record the shoot and gallery milestones when they actually happen.", inquiry: "What are you planning, and do you have a date or style in mind? I’d be happy to talk through what would suit you.", discoveryName: "Coverage and fit", discovery: "Discuss the actual date, occasion, coverage and priorities. Check availability before sharing a quote.", proposalName: "Pricing and booking decision", proposal: "Is there anything I can clarify about the coverage options? I’m happy to help you compare them against what matters for your plans.", accepted: "Booking confirmed", deliveryName: "Shoot preparation", delivery: "Let’s confirm the arrangements for your shoot and anything you would like me to know. Are there priorities or practical details we should go through together?", completed: "Shoot completed", handoverName: "Gallery delivery", handover: "I’m preparing the next step for your images. Let’s confirm the delivery arrangements and anything you need help with. I’ll share the gallery through our agreed channel when it is ready.", aftercare: "Have you had a chance to look through your images? If you need help with selections, downloads or another detail, just let me know." }), recruiting
 ];
 
 export const megaMixById = (id: string | null | undefined) => MEGA_MIXES.find(item => item.id === id) ?? null;

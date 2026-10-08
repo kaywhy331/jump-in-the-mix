@@ -3,6 +3,7 @@ import { startMixForContact, visitTimedBeats } from "@/lib/contact-mix-start";
 import { contactIdsInMix } from "@/lib/contact-mix-status";
 import { timezoneForWorkspace } from "@/lib/display-preferences";
 import { newContactStage } from "@/lib/journey";
+import { setStagesFromMixStarts, type MixStart } from "@/lib/mix-stage";
 import { logicalDateFromDate, logicalDateInTimezone, zonedDateTimeToUtc, type LogicalDate } from "@/lib/jump-schedule";
 import { assertRoomForPeople } from "@/lib/plan-limits";
 import { UserFacingError } from "@/lib/user-facing-error";
@@ -70,6 +71,42 @@ export async function everyoneMixesForNewPeople(db: Pick<Tx, "mix" | "mixBroadca
 export type PlacementResult = { mix: { id: string; name: string } | null; started: string[]; skipped: string[]; skippedBecause: Record<string, "stage" | "already-in" | "refused"> };
 
 /**
+ * Shares the rows of the business's active Everyone Mixes. A save that unticks Everyone and a placement wait for each
+ * other on the Mix's row, so neither leaves an Everyone place on a Mix that is no longer for Everyone (REL-03). Taken
+ * before anything in the transaction sets a stage, so a stage being retired, which locks its Mixes before the stage,
+ * can't wait on it the other way round (LCK-02, LCK-03). Returns their ids.
+ */
+export async function shareEveryoneMixes(tx: Tx, workspaceId: string): Promise<Set<string>> {
+  const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Mix" WHERE "workspaceId" = ${workspaceId} AND status = 'ACTIVE' AND "audienceEveryone" AND source <> 'ONE_TIME' ORDER BY id FOR SHARE`;
+  return new Set(locked.map(row => row.id));
+}
+
+/**
+ * People in a Mix by another route than its Everyone audience: their own enrollment (a start the owner made or a
+ * visit), a shown tag the Mix runs for, or a Journey run of it (a Journey Start or connection, D60). An Everyone Mix
+ * that comes back on leaves them where they are, as the placement does for newcomers (UX-04, UX-06).
+ */
+export async function peopleInMixByOtherRoutes(tx: Tx, workspaceId: string, mixId: string): Promise<Set<string>> {
+  const hidden = (await tx.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
+  const assignments = await tx.mixAssignment.findMany({
+    where: { workspaceId, mixId, isActive: true, OR: [{ contactId: { not: null }, NOT: { assignmentKey: { contains: ":audience:" } } }, { groupId: { not: null, notIn: hidden } }] },
+    select: { contactId: true, group: { select: { memberships: { select: { contactId: true } } } } }
+  });
+  // A Journey Start or connection runs the Mix as Journey work, with no enrollment: an active run of it, in work that
+  // is going or paused, as the No Mix status counts it (§2.76). Legacy runs mirror the enrollments read above. The
+  // test runs in the database, so only the people come back (UX-07, PERF-02).
+  const journeys = await tx.$queryRaw<Array<{ contactId: string }>>`
+    SELECT DISTINCT i."contactId" FROM "MixWorkflowInstance" i
+    CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(i.state->'runs') = 'array' THEN i.state->'runs' ELSE '[]'::jsonb END) AS run
+    WHERE i."workspaceId" = ${workspaceId} AND i.status IN ('ACTIVE', 'PAUSED')
+      AND run->>'mixId' = ${mixId} AND run->>'status' = 'ACTIVE' AND COALESCE(run->>'legacy', 'false') <> 'true'`;
+  return new Set([
+    ...assignments.flatMap(assignment => assignment.contactId ? [assignment.contactId] : (assignment.group?.memberships ?? []).map(member => member.contactId)),
+    ...journeys.map(row => row.contactId)
+  ]);
+}
+
+/**
  * Puts people who were just added where the owner said new people go (JITM-09 §2.78, D34).
  *
  * One Mix can start for them from today, or from `start`: the one the owner chose for these people (`mixId`), or,
@@ -86,7 +123,9 @@ export type PlacementResult = { mix: { id: string; name: string } | null; starte
  * saved, except a Mix they are already in by their own start or a shown tag. A Mix that starts when the owner
  * chooses starts for the newcomer from the moment they were added. A broadcast whose time has passed is left out, so
  * nobody receives it late as an overdue follow-up. Do not contact and the plan's people limit hold these follow-ups
- * exactly as they hold any audience's.
+ * exactly as they hold any audience's. A Mix that names a Contact stage sets it for the people it starts, except
+ * through Everyone: newcomers keep the stage new people join (D66), so here only the chosen or New contacts Mix sets
+ * one.
  *
  * Call it inside the transaction that created the people, after their stage event when the path has one. It queues
  * their preparation unless the caller does (`queuePreparation: false`).
@@ -115,6 +154,7 @@ export async function placeNewContacts(tx: Tx, input: {
   const hiddenTags = (await tx.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
   const skip = (contactId: string, because: PlacementResult["skippedBecause"][string]) => { result.skipped.push(contactId); result.skippedBecause[contactId] = because; };
 
+  const lockedIds = await shareEveryoneMixes(tx, workspaceId);
   const mix = input.mixId === undefined
     ? (await newContactPlacementSetting(tx, workspaceId)).mix
     : input.mixId ? await tx.mix.findFirst({ where: { id: input.mixId, ...await placeableMixFilter(tx, workspaceId) }, select: { id: true, name: true } }) : null;
@@ -138,8 +178,11 @@ export async function placeNewContacts(tx: Tx, input: {
       ]);
       if (running || alreadyInMix.has(contactId)) { skip(contactId, "already-in"); continue; }
       if (!input.explicit) {
+        // The stage they joined on arrival may already be behind them: a Mix that names a stage, started by a tag, moves
+        // them on and their arrival stage's Mix keeps running as their own. Either Mix counts (D54, STG-02).
+        const stageMixIds = [...new Set([journey?.stage.planId, stageAhead?.mix?.id].filter((id): id is string => Boolean(id)))];
         const stageMix = journey
-          ? journey.stage.planId ? await tx.mixAssignment.findFirst({ where: { workspaceId, contactId, mixId: journey.stage.planId, isActive: true }, select: { id: true } }) : null
+          ? stageMixIds.length ? await tx.mixAssignment.findFirst({ where: { workspaceId, contactId, mixId: { in: stageMixIds }, isActive: true }, select: { id: true } }) : null
           : stageAhead?.mix ?? null;
         if (stageMix) { skip(contactId, "stage"); continue; }
       }
@@ -153,10 +196,6 @@ export async function placeNewContacts(tx: Tx, input: {
     }
   }
 
-  // A save that unticks Everyone and this placement wait for each other on the Mix's row, so neither leaves an
-  // Everyone place on a Mix that is no longer for Everyone (REL-03).
-  const locked = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM "Mix" WHERE "workspaceId" = ${workspaceId} AND status = 'ACTIVE' AND "audienceEveryone" AND source <> 'ONE_TIME' ORDER BY id FOR SHARE`;
-  const lockedIds = new Set(locked.map(row => row.id));
   const audiences = (await everyoneMixesForNewPeople(tx, workspaceId, now)).filter(item => lockedIds.has(item.id) && !input.exceptEveryone?.includes(item.id));
   if (!audiences.length) return result;
   // People already in one of these Mixes, by their own start (just above, or the one Add a contact made) or a shown
@@ -166,6 +205,7 @@ export async function placeNewContacts(tx: Tx, input: {
     select: { mixId: true, contactId: true, group: { select: { memberships: { where: { contactId: { in: contactIds } }, select: { contactId: true } } } } }
   })).flatMap(assignment => assignment.contactId ? [`${assignment.mixId}:${assignment.contactId}`] : (assignment.group?.memberships ?? []).map(member => `${assignment.mixId}:${member.contactId}`)));
   const placed = new Set<string>();
+  const starts: MixStart[] = [];
   for (const audience of audiences) {
     for (const contactId of contactIds) {
       if (enrolled.has(`${audience.id}:${contactId}`)) continue;
@@ -177,8 +217,13 @@ export async function placeNewContacts(tx: Tx, input: {
         update: { isActive: true, mode: "DYNAMIC", startDate }
       });
       placed.add(contactId);
+      starts.push({ contactId, mixId: audience.id, everyone: true });
     }
   }
+  // An Everyone start sets a stage only for someone with no stage who isn't new (D66), so it moves no newcomer here. A Mix
+  // the owner picked while adding them comes last, so its stage wins over an Everyone Mix's (ORD-01).
+  if (input.explicit && mix) starts.push(...result.started.map(contactId => ({ contactId, mixId: mix.id })));
+  await setStagesFromMixStarts(tx, { workspaceId, starts, actorUserId: input.actorUserId, now });
   if (placed.size && queuePreparation) {
     await tx.job.createMany({ data: [...placed].map(contactId => ({ workspaceId, task: "generate-jumps", payload: { contactId } })) });
   }

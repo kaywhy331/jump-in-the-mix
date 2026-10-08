@@ -10,6 +10,7 @@ import { FormGuard } from "@/components/FormGuard";
 import styles from "@/components/MixEditor.module.css";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { planGoalLabel } from "@/lib/business-taxonomy";
+import type { ContactStageChoices } from "@/lib/mix-stage";
 import { ReviewDialog } from "@/components/ReviewDialog";
 import { saveMixAction } from "@/lib/mix-editor-actions";
 import { generateVariant } from "@/lib/variant-generation";
@@ -28,7 +29,8 @@ type Variants = { textBody: string; emailSubject: string; emailBody: string; cal
 // An elapsed beat is edited as a positive number of minutes plus before/after; the stored offset keeps its sign.
 type SequenceItem = { key: string; id?: string; name: string; channel: Channel; subject: string; body: string; script: string; dayOffset: number; sendTimeMinutes: number | null; plannedAt: string; anchor: StepAnchor; offsetMinutes: string; before: boolean; variants: Variants };
 type StoredVariant = { family: PreparationFamily; subject: string | null; body: string | null; script: string | null };
-type MixValue = { id?: string; name?: string; description?: string | null; framework?: string | null; category?: string | null; industry?: string | null; triggerMode?: TriggerMode; dateTypeId?: string | null; updatedAt?: string | null; status?: MixStatus; groupIds?: string[]; assignAllContacts?: boolean; broadcastDate?: string | null; broadcastTime?: string | null; broadcastTimezone?: string | null; steps?: Array<{ id: string; stepTemplateId: string; templateActive: boolean; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null; dayOffset: number; sendTimeMinutes: number | null; plannedAt?: string | null; anchor?: StepAnchor; offsetMinutes?: number | null; variants?: StoredVariant[] }> };
+/** `savedStatus`: the status the Mix has now, when `status` opens the editor on another one (Review and start). */
+type MixValue = { id?: string; name?: string; stageId?: string | null; savedStatus?: MixStatus; description?: string | null; framework?: string | null; category?: string | null; industry?: string | null; triggerMode?: TriggerMode; dateTypeId?: string | null; updatedAt?: string | null; status?: MixStatus; groupIds?: string[]; assignAllContacts?: boolean; broadcastDate?: string | null; broadcastTime?: string | null; broadcastTimezone?: string | null; steps?: Array<{ id: string; stepTemplateId: string; templateActive: boolean; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null; dayOffset: number; sendTimeMinutes: number | null; plannedAt?: string | null; anchor?: StepAnchor; offsetMinutes?: number | null; variants?: StoredVariant[] }> };
 type LegacyMessageOption = { id: string; name: string; channel: Channel; subject: string | null; body: string | null; script: string | null };
 
 const MAX_STEP_OFFSET_DAYS = 365;
@@ -86,7 +88,8 @@ export function MixEditor({
   workflowRevision = 0,
   activeContactCount,
   missingEmailCount,
-  missingPhoneCount
+  missingPhoneCount,
+  contactStages = null
 }: {
   mix?: MixValue;
   jumps: LegacyMessageOption[];
@@ -102,6 +105,8 @@ export function MixEditor({
   activeContactCount: number;
   missingEmailCount: number;
   missingPhoneCount: number;
+  /** The business's active Contact stages, or null when it has none: the stage field is shown only with stages. */
+  contactStages?: ContactStageChoices | null;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const activationInputRef = useRef<HTMLInputElement>(null);
@@ -121,9 +126,24 @@ export function MixEditor({
     return existing.length ? existing : [newStep(0)];
   });
   const selectedGroups = useMemo(() => groups.filter((group) => selectedGroupIds.has(group.id)), [groups, selectedGroupIds]);
-  const audience = useAudiencePreview(assignAllContacts, [...selectedGroupIds]);
-  const audienceEstimate = audience.data?.total ?? 0;
   const audienceChosen = assignAllContacts || selectedGroupIds.size > 0;
+  const [stageId, setStageId] = useState(() => mix?.stageId && contactStages?.stages.some((stage) => stage.id === mix.stageId) ? mix.stageId : "");
+  const stageName = contactStages?.stages.find((stage) => stage.id === stageId)?.name;
+  // A save that starts people moves them to the Mix's stage, so it is always reviewed, and the review says who moves:
+  // turning the Mix on starts its whole audience (UX-01); on one already on, ticking Everyone or adding a tag starts
+  // everyone they cover (UX-02). Resuming a paused Mix starts only people "Everyone" took in since.
+  const turningOn = status === "ACTIVE" && (!mix?.id || (mix.savedStatus ?? mix.status) === "DRAFT");
+  const addsEveryone = assignAllContacts && !mix?.assignAllContacts;
+  const addedGroupIds = [...selectedGroupIds].filter((id) => !(mix?.groupIds ?? []).includes(id));
+  const starts = turningOn ? (audienceChosen ? { all: assignAllContacts, groupIds: [...selectedGroupIds] } : null)
+    : status === "ACTIVE" && (addsEveryone || addedGroupIds.length) ? { all: addsEveryone, groupIds: addedGroupIds } : null;
+  const stageReview = Boolean(stageName && starts);
+  const audience = useAudiencePreview(assignAllContacts, [...selectedGroupIds], stageReview && starts ? { stageId, mixId: mix?.id, ...starts } : null);
+  // On a Mix already on, the review is about the people this save adds, not the whole audience (COPY-02).
+  // Turning a paused Mix back on reads as a start, like turning a draft on.
+  const resuming = status === "ACTIVE" && (mix?.savedStatus ?? mix?.status) === "PAUSED";
+  const savingMore = stageReview && !turningOn && !resuming;
+  const audienceEstimate = (savingMore ? audience.data?.stageStarts : audience.data?.total) ?? 0;
   // Beats timed from an appointment have nothing to count from for the people enrolled here; they
   // run only for a visit the owner lines the mix up with, so only calendar-day beats are projected.
   const calendarBeats = sequence.filter((item) => item.anchor === "CALENDAR_DAY").length;
@@ -168,7 +188,7 @@ export function MixEditor({
     }
   };
   const submit = (event: FormEvent<HTMLFormElement>) => {
-    if (status !== "ACTIVE" || !reviewBeforeActivation || activationInputRef.current?.value === "1") return;
+    if (status !== "ACTIVE" || !(reviewBeforeActivation || stageReview) || activationInputRef.current?.value === "1") return;
     event.preventDefault();
     setReviewOpen(true);
   };
@@ -208,6 +228,8 @@ export function MixEditor({
         })}</div>}
         <small>{triggerMode === "MANUAL_START" ? "You can also start it from one person’s page, or line it up with a visit from the calendar. No one needs to be enrolled here first." : "You can also start a Mix from one person’s page."}</small>
       </div>
+
+      {contactStages && <div className="mix-stage-choice"><label className="field"><span>Contact stage</span><select name="stageId" aria-describedby="mix-stage-hint" value={stageId} onChange={(event) => setStageId(event.target.value)}><option value="">None</option>{contactStages.stages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select></label><small id="mix-stage-hint">People who start this Mix move to this stage, and only the label changes. Choosing a stage moves no one already in the Mix. Adding a tag moves everyone it covers, and Everyone moves people who have no stage yet, after a review.{contactStages.paused ? " Automatic transitions are paused, so no one moves until you turn them back on." : ""} <Link href="/settings/journey">Manage Contact stages</Link></small></div>}
 
       <details className="plan-advanced-settings"><summary>Advanced Mix settings</summary><div className="form-grid">
         <label className="field full"><span>Description (optional)</span><textarea name="description" maxLength={1200} defaultValue={mix?.description ?? ""} placeholder="What this Mix helps you remember" /></label>
@@ -279,10 +301,10 @@ export function MixEditor({
 
     {mix?.id && <p className="muted-copy">Saving changes the reusable Mix for new work. A person’s running Journey keeps its saved wording, Beats and connections. Review that person’s progress to change or stop existing work.</p>}
     <SchedulePreview timezone={workspaceTimezone} steps={sequence.map(item => ({ anchor: item.anchor, offsetMinutes: signedMinutes(item), dayOffset: item.dayOffset, sendTimeMinutes: item.sendTimeMinutes, plannedAt: item.plannedAt }))} />
-    <ReviewDialog open={reviewOpen} onClose={() => setReviewOpen(false)} title="Start this Mix?" description="Check the audience and schedule before starting."><div className={styles.reviewGrid}><div><strong>{audience.data ? audienceEstimate.toLocaleString() : "Checking…"}</strong><span>people</span></div><div><strong>{sequence.length}</strong><span>Beats each</span></div><div><strong>{audience.data ? projectedFollowUps.toLocaleString() : "Checking…"}</strong><span>potential follow-ups</span></div>{visitBeats > 0 && <div><strong>{visitBeats}</strong><span>{visitBeats === 1 ? "Beat waits for a visit" : "Beats wait for a visit"}</span></div>}</div><div className={styles.reviewWarnings}>{audience.error && <p className="notice error" role="alert">{audience.error} <button type="button" onClick={audience.retry}>Retry audience check</button></p>}<p>People in multiple tags count once. Dates, pauses and scheduling rules determine the actual prepared follow-ups.</p>{!audienceChosen && (triggerMode === "MANUAL_START" ? <p>No one is enrolled yet. Line this Mix up with a visit from the calendar, or start it from one person’s page.</p> : <p className="notice error">Choose who gets this Mix.</p>)}{visitBeats > 0 && audienceEstimate > 0 && <p>{visitBeats === sequence.length ? "Every Beat is timed from an appointment, so these people get nothing until you line this Mix up with one of their visits from the calendar." : `The ${visitBeats} ${visitBeats === 1 ? "Beat" : "Beats"} timed from an appointment ${visitBeats === 1 ? "runs" : "run"} only for a visit you line up from the calendar; these people get the ${calendarBeats} calendar-day ${calendarBeats === 1 ? "Beat" : "Beats"}.`}</p>}{channels.includes("EMAIL") && (audience.data?.missingEmail ?? 0) > 0 && <p>{audience.data?.missingEmail} selected people have no email.</p>}{channels.some((channel) => channel !== "EMAIL") && (audience.data?.missingPhone ?? 0) > 0 && <p>{audience.data?.missingPhone} selected people have no phone.</p>}</div><div className="form-actions"><button className="button" type="button" onClick={() => setReviewOpen(false)}>Keep editing</button><button className="button primary" type="button" disabled={!canStart} onClick={confirmActivation}>Start the Mix</button></div></ReviewDialog>
+    <ReviewDialog open={reviewOpen} onClose={() => setReviewOpen(false)} title={savingMore ? "Save these changes?" : "Start this Mix?"} description={savingMore ? "Check who this save starts before saving." : "Check the audience and schedule before starting."}><div className={styles.reviewGrid}><div><strong>{audience.data ? audienceEstimate.toLocaleString() : "Checking…"}</strong><span>people</span></div><div><strong>{sequence.length}</strong><span>Beats each</span></div><div><strong>{audience.data ? projectedFollowUps.toLocaleString() : "Checking…"}</strong><span>potential follow-ups</span></div>{visitBeats > 0 && <div><strong>{visitBeats}</strong><span>{visitBeats === 1 ? "Beat waits for a visit" : "Beats wait for a visit"}</span></div>}</div><div className={styles.reviewWarnings}>{audience.error && <p className="notice error" role="alert">{audience.error} <button type="button" onClick={audience.retry}>Retry audience check</button></p>}<p>People in multiple tags count once. Dates, pauses and scheduling rules determine the actual prepared follow-ups.</p>{stageReview && audience.data?.stageMoves !== undefined && <p>{audience.data.stageMoves ? `${savingMore ? "Saving" : "Starting"} moves ${audience.data.stageMoves.toLocaleString()} ${audience.data.stageMoves === 1 ? "person" : "people"} to ${stageName}${audience.data.stageMovesFromOtherStages ? `, including ${audience.data.stageMovesFromOtherStages.toLocaleString()} now in another stage` : ""}. Pausing, removing or stopping the Mix doesn’t move them back.` : contactStages?.paused ? `No one moves to ${stageName}: automatic transitions are paused.` : `No one moves to ${stageName}.`}</p>}{!audienceChosen && (triggerMode === "MANUAL_START" ? <p>No one is enrolled yet. Line this Mix up with a visit from the calendar, or start it from one person’s page.</p> : <p className="notice error">Choose who gets this Mix.</p>)}{visitBeats > 0 && audienceEstimate > 0 && <p>{visitBeats === sequence.length ? "Every Beat is timed from an appointment, so these people get nothing until you line this Mix up with one of their visits from the calendar." : `The ${visitBeats} ${visitBeats === 1 ? "Beat" : "Beats"} timed from an appointment ${visitBeats === 1 ? "runs" : "run"} only for a visit you line up from the calendar; these people get the ${calendarBeats} calendar-day ${calendarBeats === 1 ? "Beat" : "Beats"}.`}</p>}{channels.includes("EMAIL") && (audience.data?.missingEmail ?? 0) > 0 && <p>{audience.data?.missingEmail} {savingMore ? "people in this Mix’s audience" : "selected people"} have no email.</p>}{channels.some((channel) => channel !== "EMAIL") && (audience.data?.missingPhone ?? 0) > 0 && <p>{audience.data?.missingPhone} {savingMore ? "people in this Mix’s audience" : "selected people"} have no phone.</p>}</div><div className="form-actions"><button className="button" type="button" onClick={() => setReviewOpen(false)}>Keep editing</button><button className="button primary" type="button" disabled={!canStart} onClick={confirmActivation}>{savingMore ? "Save the Mix" : "Start the Mix"}</button></div></ReviewDialog>
 
-    {status === "ACTIVE" && <p className="mix-activation-preference">{reviewBeforeActivation ? "You’ll review who gets this Mix before activating." : "Saving activates this Mix using your audience and sending settings."} <Link href="/account/preferences">Change preference</Link></p>}
+    {status === "ACTIVE" && <p className="mix-activation-preference">{reviewBeforeActivation ? "You’ll review who gets this Mix before activating." : stageReview ? "This Mix sets a Contact stage, so you’ll review who moves before saving." : "Saving activates this Mix using your audience and sending settings."} <Link href="/account/preferences">Change preference</Link></p>}
     {saveError && <p ref={saveErrorRef} tabIndex={-1} role="alert" className="notice error">{saveError}</p>}
-    <div className="sticky-form-actions">{status === "ACTIVE" && !reviewBeforeActivation && <button className="button" type="button" onClick={() => { if (formRef.current?.reportValidity()) setReviewOpen(true); }}>Review first</button>}<Link className="button" href={mix?.id ? `/mixes?mix=${encodeURIComponent(mix.id)}` : "/mixes"}><AppIcon name="close" />Cancel</Link><button className="button primary" type="submit"><AppIcon name="check" />{status === "ACTIVE" ? (reviewBeforeActivation ? "Review and start" : "Save and activate") : mix?.id ? "Save Mix" : "Create a Mix"}</button></div>
+    <div className="sticky-form-actions">{status === "ACTIVE" && !reviewBeforeActivation && !stageReview && <button className="button" type="button" onClick={() => { if (formRef.current?.reportValidity()) setReviewOpen(true); }}>Review first</button>}<Link className="button" href={mix?.id ? `/mixes?mix=${encodeURIComponent(mix.id)}` : "/mixes"}><AppIcon name="close" />Cancel</Link><button className="button primary" type="submit"><AppIcon name="check" />{status === "ACTIVE" ? (savingMore ? "Review and save" : reviewBeforeActivation || stageReview ? "Review and start" : "Save and activate") : mix?.id ? "Save Mix" : "Create a Mix"}</button></div>
   </form>;
 }

@@ -26,7 +26,9 @@ model JourneyStage {
   isActive      Boolean          @default(true)
   planId        String?
   workspace     Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  plan          Mix?             @relation(fields: [planId], references: [id], onDelete: SetNull)
+  plan          Mix?             @relation("StageEntryMix", fields: [planId], references: [id], onDelete: SetNull)
+  // Mixes that name this stage: starting one of them sets it (JITM-09 §2.79, D35).
+  settingMixes  Mix[]            @relation("MixSetsStage")
   contacts      ContactJourney[]
   outgoingRules JourneyRule[]    @relation("RuleFromStage")
   incomingRules JourneyRule[]    @relation("RuleToStage")

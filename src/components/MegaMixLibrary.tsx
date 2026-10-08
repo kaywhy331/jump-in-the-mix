@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { MegaMixPreview } from "@/components/MegaMixPreview";
-import { MegaMixSetup } from "@/components/MegaMixSetup";
+import { MegaMixSetup, type ContactStagesState } from "@/components/MegaMixSetup";
 import { MEGA_MIXES, megaMixById } from "@/lib/mega-mixes";
 import { workflowStartPath } from "@/lib/workflow-continuation";
 import type { JourneySetupValues } from "@/lib/journey-preferences";
@@ -11,7 +11,7 @@ import { tailorMegaMix } from "@/lib/journey-preferences";
 import styles from "./MegaMix.module.css";
 
 export type InstalledMegaMix = { blueprintId: string; version: number; mixes: Array<{ id: string; name: string; status: string }> };
-export function MegaMixLibrary({ selectedId, installed, added, canEdit, initialSetup }: { selectedId: string; installed: InstalledMegaMix[]; added: boolean; canEdit: boolean; initialSetup: JourneySetupValues }) {
+export function MegaMixLibrary({ selectedId, installed, added, canEdit, initialSetup, contactStages }: { selectedId: string; installed: InstalledMegaMix[]; added: boolean; canEdit: boolean; initialSetup: JourneySetupValues; contactStages: ContactStagesState }) {
   const [setup, setSetup] = useState(initialSetup);
   const blueprint = tailorMegaMix(megaMixById(selectedId) ?? MEGA_MIXES[0], setup);
   const installation = installed.find(item => item.blueprintId === blueprint.id);
@@ -33,7 +33,7 @@ export function MegaMixLibrary({ selectedId, installed, added, canEdit, initialS
         <ul className={styles.installed}>{installation.mixes.map(mix => <li key={mix.id}><Link href={`/mixes?mix=${mix.id}`}><strong>{mix.name}</strong><small>{mix.status.toLowerCase()}</small></Link>{canEdit && mix.status === "ACTIVE" && <Link className="button small" href={`/journey?mix=${mix.id}&start=1`} aria-label={`Start ${mix.name} for someone`}><AppIcon name="play" />Start</Link>}</li>)}</ul>
         {installation.mixes.length < blueprint.nodes.length && <p>Some included Mixes have been removed. Adding this Mega-Mix again preserves those changes; it does not recreate them.</p>}
         <p className={styles.boundary}>The preview shows the supplied starting point. Your Journey shows your current, editable setup.</p>
-      </> : <><h2>Make it yours</h2>{canEdit ? <MegaMixSetup key={blueprint.id} initialId={blueprint.id} initialSetup={setup} onSetupChange={setSetup} /> : <p>Administrator support sessions are view-only.</p>}</>}
+      </> : <><h2>Make it yours</h2>{canEdit ? <MegaMixSetup key={blueprint.id} initialId={blueprint.id} initialSetup={setup} onSetupChange={setSetup} contactStages={contactStages} /> : <p>Administrator support sessions are view-only.</p>}</>}
     </aside>
   </div>;
 }

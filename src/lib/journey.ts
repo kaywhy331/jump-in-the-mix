@@ -80,6 +80,65 @@ export async function newContactStage(db: Pick<Tx, "journeyPreference" | "journe
   return { name: stage.name, mix };
 }
 
+/**
+ * `changeManagedPlan` for people joining their first stage, with no Mix of a stage before it, in a few statements for
+ * any number of people. The same rules: never take over a plan running on its own, resume a manual stop, or bypass
+ * Do not contact. Returns each started person's assignment.
+ */
+async function startArrivalPlan(tx: Tx, workspaceId: string, contactIds: readonly string[], planId: string, now: Date): Promise<Map<string, string>> {
+  const plan = await tx.mix.findFirst({ where: { id: planId, workspaceId, status: "ACTIVE", triggerMode: "MANUAL_START", source: { not: "ONE_TIME" } }, select: { id: true } });
+  if (!plan) return new Map();
+  const ids = [...contactIds];
+  const [restricted, stops, running] = await Promise.all([
+    tx.contactRelationshipState.findMany({ where: { contactId: { in: ids }, doNotContact: true }, select: { contactId: true } }),
+    tx.mixStop.findMany({ where: { workspaceId, mixId: planId, contactId: { in: ids } }, select: { id: true, contactId: true, reason: true } }),
+    tx.mixAssignment.findMany({ where: { workspaceId, mixId: planId, contactId: { in: ids }, isActive: true, appointmentBinding: null }, select: { contactId: true } })
+  ]);
+  const skip = new Set([...restricted.map(row => row.contactId), ...running.flatMap(row => row.contactId ? [row.contactId] : []), ...stops.filter(stop => stop.reason !== "journey.stage.exit").map(stop => stop.contactId)]);
+  const people = ids.filter(id => !skip.has(id));
+  if (!people.length) return new Map();
+  const starting = new Set(people);
+  const exits = stops.filter(stop => starting.has(stop.contactId)).map(stop => stop.id);
+  if (exits.length) await tx.mixStop.deleteMany({ where: { id: { in: exits } } });
+  const keys = people.map(contactId => `${workspaceId}:${planId}:${contactId}`);
+  await tx.mixAssignment.updateMany({ where: { assignmentKey: { in: keys } }, data: { startDate: now, isActive: true } });
+  await tx.mixAssignment.createMany({ data: people.map((contactId, index) => ({ workspaceId, contactId, mixId: planId, assignmentKey: keys[index], startDate: now, isActive: true })), skipDuplicates: true });
+  const assignments = await tx.mixAssignment.findMany({ where: { assignmentKey: { in: keys } }, select: { id: true, contactId: true } });
+  await tx.job.createMany({ data: people.map(contactId => ({ workspaceId, task: "generate-jumps", payload: { contactId, mixId: planId } })) });
+  return new Map(assignments.flatMap(assignment => assignment.contactId ? [[assignment.contactId, assignment.id] as const] : []));
+}
+
+/**
+ * Puts people who are waiting for the worker's stage pass into the stage new people join, as the pass would and with
+ * its event key, because a Mix is about to set their stage in this transaction (JITM-09 §2.78–§2.79). Otherwise the
+ * Mix's stage would come first, the pass would skip them, and the stage new people join, with its Mix, would never
+ * start. Only people the pass would take: added after Contact stages were turned on, with no stage and no arrival
+ * event yet. The caller holds their row locks and has checked that automatic transitions are on. Returns who joined.
+ */
+export async function joinArrivalStage(tx: Tx, input: { workspaceId: string; contactIds: readonly string[]; enabledAt: Date; now: Date }): Promise<string[]> {
+  const { workspaceId, now } = input;
+  if (!input.contactIds.length) return [];
+  const waiting = await tx.contact.findMany({ where: { workspaceId, id: { in: [...input.contactIds] }, archivedAt: null, createdAt: { gte: input.enabledAt }, journey: null }, select: { id: true }, orderBy: { id: "asc" } });
+  if (!waiting.length) return [];
+  const recorded = new Set((await tx.journeyEvent.findMany({ where: { workspaceId, eventKey: { in: waiting.map(contact => `journey-new:${contact.id}`) } }, select: { contactId: true } })).map(event => event.contactId));
+  const people = waiting.map(contact => contact.id).filter(id => !recorded.has(id));
+  const stageId = people.length ? await initialStageId(tx, workspaceId, "CONTACT_RECEIVED") : undefined;
+  // Shared so the stage can't be retired underneath, as for the stage the Mix sets.
+  const [stage] = stageId ? await tx.$queryRaw<Array<{ id: string; name: string; planId: string | null }>>`SELECT id, name, "planId" FROM "JourneyStage" WHERE id = ${stageId} AND "workspaceId" = ${workspaceId} AND "isActive" FOR SHARE` : [];
+  if (!stage) return [];
+  // In a few statements whatever the number of people, so a bulk action on a fresh import fits its transaction (PERF-01).
+  const managed = stage.planId ? await startArrivalPlan(tx, workspaceId, people, stage.planId, now) : new Map<string, string>();
+  const eventType = "CONTACT_RECEIVED" as const; const source = "New contact";
+  await tx.contactJourney.createMany({ data: people.map(contactId => ({ workspaceId, contactId, stageId: stage.id, stageSince: now, lastCheckedAt: now, managedAssignmentId: managed.get(contactId) ?? null })) });
+  await tx.contactActivity.createMany({ data: people.map(contactId => ({
+    workspaceId, contactId, kind: "SYSTEM" as const, visibility: "WORKSPACE" as const,
+    summary: `Joined ${stage.name}. ${journeyEventLabel(eventType)} · ${source}.${managed.has(contactId) ? " The stage’s follow-up Mix is assigned." : ""}`,
+    metadata: { eventType, previousStageId: null, stageId: stage.id, source }
+  })) });
+  await tx.journeyEvent.createMany({ data: people.map(contactId => ({ workspaceId, contactId, eventKey: `journey-new:${contactId}`, eventType, source, resultingStageId: stage.id, occurredAt: now })) });
+  return people;
+}
+
 /** Another change moved this customer's stage first; the maintenance pass skips it and a person sees the sentence. */
 export class JourneyStageChanged extends UserFacingError {
   constructor() { super("This customer’s stage changed. Refresh before trying again."); }

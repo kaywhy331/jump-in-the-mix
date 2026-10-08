@@ -26,6 +26,9 @@ const stages = (rows: Array<{ id: string; name: string; isActive?: boolean; posi
   $queryRaw: vi.fn(),
   journeyStage: { findMany: async () => rows.map(row => ({ isActive: true, position: 0, ...row, _count: { contacts: row.contacts ?? 0 } })), update: vi.fn(), create: vi.fn() },
   journeyRule: { updateMany: vi.fn() },
+  // Retiring counts the stage's people after taking its row lock (JITM-09 §2.79).
+  contactJourney: { count: async ({ where }: { where: { stageId: string } }) => rows.find(row => row.id === where.stageId)?.contacts ?? 0 },
+  mix: { updateMany: vi.fn() },
   auditLog: { create: vi.fn() }
 }));
 

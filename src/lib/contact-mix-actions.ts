@@ -15,6 +15,7 @@ import { NO_MIX_NEEDED_NOTICE, type MixStartCounts, type MixStartResult } from "
 import { contactIdsInMix, contactMixStatuses } from "@/lib/contact-mix-status";
 import { endLockedEnrollmentWorkflows, ENROLLMENT_REMOVED_REASON, ENROLLMENT_UNDONE_REASON, lockEnrollmentWorkflows, workflowTookUpdate } from "@/lib/enrollment-workflow";
 import type { WorkflowState } from "@/lib/mix-workflow-types";
+import { stageSetFrom, undoStageSet, type StageSet } from "@/lib/mix-stage";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -89,6 +90,8 @@ const occurrenceIn = (prefixes: string[]) => ({ OR: prefixes.map(prefix => ({ te
 type RecordedStart = {
   contactId: string; assignmentId: string; assignmentUpdatedAt: string; jumpDateId: string | null; jumpDateUpdatedAt: string | null;
   previous: { isActive: boolean; startDate: string | null; mode: AssignmentMode } | null; noMixNeeded: boolean;
+  /** The Contact stage the start set, which Undo puts back while nothing has changed it since (JITM-09 §2.79). */
+  stage: StageSet | null;
 };
 const BULK_START_ACTION = "mix.assignment.bulk-start";
 
@@ -143,7 +146,8 @@ export async function bulkAssignMixAction(formData: FormData): Promise<void> {
           contactId: contact.id, assignmentId: outcome.assignment.id, assignmentUpdatedAt: outcome.assignment.updatedAt.toISOString(),
           jumpDateId: outcome.writtenDate?.id ?? null, jumpDateUpdatedAt: outcome.writtenDate?.updatedAt.toISOString() ?? null,
           previous: outcome.previous ? { isActive: outcome.previous.isActive, startDate: outcome.previous.startDate?.toISOString() ?? null, mode: outcome.previous.mode } : null,
-          noMixNeeded: before.get(contact.id) === "no-mix-needed"
+          noMixNeeded: before.get(contact.id) === "no-mix-needed",
+          stage: outcome.stage
         });
       }
       // One preparation pass for the Mix rather than one per person: the worker reads only mixId, so it prepares
@@ -173,7 +177,7 @@ function recordedStarts(metadata: Prisma.JsonValue | null | undefined): Recorded
   if (!Array.isArray(starts)) return [];
   return starts.flatMap(item => {
     if (!item || typeof item !== "object" || Array.isArray(item)) return [];
-    const { contactId, assignmentId, assignmentUpdatedAt, jumpDateId, jumpDateUpdatedAt, previous, noMixNeeded } = item as Record<string, unknown>;
+    const { contactId, assignmentId, assignmentUpdatedAt, jumpDateId, jumpDateUpdatedAt, previous, noMixNeeded, stage } = item as Record<string, unknown>;
     if (typeof contactId !== "string" || typeof assignmentId !== "string" || typeof assignmentUpdatedAt !== "string") return [];
     const earlier = previous && typeof previous === "object" && !Array.isArray(previous) ? previous as Record<string, unknown> : null;
     return [{
@@ -181,7 +185,8 @@ function recordedStarts(metadata: Prisma.JsonValue | null | undefined): Recorded
       jumpDateId: typeof jumpDateId === "string" ? jumpDateId : null, jumpDateUpdatedAt: typeof jumpDateUpdatedAt === "string" ? jumpDateUpdatedAt : null,
       previous: earlier && typeof earlier.isActive === "boolean" && (earlier.mode === "SNAPSHOT" || earlier.mode === "DYNAMIC")
         ? { isActive: earlier.isActive, startDate: typeof earlier.startDate === "string" ? earlier.startDate : null, mode: earlier.mode } : null,
-      noMixNeeded: noMixNeeded === true
+      noMixNeeded: noMixNeeded === true,
+      stage: stageSetFrom(stage)
     }];
   });
 }
@@ -190,7 +195,8 @@ function recordedStarts(metadata: Prisma.JsonValue | null | undefined): Recorded
  * Undo for Add to the Mix (D46, JITM-08 §2.5). It takes back the starts that one bulk action made, and only
  * those: each assignment goes back to how it was before (ended when the start created it, or restored with
  * its earlier start when it existed), the follow-ups still to come that the start produced are cancelled, a
- * saved date the start wrote is removed, and a No Mix needed confirmation the start replaced is put back.
+ * saved date the start wrote is removed, a No Mix needed confirmation the start replaced is put back, and so is
+ * the Contact stage the start set, while nothing has changed it since.
  * Completed and skipped follow-ups, history, Journey-managed work, a visit's work and other routes' work are
  * never touched (JITM-00 §2.6, UNDO-01). Anything changed since, such as a person started again on their own,
  * is left as it is.
@@ -208,6 +214,10 @@ export async function undoBulkMixStartAction(formData: FormData): Promise<void> 
   let result: { ended: number; kept: number; dates: number; confirmed: number };
   try {
     result = await prisma.$transaction(async (tx) => {
+      // A start that set a stage puts it back under the person's row lock. It is taken first, in the order a start
+      // takes it (the person, then their enrollment, then its Journey record).
+      const staged = [...new Set(starts.filter(start => start.stage).map(start => start.contactId))].sort();
+      if (staged.length) await tx.$queryRaw`SELECT id FROM "Contact" WHERE "workspaceId" = ${workspace.id} AND id IN (${Prisma.join(staged)}) ORDER BY id FOR NO KEY UPDATE`;
       // Row locks make a double tap end each start once: the second request waits, then finds nothing unchanged.
       const rows = await tx.$queryRaw<Array<{ id: string; contactId: string | null; isActive: boolean; startDate: Date | null; createdAt: Date; updatedAt: Date }>>`
         SELECT id, "contactId", "isActive", "startDate", "createdAt", "updatedAt" FROM "MixAssignment"
@@ -225,7 +235,7 @@ export async function undoBulkMixStartAction(formData: FormData): Promise<void> 
       const unchanged = untouched.filter(start => !journeys.get(start.assignmentId)!.some(record => workflowTookUpdate(record.state as unknown as WorkflowState)));
       if (!unchanged.length) return { ended: 0, kept: starts.length, dates: 0, confirmed: 0 };
       const endedAt = new Date();
-      let dates = 0, journeysEnded = 0;
+      let dates = 0, journeysEnded = 0, stages = 0;
       for (const start of unchanged) {
         await tx.mixAssignment.update({ where: { id: start.assignmentId }, data: start.previous
           ? { isActive: start.previous.isActive, startDate: start.previous.startDate ? new Date(start.previous.startDate) : null, mode: start.previous.mode }
@@ -246,6 +256,7 @@ export async function undoBulkMixStartAction(formData: FormData): Promise<void> 
         if (start.jumpDateId && start.jumpDateUpdatedAt) {
           dates += (await tx.jumpDate.updateMany({ where: { id: start.jumpDateId, workspaceId: workspace.id, contactId: start.contactId, isActive: true, updatedAt: new Date(start.jumpDateUpdatedAt) }, data: { isActive: false } })).count;
         }
+        if (start.stage && await undoStageSet(tx, { workspaceId: workspace.id, set: start.stage, actorUserId: user.id })) stages += 1;
       }
       // A confirmation the start replaced comes back, written after everything above, so it counts again.
       const confirmed = unchanged.filter(start => start.noMixNeeded).map(start => start.contactId);
@@ -254,7 +265,7 @@ export async function undoBulkMixStartAction(formData: FormData): Promise<void> 
         await tx.contactRelationshipState.upsert({ where: { contactId }, create: { workspaceId: workspace.id, contactId, noMixNeededAt: confirmedAt }, update: { noMixNeededAt: confirmedAt } });
       }
       await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { mixId } } });
-      await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "mix.assignment.bulk-undo", entityType: "Mix", entityId: mixId, source: "contacts.bulk", metadata: { startRecordId: record.id, contactIds: unchanged.map(start => start.contactId), endedDates: dates, restoredConfirmations: confirmed, endedJourneyRecords: journeysEnded } } });
+      await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "mix.assignment.bulk-undo", entityType: "Mix", entityId: mixId, source: "contacts.bulk", metadata: { startRecordId: record.id, contactIds: unchanged.map(start => start.contactId), endedDates: dates, restoredConfirmations: confirmed, endedJourneyRecords: journeysEnded, restoredStages: stages } } });
       return { ended: unchanged.length, kept: starts.length - unchanged.length, dates, confirmed: confirmed.length };
     }, { timeout: 30_000 });
   } catch {

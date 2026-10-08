@@ -18,6 +18,7 @@ import { plannedAtInput } from "@/lib/planned-step";
 import { workflowEditorData } from "@/lib/mix-workflow";
 import { MarketplaceNotices, MarketplaceShare } from "@/components/MarketplaceShare";
 import { archiveShareEffect } from "@/lib/marketplace-service";
+import { contactStageChoices } from "@/lib/mix-stage";
 
 
 export type MixWorkspaceSearchParams = { view?: string; activate?: string; error?: string; at?: string; sig?: string; created?: string; updated?: string; imported?: string };
@@ -35,7 +36,8 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
           include: { stepVersion: { include: { stepTemplate: true, variants: true } } },
           orderBy: { sortOrder: "asc" }
         },
-        assignments: { where: { isActive: true, mode: "DYNAMIC" } }
+        assignments: { where: { isActive: true, mode: "DYNAMIC" } },
+        stage: { select: { name: true, isActive: true } }
       }
     }),
     prisma.mixBroadcastSchedule.findFirst({ where: { workspaceId: workspace.id, mixId } })
@@ -61,11 +63,12 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
   const assignAllContacts = mix.audienceEveryone || mix.assignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:"));
 
 
-  const [members, memberCount, stages, shareEffect] = await Promise.all([
+  const [members, memberCount, stages, shareEffect, contactStages] = await Promise.all([
     prisma.contact.findMany({ where: { AND: [{ workspaceId: workspace.id, archivedAt: null }, journeyMixMembers(workspace.id, mix.id)] }, orderBy: [{ displayName: "asc" }, { id: "asc" }], take: 20, select: { id: true, displayName: true, jumps: { where: { workspaceId: workspace.id, mixId: mix.id, status: "PENDING" }, orderBy: { scheduledAt: "asc" }, take: 1, select: { reason: true } } } }),
     prisma.contact.count({ where: { AND: [{ workspaceId: workspace.id, archivedAt: null }, journeyMixMembers(workspace.id, mix.id)] } }),
     prisma.journeyStage.findMany({ where: { workspaceId: workspace.id, planId: mix.id, isActive: true }, select: { id: true, name: true }, orderBy: { position: "asc" } }),
-    impersonation ? null : archiveShareEffect(workspace.id, mix.id)
+    impersonation ? null : archiveShareEffect(workspace.id, mix.id),
+    contactStageChoices(workspace.id)
   ]);
   // Archiving stops sharing what would have nothing to show, so the confirmation says what leaves the Marketplace.
   const archiveCopy = `This Mix stops creating new follow-ups. Completed history stays available.${shareEffect?.mix ? " It also stops being shared on the Marketplace; copies people already added stay theirs." : ""}${shareEffect?.megaMix ? ` Your shared Mega-Mix “${shareEffect.megaMix}” stops being shared too, because none of its other Mixes can be shared.` : ""}`;
@@ -96,6 +99,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
         activeContactCount={activeContactCount}
         missingEmailCount={missingEmailCount}
         missingPhoneCount={missingPhoneCount}
+        contactStages={contactStages}
         mix={{
           id: mix.id,
           name: mix.name,
@@ -107,8 +111,10 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
           dateTypeId: mix.dateTypeId,
           updatedAt: mix.updatedAt.toISOString(),
           status: query.activate === "1" ? "ACTIVE" : mix.status === "ARCHIVED" ? "DRAFT" : mix.status,
+          savedStatus: mix.status === "ARCHIVED" ? "DRAFT" : mix.status,
           groupIds,
           assignAllContacts,
+          stageId: mix.stageId,
           broadcastDate: formatDateInput(broadcastSchedule?.localDate),
           broadcastTime: formatTimeInput(broadcastSchedule?.timeMinutes),
           broadcastTimezone: broadcastSchedule?.timezone ?? timezone,
@@ -132,7 +138,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
       /> : <MixBeatPreview steps={mix.steps} gatedStepIds={workflow.configuration.gatedStepIds} timezone={timezone} locale={activationPreference?.locale ?? "en-US"} />}
     </section>
     <aside className="mix-context-pane" aria-label="People and Journey connections">
-      <section><h3><AppIcon name="clock" />Starts</h3><p>{mix.triggerMode === "MANUAL_START" ? "When you start it or a connected path arrives." : mix.triggerMode === "BROADCAST" ? "On a scheduled date." : "When its date is added."}</p>{broadcastSchedule && <p>{formatDateInput(broadcastSchedule.localDate)} · {formatTimeInput(broadcastSchedule.timeMinutes)} {broadcastSchedule.timezone}</p>}</section>
+      <section><h3><AppIcon name="clock" />Starts</h3><p>{mix.triggerMode === "MANUAL_START" ? "When you start it or a connected path arrives." : mix.triggerMode === "BROADCAST" ? "On a scheduled date." : "When its date is added."}</p>{mix.stage?.isActive && <p>Moves people to the {mix.stage.name} stage.{contactStages?.paused ? " Automatic transitions are paused, so no one moves for now." : ""}</p>}{broadcastSchedule && <p>{formatDateInput(broadcastSchedule.localDate)} · {formatTimeInput(broadcastSchedule.timeMinutes)} {broadcastSchedule.timezone}</p>}</section>
       <section><h3><AppIcon name="people" />People</h3><strong className="mix-context-count">{memberCount}</strong>{members.length ? <ul>{members.slice(0, 5).map(person => <li key={person.id}><Link href={`/contacts/${person.id}`}><strong>{person.displayName}</strong><small>{person.jumps[0]?.reason ?? "No pending Beat"}</small></Link></li>)}</ul> : <p>No one in this Mix yet.</p>}<Link className="button small" href={`/journey?mix=${mix.id}${memberCount ? "" : "&start=1"}`}><AppIcon name="people" />{memberCount ? "View people" : "Start for someone"}</Link></section>
       <section><h3><AppIcon name="journey" />Connections</h3>{related.length ? <ul>{related.map(rule => <li key={rule.id}><Link href={`/journey?mix=${mix.id}${memberCount ? "" : "&start=1"}`}><strong>{rule.name}</strong><small>{rule.source.mixId === mix.id ? "Continues from here" : "Connects into this Mix"}{!rule.enabled ? " · off" : ""}</small></Link></li>)}</ul> : <p>No connected paths yet.</p>}<Link className="button small" href={`/journey?mix=${mix.id}${memberCount ? "" : "&start=1"}`}><AppIcon name="journey" />Open Journey</Link>{stages.length > 0 && <details><summary>Contact stages</summary>{stages.map(stage => <p key={stage.id}>{stage.name}</p>)}</details>}</section>
       {!impersonation && <details className="mix-manage"><summary><AppIcon name="settings" />Manage Mix</summary><div>{mix.source !== "ONE_TIME" && mix.triggerMode !== "BROADCAST" && mix.steps.length > 0 && <a className="button small" href={`/api/mixes/${encodeURIComponent(mix.id)}/export`} download><AppIcon name="export" />Export file</a>}{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small" type="submit"><AppIcon name="pause" />Pause Mix</button></form> : activationPreference?.reviewMixActivation !== false ? <Link className="button small" href={`${baseHref}&view=edit&activate=1`}><AppIcon name="play" />Review and start</Link> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small" type="submit"><AppIcon name="play" />Start Mix</button></form>}<ConfirmDialog trigger={<><AppIcon name="archive" />Archive Mix</>} title={`Archive ${mix.name}?`} description={archiveCopy} danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button danger" type="submit">Archive Mix</button></form></ConfirmDialog></div></details>}

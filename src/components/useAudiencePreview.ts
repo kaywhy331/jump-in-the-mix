@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 
-type Audience = { total: number; missingEmail: number; missingPhone: number };
-export function useAudiencePreview(all: boolean, groupIds: string[]) {
-  const key = JSON.stringify([all, [...groupIds].sort()]);
+/** `stageMoves`: with a Contact stage, how many of the people the save starts (`stage.all`, `stage.groupIds`) would move to it (UX-01). */
+type Audience = { total: number; missingEmail: number; missingPhone: number; stageMoves?: number; stageMovesFromOtherStages?: number; stageStarts?: number };
+export function useAudiencePreview(all: boolean, groupIds: string[], stage: { stageId: string; mixId?: string; all: boolean; groupIds: string[] } | null = null) {
+  const key = JSON.stringify([all, [...groupIds].sort(), stage?.stageId ?? "", stage?.mixId ?? "", stage?.all ?? false, [...(stage?.groupIds ?? [])].sort()]);
   const [retry, setRetry] = useState(0);
   const [state, setState] = useState<{ key: string; data?: Audience; error?: string }>({ key: "" });
   useEffect(() => {
-    const [everyone, groups] = JSON.parse(key) as [boolean, string[]];
+    const [everyone, groups, stageId, mixId, stageAll, stageGroups] = JSON.parse(key) as [boolean, string[], string, string, boolean, string[]];
     if (!everyone && !groups.length) { setState({ key, data: { total: 0, missingEmail: 0, missingPhone: 0 } }); return; }
     const controller = new AbortController();
     setState({ key });
@@ -15,6 +16,10 @@ export function useAudiencePreview(all: boolean, groupIds: string[]) {
       try {
         const params = new URLSearchParams(groups.map(id => ["group", id]));
         if (everyone) params.set("all", "1");
+        if (stageId) params.set("stage", stageId);
+        if (stageId && mixId) params.set("mix", mixId);
+        if (stageId && stageAll) params.set("stageAll", "1");
+        if (stageId) for (const id of stageGroups) params.append("stageGroup", id);
         const response = await fetch(`/api/contacts/audience?${params}`, { cache: "no-store", signal: controller.signal });
         if (!response.ok) throw new Error("Audience unavailable. Retry before starting this Mix.");
         const data = await response.json() as Audience;

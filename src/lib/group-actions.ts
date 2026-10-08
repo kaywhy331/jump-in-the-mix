@@ -8,6 +8,7 @@ import {
   setActiveWorkspaceGroups
 } from "@/lib/group-activity";
 import { prisma } from "@/lib/prisma";
+import { setStagesFromTagJoins } from "@/lib/mix-stage";
 import { UserFacingError } from "@/lib/user-facing-error";
 
 function value(formData: FormData, key: string): string {
@@ -130,10 +131,13 @@ export async function assignSelectedContactsToActiveGroupAction(formData: FormDa
   if (contacts.length !== contactIds.length) fail("One or more selected Contacts are unavailable.", session);
 
   await prisma.$transaction(async (tx) => {
+    const tagged = new Set((await tx.contactGroupMembership.findMany({ where: { groupId, contactId: { in: contacts.map((contact) => contact.id) } }, select: { contactId: true } })).map((item) => item.contactId));
     await tx.contactGroupMembership.createMany({
       data: contacts.map((contact) => ({ contactId: contact.id, groupId })),
       skipDuplicates: true
     });
+    // A tag's Mix that names a Contact stage starts for the people newly given the tag, so it sets that stage (JITM-09 §2.79).
+    await setStagesFromTagJoins(tx, { workspaceId: workspace.id, joins: contacts.filter((contact) => !tagged.has(contact.id)).map((contact) => ({ contactId: contact.id, groupId })), actorUserId: user.id });
     await tx.auditLog.create({
       data: {
         workspaceId: workspace.id,

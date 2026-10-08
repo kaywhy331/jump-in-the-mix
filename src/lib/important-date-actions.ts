@@ -7,6 +7,7 @@ import { withViewerError, type ErrorViewer } from "@/lib/form-errors";
 import { daysInMonth } from "@/lib/jump-schedule";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { prisma } from "@/lib/prisma";
+import { setStagesFromMixStarts } from "@/lib/mix-stage";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -100,11 +101,14 @@ export async function createImportantDateAction(formData: FormData): Promise<voi
     });
     if (matchingMix) {
       const assignmentKey = `${workspace.id}:${matchingMix.id}:${contact.id}`;
+      const earlier = await tx.mixAssignment.findUnique({ where: { assignmentKey }, select: { isActive: true } });
       await tx.mixAssignment.upsert({
         where: { assignmentKey },
         create: { assignmentKey, workspaceId: workspace.id, mixId: matchingMix.id, contactId: contact.id, isActive: true },
         update: { isActive: true }
       });
+      // A date-based Mix that names a Contact stage sets it when it starts for them (JITM-09 §2.79).
+      if (!earlier?.isActive) await setStagesFromMixStarts(tx, { workspaceId: workspace.id, starts: [{ contactId: contact.id, mixId: matchingMix.id }], actorUserId: user.id });
     }
     await tx.job.create({
       data: {
