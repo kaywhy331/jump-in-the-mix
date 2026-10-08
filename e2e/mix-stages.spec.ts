@@ -177,6 +177,75 @@ test("ticking Everyone on an active Mix that names a stage says who moves before
   expect(await Promise.all([...people, eve].map(async person => (await prisma.contactJourney.findUnique({ where: { contactId: person.id } }))?.stageId))).toEqual([lead.id, prospect.id, prospect.id]);
 });
 
+test("a tag added while a Mix is paused is reviewed when the Mix starts again, with the people Everyone takes in (D65, UX-09)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/settings/journey");
+  await page.getByRole("button", { name: "Use these starting stages", exact: true }).click();
+  await expect(page.getByText("Contact stages saved.")).toBeVisible();
+  const [lead, prospect] = await prisma.journeyStage.findMany({ where: { workspaceId }, orderBy: { position: "asc" } });
+  // Fay is in a stage and in the tag the owner adds while the Mix is paused. Sam was added before stages, has none and
+  // has no place in the Mix yet, so Everyone takes him in when it starts again (D66).
+  const fay = await prisma.contact.create({ data: { workspaceId, displayName: "Fay Referred" } });
+  await prisma.contactJourney.create({ data: { workspaceId, contactId: fay.id, stageId: lead.id } });
+  const referrals = await prisma.group.create({ data: { workspaceId, name: "Referrals" } });
+  await prisma.contactGroupMembership.create({ data: { contactId: fay.id, groupId: referrals.id } });
+  const sam = await prisma.contact.create({ data: { workspaceId, displayName: "Sam Restored", createdAt: new Date(Date.now() - 86_400_000) } });
+  const mix = await mixWithBeat("Monthly tips");
+  await prisma.mix.update({ where: { id: mix.id }, data: { status: "PAUSED", audienceEveryone: true, stageId: prospect.id } });
+
+  // Adding the tag while the Mix stays paused moves no one yet.
+  await page.goto(`/mixes?mix=${mix.id}&view=edit`);
+  await page.locator("summary").filter({ hasText: "Name and start" }).click();
+  await expect(page.getByRole("combobox", { name: "After saving", exact: true })).toHaveValue("PAUSED");
+  await page.getByRole("checkbox", { name: /Referrals/ }).check();
+  await page.getByRole("button", { name: "Save Mix", exact: true }).click();
+  await expect(page.getByText("Mix saved.")).toBeVisible();
+  expect(await prisma.contactJourney.findUnique({ where: { contactId: fay.id } })).toMatchObject({ stageId: lead.id });
+
+  // The review preference is off for this owner, and Start Mix still opens the review, which counts Fay and Sam.
+  await page.goto(`/mixes?mix=${mix.id}`);
+  await page.getByRole("button", { name: "Details", exact: true }).click();
+  await page.locator("summary").filter({ hasText: "Manage Mix" }).click();
+  await page.getByRole("button", { name: "Start Mix", exact: true }).click();
+  await page.getByRole("button", { name: "Review and start", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Start this Mix?" });
+  await expect(dialog.getByText("Starting moves 2 people to Prospect, including 1 now in another stage. Pausing, removing or stopping the Mix doesn’t move them back.")).toBeVisible();
+  await capture(page, "stage-review-resume-390", "dialog[open]");
+  await dialog.getByRole("button", { name: "Start the Mix", exact: true }).click();
+  await expect(page.getByText("Mix saved.")).toBeVisible();
+  expect(await Promise.all([fay, sam].map(async person => (await prisma.contactJourney.findUnique({ where: { contactId: person.id } }))?.stageId))).toEqual([prospect.id, prospect.id]);
+});
+
+test("Remove on an Everyone Mix says it stops the Mix for the person, and Resume brings it back (D64)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mix = await mixWithBeat("Monthly tips");
+  await prisma.mix.update({ where: { id: mix.id }, data: { audienceEveryone: true } });
+  const rae = await prisma.contact.create({ data: { workspaceId, displayName: "Rae Removed" } });
+  await prisma.mixAssignment.create({ data: { workspaceId, mixId: mix.id, contactId: rae.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${mix.id}:audience:${rae.id}`, startDate: new Date() } });
+
+  // "More" holds the Mixes; it stays open across the page's own actions.
+  const more = page.locator("details#dates-and-mixes");
+  const openMore = async () => { if (!await more.evaluate(element => (element as HTMLDetailsElement).open)) await more.locator("summary").first().click(); };
+  await page.goto(`/contacts/${rae.id}`);
+  await openMore();
+  await page.getByRole("button", { name: "Remove the Monthly tips Mix", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Remove Monthly tips?" });
+  await expect(dialog.getByText("This Mix is for Everyone, so removing stops it for Rae Removed. Saving or starting the Mix again won’t add them back, but you can resume it here. Completed history stays available.")).toBeVisible();
+  await capture(page, "remove-everyone-390", "dialog[open]");
+  await dialog.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(page.getByText("Mix removed.")).toBeVisible();
+  expect(await prisma.mixStop.count({ where: { workspaceId, mixId: mix.id, contactId: rae.id } })).toBe(1);
+
+  // The Mix waits under the other stopped Mixes, and Resume gives Rae her place back.
+  await openMore();
+  const stopped = page.locator(".stopped-mix-section");
+  await expect(stopped.getByText("Monthly tips", { exact: true })).toBeVisible();
+  await stopped.getByRole("button", { name: "Resume", exact: true }).click();
+  await expect(page.getByText("Mix resumed.")).toBeVisible();
+  await expect(page.locator(".assigned-mix-row").getByRole("link", { name: "Monthly tips", exact: true })).toBeAttached();
+  expect((await prisma.mixAssignment.findUniqueOrThrow({ where: { assignmentKey: `${workspaceId}:${mix.id}:audience:${rae.id}` } })).isActive).toBe(true);
+});
+
 test("the stage choices fit 320px with 200% text and work from the keyboard (EVD-01)", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const style = document.createElement("style"); style.textContent = "html { font-size: 200% !important; }"; document.head.append(style); }));

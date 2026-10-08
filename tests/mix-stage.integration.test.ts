@@ -11,7 +11,8 @@ vi.mock("@/lib/env", async (importOriginal) => {
   return { ...actual, env: { ...actual.env, authRateLimitSecret: "mix-stage-integration-test-secret-1" } };
 });
 import { setStagesFromMixStarts, setStagesFromTagJoins, undoStageSet, addStageLabels, StageLimitRefusal, stageMovesForAudience } from "../src/lib/mix-stage";
-import { assignMixToContactAction, bulkAssignMixAction, undoBulkMixStartAction } from "../src/lib/contact-mix-actions";
+import { assignMixToContactAction, bulkAssignMixAction, removeMixAssignmentAction, undoBulkMixStartAction } from "../src/lib/contact-mix-actions";
+import { resumeMixForContactAction } from "../src/lib/mix-stop-actions";
 import { placeNewContacts } from "../src/lib/new-contact-placement";
 import { saveMixAction } from "../src/lib/mix-editor-actions";
 import { activateMixAction } from "../src/lib/mix-lifecycle-actions";
@@ -718,6 +719,146 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       const review = await redirectOf(activateMixAction(form({ mixId: draft.id })));
       expect(`${review.pathname}${review.search}`).toBe(`/mixes/${draft.id}/edit?activate=1`);
       expect((await prisma.mix.findUniqueOrThrow({ where: { id: draft.id } })).status).toBe("DRAFT");
+    });
+  });
+
+  describe("pausing, removing and resuming (D63–D65, UX-09)", () => {
+    // The editor's form for one Mix with one Beat, as it is saved now.
+    async function editor(mixId: string, fields: Record<string, string | string[]>) {
+      const current = await prisma.mix.findUniqueOrThrow({ where: { id: mixId } });
+      const step = await prisma.mixStep.findFirstOrThrow({ where: { mixId, isActive: true } });
+      return form({ name: current.name, mixId, mixStepId: step.id, mixUpdatedAt: current.updatedAt.toISOString(), triggerMode: "MANUAL_START", dayOffset: "0", sendTimeMinutes: "", plannedAt: "", anchor: "CALENDAR_DAY", offsetMinutes: "", "inlineName-0": "Check in", "inlineChannel-0": "PHONE_CALL", "inlineScript-0": "Ask how it went.", stageId: prospect, ...fields });
+    }
+    const place = (mixId: string, contactId: string, isActive = true) => prisma.mixAssignment.create({ data: { workspaceId, mixId, contactId, mode: "DYNAMIC", isActive, assignmentKey: `${workspaceId}:${mixId}:audience:${contactId}`, startDate: new Date() } });
+    const placeOf = (mixId: string, contactId: string) => prisma.mixAssignment.findUnique({ where: { assignmentKey: `${workspaceId}:${mixId}:audience:${contactId}` } });
+    const tagged = async (name: string, members: string[]) => {
+      const group = await prisma.group.create({ data: { workspaceId, name } });
+      await prisma.contactGroupMembership.createMany({ data: members.map(contactId => ({ contactId, groupId: group.id })) });
+      return group;
+    };
+    const moves = () => prisma.journeyEvent.count({ where: { workspaceId, eventType: "MANUAL", source: { startsWith: "Mix: " } } });
+    beforeEach(async () => {
+      await prisma.userPreference.upsert({ where: { userId }, create: { userId, reviewMixActivation: false }, update: { reviewMixActivation: false } });
+    });
+
+    it("a \"Keep paused\" save gives no place to people added during the pause; turning the Mix back on takes them in (D63, D58)", async () => {
+      const tips = await mix("Monthly tips", { stageId: prospect, audienceEveryone: true, status: "PAUSED" });
+      const kim = await older("Kim");
+      await place(tips.id, kim);
+      // Tia was added while the Mix was paused, so the placement gave her no place.
+      const tia = await older("Tia");
+      const kept = await redirectOf(saveMixAction(await editor(tips.id, { status: "PAUSED", assignAllContacts: "on" })));
+      expect(kept.searchParams.get("error")).toBeNull();
+      expect([Boolean(await placeOf(tips.id, tia)), (await placeOf(tips.id, kim))?.isActive]).toEqual([false, true]);
+      expect([await stageOf(kim), await stageOf(tia)]).toEqual([null, null]);
+      // Turning it back on takes her in from now, and moves her, as she has no stage yet (D66). Kim had a place already.
+      const resumed = await redirectOf(saveMixAction(await editor(tips.id, { status: "ACTIVE", assignAllContacts: "on" })));
+      expect(resumed.searchParams.get("error")).toBeNull();
+      expect((await placeOf(tips.id, tia))?.isActive).toBe(true);
+      expect([await stageOf(kim), await stageOf(tia)]).toEqual([null, prospect]);
+    });
+
+    it("ticking Everyone on a paused Mix gives today's people a place, as before; only people added later wait for the resume (D63)", async () => {
+      const tips = await mix("Monthly tips", { stageId: prospect, status: "PAUSED" });
+      const kim = await older("Kim");
+      await redirectOf(saveMixAction(await editor(tips.id, { status: "PAUSED", assignAllContacts: "on" })));
+      expect((await placeOf(tips.id, kim))?.isActive).toBe(true);
+      const tia = await older("Tia");
+      await redirectOf(saveMixAction(await editor(tips.id, { status: "PAUSED", assignAllContacts: "on" })));
+      expect(await placeOf(tips.id, tia)).toBeNull();
+    });
+
+    it("Remove on an Everyone place stops the Mix for the person: no save or resume puts them back, and Resume on their page does (D64)", async () => {
+      const tips = await mix("Monthly tips", { audienceEveryone: true });
+      const [rae, own] = [await person("Rae"), await person("Own start")];
+      const raePlace = await place(tips.id, rae);
+      const ownRun = await prisma.mixAssignment.create({ data: { workspaceId, mixId: tips.id, contactId: own, assignmentKey: `${workspaceId}:${tips.id}:${own}`, startDate: new Date() } });
+      const removed = await redirectOf(removeMixAssignmentAction(form({ assignmentId: raePlace.id, contactId: rae })));
+      expect(`${removed.pathname}${removed.search}`).toBe(`/contacts/${rae}?mixRemoved=1`);
+      expect((await prisma.mixStop.findUniqueOrThrow({ where: { workspaceId_mixId_contactId: { workspaceId, mixId: tips.id, contactId: rae } } })).reason).toBe("mix.everyone.removed");
+      // Removing a start of the person's own is not a stop.
+      await redirectOf(removeMixAssignmentAction(form({ assignmentId: ownRun.id, contactId: own })));
+      expect(await prisma.mixStop.count({ where: { workspaceId, mixId: tips.id, contactId: own } })).toBe(0);
+      // Sam was stopped in the Mix before he had a place in it.
+      const sam = await person("Sam");
+      await prisma.mixStop.create({ data: { workspaceId, mixId: tips.id, contactId: sam } });
+      // A save re-syncs Everyone's places, and a pause and Resume on the Mixes list takes in people without one; neither
+      // puts Rae or Sam back.
+      expect((await redirectOf(saveMixAction(await editor(tips.id, { status: "ACTIVE", assignAllContacts: "on", stageId: "" })))).searchParams.get("error")).toBeNull();
+      await prisma.mix.update({ where: { id: tips.id }, data: { status: "PAUSED" } });
+      expect((await redirectOf(activateMixAction(form({ mixId: tips.id })))).searchParams.get("error")).toBeNull();
+      expect([(await placeOf(tips.id, rae))?.isActive, await placeOf(tips.id, sam)]).toEqual([false, null]);
+      // Resume on Rae's page lifts the stop and gives her place back.
+      const resumed = await redirectOf(resumeMixForContactAction(form({ mixId: tips.id, contactId: rae, returnTo: `/contacts/${rae}` })));
+      expect(resumed.searchParams.get("mixResumed")).toBe("1");
+      expect([await prisma.mixStop.count({ where: { workspaceId, mixId: tips.id, contactId: rae } }), (await placeOf(tips.id, rae))?.isActive]).toEqual([0, true]);
+    });
+
+    it("a tag added while the Mix is paused moves its members when it is turned back on, after a review (D65)", async () => {
+      const tips = await mix("Referral check-in", { stageId: prospect, status: "PAUSED" });
+      const [regular, referred, unstaged] = [await older("Regular"), await older("Referred"), await older("No stage")];
+      await placeIn(regular, lead); await placeIn(referred, lead);
+      const regulars = await tagged("Regulars", [regular]);
+      const referrals = await tagged("Referrals", [referred, unstaged]);
+      // Regulars was on the Mix before it was paused.
+      await prisma.mixAssignment.create({ data: { workspaceId, mixId: tips.id, groupId: regulars.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${tips.id}:group:${regulars.id}`, startDate: new Date() } });
+      const kept = await redirectOf(saveMixAction(await editor(tips.id, { status: "PAUSED", groupIds: [regulars.id, referrals.id] })));
+      expect(kept.searchParams.get("error")).toBeNull();
+      const marks = async () => (await prisma.mixAssignment.findMany({ where: { mixId: tips.id, groupId: { not: null } }, select: { groupId: true, addedWhilePaused: true }, orderBy: { groupId: "asc" } })).map(item => [item.groupId === referrals.id ? "Referrals" : "Regulars", item.addedWhilePaused]);
+      expect(Object.fromEntries(await marks())).toEqual({ Regulars: false, Referrals: true });
+      expect(await moves()).toBe(0);
+      // Start Mix on the list opens the review, and the editor refuses a resume without it.
+      const review = await redirectOf(activateMixAction(form({ mixId: tips.id })));
+      expect(`${review.pathname}${review.search}`).toBe(`/mixes/${tips.id}/edit?activate=1`);
+      const refused = await redirectOf(saveMixAction(await editor(tips.id, { status: "ACTIVE", groupIds: [regulars.id, referrals.id] })));
+      expect(refused.searchParams.get("error")).toBe("Review who moves to the Mix’s stage before turning it back on.");
+      expect((await prisma.mix.findUniqueOrThrow({ where: { id: tips.id } })).status).toBe("PAUSED");
+      // The review counts the tag's members, from any stage, and the confirmed resume moves exactly them.
+      const counted = await stageMovesForAudience(prisma, { workspaceId, stageId: prospect, all: false, groupIds: [referrals.id], mixId: tips.id });
+      expect(counted).toMatchObject({ moving: 2, fromOtherStages: 1 });
+      const resumed = await redirectOf(saveMixAction(await editor(tips.id, { status: "ACTIVE", activationConfirmed: "1", groupIds: [regulars.id, referrals.id] })));
+      expect(resumed.searchParams.get("error")).toBeNull();
+      expect([await stageOf(regular), await stageOf(referred), await stageOf(unstaged)]).toEqual([lead, prospect, prospect]);
+      expect(await moves()).toBe(counted.moving);
+      expect(Object.fromEntries(await marks())).toEqual({ Regulars: false, Referrals: false });
+    });
+
+    it("Start Mix on the list moves a paused-time tag's members only for a Mix without a stage to review, and clears the mark (D65)", async () => {
+      const tips = await mix("Referral check-in", { status: "PAUSED" });
+      const referrals = await tagged("Referrals", [await older("Referred")]);
+      await redirectOf(saveMixAction(await editor(tips.id, { status: "PAUSED", groupIds: referrals.id, stageId: "" })));
+      expect((await redirectOf(activateMixAction(form({ mixId: tips.id })))).searchParams.get("activated")).toBe("1");
+      expect(await prisma.mixAssignment.count({ where: { mixId: tips.id, addedWhilePaused: true } })).toBe(0);
+    });
+
+    it("resuming an Everyone Mix while adding a tag counts the people Everyone takes in, and moves exactly them (UX-09)", async () => {
+      const tips = await mix("Monthly tips", { stageId: prospect, audienceEveryone: true, status: "PAUSED" });
+      // Kim has her place. Sam has none: he was archived when Everyone was saved and restored later.
+      const [kim, sam] = [await older("Kim"), await older("Sam")];
+      await place(tips.id, kim);
+      const [first, second] = [await older("First referral"), await older("Second referral")];
+      await placeIn(first, lead); await placeIn(second, lead);
+      const referrals = await tagged("Referrals", [first, second]);
+      const partial = await stageMovesForAudience(prisma, { workspaceId, stageId: prospect, all: false, groupIds: [referrals.id], mixId: tips.id });
+      const counted = await stageMovesForAudience(prisma, { workspaceId, stageId: prospect, all: false, groupIds: [referrals.id], mixId: tips.id, resume: true, audienceGroupIds: [referrals.id] });
+      expect([partial.moving, counted.moving, counted.fromOtherStages]).toEqual([2, 3, 2]);
+      const resumed = await redirectOf(saveMixAction(await editor(tips.id, { status: "ACTIVE", activationConfirmed: "1", assignAllContacts: "on", groupIds: referrals.id })));
+      expect(resumed.searchParams.get("error")).toBeNull();
+      expect([await stageOf(kim), await stageOf(sam), await stageOf(first), await stageOf(second)]).toEqual([null, prospect, prospect, prospect]);
+      expect(await moves()).toBe(counted.moving);
+    });
+
+    it("the resume count leaves out people in the Mix by a tag the save keeps, and counts those of a tag it drops (UX-09)", async () => {
+      const tips = await mix("Monthly tips", { stageId: prospect, audienceEveryone: true, status: "PAUSED" });
+      const [kept, dropped] = [await older("In a kept tag"), await older("In a dropped tag")];
+      const keep = await tagged("Keep", [kept]);
+      const drop = await tagged("Drop", [dropped]);
+      for (const group of [keep, drop]) await prisma.mixAssignment.create({ data: { workspaceId, mixId: tips.id, groupId: group.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${tips.id}:group:${group.id}`, startDate: new Date() } });
+      const counted = await stageMovesForAudience(prisma, { workspaceId, stageId: prospect, all: false, groupIds: [], mixId: tips.id, resume: true, audienceGroupIds: [keep.id] });
+      expect(counted.moving).toBe(1);
+      await redirectOf(saveMixAction(await editor(tips.id, { status: "ACTIVE", activationConfirmed: "1", assignAllContacts: "on", groupIds: keep.id })));
+      expect([await stageOf(kept), await stageOf(dropped)]).toEqual([null, prospect]);
+      expect(await moves()).toBe(counted.moving);
     });
   });
 });
