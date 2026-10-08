@@ -123,7 +123,8 @@ export async function peopleInMixByOtherRoutes(tx: Tx, workspaceId: string, mixI
  * saved, except a Mix they are already in by their own start or a shown tag. A Mix that starts when the owner
  * chooses starts for the newcomer from the moment they were added. A broadcast whose time has passed is left out, so
  * nobody receives it late as an overdue follow-up. Do not contact and the plan's people limit hold these follow-ups
- * exactly as they hold any audience's. A Mix that names a Contact stage sets it for the people it starts.
+ * exactly as they hold any audience's. A Mix that names a Contact stage sets it for the people it starts, except
+ * through Everyone: newcomers keep the stage new people join (D66), so here only the owner's pick sets one.
  *
  * Call it inside the transaction that created the people, after their stage event when the path has one. It queues
  * their preparation unless the caller does (`queuePreparation: false`).
@@ -218,8 +219,8 @@ export async function placeNewContacts(tx: Tx, input: {
       starts.push({ contactId, mixId: audience.id, everyone: true });
     }
   }
-  // An Everyone Mix that names a Contact stage sets it, as any start does (JITM-09 §2.79). A Mix the owner picked while
-  // adding them comes last, so its stage wins over an Everyone Mix's (ORD-01).
+  // An Everyone start sets a stage only for someone with no stage who isn't new (D66), so it moves no newcomer here. A Mix
+  // the owner picked while adding them comes last, so its stage wins over an Everyone Mix's (ORD-01).
   if (input.explicit && mix) starts.push(...result.started.map(contactId => ({ contactId, mixId: mix.id })));
   await setStagesFromMixStarts(tx, { workspaceId, starts, actorUserId: input.actorUserId, now });
   if (placed.size && queuePreparation) {

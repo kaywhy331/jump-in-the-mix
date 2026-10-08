@@ -136,7 +136,7 @@ export function MixEditor({
   const addsEveryone = assignAllContacts && !mix?.assignAllContacts;
   const addedGroupIds = [...selectedGroupIds].filter((id) => !(mix?.groupIds ?? []).includes(id));
   const starts = turningOn ? (audienceChosen ? { all: assignAllContacts, groupIds: [...selectedGroupIds] } : null)
-    : status === "ACTIVE" && (addsEveryone || addedGroupIds.length) ? { all: addsEveryone, groupIds: addsEveryone ? [] : addedGroupIds } : null;
+    : status === "ACTIVE" && (addsEveryone || addedGroupIds.length) ? { all: addsEveryone, groupIds: addedGroupIds } : null;
   const stageReview = Boolean(stageName && starts);
   const audience = useAudiencePreview(assignAllContacts, [...selectedGroupIds], stageReview && starts ? { stageId, mixId: mix?.id, ...starts } : null);
   // On a Mix already on, the review is about the people this save adds, not the whole audience (COPY-02).

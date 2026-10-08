@@ -379,7 +379,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
         // Only a save that turns the Mix on or newly ticks Everyone starts Everyone, as its review says. Resuming a paused
         // one starts the people it had no place for and who aren't in it by another route (a tag, their own start, a
         // visit or a Journey run), as Resume on the Mixes list does. A "Keep paused" save gives the people added during the
-        // pause a place, so a resume after one doesn't move them (UX-04, a question for Kevin). Re-saving an Everyone Mix re-syncs its
+        // pause a place, so a resume after one doesn't move them (UX-04; D63 will stop that save placing them). Re-saving an Everyone Mix re-syncs its
         // places, and that moves no one: not someone the owner removed, nor someone another route put in it (UX-03).
         if (turningOn || (!hadEveryone && !existing?.isActive) || (resuming && !existing && !elsewhere.has(contactId))) starting.push(saved.id);
       }

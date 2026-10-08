@@ -585,15 +585,14 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
   describe("re-saving an Everyone Mix and the batched arrival (round 3 fixes)", () => {
     it("re-saving an Everyone Mix moves no one; resuming it moves the people added while it was off (UX-03, D58)", async () => {
       const tag = await prisma.group.create({ data: { workspaceId, name: "Regulars" } });
-      const rae = await person("Rae"), sid = await person("Sid");
+      // Both have no stage and were added before stages, so D66 alone wouldn't keep them where they are.
+      const rae = await older("Rae"), sid = await older("Sid");
       await prisma.contactGroupMembership.create({ data: { contactId: sid, groupId: tag.id } });
       const tips = await mix("Monthly tips", { stageId: prospect, audienceEveryone: true });
       // Rae had an Everyone place that the owner removed (Remove writes no stop), then moved on to Client.
       await prisma.mixAssignment.create({ data: { workspaceId, mixId: tips.id, contactId: rae, mode: "DYNAMIC", isActive: false, assignmentKey: `${workspaceId}:${tips.id}:audience:${rae}` } });
-      await placeIn(rae, client);
       // Sid is in the Mix through a tag, so the placement gave him no Everyone place.
       await prisma.mixAssignment.create({ data: { workspaceId, mixId: tips.id, groupId: tag.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${tips.id}:group:${tag.id}`, startDate: new Date() } });
-      await placeIn(sid, retention);
       const editor = async (fields: Record<string, string>) => {
         const current = await prisma.mix.findUniqueOrThrow({ where: { id: tips.id } });
         const step = await prisma.mixStep.findFirstOrThrow({ where: { mixId: tips.id, isActive: true } });
@@ -602,12 +601,12 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       await prisma.userPreference.upsert({ where: { userId }, create: { userId, reviewMixActivation: false }, update: { reviewMixActivation: false } });
       const saved = await redirectOf(saveMixAction(await editor({ status: "ACTIVE" })));
       expect(saved.searchParams.get("error")).toBeNull();
-      expect([await stageOf(rae), await stageOf(sid)]).toEqual([client, retention]);
+      expect([await stageOf(rae), await stageOf(sid)]).toEqual([null, null]);
       // Paused, then someone is added; turning it back on in the editor moves only them.
       await redirectOf(saveMixAction(await editor({ status: "PAUSED" })));
       const tia = (await prisma.contact.create({ data: { workspaceId, displayName: "Tia", createdAt: new Date(Date.now() - 86_400_000) } })).id;
       await redirectOf(saveMixAction(await editor({ status: "ACTIVE" })));
-      expect([await stageOf(rae), await stageOf(sid), await stageOf(tia)]).toEqual([client, retention, prospect]);
+      expect([await stageOf(rae), await stageOf(sid), await stageOf(tia)]).toEqual([null, null, prospect]);
     });
 
     it("the batched arrival keeps changeManagedPlan's rules for the arrival stage's Mix (PERF-01)", async () => {
@@ -691,6 +690,26 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       await instance(finished, "ACTIVE", [{ ...run(false), status: "FINISHED" }]);
       await redirectOf(activateMixAction(form({ mixId: tips.id })));
       expect([await stageOf(paused), await stageOf(stopped), await stageOf(mirrored), await stageOf(finished)]).toEqual([null, prospect, prospect, prospect]);
+    });
+
+    it("ticking Everyone and adding a tag in one save counts and moves the tag's members from any stage (UX-08, D66)", async () => {
+      const tips = await mix("Monthly tips", { stageId: prospect });
+      const tag = await prisma.group.create({ data: { workspaceId, name: "Clients" } });
+      const [tagged, everyoneOnly, noStage] = [await person("Tagged client"), await person("Everyone client"), await older("No stage")];
+      await prisma.contactGroupMembership.create({ data: { contactId: tagged, groupId: tag.id } });
+      await placeIn(tagged, client);
+      await placeIn(everyoneOnly, client);
+      await prisma.userPreference.upsert({ where: { userId }, create: { userId, reviewMixActivation: false }, update: { reviewMixActivation: false } });
+      // The editor counts Everyone and the added tag together.
+      const counted = await stageMovesForAudience(prisma, { workspaceId, stageId: prospect, all: true, groupIds: [tag.id], mixId: tips.id });
+      expect(counted).toEqual({ moving: 2, fromOtherStages: 1, starting: 3 });
+      const step = await prisma.mixStep.findFirstOrThrow({ where: { mixId: tips.id, isActive: true } });
+      const saved = await redirectOf(saveMixAction(form({ name: "Monthly tips", mixId: tips.id, mixStepId: step.id, mixUpdatedAt: tips.updatedAt.toISOString(), status: "ACTIVE", activationConfirmed: "1", triggerMode: "MANUAL_START", dayOffset: "0", sendTimeMinutes: "", plannedAt: "", anchor: "CALENDAR_DAY", offsetMinutes: "", "inlineName-0": "Check in", "inlineChannel-0": "PHONE_CALL", "inlineScript-0": "Ask how it went.", assignAllContacts: "on", groupIds: tag.id, stageId: prospect })));
+      expect(saved.searchParams.get("error")).toBeNull();
+      // The tag's start wins over Everyone's for its member, so the tagged client moves; Everyone moves only the
+      // person with no stage, and the other client keeps theirs (TST-07).
+      expect([await stageOf(tagged), await stageOf(everyoneOnly), await stageOf(noStage)]).toEqual([prospect, client, prospect]);
+      expect(await prisma.journeyEvent.count({ where: { workspaceId, eventType: "MANUAL", source: "Mix: Monthly tips" } })).toBe(counted.moving);
     });
 
     it("Start Mix on the list reviews a draft Everyone Mix that names a stage even before it has places (UX-05)", async () => {
