@@ -112,6 +112,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
           updatedAt: mix.updatedAt.toISOString(),
           status: query.activate === "1" ? "ACTIVE" : mix.status === "ARCHIVED" ? "DRAFT" : mix.status,
           savedStatus: mix.status === "ARCHIVED" ? "DRAFT" : mix.status,
+          resumeGroupIds: mix.assignments.flatMap((assignment) => assignment.groupId && assignment.addedWhilePaused ? [assignment.groupId] : []),
           groupIds,
           assignAllContacts,
           stageId: mix.stageId,
