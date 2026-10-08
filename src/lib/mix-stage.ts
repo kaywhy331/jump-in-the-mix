@@ -10,9 +10,10 @@ type Tx = Prisma.TransactionClient;
 /**
  * One person starting one Mix. When one call starts several Mixes for the same person, the last entry wins.
  * `assignmentId` is the person's own enrollment this start created or restarted, for a start the owner made for them;
- * only that one can come under a stage's management (STG-04).
+ * only that one can come under a stage's management (STG-04). `everyone` marks a start through a Mix's Everyone
+ * audience, which sets the stage only for someone with no stage yet (D66).
  */
-export type MixStart = { contactId: string; mixId: string; assignmentId?: string };
+export type MixStart = { contactId: string; mixId: string; assignmentId?: string; everyone?: boolean };
 
 /** What a start did to one person's Contact stage, recorded so an Undo can put it back (UNDO-02). */
 export type StageSet = {
@@ -42,6 +43,8 @@ export function mixStageSummary(previousStage: string | null, stage: string, mix
  *   the person had entered the stage, so the stage's "Mix completed" rule applies (STG-01).
  * - Someone still waiting for the worker's stage pass first joins the stage new people join, with its Mix, as the pass
  *   would have done (`joinArrivalStage`, STG-02). Every way of adding people then ends the same way.
+ * - An Everyone audience moves only people with no stage yet (D66): not someone in a stage, nor someone new, who has
+ *   or is about to get the stage new people join. Tags and the owner's own starts move people as before.
  * - The latest start wins, among the starts that can set a stage. Nothing is set while automatic transitions are
  *   paused for the business, or for a person whose own stage changes are paused, or when the stage is retired.
  * - A person the Mix doesn't run for is left as they are: archived, Do not contact, or stopped in that Mix.
@@ -72,8 +75,11 @@ export async function setStagesFromMixStarts(tx: Tx, input: { workspaceId: strin
   const now = input.now ?? new Date();
 
   const people = [...latest.keys()].sort();
-  const locked = new Set((await tx.$queryRaw<Array<{ id: string }>>`
-    SELECT id FROM "Contact" WHERE "workspaceId" = ${workspaceId} AND "archivedAt" IS NULL AND id IN (${Prisma.join(people)}) ORDER BY id FOR NO KEY UPDATE`).map(row => row.id));
+  const lockedRows = await tx.$queryRaw<Array<{ id: string; createdAt: Date }>>`
+    SELECT id, "createdAt" FROM "Contact" WHERE "workspaceId" = ${workspaceId} AND "archivedAt" IS NULL AND id IN (${Prisma.join(people)}) ORDER BY id FOR NO KEY UPDATE`;
+  const locked = new Set(lockedRows.map(row => row.id));
+  // New people, added since Contact stages were turned on: they have, or are about to get, the stage new people join.
+  const arrivedAfterStages = new Set(lockedRows.filter(row => row.createdAt >= preference.enabledAt).map(row => row.id));
   const stageIds = [...new Set([...latest.values()].map(mixId => mixes.get(mixId)!.stageId!))].sort();
   const stages = new Map((await tx.$queryRaw<Array<{ id: string; name: string; planId: string | null }>>`
     SELECT id, name, "planId" FROM "JourneyStage" WHERE "workspaceId" = ${workspaceId} AND "isActive" AND id IN (${Prisma.join(stageIds)}) ORDER BY id FOR SHARE`).map(row => [row.id, row]));
@@ -81,7 +87,8 @@ export async function setStagesFromMixStarts(tx: Tx, input: { workspaceId: strin
   const doNotContact = new Set(restricted.map(row => row.contactId));
   const eligible = people.filter(contactId => locked.has(contactId) && !doNotContact.has(contactId) && stages.has(mixes.get(latest.get(contactId)!)!.stageId!));
   if (!eligible.length) return [];
-  await joinArrivalStage(tx, { workspaceId, contactIds: eligible, enabledAt: preference.enabledAt, now });
+  // An Everyone start leaves new people to the stage new people join (D66), so only other starts join it first.
+  await joinArrivalStage(tx, { workspaceId, contactIds: eligible.filter(contactId => !latestStart.get(contactId)!.everyone), enabledAt: preference.enabledAt, now });
   const current = await tx.contactJourney.findMany({ where: { contactId: { in: eligible } }, select: { contactId: true, workspaceId: true, stageId: true, stageSince: true, managedAssignmentId: true, automatic: true, version: true, stage: { select: { name: true } } } });
   const records = new Map(current.map(record => [record.contactId, record]));
 
@@ -101,6 +108,8 @@ export async function setStagesFromMixStarts(tx: Tx, input: { workspaceId: strin
     const stage = stages.get(mix.stageId!)!;
     const record = records.get(contactId);
     if (record && (record.workspaceId !== workspaceId || !record.automatic)) continue;
+    // Everyone moves only people with no stage yet (D66).
+    if (latestStart.get(contactId)!.everyone && (record || arrivedAfterStages.has(contactId))) continue;
     if (record?.stageId === mix.stageId) {
       const assignmentId = ownRun(contactId, stage);
       if (assignmentId && !record.managedAssignmentId) adopting.push({ contactId, assignmentId });
@@ -160,18 +169,23 @@ export async function setStagesFromTagJoins(tx: Tx, input: { workspaceId: string
 }
 
 /**
- * The people a Mix's audience starts it for when it begins for them all at once: the people its own assignments name
- * and the members of its shown tags, among the given assignments; a hidden tag runs nothing, as in the scheduler.
- * Archived people are left out by the stage step itself.
+ * The starts a Mix's audience makes when it begins for them all at once, among the given assignments: Everyone's places
+ * first, marked so they move only people with no stage yet (D66), then the people its own assignments name and the
+ * members of its shown tags, so someone in a tag too is moved by the tag; a hidden tag runs nothing, as in the
+ * scheduler. Archived people are left out by the stage step itself.
  */
-export async function audienceOf(tx: Tx, workspaceId: string, assignmentIds: readonly string[]): Promise<string[]> {
+export async function audienceStarts(tx: Tx, workspaceId: string, mixId: string, assignmentIds: readonly string[]): Promise<MixStart[]> {
   if (!assignmentIds.length) return [];
   const hidden = (await tx.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
   const assignments = await tx.mixAssignment.findMany({
-    where: { workspaceId, id: { in: [...assignmentIds] }, isActive: true, OR: [{ groupId: null }, { groupId: { notIn: hidden } }] },
-    select: { contactId: true, group: { select: { memberships: { select: { contactId: true } } } } }
+    where: { workspaceId, mixId, id: { in: [...assignmentIds] }, isActive: true, OR: [{ groupId: null }, { groupId: { notIn: hidden } }] },
+    select: { contactId: true, assignmentKey: true, group: { select: { memberships: { select: { contactId: true } } } } }
   });
-  return [...new Set(assignments.flatMap(assignment => assignment.contactId ? [assignment.contactId] : (assignment.group?.memberships ?? []).map(member => member.contactId)))];
+  const everyone = (assignment: { assignmentKey: string }) => assignment.assignmentKey.includes(":audience:");
+  return [
+    ...assignments.flatMap(assignment => assignment.contactId && everyone(assignment) ? [{ contactId: assignment.contactId, mixId, everyone: true }] : []),
+    ...assignments.flatMap(assignment => assignment.contactId ? everyone(assignment) ? [] : [{ contactId: assignment.contactId, mixId }] : (assignment.group?.memberships ?? []).map(member => ({ contactId: member.contactId, mixId })))
+  ];
 }
 
 /**
@@ -269,12 +283,14 @@ export async function contactStageChoices(workspaceId: string, db: Pick<Tx, "jou
  * are in another stage now, for the review before turning the Mix on (UX-01). It counts as the start decides: nobody
  * while automatic transitions are paused or the stage is retired, and never people who are archived, Do not contact,
  * stopped in this Mix, whose own stage changes are paused, or who are in the stage already. Hidden tags run nothing.
- * `starting` is everyone the save starts, for the review's own count on a Mix already on (COPY-02).
+ * Everyone (`all`) moves only people with no stage yet, added before Contact stages were turned on (D66); a tag's
+ * members move from any stage. `starting` is everyone the save starts, for the review's own count on a Mix already on
+ * (COPY-02).
  */
 export async function stageMovesForAudience(db: Pick<Tx, "journeyPreference" | "journeyStage" | "contactGroupState" | "mixStop" | "contact">, input: { workspaceId: string; stageId: string; all: boolean; groupIds: readonly string[]; mixId?: string | null }): Promise<{ moving: number; fromOtherStages: number; starting: number }> {
   const { workspaceId, stageId } = input;
   const [preference, stage, hidden, stops] = await Promise.all([
-    db.journeyPreference.findUnique({ where: { workspaceId }, select: { enabled: true } }),
+    db.journeyPreference.findUnique({ where: { workspaceId }, select: { enabled: true, enabledAt: true } }),
     db.journeyStage.findFirst({ where: { id: stageId, workspaceId, isActive: true }, select: { id: true } }),
     db.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } }),
     input.mixId ? db.mixStop.findMany({ where: { workspaceId, mixId: input.mixId }, select: { contactId: true } }) : Promise.resolve([])
@@ -282,14 +298,15 @@ export async function stageMovesForAudience(db: Pick<Tx, "journeyPreference" | "
   const hiddenIds = new Set(hidden.map(state => state.groupId));
   const groupIds = input.groupIds.filter(id => !hiddenIds.has(id));
   if (!input.all && !groupIds.length) return { moving: 0, fromOtherStages: 0, starting: 0 };
-  const audience: Prisma.ContactWhereInput = { AND: [
-    { workspaceId, archivedAt: null },
-    input.all ? {} : { groupMemberships: { some: { groupId: { in: groupIds }, group: { workspaceId } } } }
-  ] };
+  const tagged: Prisma.ContactWhereInput = groupIds.length ? { groupMemberships: { some: { groupId: { in: groupIds }, group: { workspaceId } } } } : { id: { in: [] } };
+  const audience: Prisma.ContactWhereInput = { AND: [{ workspaceId, archivedAt: null }, input.all ? {} : tagged] };
   const starting = await db.contact.count({ where: audience });
   if (!preference?.enabled || !stage) return { moving: 0, fromOtherStages: 0, starting };
+  // Everyone reaches only people with no stage who aren't new (D66); a tag reaches its members wherever they are.
+  const reached: Prisma.ContactWhereInput = input.all ? { OR: [tagged, { journey: { is: null }, createdAt: { lt: preference.enabledAt } }] } : tagged;
   const where: Prisma.ContactWhereInput = { AND: [
     audience,
+    reached,
     { NOT: { relationshipState: { is: { doNotContact: true } } } },
     stops.length ? { id: { notIn: stops.map(stop => stop.contactId) } } : {},
     { OR: [{ journey: { is: null } }, { journey: { is: { automatic: true, stageId: { not: stageId } } } }] }

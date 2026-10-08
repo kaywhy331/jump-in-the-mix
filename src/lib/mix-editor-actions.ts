@@ -17,7 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
 import { refreshSharesOf } from "@/lib/marketplace-service";
 import { startDraftMix } from "@/lib/mix-start";
-import { audienceOf, setStagesFromMixStarts } from "@/lib/mix-stage";
+import { audienceStarts, setStagesFromMixStarts } from "@/lib/mix-stage";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { UserFacingError } from "@/lib/user-facing-error";
@@ -385,7 +385,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
       }
       // A Mix that names a Contact stage sets it for the people it starts now (JITM-09 §2.79); changing the stage
       // doesn't move people already in the Mix.
-      if (status === "ACTIVE") await setStagesFromMixStarts(tx, { workspaceId: workspace.id, starts: (await audienceOf(tx, workspace.id, starting)).map(contactId => ({ contactId, mixId })), actorUserId: user.id, now });
+      if (status === "ACTIVE") await setStagesFromMixStarts(tx, { workspaceId: workspace.id, starts: await audienceStarts(tx, workspace.id, mixId, starting), actorUserId: user.id, now });
 
       if (afterMix) {
         const sourceId = value(formData, "completionSourceId", 160);

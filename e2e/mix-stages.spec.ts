@@ -152,7 +152,8 @@ test("ticking Everyone on an active Mix that names a stage says who moves before
   await page.getByRole("button", { name: "Use these starting stages", exact: true }).click();
   await expect(page.getByText("Contact stages saved.")).toBeVisible();
   const [lead, prospect] = await prisma.journeyStage.findMany({ where: { workspaceId }, orderBy: { position: "asc" } });
-  const people = await Promise.all(["Cal Moves", "Dot Moves"].map(displayName => prisma.contact.create({ data: { workspaceId, displayName } })));
+  // Cal is in a stage and keeps it; Dot, added before stages and with none, moves (D66).
+  const people = await Promise.all(["Cal Stays", "Dot Moves"].map((displayName, index) => prisma.contact.create({ data: { workspaceId, displayName, ...(index ? { createdAt: new Date(Date.now() - 86_400_000) } : {}) } })));
   await prisma.contactJourney.create({ data: { workspaceId, contactId: people[0].id, stageId: lead.id } });
   const mix = await mixWithBeat("Monthly tips");
   await prisma.mix.update({ where: { id: mix.id }, data: { stageId: prospect.id } });
@@ -163,11 +164,11 @@ test("ticking Everyone on an active Mix that names a stage says who moves before
   // The review preference is off for this owner; the save still opens a review of the people it adds (COPY-02).
   await page.getByRole("button", { name: "Review and save", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Save these changes?" });
-  await expect(dialog.getByText("Saving moves 2 people to Prospect, including 1 now in another stage. Pausing, removing or stopping the Mix doesn’t move them back.")).toBeVisible();
+  await expect(dialog.getByText("Saving moves 1 person to Prospect. Pausing, removing or stopping the Mix doesn’t move them back.")).toBeVisible();
   await capture(page, "stage-review-active-390", "dialog[open]");
   await dialog.getByRole("button", { name: "Save the Mix", exact: true }).click();
   await expect(page.getByText("Mix saved.")).toBeVisible();
-  expect((await prisma.contactJourney.findMany({ where: { contactId: { in: people.map(person => person.id) } } })).map(record => record.stageId)).toEqual([prospect.id, prospect.id]);
+  expect(await Promise.all(people.map(async person => (await prisma.contactJourney.findUnique({ where: { contactId: person.id } }))?.stageId))).toEqual([lead.id, prospect.id]);
 });
 
 test("the stage choices fit 320px with 200% text and work from the keyboard (EVD-01)", async ({ page }) => {

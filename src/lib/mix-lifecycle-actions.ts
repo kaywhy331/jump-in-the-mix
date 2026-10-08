@@ -6,7 +6,7 @@ import { type ErrorViewer, withViewerError } from "@/lib/form-errors";
 import { prisma } from "@/lib/prisma";
 import { unshareForArchivedMix } from "@/lib/marketplace-service";
 import { startDraftMix } from "@/lib/mix-start";
-import { audienceOf, setStagesFromMixStarts } from "@/lib/mix-stage";
+import { audienceStarts, setStagesFromMixStarts, type MixStart } from "@/lib/mix-stage";
 import { activeMixLimitRefusal } from "@/lib/plan-limits";
 import { peopleInMixByOtherRoutes } from "@/lib/new-contact-placement";
 import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
@@ -45,7 +45,7 @@ export async function activateMixAction(formData: FormData): Promise<void> {
     await tx.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } });
     // Turning on a draft starts it for its whole audience; resuming a paused Mix starts only the people "Everyone" takes
     // in below.
-    const starting = mix.status === "DRAFT" ? await audienceOf(tx, workspace.id, (await tx.mixAssignment.findMany({ where: { workspaceId: workspace.id, mixId: mix.id, isActive: true }, select: { id: true } })).map(item => item.id)) : [];
+    const starting: MixStart[] = mix.status === "DRAFT" ? await audienceStarts(tx, workspace.id, mix.id, (await tx.mixAssignment.findMany({ where: { workspaceId: workspace.id, mixId: mix.id, isActive: true }, select: { id: true } })).map(item => item.id)) : [];
     // "Everyone" includes people added while the Mix was off, as the editor's save does (JITM-09 §2.78, EVR-01). They
     // start from now; everyone already in it keeps their start.
     if (mix.audienceEveryone) {
@@ -57,10 +57,11 @@ export async function activateMixAction(formData: FormData): Promise<void> {
       // On a resume, people in the Mix by another route (a tag, their own start, a visit, a Journey run) keep their stage
       // (UX-04, UX-06).
       const elsewhere = mix.status === "PAUSED" ? await peopleInMixByOtherRoutes(tx, workspace.id, mix.id) : new Set<string>();
-      starting.push(...contacts.filter(contact => !already.has(contact.id) && !elsewhere.has(contact.id)).map(contact => contact.id));
+      // Everyone's starts go first, so a tag's start for the same person comes later and wins (D66).
+      starting.unshift(...contacts.filter(contact => !already.has(contact.id) && !elsewhere.has(contact.id)).map(contact => ({ contactId: contact.id, mixId: mix.id, everyone: true })));
     }
     // A Mix that names a Contact stage sets it for the people it starts now (JITM-09 §2.79).
-    await setStagesFromMixStarts(tx, { workspaceId: workspace.id, starts: starting.map(contactId => ({ contactId, mixId: mix.id })), actorUserId: user.id, now });
+    await setStagesFromMixStarts(tx, { workspaceId: workspace.id, starts: starting, actorUserId: user.id, now });
     const definition = await readWorkflowDefinition(tx, workspace.id);
     const connectionId = `mix-start:${mix.id}`;
     if (definition.rules.some(rule => rule.id === connectionId && !rule.enabled)) await saveWorkflowConfiguration(tx, workspace.id, { rules: definition.rules.map(rule => rule.id === connectionId ? { ...rule, enabled: true } : rule), gatedStepIds: definition.gatedStepIds, intentionalEnds: definition.intentionalEnds }, definition.revision, user.id);

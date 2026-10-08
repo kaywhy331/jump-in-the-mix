@@ -3,7 +3,7 @@ import { startMixForContact, visitTimedBeats } from "@/lib/contact-mix-start";
 import { contactIdsInMix } from "@/lib/contact-mix-status";
 import { timezoneForWorkspace } from "@/lib/display-preferences";
 import { newContactStage } from "@/lib/journey";
-import { setStagesFromMixStarts } from "@/lib/mix-stage";
+import { setStagesFromMixStarts, type MixStart } from "@/lib/mix-stage";
 import { logicalDateFromDate, logicalDateInTimezone, zonedDateTimeToUtc, type LogicalDate } from "@/lib/jump-schedule";
 import { assertRoomForPeople } from "@/lib/plan-limits";
 import { UserFacingError } from "@/lib/user-facing-error";
@@ -203,7 +203,7 @@ export async function placeNewContacts(tx: Tx, input: {
     select: { mixId: true, contactId: true, group: { select: { memberships: { where: { contactId: { in: contactIds } }, select: { contactId: true } } } } }
   })).flatMap(assignment => assignment.contactId ? [`${assignment.mixId}:${assignment.contactId}`] : (assignment.group?.memberships ?? []).map(member => `${assignment.mixId}:${member.contactId}`)));
   const placed = new Set<string>();
-  const starts: Array<{ contactId: string; mixId: string }> = [];
+  const starts: MixStart[] = [];
   for (const audience of audiences) {
     for (const contactId of contactIds) {
       if (enrolled.has(`${audience.id}:${contactId}`)) continue;
@@ -215,7 +215,7 @@ export async function placeNewContacts(tx: Tx, input: {
         update: { isActive: true, mode: "DYNAMIC", startDate }
       });
       placed.add(contactId);
-      starts.push({ contactId, mixId: audience.id });
+      starts.push({ contactId, mixId: audience.id, everyone: true });
     }
   }
   // An Everyone Mix that names a Contact stage sets it, as any start does (JITM-09 §2.79). A Mix the owner picked while
