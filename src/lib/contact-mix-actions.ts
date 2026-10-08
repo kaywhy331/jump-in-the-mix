@@ -294,6 +294,9 @@ export async function removeMixAssignmentAction(formData: FormData): Promise<voi
   const keys = runKeys({ triggerMode: assignment.mix.triggerMode, startDate: assignment.startDate, createdAt: assignment.createdAt, ownerTimezone: await timezoneForWorkspace(workspace.id), bindingId: assignment.appointmentBinding?.id ?? null });
 
   await prisma.$transaction(async (tx) => {
+    // Removing an Everyone place waits for a Mix save in progress, which holds the business's row and re-syncs the
+    // places, and a later save waits for it, so neither undoes the other (LCK-04).
+    if (everyonePlace) await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR KEY SHARE`;
     // The run's Journey record, locked before its Beats in the Journey pass's order (UNDO-04).
     const journeys = await lockEnrollmentWorkflows(tx, { workspaceId: workspace.id, contactId, mixId: assignment.mixId, occurrencePrefixes: keys.triggers });
     await tx.mixAssignment.update({ where: { id: assignment.id }, data: { isActive: false } });
@@ -307,7 +310,9 @@ export async function removeMixAssignmentAction(formData: FormData): Promise<voi
     // and the record keeps no plan place; a later start of the same Mix and day picks it back up.
     const journeysEnded = await endLockedEnrollmentWorkflows(tx, journeys, ENROLLMENT_REMOVED_REASON, new Date());
     if (everyonePlace) {
-      // A stop, as Stop Mix writes it: the person's other follow-ups from this Mix end too. A stop already there is kept.
+      // A stop, as Stop Mix writes it: the person's other follow-ups from this Mix end too. A stop the owner or the plan
+      // limit wrote is kept; one a stage wrote on exit becomes this one, as re-entering that stage would lift it (STOP-01).
+      await tx.mixStop.updateMany({ where: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, reason: "journey.stage.exit" }, data: { reason: EVERYONE_PLACE_REMOVED_STOP, stoppedByUserId: user.id, stoppedAt: new Date() } });
       await tx.mixStop.upsert({
         where: { workspaceId_mixId_contactId: { workspaceId: workspace.id, mixId: assignment.mixId, contactId } },
         create: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, stoppedByUserId: user.id, reason: EVERYONE_PLACE_REMOVED_STOP },

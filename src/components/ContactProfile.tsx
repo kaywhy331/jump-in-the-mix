@@ -104,14 +104,17 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
       </div>
     );
   }
-  const [pendingCount, mixStatus] = await Promise.all([
+  const [pendingCount, mixStatus, stoppedMixes] = await Promise.all([
     prisma.jump.count({ where: { workspaceId: workspace.id, contactId, status: "PENDING" } }),
-    contactMixStatus(workspace.id, contactId)
+    contactMixStatus(workspace.id, contactId),
+    // A Mix the person is stopped in offers Resume whether it is on, paused or a draft, as removing them from an
+    // Everyone Mix says (UX-10).
+    stops.length ? prisma.mix.findMany({ where: { workspaceId: workspace.id, id: { in: stops.map((stop) => stop.mixId) }, status: { not: "ARCHIVED" }, source: { not: "ONE_TIME" } }, orderBy: { name: "asc" }, select: { id: true, name: true } }) : Promise.resolve([])
   ]);
   const followUpType = dateTypes.find((type) => type.slug === "follow-up");
   const stopByMixId = new Map(stops.map((stop) => [stop.mixId, stop]));
   const directPlanIds = new Set(contact.mixAssignments.map((assignment) => assignment.mixId));
-  const additionalStoppedPlans = plans.filter((plan) => stopByMixId.has(plan.id) && !directPlanIds.has(plan.id));
+  const additionalStoppedPlans = stoppedMixes.filter((plan) => !directPlanIds.has(plan.id));
   const activeByGroupId = new Map(groupStates.map((state) => [state.groupId, state.isActive]));
   const primaryEmail = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email ?? null;
   const primaryPhone = contact.phones.find((item) => item.isPrimary)?.phone ?? contact.phones[0]?.phone ?? null;

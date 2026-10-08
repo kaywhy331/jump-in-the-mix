@@ -262,7 +262,6 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
     ? (await prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true } })).map((contact) => contact.id)
     : [];
   const mixId = existingMix?.id ?? randomUUID();
-  const existingAssignmentByKey = new Map((existingMix?.assignments ?? []).map((assignment) => [assignment.assignmentKey, assignment]));
   const now = new Date();
   const durationDays = Math.max(...parsedOffsets) - Math.min(...parsedOffsets);
 
@@ -276,6 +275,9 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
         const current = await tx.mix.findUnique({ where: { id: mixId }, select: { updatedAt: true } });
         if (!current || current.updatedAt.getTime() !== Date.parse(openedAt)) throw new MixChangedElsewhere(MIX_CHANGED_ELSEWHERE);
       }
+      // The Mix's places as they are now, under the lock, so a Remove that finished after the editor's read stays a
+      // removal (LCK-04).
+      const existingAssignmentByKey = new Map((existingMix ? await tx.mixAssignment.findMany({ where: { workspaceId: workspace.id, mixId, mode: "DYNAMIC" } }) : []).map((assignment) => [assignment.assignmentKey, assignment]));
       if (status === "ACTIVE") {
         const limit = await activeMixLimitRefusal(workspace.id, existingMix ? { mixIds: [mixId] } : { newUnits: 1 }, tx);
         if (limit) throw new UserFacingError(limit);
@@ -369,9 +371,10 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
         const existing = existingAssignmentByKey.get(assignmentKey);
         const startDate = triggerMode === "MANUAL_START" ? freshStart ? now : existing?.startDate ?? now : null;
         // A tag added by a save that leaves the Mix paused starts its members when the Mix is turned back on, and moves
-        // them to its stage then (D65). Any other save clears the mark.
+        // them to its stage then (D65). Another save of the paused Mix keeps the mark; any other save of the tag clears it,
+        // so a mark left from before the Mix last ran (after a rollback, RBK-01) never survives a pause.
         const added = !existing?.isActive;
-        const pausedAddition = status === "PAUSED" && (added || Boolean(existing?.addedWhilePaused));
+        const pausedAddition = status === "PAUSED" && (added || (existingMix?.status === "PAUSED" && Boolean(existing?.addedWhilePaused)));
         const saved = await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, groupId, mode: "DYNAMIC", startDate, addedWhilePaused: pausedAddition }, update: { isActive: true, startDate, mode: "DYNAMIC", addedWhilePaused: pausedAddition } });
         if (turningOn || added || addedWhilePaused(groupId)) starting.push(saved.id);
       }

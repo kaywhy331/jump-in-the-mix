@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import type { Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
 import { type ErrorViewer, withViewerError } from "@/lib/form-errors";
 import { prisma } from "@/lib/prisma";
@@ -22,6 +23,17 @@ async function queueMixReconciliation(workspaceId: string, mixId: string): Promi
   await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { mixId } } });
 }
 
+/**
+ * Whether turning this Mix on moves people to its Contact stage, so Start Mix opens the review instead: a draft's whole
+ * audience (UX-01), or on a paused Mix the members of the tags added while it was paused (D65).
+ */
+async function movesToStage(db: Pick<Prisma.TransactionClient, "contactGroupState" | "mixAssignment">, workspaceId: string, mix: { id: string; status: string; audienceEveryone: boolean; stageId: string | null }): Promise<boolean> {
+  if (!mix.stageId) return false;
+  if (mix.status === "DRAFT") return mix.audienceEveryone || await db.mixAssignment.count({ where: { workspaceId, mixId: mix.id, isActive: true, mode: "DYNAMIC" } }) > 0;
+  const hidden = (await db.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
+  return await db.mixAssignment.count({ where: { workspaceId, mixId: mix.id, isActive: true, addedWhilePaused: true, groupId: { not: null, notIn: hidden } } }) > 0;
+}
+
 export async function activateMixAction(formData: FormData): Promise<void> {
   const { session, workspace, user, impersonation } = await requireWorkspace();
   if (impersonation) fail("Administrator support sessions are view-only.", session);
@@ -32,17 +44,15 @@ export async function activateMixAction(formData: FormData): Promise<void> {
   });
   if (!mix) fail("Mix not found or already active.", session);
   const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
-  // Turning on a draft that names a Contact stage moves its audience, so it is always reviewed first (UX-01). Turning a
-  // paused one back on moves the members of the tags added while it was paused, after the same review (D65).
-  const hidden = (await prisma.contactGroupState.findMany({ where: { workspaceId: workspace.id, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
-  const movesAudience = Boolean(mix.stageId) && (mix.status === "DRAFT"
-    ? mix.audienceEveryone || await prisma.mixAssignment.count({ where: { workspaceId: workspace.id, mixId: mix.id, isActive: true, mode: "DYNAMIC" } }) > 0
-    : await prisma.mixAssignment.count({ where: { workspaceId: workspace.id, mixId: mix.id, isActive: true, addedWhilePaused: true, groupId: { not: null, notIn: hidden } } }) > 0);
-  if (preference?.reviewMixActivation !== false || movesAudience) redirect(`/mixes/${mix.id}/edit?activate=1`);
-  const refusal = await prisma.$transaction(async tx => {
+  // A start that moves people to the Mix's stage is always reviewed first (UX-01, D65).
+  if (preference?.reviewMixActivation !== false || await movesToStage(prisma, workspace.id, mix)) redirect(`/mixes/${mix.id}/edit?activate=1`);
+  const outcome = await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR UPDATE`;
+    // Checked again under the lock: a save from another device may have added a tag or a stage since (LCK-04).
+    const current = await tx.mix.findFirst({ where: { id: mix.id, workspaceId: workspace.id }, select: { id: true, status: true, audienceEveryone: true, stageId: true } });
+    if (current && await movesToStage(tx, workspace.id, current)) return { review: true };
     const limit = await activeMixLimitRefusal(workspace.id, { mixIds: [mix.id] }, tx);
-    if (limit) return limit;
+    if (limit) return { refusal: limit };
     const now = new Date();
     await startDraftMix(tx, { workspaceId: workspace.id, mixId: mix.id, now });
     await tx.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } });
@@ -84,7 +94,8 @@ export async function activateMixAction(formData: FormData): Promise<void> {
     });
     return null;
   });
-  if (refusal) fail(refusal, session);
+  if (outcome && "review" in outcome) redirect(`/mixes/${mix.id}/edit?activate=1`);
+  if (outcome) fail(outcome.refusal, session);
   await queueMixReconciliation(workspace.id, mix.id);
   redirect("/mixes?activated=1");
 }
@@ -99,6 +110,9 @@ export async function pauseMixAction(formData: FormData): Promise<void> {
   if (!mix) fail("Active Mix not found.", session);
   await prisma.$transaction([
     prisma.mix.update({ where: { id: mix.id }, data: { status: "PAUSED" } }),
+    // Tags are marked only by saves while the Mix is paused (D65), so any mark left on a Mix that was running is stale,
+    // as after a rollback (RBK-01).
+    prisma.mixAssignment.updateMany({ where: { workspaceId: workspace.id, mixId: mix.id, addedWhilePaused: true }, data: { addedWhilePaused: false } }),
     prisma.jump.updateMany({
       where: { mixId: mix.id, workspaceId: workspace.id, status: "PENDING", scheduledAt: { gte: new Date() } },
       data: { status: "CANCELED", completedAt: null, completionMethod: "mix_paused" }
