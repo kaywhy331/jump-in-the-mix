@@ -124,7 +124,8 @@ export async function peopleInMixByOtherRoutes(tx: Tx, workspaceId: string, mixI
  * chooses starts for the newcomer from the moment they were added. A broadcast whose time has passed is left out, so
  * nobody receives it late as an overdue follow-up. Do not contact and the plan's people limit hold these follow-ups
  * exactly as they hold any audience's. A Mix that names a Contact stage sets it for the people it starts, except
- * through Everyone: newcomers keep the stage new people join (D66), so here only the owner's pick sets one.
+ * through Everyone: newcomers keep the stage new people join (D66), so here only the chosen or New contacts Mix sets
+ * one.
  *
  * Call it inside the transaction that created the people, after their stage event when the path has one. It queues
  * their preparation unless the caller does (`queuePreparation: false`).

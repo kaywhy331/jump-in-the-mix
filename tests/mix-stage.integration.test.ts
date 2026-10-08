@@ -589,7 +589,7 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       const rae = await older("Rae"), sid = await older("Sid");
       await prisma.contactGroupMembership.create({ data: { contactId: sid, groupId: tag.id } });
       const tips = await mix("Monthly tips", { stageId: prospect, audienceEveryone: true });
-      // Rae had an Everyone place that the owner removed (Remove writes no stop), then moved on to Client.
+      // Rae had an Everyone place that the owner removed (Remove writes no stop).
       await prisma.mixAssignment.create({ data: { workspaceId, mixId: tips.id, contactId: rae, mode: "DYNAMIC", isActive: false, assignmentKey: `${workspaceId}:${tips.id}:audience:${rae}` } });
       // Sid is in the Mix through a tag, so the placement gave him no Everyone place.
       await prisma.mixAssignment.create({ data: { workspaceId, mixId: tips.id, groupId: tag.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${tips.id}:group:${tag.id}`, startDate: new Date() } });

@@ -1,6 +1,6 @@
 # Stages from the work — 2026-10-07
 
-**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. Six WF-05 reviews: rounds 1–3 requested changes (round 1: 1 HIGH, 4 MEDIUM, 6 LOW; round 2: 2 MEDIUM, 5 LOW; round 3: 1 MEDIUM, 5 LOW), and rounds 4, 5 and 6 approved with LOW findings only. Kevin then answered the open questions (D61–D68); D66 changes what an Everyone Mix moves. The seventh review, of D66, requested one fix (UX-08), made below; an eighth review of it is next. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
+**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. Six WF-05 reviews: rounds 1–3 requested changes (round 1: 1 HIGH, 4 MEDIUM, 6 LOW; round 2: 2 MEDIUM, 5 LOW; round 3: 1 MEDIUM, 5 LOW), and rounds 4, 5 and 6 approved with LOW findings only. Kevin then answered the open questions (D61–D68); D66 changes what an Everyone Mix moves. The seventh review, of D66, requested one fix (UX-08), made below, and the eighth approved it with 2 LOW: two comments (fixed) and UX-09, which goes to the follow-up with D65. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
 
 **Decisions:**
 - **D35** (2026-10-05): a Mix can set a person's stage, and a Mega-Mix can create stage labels that the owner can still change.
@@ -61,7 +61,7 @@ A save that starts people on a Mix that names a stage can move many of them: tur
 - The count covers only the people the save starts: the whole audience when it turns the Mix on; on a Mix already on, all people when it ticks Everyone and the members of the tags it adds. It comes from `stageMovesForAudience` (`src/lib/mix-stage.ts`) through `/api/contacts/audience?stage=…&mix=…&stageAll=1&stageGroup=…`, and leaves out what the start leaves out: archived, Do not contact, stopped in this Mix, paused stage changes, already in the stage, hidden tags, and, for Everyone, anyone with a stage or added since stages were turned on. A test checks that it equals the people the confirmed save moves.
 - The server refuses such a save without the review ("Review who moves to the Mix’s stage before turning it on." or "… before adding them."), and Start Mix on the Mixes list opens the review instead of starting.
 - On a Mix already on, the review reads "Save these changes?", counts only the people the save starts, and its buttons are "Review and save" and "Save the Mix" (COPY-02).
-- Re-saving an Everyone Mix re-syncs its places but moves no one: not someone the owner removed from the Mix, nor someone a tag, their own start or a Journey Start already put in it (UX-03). Resuming a paused Everyone Mix, from the editor or from the Mixes list, moves the people it takes in then who have no stage yet (D66): those it had no place for and who aren't in it by another route (a tag, their own start, a visit, or a Journey Start or connection, D60). People added while it was off have the stage new people join, so in practice it moves only people added before stages who have none. A "Keep paused" save gives newcomers a place, so after one, resume moves none of them and their stage isn't set (UX-04); D63 makes that save follow D58 and place no newcomers, in the follow-up to this PR.
+- Re-saving an Everyone Mix re-syncs its places but moves no one: not someone the owner removed from the Mix, nor someone a tag, their own start or a Journey Start already put in it (UX-03). Resuming a paused Everyone Mix, from the editor or from the Mixes list, moves the people it takes in then who have no stage yet (D66): those it had no place for and who aren't in it by another route (a tag, their own start, a visit, or a Journey Start or connection, D60). People added while it was off have the stage new people join, so in practice it moves only people added before stages who have none. A "Keep paused" save gives newcomers a place, so after one, resume moves none of them and their stage isn't set (UX-04); D63 makes that save follow D58 and place no newcomers, in the follow-up to this PR. A resume in the editor that also adds a tag reviews only the tag, though the resume can move people Everyone takes in then; under D66 that is rare (for example, someone restored from the archive with no stage), and the follow-up's resume review (D65) covers it (UX-09).
 - Not reviewed: resuming a paused Mix, which starts only the people "Everyone" took in since, and saves that start no one.
 
 ### Retiring a stage
@@ -231,6 +231,10 @@ Round 7 (`REVIEW-7.md`, private) at 300de4b, of D66 and round 6's LOW fixes: cha
 | TST-07 | LOW | No save test showed a tag winning over Everyone; the re-save test passed without its guard. | The new save test shows it; the re-save test's people have no stage, so only the guard keeps them. |
 | DOC-07 | LOW | Pre-D61 and pre-D66 wording in the record, two comments, §2.79 and the PR body. | Reworded; §2.79 says an Everyone start leaves people waiting for the stage pass to it. |
 
+## Eighth review
+
+Round 8 (`REVIEW-8.md`, private) at e2b31e0: **approve**, 2 LOW. Round 7's three findings were fixed; the review found that the review's count matches who the save moves in every widening case, and that the tests would fail with UX-08 or the UX-03 guard reverted. DOC-08 (two comments) is fixed after the approval; UX-09 (a resume that also adds a tag reviews only the tag) goes to the follow-up with D65, as described above.
+
 ## Verification
 
 The final run is at adde73f, with D66 and the seventh review's fixes, on TrixBot, against fresh local databases (`jitm_design_mst1007_r9*`), with the environment of CI's validate job. Every ledger step records its head; only the record's verification section was committed after it. Logs, JSON reports and the ledger are in `.artifacts/mix-stages-20261007/verification/` (private); step names refer to its ledger. Earlier runs are kept there: round 1 (steps 01–13) and R2-* to R8-*.
@@ -257,7 +261,6 @@ The final run is at adde73f, with D66 and the seventh review's fixes, on TrixBot
 
 ## NOT RUN
 
-- **The eighth WF-05 review**, of the seventh review's fixes.
 - **Physical devices.**
 - **Production:** nothing released; no production data read. How many accounts have Everyone Mixes, or stages with their own Mix, is unknown.
 - **CI jobs**, which GitHub Actions can't run (billing, JITM-12 §2.12). Run here: schema, syntax and import validation, typecheck, the standards check, the migration rehearsal and release check, Vitest, `worker:qualify`, the production build and the browser batches below. Not run:
