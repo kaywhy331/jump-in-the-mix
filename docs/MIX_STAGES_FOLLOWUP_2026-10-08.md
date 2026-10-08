@@ -1,6 +1,6 @@
 # Stages follow-up: pausing, removing and resuming — 2026-10-08
 
-**Status:** PR #134 (`feat/mix-stages-followup-20261008`), not merged or released. It builds D63, D64 and D65 and fixes UX-09, the LOW finding that the eighth review of PR #132 moved here. It follows [Stages from the work](MIX_STAGES_2026-10-07.md), released as `prod-2026-10-08-dae3fab`. The first WF-05 review requested changes (2 MEDIUM, 7 LOW). Every finding is fixed or answered below, and a second review is next.
+**Status:** PR #134 (`feat/mix-stages-followup-20261008`), not merged or released. It builds D63, D64 and D65 and fixes UX-09, the LOW finding that the eighth review of PR #132 moved here. It follows [Stages from the work](MIX_STAGES_2026-10-07.md), released as `prod-2026-10-08-dae3fab`. The first WF-05 review requested changes (2 MEDIUM, 7 LOW). Every finding is fixed below. The second approved, with 3 LOW findings, which were fixed after the approval and not reviewed again, as with #128's LAY-05.
 
 **Decisions** (2026-10-07; Kevin: "I will go based on your recommendations for all the answers"; the log is in `docs/standards-audit-2026-09-28/OWNER_DECISIONS.md`):
 - **D63:** a paused Everyone Mix takes in no newcomers, even when the owner saves it while it is paused (D58, applied to the editor). Turning it back on takes them in.
@@ -26,12 +26,13 @@
   - writes a stop for that Mix, with the reason `mix.everyone.removed`;
   - ends the person's other open follow-ups from it, as Stop Mix does (agent default 5);
   - keeps a stop the owner or the plan limit had already written. A stop a stage wrote when the person left it becomes Remove's own, because re-entering that stage would lift it (STOP-01);
-  - first takes a key share of the business's row, so it waits for a Mix save in progress, and a later save waits for it (LCK-04).
+  - first takes a key share of the business's row, so it waits for a Mix save in progress, and a later save waits for it (LCK-04);
+  - writes the stop before it cancels any follow-up, in the order Stop Mix and a stage exit use, so two of them on the same person can't wait on each other (LCK-05).
 
   Removing the person's own start, or a Mix lined up with a visit, is unchanged.
 - **No save or Start Mix puts them back.** Neither the editor's save nor Start Mix on the list (`activateMixAction`, `src/lib/mix-lifecycle-actions.ts`) gives a place to someone stopped in the Mix whose place is off or missing. The save reads the places under its lock (LCK-04). Someone stopped with Stop Mix keeps their place through a re-save while it is on. Once it has gone off, for example when Everyone was unticked and ticked again, it stays off until Resume.
 - **The dialog says so** (`src/components/ContactProfile.tsx`). On an Everyone place it reads: "This Mix is for Everyone, so removing stops it for {name}. Saving or starting the Mix again won’t add them back, but you can resume it here. Completed history stays available." Other places keep "Completed history stays available."
-- **Resume shows wherever the Mix is.** After a Remove, the Mix shows under "Other stopped Mixes", with Resume, whether it is on, paused or a draft. That list now holds every Mix the person is stopped in, apart from archived ones; before, it held only Mixes that are on (UX-10).
+- **Resume shows wherever the Mix is.** After a Remove, the Mix shows under "Other stopped Mixes", with Resume, whether it is on, paused or a draft. That list now holds every Mix the person is stopped in, apart from archived ones; before, it held only Mixes that are on (UX-10). A paused Mix or a draft carries the label "Paused" or "Draft", and resuming it says "Mix resumed. It isn’t on, so nothing is prepared until you turn it on." (COPY-01).
 - **Resume** (`resumeMixForContactAction`, `src/lib/mix-stop-actions.ts`) lifts the stop, as before. On a Mix still for Everyone (on, paused or a draft), it also turns the place of a person who isn't archived back on (agent default 2):
   - a Mix the owner starts runs for them from today;
   - a date-based or fixed-date Mix follows its own dates.
@@ -50,7 +51,7 @@
 - **The review is forced** (D62):
   - In the editor, the button reads "Review and start", and the review counts the marked tags' members.
   - The server refuses the save without the review: "Review who moves to the Mix’s stage before turning it back on."
-  - Start Mix on the Mixes list opens the editor's review whenever the Mix names a stage and has a marked tag that is shown. It checks again under the business's lock, so a tag marked from another device a moment before is reviewed too (LCK-04). For a Mix with no stage, the list starts the marked tags (nothing moves) and clears the mark.
+  - Start Mix on the Mixes list opens the editor's review whenever the Mix names a stage and has a marked tag that is shown. It reads the Mix again under the business's lock and goes on with that read, so a tag marked from another device a moment before is reviewed too (LCK-04), and a Mix another device turned on meanwhile isn't started again ("Mix not found or already active."). For a Mix with no stage, the list starts the marked tags (nothing moves) and clears the mark.
 
 ### UX-09: the resume review counts the people Everyone takes in
 
@@ -78,7 +79,7 @@ Rollback is a redeploy of `prod-2026-10-08-dae3fab`, the web service first and t
 - **treats a stop written by Remove as any stop.** The profile shows the Mix as stopped, with Resume, while the Mix is on. The old Resume lifts the stop but doesn't turn the place back on, and the next save of the Everyone Mix gives it back;
 - **places newcomers again** on a "Keep paused" save.
 
-**On promoting again** (RBK-01): a mark set before the rollback survives the previous code turning that Mix back on. This code clears marks whenever a running Mix is paused, so a stale mark can reach a resume only on a Mix the previous code turned on and paused again. Before promoting again, clear the marks on Mixes that were turned on or saved while the previous code ran:
+**On promoting again** (RBK-01): a mark set before the rollback survives the previous code turning that Mix back on. This code clears marks whenever a running Mix is paused, so a stale mark can reach a resume only on a Mix the previous code turned on and paused again. As the promoted code starts serving, clear the marks on Mixes that were turned on, saved or paused while the previous code ran. Give the rollback time in UTC: `createdAt` is stored in UTC without a time zone. Run the statement again if the previous code served after the first run:
 
 ```sql
 UPDATE "MixAssignment" SET "addedWhilePaused" = false
@@ -119,25 +120,25 @@ Clearing every mark is also safe. The only cost is that tags added before the ro
 - review-8's case: resuming an Everyone Mix while adding a tag counts the tag's members and the person Everyone takes in (3, where the old count gave 2), and the save moves exactly those (UX-09);
 - a tag the save keeps leaves its members out of Everyone's intake, and a tag it drops doesn't (UX-09).
 
-Each fix was reverted in turn: with any one of the eighteen reverted, at least one of these tests fails (ledger steps F1-M1 to F1-M11 and F8-M12 to F8-M19). The checks LCK-04 adds under the locks guard races between two devices; no test runs them concurrently.
+Each fix was reverted in turn: with any one of the eighteen reverted, at least one of these tests fails (ledger steps F1-M1 to F1-M11, and F8-M12 to F8-M16, F8-M18 and F8-M19; there is no M17). The checks LCK-04 adds under the locks guard races between two devices; no test runs them concurrently.
 
 **Browser** (`e2e/mix-stages.spec.ts`), at 390px:
 - **D65 and UX-09.** A tag is added with "Keep paused", and Start Mix on the list then opens the review although this owner's review preference is off. The review reads "Starting moves 2 people to Prospect, including 1 now in another stage.", counting the tag's member and the person Everyone takes in; the confirmed start moves both. Axe runs in both themes.
-- **D64 and UX-10,** on a paused Mix. The Remove dialog's wording on an Everyone place; after Remove, the Mix appears under "Other stopped Mixes", and Resume brings it back. Axe runs in both themes.
+- **D64, UX-10 and COPY-01,** on a paused Mix. The Remove dialog's wording on an Everyone place. After Remove, the Mix appears under "Other stopped Mixes" with the label "Paused", and Resume brings it back with the paused notice. Axe runs in both themes.
 
 ## Verification
 
-Run on TrixBot, against fresh local databases (`jitm_design_msf1008_*`), with the environment of CI's validate job. Logs, JSON reports and the ledger are in `.artifacts/mix-stages-followup-20261008/verification/` (private). Steps F1 to F7 ran on the first build, before the PR (c31374b); F8 and F9 ran on the working tree with the first review's fixes, committed after them.
+Run on TrixBot, against fresh local databases (`jitm_design_msf1008_*`), with the environment of CI's validate job. Logs, JSON reports and the ledger are in `.artifacts/mix-stages-followup-20261008/verification/` (private). Steps F1 to F7 ran on the first build, before the PR (c31374b). F8 and F9 ran on the working tree with the first review's fixes, and F10 with the second review's, each committed after its run.
 
 | Check | Label | Result |
 |---|---|---|
 | `db:generate`, typecheck, `validate:static` | VERIFIED | Passed (F2-01, F2-02; again F8-02, F8-03). |
-| Stage integration tests | VERIFIED | `mix-stage.integration` 49/49: the 39 earlier ones and 10 new (F8-01). |
+| Stage integration tests | VERIFIED; two failed attempts under load, recorded | `mix-stage.integration` 49/49: the 39 earlier ones and 10 new (F8-01; with the second review's fixes, F10-05). Before F10-05, two attempts failed only on time limits while another project's test suite held the host at a load of 11: a 10-second hook and a 5-second test (F10-01), then PERF-01's 5-second transaction (F10-04). The run after the load dropped passed. The nine Vitest files that use Remove, Resume or Start Mix passed 155/155 (F10-12). |
 | Full Vitest, in the eight chunks of the last release, on a fresh database | VERIFIED; four suites BLOCKED | With the review's fixes: 312 files, 2,440 tests, 2,375 passed and 41 skipped (F9-03, totals from the JSON). The 24 failures are all `spawn pg_dump ENOENT` in `backup-database`, `recovery-bundle`, `recovery-cutoff` and `recovery-state`, as in the last release: TrixBot has no `pg_dump` (JITM-12 §2.17), and this change touches no backup code. The first run (F5-03) gave 2,372 passed, 41 skipped and the same 24. |
 | Migration | VERIFIED | `db:rehearse-migration` passed; `db:verify-release` reported `{"status":"ready","required":79,"missing":0,"mismatched":0}` (F6-02 to F6-04). The fixes changed no migration. |
 | `npm run worker:qualify` | VERIFIED at c31374b | 10/10 (F6-05). The fixes don't touch the worker's code. |
 | Production build | VERIFIED | Passed (F3-01; again F8-04). |
-| Browser specs against the standalone build, desktop and phone, no retries | VERIFIED; one first-attempt failure, recorded | **With the fixes,** no failures: <br>• batch S with the contact and visit specs: desktop 49 passed, phone 38 passed and 6 skipped (F8-09, F8-10);<br>• batch M: desktop 33 passed, phone 30 passed and 3 skipped (F8-11).<br>**First build:** batch S desktop 41, phone 36; batch M with the contact and visit specs desktop 41, phone 32 passed and 9 skipped; no failures (F4-01 to F4-04).<br>**The one failure** (TST-09): before those runs, the new D64 test failed on its first attempt (F3-06), because its click on the "More" summary closed a section that was still open. The test now opens it only when it is closed (F3-07). |
+| Browser specs against the standalone build, desktop and phone, no retries | VERIFIED; one first-attempt failure, recorded | **With the first review's fixes,** no failures: <br>• batch S with the contact and visit specs: desktop 49 passed, phone 38 passed and 6 skipped (F8-09, F8-10);<br>• batch M: desktop 33 passed, phone 30 passed and 3 skipped (F8-11).<br>**With the second review's fixes,** `mix-stages`, the contact and visit specs, the Mixes list and Mix authoring: desktop 25 passed, phone 17 passed and 8 skipped (F10-11).<br>**First build:** batch S desktop 41, phone 36; batch M with the contact and visit specs desktop 41, phone 32 passed and 9 skipped; no failures (F4-01 to F4-04).<br>**The one failure** (TST-09): before those runs, the new D64 test failed on its first attempt (F3-06), because its click on the "More" summary closed a section that was still open. The test now opens it only when it is closed (F3-07). |
 | Accessibility | VERIFIED | Axe (WCAG 2.0, 2.1 and 2.2 AA) passes in light and dark on the resume review and the Remove dialog. |
 | Screenshots | VERIFIED, inspected | `screens/stage-review-resume-390-*.png` and `screens/remove-everyone-390-*.png`; `screens-r1/` holds the same with the fixes. |
 | Baseline comparison (JITM-12 §2.14) | NOT RUN | The one browser failure was in the new test itself, not the product. |
@@ -157,6 +158,18 @@ Round 1 (`.artifacts/mix-stages-followup-20261008/REVIEW.md`, private) at c31374
 | TST-08 | LOW | No test for a second "Keep paused" save, a draft save clearing the mark, default 5's cancellation, Resume's start date, Remove on a paused Mix, or a hidden marked tag. | Added (Tests). |
 | TST-09 | LOW | The D64 browser test failed on its first run, and the record said no browser test failed. | Recorded under Verification. |
 | SEMVER-01 | LOW | 6.10.0 changed the meaning of shipped rules. | JITM-09 7.0.0. |
+
+## Second review
+
+Round 2 (`REVIEW-2.md`, private) at 7b35bfe: **approve**, 3 LOW. All nine of round 1's findings were fixed. The review found that none of the three new lock orders can deadlock with the editor save, placement, the worker's Journey paths, retiring a stage, a merge, pausing or archiving. It also confirmed that the record's clean-up statement is right.
+
+| ID | Finding | Fix |
+|---|---|---|
+| COPY-01 | The widened "Other stopped Mixes" didn't say a Mix was paused or a draft, and Resume said "Mix resumed." while the Mix stayed off. | A "Paused" or "Draft" label, and "Mix resumed. It isn’t on, so nothing is prepared until you turn it on."; the browser test checks both. |
+| LCK-05 | Remove cancelled follow-ups before taking the stop, the reverse of Stop Mix and a stage exit, so two at once could deadlock. | Remove writes the stop right after locking the Journey record. |
+| DOC-11 | The clean-up's time zone and timing, the mutation range, and the PR body's "6.10.0". | Fixed here and in the PR body. |
+
+The review also noted an older race: Start Mix re-checked the Mix under its lock but went on with what it had read before. It now goes on with the locked read.
 
 ## Found, not fixed
 
