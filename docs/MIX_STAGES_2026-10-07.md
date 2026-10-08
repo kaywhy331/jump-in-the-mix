@@ -1,6 +1,6 @@
 # Stages from the work — 2026-10-07
 
-**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. Six WF-05 reviews: rounds 1–3 requested changes (round 1: 1 HIGH, 4 MEDIUM, 6 LOW; round 2: 2 MEDIUM, 5 LOW; round 3: 1 MEDIUM, 5 LOW), and rounds 4, 5 and 6 approved with LOW findings only. Kevin then answered the open questions (D61–D68); D66 changes what an Everyone Mix moves. The seventh review, of D66, requested one fix (UX-08), made below, and the eighth approved it with 2 LOW: two comments (fixed) and UX-09, which goes to the follow-up with D65. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
+**Status:** released on 2026-10-08 as `prod-2026-10-08-dae3fab` (PR #132, merged as dae3fab); the release record is [`MIX_STAGES_RELEASE_2026-10-08.md`](MIX_STAGES_RELEASE_2026-10-08.md). Eight WF-05 reviews ran. Of the first six, rounds 1–3 requested changes (round 1: 1 HIGH, 4 MEDIUM, 6 LOW; round 2: 2 MEDIUM, 5 LOW; round 3: 1 MEDIUM, 5 LOW), and rounds 4, 5 and 6 approved with LOW findings only. Kevin then answered the open questions (D61–D68); D66 changes what an Everyone Mix moves. The seventh review, of D66, requested one fix (UX-08), made below, and the eighth approved it with 2 LOW: two comments (fixed) and UX-09, which goes to the follow-up with D65.
 
 **Decisions:**
 - **D35** (2026-10-05): a Mix can set a person's stage, and a Mega-Mix can create stage labels that the owner can still change.

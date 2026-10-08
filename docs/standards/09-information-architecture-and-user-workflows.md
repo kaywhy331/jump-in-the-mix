@@ -2,9 +2,9 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 6.9.0
+version: 6.9.1
 owner: Kevin
-last_reviewed: 2026-10-07
+last_reviewed: 2026-10-08
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
 supersedes: [docs/UX_WORKFLOW_OPTIMIZATION.md]
 sources:
@@ -309,7 +309,7 @@ Questions for Kevin:
 Decided on 2026-10-05 and 2026-10-06 (D33–D37, D44–D53):
 - §2.76 and §2.77 are shipped in `prod-2026-10-06-4a77761` (`docs/NO_MIX_STATUS_2026-10-05.md`), and the end-of-Mix question in §2.77 and §2.78 in `prod-2026-10-07-501841e` (`docs/MIX_NEXT_STEP_2026-10-06.md`, `docs/MIX_NEXT_STEP_RELEASE_2026-10-07.md`).
 - Kevin confirmed the seven readings from PR #128's reviews as D54–D60 (2026-10-07).
-- §2.51 and §2.79 are built on `feat/mix-stages-20261007` and not yet released (`docs/MIX_STAGES_2026-10-07.md`). Kevin confirmed its defaults and P8's label lists on 2026-10-07 (D61–D66).
+- §2.51 and §2.79 are shipped in `prod-2026-10-08-dae3fab` (`docs/MIX_STAGES_2026-10-07.md`, `docs/MIX_STAGES_RELEASE_2026-10-08.md`). Kevin confirmed its defaults and P8's label lists on 2026-10-07 (D61–D66).
 - Decided, not yet built: D63–D65 (a paused Everyone Mix takes in no newcomers from a save, Remove on an Everyone Mix is a stop, and a tag added while paused moves its members at resume), in the follow-up to #132; D67 ("Mix completed" following Journey runs), in slice 4; D68 (every way of adding people puts them in the first stage at once), in a later slice.
 - Not yet built: §2.80.
 - Kevin confirmed P1–P4, part of P5, P6 and P7's timing (D33), and the rest of P5 with D48–D53. P8 is D61; P9–P11 still wait for him; the questions, current behavior and build slices are in `docs/MIX_PLACEMENT_AND_STAGES_2026-10-05.md`.
@@ -362,3 +362,4 @@ Known deviations:
 - 6.7.0 — 2026-10-07 — Base 501841e. The third review of #132. §2.79: re-saving an Everyone Mix and a tag added while a Mix is paused are not starts (UX-03, STG-05).
 - 6.8.0 — 2026-10-07 — Base 501841e. The fourth review of #132 (approve, 5 LOW). §2.79: an Everyone Mix's resume moves only the people it takes in then, not people in it by another route (UX-04).
 - 6.9.0 — 2026-10-07 — Base 501841e. Kevin's answers to PR #132's questions (D61–D68). §2.39 gains D62's exception. §2.79 cites D61–D66, and an Everyone Mix moves only people with no stage yet (D66). §6 lists D63–D65, D67 and D68 as decided and not yet built.
+- 6.9.1 — 2026-10-08 — Base dae3fab. §6: §2.51 and §2.79 are shipped (`prod-2026-10-08-dae3fab`).
