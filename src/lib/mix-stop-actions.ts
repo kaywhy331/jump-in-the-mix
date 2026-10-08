@@ -79,9 +79,15 @@ export async function resumeMixForContactAction(formData: FormData): Promise<voi
   // Resuming starts follow-ups again, which takes a place on the plan if the person has none.
   const refusal = await reservePeople(workspace.id, [contactId]);
   if (refusal) redirect(withViewerError(returnTo, refusal, session));
+  // Someone removed from a Mix for Everyone was stopped in it (D64); resuming gives them their place back, from today.
+  const everyone = await prisma.mix.findFirst({ where: { id: mixId, workspaceId: workspace.id, audienceEveryone: true, status: { in: ["ACTIVE", "PAUSED"] }, source: { not: "ONE_TIME" } }, select: { triggerMode: true } });
 
   await prisma.$transaction([
     prisma.mixStop.delete({ where: { id: stop.id } }),
+    ...everyone ? [prisma.mixAssignment.updateMany({
+      where: { workspaceId: workspace.id, mixId, contactId, assignmentKey: `${workspace.id}:${mixId}:audience:${contactId}`, isActive: false },
+      data: { isActive: true, startDate: everyone.triggerMode === "MANUAL_START" ? new Date() : null }
+    })] : [],
     prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId, mixId } } }),
     prisma.auditLog.create({
       data: {
